@@ -260,12 +260,16 @@ class SvcRejectReportUseCase(SvcActivityTriggerBase):
 
 
 class SvcCloseCaseUseCase(SvcActivityTriggerBase):
-    """Close a VulnerabilityCase via the RM lifecycle (RM → C transition).
+    """The close-report trigger: send ``Close(Report)`` for a report's case.
 
-    Only the Case Owner may close the case.  The ``case_id`` is resolved
-    from the ``VulnerabilityCase`` linked to the report at ``_prepare`` time
-    and injected into the BT via ``_extra_execute_kwargs`` so that
-    ``CheckIsCaseOwnerNode`` can validate the CASE_OWNER role.
+    The ``case_id`` is resolved from the ``VulnerabilityCase`` linked to the
+    report at ``_prepare`` time (a report with no linked case raises
+    ``VultronNotFoundError``) and injected into the BT via
+    ``_extra_execute_kwargs``.  Once a case holds the report its Case Owner
+    closes the case by ``Leave(VulnerabilityCase)`` (``SvcLeaveCaseUseCase``)
+    and no actor sends ``Close(Report)`` for it, so the tree fails closed on
+    the case, before any write or emit, and the use case raises
+    ``VultronInvalidStateTransitionError`` (CM-23-019).
     """
 
     def _prepare(self) -> None:

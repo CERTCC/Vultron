@@ -7,7 +7,7 @@
     - **When…** the Case Manager invites an actor to join the case
     - **Send:** `Invite(Actor)[target=VulnerabilityCaseStub]`
     - **Send to:** a participant
-    - **Sent by:** not yet checked
+    - **Sent by:** the case manager
     - **Reference:** [Invite actor to case](../../case_management.md#invite-actor-to-case)
 
     ??? example "Example activity"

@@ -15,8 +15,9 @@
 
 Provides :func:`participant_adds_note_to_case`, which posts a note to a case
 through the ``add-note-to-case`` trigger.  The trigger sends one
-``Create(Note)`` whose note names the case as its ``context``; the
-CASE_MANAGER attaches the note and commits a ``create_note`` ledger entry.
+``Add(Note)`` that names the case as its ``target`` and carries the note
+inline; the CASE_MANAGER attaches the note and commits an
+``add_note_to_case`` ledger entry.
 """
 
 import logging
@@ -50,9 +51,10 @@ def participant_adds_note_to_case(
     """Participant adds a note to a case via the ``add-note-to-case`` trigger.
 
     The posting actor uses their own container's trigger endpoint, which
-    sends one ``Create(Note)`` naming the case as the note's ``context``, so
-    the note flows through the poster's outbox to the case host's inbox —
-    reflecting real deployment behavior (D5-7-DEMONOTECLEAN-1).
+    sends one ``Add(Note)`` naming the case as its ``target`` and carrying
+    the note inline, so the note flows through the poster's outbox to the
+    case host's inbox — reflecting real deployment behavior
+    (D5-7-DEMONOTECLEAN-1).
 
     Args:
         posting_client: Client connected to the posting actor's container.
@@ -107,7 +109,7 @@ def reporter_asks_vendor_answers(
     """The Reporter asks about the embargo and the Vendor answers.
 
     The shared note exchange of the embargo scenarios; it puts
-    ``create_note`` in the case ledger (DEMOMA-16-001).  Failures are
+    ``add_note_to_case`` in the case ledger (DEMOMA-16-001).  Failures are
     recorded by :func:`participant_adds_note_to_case`.
 
     Args:

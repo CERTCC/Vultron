@@ -22,7 +22,10 @@ type).
 
 Case closure in Vultron is always Case Owner-triggered: the Case Owner (or
 Case Manager acting on their behalf) issues a ``Leave(VulnerabilityCase)``
-activity, which flows through :func:`create_close_case_trigger_tree`.
+activity through the close-case trigger
+(:class:`~vultron.core.use_cases.triggers.case.leave.SvcLeaveCaseUseCase`).
+:func:`create_close_case_trigger_tree` sends ``Close(Report)``, so it fails
+on any case that holds the report (CM-23-019).
 There is no autonomous close path because:
 
 - Standard simulator closure criteria (CS.DEPLOYED, RM.DEFERRED, RM.INVALID)

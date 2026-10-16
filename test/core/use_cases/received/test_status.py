@@ -18,6 +18,8 @@ from typing import cast
 import pytest
 
 from test.core.use_cases.received.conftest import (
+    seed_case_manager_participant,
+    seed_case_participant,
     seed_store_owner_as_case_manager,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -78,6 +80,8 @@ class TestStatusUseCases:
         # so the store's own actor must hold the role for the write to run,
         # which also runs the guarded commit (sync_port injected below).
         seed_store_owner_as_case_manager(dl, case)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, "https://example.org/users/vendor")
         dl.create(case)
         dl.create(status)
 
@@ -179,6 +183,8 @@ class TestStatusUseCases:
             em=EmDimension(state=EM.NONE),
         )
         case.case_statuses.append(initial_status)  # type: ignore[arg-type]
+        # The sender holds standing, so its content is refused, not it.
+        seed_case_participant(dl, case, sender_id)
         dl.create(case)
 
         bad_status = as_CaseStatus(
@@ -330,7 +336,10 @@ class TestStatusUseCases:
         "rejected" to KEY_OUTCOME_STATUS and surfaces a rejected InboxOutcome
         rather than a silent 202 Accepted / processed (HP-01-003).
         """
-        receiver_id = "https://example.org/users/vendor-ps-ac2"
+        # The filter runs at the CASE_MANAGER: a replica takes the update
+        # from the CASE_MANAGER alone and refuses this sender first
+        # (PCR-03-001).
+        receiver_id = "https://example.org/users/case-manager-ps-ac2"
         sender_id = "https://example.org/users/vendor-ps-ac2"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
 
@@ -356,6 +365,7 @@ class TestStatusUseCases:
         )
         case.case_participants.append(participant.id_)
         case.actor_participant_index[sender_id] = participant.id_
+        seed_case_manager_participant(dl, case, receiver_id)
         dl.create(case)
 
         # A backward RM with no other change — filter will refuse it in full

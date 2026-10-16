@@ -77,8 +77,12 @@ one (HP-01-007, #4437).
 Exemption
 ---------
 ``exempt(tracking_issue, reason)`` declares a received use case as not yet
-checked, naming the tracking issue that owns the fix.
-The ratchet accepts an exemption as a valid declaration; it only fails on a
+checked, naming the open tracking issue that owns the fix.
+``no_sender_check(reason)`` declares a use case to which no sender check
+applies: it names no issue, because nothing is owed, and its reason says why
+(an activity with no recognized meaning, or one whose handler writes, commits
+and sends nothing a sender's standing could gate).
+The ratchet accepts either as a valid declaration; it only fails on a
 missing attribute.
 
 Nodes
@@ -102,6 +106,10 @@ Nodes
 - ``SenderIsProposalAddresseeNode`` — guards that the sender is the actor the
   vendor addressed a CaseProposal to, as recorded on the report case link
   (``NAMED_ACTOR`` kind; CP-06-005)
+- ``SenderIsExpectedCaseCreatorNode`` — guards that the sender of a bootstrap
+  ``Create(VulnerabilityCase)`` is the actor a report case link this store
+  wrote expects the case from, or the creator of a bootstrap it already
+  accepted (``NAMED_ACTOR`` kind; CBT-01-005, CBT-01-011)
 - ``SenderIsOfferAddresseeNode`` — guards that the sender is an actor the
   ``Offer(VulnerabilityReport)`` was addressed to, as recorded on this store's
   offer record (``NAMED_ACTOR`` kind; RMB-08-004)
@@ -189,6 +197,7 @@ from vultron.core.predicates.addressing import (
     same_actor_id,
 )
 from vultron.core.predicates.roles import has_case_owner_role
+from vultron.core.services.case_replica_seeding import expected_case_creators
 from vultron.errors import VultronError, VultronNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -379,19 +388,42 @@ class AddresseeSide(Enum):
 
 @dataclass(frozen=True)
 class SenderExemption:
-    """Declaration that a received use case is not yet sender-checked.
+    """Declaration that a received use case runs no sender check.
 
-    The ``tracking_issue`` names the sibling issue that will add the real
-    check.
-    The ratchet accepts this as a valid declaration.
+    Two forms (HP-01-007):
+
+    - Not yet checked: ``tracking_issue`` names the open issue that will add
+      the real check (:func:`exempt`).
+    - No check applies: ``tracking_issue`` is ``None`` and ``reason`` says
+      why no sender's standing gates anything the handler does
+      (:func:`no_sender_check`).
+
+    The ratchet accepts either as a valid declaration.
 
     Attributes:
-        tracking_issue: GitHub issue reference, e.g. ``"#4072"``.
-        reason: Human-readable reason the check is deferred.
+        tracking_issue: GitHub issue reference, e.g. ``"#4072"``; ``None``
+            when no sender check applies.
+        reason: Human-readable reason the check is deferred, or why none
+            applies.
+
+    Raises:
+        ValueError: An exemption that names no issue gives no reason.
     """
 
-    tracking_issue: str
+    tracking_issue: str | None
     reason: str = ""
+
+    def __post_init__(self) -> None:
+        if self.tracking_issue is None and not self.reason.strip():
+            raise ValueError(
+                "An exemption that names no tracking issue must say why no"
+                " sender check applies (HP-01-007)"
+            )
+
+    @property
+    def permanent(self) -> bool:
+        """No sender check applies, so no issue owns one."""
+        return self.tracking_issue is None
 
 
 def any_of(*kinds: SenderEntitlementKind) -> frozenset[SenderEntitlementKind]:
@@ -521,6 +553,33 @@ def exempt(tracking_issue: str, reason: str = "") -> SenderExemption:
         A :class:`SenderExemption` instance.
     """
     return SenderExemption(tracking_issue=tracking_issue, reason=reason)
+
+
+def no_sender_check(reason: str) -> SenderExemption:
+    """Declare a received use case to which no sender check applies.
+
+    For a use case whose handler does nothing a sender's standing could
+    gate: it writes nothing but the intake archive every received tree keeps
+    (CLP-10-018), commits nothing and sends nothing.  It names no tracking
+    issue, because no check is owed (HP-01-007).
+
+    Usage on a received use-case class::
+
+        class MyReceivedUseCase:
+            sender_entitlement: ClassVar[SenderEntitlement] = no_sender_check(
+                "the activity has no recognized meaning, so nothing is applied"
+            )
+
+    Args:
+        reason: Why no sender check applies; required.
+
+    Returns:
+        A permanent :class:`SenderExemption`.
+
+    Raises:
+        ValueError: *reason* is empty.
+    """
+    return SenderExemption(tracking_issue=None, reason=reason)
 
 
 # ---------------------------------------------------------------------------
@@ -1214,6 +1273,47 @@ class SenderIsProposalAddresseeNode(SenderIsRequestAddresseeNode):
             description=f"the CaseProposal for report '{self.report_id}'",
             position="the addressee",
             addressees=(addressee,) if addressee is not None else (),
+        )
+
+
+class SenderIsExpectedCaseCreatorNode(SenderIsRequestAddresseeNode):
+    """Guard: the sender of a bootstrap ``Create(VulnerabilityCase)`` is the
+    actor this store expects the case from.
+
+    The bootstrap answers the request that asked for the case: the vendor's
+    ``CaseProposal`` to the case actor service, or the reporter's report
+    ``Offer`` to the report receiver.  Either way the receiver recorded the
+    request's addressee on a ``VultronReportCaseLink`` (``case_creator_id``)
+    before the case arrived, and that record is its trust anchor
+    (CBT-01-005).  The sender is admitted when a link still awaiting a
+    bootstrap names it, or when a link already bound to the case names it (a
+    redelivery, CBT-01-006).  Any other sender is refused and nothing is
+    stored, whatever the snapshot it carries claims (CBT-01-011, ADR-0132).
+    Which of the two the sender is, and whether its case references the
+    report, are the received tree's to decide after admission.
+
+    Spec: CBT-01-005, CBT-01-011, HP-01-006, HP-01-009.
+    """
+
+    _spec = "CBT-01-011"
+
+    def __init__(
+        self,
+        case_id: str,
+        sender_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(sender_actor_id=sender_actor_id, name=name)
+        self.case_id = case_id
+
+    def _recorded_request(self) -> RecordedRequest:
+        assert self.datalayer is not None
+        return RecordedRequest(
+            description=f"case '{self.case_id}'",
+            position="the creator a trust anchor this actor wrote expects",
+            addressees=tuple(
+                expected_case_creators(self.datalayer, self.case_id)
+            ),
         )
 
 
@@ -2007,10 +2107,14 @@ class SenderClosureNotRecordedNode(DataLayerConditionWithPorts):
     A participant whose closure the case records (RM ``CLOSED``) may act on
     nothing further, except that a repeat of an act that would close it
     again changes nothing and is reported ``SKIPPED``, whatever its activity
-    id (ID-05-003).  This node is the check the closed-sender pre-flight runs
-    before a handler's received tree
+    id (ID-05-003).  This node is the closed-sender door guard the
+    receive-tree factory places
+    (:func:`vultron.core.behaviors.sender_guard.closed_sender_door`), and the
+    check the closed-sender pre-flight still runs before some handlers' trees
     (:func:`vultron.core.use_cases.received._sender_preflight.closed_sender_preflight`),
     built by :func:`vultron.core.behaviors.sender_guard.closed_sender_guard`.
+    The factory also composes it ahead of the ``CASE_OWNER`` kind's role
+    check, which asks the role alone.
 
     SUCCESS when the sender is not at RM ``CLOSED`` here, or when this store
     holds no such case: the received tree decides what the act means.

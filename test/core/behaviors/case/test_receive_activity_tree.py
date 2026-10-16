@@ -47,9 +47,13 @@ from vultron.core.behaviors.replica_emit_exemptions import (
 )
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
+    SenderIsParticipantNode,
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import SenderCheckContext
+from vultron.core.behaviors.sender_guard import (
+    ClosedSenderCheck,
+    SenderCheckContext,
+)
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
@@ -773,7 +777,8 @@ class TestClockDecisionStage:
             clock_decisions=[_effect("Expiry")],
             manager_effects=[_Emitter()],
             manager_case_id=CASE_ID,
-            **_sender_args(case_id=None),
+            # The sender is checked on the case the CASE_MANAGER writes for.
+            **_sender_args(case_id=CASE_ID),
         )
 
         gate = next(c for c in tree.children if c.name == CLOCK_GATE)
@@ -783,6 +788,23 @@ class TestClockDecisionStage:
             if isinstance(n, CheckIsCaseManagerNode)
         ]
         assert [c._case_id for c in checks] == [CASE_ID]
+
+    @pytest.mark.spec("HP-01-008")
+    def test_a_tree_with_no_commit_checks_its_sender_on_the_manager_case(
+        self,
+    ) -> None:
+        """A tree that commits nothing at its own level (the close-case tree)
+        still checks its sender on the case whose CASE_MANAGER it writes
+        for; a context naming no case is a wiring fault there."""
+        with pytest.raises(VultronWiringError, match="HP-01-008"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=None,
+                precondition_guards=[],
+                manager_effects=[_Emitter()],
+                manager_case_id=CASE_ID,
+                **_sender_args(case_id=None),
+            )
 
     @pytest.mark.spec("CLP-10-025")
     @pytest.mark.spec("EMB-13-003")
@@ -983,3 +1005,39 @@ class TestClockDecisionOutcomes:
         assert result.status is Status.FAILURE
         assert result.internal_error is True
         assert after.ran == 0
+
+
+class TestClosedSenderStage:
+    """The closed-sender door guard (CM-23-018) is placed by the factory."""
+
+    @pytest.mark.spec("CM-23-018")
+    def test_it_follows_the_post_close_guard_and_precedes_the_sender_guard(
+        self,
+    ) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            closed_sender=ClosedSenderCheck(sender_id="https://example.org/a"),
+            sender_rule=SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+            sender_context=SenderCheckContext(
+                sender_id="https://example.org/a", case_id=CASE_ID
+            ),
+        )
+        names = [child.name for child in tree.children]
+        door = names.index("SenderClosureNotRecordedNode")
+        assert names.index(POST_CLOSE) < door
+        assert tree.children[door] in tree.door_guards
+        assert isinstance(tree.children[door + 1], SenderIsParticipantNode)
+
+    @pytest.mark.spec("CM-23-018")
+    def test_a_tree_with_no_case_is_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="closed_sender"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=None,
+                precondition_guards=[],
+                closed_sender=ClosedSenderCheck(
+                    sender_id="https://example.org/a"
+                ),
+            )

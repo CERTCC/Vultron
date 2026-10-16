@@ -157,13 +157,14 @@ class AddNoteToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        note_id = request.note_id
+        note = request.note
         case_id = request.case_id
-        if note_id is None or case_id is None:
-            logger.warning("add_note_to_case: missing note_id or case_id")
+        if note is None or case_id is None:
+            logger.warning("add_note_to_case: missing inline note or case_id")
             return HandlerResult.refused(
-                "Add(Note, Case) is missing its note id or case id"
+                "Add(Note, Case) is missing its inline note or case id"
             )
+        note_id = note.id_
 
         # The CASE_MANAGER gate reads a missing case as "not the manager" and
         # skips, which would hide an Add aimed at a case this actor lacks.
@@ -176,7 +177,7 @@ class AddNoteToCaseReceivedUseCase:
         )
 
         tree = create_add_note_to_case_received_tree(
-            note_id=note_id,
+            note_obj=note,
             case_id=case_id,
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,

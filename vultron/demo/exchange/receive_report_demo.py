@@ -19,7 +19,8 @@ Demonstrates the workflow for receiving and processing vulnerability reports via
 This demo script showcases three different outcomes when processing vulnerability reports:
 1. Validate Report: ``as_Accept`` - creates a case
 2. Invalidate Report: ``as_TentativeReject`` - holds for reconsideration
-3. Invalidate and Close Report: ``as_TentativeReject`` + ``as_Reject`` - rejects and closes
+3. Invalidate and Close: ``as_TentativeReject`` + ``as_Leave`` - invalidates the
+   report and closes the case opened for it
 
 The finder submits each report through its own ``submit-report`` trigger, so the
 finder holds the anchor it checks the vendor's case introduction against
@@ -35,7 +36,8 @@ When run as a script, this module will:
 4. Run three separate demo workflows, each with a unique report:
    - demo_validate_report: Submit → Validate → Case introduced to the finder
    - demo_invalidate_report: Submit → Invalidate → Notify finder via inbox
-   - demo_invalidate_and_close_report: Submit → Invalidate → Close → Notify finder via inbox
+   - demo_invalidate_and_close_report: Submit → Invalidate → Close the case →
+     Notify finder via inbox
 5. Verify side effects in the data layer and finder's inbox for each workflow
 
 Note on Behavior Tree Execution:
@@ -64,6 +66,7 @@ from vultron.demo.helpers.workflow import (
     find_case_by_report_id,
     reporter_submits_report,
     verify_reporter_trusts_introduction,
+    wait_for_case_for_offer,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -79,7 +82,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     verify_object_stored,
 )
 from vultron.wire.as2.factories import (
-    rm_close_report_activity,
+    rm_close_case_activity,
     rm_invalidate_report_activity,
     rm_validate_report_activity,
 )
@@ -281,8 +284,11 @@ def demo_invalidate_and_close_report(
     """
     Demonstrates the workflow where a vendor invalidates a report and closes it.
 
-    Uses VultronActivity (TentativeReject) followed by VultronActivity (Reject) activities,
-    with responses posted directly to the finder's inbox.
+    Uses VultronActivity (TentativeReject) followed by a Leave(VulnerabilityCase):
+    the vendor opened a case for the report on receipt, and once a case holds
+    the report its owner closes the case by Leave, never by ``Close(Report)``
+    (CM-23-019).  The invalidation notice is posted directly to the finder's
+    inbox; the finder learns of the closure from the case.
 
     This follows the "Receiver Invalidates and Closes Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
@@ -310,7 +316,9 @@ def demo_invalidate_and_close_report(
         )
         logger.info("Submitted report: %s", logfmt(report))
 
-    with demo_step("Step 2: Vendor invalidates and closes report"):
+    with demo_step(
+        "Step 2: Vendor invalidates the report and closes the case"
+    ):
         offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
         invalidate_activity = rm_invalidate_report_activity(
             offer,
@@ -318,11 +326,10 @@ def demo_invalidate_and_close_report(
             content="Invalidating the report - this is a false positive.",
         )
         post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
-        close_activity = rm_close_report_activity(
-            offer, actor=vendor.id_, content="Closing the report as invalid."
-        )
+        case = wait_for_case_for_offer(client, offer.id_)
+        close_activity = rm_close_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close_activity)
-        with demo_check("InvalidateReport and CloseReport activities stored"):
+        with demo_check("InvalidateReport and CloseCase activities stored"):
             invalidate_response = client.get(
                 client.dl_path(invalidate_activity.id_)
             )
@@ -332,12 +339,10 @@ def demo_invalidate_and_close_report(
             )
             close_response = client.get(client.dl_path(close_activity.id_))
             logger.info(
-                "CloseReport stored: %s", json.dumps(close_response, indent=2)
+                "CloseCase stored: %s", json.dumps(close_response, indent=2)
             )
 
-    with demo_step(
-        "Step 3: Vendor notifies finder of invalidation and closure"
-    ):
+    with demo_step("Step 3: Vendor notifies finder of invalidation"):
         invalidate_response_to_finder = rm_invalidate_report_activity(
             offer,
             actor=vendor.id_,
@@ -349,13 +354,6 @@ def demo_invalidate_and_close_report(
             finder.id_,
             invalidate_response_to_finder,
         )
-        close_response_to_finder = rm_close_report_activity(
-            offer,
-            actor=vendor.id_,
-            to=[finder.id_],
-            content="This report has been closed.",
-        )
-        post_to_inbox_and_wait(client, finder.id_, close_response_to_finder)
         with demo_check("InvalidateReport response in finder's inbox"):
             if not verify_activity_in_inbox(
                 client, finder.id_, invalidate_response_to_finder.id_
@@ -366,21 +364,13 @@ def demo_invalidate_and_close_report(
                 raise ValueError(
                     "TentativeReject activity not found in finder's inbox."
                 )
-        with demo_check("CloseReport response in finder's inbox"):
-            if not verify_activity_in_inbox(
-                client, finder.id_, close_response_to_finder.id_
-            ):
-                logger.error("Reject activity not found in finder's inbox.")
-                raise ValueError(
-                    "Reject activity not found in finder's inbox."
-                )
 
     # The vendor created the case on receipt (auto_create_case), so its
     # introduction reaches the finder whatever the RM outcome (CBT-01-001).
     verify_reporter_trusts_introduction(client, finder, vendor, report)
 
     logger.info(
-        "✅ DEMO 3 COMPLETE: Report invalidated, closed, and finder notified via inbox."
+        "✅ DEMO 3 COMPLETE: Report invalidated, case closed, and finder notified via inbox."
     )
 
 

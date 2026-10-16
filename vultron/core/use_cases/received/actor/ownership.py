@@ -29,6 +29,7 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.use_cases._helpers import (
     is_recipient,
     resolve_receiving_actor_id,
@@ -113,6 +114,9 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         delegated_author = _as_id(request.activity.attributed_to)
         if delegated_author is None:
             return request.actor_id
+        # Recorded as the offerer, so normalised where it is extracted, like
+        # the sender id (OID-01-006).
+        delegated_author = normalise_actor_id(delegated_author)
         case = self._dl.read_case(case_id)
         case_actor_id = (
             resolve_case_manager_id(case, self._dl)
@@ -158,7 +162,11 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             return verdict
 
         case_id = _as_id(request.activity.object_)
+        # The transferee becomes the case owner if it accepts, so it is
+        # normalised where it is extracted (OID-01-006).
         transferee_id = _as_id(request.activity.target)
+        if transferee_id is not None:
+            transferee_id = normalise_actor_id(transferee_id)
         original_actor_id = (
             self._resolve_offering_actor_id(case_id)
             if case_id is not None

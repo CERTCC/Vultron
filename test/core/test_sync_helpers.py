@@ -28,6 +28,7 @@ from vultron.core.models.case_ledger import (
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.sync_helpers import (
     _find_equivalent_recorded_entry,
+    _find_prev_actor_published,
     _reconstruct_tail_hash,
     is_ledger_fresh_for_case,
 )
@@ -414,3 +415,87 @@ class TestEquivalentRecordedEntry:
         )
 
         assert found is None
+
+
+_SENDER = "https://example.org/actors/vendor"
+
+
+def _asserted(
+    log_index: int, actor: object, published: str, note: str
+) -> CaseLedgerEntry:
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/{note}",
+            event_type="add_note_to_case",
+            payload_snapshot={
+                "type": "Add",
+                "actor": actor,
+                "object": f"https://example.org/notes/{note}",
+                "published": published,
+            },
+            prev_log_hash=_ZERO_HASH,
+        )
+    )
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CLP-15-003")
+@pytest.mark.parametrize(
+    ("recorded_actor", "candidate_actor"),
+    [
+        pytest.param(_SENDER + "/", _SENDER, id="recorded-slash"),
+        pytest.param(_SENDER, _SENDER + "/", id="candidate-slash"),
+        pytest.param(
+            {"id": _SENDER + "/", "type": "Organization"},
+            _SENDER,
+            id="inline-recorded",
+        ),
+    ],
+)
+def test_prev_actor_published_is_one_stream_whatever_the_spelling(
+    dl, recorded_actor: object, candidate_actor: str
+):
+    """The snapshots keep each sender's spelling; one actor's assertions are
+    one stream however each spelled its id (CLP-15-003)."""
+    earlier = _asserted(0, recorded_actor, "2026-10-01T12:00:00+00:00", "n1")
+    candidate = {
+        "type": "Add",
+        "actor": candidate_actor,
+        "object": "https://example.org/notes/n2",
+        "published": "2026-10-02T12:00:00+00:00",
+    }
+
+    prev = _find_prev_actor_published(
+        case_id=CASE_ID, payload_snapshot=candidate, dl=dl, entries=[earlier]
+    )
+
+    assert prev is not None
+    assert prev.isoformat() == "2026-10-01T12:00:00+00:00"
+
+
+@pytest.mark.spec("CLP-15-003")
+def test_prev_actor_published_ignores_another_actor(dl):
+    earlier = _asserted(
+        0,
+        "https://example.org/actors/finder/",
+        "2026-10-01T12:00:00+00:00",
+        "n1",
+    )
+    candidate = {
+        "type": "Add",
+        "actor": _SENDER,
+        "object": "https://example.org/notes/n2",
+        "published": "2026-10-02T12:00:00+00:00",
+    }
+
+    assert (
+        _find_prev_actor_published(
+            case_id=CASE_ID,
+            payload_snapshot=candidate,
+            dl=dl,
+            entries=[earlier],
+        )
+        is None
+    )

@@ -30,6 +30,10 @@ act reaching it directly (PCR-03-001).
 :class:`ApplyRmVerdictFromLedgerNode` applies the one the entry names, in one
 ``RmVerdict`` slot of ``AnnounceLogEntryReceivedBT``.
 
+No CASE_MANAGER commits ``close_report`` any more: once a case holds the
+report, every ``Close(Report)`` is refused (CM-23-019).  Its target stays so a
+replica can still apply such an entry already in a ledger.
+
 The apply writes the state the ledger records and nothing else (CM-23-016): no
 intermediate rung is derived from the replica's own state.  It never moves the
 subject backwards on the RM progress scale (RSH-05-007), the same monotonic
@@ -50,7 +54,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import read_rm_states
 from vultron.core.behaviors.sync.nodes._helpers import (
-    _extract_id_from_field,
     _LedgerEffectNode,
 )
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
@@ -63,6 +66,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -133,9 +137,8 @@ class ApplyRmVerdictFromLedgerNode(_LedgerEffectNode):
         if (f := self._require_datalayer()) is not None:
             return f
         entry = self._get_entry()
-        subject_id = _extract_id_from_field(
-            entry.payload_snapshot.get("actor")
-        )
+        # Normalised: the snapshot keeps the sender's spelling (OID-01-006).
+        subject_id = snapshot_actor_id(entry.payload_snapshot.get("actor"))
         participant = self._subject_participant(entry.case_id, subject_id)
         if participant is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial view

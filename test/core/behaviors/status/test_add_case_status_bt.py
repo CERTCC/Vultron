@@ -38,8 +38,10 @@ from py_trees.common import Status
 
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
+    seed_case_participant,
 )
 from test.support.embargo_register import activate, propose
+from test.support.note_wire import assert_add_note_carries_note_inline
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -115,6 +117,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-bt-01"
+#: The declared rule the factory composes the sender guard from (HP-01-008).
+_CASE_STATUS_RULE = AddCaseStatusToCaseReceivedUseCase.sender_entitlement
 STATUS_ID = "https://example.org/cases/case-bt-01/statuses/s1"
 STATUS2_ID = "https://example.org/cases/case-bt-01/statuses/s2"
 
@@ -409,7 +413,9 @@ class TestFilterCsEmDimensionNodeBug2704:
             type(event), "status", new_callable=PropertyMock, return_value=None
         ):
             tree = add_case_status_tree(
-                request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+                sender_rule=_CASE_STATUS_RULE,
+                request=event,
+                call_out=STATUS_AUTHORIZATION_PERMISSIVE,
             )
             bridge = BTBridge(
                 datalayer=dl,
@@ -557,7 +563,9 @@ class TestFilterCsPxaDimensionNodeBug2706:
             FilterCsPxaDimensionNode, "get_input", new=_copy_returning
         ):
             tree = add_case_status_tree(
-                request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+                sender_rule=_CASE_STATUS_RULE,
+                request=event,
+                call_out=STATUS_AUTHORIZATION_PERMISSIVE,
             )
             bridge = BTBridge(
                 datalayer=dl,
@@ -600,7 +608,9 @@ class TestAddCaseStatusTree:
         event = make_payload(activity)
 
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=populated_dl,
@@ -629,7 +639,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event
+        )
         bridge = BTBridge(
             datalayer=populated_dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -669,7 +681,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event
+        )
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -717,7 +731,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event
+        )
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -771,7 +787,9 @@ class TestAddCaseStatusTree:
         event = make_payload(activity)
 
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -806,6 +824,8 @@ class TestAddCaseStatusTree:
             id_=CASE_ID, name="EM Carried", attributed_to=ACTOR_ID
         )
         propose(case, f"{CASE_ID}/embargo_events/carried")
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
 
         asserted = as_CaseStatus(
@@ -821,7 +841,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -862,6 +884,8 @@ class TestAddCaseStatusTree:
             id_=CASE_ID, name="PXA Refusal Log", attributed_to=ACTOR_ID
         )
         case.append_case_status(pxa=CS_pxa.Pxa)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
 
         # The case's own EM + PXA regression → PXA dimension refused and
@@ -880,7 +904,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -922,6 +948,8 @@ class TestAddCaseStatusTree:
             id_=CASE_ID, name="EM Refusal Log", attributed_to=ACTOR_ID
         )
         case.append_case_status(pxa=CS_pxa.pxa)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
 
         # EM other than the case's (NONE → ACTIVE) + valid PXA advance → EM
@@ -939,7 +967,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -979,6 +1009,8 @@ class TestAddCaseStatusTree:
             id_=CASE_ID, name="EM PXA Split", attributed_to=ACTOR_ID
         )
         propose(case, f"{CASE_ID}/embargo_events/serialized")
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
 
         # EM PROPOSED→ACTIVE refused (carried forward as PROPOSED) + PXA
@@ -997,7 +1029,9 @@ class TestAddCaseStatusTree:
         event = make_payload(activity)
 
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
 
         # The override is a within-execution hand-off (FinalizeCsFilterNode
@@ -1065,6 +1099,8 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         )
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         seed_case_manager_participant(dl, case, CASE_MANAGER_ID)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
         dl.create(status_obj)
 
@@ -1095,6 +1131,8 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         case = as_VulnerabilityCase(id_=CASE_ID, name="Idempotent Case")
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         case.case_statuses.append(status_obj)  # type: ignore[arg-type]
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
         dl.create(status_obj)
 
@@ -1736,6 +1774,8 @@ class TestAddCaseStatusTreeSeam2:
         )
         case.add_participant(cm_participant)
         activate(case, embargo.id_)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         status_obj = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
         )
@@ -1762,7 +1802,9 @@ class TestAddCaseStatusTreeSeam2:
             add_case_status_tree,
         )
 
-        tree = add_case_status_tree(request=event, call_out=call_out)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event, call_out=call_out
+        )
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -1788,7 +1830,9 @@ class TestAddCaseStatusTreeSeam2:
             add_case_status_tree,
         )
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event
+        )
 
         def _collect_node_types(node):
             yield type(node).__name__
@@ -1960,7 +2004,9 @@ class TestCaseLedgerEntryCreation:
         event = make_payload(activity)
 
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -2017,7 +2063,9 @@ class TestCaseLedgerEntryCreation:
         )
         event = make_payload(activity)
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event
+        )
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -2215,6 +2263,9 @@ class TestPxaEmInvariantDiagnosticNode:
         )
         case.add_participant(cm_participant)
         activate(case, embargo.id_)
+        # The senders must hold participant records (HP-01-006).
+        for sender in (DIAG_ACTOR_ID, PEER_ID):
+            seed_case_participant(dl, case, sender)
         status_obj = as_CaseStatus(
             id_=DIAG_STATUS_ID,
             context=DIAG_CASE_ID,
@@ -2249,7 +2300,9 @@ class TestPxaEmInvariantDiagnosticNode:
         event = self._make_event(dl, status_obj)
 
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -2270,6 +2323,7 @@ class TestPxaEmInvariantDiagnosticNode:
     @pytest.mark.spec("CSB-18-002")
     @pytest.mark.spec("CSB-18-003")
     @pytest.mark.spec("CSB-18-004")
+    @pytest.mark.spec("VAM-01-010")
     def test_blocked_gate_invariant_violated_note_posted(self):
         """AC-3: AlwaysFail gate — teardown blocked, EM=ACTIVE → violation → Note posted."""
         from vultron.adapters.driven.trigger_activity_adapter import (
@@ -2284,7 +2338,9 @@ class TestPxaEmInvariantDiagnosticNode:
         call_out = StatusAuthorizationCallOutBundle(
             embargo_teardown_authorization_gate_factory=AlwaysFail
         )
-        tree = add_case_status_tree(request=event, call_out=call_out)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event, call_out=call_out
+        )
         bridge = BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
@@ -2307,6 +2363,7 @@ class TestPxaEmInvariantDiagnosticNode:
             "PxaEmInvariantDiagnosticNode must post exactly one Note when the"
             " gate blocks teardown and the CSB-18 invariant is still violated"
         )
+        assert_add_note_carries_note_inline(dl, outbox[0], DIAG_CASE_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -2321,11 +2378,14 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
     """``add_case_status_tree`` gives the branch the status's sender, so at a
     replica a P/X/A status the CASE_MANAGER declared tears nothing down and
     asks for nothing (RSH-03-004, #4149); the manager's committed entry
-    carries the teardown.  The same tree at a replica still asks when the
-    status came from anyone else.
+    carries the teardown.  A peer's status never reaches the branch at a
+    replica: the replica takes case state from the CASE_MANAGER alone, so
+    the sender guard refuses it (PCR-03-001, RSH-04-001, HP-01-006).
     """
 
-    def _run(self, sender: str) -> SqliteDataLayer:
+    def _run(
+        self, sender: str, expected: Status = Status.SUCCESS
+    ) -> SqliteDataLayer:
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
         )
@@ -2341,7 +2401,14 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         case = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
         cm = cast(CaseParticipant, dl.read(f"{DIAG_CASE_ID}/participants/cm"))
         dl.save(cm.model_copy(update={"attributed_to": DIAG_CM_ID}))
-        case.actor_participant_index = {DIAG_CM_ID: cm.id_}
+        case.actor_participant_index = {
+            **{
+                actor: pid
+                for actor, pid in case.actor_participant_index.items()
+                if actor != REPLICA_ID
+            },
+            DIAG_CM_ID: cm.id_,
+        }
         dl.save(case)
 
         event = cast(
@@ -2355,7 +2422,9 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
             ),
         )
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -2366,7 +2435,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         result = bridge.execute_with_setup(
             tree=tree, actor_id=REPLICA_ID, activity=event
         )
-        assert result.status == Status.SUCCESS, result.feedback_message
+        assert result.status == expected, result.feedback_message
         return dl
 
     @pytest.mark.spec("RSH-03-004")
@@ -2378,13 +2447,12 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
         assert [a.type_ for a in queued] == [], [a.type_ for a in queued]
 
-    @pytest.mark.spec("RSH-03-004")
-    @pytest.mark.spec("EP-09-008")
-    def test_a_peers_declaration_still_asks_at_a_replica(self):
-        dl = self._run(sender=PEER_ID)
+    @pytest.mark.spec("PCR-03-001")
+    @pytest.mark.spec("HP-01-006")
+    def test_a_peers_declaration_is_refused_at_a_replica(self):
+        """Even from a participant: only the CASE_MANAGER emits it."""
+        dl = self._run(sender=PEER_ID, expected=Status.FAILURE)
 
         updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
         assert updated.current_status.em.state == EM.ACTIVE
-        queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
-        asks = [a for a in queued if DIAG_CM_ID in (a.to or [])]
-        assert asks, [a.type_ for a in queued]
+        assert dl.outbox_list() == []

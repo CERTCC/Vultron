@@ -46,6 +46,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
+    SenderClosureNotRecordedNode,
     SenderEntitlementConditionNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
@@ -119,6 +120,19 @@ def _store(receiver: str) -> BTTestScenario:
     seed_case_participant(scenario.dl, case, REPLICA)
     scenario.dl.create(case)
     return scenario
+
+
+def _owner_role_check(
+    guard: py_trees.behaviour.Behaviour | None,
+) -> py_trees.behaviour.Behaviour:
+    """The role check of a composed ``CASE_OWNER`` guard on a case.
+
+    The factory composes the closure check ahead of it (CM-23-018).
+    """
+    assert isinstance(guard, py_trees.composites.Sequence)
+    closure, role = guard.children
+    assert isinstance(closure, SenderClosureNotRecordedNode)
+    return role
 
 
 def _admits(rule: SenderRule, receiver: str, sender: str) -> bool:
@@ -240,7 +254,7 @@ def test_same_kinds_on_both_case_sides_compose_without_a_side_check() -> None:
         SenderRule.in_case(Kind.CASE_OWNER),
         SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
     )
-    assert isinstance(guard, SenderIsCaseOwnerNode)
+    assert isinstance(_owner_role_check(guard), SenderIsCaseOwnerNode)
 
 
 # ---------------------------------------------------------------------------
@@ -459,8 +473,9 @@ def test_case_owner_against_an_ownership_offer_is_the_offerer_check() -> None:
             ),
         ),
     )
-    assert isinstance(guard, SenderIsOwnershipOffererNode)
-    assert guard.guards_kind is Kind.CASE_OWNER
+    role = _owner_role_check(guard)
+    assert isinstance(role, SenderIsOwnershipOffererNode)
+    assert role.guards_kind is Kind.CASE_OWNER
 
 
 @pytest.mark.spec("CM-21-019")
@@ -475,8 +490,9 @@ def test_case_owner_for_a_new_ownership_offer_is_the_offering_owner_check() -> (
             sender_id=OWNER, case_id=CASE_ID, offered_ownership_id=OFFER_ID
         ),
     )
-    assert isinstance(guard, SenderIsOfferingCaseOwnerNode)
-    assert guard.guards_kind is Kind.CASE_OWNER
+    role = _owner_role_check(guard)
+    assert isinstance(role, SenderIsOfferingCaseOwnerNode)
+    assert role.guards_kind is Kind.CASE_OWNER
 
 
 # ---------------------------------------------------------------------------
@@ -979,6 +995,98 @@ def test_factory_rejects_a_context_without_a_rule() -> None:
             precondition_guards=[],
             sender_context=SenderCheckContext(sender_id=VENDOR),
         )
+
+
+# ---------------------------------------------------------------------------
+# CM-23-018: a closed Case Owner holds no CASE_OWNER standing
+# ---------------------------------------------------------------------------
+
+
+def _close_owner(scenario: BTTestScenario) -> BTTestScenario:
+    """Record the Case Owner's closure (RM ``CLOSED``) on the open case."""
+    case = scenario.dl.read(CASE_ID)
+    assert isinstance(case, as_VulnerabilityCase)
+    record = scenario.dl.read(case.actor_participant_index[OWNER])
+    assert isinstance(record, CaseParticipant)
+    record.participant_statuses.append(
+        ParticipantStatus(
+            context=CASE_ID,
+            attributed_to=OWNER,
+            rm=RmDimension(state=RM.CLOSED),
+        )
+    )
+    scenario.dl.save(record)
+    return scenario
+
+
+#: Every shape of ``CASE_OWNER`` check the factory composes on a case.
+_OWNER_CONTEXTS = {
+    "role": SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
+    "new-ownership-offer": SenderCheckContext(
+        sender_id=OWNER, case_id=CASE_ID, offered_ownership_id=OFFER_ID
+    ),
+    "ownership-offer-withdrawal": SenderCheckContext(
+        sender_id=OWNER,
+        case_id=CASE_ID,
+        request=OwnershipOfferRequest(offer_id=OFFER_ID, reply_id=REPLY_ID),
+    ),
+}
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.parametrize(
+    "rule",
+    [
+        SenderRule.in_case(Kind.CASE_OWNER),
+        SenderRule.to_case_manager(Kind.CASE_OWNER),
+    ],
+    ids=["in-case", "to-case-manager"],
+)
+@pytest.mark.parametrize("label", list(_OWNER_CONTEXTS))
+def test_a_closed_case_owner_is_refused(rule: SenderRule, label: str) -> None:
+    """An owner whose closure the case records may act on nothing (#4746)."""
+    guard = compose_sender_guard(rule, _OWNER_CONTEXTS[label])
+    assert guard is not None
+    result = _close_owner(_store(MANAGER)).run(
+        guard, activity=SimpleNamespace(actor_id=OWNER)
+    )
+    assert not result.internal_error, result.feedback_message
+    assert result.status == Status.FAILURE
+    assert "already closed" in BTBridge.get_failure_reason(guard)
+
+
+@pytest.mark.spec("CM-23-018")
+def test_an_open_case_owner_is_still_admitted() -> None:
+    assert _admits(SenderRule.in_case(Kind.CASE_OWNER), MANAGER, OWNER)
+
+
+@pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("HP-01-008")
+def test_a_closed_owner_holding_another_kind_is_refused_naming_every_kind() -> (
+    None
+):
+    """In an any-of side the closed owner falls through to the last arm."""
+    guard = compose_sender_guard(
+        SenderRule.in_case(Kind.CASE_OWNER, Kind.CASE_MANAGER),
+        SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
+    )
+    assert guard is not None
+    result = _close_owner(_store(MANAGER)).run(
+        guard, activity=SimpleNamespace(actor_id=OWNER)
+    )
+    assert result.status == Status.FAILURE
+    assert "none of the standings" in BTBridge.get_failure_reason(guard)
+
+
+@pytest.mark.spec("RSH-01-002")
+@pytest.mark.spec("CM-23-003")
+def test_the_case_owner_standing_read_still_asks_the_role_alone() -> None:
+    """``SenderIsCaseOwnerNode`` is unchanged: the Leave, suggest-actor,
+    status and embargo trees read it to pick an arm, closed owner or not."""
+    node = SenderIsCaseOwnerNode(sender_actor_id=OWNER, case_id=CASE_ID)
+    result = _close_owner(_store(MANAGER)).run(node)
+    assert result.status == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------

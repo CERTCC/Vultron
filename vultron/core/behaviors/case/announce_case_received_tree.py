@@ -45,8 +45,8 @@ from vultron.core.behaviors.case.nodes.announce import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.sender_check_context import SenderCheckContext
 from vultron.core.behaviors.sender_entitlement import SenderRule
-from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,

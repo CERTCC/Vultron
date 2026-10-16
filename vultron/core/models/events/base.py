@@ -15,6 +15,7 @@ from vultron.core.models.base import (
     NonEmptyString,
     ValidatedAssignmentMixin,
 )
+from vultron.primitives import NormalisedActorId
 
 
 class MessageSemantics(StrEnum):
@@ -119,7 +120,11 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
     semantic_type: MessageSemantics
     activity_id: NonEmptyString
     activity_type: NonEmptyString | None = None
-    actor_id: NonEmptyString
+    # The sender id in its canonical spelling, no trailing slash: the wire
+    # extractor normalises it, and an unnormalised one is refused here, so
+    # core compares it with stored ids exactly (OID-01-006, OID-01-007).
+    # The activity snapshot keeps the sender's own spelling.
+    actor_id: NormalisedActorId
 
     # Rich domain objects — parallel to AS2 Activity fields.
     # ``object_`` uses a trailing underscore because ``object`` is a Python built-in.

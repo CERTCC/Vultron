@@ -90,18 +90,20 @@ def test_validate_and_engage_settles_on_an_accepted_case(demo_env, caplog):
     assert vendor_rm == RM.ACCEPTED
 
 
+@pytest.mark.spec("CM-23-019")
 def test_invalidate_and_close_settles_closed(demo_env, caplog):
-    """Invalidate then close: the report is RM.CLOSED, never engaged.
+    """Invalidate then close: the vendor leaves its case RM.CLOSED, never engaged.
 
     The CaseActor still creates the case when the report arrives (the vendor's
     ``Create(CaseProposal)``), so a case exists; what distinguishes this run
-    is that the vendor is never ``RM.ACCEPTED`` on it and the report ends
-    closed.  The CaseActor ledgers the vendor's ``Reject(Offer)``
-    (CLP-10-013) and the vendor's replica replays that entry, so its own
-    participant ends ``RM.CLOSED`` too.
+    is that the vendor is never ``RM.ACCEPTED`` on it.  Once the case holds
+    the report, the vendor closes it by ``Leave(VulnerabilityCase)``, not
+    ``Close(Report)`` (CM-23-019): the CaseActor ledgers the owner's closure
+    and the vendor's replica replays it, so its participant ends
+    ``RM.CLOSED``.  Its report link keeps the ``INVALID`` it recorded.
     """
     link, vendor_rm = _run(demo_env, demo.demo_invalidate_and_close, caplog)
-    assert link.rm_state == RM.CLOSED
+    assert link.rm_state == RM.INVALID
     assert link.case_id is not None
     assert vendor_rm == RM.CLOSED
 

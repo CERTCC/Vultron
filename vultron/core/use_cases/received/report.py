@@ -50,9 +50,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     rm_declaration_verdict,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._sender_preflight import (
-    closed_sender_preflight,
-)
 from vultron.errors import (
     VultronBTInternalError,
 )
@@ -452,10 +449,26 @@ class AckReportReceivedUseCase:
 
 
 class CloseReportReceivedUseCase:
-    # The sender declares its own RM state; only a participant of the case may
-    # (HP-01-006, RSH-06-006).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
-        SenderEntitlementKind.PARTICIPANT
+    """Refuse a ``Close(Report)``: no receiver applies one (CM-23-019).
+
+    A report that belongs to a case is held by the case's Case Owner alone,
+    and the Case Owner closes the case by ``Leave(VulnerabilityCase)``
+    (CM-23-001).  A ``Close(Report)`` for it is the wrong closing act from
+    the owner and a message no other sender has a report to send, so the
+    declared rule admits no sender on either case side: the tree's sender
+    guard refuses every one, and nothing is written, committed or sent.
+    Before any case exists the receiver holds no case to apply the sender's
+    closure to, so the tree refuses the activity as one about a case it does
+    not hold (#2255), as it always has.  Either way intake archives what
+    arrived first (CLP-10-018).
+    """
+
+    # Before any case, the report's receiver closes it to the reporter (the
+    # Offer's addressee, RMB-14-004).  Once a case holds the report, no
+    # sender may send one to a case actor (CM-23-019): an empty side admits
+    # no one, and a sender-guard refusal is owed no answer (HP-01-006).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.before_case(
+        SenderEntitlementKind.NAMED_ACTOR
     )
 
     def __init__(
@@ -474,50 +487,24 @@ class CloseReportReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        # Two different actors, deliberately (RSH-08-001, BT-17-006): the tree
-        # *executes* in the receiving actor's store, but the RM write is about
-        # the *sender*, ``request.actor_id`` — the activity is an assertion
-        # about the sender's state (HP-00-001), which the tree factory reads
-        # from the request.
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-        # The case the sender guard and the RM adjudication read.
-        case_id = _case_id_for_report(self._dl, request.report_id)
-        # A Close from a sender the case already records as closed would
-        # close it again: its effect is in place, so it is SKIPPED with
-        # nothing committed or sent, whatever its id (CM-23-018, ID-05-003).
-        skip = closed_sender_preflight(
-            self._dl,
-            receiving_actor_id,
-            request,
-            case_id=case_id,
-            sender_actor_id=request.actor_id,
-            closes=True,
-            label="CloseReportReceivedBT",
-            sync_port=self._sync_port,
-        )
-        if skip is not None:
-            return skip
         tree = create_close_report_received_tree(
-            request, case_id=case_id, sender_rule=self.sender_entitlement
+            request,
+            case_id=_case_id_for_report(self._dl, request.report_id),
+            sender_rule=self.sender_entitlement,
         )
-        bridge = BTBridge(
+        result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        )
-        result = bridge.execute_with_setup(
+        ).execute_with_setup(
             tree=tree,
-            actor_id=receiving_actor_id,
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
             activity=request,
         )
-        return rm_declaration_verdict(
-            tree,
-            _log_refusal(
-                verdict_from_bt(tree, result, label="CloseReportReceivedBT"),
-                request.activity_id,
-            ),
-            label="CloseReportReceivedBT",
+        return _log_refusal(
+            verdict_from_bt(tree, result, label="CloseReportReceivedBT"),
+            request.activity_id,
         )

@@ -18,7 +18,8 @@
 Covers SUCCESS and FAILURE paths for:
   - ``InvalidateReportTriggerBT`` (create_invalidate_report_trigger_tree)
   - ``RejectReportTriggerBT``     (create_reject_report_trigger_tree)
-  - ``CloseCaseTriggerBT``        (create_close_case_trigger_tree)
+  - ``CloseCaseTriggerBT``        (create_close_case_trigger_tree), which
+    fails closed on any case that holds the report (CM-23-019)
 """
 
 import py_trees
@@ -235,7 +236,6 @@ class TestInvalidateReportTriggerTree:
         self, scenario: BTTestScenario, actor, report, offer
     ):
         """FAILURE: no TriggerActivityPort on the blackboard → tree fails."""
-        import py_trees
 
         from vultron.core.behaviors.bridge import BTBridge
 
@@ -384,7 +384,6 @@ class TestRejectReportTriggerTree:
         self, scenario: BTTestScenario, actor, report, offer
     ):
         """FAILURE: no TriggerActivityPort on the blackboard → tree fails."""
-        import py_trees
 
         from vultron.core.behaviors.bridge import BTBridge
 
@@ -397,16 +396,95 @@ class TestRejectReportTriggerTree:
         assert result.status == Status.FAILURE
 
 
+def _assert_failed_closed(
+    scenario: BTTestScenario,
+    result,
+    result_out: dict,
+    report_id: str,
+    rm_before: RM,
+    outbox_before: set[str],
+) -> None:
+    """The trigger failed before any RM write or emit (CM-23-019)."""
+    scenario.assert_failure(result)
+    error = result_out.get("error")
+    assert isinstance(error, VultronInvalidStateTransitionError)
+    assert "Leave(VulnerabilityCase)" in str(error)
+    assert report_id in str(error)
+    scenario.assert_rm_state(report_id, rm_before)
+    assert set(scenario.dl.outbox_list()) == outbox_before
+
+
+class TestRejectReportOnACase:
+    @pytest.mark.spec("CM-23-019")
+    def test_reject_of_a_report_a_case_holds_fails_closed(
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        case_with_owner: VulnerabilityCase,
+        report_case_link: VultronReportCaseLink,
+    ):
+        """Once a case holds the report, no Close(Report) is sent for it."""
+        before = set(scenario.dl.outbox_list())
+        result_out: dict = {}
+        tree = create_reject_report_trigger_tree(
+            offer_id=offer.id_,
+            report_id=report.id_,
+            sender_actor_id=ACTOR_ID,
+            result_out=result_out,
+        )
+        result = scenario.run(tree)
+        _assert_failed_closed(
+            scenario, result, result_out, report.id_, RM.RECEIVED, before
+        )
+
+
 # ---------------------------------------------------------------------------
 # CloseCaseTriggerBT tests
 # ---------------------------------------------------------------------------
 
 
 class TestCloseCaseTriggerTree:
-    @pytest.mark.spec("RMB-14-001")
-    @pytest.mark.spec("BTND-10-001")
-    @pytest.mark.spec("BT-03-004")
-    def test_success_emits_activity_and_sets_rm_closed(
+    """The close-report trigger emits ``Close(Report)``, so it fails closed on
+    any case that holds the report: the Case Owner closes by ``Leave``
+    (CM-23-019).  Before this rule its success moved the owner to RM
+    ``CLOSED`` while the case stayed open (#4746)."""
+
+    @pytest.mark.spec("CM-23-019")
+    @pytest.mark.parametrize(
+        "owner", [True, False], ids=["owner", "non-owner"]
+    )
+    def test_close_report_on_a_case_fails_closed(
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        accepted_status: VultronReportCaseLink,
+        request,
+        owner: bool,
+    ):
+        """Owner or not, nothing is written or sent, and the error names Leave."""
+        case = request.getfixturevalue(
+            "case_with_owner" if owner else "case_with_non_owner"
+        )
+        before = set(scenario.dl.outbox_list())
+        result_out: dict = {}
+        tree = create_close_case_trigger_tree(
+            actor_id=ACTOR_ID,
+            case_id=case.id_,
+            offer_id=offer.id_,
+            report_id=report.id_,
+            result_out=result_out,
+        )
+        result = scenario.run(tree, case_id=case.id_)
+        _assert_failed_closed(
+            scenario, result, result_out, report.id_, RM.ACCEPTED, before
+        )
+
+    @pytest.mark.spec("CM-23-019")
+    def test_pre_close_action_does_not_run_on_a_case(
         self,
         scenario: BTTestScenario,
         actor,
@@ -415,207 +493,29 @@ class TestCloseCaseTriggerTree:
         case_with_owner: VulnerabilityCase,
         accepted_status: VultronReportCaseLink,
     ):
-        """SUCCESS: emits activity and persists RM.CLOSED from RM.ACCEPTED."""
-        result_out: dict = {}
-        tree = create_close_case_trigger_tree(
-            actor_id=ACTOR_ID,
-            case_id=case_with_owner.id_,
-            offer_id=offer.id_,
-            report_id=report.id_,
-            result_out=result_out,
+        """The refusal comes before the ``PreCloseAction`` call-out."""
+        from vultron.core.behaviors.call_out.bundles.close_report import (
+            CloseReportCallOutBundle,
         )
-        result = scenario.run(tree, case_id=case_with_owner.id_)
-        scenario.assert_success(result)
-        scenario.assert_rm_state(report.id_, RM.CLOSED)
-        assert "error" not in result_out
 
-    @pytest.mark.spec("RMB-14-001")
-    def test_success_adds_to_outbox(
-        self,
-        scenario: BTTestScenario,
-        actor,
-        report,
-        offer,
-        case_with_owner: VulnerabilityCase,
-        accepted_status: VultronReportCaseLink,
-    ):
-        """SUCCESS: activity is added to the actor's outbox."""
-        before = set(scenario.dl.outbox_list())
-        result_out: dict = {}
-        tree = create_close_case_trigger_tree(
-            actor_id=ACTOR_ID,
-            case_id=case_with_owner.id_,
-            offer_id=offer.id_,
-            report_id=report.id_,
-            result_out=result_out,
-        )
-        scenario.run(tree, case_id=case_with_owner.id_)
-        after = set(scenario.dl.outbox_list())
-        assert len(after - before) >= 1
+        ran: list[str] = []
 
-    @pytest.mark.spec("RMB-14-004")
-    @pytest.mark.spec("VP-02-004")
-    def test_close_from_valid_is_refused_before_emit(
-        self,
-        scenario: BTTestScenario,
-        actor,
-        report,
-        offer,
-        case_with_owner: VulnerabilityCase,
-    ):
-        """Close-case from RM.VALID is refused and sends nothing (no V → C)."""
-        scenario.seed(
-            VultronReportCaseLink(report_id=report.id_, rm_state=RM.VALID)
+        class _Recording(AlwaysSucceed):
+            def update(self) -> Status:
+                ran.append(self.name)
+                return super().update()
+
+        custom_bundle = CloseReportCallOutBundle(
+            pre_close_action_factory=_Recording  # type: ignore[arg-type]
         )
-        before = set(scenario.dl.outbox_list())
         tree = create_close_case_trigger_tree(
             actor_id=ACTOR_ID,
             case_id=case_with_owner.id_,
             offer_id=offer.id_,
             report_id=report.id_,
             result_out={},
-        )
-        result = scenario.run(tree, case_id=case_with_owner.id_)
-        scenario.assert_failure(result)
-        scenario.assert_rm_state(report.id_, RM.VALID)
-        assert set(scenario.dl.outbox_list()) == before
-
-    @pytest.mark.spec("BT-10-004")
-    def test_failure_non_case_owner_blocked(
-        self,
-        scenario: BTTestScenario,
-        actor,
-        report,
-        offer,
-        case_with_non_owner: VulnerabilityCase,
-    ):
-        """FAILURE: actor is not CASE_OWNER — CheckCaseOwner guard blocks tree."""
-        result_out: dict = {}
-        tree = create_close_case_trigger_tree(
-            actor_id=ACTOR_ID,
-            case_id=case_with_non_owner.id_,
-            offer_id=offer.id_,
-            report_id=report.id_,
-            result_out=result_out,
-        )
-        result = scenario.run(tree, case_id=case_with_non_owner.id_)
-        scenario.assert_failure(result)
-
-    @pytest.mark.spec("BTND-10-001")
-    @pytest.mark.spec("RMB-14-002")
-    def test_failure_already_closed_writes_error(
-        self,
-        scenario: BTTestScenario,
-        actor,
-        report,
-        offer,
-        case_with_owner: VulnerabilityCase,
-        closed_status: VultronReportCaseLink,
-    ):
-        """FAILURE: already-closed report writes VultronInvalidStateTransitionError."""
-        result_out: dict = {}
-        tree = create_close_case_trigger_tree(
-            actor_id=ACTOR_ID,
-            case_id=case_with_owner.id_,
-            offer_id=offer.id_,
-            report_id=report.id_,
-            result_out=result_out,
-        )
-        result = scenario.run(tree, case_id=case_with_owner.id_)
-        scenario.assert_failure(result)
-        assert "error" in result_out
-        assert isinstance(
-            result_out["error"], VultronInvalidStateTransitionError
-        )
-
-    @pytest.mark.spec("BTND-10-001")
-    def test_failure_already_closed_error_message(
-        self,
-        scenario: BTTestScenario,
-        actor,
-        report,
-        offer,
-        case_with_owner: VulnerabilityCase,
-        closed_status: VultronReportCaseLink,
-    ):
-        """The error message references the report ID."""
-        result_out: dict = {}
-        tree = create_close_case_trigger_tree(
-            actor_id=ACTOR_ID,
-            case_id=case_with_owner.id_,
-            offer_id=offer.id_,
-            report_id=report.id_,
-            result_out=result_out,
-        )
-        scenario.run(tree, case_id=case_with_owner.id_)
-        error = result_out.get("error")
-        assert error is not None
-        assert report.id_ in str(error)
-
-    @pytest.mark.spec("BT-15-002")
-    def test_failure_no_trigger_activity_factory(
-        self,
-        scenario: BTTestScenario,
-        actor,
-        report,
-        offer,
-        case_with_owner: VulnerabilityCase,
-    ):
-        """FAILURE: no TriggerActivityPort on the blackboard → tree fails."""
-        import py_trees
-
-        from vultron.core.behaviors.bridge import BTBridge
-
-        bridge_no_factory = BTBridge(datalayer=scenario.dl)
-        result_out: dict = {}
-        tree = create_close_case_trigger_tree(
-            actor_id=ACTOR_ID,
-            case_id=case_with_owner.id_,
-            offer_id=offer.id_,
-            report_id=report.id_,
-            result_out=result_out,
-        )
-        py_trees.blackboard.Blackboard.storage.clear()
-        result = bridge_no_factory.execute_with_setup(
-            tree, actor_id=ACTOR_ID, case_id=case_with_owner.id_
-        )
-        assert result.status == Status.FAILURE
-
-    def test_custom_call_out_factory_is_used(
-        self,
-        scenario: BTTestScenario,
-        actor,
-        report,
-        offer,
-        case_with_owner: VulnerabilityCase,
-        accepted_status: VultronReportCaseLink,
-    ):
-        """SUCCESS: a custom call_out bundle's pre_close_action_factory is invoked."""
-        from vultron.core.behaviors.call_out.bundles.close_report import (
-            CloseReportCallOutBundle,
-        )
-
-        invoked: list[str] = []
-
-        def tracking_factory(name: str) -> py_trees.behaviour.Behaviour:
-            invoked.append(name)
-            return AlwaysSucceed(name)
-
-        custom_bundle = CloseReportCallOutBundle(
-            pre_close_action_factory=tracking_factory  # type: ignore[arg-type]
-        )
-
-        result_out: dict = {}
-        tree = create_close_case_trigger_tree(
-            actor_id=ACTOR_ID,
-            case_id=case_with_owner.id_,
-            offer_id=offer.id_,
-            report_id=report.id_,
-            result_out=result_out,
             call_out=custom_bundle,
         )
         result = scenario.run(tree, case_id=case_with_owner.id_)
-        scenario.assert_success(result)
-        assert invoked == ["PreCloseAction"], (
-            "Custom pre_close_action_factory was not called"
-        )
+        scenario.assert_failure(result)
+        assert ran == [], "PreCloseAction never runs on a case"

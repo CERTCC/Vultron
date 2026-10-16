@@ -57,8 +57,8 @@ from vultron.core.behaviors.note.nodes import (
     AttachNoteToCaseNode,
     SaveNoteNode,
 )
+from vultron.core.behaviors.sender_check_context import SenderCheckContext
 from vultron.core.behaviors.sender_entitlement import SenderRule
-from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.models.note import VultronNote
 
 logger = logging.getLogger(__name__)

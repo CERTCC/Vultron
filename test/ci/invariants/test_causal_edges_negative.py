@@ -66,7 +66,7 @@ def test_missing_consequent_fails() -> None:
     """A declared consequent that does not appear in the log is a violation."""
     replicas = _replicas(
         _make_entry(0, "validate_report"),
-        _make_entry(1, "create_note"),
+        _make_entry(1, "add_note_to_case"),
     )
     edges = [{"antecedent": "validate_report", "consequent": "engage_case"}]
     violations = check_causal_edges(replicas, edges)
@@ -136,16 +136,16 @@ def test_multiple_edges_partial_failure_reported() -> None:
         _make_entry(0, "validate_report"),
         _make_entry(1, "engage_case"),
         _make_entry(2, "close_case"),
-        # create_note is absent — any edge requiring it will fail
+        # add_note_to_case is absent — any edge requiring it will fail
     )
     edges = [
         {"antecedent": "validate_report", "consequent": "engage_case"},  # pass
         {"antecedent": "validate_report", "consequent": "close_case"},  # pass
         {
             "antecedent": "validate_report",
-            "consequent": "create_note",
+            "consequent": "add_note_to_case",
         },  # fail: absent
     ]
     violations = check_causal_edges(replicas, edges)
     assert len(violations) == 1
-    assert "create_note" in violations[0]
+    assert "add_note_to_case" in violations[0]

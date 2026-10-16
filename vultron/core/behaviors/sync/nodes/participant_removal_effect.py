@@ -54,6 +54,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.wire_keys import wire_key
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.errors import VultronNotFoundError
 
 #: Ledger ``event_type`` of the Case Owner's removal request, as the guarded
@@ -181,9 +182,9 @@ class _ParticipantMoveLedgerEffectNode(_LedgerEffectNode):
         assert self.datalayer is not None
         candidates: list[str] = []
         if isinstance(participant_data, dict):
-            actor_id = _extract_id_from_field(
-                participant_data.get(_ATTRIBUTED_TO)
-            )
+            # Normalised: the snapshot keeps the sender's spelling
+            # (OID-01-006).
+            actor_id = snapshot_actor_id(participant_data.get(_ATTRIBUTED_TO))
             if actor_id and actor_id in case.actor_participant_index:
                 candidates.append(case.actor_participant_index[actor_id])
         snapshot_id = _extract_id_from_field(participant_data)
