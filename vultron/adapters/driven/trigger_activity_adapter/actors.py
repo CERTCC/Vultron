@@ -395,10 +395,16 @@ class _ActorsMixin:
         The ``to:`` list should contain the CaseActor URI so the Accept routes
         back to CaseActor for processing.
         """
-        raw = self._dl.read(cp_offer_id)
-        if raw is None:
-            raise VultronNotFoundError("Offer(CaseParticipant)", cp_offer_id)
-        cp_offer = cast(as_Offer, raw)
+        # Read as received: the inbox stores the Offer with its participant
+        # as an id and stores no participant record, so only the intake
+        # archive holds the participant inline (#3763).  The factory validates
+        # the core activity it holds into the wire Offer.
+        cp_offer = cast(
+            as_Offer,
+            read_received_activity(
+                self._dl, cp_offer_id, "Offer(CaseParticipant)"
+            ),
+        )
         # Read-back rehydrates the offer's ``target`` into the full stored
         # case; the Accept addresses the case by URI, as the Offer did on the
         # wire (AKM-02-002, VM-08-003).

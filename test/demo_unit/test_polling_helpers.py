@@ -54,6 +54,7 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_embargo_consent,
     wait_for_pending_inbox_quiescent,
 )
+from vultron.wire.as2.factories.actor import offer_case_participant_activity
 from vultron.wire.as2.factories.case import (
     rm_invite_to_case_activity,
     rm_invite_to_full_case_activity,
@@ -772,6 +773,47 @@ class TestAssertReceivedFrom:
             )
 
 
+class TestFindCpOfferForCase:
+    """The participant is inline only in intake's archive record (IO-03-004)."""
+
+    def test_returns_the_senders_id_for_the_archived_offer(self):
+        offer = offer_case_participant_activity(
+            recommended=as_Service(id_=ACTOR_B),
+            target=CASE_ID,
+            actor=_MANAGER,
+        )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_B)
+        record = archive_received(dl, offer)
+        client = _dl_client(
+            {
+                record.id_: record.model_dump(
+                    mode="json", exclude_none=True, by_alias=True
+                )
+            }
+        )
+
+        found = find_cp_offer_for_case(
+            client, CASE_ID, timeout_seconds=1.0, poll_interval=0.01
+        )
+
+        assert found == offer.id_
+
+    def test_a_bare_offer_naming_its_participant_by_id_does_not_match(self):
+        bare = {
+            "type": "Offer",
+            "target": CASE_ID,
+            "object": f"{ACTOR_B}#participant",
+        }
+
+        with pytest.raises(AssertionError, match="Timed out"):
+            find_cp_offer_for_case(
+                _dl_client({"urn:uuid:o": bare}),
+                CASE_ID,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+            )
+
+
 class TestMalformedReceivedRecord:
     """A record the server returns malformed fails loudly, never matches."""
 
@@ -1127,7 +1169,7 @@ _STORE_SCAN_FINDERS = [
     ),
     pytest.param(
         lambda c, **kw: find_cp_offer_for_case(c, CASE_ID, **kw),
-        ["Offer"],
+        ["ReceivedActivityRecord", "Offer"],
         id="case-participant-offer",
     ),
 ]

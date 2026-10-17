@@ -29,6 +29,7 @@ from vultron.config import get_config
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent, resolve_case_context_id
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.pending_inline_objects import PendingInlineObjects
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.factories.case import bootstrap_replay_question_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -92,7 +93,8 @@ def _expire_pending_case_activities(
     ``AppConfig.pre_bootstrap_queue_timeout_seconds``).  When expired:
 
     1. Logs a WARNING for each dropped activity ID (CBT-03-003).
-    2. Deletes the queue record.
+    2. Deletes the queue record, and the inline objects held for each
+       activity's replay.
     3. Emits a ``Question`` to the recorded ``case_actor_id`` asking
        for the bootstrap ``Create(VulnerabilityCase)`` to be resent
        (CBT-03-004, SHOULD).
@@ -140,6 +142,10 @@ def _expire_pending_case_activities(
             case_id,
             age_seconds,
             timeout_seconds,
+        )
+        # The inline objects held for its replay go with it (#3763).
+        queue_dl.delete(
+            "PendingInlineObjects", PendingInlineObjects.build_id(activity_id)
         )
     queue_dl.delete("PendingCaseInbox", pending_id)
     logger.warning(

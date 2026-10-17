@@ -180,6 +180,32 @@ def actor_db_url(db_url: str, actor_id: str) -> str:
     return f"{scheme}///{path.with_name(f'{stem}-{slug}{suffix}')}"
 
 
+def scratch_memory_url(db_url: str, purpose: str) -> str:
+    """Return a named in-memory URL template beside the deployment *db_url*.
+
+    A scratch store is always in memory, whatever *db_url* is, and is named
+    after the deployment so that two applications in one process never share
+    one (see :func:`_memory_base_name`).  For an in-memory deployment the
+    name keeps the deployment's prefix, so disposing the deployment disposes
+    its scratch stores too.  The ``~`` after that prefix is a character no
+    :func:`actor_slug` contains, so no actor's own store shares the name.
+
+    Args:
+        db_url: The deployment's configured SQLAlchemy URL template.
+        purpose: A slug naming what the scratch store is for.
+
+    Returns:
+        An in-memory URL template, resolved per actor like any other.
+    """
+    if _is_memory_url(db_url):
+        base = _memory_base_name(db_url)
+    else:
+        base = Path(db_url.partition("///")[2]).stem or _DEFAULT_MEMORY_BASE
+    return (
+        f"sqlite:///file:{base}-~{purpose}?mode=memory&cache=shared&uri=true"
+    )
+
+
 def json_default(obj: Any) -> Any:
     """JSON encoder fallback that serializes ``datetime`` / ``date`` objects."""
     if isinstance(obj, (datetime, date)):

@@ -145,8 +145,8 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
             # Idempotent path — case already present locally (MV-10-004).
             # Still refresh participants and normalise the stored case so the
             # DataLayer row never carries inline sub-objects (#2233 write-path).
-            # The pre-store in _inbox.py may have already normalised the row,
-            # but this path also handles re-delivery of the same Announce.
+            # This path handles a replica that already holds the case and a
+            # re-delivery of the same Announce.
             self.logger.debug(
                 "%s: case '%s' already exists locally"
                 " — refreshing participants and normalising row (MV-10-004)",

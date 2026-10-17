@@ -1113,7 +1113,8 @@ def _is_ownership_transfer_offer_for(
     to the transferee (CM-21-005).  The forwarded Offer has::
 
         type   = "Offer"
-        target = transferee_id      # the actor being offered ownership
+        target = transferee_id      # the actor being offered ownership,
+                                    # inline Actor or its id (DL-08-003)
         object = case_id            # the VulnerabilityCase being transferred
 
     The original Vendor Offer (addressed to the CaseActor, target=case_actor_id)
@@ -1150,7 +1151,8 @@ def find_ownership_transfer_offer_for_actor(
     because the original Offer is only stored in the CaseActor's DataLayer.
 
     This helper scans *client*'s DataLayer for any
-    ``Offer(target=transferee_id, object=case_id)`` and returns its ID so the
+    ``Offer(target=transferee_id, object=case_id)`` (``target`` an inline Actor
+    or its id) and returns its ID so the
     demo can drive the ``accept-case-ownership-transfer`` trigger with the correct
     (forwarded) offer ID.
 
@@ -1190,17 +1192,24 @@ def find_ownership_transfer_offer_for_actor(
     )
 
 
+#: The stored types a received Offer(CaseParticipant) can be held as.  The
+#: bare stored Offer names its participant by id only, because ingress stores
+#: no inline object (IO-03-004); intake's archive record keeps it inline.
+_RECEIVED_OFFER_TYPES: tuple[str, ...] = ("ReceivedActivityRecord", "Offer")
+
+
 def _is_cp_offer_for_case(obj_data: dict, case_id: str) -> bool:
-    """Return True if *obj_data* looks like an Offer(CaseParticipant) for *case_id*."""
-    if obj_data.get("type") != "Offer":
+    """Return True if *obj_data* holds an Offer(CaseParticipant) for *case_id*."""
+    offer = _received_activity(obj_data)
+    if offer.get("type") != "Offer":
         return False
-    target_raw = obj_data.get("target")
+    target_raw = offer.get("target")
     target_id = (
         target_raw.get("id") if isinstance(target_raw, dict) else target_raw
     )
     if target_id != case_id:
         return False
-    inner = obj_data.get("object")
+    inner = offer.get("object")
     if not isinstance(inner, dict):
         return False
     return bool(
@@ -1220,8 +1229,9 @@ def find_cp_offer_for_case(
     After a Coordinator sends suggest-actor-to-case, the CaseActor processes the
     Offer(Actor, Case) and forwards an Offer(CaseParticipant) to the Case
     Owner's inbox (ADR-0026).  This helper polls the Case Owner's DataLayer for
-    any Offer whose ``target`` matches *case_id* and whose ``object`` resembles
-    a CaseParticipant, so the demo can drive the approve step.
+    any received Offer whose ``target`` matches *case_id* and whose ``object``
+    resembles a CaseParticipant, so the demo can drive the approve step.  It
+    reads intake's archive, the only record holding the participant inline.
 
     Args:
         client: DataLayerClient connected to the Case Owner's container.
@@ -1237,8 +1247,9 @@ def find_cp_offer_for_case(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=("Offer",),
+        object_types=_RECEIVED_OFFER_TYPES,
         discriminator_fn=lambda obj: _is_cp_offer_for_case(obj, case_id),
+        id_fn=_received_activity_id,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
         log_msg=f"Found Offer(CaseParticipant) for case {case_id}: %s",

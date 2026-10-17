@@ -32,8 +32,8 @@ create-case → emit-Announce path, catching regressions where case creation
 no longer sends the announcement (PCR-07-006).
 
 AC-2 tests (``test_subsequent_case_scoped_activity_routes_without_deferral``)
-seed the replica with a direct ``Announce`` (faster, sufficient for routing
-coverage) and then verify both the absence of deferral *and* the presence of
+seed the replica directly in the participant's store (faster, sufficient
+for routing coverage) and then verify both the absence of deferral *and* the presence of
 the handler's side effect (note appended to ``replica.notes``).
 """
 
@@ -54,7 +54,6 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
-    announce_vulnerability_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -75,9 +74,6 @@ _PARTICIPANT_BASE = "http://participant-bootstrap.test"
 
 # Fixed IDs for the single-app (AC-2) seeding path.
 _DIRECT_CASE_ID = "http://owner-bootstrap.test/api/v2/cases/pcr-07-006-ac2"
-_DIRECT_CASE_ACTOR_ID = (
-    "http://owner-bootstrap.test/api/v2/actors/case-actor-bootstrap"
-)
 _DIRECT_OWNER_ACTOR_ID = (
     "http://owner-bootstrap.test/api/v2/actors/owner-bootstrap"
 )
@@ -92,8 +88,8 @@ _DIRECT_OWNER_ACTOR_ID = (
 def participant_setup():
     """One isolated participant app for the AC-2 routing test.
 
-    The case replica is seeded directly via a hand-crafted
-    ``Announce(as_VulnerabilityCase)`` (fast, sufficient for routing coverage).
+    The test seeds the case replica directly in the participant's store
+    (fast, sufficient for routing coverage).
     The ``_TestClientRouter`` is installed as the default emitter so that any
     outbound deliveries from the participant stay in-process (ADR-0042).
 
@@ -546,7 +542,7 @@ class TestBootstrapSequence:
     ):
         """AC-2: Case-scoped activity routes directly after replica exists.
 
-        After the case replica is seeded via a direct ``Announce``, a
+        After the case replica is seeded directly in the store, a
         subsequent ``Add(Note, context=case_id)`` delivered to the same inbox
         must be dispatched immediately — it must NOT be placed into
         ``VultronPendingCaseInbox`` (the pre-bootstrap deferral queue).
@@ -572,21 +568,16 @@ class TestBootstrapSequence:
             participant_tc, base, "pcr-006-ac2", "Participant"
         )
 
-        # Seed the replica via a direct Announce.
+        # Seed the replica directly in the actor's store.  An inbox Announce
+        # from a sender this actor never trusted is refused and stores
+        # nothing (PCR-03-004, #4674), so it cannot seed a replica.
         case = as_VulnerabilityCase(
             id_=_DIRECT_CASE_ID, name="PCR-07-006 Test Case"
         )
-        announce = announce_vulnerability_case_activity(
-            case,
-            actor=_DIRECT_CASE_ACTOR_ID,
-            context=_DIRECT_CASE_ID,
-            to=[actor_id],
-        )
-        _post_to_inbox(participant_tc, _actor_slug(actor_id), announce)
-        # The store of the actor just created, not the app's default-slug `dl`:
-        # the Announce was delivered to `actor_id`, so that is the replica it
-        # seeded (ADR-0073).
+        # The store of the actor just created, not the app's default-slug `dl`
+        # (ADR-0073).
         actor_dl = participant_iso.store_for(actor_id)
+        actor_dl.create(case)
         assert actor_dl.read(_DIRECT_CASE_ID) is not None, (
             "Prerequisite: case replica must exist before routing test."
         )
