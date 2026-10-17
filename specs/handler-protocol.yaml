@@ -329,10 +329,11 @@ groups:
       The receive-tree factory MUST place the HP-01-005 addressee check in every received
       tree it builds, after intake and the post-close boundary and before the sender guard,
       and every check of whether an activity is addressed to the receiver MUST read one
-      shared definition: the receiver sent it, is named in `to`, or belongs to a case
-      participants collection `to` names. An `Offer(Report)`'s case-creation check reads
-      its `to` part alone (HP-09-001). A tree MAY leave the check out only by naming a
-      registered exemption that states why, and MUST NOT write its own copy of the check.
+      shared definition: the receiver sent it, is named in `to`, or is an active
+      participant (CM-10-004) of a case whose participants collection `to` names. An
+      `Offer(Report)`'s case-creation check reads its `to` part alone (HP-09-001). A tree
+      MAY leave the check out only by naming a registered exemption that states why, and
+      MUST NOT write its own copy of the check.
     rationale: >-
       HP-01-005 binds every handler, but the check was opt-in per tree: only the embargo
       trees asked for it, the others did not check at all, and one use case checked in

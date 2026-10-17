@@ -41,6 +41,9 @@ from vultron.core.behaviors.case.nodes.addressee import (
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
 )
+from vultron.core.behaviors.case.nodes.submit_report import (
+    CheckOfferAddressedToReceiverNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -208,6 +211,41 @@ class TestAddressedToReceiver:
             dl, _BYSTANDER, sender_id=_SENDER, to=[]
         )
         assert not addressed_to_receiver(dl, _BYSTANDER, sender_id=None, to=[])
+
+
+class TestOfferReportReadsTheToHalf:
+    """``CheckOfferAddressedToReceiverNode`` reads :func:`named_in_to`, so a
+    participants-collection ``to`` makes an active member eligible to create
+    a case, and nobody else (HP-09-001, HP-01-012)."""
+
+    def _run(self, dl: SqliteDataLayer, receiver: str) -> Status:
+        node = CheckOfferAddressedToReceiverNode(
+            to=[_COLLECTION], report_id="https://example.org/reports/r1"
+        )
+        return (
+            BTBridge(datalayer=dl)
+            .execute_with_setup(node, actor_id=receiver)
+            .status
+        )
+
+    @pytest.mark.spec("HP-09-001")
+    @pytest.mark.spec("HP-01-012")
+    def test_an_active_member_of_the_collection_is_addressed(self):
+        dl = _store(_BYSTANDER, members=(_SENDER, _BYSTANDER))
+
+        assert self._run(dl, _BYSTANDER) is Status.SUCCESS
+
+    @pytest.mark.spec("HP-09-001")
+    @pytest.mark.spec("CM-10-004")
+    @pytest.mark.parametrize(
+        "members, removed",
+        [((_SENDER, _MANAGER), ()), ((_SENDER,), (_BYSTANDER,))],
+        ids=["non-member", "removed-participant"],
+    )
+    def test_anyone_else_is_not_addressed(self, members, removed):
+        dl = _store(_BYSTANDER, members=members, removed=removed)
+
+        assert self._run(dl, _BYSTANDER) is Status.FAILURE
 
 
 class TestUnaddressedCopyReason:

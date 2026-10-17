@@ -157,11 +157,13 @@ class OfferCaseParticipantReceivedUseCase:
             # CASE_MANAGER's; a missing case also fails that gate (rule 3).
             if self._dl.read(case_id) is None:
                 return HandlerResult.refused(f"unknown case '{case_id}'")
-            # Past the tree's door and sender guards, the store is the
-            # Offer's addressee, the Case Owner: only the CASE_MANAGER sends
-            # an Offer(CaseParticipant), so a non-CASE_MANAGER store never
-            # holds its own copy (HP-01-005).  The Offer is now theirs to
-            # decide, by a separate outbound Accept or Reject.
+            # Past the tree's door and sender guards, the Offer is addressed
+            # to this store, by name or as an active participant of a
+            # participants collection its `to` names (HP-01-012).  Only the
+            # CASE_MANAGER sends an Offer(CaseParticipant), and it addresses
+            # the Case Owner, so a non-CASE_MANAGER store never holds its own
+            # copy (HP-01-005).  The Offer is now the addressee's to decide,
+            # by a separate outbound Accept or Reject.
             return HandlerResult.applied()
         return verdict
 

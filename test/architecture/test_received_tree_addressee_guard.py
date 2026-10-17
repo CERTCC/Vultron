@@ -68,10 +68,15 @@ from vultron.semantic_registry import SEMANTIC_REGISTRY
 
 _KEYWORD = "addressee_exemption"
 _ADDRESSEE_MODULE = "vultron/core/behaviors/case/nodes/addressee.py"
+#: Scanned for hand-written ``to`` checks: the trees and every use-case
+#: module, shared helpers such as ``use_cases/_helpers.py`` included (the
+#: retired ``is_recipient`` lived there).  Triggers act for the local actor
+#: and answer no received copy, so they are skipped.
 _RECEIVED_SIDE = (
     _corpus.REPO_ROOT / "vultron" / "core" / "behaviors",
-    _corpus.REPO_ROOT / "vultron" / "core" / "use_cases" / "received",
+    _corpus.REPO_ROOT / "vultron" / "core" / "use_cases",
 )
+_TRIGGER_SIDE = "vultron/core/use_cases/triggers/"
 _TO_COMPARISON = "is_addressed_to"
 _RETIRED_HELPERS = frozenset({"unaddressed_copy_refusal", "is_recipient"})
 _C = "vultron/core/behaviors/case"
@@ -270,14 +275,28 @@ def test_an_addressed_invite_fault_tree_carries_the_guard() -> None:
     assert _guards(tree) == 1
 
 
+def _local_names_of_to_comparison(tree: ast.AST) -> frozenset[str]:
+    """The names a module calls ``is_addressed_to`` by, import aliases too."""
+    names = {_TO_COMPARISON}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            names.update(
+                alias.asname
+                for alias in node.names
+                if alias.name == _TO_COMPARISON and alias.asname
+            )
+    return frozenset(names)
+
+
 def _to_comparison_sites() -> frozenset[_Site]:
     """``(module, enclosing function)`` of each received-side ``to`` check."""
     sites: set[_Site] = set()
     for root in _RECEIVED_SIDE:
         for path, tree in _corpus.files_mentioning(_TO_COMPARISON, under=root):
             rel = path.relative_to(_corpus.REPO_ROOT).as_posix()
-            if rel == _ADDRESSEE_MODULE:
+            if rel == _ADDRESSEE_MODULE or rel.startswith(_TRIGGER_SIDE):
                 continue
+            local_names = _local_names_of_to_comparison(tree)
             for func in ast.walk(tree):
                 if not isinstance(
                     func, (ast.FunctionDef, ast.AsyncFunctionDef)
@@ -286,7 +305,7 @@ def _to_comparison_sites() -> frozenset[_Site]:
                 for call in ast.walk(func):
                     if (
                         isinstance(call, ast.Call)
-                        and _corpus.callee_name(call.func) == _TO_COMPARISON
+                        and _corpus.callee_name(call.func) in local_names
                     ):
                         sites.add((rel, func.name))
     return frozenset(sites)
@@ -317,3 +336,16 @@ def test_the_retired_addressee_helpers_stay_gone() -> None:
         and node.name in _RETIRED_HELPERS
     )
     assert not defined, f"a per-handler addressee check is back: {defined}"
+
+
+@pytest.mark.spec("HP-01-012")
+def test_the_scan_sees_an_aliased_to_comparison() -> None:
+    """An import alias does not hide a hand-written ``to`` check."""
+    tree = ast.parse(
+        "from vultron.core.predicates.addressing import"
+        " is_addressed_to as named\n"
+    )
+    assert _local_names_of_to_comparison(tree) == {
+        "is_addressed_to",
+        "named",
+    }
