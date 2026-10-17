@@ -209,10 +209,12 @@ class TestCreateReportSenderEntitlement:
 class TestDuplicateReportHandling:
     """Tests that duplicate as_VulnerabilityReport warnings are not emitted.
 
-    The inbox endpoint pre-stores nested objects before dispatching to use
-    cases.  When the use case then tries to store the same report, the
-    duplicate must be silently demoted to DEBUG — not WARNING — because it
-    is an expected idempotency condition, not a real error (D5-6-DUP).
+    The receiver may already hold the report, for example from an earlier
+    delivery of the same activity.  When the use case then tries to store the
+    same report, the duplicate must be silently demoted to DEBUG — not
+    WARNING — because it is an expected idempotency condition, not a real
+    error (D5-6-DUP).  The inbox ingress stores no inline object
+    (IO-03-004), so the earlier copy is never ingress's.
     """
 
     def _make_submit_event(
@@ -241,8 +243,8 @@ class TestDuplicateReportHandling:
     def test_submit_report_no_warning_on_duplicate_report(self, caplog):
         """SubmitReportReceivedUseCase emits no WARNING when report already stored.
 
-        The inbox endpoint pre-stores the nested as_VulnerabilityReport before
-        dispatching; the use case must degrade to DEBUG, not WARNING.
+        A report already held from an earlier delivery is a duplicate; the
+        use case must degrade to DEBUG, not WARNING.
         Per D5-6-DUP.
         """
         import logging
@@ -258,7 +260,7 @@ class TestDuplicateReportHandling:
             "sqlite:///:memory:",
             actor_id="https://example.org/actors/vendor",
         )
-        # Simulate inbox pre-storage of the nested objects.
+        # The receiver already holds the report from an earlier delivery.
         dl.save(report)
 
         with caplog.at_level(logging.WARNING):
@@ -276,7 +278,7 @@ class TestDuplicateReportHandling:
         ]
         assert warning_records == [], (
             "No WARNING should be emitted when as_VulnerabilityReport is "
-            f"pre-stored by inbox endpoint; got: {[r.message for r in warning_records]}"
+            f"already stored; got: {[r.message for r in warning_records]}"
         )
 
     def test_create_report_no_warning_on_duplicate_report(self, caplog):
@@ -305,7 +307,7 @@ class TestDuplicateReportHandling:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        # Simulate inbox pre-storage of the nested object.
+        # The receiver already holds the report from an earlier delivery.
         dl.save(report)
 
         with caplog.at_level(logging.WARNING):
@@ -316,7 +318,7 @@ class TestDuplicateReportHandling:
         ]
         assert warning_records == [], (
             "No WARNING should be emitted when as_VulnerabilityReport is "
-            f"pre-stored by inbox endpoint; got: {[r.message for r in warning_records]}"
+            f"already stored; got: {[r.message for r in warning_records]}"
         )
 
 

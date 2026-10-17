@@ -215,7 +215,7 @@ class TestFullReportFlow:
             ],
         )
         # The receiver holds the embargo record its replica names, as the
-        # inbox pre-store leaves it when the sender carries it inline
+        # replica store leaves it when the sender carries it inline
         # (EMB-18-003).
         embargo = EmbargoEvent(
             id_=f"{self.CASE_ID}/embargoes/flow-embargo",

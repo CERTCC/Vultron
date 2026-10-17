@@ -600,9 +600,9 @@ groups:
       `test/architecture/test_no_receive_path_reparse.py` fails on any `model_validate` or
       `model_validate_json` call under `vultron/adapters/driving/` or `vultron/core/` whose
       argument is built from `received_evidence` or from a raw-body name, directly or through
-      a local assigned from one. `test/adapters/driving/fastapi/test_inbox_storage.py` asserts
-      that ingress storage persists the class the parser produced, including a case stub and a
-      case whose foreign key was set aside (#3922).
+      a local assigned from one. `test/adapters/driving/fastapi/test_inbox_staging.py` asserts
+      that ingress stages the class the parser produced, including a case stub and a case
+      whose foreign key was set aside (#3922).
     relationships:
     - rel_type: depends_on
       spec_id: MV-11-003

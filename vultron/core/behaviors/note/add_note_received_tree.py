@@ -86,9 +86,9 @@ def create_add_note_to_case_received_tree(
     entry's snapshot.  The store step writes only an absent note, so an
     ``Add`` never replaces a note already stored under its id (HP-08-006).
     The guard refuses an ``Add`` whose carried note differs from the stored
-    one, when the carried note reaches core: the inbox ingress stores an
-    inline object first and keeps an existing record, so on that path the
-    rehydrated ``Add`` already holds the stored note.
+    one.  The inbox ingress stores no inline object (IO-03-004); its routing
+    rebuild prefers a record already held, so on that path the rehydrated
+    ``Add`` already holds the stored note.
 
     Composed through :func:`create_receive_activity_tree`, which supplies the
     intake node and the guarded commit, so the tree cannot opt out of either

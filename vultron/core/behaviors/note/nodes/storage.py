@@ -110,10 +110,10 @@ class NoteIdNotTakenNode(DataLayerConditionWithPorts):
     (CLP-10-006).
 
     The guard sees a difference only when the carried note reaches core.
-    The inbox ingress stores an inline object before dispatch and keeps a
-    record already stored under its id, so the rehydrated ``Add`` holds the
-    stored note and the guard passes; :class:`StoreNoteIfAbsentNode` keeps
-    the stored note on every path.
+    The inbox ingress stores no inline object (IO-03-004), but its routing
+    rebuild prefers a record already stored under the note's id, so the
+    rehydrated ``Add`` holds the stored note and the guard passes;
+    :class:`StoreNoteIfAbsentNode` keeps the stored note on every path.
     """
 
     def __init__(self, note_obj: VultronNote, name: str | None = None):

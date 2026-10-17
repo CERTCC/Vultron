@@ -508,7 +508,7 @@ def test_case_proposal_object_survives_storage_as_an_inline_report():
 
     Regression for #2482.  ``object_`` is a generic object-reference field, so it
     was dehydrated like any other reference — but CP-01-004 requires the report to be
-    carried inline, and ingress stores only the *first* level of nesting, so the
+    carried inline, and ingress stored only the *first* level of nesting, so the
     report had no record of its own to rehydrate from.  The by-ID re-read at
     delivery therefore handed the receiver a bare URI, and every consequence of
     the report (participant, ledger entries, signatory seed) degraded to a

@@ -77,6 +77,7 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "report_id": f"{_URI}/report",
         "case_actor_id": f"{_URI}/manager",
     },
+    "PendingInlineObjects": {"activity_id": _URI, "rows_json": "[]"},
     "ReceivedActivityRecord": {
         "activity_id": f"{_URI}/a-1",
         "activity": VultronActivity(

@@ -211,7 +211,7 @@ catch-up fetch or deferral, refuse instead.
   (`vultron/core/services/carried_embargo.py`) before saving the case; a case
   naming an unreadable embargo is refused and nothing is saved. An inline
   embargo whose `context` is not the carrying case is refused unstored, because
-  the inbox pre-store runs before trust checks and a first write wins.
+  a first write wins and a sender must not plant another case's embargo.
 - **Ledger replay.** Each embargo apply node stores the `EmbargoEvent` its entry
   carries before calling `EmbargoLifecycle`, and fails (blocking the persist,
   SYNC-12-001) when the entry names it by id only and the replica lacks it.

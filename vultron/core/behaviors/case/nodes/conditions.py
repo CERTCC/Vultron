@@ -128,9 +128,9 @@ class CheckCaseExistsForReport(DataLayerConditionWithPorts):
                 )
                 return Status.FAILURE
 
-            # A case record that exists but has no participants was
-            # pre-stored by the inbox endpoint as a dehydrated reference.
-            # It still needs full initialisation, so return FAILURE.
+            # A case record that exists but has no participants is a
+            # dehydrated reference, not an initialised case.  It still needs
+            # full initialisation, so return FAILURE.
             participants = getattr(existing, "case_participants", None) or []
             if not participants:
                 self.logger.debug(

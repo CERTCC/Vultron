@@ -16,8 +16,9 @@
 
 A case that names an embargo its store cannot read breaks the invariant the
 EP-05-001 comparison rests on, so every path that saves a received case —
-the announce seed, the create/engage replica stores, and the inbox pre-store
-— calls :func:`store_carried_embargo` *first*.  It stores the
+the announce seed and the create/engage replica stores — calls
+:func:`store_carried_embargo` *first*, as does the inbox's routing stage for
+the throwaway store it rebuilds the activity in.  It stores the
 ``EmbargoEvent`` the sender carried inline (``_case_for_wire``, AKM-02-004)
 and refuses a bare reference the store lacks, rather than letting the case
 land pointing at nothing.
@@ -54,8 +55,7 @@ def store_carried_embargo(
     ``active_embargo``.  A case with no active embargo needs nothing.
 
     An inline embargo whose ``context`` is not *case_obj* is refused before
-    anything is written: the inbox pre-store runs ahead of the handler's
-    trust checks, and a first write wins, so a sender must not be able to
+    anything is written: a first write wins, so a sender must not be able to
     plant another case's embargo under an id that case will later name.
 
     Raises:
