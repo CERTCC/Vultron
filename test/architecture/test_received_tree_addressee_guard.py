@@ -341,7 +341,7 @@ def test_the_retired_addressee_helpers_stay_gone() -> None:
 @pytest.mark.spec("HP-01-012")
 def test_the_scan_sees_an_aliased_to_comparison() -> None:
     """An import alias does not hide a hand-written ``to`` check."""
-    tree = ast.parse(
+    tree = _corpus.parse_inline(
         "from vultron.core.predicates.addressing import"
         " is_addressed_to as named\n"
     )
