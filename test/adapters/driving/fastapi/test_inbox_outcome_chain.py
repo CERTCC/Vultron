@@ -446,13 +446,28 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
 _IMPOSTER_CASE_ID = "https://example.org/cases/c-chain-imposter"
 
 
+def _case_with(
+    case_id: str, name: str, participants: list[Any], **fields: Any
+) -> Any:
+    """A wire case whose roster and participant index list *participants*."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(
+        id_=case_id, name=name, case_participants=participants, **fields
+    )
+    for participant in participants:
+        case.actor_participant_index[participant.attributed_to] = (
+            participant.id_
+        )
+    return case
+
+
 def _self_managed_case() -> Any:
     """A case whose snapshot names the sender as its own CASE_MANAGER (#4674)."""
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.enums.roles import CVDRole
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCase,
-    )
 
     participant = CaseParticipant(
         id_=f"{_IMPOSTER_CASE_ID}/participants/imposter",
@@ -460,11 +475,7 @@ def _self_managed_case() -> Any:
         context=_IMPOSTER_CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = as_VulnerabilityCase(
-        id_=_IMPOSTER_CASE_ID, name="imposter", case_participants=[participant]
-    )
-    case.actor_participant_index[_SENDER_ID] = participant.id_
-    return case
+    return _case_with(_IMPOSTER_CASE_ID, "imposter", [participant])
 
 
 def _real_dispatcher() -> DirectActivityDispatcher:
@@ -550,3 +561,251 @@ def test_add_note_at_case_manager_stores_the_note_from_the_event(dl):
     stored = dl.read(note.id_)
     assert stored is not None
     assert getattr(stored, "content", None) == "a note"
+
+
+@pytest.mark.spec("PCR-03-004", "CBT-01-011", "HP-01-006", "IO-03-004")
+def test_untrusted_create_then_announce_both_refused_unstored(dl):
+    """A refused imposter ``Create`` leaves no case to anchor its ``Announce``.
+
+    Ingress stores nothing from either inline case (IO-03-004), so the
+    imposter's bootstrap ``Create(VulnerabilityCase)`` is refused with nothing
+    stored, and the ``Announce`` that follows finds no CASE_MANAGER anchor and
+    is refused too. Before #4834 the refused ``Create``'s stored row anchored
+    the ``Announce`` (#4674, AC-2).
+    """
+    from vultron.wire.as2.factories import (
+        announce_vulnerability_case_activity,
+        create_case_activity,
+    )
+
+    create = create_case_activity(
+        _self_managed_case(),
+        actor=_SENDER_ID,
+        to=[_RECEIVER_ID],
+        context=_IMPOSTER_CASE_ID,
+    )
+    announce = announce_vulnerability_case_activity(
+        _self_managed_case(), actor=_SENDER_ID, to=[_RECEIVER_ID]
+    )
+
+    for activity, citation in (
+        (create, "CBT-01-011"),
+        (announce, "PCR-03-004"),
+    ):
+        outcome = _process(dl, _wire_body(activity), _real_dispatcher())
+
+        assert outcome.status is InboxOutcomeStatus.REJECTED, (
+            activity.type_,
+            outcome.failure_reason,
+        )
+        assert outcome.failure_reason is not None
+        assert citation in outcome.failure_reason, outcome.failure_reason
+        assert dl.read(_IMPOSTER_CASE_ID) is None, activity.type_
+        assert dl.read(f"{_IMPOSTER_CASE_ID}/participants/imposter") is None
+
+
+# ---------------------------------------------------------------------------
+# The legitimate first contacts still seed a replica through the inbox (#4674)
+# ---------------------------------------------------------------------------
+
+_VENDOR_ID = "https://example.org/actors/vendor-chain"
+_CASE_MANAGER_ID = "https://example.org/actors/case-manager-chain"
+_LEGIT_CASE_ID = "https://example.org/cases/c-chain-legit"
+_LEGIT_REPORT_ID = "https://example.org/reports/r-chain-legit"
+
+
+def _managed_case() -> Any:
+    """The case as its CASE_MANAGER sends it: the receiver is a participant."""
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.rm import RM
+    from vultron.enums.roles import CVDRole
+
+    manager = CaseParticipant(
+        id_=f"{_LEGIT_CASE_ID}/participants/case-manager",
+        attributed_to=_CASE_MANAGER_ID,
+        context=_LEGIT_CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    receiver = CaseParticipant(
+        id_=f"{_LEGIT_CASE_ID}/participants/receiver",
+        attributed_to=_RECEIVER_ID,
+        context=_LEGIT_CASE_ID,
+        participant_statuses=[
+            ParticipantStatus(
+                context=_LEGIT_CASE_ID,
+                attributed_to=_RECEIVER_ID,
+                rm=RmDimension(state=RM.ACCEPTED),
+            )
+        ],
+    )
+    return _case_with(
+        _LEGIT_CASE_ID,
+        "legitimate",
+        [manager, receiver],
+        attributed_to=_VENDOR_ID,
+        vulnerability_reports=[_LEGIT_REPORT_ID],
+    )
+
+
+def _announce_from_case_manager() -> dict[str, Any]:
+    from vultron.wire.as2.factories import (
+        announce_vulnerability_case_activity,
+    )
+
+    return _wire_body(
+        announce_vulnerability_case_activity(
+            _managed_case(), actor=_CASE_MANAGER_ID, to=[_RECEIVER_ID]
+        )
+    )
+
+
+@pytest.mark.spec("PCR-03-004", "CBT-01-006", "HP-01-006", "IO-03-004")
+def test_reporter_after_bootstrap_accepts_case_manager_announce(dl):
+    """A reporter's bootstrap admits only its CASE_MANAGER's ``Announce`` (#4674).
+
+    The reporter wrote a ``ReportCaseLink`` expecting the case from the
+    vendor it reported to. The vendor's bootstrap ``Create`` binds the link,
+    records the CASE_MANAGER it introduces, and seeds the replica. The
+    CASE_MANAGER's ``Announce`` is then admitted against what the receiver
+    stored, and an imposter ``Announce`` for the same case, whose own snapshot
+    names the imposter as CASE_MANAGER, is refused (AC-3).
+    """
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.report import VulnerabilityReport
+    from vultron.core.models.report_case_link import VultronReportCaseLink
+    from vultron.core.participants.authority import (
+        established_link_case_manager_id,
+        resolve_case_manager_id,
+    )
+    from vultron.enums.roles import CVDRole
+    from vultron.wire.as2.factories import (
+        announce_vulnerability_case_activity,
+        create_case_activity,
+    )
+
+    dl.create(
+        VulnerabilityReport(id_=_LEGIT_REPORT_ID, attributed_to=_RECEIVER_ID)
+    )
+    dl.save(
+        VultronReportCaseLink(
+            report_id=_LEGIT_REPORT_ID, case_creator_id=_VENDOR_ID
+        )
+    )
+    create = create_case_activity(
+        _managed_case(),
+        actor=_VENDOR_ID,
+        to=[_RECEIVER_ID],
+        context=_LEGIT_CASE_ID,
+    )
+
+    created = _process(dl, _wire_body(create), _real_dispatcher())
+
+    assert created.status is InboxOutcomeStatus.PROCESSED, (
+        created.failure_reason
+    )
+    assert (
+        established_link_case_manager_id(dl, _LEGIT_CASE_ID)
+        == _CASE_MANAGER_ID
+    )
+
+    announced = _process(dl, _announce_from_case_manager(), _real_dispatcher())
+
+    assert announced.status is InboxOutcomeStatus.PROCESSED, (
+        announced.failure_reason
+    )
+
+    imposter = CaseParticipant(
+        id_=f"{_LEGIT_CASE_ID}/participants/imposter",
+        attributed_to=_SENDER_ID,
+        context=_LEGIT_CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    hijack = announce_vulnerability_case_activity(
+        _case_with(_LEGIT_CASE_ID, "hijacked", [imposter]),
+        actor=_SENDER_ID,
+        to=[_RECEIVER_ID],
+    )
+
+    refused = _process(dl, _wire_body(hijack), _real_dispatcher())
+
+    assert refused.status is InboxOutcomeStatus.REJECTED
+    assert refused.failure_reason is not None
+    assert "HP-01-006" in refused.failure_reason, refused.failure_reason
+    stored = dl.read_case(_LEGIT_CASE_ID)
+    assert stored is not None
+    assert resolve_case_manager_id(stored, dl) == _CASE_MANAGER_ID
+    assert dl.read(imposter.id_) is None
+
+
+@pytest.mark.spec("PCR-03-004", "IO-03-004")
+def test_late_joiner_after_accepted_invite_accepts_case_manager_announce(dl):
+    """A late joiner's Invite anchors the CASE_MANAGER's ``Announce`` (#4674).
+
+    The CASE_MANAGER's stub Invite records it as the case's trust anchor on
+    receipt, and that anchor is what admits the ``Announce``. The joiner
+    accepts the Invite first, as in the real flow, and the ``Announce`` the
+    CASE_MANAGER then sends seeds the replica (AC-3).
+    """
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+    from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+    from vultron.core.use_cases.triggers.actor import (
+        SvcAcceptCaseInviteUseCase,
+    )
+    from vultron.core.use_cases.triggers.requests import (
+        AcceptCaseInviteTriggerRequest,
+    )
+    from vultron.wire.as2.factories import rm_invite_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
+    receiver = as_Actor(id_=_RECEIVER_ID, name="receiver")
+    dl.create(receiver)
+    dl.create(as_Actor(id_=_CASE_MANAGER_ID, name="case manager"))
+    case = _managed_case()
+    case.stub_summary = "A case you are invited to join."
+    invite = rm_invite_to_case_activity(
+        receiver,
+        target=case,
+        roles=["coordinator"],
+        actor=_CASE_MANAGER_ID,
+        to=[_RECEIVER_ID],
+        id_=f"{_LEGIT_CASE_ID}/invitations/late-joiner",
+    )
+
+    invited = _process(dl, _wire_body(invite), _real_dispatcher())
+
+    assert invited.status is InboxOutcomeStatus.PROCESSED, (
+        invited.failure_reason
+    )
+    anchor = dl.read(VultronPendingCaseInbox.build_id(_LEGIT_CASE_ID))
+    assert isinstance(anchor, VultronPendingCaseInbox)
+    assert anchor.case_actor_id == _CASE_MANAGER_ID
+    assert dl.read(_LEGIT_CASE_ID) is None
+
+    accepted = SvcAcceptCaseInviteUseCase(
+        dl,
+        AcceptCaseInviteTriggerRequest(
+            actor_id=_RECEIVER_ID, invite_id=invite.id_
+        ),
+        trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert accepted.activity is not None
+    assert accepted.activity["inReplyTo"] == invite.id_
+    assert accepted.activity.get("to") == [_CASE_MANAGER_ID]
+
+    announced = _process(dl, _announce_from_case_manager(), _real_dispatcher())
+
+    assert announced.status is InboxOutcomeStatus.PROCESSED, (
+        announced.failure_reason
+    )
+    assert dl.read(_LEGIT_CASE_ID) is not None
