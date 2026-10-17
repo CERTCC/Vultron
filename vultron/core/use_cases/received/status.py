@@ -36,9 +36,9 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    door_refusal,
     find_named,
     node_failed,
-    post_close_refusal,
     verdict_from_bt,
 )
 
@@ -151,8 +151,8 @@ class AddCaseStatusToCaseReceivedUseCase:
             activity=request,
         )
 
-        if (refusal := post_close_refusal(tree)) is not None:
-            return refusal  # dropped with no reply, no fault (CM-23-017)
+        if (refusal := door_refusal(tree)) is not None:
+            return refusal  # a door refused: no reply, no fault (CM-23-017)
         if (
             result.status != Status.SUCCESS
             and BTBridge.get_failure_reason(tree)
@@ -272,8 +272,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             activity=request,
         )
 
-        if (refusal := post_close_refusal(tree)) is not None:
-            return refusal  # dropped with no reply, no fault (CM-23-017)
+        if (refusal := door_refusal(tree)) is not None:
+            return refusal  # a door refused: no reply, no fault (CM-23-017)
         verdict = verdict_from_bt(tree, result, label="AddParticipantStatusBT")
         if verdict.disposition is HandlerDisposition.REFUSED and (
             _adoption_gate_blocked(tree)

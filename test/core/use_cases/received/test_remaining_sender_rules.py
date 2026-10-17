@@ -176,7 +176,11 @@ class _World:
     def case_status_from(self, sender_id: str) -> HandlerResult:
         status = as_CaseStatus(context=self.case_id)
         activity = add_status_to_case_activity(
-            status, target=self.case_id, actor=sender_id, context=self.case_id
+            status,
+            target=self.case_id,
+            actor=sender_id,
+            to=[self.receiver_id],
+            context=self.case_id,
         )
         return AddCaseStatusToCaseReceivedUseCase(
             self.dl, self._event(activity), **self._ports()
@@ -186,7 +190,8 @@ class _World:
         activity = rm_close_case_activity(
             as_VulnerabilityCase(id_=self.case_id),
             actor=sender_id,
-            to=[self.manager.id_],
+            # Addressed to the manager and, at a replica, to the replica too.
+            to=list(dict.fromkeys([self.manager.id_, self.receiver_id])),
             id_=f"{self.case_id}/leaves/{suffix}",
         )
         return CloseCaseReceivedUseCase(

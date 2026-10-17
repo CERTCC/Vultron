@@ -91,7 +91,10 @@ class TestStatusUseCases:
         dl.create(status)
 
         activity = add_status_to_case_activity(
-            status, target=case, actor="https://example.org/users/vendor"
+            status,
+            target=case,
+            actor="https://example.org/users/vendor",
+            to=[dl.actor_id],
         )
         event = make_payload(activity)
 
@@ -150,7 +153,10 @@ class TestStatusUseCases:
         dl.create(bad_status)
 
         activity = add_status_to_case_activity(
-            bad_status, target=case, actor="https://example.org/users/vendor"
+            bad_status,
+            target=case,
+            actor="https://example.org/users/vendor",
+            to=[dl.actor_id],
         )
         event = make_payload(activity)
 
@@ -200,7 +206,7 @@ class TestStatusUseCases:
         dl.create(bad_status)
 
         activity = add_status_to_case_activity(
-            bad_status, target=case, actor=sender_id
+            bad_status, target=case, actor=sender_id, to=[receiver_id]
         )
         event = make_payload(activity)
         event = event.model_copy(update={"receiving_actor_id": receiver_id})
@@ -252,6 +258,7 @@ class TestStatusUseCases:
             bad_status,
             target=case,
             actor="https://example.org/users/vendor",
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
         event = make_payload(activity)
 
@@ -309,6 +316,7 @@ class TestStatusUseCases:
             dup_status,
             target=participant,
             actor=sender_id,
+            to=[receiver_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=receiver_id)
@@ -385,6 +393,7 @@ class TestStatusUseCases:
             dup_status,
             target=participant,
             actor=sender_id,
+            to=[receiver_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=receiver_id)
@@ -437,6 +446,7 @@ class TestStatusUseCases:
             asserted_status,
             target=case,
             actor="https://example.org/users/vendor",
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
         event = make_payload(activity)
 
@@ -565,6 +575,7 @@ class TestStatusUseCases:
             pstatus,
             target=participant,
             actor=vendor_id,
+            to=[vendor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=None)
@@ -734,6 +745,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -785,6 +797,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -849,6 +862,7 @@ class TestParticipantStatusLogEntryCascade:
             duplicate_closed_status,
             target=participant,
             actor=actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -909,6 +923,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -949,6 +964,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -1002,6 +1018,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=case_actor_id,
+            to=[non_case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=non_case_actor_id)
@@ -1054,6 +1071,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=reporter_actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -1140,6 +1158,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=actor_id,
+            to=[_case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=None)

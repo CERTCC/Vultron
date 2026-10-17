@@ -59,6 +59,9 @@ from vultron.core.behaviors.case.nodes import (
     ProposeReportCaseToActorNode,
     WritePendingReportCaseLinkNode,
 )
+from vultron.core.behaviors.case.nodes.addressee import (
+    OFFER_REPORT_STORED_FIRST,
+)
 from vultron.core.behaviors.case.nodes.submit_report import (
     submit_report_received_effects,
 )
@@ -149,6 +152,9 @@ def create_receive_report_case_tree(
         name="ReceiveReportCaseBT",
         case_id=None,
         precondition_guards=[],
+        # The report and the Offer are kept before the addressee is checked
+        # (CM-15-002); CheckOfferAddressedToReceiverNode checks it there.
+        addressee_exemption=OFFER_REPORT_STORED_FIRST,
         replica_effects=[
             *received_effects,
             CheckAutoCaseCreationEnabledNode(actor_config=actor_config),
@@ -178,6 +184,7 @@ def create_offer_received_without_report_tree(
         name="KeepOfferWithoutReportBT",
         case_id=None,
         precondition_guards=[],
+        addressee_exemption=OFFER_REPORT_STORED_FIRST,
         replica_effects=list(received_effects),
     )
 

@@ -745,6 +745,40 @@ class TestOwnershipOfferAtNonRecipient:
         )
 
 
+class TestOwnershipOfferOwnCopy:
+    """The Case Owner's own copy of its Offer, at its own replica (#4832).
+
+    The addressee door guard admits a sender's own copy (HP-01-005), so the
+    sender guard decides it: a replica takes the Offer from the CASE_MANAGER
+    alone (PCR-03-001), and the copy commits, stores and sends nothing.
+    """
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("PCR-03-001")
+    def test_own_copy_is_refused_by_the_sender_guard(self, make_payload):
+        case_id = "https://example.org/cases/case_ot_own_copy"
+        dl, _ = _vendor_replica(case_id)
+        offer = offer_case_ownership_transfer_activity(
+            _read_case(dl, case_id),
+            target=_COORDINATOR_ID,
+            actor=_VENDOR_ID,
+            to=[_CASE_ACTOR_ID],
+        )
+
+        result = OfferCaseOwnershipTransferReceivedUseCase(
+            dl,
+            make_payload(offer, receiving_actor_id=_VENDOR_ID),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert "is not the CASE_MANAGER" in (result.reason or "")
+        assert dl.get(offer.type_.value, offer.id_) is None
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert dl.outbox_list() == []
+
+
 class TestOwnershipOfferNamingNoCase:
     """An Offer that names no case is refused but still kept (CLP-10-018)."""
 
@@ -872,11 +906,13 @@ def _wait_past(deadline: datetime) -> None:
     time.sleep(max(0.0, (deadline - datetime.now(UTC)).total_seconds()) + 0.05)
 
 
-def _accept(dl, make_payload, offer, sender=_COORDINATOR_ID, accept=None):
+def _accept(
+    dl, make_payload, offer, sender=_COORDINATOR_ID, accept=None, to=None
+):
     """Deliver the transferee's (or *sender*'s) Accept of *offer* to *dl*."""
     if accept is None:
         accept = accept_case_ownership_transfer_activity(
-            offer, actor=sender, to=[_CASE_ACTOR_ID]
+            offer, actor=sender, to=to or [_CASE_ACTOR_ID]
         )
     return AcceptCaseOwnershipTransferReceivedUseCase(
         dl,
@@ -1694,6 +1730,11 @@ class TestOfferAtTheTransferee:
         assert dl.read(offer.id_) is None
 
 
+#: A copy the CASE_MANAGER relays to the vendor's replica names the replica
+#: too, so the addressee door admits it and the sender guard decides (HP-01-005).
+_REPLICA_TO = [_CASE_ACTOR_ID, _VENDOR_ID]
+
+
 def _vendor_replica(case_id: str):
     """The vendor's replica of a case managed by another actor, and an Offer."""
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -1727,7 +1768,7 @@ class TestAcceptAtAReplica:
         dl, offer = _vendor_replica(case_id)
         roles_before = _owner_roles(dl, case_id)
 
-        result = _accept(dl, make_payload, offer)
+        result = _accept(dl, make_payload, offer, to=_REPLICA_TO)
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "CASE_MANAGER" in result.reason
@@ -1743,7 +1784,9 @@ class TestAcceptAtAReplica:
         case_id = "https://example.org/cases/case_ot_replica_admitted"
         dl, offer = _vendor_replica(case_id)
 
-        result = _accept(dl, make_payload, offer, sender=_CASE_ACTOR_ID)
+        result = _accept(
+            dl, make_payload, offer, sender=_CASE_ACTOR_ID, to=_REPLICA_TO
+        )
 
         assert result.disposition is not HandlerDisposition.REFUSED
         assert _owner(dl, case_id) == _VENDOR_ID
@@ -1756,11 +1799,13 @@ class TestAcceptAtAReplica:
 # ---------------------------------------------------------------------------
 
 
-def _reject(dl, make_payload, offer, sender=_COORDINATOR_ID, reject=None):
+def _reject(
+    dl, make_payload, offer, sender=_COORDINATOR_ID, reject=None, to=None
+):
     """Deliver the transferee's (or *sender*'s) Reject of *offer* to *dl*."""
     if reject is None:
         reject = reject_case_ownership_transfer_activity(
-            offer, actor=sender, to=[_CASE_ACTOR_ID]
+            offer, actor=sender, to=to or [_CASE_ACTOR_ID]
         )
     return RejectCaseOwnershipTransferReceivedUseCase(
         dl,
@@ -1983,7 +2028,7 @@ class TestRejectAtAReplica:
         dl, offer = _vendor_replica(case_id)
         roles_before = _owner_roles(dl, case_id)
 
-        result = _reject(dl, make_payload, offer)
+        result = _reject(dl, make_payload, offer, to=_REPLICA_TO)
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "CASE_MANAGER" in result.reason
@@ -2000,7 +2045,9 @@ class TestRejectAtAReplica:
         dl, offer = _vendor_replica(case_id)
         roles_before = _owner_roles(dl, case_id)
 
-        result = _reject(dl, make_payload, offer, sender=_CASE_ACTOR_ID)
+        result = _reject(
+            dl, make_payload, offer, sender=_CASE_ACTOR_ID, to=_REPLICA_TO
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED
         _assert_nothing_changed(dl, case_id, roles_before, [])
@@ -2061,11 +2108,11 @@ def test_transferee_takes_the_forward_of_an_open_offer(make_payload):
 # ---------------------------------------------------------------------------
 
 
-def _undo(dl, make_payload, offer, sender=_VENDOR_ID, undo=None):
+def _undo(dl, make_payload, offer, sender=_VENDOR_ID, undo=None, to=None):
     """Deliver the offerer's (or *sender*'s) Undo of *offer* to *dl*."""
     if undo is None:
         undo = undo_case_ownership_transfer_activity(
-            offer, actor=sender, to=[_CASE_ACTOR_ID]
+            offer, actor=sender, to=to or [_CASE_ACTOR_ID]
         )
     return UndoCaseOwnershipTransferReceivedUseCase(
         dl,
@@ -2427,7 +2474,7 @@ class TestWithdrawalAtAReplica:
         dl, offer = _vendor_replica(case_id)
         roles_before = _owner_roles(dl, case_id)
 
-        result = _undo(dl, make_payload, offer)
+        result = _undo(dl, make_payload, offer, to=_REPLICA_TO)
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "CASE_MANAGER" in result.reason
@@ -2444,7 +2491,9 @@ class TestWithdrawalAtAReplica:
         dl, offer = _vendor_replica(case_id)
         roles_before = _owner_roles(dl, case_id)
 
-        result = _undo(dl, make_payload, offer, sender=_CASE_ACTOR_ID)
+        result = _undo(
+            dl, make_payload, offer, sender=_CASE_ACTOR_ID, to=_REPLICA_TO
+        )
 
         assert result.disposition is HandlerDisposition.APPLIED
         _assert_nothing_changed(dl, case_id, roles_before, [])

@@ -133,7 +133,9 @@ def case_with_two_participants():
 @pytest.fixture()
 def create_event(make_payload, case_with_two_participants):
     case, _, _ = case_with_two_participants
-    activity = create_case_activity(case, actor=_CREATOR_ID)
+    activity = create_case_activity(
+        case, actor=_CREATOR_ID, to=[_CASE_ACTOR_ID]
+    )
     return make_payload(activity)
 
 
@@ -305,7 +307,9 @@ class TestM4AddParticipantStatusAfterBootstrap:
         _vfd_status_id = f"{_VENDOR_PARTICIPANT_ID}/statuses/vfd-s1"
         case, _, vendor_p = case_with_two_participants
 
-        activity = create_case_activity(case, actor=_CREATOR_ID)
+        activity = create_case_activity(
+            case, actor=_CREATOR_ID, to=[_CASE_ACTOR_ID]
+        )
         bootstrap_event = make_payload(activity)
 
         link = _build_link()
@@ -342,6 +346,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
             status,
             target=vendor_p,
             actor=_VENDOR_ID,
+            to=[_CASE_ACTOR_ID],
         )
         event = make_payload(activity, receiving_actor_id=_CASE_ACTOR_ID)
 

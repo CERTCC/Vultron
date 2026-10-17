@@ -106,6 +106,7 @@ def _accept_event() -> AcceptCaseOwnershipTransferReceivedEvent:
         id_=OFFER_ID,
         type_="Accept",
         actor=TRANSFEREE_ID,
+        to=[CASE_ACTOR_ID],
         context=CASE_ID,
         object_={
             "id": OFFER_ID,

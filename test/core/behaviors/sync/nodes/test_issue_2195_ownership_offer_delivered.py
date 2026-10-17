@@ -171,7 +171,10 @@ def test_ownership_offer_object_materialized_on_coordinator_replica(
 
     offer_record = _offer_ownership_transfer_record(case_replica.genesis_hash)
     offer_entry = _to_persistable_entry(offer_record)
-    offer_event = _make_event(offer_entry, actor_id=case_actor.id_)
+    # The whole received tree runs, so the Announce names the replica (#4832).
+    offer_event = _make_event(
+        offer_entry, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+    )
 
     result = bridge.execute_with_setup(
         tree=tree(),

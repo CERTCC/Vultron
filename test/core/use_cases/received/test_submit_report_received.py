@@ -956,19 +956,20 @@ class TestSubmitReportKeepsWhatArrived:
     REPORT_ID = "https://example.org/reports/r-keep-1"
     OFFER_ID = "https://example.org/activities/offer-keep-1"
 
-    def _run(self, to, report=True, actor_config=None):
+    def _run(self, to, report=True, actor_config=None, sender=None):
         from vultron.core.models.actor import VultronService
 
+        sender = sender or self.FINDER_ID
         activity = VultronActivity(
             id_=self.OFFER_ID,
             type_="Offer",
-            actor=self.FINDER_ID,
+            actor=sender,
             to=to,
         )
         event = SubmitReportReceivedEvent(
             semantic_type=MessageSemantics.SUBMIT_REPORT,
             activity_id=self.OFFER_ID,
-            actor_id=self.FINDER_ID,
+            actor_id=sender,
             object_=VulnerabilityReport(id_=self.REPORT_ID)
             if report
             else None,
@@ -1010,6 +1011,31 @@ class TestSubmitReportKeepsWhatArrived:
         assert result.disposition == HandlerDisposition.REFUSED
         self._assert_kept(dl)
         assert dl.get_all("VulnerabilityCase") == []
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("CLP-10-018")
+    def test_unaddressed_offer_without_report_is_refused_and_kept(self):
+        """The late addressee check runs for a report-less Offer too (#4832):
+        it keeps the Offer (CM-15-002), refuses, and sends nothing."""
+        result, dl = self._run([self.OTHER_ID], report=False)
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "not a to recipient" in (result.reason or "")
+        assert self.OFFER_ID in [r.get("id_") for r in dl.get_all("Offer")]
+        assert dl.read(self.REPORT_ID) is None
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("HP-09-001")
+    @pytest.mark.spec("HP-01-012")
+    def test_own_offer_addressed_elsewhere_proposes_no_case(self):
+        """Case-creation eligibility comes from ``to`` alone (HP-09-001), so
+        the receiver's own Offer to another actor is refused, unlike the door
+        guard, which admits a sender's own copy."""
+        result, dl = self._run([self.OTHER_ID], sender=self.VENDOR_ID)
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert "not a to recipient" in (result.reason or "")
+        self._assert_kept(dl)
+        assert dl.get_all("VulnerabilityCase") == []
+        assert dl.outbox_list() == []
 
     @pytest.mark.spec("CLP-10-018")
     def test_offer_without_report_keeps_the_offer_only(self):

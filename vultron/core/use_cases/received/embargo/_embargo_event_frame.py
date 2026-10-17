@@ -32,7 +32,6 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    addressee_refusal,
     not_case_manager_refusal,
     verdict_from_bt,
 )
@@ -119,8 +118,6 @@ class _EmbargoEventReceivedUseCase:
             activity=request,
         )
         verdict = verdict_from_bt(tree, result, label=self._tree_label)
-        if (refusal := addressee_refusal(tree)) is not None:
-            verdict = refusal
         verdict = self._refine_verdict(tree, verdict)
         if verdict.disposition is HandlerDisposition.APPLIED:
             # Only the CASE_MANAGER applies; a replica learns it from the

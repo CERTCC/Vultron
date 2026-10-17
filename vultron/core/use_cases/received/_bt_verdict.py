@@ -613,9 +613,8 @@ def post_close_refusal(
     :class:`~vultron.core.behaviors.case.nodes.post_close.CaseOpenToExternalWritesNode`
     refused: this actor is the case's CASE_MANAGER and the case is fully
     closed, so the tree recorded nothing (CM-23-013).  The verdict is
-    ``REFUSED`` whatever the handler would otherwise read from the failure,
-    so :func:`verdict_from_bt` and :func:`applied_or_raise` both ask this
-    first, and a handler that maps a tree's failure itself asks it too.
+    ``REFUSED`` whatever the handler would otherwise read from the failure;
+    :func:`door_refusal` asks this first.
     """
     for node in _root(tree).iterate():
         if (
@@ -628,6 +627,23 @@ def post_close_refusal(
     return None
 
 
+def door_refusal(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+) -> HandlerResult | None:
+    """The refusal owed when a door guard every received tree carries refused.
+
+    The post-close boundary (:func:`post_close_refusal`, CM-23-013), then the
+    addressee check (:func:`addressee_refusal`, HP-01-005); each keeps its
+    guard's own reason.  ``None`` when neither refused.  The factory places
+    both in every received tree unless it declares an exemption, so
+    :func:`verdict_from_bt` and :func:`applied_or_raise` ask this first, and
+    a handler that maps a tree's failure itself asks it too.
+    """
+    if (refusal := post_close_refusal(tree)) is not None:
+        return refusal
+    return addressee_refusal(tree)
+
+
 def verdict_from_bt(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     result: BTExecutionResult,
@@ -636,9 +652,10 @@ def verdict_from_bt(
 ) -> HandlerResult:
     """The default ``HandlerResult`` for a finished received-side BT run.
 
-    The post-close refusal and an incomplete activity's refusal
-    (:func:`incomplete_activity_refusal`) are read first and keep their
-    guard's own reason; any other refusal is prefixed with *label*.
+    The door guards' refusals (:func:`door_refusal`) and an incomplete
+    activity's refusal (:func:`incomplete_activity_refusal`) are read first
+    and keep their guard's own reason; any other refusal is prefixed with
+    *label*.
 
     Args:
         tree: The tree that ran (or its ``BehaviourTree`` wrapper).
@@ -652,7 +669,7 @@ def verdict_from_bt(
         return HandlerResult.applied()
     if result.leader_skipped:
         return HandlerResult.skipped("not the replication leader")
-    if (refusal := post_close_refusal(tree)) is not None:
+    if (refusal := door_refusal(tree)) is not None:
         return refusal
     if (refusal := incomplete_activity_refusal(tree)) is not None:
         # The guard's message is the whole reason, with no label (CLP-10-018).
@@ -714,14 +731,15 @@ def applied_or_raise(
 
     A tree that only stores or commits what the handler has already accepted
     fails only when the DataLayer does, so its failure is a local fault, never
-    a verdict on the sender — except the post-close guard every received tree
-    carries, whose refusal is returned (CM-23-013).
+    a verdict on the sender — except the door guards every received tree
+    carries, whose refusal is returned (:func:`door_refusal`).
 
     Raises:
         VultronBTInternalError: The run failed for any reason.
     """
-    if (refusal := post_close_refusal(tree)) is not None:
-        # The one refusal such a tree can meet: the case closed (CM-23-013).
+    if (refusal := door_refusal(tree)) is not None:
+        # The refusals such a tree can meet: the case closed (CM-23-013), or
+        # the copy was not addressed to this receiver (HP-01-005).
         return refusal
     verdict = verdict_from_bt(tree, result, label=label)
     if verdict.disposition is HandlerDisposition.REFUSED:
@@ -731,6 +749,7 @@ def applied_or_raise(
 
 __all__ = [
     "addressee_refusal",
+    "door_refusal",
     "applied_or_raise",
     "case_manager_absence_refusal",
     "closed_sender_verdict",

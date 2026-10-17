@@ -50,6 +50,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 _OWNER_ID = "https://example.org/actors/owner"
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _IMPOSTER_ID = "https://example.org/actors/imposter"
+# The store every test runs as; the Announce is addressed to it (HP-01-005).
+_RECEIVER_ID = "https://test.example/api/v2/actors/test-actor"
 _VENDOR_ID = "https://example.org/actors/vendor"
 _CASE_ID = "https://example.org/cases/case-ann-001"
 _CASE_ID2 = "https://example.org/cases/case-ann-002"
@@ -62,7 +64,7 @@ _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
 def dl():
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=_RECEIVER_ID,
     )
 
 
@@ -102,6 +104,7 @@ def announce_activity(case, case_actor):
     return announce_vulnerability_case_activity(
         case,
         actor=case_actor.id_,
+        to=[_RECEIVER_ID],
         context=case.id_,
     )
 
@@ -168,6 +171,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             announce_vulnerability_case_activity(
                 case,
                 actor=case_actor.id_,
+                to=[_RECEIVER_ID],
                 context=case.id_,
             )
         )
@@ -232,7 +236,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         # so we inject via model_copy to simulate a malformed incoming payload.
         good_case = as_VulnerabilityCase(id_=_CASE_ID2, name="Placeholder")
         announce = announce_vulnerability_case_activity(
-            good_case, actor=_OWNER_ID
+            good_case, actor=_OWNER_ID, to=[_RECEIVER_ID]
         )
         event = make_payload(announce)
 
@@ -258,6 +262,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         announce = announce_vulnerability_case_activity(
             case,
             actor=_IMPOSTER_ID,
+            to=[_RECEIVER_ID],
             context=case.id_,
         )
         event = make_payload(announce)
@@ -379,7 +384,7 @@ class TestAnnounceFirstContactTrustGap:
         )
         # Build an announce from a *different* actor (the imposter)
         imposter_announce = announce_vulnerability_case_activity(
-            case, actor=_IMPOSTER_ID, context=case.id_
+            case, actor=_IMPOSTER_ID, to=[_RECEIVER_ID], context=case.id_
         )
         event = make_payload(imposter_announce)
 
@@ -462,6 +467,7 @@ class TestAnnounceDrainsPreGenesisBuffer:
         activity = announce_vulnerability_case_activity(
             case_with_actor,
             actor=_CASE_ACTOR_ID,
+            to=[_RECEIVER_ID],
             context=_CASE_ID,
         )
         event = make_payload(activity)
@@ -563,7 +569,7 @@ class TestAnnounceStoresEmbeddedParticipants:
         """
         _dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_RECEIVER_ID,
         )
         _anchor_expected_authority(_dl)
         return _dl
@@ -604,6 +610,7 @@ class TestAnnounceStoresEmbeddedParticipants:
         activity = announce_vulnerability_case_activity(
             case,
             actor=_CASE_ACTOR_ID,
+            to=[_RECEIVER_ID],
             context=_CASE_ID,
         )
         return make_payload(activity)
@@ -652,7 +659,7 @@ class TestAnnounceStoresEmbeddedParticipants:
             case_participants=[_VENDOR_PARTICIPANT_ID],  # bare string ref
         )
         activity = announce_vulnerability_case_activity(
-            case, actor=_CASE_ACTOR_ID, context=_CASE_ID
+            case, actor=_CASE_ACTOR_ID, to=[_RECEIVER_ID], context=_CASE_ID
         )
         event = make_payload(activity)
 

@@ -510,14 +510,19 @@ def test_a_replica_follows_a_participants_engagement_decision(
         assert _rm(net, store_of, OWNER) == owner_before[store_of], store_of
 
 
-def _create_note(net: LedgerNetwork, note_id: str) -> as_Create:
-    """A bystander's ``Create(Note)`` whose note names the network's case."""
+def _create_note(
+    net: LedgerNetwork, note_id: str, *, also_to: tuple[str, ...] = ()
+) -> as_Create:
+    """A bystander's ``Create(Note)`` whose note names the network's case.
+
+    Addressed to the CASE_MANAGER, plus any actors in *also_to*.
+    """
     return as_Create(
         actor=BYSTANDER,
         object_=as_Note(
             id_=note_id, content="A general inquiry", context=net.case_id
         ),
-        to=[MANAGER],
+        to=[MANAGER, *also_to],
     )
 
 
@@ -901,7 +906,9 @@ def test_create_note_writes_no_attachment_at_a_replica():
     notes_before = list(net.case(OWNER).notes)
     ledger_before = _ledger(net, OWNER)
 
-    _deliver_direct(net, OWNER, _create_note(net, note_id))
+    # Addressed to the replica too, so the run passes the addressee door
+    # (HP-01-005) and reaches the CASE_MANAGER gate under test.
+    _deliver_direct(net, OWNER, _create_note(net, note_id, also_to=(OWNER,)))
 
     assert net.stores[OWNER].read(note_id) is None
     assert net.case(OWNER).notes == notes_before

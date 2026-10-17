@@ -86,7 +86,7 @@ def _case(manager: str = _CREATOR) -> as_VulnerabilityCase:
 
 
 def _run(dl, make_payload, sender: str, case: as_VulnerabilityCase):
-    activity = create_case_activity(case, actor=sender)
+    activity = create_case_activity(case, actor=sender, to=[_RECEIVER])
     event = make_payload(activity)
     tree = create_create_case_received_tree(
         event.case,

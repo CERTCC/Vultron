@@ -315,7 +315,7 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
         offer = self._make_offer()
         accept = accept_case_participant_role_activity(
-            offer, actor=self._CASE_ACTOR_URI
+            offer, actor=self._CASE_ACTOR_URI, to=[self._VENDOR_URI]
         )
         event = make_payload(accept)
 
@@ -335,7 +335,7 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
         offer = self._make_offer()
         accept = accept_case_participant_role_activity(
-            offer, actor=self._CASE_ACTOR_URI
+            offer, actor=self._CASE_ACTOR_URI, to=[self._VENDOR_URI]
         )
         event = make_payload(accept)
 
@@ -360,7 +360,7 @@ class TestAcceptCaseParticipantRoleReceivedUseCase:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
         offer = self._make_offer()
         accept = accept_case_participant_role_activity(
-            offer, actor=self._CASE_ACTOR_URI
+            offer, actor=self._CASE_ACTOR_URI, to=[self._VENDOR_URI]
         )
         event = make_payload(accept)
 
@@ -398,7 +398,7 @@ class TestRejectCaseParticipantRoleReceivedUseCase:
         """RejectCaseParticipantRoleReceivedUseCase logs a warning without raising."""
         offer = self._make_offer()
         reject = reject_case_participant_role_activity(
-            offer, actor=self._CASE_ACTOR_URI
+            offer, actor=self._CASE_ACTOR_URI, to=[self._VENDOR_URI]
         )
         event = make_payload(reject)
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)

@@ -448,6 +448,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
             id_=self.ACCEPT_ID,
             type_="Accept",
             actor=self.VENDOR_ID,
+            to=[self.CASE_ACTOR_ID],
             object_=offer_obj,
             context=self.CASE_ID,
         )
@@ -683,6 +684,8 @@ class TestFullValidateReportLedgerChain:
             id_=emitted_id,
             type_="Accept",
             actor=self.VENDOR_ID,
+            # Addressed as the trigger addressed the emitted activity.
+            to=list(to_list),
             object_=offer_obj,
             context=ca_case.id_,
         )

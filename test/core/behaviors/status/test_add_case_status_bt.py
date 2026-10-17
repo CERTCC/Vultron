@@ -1105,7 +1105,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         dl.create(status_obj)
 
         activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID
+            status_obj, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
         )
         event = make_payload(activity)
 
@@ -1137,7 +1137,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         dl.create(status_obj)
 
         activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID
+            status_obj, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
         )
         event = make_payload(activity)
 
@@ -1183,7 +1183,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         dl.create(bad_status)
 
         activity = add_status_to_case_activity(
-            bad_status, target=case, actor=ACTOR_ID
+            bad_status, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
         )
         event = make_payload(activity)
 
@@ -1220,7 +1220,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         # Construct a status with no ID to force status_id=None via factory
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID
+            status_obj, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
         )
         event = make_payload(activity)
 
@@ -1566,6 +1566,7 @@ class TestThreatTerminationBranchNode:
         activity = announce_log_entry_activity(
             WireCaseLedgerEntry.model_validate(entry.model_dump(mode="json")),
             actor=CASE_MANAGER_ID,
+            to=[ACTOR_ID],
         )
         event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
         AnnounceLedgerEntryReceivedUseCase(
@@ -1788,6 +1789,7 @@ class TestAddCaseStatusTreeSeam2:
             status_obj,
             target=as_VulnerabilityCase(id_=CASE_ID),
             actor=ACTOR_ID,
+            to=[CASE_MANAGER_ID],
         )
         event = cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
 
@@ -2277,13 +2279,14 @@ class TestPxaEmInvariantDiagnosticNode:
         dl.create(status_obj)
         return dl, status_obj
 
-    def _make_event(self, dl, status_obj):
+    def _make_event(self, dl, status_obj, receiver_id: str = DIAG_CM_ID):
         from vultron.semantic_registry import extract_event
 
         activity = add_status_to_case_activity(
             status_obj,
             target=as_VulnerabilityCase(id_=DIAG_CASE_ID),
             actor=DIAG_ACTOR_ID,
+            to=[receiver_id],
         )
         return cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
 
@@ -2333,7 +2336,9 @@ class TestPxaEmInvariantDiagnosticNode:
         dl, status_obj = self._build_dl_with_active_embargo(
             actor_id=f"{DIAG_CM_ID}-blocked"
         )
-        event = self._make_event(dl, status_obj)
+        event = self._make_event(
+            dl, status_obj, receiver_id=f"{DIAG_CM_ID}-blocked"
+        )
 
         call_out = StatusAuthorizationCallOutBundle(
             embargo_teardown_authorization_gate_factory=AlwaysFail
@@ -2418,6 +2423,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
                     status_obj,
                     target=as_VulnerabilityCase(id_=DIAG_CASE_ID),
                     actor=sender,
+                    to=[REPLICA_ID],
                 )
             ),
         )

@@ -765,9 +765,10 @@ class TestInvalidateReportReceivedUseCase:
 
 
 def test_report_verdict_tree_runs_case_clock_decisions_after_sender_guard():
-    """An Invalidate(Report) tree resolves the case, checks the sender,
-    then runs the CASE_MANAGER's clock decisions, the embargo end-time check
-    among them, before its guards (HP-01-008, CLP-10-025, EMB-13-003).
+    """An Invalidate(Report) tree checks the addressee (HP-01-005), resolves
+    the case, checks the sender, then runs the CASE_MANAGER's clock
+    decisions, the embargo end-time check among them, before its guards
+    (HP-01-008, CLP-10-025, EMB-13-003).
 
     A ``Close(Report)`` tree has no guards to run them before: it refuses
     every sender on a case (CM-23-019).
@@ -777,9 +778,10 @@ def test_report_verdict_tree_runs_case_clock_decisions_after_sender_guard():
         case_id=CASE_ID,
         sender_rule=InvalidateReportReceivedUseCase.sender_entitlement,
     )
-    assert [c.name for c in tree.children[:6]] == [
+    assert [c.name for c in tree.children[:7]] == [
         "IntakeReceivedActivityNode",
         "CaseOpenToExternalWrites",
+        "ActivityAddressedToReceiverNode",
         "RequireCaseForReport",
         "SenderIsParticipantNode",
         "ClockDecisionsIfCaseManager",

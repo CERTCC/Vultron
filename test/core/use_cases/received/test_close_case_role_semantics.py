@@ -205,6 +205,7 @@ def _make_close_case_event(
         id_=activity_id,
         type_="Leave",
         actor=sender_actor_id,
+        to=[receiving_actor_id],
         object_=case_obj,
     )
     return CloseCaseReceivedEvent(
@@ -1034,7 +1035,10 @@ def _add_note_event(note_id: str, sender_id: str = VENDOR_ID):
 
     note = as_Note(id_=note_id, content="late note", context=CASE_ID)
     activity = add_note_to_case_activity(
-        note, target=as_VulnerabilityCase(id_=CASE_ID), actor=sender_id
+        note,
+        target=as_VulnerabilityCase(id_=CASE_ID),
+        actor=sender_id,
+        to=[CASE_ACTOR_ID],
     )
     event = extract_event(activity).model_copy(
         update={"receiving_actor_id": CASE_ACTOR_ID}
@@ -1263,6 +1267,7 @@ class TestPostCloseWriteBoundary:
             status,
             target=participant,
             actor=VENDOR_ID,
+            to=[CASE_ACTOR_ID],
             context=as_VulnerabilityCase(id_=CASE_ID),
         )
         event = extract_event(activity).model_copy(
@@ -1355,6 +1360,7 @@ def _make_close_case_ledger_entry(
 def _make_announce_event(
     entry: CaseLedgerEntry,
     sender_actor_id: str,
+    receiver_id: str = VENDOR_ID,
 ) -> AnnounceLogEntryReceivedEvent:
     from typing import cast
 
@@ -1362,7 +1368,7 @@ def _make_announce_event(
         entry.model_dump(mode="json")
     )
     activity = announce_log_entry_activity(
-        entry=wire_entry, actor=sender_actor_id
+        entry=wire_entry, actor=sender_actor_id, to=[receiver_id]
     )
     return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
 
@@ -1402,7 +1408,9 @@ def _deliver(replica: SqliteDataLayer, entries) -> None:
             ),
             actor_id=replica.actor_id,
             activity=_make_announce_event(
-                entry=entry, sender_actor_id=CASE_ACTOR_ID
+                entry=entry,
+                sender_actor_id=CASE_ACTOR_ID,
+                receiver_id=replica.actor_id,
             ),
             sync_port=MagicMock(spec=SyncActivityPort),
         )

@@ -135,7 +135,9 @@ def _deliver(
         RM.INVALID: TentativeRejectInviteActorToFullCaseReceivedUseCase,
         RM.CLOSED: RejectInviteActorToFullCaseReceivedUseCase,
     }
-    activity = builders[declared](invite, tail, actor=sender)
+    activity = builders[declared](
+        invite, tail, actor=sender, to=[CASE_MANAGER_ID]
+    )
     event = extract_event(activity)
     return use_cases[declared](
         dl,

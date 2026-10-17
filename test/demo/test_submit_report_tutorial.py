@@ -27,7 +27,7 @@ from vultron.wire.as2.vocab.examples import submit_report_tutorial as t
 def test_tutorial_flow_creates_submits_and_stores_report():
     router = _TestClientRouter()
     iso = create_isolated_actor_app(
-        "http://vendor.test", router, actor_slug=t.VENDOR_SLUG
+        t.SERVER_ORIGIN, router, actor_slug=t.VENDOR_SLUG
     )
 
     with iso.client as client:

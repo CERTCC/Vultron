@@ -177,7 +177,9 @@ class TestCloseAndInvalidateReportCommit:
         event = cast(
             InvalidateReportReceivedEvent,
             extract_event(
-                rm_invalidate_report_activity(_offer(), actor=FINDER_ID)
+                rm_invalidate_report_activity(
+                    _offer(), actor=FINDER_ID, to=[receiver]
+                )
             ).model_copy(update={"receiving_actor_id": receiver}),
         )
 
@@ -200,7 +202,9 @@ class TestCloseAndInvalidateReportCommit:
         event = cast(
             CloseReportReceivedEvent,
             extract_event(
-                rm_close_report_activity(_offer(), actor=FINDER_ID)
+                rm_close_report_activity(
+                    _offer(), actor=FINDER_ID, to=[receiver]
+                )
             ).model_copy(update={"receiving_actor_id": receiver}),
         )
 
@@ -231,7 +235,9 @@ class TestCloseAndInvalidateReportCommit:
     ):
         """A refused activity leaves no canonical entry (CLP-10-009)."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER_ID)
-        event = extract_event(build(_offer(), actor=FINDER_ID))
+        event = extract_event(
+            build(_offer(), actor=FINDER_ID, to=[MANAGER_ID])
+        )
         event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
 
         result = use_case(dl, event, **_ports(dl)).execute()
@@ -285,7 +291,9 @@ class TestCloseAndInvalidateReportCommit:
         entry behind.
         """
         dl = _store(MANAGER_ID, sender_rm, finder_known=finder_known)
-        event = extract_event(build(_offer(), actor=FINDER_ID))
+        event = extract_event(
+            build(_offer(), actor=FINDER_ID, to=[MANAGER_ID])
+        )
         event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
 
         result = use_case(dl, event, **_ports(dl)).execute()
@@ -303,7 +311,9 @@ class TestCloseAndInvalidateReportCommit:
         event = cast(
             InvalidateReportReceivedEvent,
             extract_event(
-                rm_invalidate_report_activity(_offer(), actor=FINDER_ID)
+                rm_invalidate_report_activity(
+                    _offer(), actor=FINDER_ID, to=[MANAGER_ID]
+                )
             ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
         )
 

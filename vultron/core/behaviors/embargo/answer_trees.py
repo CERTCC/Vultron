@@ -154,7 +154,6 @@ def accept_invite_to_embargo_tree(
     root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",
         case_id=case_id,
-        addressee_check="Accept(Invite(EmbargoEvent))",
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=accepting_actor_id, case_id=case_id, invite_id=invite_id
@@ -292,7 +291,6 @@ def reject_invite_to_embargo_tree(
     root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",
         case_id=case_id,
-        addressee_check="Reject(Invite(EmbargoEvent))",
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=rejecting_actor_id, case_id=case_id, invite_id=invite_id

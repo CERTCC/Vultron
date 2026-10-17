@@ -25,6 +25,9 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.addressee import (
+    ActivityAddressedToReceiverNode,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -201,21 +204,22 @@ class TestCreateNoteTree:
         # RSH-08-003 (#3814): the attach is wrapped in the factory's
         # CASE_MANAGER gate as the last child; the Note object is still saved
         # ungated.  CLP-07-013 (#4441): the attachment is a case-file change,
-        # so the CASE_MANAGER commits the Create(Note) first.  The sender
-        # guard comes before both, and with it the embargo end-time check
-        # (HP-01-008, CLP-10-025).
+        # so the CASE_MANAGER commits the Create(Note) first.  The addressee
+        # door guard and the sender guard come before both, and with them the
+        # embargo end-time check (HP-01-005, HP-01-008, CLP-10-025).
         tree = _tree(note, CASE_ID)
         names = [c.name for c in tree.children]
-        assert len(tree.children) == 7
+        assert len(tree.children) == 8
         assert isinstance(tree.children[0], IntakeReceivedActivityNode)
         assert isinstance(tree.children[1], CaseOpenToExternalWritesNode)
-        assert names[2] == "SenderRuleGuard"
-        assert names[3] == "ClockDecisionsIfCaseManager"
-        commit = tree.children[4]
+        assert isinstance(tree.children[2], ActivityAddressedToReceiverNode)
+        assert names[3] == "SenderRuleGuard"
+        assert names[4] == "ClockDecisionsIfCaseManager"
+        commit = tree.children[5]
         assert isinstance(commit, CaseManagerGate)
         assert commit.name == "GuardedCommitCaseLedgerEntryBT"
-        assert isinstance(tree.children[5], SaveNoteNode)
-        gate = tree.children[6]
+        assert isinstance(tree.children[6], SaveNoteNode)
+        gate = tree.children[7]
         assert isinstance(gate, CaseManagerGate)
         assert isinstance(gate.gated_branch, AttachNoteToCaseNode)
 

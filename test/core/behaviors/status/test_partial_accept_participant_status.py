@@ -308,6 +308,7 @@ def _run_tree(
             id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
         ),
         actor=ACTOR_ID,
+        to=[executing_actor_id],
         context=as_VulnerabilityCase(id_=CASE_ID, name="Issue 2235 Case"),
     )
     event = make_payload(activity)

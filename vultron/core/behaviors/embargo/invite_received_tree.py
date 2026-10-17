@@ -41,6 +41,9 @@ from dataclasses import dataclass
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.addressee import (
+    MISROUTED_EMBARGO_INVITE,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -74,7 +77,8 @@ class EmbargoInviteFault:
         addressed: The Invite names its recipients, so a store it was not
             addressed to refuses it at the addressee door guard and answers
             nothing (HP-01-005); ``False`` for a misrouting, which names no
-            single addressee to check.
+            single addressee to check, so its tree declares the
+            ``MISROUTED_EMBARGO_INVITE`` exemption and answers the fault.
     """
 
     failure_class: str
@@ -106,12 +110,14 @@ def embargo_invite_fault_tree(
         failure_class: The ``ProcessingFault`` failure class.
         case_id: The case the Invite names, if any; the fault's context.
         addressed: Refuse a copy not addressed to this store before the
-            fault, unanswered (HP-01-005); see :class:`EmbargoInviteFault`.
+            fault, unanswered (HP-01-005); ``False`` declares the
+            ``MISROUTED_EMBARGO_INVITE`` exemption.  See
+            :class:`EmbargoInviteFault`.
     """
     return create_receive_activity_tree(
         name="EmbargoInviteFaultBT",
         case_id=None,
-        addressee_check="Invite(EmbargoEvent)" if addressed else None,
+        addressee_exemption=None if addressed else MISROUTED_EMBARGO_INVITE,
         precondition_guards=[],
         replica_effects=[
             EmitEmbargoInviteFaultNode(

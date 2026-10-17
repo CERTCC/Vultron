@@ -114,6 +114,7 @@ def _make_close_case_event(
         id_="https://example.org/activities/leave-case",
         type_="Leave",
         actor=leave_actor_id,
+        to=[CASE_ACTOR_ID],
         object_=case_obj,
     )
     return CloseCaseReceivedEvent(

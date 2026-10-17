@@ -87,6 +87,7 @@ def _owner_removes_vendor(case: _RemovalCase) -> Any:
         target=CASE_ID,
         actor=OWNER,
         id_=_REMOVE_ACTIVITY_ID,
+        to=[MANAGER],
     )
 
 
@@ -153,7 +154,7 @@ def test_refused_removal_writes_nothing_but_the_archive(
 ) -> None:
     """A non-owner's removal is archived (CLP-10-018) and changes nothing."""
     activity = remove_participant_from_case_activity(
-        removal.participant(VENDOR), target=CASE_ID, actor=OTHER
+        removal.participant(VENDOR), target=CASE_ID, actor=OTHER, to=[MANAGER]
     )
 
     result = removal.route(activity)
@@ -216,7 +217,7 @@ def test_removal_naming_another_actor_than_the_record_is_refused(
         update={"attributed_to": MANAGER}
     )
     activity = remove_participant_from_case_activity(
-        forged, target=CASE_ID, actor=OWNER
+        forged, target=CASE_ID, actor=OWNER, to=[MANAGER]
     )
 
     result = removal.route(activity)
@@ -242,7 +243,7 @@ def test_removal_naming_the_record_actor_with_a_trailing_slash_is_applied(
         update={"attributed_to": VENDOR + "/"}
     )
     activity = remove_participant_from_case_activity(
-        spelled, target=CASE_ID, actor=OWNER
+        spelled, target=CASE_ID, actor=OWNER, to=[MANAGER]
     )
 
     result = removal.route(activity)
@@ -318,7 +319,7 @@ def test_removal_on_a_case_without_a_case_manager_is_refused() -> None:
     result = route_received(
         dl,
         remove_participant_from_case_activity(
-            record, target=CASE_ID, actor=OWNER
+            record, target=CASE_ID, actor=OWNER, to=[VENDOR]
         ),
         receiving_actor_id=VENDOR,
         sync_port=SyncActivityAdapter(dl),
