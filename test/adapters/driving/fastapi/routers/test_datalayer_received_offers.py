@@ -57,10 +57,13 @@ def _received_offer(to: str):
 
 @pytest.fixture
 def receive(datalayer, dl_actor_id):
-    """Deliver the finder's Offer to the actor, as intake archives it."""
+    """Deliver the finder's Offer to the actor, as intake archives it.
+
+    The same Offer each time, so two deliveries differ only in what is stored.
+    """
+    offer = _received_offer(dl_actor_id)
 
     def _receive(*, ingress_row: bool):
-        offer = _received_offer(dl_actor_id)
         if ingress_row:
             assert _store_inbox_activity(datalayer, offer)
         archive_received(datalayer, offer)
