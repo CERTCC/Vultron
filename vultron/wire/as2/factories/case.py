@@ -43,6 +43,7 @@ from vultron.wire.as2.factories._context import (
     case_uri_of,
     with_case_context,
 )
+from vultron.wire.as2.factories._held import as_answered
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case import (
     _AcceptCaseOwnershipTransferActivity,
@@ -646,6 +647,7 @@ def _ownership_offer_reply(
     """Build *reply_class* around an ownership-transfer *offer*.
 
     Shared by the transferee's Accept and Reject and the offerer's Undo.
+    *offer* may be the Offer as a receiver archived it (its core form).
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails, as it
@@ -654,7 +656,7 @@ def _ownership_offer_reply(
     """
     try:
         return reply_class(
-            object_=cast(_OfferCaseOwnershipTransferActivity, offer),
+            object_=as_answered(_OfferCaseOwnershipTransferActivity, offer),
             **kwargs,
         )
     except ValidationError as exc:

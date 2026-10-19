@@ -140,11 +140,30 @@ def test_extraction_surfaces_the_proposal_on_the_submit_report_event() -> None:
     assert event.proposed_embargo.end_time == _END
 
 
+@pytest.mark.spec("EP-04-004")
+@pytest.mark.spec("CLP-10-017")
+def test_the_archived_offer_keeps_its_proposal() -> None:
+    """The activity intake archives carries the terms the Offer carried.
+
+    A received Offer is held only as its archive (DL-06-006), and the
+    receiver inlines that copy in its case proposal (CP-01-008), so the
+    snapshot keeps ``proposedEmbargo``.
+    """
+    event = extract_event(parse_activity(_wire(_offer())))
+    assert isinstance(event, SubmitReportReceivedEvent)
+    assert event.activity is not None
+    terms = event.activity.proposed_embargo
+    assert isinstance(terms, EmbargoEvent)
+    assert terms == event.proposed_embargo
+
+
 def test_an_offer_without_a_proposal_extracts_none() -> None:
     offer = rm_submit_report_activity(_report(), to=_VENDOR, actor=_FINDER)
     event = extract_event(parse_activity(_wire(offer)))
     assert isinstance(event, SubmitReportReceivedEvent)
     assert event.proposed_embargo is None
+    assert event.activity is not None
+    assert event.activity.proposed_embargo is None
 
 
 def test_a_proposal_named_by_reference_is_read_as_absent(

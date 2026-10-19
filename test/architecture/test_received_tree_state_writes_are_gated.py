@@ -343,7 +343,6 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         f"{_B}.embargo.nodes.manager_commit",
         "IndexOwnEmbargoProposalNode",
     ): _PROPOSAL_INDEX,
-    (f"{_B}.embargo.nodes.proposal", "CreateAndStoreInviteNode"): _ARCHIVE,
     (
         f"{_B}.embargo.nodes.proposal",
         "IndexReceivedEmbargoProposalNode",

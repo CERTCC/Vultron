@@ -16,11 +16,12 @@
 """Report-domain trigger activity construction for TriggerActivityAdapter."""
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.errors import VultronAlreadyExistsError
+from vultron.core.services.received_activity import read_held_activity
+from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
 from vultron.wire.as2.factories import (
     rm_close_report_activity,
     rm_invalidate_report_activity,
@@ -162,11 +163,19 @@ class _ReportsMixin:
         return _seal(self._dl, activity)
 
     def _resolve_offer(self, offer_id: str) -> Any:
-        """Read wire Offer from DL; reconstitute from VultronOfferRecord if absent."""
-        offer = cast(Any, self._dl.read(offer_id))
-        if offer is None:
-            offer = _reconstitute_offer(offer_id, self._dl)
-        return offer
+        """Read the Offer as this actor holds it; else rebuild it from its record.
+
+        A received Offer is read from its intake archive, never under the id
+        its sender chose (DL-06-006); an Offer this actor sent is held under
+        its own id (:func:`read_held_activity`).  When neither is held, the
+        Offer is reconstituted from its ``VultronOfferRecord``.
+        """
+        try:
+            return read_held_activity(
+                self._dl, offer_id, "Offer(VulnerabilityReport)"
+            )
+        except VultronNotFoundError:
+            return _reconstitute_offer(offer_id, self._dl)
 
     def validate_report(
         self,

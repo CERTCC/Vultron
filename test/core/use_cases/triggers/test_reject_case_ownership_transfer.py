@@ -28,6 +28,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.received import archive_received
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -74,7 +75,11 @@ def _seed_case(dl: Any, owner_id: str, case_manager_id: str):
 
 
 def _forwarded_offer(dl: Any, case, case_manager_id: str, transferee_id: str):
-    """The CASE_MANAGER's forward of the Offer, as the transferee holds it."""
+    """The CASE_MANAGER's forward of the Offer, as the transferee holds it.
+
+    Intake archived it under the receiver's key; nothing holds it under the
+    id its sender chose (DL-06-006).
+    """
     offer = offer_case_ownership_transfer_activity(
         case=as_VulnerabilityCase.model_validate(
             {"id": case.id_, "name": case.name}
@@ -83,7 +88,7 @@ def _forwarded_offer(dl: Any, case, case_manager_id: str, transferee_id: str):
         actor=case_manager_id,
         to=[transferee_id],
     )
-    dl.create(offer)
+    archive_received(dl, offer)
     return offer
 
 
@@ -118,8 +123,10 @@ def transferee_world(actor_store):
 
 @pytest.mark.spec("TRIG-11-005")
 @pytest.mark.spec("CM-21-010")
+@pytest.mark.spec("DL-06-006")
 def test_reject_is_addressed_to_the_case_manager(transferee_world):
     dl, transferee, case_manager, _, offer = transferee_world
+    assert dl.read(offer.id_) is None  # held only as received
 
     result = _execute(dl, transferee.id_, offer.id_)
 

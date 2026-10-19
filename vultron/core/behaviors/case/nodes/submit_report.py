@@ -18,9 +18,11 @@
 A receiver keeps the report, the Offer and the offer record whatever it later
 decides about the Offer, so a receiver that opts out of case creation can
 still ACK or decide on the report (CM-15-001, CM-15-002).  Intake archives
-the activity only (CLP-10-017); these nodes write the core records from the
-event's copy.  :func:`submit_report_received_effects` builds them in the
-order the tree runs them, ahead of the ``auto_create_case`` gate.
+the activity only (CLP-10-017), and that archive is the Offer the receiver
+keeps: nothing stores it under the id its sender chose (DL-06-006).  These
+nodes write the core records from the event's copy.
+:func:`submit_report_received_effects` builds them in the order the tree
+runs them, ahead of the ``auto_create_case`` gate.
 
 The records are deliberately written *before* the addressing guard: a
 misaddressed Offer is refused (HP-01-005), but the receiver still holds what
@@ -151,10 +153,11 @@ def submit_report_received_effects(
 ) -> list[py_trees.behaviour.Behaviour]:
     """The effect nodes that keep what a received ``Offer(Report)`` carried.
 
-    Store the report and the Offer activity; for an Offer that names a report,
-    also write the offer record.  Then check that the Offer is addressed to
-    the receiver, which stands in for the door guard the tree is exempt from
-    (CM-15-002, HP-01-005).  An Offer that names no report goes no further.
+    Store the report (intake has archived the Offer); for an Offer that
+    names a report, also write the offer record.  Then check that the Offer
+    is addressed to the receiver, which stands in for the door guard the
+    tree is exempt from (CM-15-002, HP-01-005).  An Offer that names no
+    report goes no further.
     """
     report_id = request.report_id
     nodes: list[py_trees.behaviour.Behaviour] = []
@@ -169,18 +172,9 @@ def submit_report_received_effects(
                 name="StoreReceivedReport",
             )
         )
+    # The Offer itself is intake's archive, read through its receiver-keyed
+    # record; nothing holds it under the id its sender chose (DL-06-006).
     activity = request.activity
-    if activity is not None:
-        nodes.append(
-            StoreReceivedObjectNode(
-                activity.type_,
-                request.activity_id,
-                activity,
-                "SubmitReport activity",
-                request.activity_id,
-                name="StoreReceivedOffer",
-            )
-        )
     if report_id and activity is not None:
         nodes.append(
             StoreSubmitReportOfferRecordNode(

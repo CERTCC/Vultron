@@ -100,7 +100,6 @@ from vultron.core.behaviors.embargo.nodes import (
     CanAnswerEmbargoInviteNode,
     ClearActiveEmbargoNode,
     CollectEmbargoInviteRecipientsNode,
-    CreateAndStoreInviteNode,
     EmbargoProposalNotYetRecordedNode,
     HasEmbargoActiveNode,
     IndexReceivedEmbargoProposalNode,
@@ -410,7 +409,8 @@ def invite_to_embargo_on_case_tree(
     changes who holds the role, so their order does not matter.
 
     **A participant replica stores and answers** the Invite addressed to it
-    and writes nothing else (EP-09-003).  The intake stores the Invite; when
+    and writes nothing else (EP-09-003).  The intake archives the Invite
+    under the receiver's key (CLP-10-017, DL-06-006); when
     the executing actor is its addressee, the EMB-15 response decision
     (``create_embargo_response_decision_tree``) queues an ``Accept`` or
     ``Reject`` of it to the CASE_MANAGER (``SendEmbargoInviteAnswerNode``).
@@ -422,7 +422,7 @@ def invite_to_embargo_on_case_tree(
     proposal, the relayed Invite and every answer from the CASE_MANAGER's
     committed entries, which ``create_announce_log_entry_tree`` replays
     (EP-09-007, RSH-08-004).  An Invite that reached a store other than its
-    addressee's is stored and left unanswered.
+    addressee's is archived and left unanswered.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -438,7 +438,7 @@ def invite_to_embargo_on_case_tree(
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
         embargo: The inline ``EmbargoEvent`` the message carries, persisted
-            by the intake in whichever store receives the Invite (CLP-10-017);
+            by an effect in whichever store receives the Invite (CLP-10-017);
             ``None`` when the message named its object by bare URI.
         actor_config: The executing CASE_MANAGER's configuration; its RSVP
             windows set each relayed Invite's ``endTime`` (CM-28-012).
@@ -447,11 +447,12 @@ def invite_to_embargo_on_case_tree(
     Returns:
         Root node of the ``InviteToEmbargoOnCaseBT`` Sequence.
     """
-    # The intake stores the Invite and the embargo it carries, in every store:
-    # the store keeps the Invite's object by reference, so without the
-    # EmbargoEvent it could not read the Invite back whole to adjudicate or
-    # answer it.  Storing the object moves no EM or consent state (EP-09-003).
-    intake: list[py_trees.behaviour.Behaviour] = [CreateAndStoreInviteNode()]
+    # Every store keeps the embargo the Invite carries, the core record its
+    # adjudication and answer read.  The Invite itself is read as intake
+    # archived it, never stored under the id its sender chose (CLP-10-017,
+    # DL-06-006).  Storing the embargo moves no EM or consent state
+    # (EP-09-003).
+    intake: list[py_trees.behaviour.Behaviour] = []
     if embargo is not None:
         intake.append(PersistEmbargoEventNode(embargo=embargo))
     adjudication: list[py_trees.behaviour.Behaviour] = [
