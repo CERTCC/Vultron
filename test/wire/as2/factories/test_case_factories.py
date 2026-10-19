@@ -1236,3 +1236,30 @@ def test_ownership_reply_embeds_an_offer_as_intake_archived_it(factory):
 
     assert result.object_.id_ == offer.id_
     assert result.object_.object_.id_ == case.id_
+
+
+@pytest.mark.spec("AF-04-001")
+@pytest.mark.parametrize(
+    "factory",
+    [
+        accept_case_ownership_transfer_activity,
+        reject_case_ownership_transfer_activity,
+        undo_case_ownership_transfer_activity,
+    ],
+)
+def test_ownership_reply_refuses_an_archived_offer_of_another_kind(
+    sample_report, factory
+):
+    """An archived ``Offer(Report)`` is not an ownership-transfer Offer."""
+    from vultron.semantic_registry import extract_event
+    from vultron.wire.as2.factories import rm_submit_report_activity
+
+    offer = rm_submit_report_activity(
+        sample_report, to=_ACTOR_URI, actor=_ACTOR_URI
+    )
+    archived = extract_event(offer).activity
+    assert archived is not None
+
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        factory(offer=archived, actor=_ACTOR_URI)
+    assert exc_info.value.__cause__ is not None

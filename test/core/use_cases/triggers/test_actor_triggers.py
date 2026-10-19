@@ -1916,8 +1916,8 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         """VultronNotFoundError raised when the Offer names no case.
 
         ``_prepare`` accepts either shape of stored offer — the SYNC replica's
-        ``VultronOwnershipTransferOfferRecord`` (case URI in ``case_id``) or the
-        HTTP-inbox path's wire Offer activity (case in ``object_``) — and raises
+        ``VultronOwnershipTransferOfferRecord`` (case URI in ``case_id``) or an
+        Offer activity, archived or the actor's own (case in ``object_``) — and raises
         only when neither yields an id.  Both attributes must therefore be
         cleared on the mock; a bare ``MagicMock`` would auto-create a truthy
         ``case_id`` and silently satisfy the guard.

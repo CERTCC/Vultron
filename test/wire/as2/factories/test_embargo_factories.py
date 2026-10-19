@@ -644,3 +644,27 @@ def test_answer_embeds_an_invite_as_intake_archived_it(
 
     assert result.object_.id_ == sample_proposal.id_
     assert result.object_.object_.id_ == sample_proposal.object_.id_
+
+
+@pytest.mark.spec("AF-04-001")
+@pytest.mark.parametrize(
+    "factory", [em_accept_embargo_activity, em_reject_embargo_activity]
+)
+def test_answer_refuses_an_archived_activity_that_is_not_an_embargo_invite(
+    factory,
+):
+    """An archived activity of another shape fails validation, wrapped."""
+    from vultron.semantic_registry import extract_event
+    from vultron.wire.as2.factories import rm_invite_to_case_activity
+
+    case_invite = rm_invite_to_case_activity(
+        "https://example.org/actors/invitee",
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+    )
+    archived = extract_event(case_invite).activity
+    assert archived is not None
+
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        factory(proposal=archived, context=_CASE_URI, actor=_ACTOR_URI)
+    assert exc_info.value.__cause__ is not None

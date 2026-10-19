@@ -16,6 +16,7 @@ description: >
   (EP-09, ADR-0113); and who may send each embargo message (ADR-0115).
 related_specs:
   - specs/case-management.yaml
+  - specs/datalayer.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
   - specs/message-semantics-mapping.yaml

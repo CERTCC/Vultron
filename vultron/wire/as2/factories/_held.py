@@ -24,7 +24,7 @@ still refused by the reply's own validation.
 """
 
 import json
-from typing import Any, TypeVar
+from typing import TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -33,15 +33,19 @@ from vultron.core.models.base import CoreObject
 _Answered = TypeVar("_Answered", bound=BaseModel)
 
 
-def as_answered(cls: type[_Answered], activity: Any) -> Any:
+def as_answered(cls: type[_Answered], activity: object) -> _Answered:
     """Return a core-form *activity* validated as *cls*; anything else as is.
+
+    An *activity* that is not in core form is returned unchanged, typed as
+    *cls* for the reply constructor, whose own validation then accepts it or
+    refuses it (a plain vocabulary activity, for instance).
 
     Raises:
         pydantic.ValidationError: When a core-form *activity* does not
             validate as *cls*.
     """
     if isinstance(activity, cls) or not isinstance(activity, CoreObject):
-        return activity
+        return cast(_Answered, activity)
     return cls.model_validate(
         json.loads(
             activity.model_dump_json(by_alias=True, serialize_as_any=True)

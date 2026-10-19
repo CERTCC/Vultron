@@ -24,6 +24,7 @@ from test.core.use_cases.received.conftest import (
     seed_store_owner_as_case_manager,
 )
 from test.support.embargo_register import propose, write_consent_rows
+from test.support.received import assert_held_only_as_received
 from vultron.adapters.driven.db_record import StorableRecord
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -34,9 +35,6 @@ from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.received_activity_record import (
-    ReceivedActivityRecord,
-)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
@@ -122,11 +120,7 @@ class TestEmbargoProposalLifecycle:
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
-        assert dl.read(proposal.id_) is None
-        assert isinstance(
-            dl.read(ReceivedActivityRecord.build_id(proposal.id_)),
-            ReceivedActivityRecord,
-        )
+        assert_held_only_as_received(dl, proposal.id_)
         assert dl.read(embargo.id_) is not None
 
     def test_owners_accept_of_an_invite_records_only_its_consent(
@@ -778,7 +772,6 @@ class TestInviteToEmbargoReceivedPxaGuard:
             to=[coordinator_id],
             id_=f"{case_id}/proposals/p1",
         )
-        dl.create(proposal)
 
         event = make_payload(proposal, receiving_actor_id=coordinator_id)
         result = InviteToEmbargoOnCaseReceivedUseCase(
@@ -790,11 +783,9 @@ class TestInviteToEmbargoReceivedPxaGuard:
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
-        # Intake archived the Invite under the receiver's key (CLP-10-017).
-        assert isinstance(
-            dl.read(ReceivedActivityRecord.build_id(proposal.id_)),
-            ReceivedActivityRecord,
-        )
+        # Intake archived the Invite under the receiver's key, and nothing
+        # holds it under its own id (CLP-10-017, DL-06-006).
+        assert_held_only_as_received(dl, proposal.id_)
 
 
 class TestAcceptInviteToEmbargoReceivedPxaGuard:

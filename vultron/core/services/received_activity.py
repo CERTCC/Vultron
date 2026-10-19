@@ -27,6 +27,20 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronNotFoundError
 
 
+def _archived(
+    dl: CasePersistence, activity_id: str
+) -> PersistableModel | None:
+    """The activity intake archived for *activity_id*, or ``None``.
+
+    Read by the receiver's key (``ReceivedActivityRecord.build_id``), never
+    by the id the sender chose (CLP-10-017, DL-06-006).
+    """
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    if isinstance(record, ReceivedActivityRecord):
+        return record.activity
+    return None
+
+
 def read_received_activity(
     dl: CasePersistence, activity_id: str, resource_type: str = "Activity"
 ) -> PersistableModel:
@@ -50,9 +64,9 @@ def read_received_activity(
     Raises:
         VultronNotFoundError: When this store holds no such activity.
     """
-    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
-    if isinstance(record, ReceivedActivityRecord):
-        return record.activity
+    archived = _archived(dl, activity_id)
+    if archived is not None:
+        return archived
     deferred = dl.read(activity_id)
     if deferred is None:
         raise VultronNotFoundError(resource_type, activity_id)
@@ -67,9 +81,12 @@ def read_held_activity(
     Some replies answer an activity this actor either received or sent: an
     embargo ``Reject`` of an Invite that another participant proposed or that
     this actor proposed, a withdrawal of the actor's own ownership-transfer
-    Offer.  A received activity is read through :func:`read_received_activity`.
-    An activity this actor sent is held under its own id, the one record of
-    an activity type a receiver keeps under the activity's id (DL-06-006).
+    Offer.  A received activity is read from its intake archive.  Anything
+    else is read under its own id: an activity this actor sent, the one
+    record of an activity type a receiver keeps under the activity's id
+    (DL-06-006), or a core record kept under that id (the ledger-replayed
+    ownership-transfer Offer).  Until #4871 that read also finds an activity
+    the inbox deferred under the sender's id.
 
     Args:
         dl: This actor's DataLayer.
@@ -79,13 +96,13 @@ def read_held_activity(
     Raises:
         VultronNotFoundError: When this store holds no such activity.
     """
-    try:
-        return read_received_activity(dl, activity_id, resource_type)
-    except VultronNotFoundError:
-        own = dl.read(activity_id)
-        if own is None:
-            raise
-        return own
+    archived = _archived(dl, activity_id)
+    if archived is not None:
+        return archived
+    own = dl.read(activity_id)
+    if own is None:
+        raise VultronNotFoundError(resource_type, activity_id)
+    return own
 
 
 __all__ = ["read_held_activity", "read_received_activity"]
