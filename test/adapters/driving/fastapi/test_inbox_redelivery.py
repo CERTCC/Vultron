@@ -205,6 +205,7 @@ def test_second_delivery_of_create_report_returns_202(actor_client):
 @pytest.mark.spec("ID-02-001")
 @pytest.mark.spec("ID-02-003")
 @pytest.mark.spec("ID-04-004")
+@pytest.mark.spec("IE-10-001")
 def test_second_delivery_leaves_store_and_outbox_unchanged(actor_client):
     """Second delivery leaves exactly one copy and the same store snapshot (ID-02-001, ID-02-003, ID-04-004)."""
     client, store = actor_client
