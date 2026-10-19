@@ -22,8 +22,9 @@ received protocol message MUST be recorded as core state at extraction time.
 core uses from the forwarded ``Offer(VulnerabilityCase)`` activity:
 
 - ``offer_id``: the URI of the Offer activity (used as ``id_`` so that
-  ``SvcAcceptCaseOwnershipTransferUseCase._prepare`` can look it up via
-  ``dl.read(offer_id)``)
+  ``SvcAcceptCaseOwnershipTransferUseCase._prepare`` finds it through
+  ``read_held_activity``, which reads the Offer's id when no received
+  archive is held)
 - ``case_id``: the URI of the offered ``VulnerabilityCase`` (extracted from
   the ``object`` field of the snapshot; read back by ``_prepare`` to recover
   the case being transferred)
@@ -60,8 +61,9 @@ class VultronOwnershipTransferOfferRecord(CoreObject):
     replica processes the ``offer_case_ownership_transfer`` ledger entry.
 
     ``id_`` is set to ``offer_id`` directly so that ``dl.read(offer_id)``
-    finds this record — matching what the HTTP-inbox path stores for the
-    same Offer via ``idempotent_store``.
+    finds this record.  A delivered Offer is held instead as the
+    ``ReceivedActivityRecord`` intake archives; ``read_held_activity`` reads
+    that first, then this record.
 
     ``actor_id`` and ``target_id`` are what let the adapter layer rebuild a wire
     ``_OfferCaseOwnershipTransferActivity`` from this record when a replica's

@@ -265,8 +265,9 @@ catch-up fetch or deferral, refuse instead.
   in `vultron/core/behaviors/embargo/refusal_tree.py`, CLP-10-026), never a
   refusal effect: refusal effects run only at the CASE_MANAGER and are skipped
   on a redelivery, and a participant owes the ER too and re-queues an ER
-  sealed but never queued (ID-04-005). It stores the Invite and its
-  `EmbargoEvent` first (the ER factory needs the proposal) and answers where
+  sealed but never queued (ID-04-005). It stores the Invite's `EmbargoEvent`
+  first; the ER factory reads the proposal from intake's archive, never a copy
+  under the sender's id (DL-06-006). It answers where
   any Invite answer goes: the CASE_MANAGER answers the proposer, a participant
   answers the CASE_MANAGER, never a peer (PCR-08-001). An Invite naming its
   terms by URI only is still answered (ADR-0123).

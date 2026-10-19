@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.received import received_record
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.answer_trees import (
@@ -97,7 +98,10 @@ def _answer_body(
     receiver: str = MANAGER,
 ) -> dict[str, Any]:
     """*actor*'s answer to *invite_id* under a fresh id, addressed to *receiver*."""
-    proposal = cast(Any, net.stores[actor].read(invite_id))
+    # The actor holds the Invite as intake archived it (DL-06-006).
+    record = received_record(net.stores[actor], invite_id)
+    assert record is not None
+    proposal = cast(Any, record.activity)
     build = (
         em_accept_embargo_activity if accept else em_reject_embargo_activity
     )

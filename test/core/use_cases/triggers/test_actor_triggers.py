@@ -1346,11 +1346,13 @@ class TestSvcAcceptActorRecommendationUseCase:
         vendor = as_Service(id_=vendor_id, name="Vendor")
         offer = offer_case_participant_activity(
             recommended=vendor,
+            target="https://example.org/cases/recommendation",
             actor=case_actor_id,
             to=["http://owner:7999/api/v2/actors/owner"],
         )
-        dl.create(cast(as_CaseParticipant, offer.object_))
-        dl.create(offer)
+        # Held as intake archived it, participant inline, never under the
+        # sender's id (DL-06-006).
+        archive_received(dl, offer)
         return offer
 
     def test_accept_creates_accept_activity(self):
@@ -1774,13 +1776,16 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             actor=owner_id,
             to=[transferee_id],
         )
-        dl.create(offer)
+        # Held as intake archived it, never under the sender's id (DL-06-006).
+        archive_received(dl, offer)
         return offer
 
+    @pytest.mark.spec("DL-06-006")
     def test_accept_creates_activity(self):
         # The *transferee* accepts, so the store is the transferee's own: it is
         # the actor that received the Offer, and the store an execution runs
-        # against is the executing actor's (ADR-0073, DL-07-009).
+        # against is the executing actor's (ADR-0073, DL-07-009).  It holds
+        # the Offer only as intake archived it (DL-06-006).
         owner, _ = _make_actor_dl("Vendor")
         transferee, dl = _make_actor_dl("Coordinator")
         dl.create(owner)
@@ -1789,6 +1794,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         )
         dl.create(case)
         offer = self._make_ownership_offer(dl, owner.id_, transferee.id_, case)
+        assert dl.read(offer.id_) is None
 
         from vultron.core.use_cases.triggers.actor import (
             SvcAcceptCaseOwnershipTransferUseCase,
@@ -1813,6 +1819,8 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         activity_data = activity_of(result)
         assert activity_data["type"] == "Accept"
         assert activity_data["actor"] == transferee.id_
+        assert activity_data["object"]["id"] == offer.id_
+        assert activity_data["object"]["object"]["id"] == case.id_
 
     def test_accept_persisted_in_datalayer(self):
         # The transferee's own store, for the reason given in

@@ -23,7 +23,7 @@ Split from ``cases.py`` at the CS-18-001 module-size cap.
 
 import logging
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 from pydantic import ValidationError
 
@@ -31,11 +31,14 @@ from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.services.received_activity import read_held_activity
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronAlreadyExistsError,
+    VultronNotFoundError,
 )
+from vultron.wire.as2.factories import parse_submit_report_offer
 from vultron.wire.as2.factories.case import (
     accept_case_proposal_activity,
     create_case_proposal_activity,
@@ -112,18 +115,7 @@ class _ProposalsMixin:
         sender = self._sender_profile(actor)
         offer: as_Offer | None = None
         if offer_id is not None:
-            stored_offer = self._dl.read(offer_id)
-            if isinstance(stored_offer, as_Offer):
-                offer = stored_offer
-            else:
-                logger.warning(
-                    "create_case_proposal: offer '%s' for report '%s' is not"
-                    " in this store as an Offer (got %s); the proposal carries"
-                    " the bare provenance only (CP-01-007)",
-                    offer_id,
-                    report_id,
-                    type(stored_offer).__name__,
-                )
+            offer = self._held_report_offer(offer_id, report_id)
         proposal = as_CaseProposal(
             attributed_to=actor,
             object_=report,
@@ -151,6 +143,34 @@ class _ProposalsMixin:
             to=recipients,
         )
         return _create_and_seal(self._dl, activity, "create_case_proposal")
+
+    def _held_report_offer(
+        self, offer_id: str, report_id: str
+    ) -> as_Offer | None:
+        """The ``Offer(VulnerabilityReport)`` *offer_id* as this actor holds it.
+
+        A received Offer is read from its intake archive, never under the id
+        its sender chose (DL-06-006); an Offer this actor sent is held under
+        its own id (:func:`read_held_activity`).  ``None``, with a warning,
+        when the store holds no such Offer: the proposal then carries the
+        bare provenance only (CP-01-007).
+        """
+        try:
+            held = read_held_activity(
+                self._dl, offer_id, "Offer(VulnerabilityReport)"
+            )
+            _, offer = parse_submit_report_offer(cast(Any, held))
+        except (VultronNotFoundError, VultronActivityConstructionError) as exc:
+            logger.warning(
+                "create_case_proposal: offer '%s' for report '%s' is not"
+                " in this store as an Offer (%s); the proposal carries"
+                " the bare provenance only (CP-01-007)",
+                offer_id,
+                report_id,
+                exc,
+            )
+            return None
+        return offer
 
     def _sender_profile(self, actor_id: str) -> CoreActor | as_Actor:
         """Return *actor_id*'s own profile from this store (CP-01-010).

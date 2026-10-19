@@ -34,7 +34,10 @@ from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import read_received_activity
+from vultron.core.services.received_activity import (
+    read_held_activity,
+    read_received_activity,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronAlreadyExistsError,
@@ -883,9 +886,12 @@ class _ActorsMixin:
         """Build, persist and seal a reply to an ownership-transfer Offer.
 
         The reply is the transferee's answer (Accept or Reject) or the
-        offerer's withdrawal (Undo).  Reads the stored offer from the
-        DataLayer, derives the ``to:`` field from the offer's ``actor`` when
-        not supplied, and persists the reply that *factory* builds from it.
+        offerer's withdrawal (Undo).  Reads the offer as this actor holds
+        it (:func:`read_held_activity`): the transferee's received forward
+        from its intake archive, the offerer's own Offer under its id, never
+        a received Offer under the id its sender chose (DL-06-006).  Derives
+        the ``to:`` field from the offer's ``actor`` when not supplied, and
+        persists the reply that *factory* builds from it.
 
         On a replica whose only source for the Offer was the replicated
         ``offer_case_ownership_transfer`` ledger entry, what is stored at
@@ -895,9 +901,9 @@ class _ActorsMixin:
         imports are allowed, so both delivery paths converge on the same answer
         (#2225, ADR-0035 DL-06-002).
         """
-        raw = self._dl.read(offer_id)
-        if raw is None:
-            raise VultronNotFoundError("Offer(VulnerabilityCase)", offer_id)
+        raw = read_held_activity(
+            self._dl, offer_id, "Offer(VulnerabilityCase)"
+        )
         if isinstance(raw, VultronOwnershipTransferOfferRecord):
             raw = self._offer_from_core_record(raw)
         offer = cast(as_Offer, raw)

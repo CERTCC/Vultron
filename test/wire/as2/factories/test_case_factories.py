@@ -1208,3 +1208,31 @@ def test_stub_invite_factory_docstrings_do_not_label_the_stub_replies_as_rm_repl
     assert "(RC)" in reject.splitlines()[0]
     full = case_factories.rm_accept_full_case_invite_activity.__doc__ or ""
     assert "RV" in full.splitlines()[0]
+
+
+@pytest.mark.spec("DL-06-006")
+@pytest.mark.parametrize(
+    "factory",
+    [
+        accept_case_ownership_transfer_activity,
+        reject_case_ownership_transfer_activity,
+        undo_case_ownership_transfer_activity,
+    ],
+)
+def test_ownership_reply_embeds_an_offer_as_intake_archived_it(factory):
+    """A received ownership Offer is held in its core form; the reply
+    factory validates it into the Offer class it embeds."""
+    from vultron.semantic_registry import extract_event
+
+    case = as_VulnerabilityCase(id_="https://example.org/cases/c1", name="C")
+    offer = offer_case_ownership_transfer_activity(
+        case, target=_ACTOR_URI, actor=_ACTOR_URI, to=[_ACTOR_URI]
+    )
+    archived = extract_event(offer).activity
+    assert archived is not None
+    assert not isinstance(archived, as_Offer)
+
+    result = factory(offer=archived, actor=_ACTOR_URI)
+
+    assert result.object_.id_ == offer.id_
+    assert result.object_.object_.id_ == case.id_

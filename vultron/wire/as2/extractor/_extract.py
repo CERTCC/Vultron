@@ -95,6 +95,17 @@ def extract_intent(
 
     _obj_type = str(getattr(obj, "type_", "")) if obj is not None else ""
     carries_deadline = "answer_deadline" in event_class.model_fields
+    proposed_embargo = None
+    carries_terms = "proposed_embargo" in event_class.model_fields
+    terms_on_activity = _obj_type != str(VOtype.CASE_PROPOSAL)
+    if carries_terms:
+        # Offer(VulnerabilityReport) carries it itself; Create(CaseProposal)
+        # carries it on the Offer inlined in the proposal (EP-04-004,
+        # CP-01-008).  Surfaced here so no use case re-reads the wire
+        # activity for it (ADR-0035).
+        proposed_embargo = proposed_embargo_from(
+            activity if terms_on_activity else obj, activity_id=activity.id_
+        )
     extra_kwargs = _build_object_kwargs(
         obj,
         _obj_type,
@@ -109,6 +120,11 @@ def extract_intent(
         activity_end_time=(
             _activity_end_time(activity) if carries_deadline else None
         ),
+        # Terms the activity carries itself are part of the Offer the
+        # receiver archives and inlines in its case proposal (CP-01-008).
+        activity_proposed_embargo=(
+            proposed_embargo if terms_on_activity else None
+        ),
     )
 
     if "rsvp_deadline" in event_class.model_fields:
@@ -117,15 +133,8 @@ def extract_intent(
         )
     if carries_deadline:
         extra_kwargs["answer_deadline"] = _answer_deadline(activity)
-    if "proposed_embargo" in event_class.model_fields:
-        # Offer(VulnerabilityReport) carries it itself; Create(CaseProposal)
-        # carries it on the Offer inlined in the proposal (EP-04-004,
-        # CP-01-008).  Surfaced here so no use case re-reads the wire
-        # activity for it (ADR-0035).
-        carrier = activity if _obj_type != str(VOtype.CASE_PROPOSAL) else obj
-        extra_kwargs["proposed_embargo"] = proposed_embargo_from(
-            carrier, activity_id=activity.id_
-        )
+    if carries_terms:
+        extra_kwargs["proposed_embargo"] = proposed_embargo
 
     extra_kwargs.update(_content_kwargs(activity, event_class))
 

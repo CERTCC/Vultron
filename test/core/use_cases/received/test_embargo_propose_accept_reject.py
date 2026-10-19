@@ -34,6 +34,9 @@ from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
@@ -66,10 +69,17 @@ from vultron.wire.as2.factories import (
 class TestEmbargoProposalLifecycle:
     """Tests for embargo create, invite, accept, and reject use cases."""
 
-    def test_invite_to_embargo_on_case_stores_proposal(
+    @pytest.mark.spec("DL-06-006")
+    @pytest.mark.spec("CLP-10-017")
+    def test_invite_to_embargo_on_case_archives_proposal_not_under_its_id(
         self, monkeypatch, make_payload
     ):
-        """invite_to_embargo_on_case persists the EmProposeEmbargoActivity activity."""
+        """The received Invite is held only as intake archived it (DL-06-006).
+
+        The store holds no ingress row: nothing is held under the Invite's id
+        after the tree runs, the receiver-keyed archive is, and the Invite is
+        applied as before.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
@@ -112,8 +122,12 @@ class TestEmbargoProposalLifecycle:
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
-        stored = dl.get(proposal.type_.value, proposal.id_)
-        assert stored is not None
+        assert dl.read(proposal.id_) is None
+        assert isinstance(
+            dl.read(ReceivedActivityRecord.build_id(proposal.id_)),
+            ReceivedActivityRecord,
+        )
+        assert dl.read(embargo.id_) is not None
 
     def test_owners_accept_of_an_invite_records_only_its_consent(
         self, monkeypatch, make_payload
@@ -776,9 +790,11 @@ class TestInviteToEmbargoReceivedPxaGuard:
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
-        # Proposal must be stored (BT ran CreateAndStoreInviteNode)
-        stored = dl.read(proposal.id_)
-        assert stored is not None
+        # Intake archived the Invite under the receiver's key (CLP-10-017).
+        assert isinstance(
+            dl.read(ReceivedActivityRecord.build_id(proposal.id_)),
+            ReceivedActivityRecord,
+        )
 
 
 class TestAcceptInviteToEmbargoReceivedPxaGuard:

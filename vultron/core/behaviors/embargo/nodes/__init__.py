@@ -108,7 +108,6 @@ from vultron.core.behaviors.embargo.nodes.owner_decision import (
     SendOwnerEmbargoDecisionNode,
 )
 from vultron.core.behaviors.embargo.nodes.proposal import (
-    CreateAndStoreInviteNode,
     IndexReceivedEmbargoProposalNode,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
@@ -243,7 +242,6 @@ __all__ = [
     "InviteExpiryChangedConsentNode",
     "InviteExpiryNeedsApplyNode",
     # Proposal
-    "CreateAndStoreInviteNode",
     "RecordParticipantAcceptanceNode",
     "RecordParticipantRejectionNode",
     # Lifecycle
