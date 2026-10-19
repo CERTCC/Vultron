@@ -75,6 +75,9 @@ from vultron.core.behaviors.embargo.nodes.reinvite import (
 )
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.actor_recommendation_record import (
+    ActorRecommendationRecord,
+)
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -103,12 +106,18 @@ from vultron.core.use_cases.received.case_participant import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
+    accept_case_participant_offer_activity,
     add_participant_to_case_activity,
     em_accept_embargo_activity,
+    offer_case_participant_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
-from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Actor,
+    as_Organization,
+)
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -877,19 +886,17 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
     factory: Any,
 ) -> None:
     """Both stub-Invite trees refuse a removed actor ahead of any commit."""
-    kwargs: dict[str, Any] = {
-        "recommendation_id": "https://example.org/activities/offer-1",
-        "recommender_id": OWNER,
-        "case_id": CASE_ID,
-    }
+    kwargs: dict[str, Any] = {"case_id": CASE_ID}
     if factory is create_recommend_actor_to_case_received_tree:
         kwargs |= {
+            "recommendation_id": "https://example.org/activities/offer-1",
+            "recommender_id": OWNER,
             "recommended_id": VENDOR,
             "sender_rule": OfferActorToCaseReceivedUseCase.sender_entitlement,
         }
     else:
         kwargs |= {
-            "invitee_id": VENDOR,
+            "answer_id": "https://example.org/activities/accept-1",
             "sender_id": OWNER,
             "sender_rule": (
                 AcceptOfferCaseParticipantReceivedUseCase.sender_entitlement
@@ -906,3 +913,53 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
     )
     guard = names.index(guard_name)
     assert guard < names.index("GuardedCommitCaseLedgerEntryBT")
+
+
+@pytest.mark.spec("CM-31-013")
+@pytest.mark.spec("CM-16-006")
+def test_the_owners_accept_of_a_removed_invitee_is_refused_before_the_commit(
+    case: _RemovalCase,
+) -> None:
+    """The Accept names an Offer for an actor removed since it was made.
+
+    The recorded invitee is a removed participant, so the Accept is refused
+    with the reinstatement reason before the receipt commit: no ledger entry
+    and no stub Invite (CM-31-013).
+    """
+    assert case.remove(VENDOR).disposition is HandlerDisposition.APPLIED
+    recommendation_id = "https://example.org/activities/recommend-vendor"
+    case.dl.save(
+        ActorRecommendationRecord(
+            case_id=CASE_ID,
+            recommendation_id=recommendation_id,
+            recommender_id=OTHER,
+        )
+    )
+    offer = offer_case_participant_activity(
+        as_Actor(id_=VENDOR),
+        target=as_VulnerabilityCase(id_=CASE_ID),
+        actor=MANAGER,
+        to=[OWNER],
+        roles=[CVDRole.VENDOR],
+        id_="https://example.org/activities/offer-participant-vendor",
+        origin=recommendation_id,
+    )
+    assert isinstance(offer.object_, as_CaseParticipant)
+    case.dl.save(offer.object_)
+    case.dl.save(offer)
+    ledger_before = len(case.ledger())
+    outbox_before = set(case.dl.outbox_list())
+
+    result = case.route(
+        accept_case_participant_offer_activity(
+            offer,
+            target=as_VulnerabilityCase(id_=CASE_ID),
+            actor=OWNER,
+            to=[MANAGER],
+        )
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "CM-31-013" in (result.reason or "")
+    assert len(case.ledger()) == ledger_before
+    assert set(case.dl.outbox_list()) == outbox_before

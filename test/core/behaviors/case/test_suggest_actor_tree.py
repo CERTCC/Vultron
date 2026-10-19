@@ -33,6 +33,11 @@ import pytest
 from py_trees.common import Status
 
 from test.support.clock_decisions import clock_decision_node_ids
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
@@ -42,6 +47,7 @@ from vultron.core.behaviors.case.nodes.invite_actor_emit import (
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
+    validated_invitee_roles,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
@@ -51,6 +57,12 @@ from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteNotToClosedParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
+    AcceptedInviteeIsNotRemovedNode,
+    EmitAcceptRecordedRecommendationNode,
+    EmitRecordedInviteNode,
+    RecordedOfferAnswer,
+    RequireRecordedOfferAnswerNode,
+    SeatRecordedInviteeNode,
     SuggestedActorIsInvitableNode,
 )
 from vultron.core.behaviors.case.suggest_actor_tree import (
@@ -99,7 +111,9 @@ _REJECT_RULE = RejectOfferCaseParticipantReceivedUseCase.sender_entitlement
 _MANAGER = "https://example.org/actors/case-manager"
 
 
-def _invite_id_as_manager(node: EmitInviteActorToCaseNode) -> str | None:
+def _invite_id_as_manager(
+    node: EmitInviteActorToCaseNode | EmitRecordedInviteNode,
+) -> str | None:
     """The id *node* gives its Invite when the CASE_MANAGER runs it."""
     node.actor_id = _MANAGER
     return node._invite_id()
@@ -541,14 +555,30 @@ class TestEmitInviteActorToCaseNodeEmptyRoles:
         factory.invite_actor_to_case.assert_not_called()
 
 
+#: The id of the Case Owner's answer the trees under test are built for.
+_ANSWER_ID = "https://example.org/activities/owner-answer-1"
+
+#: What the recorded-Offer guard publishes for the answer under test.
+_RECORDED = RecordedOfferAnswer(
+    recommendation_id=_REC_ID,
+    recommender_id=_RECOMMENDER,
+    invitee_id=_RECOMMENDED,
+    roles=("vendor",),
+)
+
+
+def _as_published(node):
+    """*node*, reading :data:`_RECORDED` as if the guard had published it."""
+    node._recorded = _RECORDED
+    return node
+
+
 class TestAcceptActorRecommendationReceivedTree:
     """Structural tests for create_accept_actor_recommendation_received_tree."""
 
     def setup_method(self):
         self.tree = create_accept_actor_recommendation_received_tree(
-            recommendation_id=_REC_ID,
-            recommender_id=_RECOMMENDER,
-            invitee_id=_RECOMMENDED,
+            answer_id=_ANSWER_ID,
             case_id=_CASE_ID,
             sender_id=_SENDER,
             sender_rule=_ACCEPT_RULE,
@@ -565,54 +595,61 @@ class TestAcceptActorRecommendationReceivedTree:
             "AcceptActorRecommendationBT root Sequence must use memory=False"
         )
 
-    def test_has_accept_recommendation_node(self):
+    @pytest.mark.spec("CM-16-019")
+    def test_the_accept_recommendation_node_answers_the_recorded_offer(self):
         nodes = [
             c
             for c in self.tree.iterate()
-            if isinstance(c, EmitAcceptActorRecommendationNode)
+            if isinstance(c, EmitAcceptRecordedRecommendationNode)
         ]
-        assert nodes, "Expected EmitAcceptActorRecommendationNode in tree"
-        node = nodes[0]
-        assert node.recommender_id == _RECOMMENDER
-        assert node.recommendation_id == _REC_ID
-        assert node.recommended_id == _RECOMMENDED
+        assert nodes, "Expected EmitAcceptRecordedRecommendationNode in tree"
+        node = _as_published(nodes[0])
+        assert node._subject() == (_RECOMMENDER, _REC_ID, _RECOMMENDED)
         assert node.case_id == _CASE_ID
 
-    def test_has_invite_actor_node(self):
+    @pytest.mark.spec("CM-16-019")
+    def test_the_invite_goes_to_the_recorded_invitee(self):
         nodes = [
             c
             for c in self.tree.iterate()
-            if isinstance(c, EmitInviteActorToCaseNode)
+            if isinstance(c, EmitRecordedInviteNode)
         ]
         assert nodes, (
-            "Expected EmitInviteActorToCaseNode in tree (CM-16-006 step 4)"
+            "Expected EmitRecordedInviteNode in tree (CM-16-006 step 4)"
         )
-        node = nodes[0]
-        assert node.invitee_id == _RECOMMENDED
+        node = _as_published(nodes[0])
+        assert node._invitee() == _RECOMMENDED
+        assert node._read_suggested_roles() == ["vendor"]
         assert node.case_id == _CASE_ID
 
     @pytest.mark.spec("OX-06-002")
     def test_the_invite_id_derives_from_the_accepted_recommendation(self):
         """A retry of this tree for one recommendation rebuilds one Invite."""
-        node = next(
-            c
-            for c in self.tree.iterate()
-            if isinstance(c, EmitInviteActorToCaseNode)
+        node = _as_published(
+            next(
+                c
+                for c in self.tree.iterate()
+                if isinstance(c, EmitRecordedInviteNode)
+            )
         )
         assert _invite_id_as_manager(node) == _derived_invite_id(_REC_ID)
 
     @pytest.mark.spec("CM-11-015")
     @pytest.mark.spec("CM-16-006")
-    def test_invitable_guard_runs_before_the_commit_and_either_emit(self):
+    @pytest.mark.spec("CLP-10-010")
+    def test_the_guards_run_before_the_commit_and_either_emit(self):
+        """The recorded-Offer lookup, then the closed/joined refusal, then the rest."""
         order = list(self.tree.iterate())
+        lookup = next(
+            i
+            for i, n in enumerate(order)
+            if isinstance(n, RequireRecordedOfferAnswerNode)
+        )
         guard = next(
             i
             for i, n in enumerate(order)
             if isinstance(n, SuggestedActorIsInvitableNode)
         )
-        guard_node = order[guard]
-        assert isinstance(guard_node, SuggestedActorIsInvitableNode)
-        assert guard_node.recommended_id == _RECOMMENDED
         later = [
             i
             for i, n in enumerate(order)
@@ -620,16 +657,69 @@ class TestAcceptActorRecommendationReceivedTree:
                 n,
                 (
                     CommitCaseLedgerEntryNode,
-                    EmitAcceptActorRecommendationNode,
-                    EmitInviteActorToCaseNode,
+                    EmitAcceptRecordedRecommendationNode,
+                    EmitRecordedInviteNode,
                 ),
             )
         ]
         assert later, "the tree has a commit and both emits"
+        assert lookup < guard
         assert all(guard < i for i in later), (
             "the closed/joined refusal must precede the receipt commit and"
             " both emits (CM-11-015, CM-16-006)"
         )
+
+
+@pytest.mark.parametrize(
+    "node_class",
+    [
+        AcceptedInviteeIsNotRemovedNode,
+        EmitAcceptRecordedRecommendationNode,
+        EmitRecordedInviteNode,
+        EmitRejectActorRecommendationNode,
+        SeatRecordedInviteeNode,
+        SuggestedActorIsInvitableNode,
+    ],
+)
+def test_an_answer_node_without_the_published_offer_is_an_internal_error(
+    node_class,
+):
+    """A tree that omits the lookup guard is a composition error, not a refusal.
+
+    Every node that reads the published answer checks for it before its own
+    work, so the bridge reports an internal error (#2255).  The store holds
+    no case, so a node that ran its case read first would report an ordinary
+    refusal instead and fail this test.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
+    try:
+        result = BTBridge(
+            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute_with_setup(
+            node_class(answer_id=_ANSWER_ID, case_id=_CASE_ID),
+            actor_id=_MANAGER,
+        )
+    finally:
+        dl.close()
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "must run first" in result.feedback_message
+
+
+@pytest.mark.spec("CM-11-019")
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ((), []),
+        (None, []),
+        (("vendor",), [CVDRole.VENDOR]),
+        ([CVDRole.COORDINATOR], [CVDRole.COORDINATOR]),
+        (("no-such-role",), []),
+    ],
+)
+def test_validated_invitee_roles_never_defaults(raw, expected):
+    """No valid role seats nothing: there is no VENDOR default (CM-11-019)."""
+    assert validated_invitee_roles(raw) == expected
 
 
 class TestRejectActorRecommendationReceivedTree:
@@ -637,9 +727,7 @@ class TestRejectActorRecommendationReceivedTree:
 
     def setup_method(self):
         self.tree = create_reject_actor_recommendation_received_tree(
-            recommendation_id=_REC_ID,
-            recommender_id=_RECOMMENDER,
-            recommended_id=_RECOMMENDED,
+            answer_id=_ANSWER_ID,
             case_id=_CASE_ID,
             sender_id=_SENDER,
             sender_rule=_REJECT_RULE,
@@ -656,18 +744,36 @@ class TestRejectActorRecommendationReceivedTree:
             "RejectActorRecommendationBT root Sequence must use memory=False"
         )
 
-    def test_has_reject_recommendation_node(self):
+    @pytest.mark.spec("CM-16-019")
+    def test_the_reject_recommendation_node_answers_the_recorded_offer(self):
         nodes = [
             c
             for c in self.tree.iterate()
             if isinstance(c, EmitRejectActorRecommendationNode)
         ]
         assert nodes, "Expected EmitRejectActorRecommendationNode in tree"
-        node = nodes[0]
-        assert node.recommender_id == _RECOMMENDER
-        assert node.recommendation_id == _REC_ID
-        assert node.recommended_id == _RECOMMENDED
+        node = _as_published(nodes[0])
+        assert node._subject() == (_RECOMMENDER, _REC_ID, _RECOMMENDED)
         assert node.case_id == _CASE_ID
+
+    @pytest.mark.spec("CLP-10-010")
+    def test_the_recorded_offer_lookup_precedes_the_commit_and_the_emit(self):
+        order = list(self.tree.iterate())
+        lookup = next(
+            i
+            for i, n in enumerate(order)
+            if isinstance(n, RequireRecordedOfferAnswerNode)
+        )
+        later = [
+            i
+            for i, n in enumerate(order)
+            if isinstance(
+                n,
+                (CommitCaseLedgerEntryNode, EmitRejectActorRecommendationNode),
+            )
+        ]
+        assert later, "the tree has a commit and the emit"
+        assert all(lookup < i for i in later)
 
 
 # ---------------------------------------------------------------------------
@@ -1318,9 +1424,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
         (
             create_accept_actor_recommendation_received_tree,
             dict(
-                recommendation_id=_REC_ID,
-                recommender_id=_RECOMMENDER,
-                invitee_id=_RECOMMENDED,
+                answer_id=_ANSWER_ID,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
                 sender_rule=_ACCEPT_RULE,
@@ -1330,9 +1434,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
         (
             create_reject_actor_recommendation_received_tree,
             dict(
-                recommendation_id=_REC_ID,
-                recommender_id=_RECOMMENDER,
-                recommended_id=_RECOMMENDED,
+                answer_id=_ANSWER_ID,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
                 sender_rule=_REJECT_RULE,
@@ -1399,9 +1501,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
         (
             create_accept_actor_recommendation_received_tree,
             dict(
-                recommendation_id=_REC_ID,
-                recommender_id=_RECOMMENDER,
-                invitee_id=_RECOMMENDED,
+                answer_id=_ANSWER_ID,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
                 sender_rule=_ACCEPT_RULE,
@@ -1411,9 +1511,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
         (
             create_reject_actor_recommendation_received_tree,
             dict(
-                recommendation_id=_REC_ID,
-                recommender_id=_RECOMMENDER,
-                recommended_id=_RECOMMENDED,
+                answer_id=_ANSWER_ID,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
                 sender_rule=_REJECT_RULE,

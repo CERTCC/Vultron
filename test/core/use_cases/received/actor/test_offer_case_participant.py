@@ -21,7 +21,7 @@ Covers:
 """
 
 import logging
-from typing import Any, cast
+from typing import Any, Literal, cast
 from unittest.mock import MagicMock
 
 import py_trees
@@ -37,6 +37,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
+    RequireRecordedOfferAnswerNode,
+    recorded_offer_answer_key,
+)
 from vultron.core.models.actor_recommendation_record import (
     ActorRecommendationRecord,
 )
@@ -45,6 +50,9 @@ from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
     OfferCaseParticipantReceivedEvent,
     RejectOfferCaseParticipantReceivedEvent,
+)
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.offer_case_participant import (
@@ -174,6 +182,27 @@ def _record_offer(dl: SqliteDataLayer) -> None:
     dl.create(offer)
 
 
+#: An ``Offer(CaseParticipant)`` id no CASE_MANAGER store records.
+_NEVER_RECORDED_OFFER_ID = "https://example.org/activities/never-recorded"
+
+
+def _assert_refused_in_tree_as_unrecorded(
+    dl: SqliteDataLayer, result: Any, answer_id: str
+) -> None:
+    """The answer was refused by the tree's guard, archived and acted on nothing.
+
+    Intake archived it (CLP-10-018), so the refusal came from inside the one
+    received tree (CLP-10-005); the guard refused before the commit, so the
+    store holds no ledger entry and the outbox is empty.
+    """
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "never recorded" in (result.reason or "")
+    assert _NEVER_RECORDED_OFFER_ID in (result.reason or "")
+    assert dl.read(ReceivedActivityRecord.build_id(answer_id)) is not None
+    assert dl.list_objects("CaseLedgerEntry") == []
+    assert dl.outbox_list() == []
+
+
 def _forget_recommendation(dl: SqliteDataLayer) -> None:
     """Drop the recorded recommender, as a store that never saw the Offer."""
     assert dl.delete(
@@ -189,6 +218,7 @@ def _build_offer_activity(
     origin: str | None = RECOMMENDATION_ID,
     roles: list | None = None,
     recommended_id: str = RECOMMENDED_ID,
+    offer_id: str = OFFER_ID,
 ):
     recommended = as_Actor(id_=recommended_id)
     extra: dict[str, Any] = {"origin": origin} if origin is not None else {}
@@ -199,7 +229,7 @@ def _build_offer_activity(
         to=to or [CASE_OWNER_ID],
         cc=cc or [],
         roles=roles,
-        id_=OFFER_ID,
+        id_=offer_id,
         **extra,
     )
 
@@ -600,27 +630,35 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         assert result.disposition is HandlerDisposition.REFUSED
 
     @pytest.mark.spec("CM-16-019")
+    @pytest.mark.spec("CLP-10-018")
+    @pytest.mark.spec("CLP-10-005")
     def test_refuses_an_offer_it_never_recorded(self, caplog):
-        """A reply naming an Offer this store never recorded has no invitee."""
+        """A reply naming an Offer this store never recorded has no invitee.
+
+        The lookup is a precondition guard of the one received tree, so the
+        Accept is archived by intake and refused before the commit, with no
+        ledger entry and nothing sent.
+        """
         dl, _ = _seed_dl_for_case_actor()
-        mock_event = MagicMock()
-        mock_event.activity_id = "https://example.org/activities/bad-accept-2"
-        mock_event.target_id = CASE_ID
-        mock_event.activity = MagicMock()
-        inner_offer = MagicMock()
-        inner_offer.id_ = "https://example.org/activities/never-recorded"
-        inner_offer.origin = RECOMMENDATION_ID
-        mock_event.activity.object_ = inner_offer
+        accept = accept_case_participant_offer_activity(
+            _build_offer_activity(offer_id=_NEVER_RECORDED_OFFER_ID),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
         with caplog.at_level(logging.WARNING):
             result = AcceptOfferCaseParticipantReceivedUseCase(
                 dl,
-                mock_event,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
                 sync_port=SyncActivityAdapter(dl),
             ).execute()
         assert any("never recorded" in r.message for r in caplog.records)
-        assert result.disposition is HandlerDisposition.REFUSED
-        assert dl.outbox_list() == []
+        _assert_refused_in_tree_as_unrecorded(dl, result, accept.id_)
 
     def test_recommender_notified_via_core_state(self):
         """AC-5: recommender notification emitted; recommender read from core state.
@@ -894,23 +932,27 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("CM-16-019")
+    @pytest.mark.spec("CLP-10-018")
+    @pytest.mark.spec("CLP-10-005")
     def test_refuses_an_offer_it_never_recorded(self):
         """A Reject naming an Offer this store never recorded has nobody to name.
 
         ``RejectActorRecommendation`` carries the recommended actor, which is
         the recorded Offer's; with no record there is nobody to name, and the
-        Reject's own ``object_id`` is not a substitute.
+        Reject's own ``object_id`` is not a substitute.  The lookup is a
+        precondition guard of the one received tree, so the Reject is
+        archived by intake and refused before the commit.
         """
         dl, _ = _seed_dl_for_case_actor()
-        event = MagicMock()
-        event.activity_id = "https://example.org/activities/reject-no-actor"
-        event.target_id = CASE_ID
-        event.object_id = RECOMMENDED_ID
-        event.receiving_actor_id = CASE_ACTOR_ID
-        event.activity.object_.id_ = (
-            "https://example.org/activities/never-recorded"
+        reject = reject_case_participant_offer_activity(
+            _build_offer_activity(offer_id=_NEVER_RECORDED_OFFER_ID),
+            target=_case_ref(CASE_ID),
+            actor=CASE_OWNER_ID,
+            to=[CASE_ACTOR_ID],
         )
-        event.activity.object_.origin = RECOMMENDATION_ID
+        event = cast(
+            RejectOfferCaseParticipantReceivedEvent, extract_event(reject)
+        )
         result = RejectOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -918,9 +960,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
-        assert result.disposition is HandlerDisposition.REFUSED
-        assert "never recorded" in (result.reason or "")
-        assert dl.outbox_list() == []
+        _assert_refused_in_tree_as_unrecorded(dl, result, reject.id_)
 
     @pytest.mark.spec("CM-16-019")
     def test_recommended_actor_comes_from_the_recorded_offer(self):
@@ -1030,6 +1070,93 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             f"No outbox activity addressed to recommender '{RECOMMENDER_ID}'; "
             "recommender lookup must read the CASE_MANAGER's ActorRecommendationRecord"
         )
+
+
+# ---------------------------------------------------------------------------
+# The recorded-Offer lookup guard (#4863, CLP-10-005, CM-16-019)
+# ---------------------------------------------------------------------------
+
+
+def _answer_to_an_unrecorded_offer(verb: str) -> Any:
+    """An Accept or Reject of an Offer the CASE_MANAGER never recorded."""
+    build = (
+        accept_case_participant_offer_activity
+        if verb == "Accept"
+        else reject_case_participant_offer_activity
+    )
+    return build(
+        _build_offer_activity(offer_id=_NEVER_RECORDED_OFFER_ID),
+        target=_case_ref(CASE_ID),
+        actor=CASE_OWNER_ID,
+        to=[CASE_ACTOR_ID],
+    )
+
+
+_ANSWER_USE_CASES = {
+    "Accept": AcceptOfferCaseParticipantReceivedUseCase,
+    "Reject": RejectOfferCaseParticipantReceivedUseCase,
+}
+
+
+@pytest.mark.spec("CM-16-019")
+@pytest.mark.parametrize(
+    ("verb", "named"),
+    [
+        (
+            "Accept",
+            "an Offer(CaseParticipant) this CASE_MANAGER never recorded",
+        ),
+        ("Reject", "a recommendation this CASE_MANAGER never recorded"),
+    ],
+)
+def test_with_both_unrecorded_each_answer_reports_its_first_lookup(
+    verb: str, named: str
+) -> None:
+    """An Accept checks the Offer first and a Reject the recommendation first.
+
+    Each keeps the reason it gave before the lookup moved into the tree.
+    """
+    dl, _ = _seed_dl_for_case_actor()
+    _forget_recommendation(dl)
+    activity = _answer_to_an_unrecorded_offer(verb)
+    result = _ANSWER_USE_CASES[verb](
+        dl,
+        extract_event(activity),  # type: ignore[arg-type]
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert f"{verb}(Offer(CaseParticipant)) names {named}" in (
+        result.reason or ""
+    )
+    assert dl.list_objects("CaseLedgerEntry") == []
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.parametrize("verb", ["Accept", "Reject"])
+def test_the_lookup_fails_for_a_case_this_store_does_not_hold(
+    verb: Literal["Accept", "Reject"],
+) -> None:
+    """The guard resolves its case first (Regime 1) and publishes nothing."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
+    activity = _answer_to_an_unrecorded_offer(verb)
+    answer_id = f"{activity.id_}-no-case"
+    try:
+        result = BTBridge(datalayer=dl).execute_with_setup(
+            RequireRecordedOfferAnswerNode(
+                verb=verb, answer_id=answer_id, case_id=CASE_ID
+            ),
+            actor_id=CASE_ACTOR_ID,
+            activity=extract_event(activity),
+        )
+    finally:
+        dl.close()
+    assert result.status == py_trees.common.Status.FAILURE
+    assert result.internal_error is False
+    assert CASE_ID in result.feedback_message
+    key = f"/{recorded_offer_answer_key(answer_id)}"
+    assert key not in py_trees.blackboard.Blackboard.storage
 
 
 # ---------------------------------------------------------------------------
@@ -1328,8 +1455,8 @@ class TestAcceptOfferCaseParticipantRolesThreading:
         """CM-11-019: Accept(Offer) with empty roles is REFUSED.
 
         Store an Offer whose CaseParticipant carries ``case_roles=[]``.
-        ``_require_recorded_offer`` returns ``roles=None``, so
-        ``CreateInertInviteeParticipantNode`` (CM-11-019) returns FAILURE and
+        ``RequireRecordedOfferAnswerNode`` publishes no roles, so
+        ``SeatRecordedInviteeNode`` (CM-11-019) returns FAILURE and
         the overall use-case result is REFUSED.  No inert participant is
         created.
         """
@@ -1337,8 +1464,8 @@ class TestAcceptOfferCaseParticipantRolesThreading:
 
         dl = _seed_dl_for_ac1()
 
-        # Store an Offer with empty roles so _require_recorded_offer returns
-        # roles=None → CreateInertInviteeParticipantNode refuses (CM-11-019).
+        # Store an Offer with empty roles so the recorded answer carries
+        # none → SeatRecordedInviteeNode refuses (CM-11-019).
         empty_roles_offer = offer_case_participant_activity(
             as_Actor(id_=AC1_INVITEE_ID),
             target=_case_ref(AC1_CASE_ID),
