@@ -41,6 +41,7 @@ from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.actor_recommendation_record import (
     ActorRecommendationRecord,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import serialize_roles
@@ -93,22 +94,21 @@ def _ref_id(value: object) -> object:
 
 
 def _is_managers_offer_about(
-    dl: CasePersistence, stored_offer: object, case_id: str
+    dl: CasePersistence, stored_offer: object, case: VulnerabilityCase
 ) -> bool:
-    """True when *stored_offer* was sent by *case_id*'s CASE_MANAGER about it."""
+    """True when *stored_offer* was sent by *case*'s CASE_MANAGER about it."""
     if stored_offer is None:
         return False
-    case = dl.read_case(case_id)
-    manager_id = resolve_case_manager_id(case, dl) if case else None
+    manager_id = resolve_case_manager_id(case, dl)
     return (
         manager_id is not None
         and _ref_id(getattr(stored_offer, "actor", None)) == manager_id
-        and _ref_id(getattr(stored_offer, "target", None)) == case_id
+        and _ref_id(getattr(stored_offer, "target", None)) == case.id_
     )
 
 
 def recorded_invitee(
-    dl: CasePersistence, inner_offer: object, case_id: str
+    dl: CasePersistence, inner_offer: object, case: VulnerabilityCase
 ) -> tuple[str, tuple[str, ...]]:
     """``(invitee_id, roles)`` from the Offer this CASE_MANAGER recorded.
 
@@ -133,7 +133,7 @@ def recorded_invitee(
         f"an Offer(CaseParticipant) this CASE_MANAGER never recorded"
         f" ({raw_offer_id})"
     )
-    if not _is_managers_offer_about(dl, stored_offer, case_id):
+    if not _is_managers_offer_about(dl, stored_offer, case):
         raise unrecorded
     stored_participant = getattr(stored_offer, "object_", None)
     # AKM-03-003: dehydration stores object_ as a bare ID string;
@@ -235,12 +235,14 @@ class RequireRecordedOfferAnswerNode(DataLayerActionWithPorts):
         super().initialise()
         self._activity = self._try_get_input("activity")
 
-    def _lookup(self, dl: CasePersistence) -> RecordedOfferAnswer:
+    def _lookup(
+        self, dl: CasePersistence, case: VulnerabilityCase
+    ) -> RecordedOfferAnswer:
         inner_offer = getattr(
             getattr(self._activity, "activity", None), "object_", None
         )
         if self.verb == "Accept":
-            invitee_id, roles = recorded_invitee(dl, inner_offer, self.case_id)
+            invitee_id, roles = recorded_invitee(dl, inner_offer, case)
             recommendation_id, recommender_id = recorded_recommendation(
                 dl, inner_offer, self.case_id
             )
@@ -248,7 +250,7 @@ class RequireRecordedOfferAnswerNode(DataLayerActionWithPorts):
             recommendation_id, recommender_id = recorded_recommendation(
                 dl, inner_offer, self.case_id
             )
-            invitee_id, roles = recorded_invitee(dl, inner_offer, self.case_id)
+            invitee_id, roles = recorded_invitee(dl, inner_offer, case)
         return RecordedOfferAnswer(
             recommendation_id=recommendation_id,
             recommender_id=recommender_id,
@@ -260,8 +262,11 @@ class RequireRecordedOfferAnswerNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: the CASE_MANAGER holds its case
         try:
-            answer = self._lookup(self.datalayer)
+            answer = self._lookup(self.datalayer, case)
         except UnrecordedOfferAnswerError as exc:
             self.feedback_message = (
                 f"{self.verb}(Offer(CaseParticipant)) names {exc}"

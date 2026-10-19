@@ -42,6 +42,7 @@ from vultron.core.behaviors.case.nodes.invite_actor_emit import (
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
+    validated_invitee_roles,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
@@ -90,6 +91,7 @@ from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import BtNodePreconditionError
 
 _REC_ID = "https://example.org/recommendations/rec-1"
 _RECOMMENDER = "https://example.org/actors/recommender"
@@ -660,6 +662,37 @@ class TestAcceptActorRecommendationReceivedTree:
             "the closed/joined refusal must precede the receipt commit and"
             " both emits (CM-11-015, CM-16-006)"
         )
+
+
+@pytest.mark.parametrize(
+    "node_class",
+    [
+        EmitAcceptRecordedRecommendationNode,
+        EmitRecordedInviteNode,
+        EmitRejectActorRecommendationNode,
+    ],
+)
+def test_an_answer_node_without_the_published_offer_raises(node_class):
+    """A tree that omits the lookup guard is a composition error, not a refusal."""
+    node = node_class(answer_id=_ANSWER_ID, case_id=_CASE_ID)
+    with pytest.raises(BtNodePreconditionError, match="must run first"):
+        node._recorded_answer()
+
+
+@pytest.mark.spec("CM-11-019")
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ((), []),
+        (None, []),
+        (("vendor",), [CVDRole.VENDOR]),
+        ([CVDRole.COORDINATOR], [CVDRole.COORDINATOR]),
+        (("no-such-role",), []),
+    ],
+)
+def test_validated_invitee_roles_never_defaults(raw, expected):
+    """No valid role seats nothing: there is no VENDOR default (CM-11-019)."""
+    assert validated_invitee_roles(raw) == expected
 
 
 class TestRejectActorRecommendationReceivedTree:
