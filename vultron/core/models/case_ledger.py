@@ -419,7 +419,7 @@ class CaseLedger:
 
         Args:
             object_id: Full URI of the asserted activity or primary object.
-            semantic_type: Short machine-readable event kind descriptor.
+            semantic_type: The entry's semantic type (CLP-02-014).
             payload_snapshot: Normalised snapshot of the asserted activity
                 payload for deterministic replay (CLP-02-003).
             term: Raft cluster term; ``None`` for single-node deployments.

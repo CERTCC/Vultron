@@ -91,8 +91,9 @@ _EMBARGO_FIELDS_RETIRED = (
 )
 
 _LEDGER_EVENT_TYPE_RETIRED = (
-    "a ledger entry's eventType was renamed semanticType (CLP-02-014);"
-    " send the entry's semantic type as semanticType"
+    "eventType is retired on every object (CLP-02-014): the case ledger"
+    " entry's eventType was renamed semanticType, so send an entry's"
+    " semantic type as semanticType"
 )
 
 RETIRED_NAMES: Mapping[str, str] = MappingProxyType(
