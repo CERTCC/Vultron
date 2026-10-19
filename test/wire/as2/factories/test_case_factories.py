@@ -21,6 +21,7 @@ Spec coverage:
 - AF-04-001: Factory functions wrap ValidationError in
   VultronActivityConstructionError.
 - AF-04-002: All factory functions re-exported from factories/__init__.py.
+- CM-17-002: The stub carries the embargo in force (EM ACTIVE or REVISE).
 - CM-17-011: The stub Invite embeds the full active embargo, or is refused.
 """
 
@@ -32,6 +33,7 @@ import pytest
 from pydantic import BaseModel
 
 from test.support.embargo_register import register
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension
@@ -837,7 +839,6 @@ def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
     ``EmbargoEvent`` object, not its id.  The stub must still carry the embargo,
     its id and end time included — and needs no separate ``embargo_obj`` when
     the case already holds the object."""
-    from vultron.core.models._helpers import days_from_now_utc
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_status import CaseStatus
     from vultron.core.models.dimensions import EmDimension
@@ -894,7 +895,6 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     public.  The dump goes through the outbound form, the subtype-aware JSON
     dump (VM-07-001).
     """
-    from vultron.core.models._helpers import days_from_now_utc
     from vultron.core.models.case import VulnerabilityCase
     from vultron.core.models.case_status import CaseStatus
     from vultron.core.models.dimensions import EmDimension, PxaDimension
@@ -945,13 +945,6 @@ def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
     assert set(status) <= {"@context", "id", "type", "context", "emState"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-17-002: a stub sent in EM REVISE carries the embargo in force, "
-        "not the open revision. Tracked by #4744."
-    ),
-)
 @pytest.mark.spec("CM-17-002")
 def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     sample_actor,
@@ -961,7 +954,6 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     carries that embargo and ``emState=REVISE``.  The open revision is not
     yet binding and stays out of the stub; EP-09-011 relays it after
     joining."""
-    from vultron.core.models._helpers import days_from_now_utc
     from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCaseStub,
@@ -1000,11 +992,65 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
     assert stub.case_status.em.state == EM.REVISE
 
 
+@pytest.mark.spec("CM-17-002")
+def test_a_proposed_embargo_alone_leaves_the_stub_bare(sample_actor):
+    """A proposal is not an embargo in force, so the stub carries no terms.
+
+    The stub is enriched from the register's ``ACTIVE`` entry, not from any
+    entry: in EM ``PROPOSED`` nothing is in force and nothing binds the
+    invitee yet (CM-17-002, CM-17-010).
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
+
+    case_id = "https://example.org/cases/proposed-stub"
+    proposal = _full_embargo(case_id)
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="CVE-2025-014",
+        stub_summary="Vulnerability with an embargo proposed",
+        attributed_to=_ACTOR_URI,
+        embargo_register=register(proposed=[proposal]),
+    )
+    assert case.em_state == EM.PROPOSED
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor,
+        target=case,
+        actor=_ACTOR_URI,
+        embargo_obj=proposal,
+    )
+
+    stub = invite.target
+    assert isinstance(stub, as_VulnerabilityCaseStub)
+    assert stub.active_embargo is None
+    assert stub.case_status is None
+
+
+#: An embargo in force: EM ``ACTIVE``, or ``REVISE`` with a revision open.
+_IN_FORCE_EM = pytest.mark.parametrize(
+    "revising", [False, True], ids=["em-active", "em-revise"]
+)
+
+
 def _embargo_active_case(
-    case_id: str, active_embargo: str | EmbargoEvent
+    case_id: str,
+    active_embargo: str | EmbargoEvent,
+    *,
+    revising: bool = False,
 ) -> VulnerabilityCase:
-    """A case whose EM is ``ACTIVE`` under *active_embargo* (id or object)."""
-    return VulnerabilityCase(
+    """A case with *active_embargo* (id or object) in force.
+
+    EM is ``ACTIVE``, or ``REVISE`` when *revising* adds an open revision.
+    """
+    em_state = EM.REVISE if revising else EM.ACTIVE
+    revisions = (
+        [EmbargoEvent(context=case_id, end_time=days_from_now_utc(90))]
+        if revising
+        else []
+    )
+    case = VulnerabilityCase(
         id_=case_id,
         name="CVE-2025-012",
         stub_summary="Vulnerability under active embargo",
@@ -1013,11 +1059,13 @@ def _embargo_active_case(
             CaseStatus(
                 context=case_id,
                 attributed_to=_ACTOR_URI,
-                em=EmDimension(state=EM.ACTIVE),
+                em=EmDimension(state=em_state),
             )
         ],
-        embargo_register=register(active=active_embargo),
+        embargo_register=register(active=active_embargo, proposed=revisions),
     )
+    assert case.em_state == em_state
+    return case
 
 
 def _full_embargo(case_id: str) -> EmbargoEvent:
@@ -1033,11 +1081,12 @@ def _full_embargo(case_id: str) -> EmbargoEvent:
 
 
 @pytest.mark.spec("CM-17-011")
+@_IN_FORCE_EM
 @pytest.mark.parametrize(
     "held_inline", [False, True], ids=["named-by-id", "held-inline"]
 )
 def test_rm_invite_stub_embeds_the_full_active_embargo(
-    sample_actor, held_inline
+    sample_actor, held_inline, revising
 ):
     """The stub carries the whole embargo, not just its id and end time.
 
@@ -1052,7 +1101,7 @@ def test_rm_invite_stub_embeds_the_full_active_embargo(
     case_id = "https://example.org/cases/full-embargo"
     embargo = _full_embargo(case_id)
     case = _embargo_active_case(
-        case_id, embargo if held_inline else embargo.id_
+        case_id, embargo if held_inline else embargo.id_, revising=revising
     )
 
     invite = rm_invite_to_case_activity(
@@ -1074,7 +1123,10 @@ def test_rm_invite_stub_embeds_the_full_active_embargo(
 
 
 @pytest.mark.spec("CM-17-011")
-def test_rm_invite_refuses_an_active_embargo_it_cannot_embed(sample_actor):
+@_IN_FORCE_EM
+def test_rm_invite_refuses_an_active_embargo_it_cannot_embed(
+    sample_actor, revising
+):
     """An active embargo named only by id, with no object to embed, is refused.
 
     A bare id would leave the invitee no way to read the terms it would agree
@@ -1082,7 +1134,9 @@ def test_rm_invite_refuses_an_active_embargo_it_cannot_embed(sample_actor):
     CM-17-011).  The factory refuses rather than sending an uninformed stub.
     """
     case_id = "https://example.org/cases/embargo-not-held"
-    case = _embargo_active_case(case_id, _full_embargo(case_id).id_)
+    case = _embargo_active_case(
+        case_id, _full_embargo(case_id).id_, revising=revising
+    )
 
     with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
         rm_invite_to_case_activity(
@@ -1091,12 +1145,15 @@ def test_rm_invite_refuses_an_active_embargo_it_cannot_embed(sample_actor):
 
 
 @pytest.mark.spec("CM-17-011")
+@_IN_FORCE_EM
 def test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one(
-    sample_actor,
+    sample_actor, revising
 ):
     """A supplied embargo whose id is not the case's active embargo is refused."""
     case_id = "https://example.org/cases/embargo-mismatch"
-    case = _embargo_active_case(case_id, _full_embargo(case_id).id_)
+    case = _embargo_active_case(
+        case_id, _full_embargo(case_id).id_, revising=revising
+    )
 
     with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
         rm_invite_to_case_activity(

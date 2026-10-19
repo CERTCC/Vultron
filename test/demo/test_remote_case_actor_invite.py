@@ -206,8 +206,8 @@ def _seed_case(
 
     The case is seeded **under an active embargo**, and that is load-bearing
     rather than incidental colour.  ``_project_case_to_stub`` enriches the
-    Invite's ``target`` only when ``em_state == EM.ACTIVE`` and the case names
-    an ``active_embargo`` (CM-17-002); with no embargo it returns a stub
+    Invite's ``target`` only while an embargo is in force (EM ``ACTIVE`` or
+    ``REVISE``, CM-17-002); with no embargo it returns a stub
     carrying nothing but an id, which AS2 serialises to a bare URI string —
     exactly what a *failed* case read produces.  Under an active embargo the two
     outcomes differ, so

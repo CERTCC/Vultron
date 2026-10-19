@@ -44,7 +44,9 @@ from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import (
     activate,
     propose,
+    reject,
     terminate as terminate_register,
+    write_consent_rows,
 )
 from test.support.ledger import ledger_entries
 from test.support.trigger_results import activity_of
@@ -193,6 +195,51 @@ def test_deadline_is_capped_at_the_end_of_the_embargo_it_carries(
     invite = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
 
     assert _deadline(invite) == embargo.end_time
+
+
+@pytest.mark.spec("CM-11-014")
+@pytest.mark.spec("CM-17-002")
+def test_a_revise_stub_deadline_is_capped_by_the_embargo_in_force(
+    actor_store,
+) -> None:
+    """In EM REVISE the stub's embargo in force caps its deadline.
+
+    The open revision is not the stub's embargo (CM-17-002), so its later end
+    plays no part in the cap.
+    """
+    manager, dl = actor_store("CaseManager")
+    invitee, _ = actor_store("Vendor")
+    dl.create(invitee)
+    case = VulnerabilityCase(
+        attributed_to=manager.id_,
+        name="Revised embargo",
+        content="Content",
+        stub_summary="Revised embargo summary",
+    )
+    in_force = as_EmbargoEvent(
+        id_=f"{case.id_}/embargo/e1",
+        content="Embargo in force",
+        context=case.id_,
+        end_time=days_from_now_utc(2),
+    )
+    revision = as_EmbargoEvent(
+        id_=f"{case.id_}/embargo/e2",
+        content="Revision",
+        context=case.id_,
+        end_time=days_from_now_utc(30),
+    )
+    dl.create(in_force)
+    dl.create(revision)
+    activate(case, in_force.id_)
+    propose(case, revision.id_)
+    assert case.em_state == EM.REVISE
+    seed_store_owner_as_case_manager(dl, case)
+    dl.create(case)
+
+    invite = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
+
+    assert invite["target"]["activeEmbargo"]["id"] == in_force.id_
+    assert _deadline(invite) == in_force.end_time
 
 
 @pytest.mark.spec("ASK-03-008")
@@ -702,6 +749,112 @@ def test_an_open_revision_proposal_re_issues_nothing(actor_store) -> None:
     terminate_register(stored)
     assert stored.em_state == EM.EXITED
     assert len(outstanding_stale_stubs(dl, stored, owner.id_, now_utc())) == 1
+
+
+def _send_stub_invite_during_revision(
+    actor_store,
+) -> tuple[Any, Any, Any, VulnerabilityCase, str, dict[str, Any]]:
+    """Send a stub Invite while a revision of the embargo in force is open.
+
+    Returns ``(owner, invitee, dl, case, revision_id, invite)`` with *case* the
+    CASE_MANAGER's stored copy, in EM ``REVISE``.
+    """
+    owner, dl = actor_store("Vendor Owner")
+    finder, _ = actor_store("Finder")
+    invitee, _ = actor_store("Vendor Two")
+    dl.create(finder)
+    dl.create(invitee)
+    built, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+    case = dl.read_case(built.id_)
+    assert case is not None
+    revision = as_EmbargoEvent(
+        context=case.id_, end_time=days_from_now_utc(90)
+    )
+    dl.create(revision)
+    propose(case, revision.id_)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    assert case.em_state == EM.REVISE
+    in_force = case.active_embargo_id
+
+    invite = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
+
+    # The stub carries the embargo in force, not the open revision (CM-17-002).
+    assert invite["target"]["activeEmbargo"]["id"] == in_force
+    stored = dl.read_case(case.id_)
+    assert stored is not None
+    return owner, invitee, dl, stored, revision.id_, invite
+
+
+def _run_reissue(dl: Any, case_id: str, owner_id: str) -> None:
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.case.nodes.stub_reissue import (
+        ReissueStubInvitesNode,
+    )
+
+    result = BTBridge(
+        datalayer=dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute_with_setup(
+        tree=ReissueStubInvitesNode(case_id=case_id), actor_id=owner_id
+    )
+    assert result.status.name == "SUCCESS", result
+
+
+@pytest.mark.spec("CM-11-016")
+@pytest.mark.spec("CM-17-002")
+def test_a_rejected_revision_does_not_reissue_a_stub_sent_in_revise(
+    actor_store,
+) -> None:
+    """Rejecting the revision leaves the stub's terms in force.
+
+    A stub sent in EM REVISE already carried the embargo in force, so when the
+    owner rejects the revision nothing it carried changed: it is not stale and
+    is not re-issued (CM-11-016).
+    """
+    owner, invitee, dl, case, revision_id, invite = (
+        _send_stub_invite_during_revision(actor_store)
+    )
+
+    reject(case, revision_id)
+    dl.save(case)
+    assert case.em_state == EM.ACTIVE
+
+    assert outstanding_stale_stubs(dl, case, owner.id_, now_utc()) == []
+    _run_reissue(dl, case.id_, owner.id_)
+    assert [i.id_ for i in _invites_to(dl, invitee.id_)] == [invite["id"]]
+
+
+@pytest.mark.spec("CM-11-016")
+@pytest.mark.spec("CM-17-002")
+def test_an_activated_revision_reissues_a_stub_sent_in_revise(
+    actor_store,
+) -> None:
+    """Activating the revision changes the embargo in force: re-issue the stub.
+
+    The replacement names the stub it supersedes and carries the revision,
+    now the embargo in force (CM-11-016).
+    """
+    owner, invitee, dl, case, revision_id, invite = (
+        _send_stub_invite_during_revision(actor_store)
+    )
+
+    activate(case, revision_id)
+    dl.save(case)
+    assert case.em_state == EM.ACTIVE
+    assert case.active_embargo_id == revision_id
+
+    (stale,) = outstanding_stale_stubs(dl, case, owner.id_, now_utc())
+    assert stale.invite_id == invite["id"]
+    _run_reissue(dl, case.id_, owner.id_)
+    (replacement,) = [
+        i for i in _invites_to(dl, invitee.id_) if i.id_ != invite["id"]
+    ]
+    assert replacement.in_reply_to == invite["id"]
+    carried = getattr(replacement.target, "active_embargo", None)
+    assert getattr(carried, "id_", carried) == revision_id
 
 
 @pytest.mark.spec("CM-11-016")

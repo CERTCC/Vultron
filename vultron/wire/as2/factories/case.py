@@ -35,7 +35,6 @@ from vultron.core.models.dimensions import (
     EmDimension,
 )
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.core.states.em import EM
 from vultron.enums.object_types import VultronObjectType
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.enums import as_TransitiveActivityType
@@ -116,12 +115,15 @@ def _project_case_to_stub(
 ) -> as_VulnerabilityCaseStub:
     """Project a ``as_VulnerabilityCase`` (core or wire) to a ``as_VulnerabilityCaseStub``.
 
-    When ``em_state == EM.ACTIVE`` the stub carries ``case_status`` (with
-    ``em_state``) and ``active_embargo`` so the invitee can give informed
-    consent (CM-17-002).  ``active_embargo`` is the **full** embargo, every
-    term as the inviter holds it, not just its ID and ``end_time``: this
-    prototype builds no way for the invitee to ask for the embargo by ID
-    (CM-17-011).  Builds a minimal stub when the case has no active embargo.
+    While an embargo is in force (``case.embargo_in_force``: EM ``ACTIVE`` or
+    ``REVISE``) the stub carries ``case_status`` (with ``em_state``) and
+    ``active_embargo`` so the invitee can give informed consent (CM-17-002).
+    In ``REVISE`` that is the embargo in force, never the open revision, which
+    is relayed after joining (EP-09-011).  ``active_embargo`` is the **full**
+    embargo, every term as the inviter holds it, not just its ID and
+    ``end_time``: this prototype builds no way for the invitee to ask for the
+    embargo by ID (CM-17-011).  Builds a minimal stub when no embargo is in
+    force.
 
     Refuses to build a stub when the case carries no ``stub_summary``
     (CM-17-010, MV-10-001, AC-2 of #4165): the owner must choose a summary
@@ -149,10 +151,12 @@ def _project_case_to_stub(
         )
     case_id = case.id_
     # EM is derived from the case's embargo register (ADR-0122).
-    em_state = getattr(case, "em_state", None)
-    active_embargo = getattr(case, "active_embargo", None)
-    if em_state != EM.ACTIVE:
+    # "In force" is the register's ACTIVE entry, so it holds through a
+    # revision (EM REVISE), not only while EM is exactly ACTIVE (CM-17-002).
+    if not getattr(case, "embargo_in_force", False):
         return as_VulnerabilityCaseStub(case_id=case_id, summary=stub_summary)
+    em_state = case.em_state
+    active_embargo = case.active_embargo
     embargo = _stub_embargo(active_embargo, embargo_obj, case_id)
     # ``context`` names the case this status belongs to.  It is required on the
     # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
@@ -191,9 +195,9 @@ def _stub_embargo(
     """
     if active_embargo is None:
         raise VultronActivityConstructionError(
-            f"_stub_embargo: case {case_id!r} is embargo-active but names no"
-            " active embargo, so the stub has no terms to embed (CM-17-002,"
-            " CM-17-011)"
+            f"_stub_embargo: case {case_id!r} has an embargo in force but"
+            " names no active embargo, so the stub has no terms to embed"
+            " (CM-17-002, CM-17-011)"
         )
     if isinstance(active_embargo, str):
         active_id = active_embargo
@@ -780,8 +784,9 @@ def rm_invite_to_case_activity(
             participant roles so ``CreateInertInviteeParticipantNode``
             can set them on the new inert ``CaseParticipant``.
         embargo_obj: The fetched ``EmbargoEvent`` for the case, used when
-            *target* is a ``as_VulnerabilityCase`` and ``em_state == EM.ACTIVE``
-            to embed the full embargo in the stub (CM-17-002, CM-17-011).
+            *target* is a ``as_VulnerabilityCase`` with an embargo in force
+            (EM ``ACTIVE`` or ``REVISE``) to embed the full embargo in the
+            stub (CM-17-002, CM-17-011).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor`` for the inviting party).
 

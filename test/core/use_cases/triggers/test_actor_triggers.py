@@ -35,6 +35,7 @@ from test.conftest import seed_case_owner_participant
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
+    propose,
     write_consent_rows,
 )
 from test.support.received import archive_received
@@ -50,6 +51,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.models.use_case_result import RoleOfferResult
+from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
@@ -210,6 +212,31 @@ def _activate_embargo(
     return embargo.id_
 
 
+def _open_revision(dl: SqliteDataLayer, case_id: str) -> str:
+    """Open a revision of *case_id*'s embargo in force (EM ``REVISE``).
+
+    The prior embargo stays in force and every signatory to it remains one
+    (EP-05-002).  Returns the revision's id.
+    """
+    from datetime import datetime
+
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    revision = as_EmbargoEvent(
+        id_=f"{case_id}/embargo/e2",
+        content="Revised embargo",
+        end_time=datetime(2031, 1, 1, tzinfo=UTC),
+        context=case_id,
+    )
+    dl.create(revision)
+    case = cast(Any, dl.read(case_id))
+    propose(case, revision.id_)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    assert case.em_state == EM.REVISE
+    return revision.id_
+
+
 class _OwnerDirectInvite:
     """The owner's trigger, then the CASE_MANAGER's receipt of its Offer.
 
@@ -219,7 +246,11 @@ class _OwnerDirectInvite:
     harness runs both halves against two stores so a test can inspect either.
     """
 
-    def __init__(self, with_active_embargo: bool = False) -> None:
+    def __init__(
+        self,
+        with_active_embargo: bool = False,
+        with_open_revision: bool = False,
+    ) -> None:
         self.owner, self.owner_dl = _make_actor_dl("CaseOwner")
         self.manager, self.manager_dl = _make_actor_dl("CaseManager")
         self.invitee, _ = _make_actor_dl("Invitee")
@@ -229,8 +260,12 @@ class _OwnerDirectInvite:
         self.case = _shared_case_with_case_manager(
             self.owner.id_, self.manager.id_, self.owner_dl, self.manager_dl
         )
-        if with_active_embargo:
-            _activate_embargo(self.manager_dl, self.case.id_, self.owner.id_)
+        if with_active_embargo or with_open_revision:
+            self.embargo_id = _activate_embargo(
+                self.manager_dl, self.case.id_, self.owner.id_
+            )
+        if with_open_revision:
+            _open_revision(self.manager_dl, self.case.id_)
 
     def trigger(self, roles: list[CVDRole] | None = None) -> dict[str, Any]:
         """Run the owner's trigger; return the activity it captured."""
@@ -616,6 +651,30 @@ class TestInviteRolesAndEmbargoEnrichment:
         assert target.get("caseStatus", {}).get("emState") in (
             "active",
             "ACTIVE",
+        )
+
+    @pytest.mark.spec("CM-17-002")
+    def test_revise_stub_carries_the_embargo_in_force(self, make_payload):
+        """In EM REVISE the stub carries the prior embargo and emState=REVISE.
+
+        The prior embargo stays in force while the revision is open
+        (EP-05-002), and accepting the stub signs it (CM-11-001), so the
+        invitee must see its terms; the revision is relayed after joining
+        (EP-09-011).
+        """
+        harness = _OwnerDirectInvite(with_open_revision=True)
+
+        _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
+
+        target = wire.get("target", {})
+        active_embargo = target.get("activeEmbargo")
+        assert isinstance(active_embargo, dict), (
+            "activeEmbargo must be a full embargo object (CM-17-002)"
+        )
+        assert active_embargo.get("id") == harness.embargo_id
+        assert target.get("caseStatus", {}).get("emState") in (
+            "revise",
+            "REVISE",
         )
 
     @pytest.mark.spec("CM-17-002")

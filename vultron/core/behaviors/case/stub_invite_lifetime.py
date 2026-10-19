@@ -207,11 +207,10 @@ def superseded_reason(
 def current_stub_embargo_id(case: VulnerabilityCase) -> str | None:
     """The embargo whose terms a stub Invite sent now would carry.
 
-    A stub carries the active embargo only while EM is ``ACTIVE`` (CM-17-002);
-    otherwise it carries none.
+    A stub carries the embargo in force whenever there is one: EM ``ACTIVE``
+    or ``REVISE``, never the open revision (CM-17-002).  With none in force it
+    carries none.
     """
-    if case.em_state != EM.ACTIVE:
-        return None
     return case.active_embargo_id
 
 

@@ -77,11 +77,11 @@ def build_stub_invite(
     """
     # CM-17-002: pass the full case object so the adapter+factory can
     # project it to an enriched stub (embedding the full active embargo,
-    # CM-17-011) when em_state==ACTIVE.
+    # CM-17-011) while an embargo is in force (EM ACTIVE or REVISE).
     # Regime 3 (ADR-0087): the case is *optional enrichment* here, not
     # coordination state — the Invite is fully specified by invitee/case_id/
     # actor/roles, and the factory tolerates target=None (CM-17-002 only
-    # enriches the stub when the case is present and em_state==ACTIVE). A
+    # enriches the stub when the case is present with an embargo in force). A
     # missing local case therefore emits a bare stub rather than failing;
     # this read is deliberately unguarded (conformance allowlist).
     case = datalayer.read_case(case_id)
@@ -283,8 +283,8 @@ class EmitInviteActorToCaseNode(_StubInviteEmitBase):
     Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
     ``target`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
     and factory project it to an enriched ``as_VulnerabilityCaseStub`` — embedding
-    the full active embargo when ``em_state == EM.ACTIVE`` (CM-17-011) — without
-    violating the core→wire import boundary (ARCH-01-001, CM-17-002).
+    the full embargo in force (EM ``ACTIVE`` or ``REVISE``, CM-17-011) —
+    without violating the core→wire import boundary (ARCH-01-001, CM-17-002).
     """
 
     def __init__(
