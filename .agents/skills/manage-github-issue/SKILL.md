@@ -29,7 +29,6 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --issue-type-id "${TASK_TYPE_ID}" \
   --label "size:M" \
   --parent 42 \
-  --milestone 25 \
   --planned \
   --blocked-by 50)
 
@@ -58,7 +57,7 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 | `--assignees` | — | Comma-separated GitHub usernames |
 | `--issue-type-id` | — | GraphQL node ID of the issue type (**required** on create) |
 | `--parent` | — | Parent epic issue number (**required** on create) |
-| `--milestone` | — | Milestone number (**required** on create) |
+| `--milestone` | — | Milestone number (optional; use only for a release milestone) |
 | `--blocked-by` | — | Space-separated issue numbers that block this one |
 | `--blocks` | — | Space-separated issue numbers this one blocks |
 | `--sub-issue` | — | Child issue number (repeatable) |
@@ -67,7 +66,7 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 | `--where` | — | File, directory, or spec the issue concerns (**required** with `--opened-as debt`) |
 | `--planned` | — | Issue comes from planning or a user request (**required** on create unless `--opened-as`) |
 
-> **On create**, `--issue-type-id`, `--parent`, `--milestone`, and one of
+> **On create**, `--issue-type-id`, `--parent`, and one of
 > `--opened-as` / `--planned` are all required.
 > The script exits non-zero if any is missing.
 > See `shared/issue-creation-requirements.md` for lookup commands and defaults.

@@ -24,14 +24,15 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.received import (
+    assert_held_only_as_received,
+    received_record,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.behaviors.case.nodes.store_received_object import (
-    StoreReceivedObjectNode,
-)
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -61,8 +62,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class TestOwnershipTransferUseCases:
     """Tests for offer/accept/reject ownership transfer use cases."""
 
+    @pytest.mark.spec("DL-06-006")
+    @pytest.mark.spec("CLP-10-017")
     def test_offer_case_ownership_transfer_persists_offer(self, make_payload):
-        """The transferee persists the CASE_MANAGER's forwarded Offer."""
+        """The transferee keeps the CASE_MANAGER's forwarded Offer as received.
+
+        The store holds no ingress row: the forward is held only as intake
+        archived it, never under the id its sender chose (DL-06-006).
+        """
         dl, case = _transferee_replica("https://example.org/cases/case_ot1")
         activity = offer_case_ownership_transfer_activity(
             case,
@@ -79,8 +86,7 @@ class TestOwnershipTransferUseCases:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        stored = dl.get(activity.type_.value, activity.id_)
-        assert stored is not None
+        assert_held_only_as_received(dl, activity.id_)
         assert result.disposition == HandlerDisposition.APPLIED
 
         # HP-01-003: a redelivered Offer stores nothing new.
@@ -400,12 +406,6 @@ class TestOwnershipTransferUseCases:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        # The Offer the accept trigger reads back by id is written by a store
-        # node of the same tree, not by execute() (CLP-10-005, AC-4).
-        assert all(
-            isinstance(c.pop("store_offer", None), StoreReceivedObjectNode)
-            for c in calls
-        )
         # The sender guard is composed from the declared rule (CM-21-019).
         assert all(
             c.pop("sender_rule", None)
@@ -640,7 +640,7 @@ class TestOwnershipTransferUseCases:
         """When receiving_actor_id is absent the store owner processes the Offer.
 
         Absent-stamp path (CLP-10-005): resolve_receiving_actor_id falls back
-        to dl.actor_id (the CASE_MANAGER), so the offer is persisted rather
+        to dl.actor_id (the CASE_MANAGER), so the offer is archived rather
         than dropped.
         """
         case_id = "https://example.org/cases/case_ot_nostamp"
@@ -667,11 +667,9 @@ class TestOwnershipTransferUseCases:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        stored = dl.get(activity.type_.value, activity.id_)
-        assert stored is not None, (
-            "Offer must be persisted even when receiving_actor_id is absent"
-            " (store-owner fallback, CLP-10-005)"
-        )
+        # Archived even when receiving_actor_id is absent (store-owner
+        # fallback, CLP-10-005), and only under the receiver's key.
+        assert_held_only_as_received(dl, activity.id_)
 
     def test_accept_case_ownership_transfer_uses_store_owner_when_no_receiving_actor(
         self, make_payload
@@ -1690,7 +1688,7 @@ class TestOfferAtTheTransferee:
         )
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert dl.read(offer.id_) is not None
+        assert_held_only_as_received(dl, offer.id_)
 
     @pytest.mark.spec("CM-21-019")
     @pytest.mark.spec("PCR-03-001")
@@ -2103,7 +2101,7 @@ def test_transferee_takes_the_forward_of_an_open_offer(make_payload):
     ).execute()
 
     assert result.disposition is HandlerDisposition.APPLIED
-    assert transferee.read(forward.id_) is not None
+    assert_held_only_as_received(transferee, forward.id_)
 
 
 # ---------------------------------------------------------------------------
@@ -2716,9 +2714,10 @@ def test_a_slash_spelled_delegated_offer_is_taken_and_filed_as_received(
         ).execute()
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
-    stored = dl.read(forward.id_)
-    assert stored is not None
-    assert getattr(stored, "attributed_to", None) == _VENDOR_ID + "/"
+    assert_held_only_as_received(dl, forward.id_)
+    record = received_record(dl, forward.id_)
+    assert record is not None
+    assert getattr(record.activity, "attributed_to", None) == _VENDOR_ID + "/"
     assert not any(
         "ignoring attributed_to" in r.message for r in caplog.records
     )

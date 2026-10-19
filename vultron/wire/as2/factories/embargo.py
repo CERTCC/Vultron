@@ -24,7 +24,7 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, cast
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -39,6 +39,7 @@ from vultron.wire.as2.factories._context import (
     case_target_ref,
     with_case_context,
 )
+from vultron.wire.as2.factories._held import as_answered
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
@@ -196,8 +197,9 @@ def em_accept_embargo_activity(
     Per ActivityStreams convention the actor accepts the proposal
     activity itself, not the ``as_EmbargoEvent`` being proposed.
     The ``proposal`` MUST be the value returned by
-    :func:`em_propose_embargo_activity`; a plain ``as_Invite`` will
-    fail validation.
+    :func:`em_propose_embargo_activity`, or the Invite as a receiver
+    archived it (its core form); a plain ``as_Invite`` will fail
+    validation.
 
     Args:
         proposal: The ``_EmProposeEmbargoActivity`` being accepted.
@@ -214,7 +216,7 @@ def em_accept_embargo_activity(
     """
     try:
         return _EmAcceptEmbargoActivity(
-            object_=cast(_EmProposeEmbargoActivity, proposal),
+            object_=as_answered(_EmProposeEmbargoActivity, proposal),
             context=context,
             **kwargs,
         )
@@ -237,8 +239,9 @@ def em_reject_embargo_activity(
     Per ActivityStreams convention the actor rejects the proposal
     activity itself, not the ``as_EmbargoEvent`` being proposed.
     The ``proposal`` MUST be the value returned by
-    :func:`em_propose_embargo_activity`; a plain ``as_Invite`` will
-    fail validation.
+    :func:`em_propose_embargo_activity`, or the Invite as a receiver
+    archived it (its core form); a plain ``as_Invite`` will fail
+    validation.
 
     Args:
         proposal: The ``_EmProposeEmbargoActivity`` being rejected.
@@ -255,7 +258,7 @@ def em_reject_embargo_activity(
     """
     try:
         return _EmRejectEmbargoActivity(
-            object_=cast(_EmProposeEmbargoActivity, proposal),
+            object_=as_answered(_EmProposeEmbargoActivity, proposal),
             context=context,
             **kwargs,
         )

@@ -55,6 +55,7 @@ from vultron.demo.utils import (
     log_case_state,
     logfmt,
     post_to_inbox_and_wait,
+    read_received_activity,
     ref_id,
     seed_case_actor,
     verify_object_stored,
@@ -642,6 +643,9 @@ def find_case_for_offer(
 ) -> as_VulnerabilityCase | None:
     """Find the as_VulnerabilityCase associated with a report offer.
 
+    The Offer is the one *client*'s actor received, read from its archive
+    record (DL-06-006).
+
     Args:
         client: DataLayerClient connected to the container holding the case.
         offer_id: Full URI of the ``VultronActivity`` offer.
@@ -649,7 +653,7 @@ def find_case_for_offer(
     Returns:
         The matching ``as_VulnerabilityCase``, or ``None`` if not found.
     """
-    offer_data = client.get(client.dl_path(offer_id))
+    offer_data = read_received_activity(client, offer_id)
     if not offer_data:
         return None
 

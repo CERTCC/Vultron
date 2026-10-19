@@ -89,11 +89,13 @@ from vultron.core.models.embargo_apply import (
     RegisterStepKind,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
 )
+from vultron.core.services.received_activity import read_held_activity
 from vultron.core.states.em import EM
 from vultron.errors import VultronNotFoundError, VultronWiringError
 
@@ -106,6 +108,20 @@ _PROPOSALS_PORT: dict[str, PortInformation] = {
 _PROPOSALS_REMAP: dict[str, str] = {
     ABANDONED_PROPOSALS_KEY: f"/{ABANDONED_PROPOSALS_KEY}"
 }
+
+
+def _holds(datalayer: CasePersistence, invite_id: str) -> bool:
+    """Whether this store holds the Invite *invite_id*, received or sent.
+
+    The ER is built from the Invite as this store holds it
+    (:func:`read_held_activity`): a received Invite is read from its
+    receiver-keyed archive, never under the id its sender chose (DL-06-006).
+    """
+    try:
+        read_held_activity(datalayer, invite_id, "Invite(EmbargoEvent)")
+    except VultronNotFoundError:
+        return False
+    return True
 
 
 def _read_proposals(node: DataLayerActionWithPorts) -> dict[str, str]:
@@ -163,7 +179,7 @@ class ReadOpenEmbargoProposalsNode(DataLayerActionWithPorts):
             return Status.FAILURE
         assert self.datalayer is not None
         unreadable = [
-            index[i] for i in open_ids if self.datalayer.read(index[i]) is None
+            index[i] for i in open_ids if not _holds(self.datalayer, index[i])
         ]
         if unreadable:
             self.feedback_message = (

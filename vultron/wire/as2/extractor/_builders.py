@@ -195,8 +195,14 @@ def _build_activity_snapshot(
     origin: object,
     context: object,
     end_time: datetime | None = None,
+    proposed_embargo: EmbargoEvent | None = None,
 ) -> VultronActivity:
     """Build a VultronActivity snapshot from raw AS2 fields.
+
+    ``proposed_embargo`` is carried when the caller passes it: an
+    ``Offer(VulnerabilityReport)``'s proposed terms (EP-04-004) are part of
+    the Offer the receiver archives (CLP-10-017) and later inlines whole in
+    its case proposal (CP-01-008), so the archive must keep them.
 
     ``end_time`` is carried only when the caller passes it, with the offset
     it arrived with (CS-13-005): for the ownership-transfer Offer it is the
@@ -244,6 +250,7 @@ def _build_activity_snapshot(
         suggested_roles=getattr(activity, "suggested_roles", None) or None,
         roles=getattr(activity, "roles", None) or None,
         end_time=end_time,
+        proposed_embargo=proposed_embargo,
     )
 
 
@@ -719,11 +726,12 @@ def _build_object_kwargs(
     actor_id: str,
     origin: object,
     activity_end_time: datetime | None = None,
+    activity_proposed_embargo: EmbargoEvent | None = None,
 ) -> dict[str, Any]:
     """Build the domain-field kwargs dict for ``extract_intent``.
 
-    *activity_end_time* is passed through to the activity snapshot (see
-    :func:`_build_activity_snapshot`).
+    *activity_end_time* and *activity_proposed_embargo* are passed through to
+    the activity snapshot (see :func:`_build_activity_snapshot`).
 
     Uses type_ string comparison because the wire parser returns ``as_Object``
     (base class) for nested objects; isinstance checks against Vultron subtypes
@@ -741,6 +749,7 @@ def _build_object_kwargs(
             origin,
             context,
             end_time=activity_end_time,
+            proposed_embargo=activity_proposed_embargo,
         )
     if obj is None:
         return kw

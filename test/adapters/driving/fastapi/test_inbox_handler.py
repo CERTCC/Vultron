@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from test.support.received import assert_held_only_as_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi import inbox_handler as ih
@@ -1225,7 +1226,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
 
     With _resolve_actor_config returning auto_create_case=False,
     dispatching an inbound Offer(Report) via DirectActivityDispatcher must
-    store the report and Offer activity but must NOT create a
+    store the report and archive the Offer but must NOT create a
     as_VulnerabilityCase and must leave the actor's outbox empty (CM-15-001,
     issue #1319).
     """
@@ -1275,10 +1276,10 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
 
     dispatcher.dispatch(event, dl)
 
-    # Report and Offer are persisted.
+    # The report is persisted; the Offer is held as intake archived it,
+    # never under the id its sender chose (DL-06-006).
     assert dl.read(REPORT_ID) is not None, "VulnerabilityReport must be stored"
-    offer_ids = [row.get("id_") for row in dl.get_all("Offer")]
-    assert OFFER_ID in offer_ids, "Offer activity must be stored"
+    assert_held_only_as_received(dl, OFFER_ID)
     # No case created.
     assert dl.get_all("VulnerabilityCase") == [], (
         "No as_VulnerabilityCase should be created when auto_create_case=False"

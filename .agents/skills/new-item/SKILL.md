@@ -77,21 +77,6 @@ issue yet: invoke `calve-epics` Mode 2 to propose a new epic, confirm it with
 the user, and then proceed with that new epic as the parent. Allow at most one
 parent epic.
 
-### Phase 4b — Milestone Selection
-
-**A milestone is required.** Query open milestones and present as a list:
-
-```bash
-gh api repos/CERTCC/Vultron/milestones \
-  --jq '.[] | "\(.number): \(.title)"'
-```
-
-Present the top candidates ranked by relevance to the issue description.
-Ask the user to confirm or pick a different one. Do **not** offer a "None / skip"
-option — an issue without a milestone is invisible to release planning.
-
-See `shared/issue-creation-requirements.md` for defaults by issue type.
-
 ### Phase 5 — Build Title + Body
 
 Generate a clean title (no `[Idea]` / `[Concern]` prefix) and body matching
@@ -102,7 +87,7 @@ the corresponding GitHub template sections.
 Use `.agents/skills/manage-github-issue/manage_github_issue.sh`.
 
 - **Create**: set issue type ID (`Idea` or `Concern`), apply exactly one label (`idea`
-  or `concern`), wire parent epic, and pass `--milestone ${MILESTONE_NUMBER}` and
+  or `concern`), wire parent epic, and pass
   `--planned`. When the caller supplies **Opened as** (for example `debt` with a
   `--where`), pass `--opened-as <reason> [--where <text>]` instead of `--planned`.
 - **Update**: update title/body and optionally parent epic; do not change issue

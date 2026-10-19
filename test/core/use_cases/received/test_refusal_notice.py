@@ -31,6 +31,7 @@ import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
 
+from test.support.received import received_record
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -115,7 +116,10 @@ def _accept_event(
     receiver: str = MANAGER,
 ) -> Any:
     """*sender*'s Accept of *invite_id* under a fresh id, as *receiver* routes it."""
-    proposal = cast(Any, net.stores[BYSTANDER].read(invite_id))
+    # BYSTANDER holds the Invite as intake archived it (DL-06-006).
+    record = received_record(net.stores[BYSTANDER], invite_id)
+    assert record is not None
+    proposal = cast(Any, record.activity)
     activity = em_accept_embargo_activity(
         proposal,
         context=net.case_id,

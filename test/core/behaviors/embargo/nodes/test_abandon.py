@@ -34,6 +34,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 )
 from test.support.embargo_register import propose, write_consent_rows
 from test.support.ledger import committed_semantic_types, fail_commits
+from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -57,6 +58,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -97,7 +101,9 @@ def _proposed_case(
             id_=f"{case.id_}/embargo_proposals/{d}d",
         )
         dl.create(embargo)
-        dl.create(invite)
+        # The participant's Invite, held as the CASE_MANAGER's intake
+        # archived it, never under the id its sender chose (DL-06-006).
+        archive_received(dl, invite)
         propose(case, embargo.id_)
         proposals[embargo.id_] = invite.id_
     if indexed:
@@ -120,7 +126,7 @@ def _replica_of(
         stored.id_,
         *stored.actor_participant_index.values(),
         *proposals,
-        *proposals.values(),
+        *(ReceivedActivityRecord.build_id(i) for i in proposals.values()),
     ]
     for obj_id in obj_ids:
         obj = manager_dl.read(obj_id)
@@ -394,11 +400,13 @@ def test_each_cancel_follows_its_own_entry():
     )
 
 
-def _drop(dl: SqliteDataLayer, obj_id: str) -> None:
-    obj = dl.read(obj_id)
-    assert obj is not None
-    assert dl.delete(str(obj.type_), obj_id)
-    assert dl.read(obj_id) is None
+def _drop(dl: SqliteDataLayer, invite_id: str) -> None:
+    """Drop the archived Invite *invite_id* from the store."""
+    record_id = ReceivedActivityRecord.build_id(invite_id)
+    record = dl.read(record_id)
+    assert record is not None
+    assert dl.delete(str(record.type_), record_id)
+    assert dl.read(record_id) is None
 
 
 # ---------------------------------------------------------------------------

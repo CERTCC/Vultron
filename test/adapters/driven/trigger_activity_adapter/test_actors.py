@@ -29,6 +29,7 @@ from vultron.errors import (
     VultronValidationError,
 )
 from vultron.wire.as2.factories import (
+    offer_case_ownership_transfer_activity,
     offer_case_participant_activity,
     recommend_actor_activity,
     rm_invite_to_case_activity,
@@ -566,13 +567,13 @@ class TestAcceptCaseParticipantOffer:
         dl.create(vendor)
         offer = offer_case_participant_activity(
             recommended=vendor,
+            target=_CASE_ID,
             actor=_ACTOR,
             to=[_ACTOR],
         )
-        # Store the nested CaseParticipant so _rehydrate_fields can expand the
-        # dehydrated object_ URI back to a full participant when reading the offer.
-        dl.create(offer.object_)
-        dl.create(offer)
+        # Held as intake archived it, participant inline, never under the
+        # sender's id (DL-06-006).
+        archive_received(dl, offer)
         return offer.id_
 
     def test_returns_id_and_dict(self, adapter, dl):
@@ -759,3 +760,77 @@ def test_role_offer_answer_keeps_a_caller_supplied_id(adapter, dl, method):
     assert activity_id == given_id
     assert json.loads(activity_json)["id"] == given_id
     assert dl.read(given_id) is not None
+
+
+_OWNER = "https://example.org/actors/owner"
+
+
+def _received_ownership_forward(dl) -> tuple[str, str]:
+    """Archive the CASE_MANAGER's forward as the transferee's intake keeps it.
+
+    Nothing is held under the forward's own id (DL-06-006).  Returns
+    ``(offer_id, case_id)``.
+    """
+    case = _make_case(dl)
+    offer = offer_case_ownership_transfer_activity(
+        case=case,
+        target=_INVITEE,
+        actor=_ACTOR,
+        attributed_to=_OWNER,
+        to=[_INVITEE],
+    )
+    archive_received(dl, offer)
+    assert dl.read(offer.id_) is None
+    return offer.id_, case.id_
+
+
+_OWNERSHIP_ANSWERS = [
+    pytest.param("accept_case_ownership_transfer", "Accept", id="accept"),
+    pytest.param("reject_case_ownership_transfer", "Reject", id="reject"),
+]
+
+
+class TestAnswerReceivedOwnershipOffer:
+    """The transferee answers the forward from its archive (DL-06-006)."""
+
+    @pytest.mark.spec("DL-06-006")
+    @pytest.mark.spec("DL-06-004")
+    @pytest.mark.parametrize(("method", "verb"), _OWNERSHIP_ANSWERS)
+    def test_a_forward_held_only_as_received_is_answered(
+        self, adapter, dl, method, verb
+    ):
+        offer_id, case_id = _received_ownership_forward(dl)
+
+        _, blob = getattr(adapter, method)(offer_id=offer_id, actor=_INVITEE)
+
+        body = json.loads(blob)
+        assert body["type"] == verb
+        assert body["object"]["id"] == offer_id
+        assert body["object"]["object"]["id"] == case_id
+        # With no ``to`` given, the reply goes to the forward's actor.
+        assert body["to"] == [_ACTOR]
+        assert dl.read(offer_id) is None
+
+    @pytest.mark.parametrize(("method", "verb"), _OWNERSHIP_ANSWERS)
+    def test_an_offer_this_store_does_not_hold_is_not_found(
+        self, adapter, dl, method, verb
+    ):
+        with pytest.raises(VultronNotFoundError):
+            getattr(adapter, method)(
+                offer_id="urn:uuid:never-received", actor=_INVITEE
+            )
+
+    def test_the_offerer_withdraws_the_offer_it_sent(self, adapter, dl):
+        """The offerer's own Offer is held under its own id, and read there."""
+        case = _make_case(dl)
+        offer_id, _ = adapter.offer_case_ownership_transfer(
+            case_id=case.id_, transferee_id=_INVITEE, actor=_OWNER, to=[_ACTOR]
+        )
+
+        _, blob = adapter.withdraw_case_ownership_transfer(
+            offer_id=offer_id, actor=_OWNER, to=[_ACTOR]
+        )
+
+        body = json.loads(blob)
+        assert body["type"] == "Undo"
+        assert body["object"]["id"] == offer_id

@@ -18,9 +18,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from test.support.received import archive_received
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.states.embargo_register import TerminationReason
-from vultron.errors import VultronActivityConstructionError
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronNotFoundError,
+)
+from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _ACTOR = "https://example.org/actors/coordinator"
@@ -212,6 +217,61 @@ class TestAcceptEmbargo:
             "object_ must be an inline dict, not a URI"
         )
         assert obj.get("id") == proposal_id
+
+
+def _received_proposal(dl) -> tuple[str, str]:
+    """Archive an Invite another actor sent, as intake keeps it.
+
+    Nothing is held under the Invite's own id (DL-06-006).  Returns
+    ``(proposal_id, embargo_id)``.
+    """
+    embargo = _make_embargo(dl)
+    invite = em_propose_embargo_activity(
+        embargo, context=_CASE_ID, actor=_PROPOSER, to=[_PEER]
+    )
+    archive_received(dl, invite)
+    assert dl.read(invite.id_) is None
+    return invite.id_, embargo.id_
+
+
+_ANSWER_METHODS = [
+    pytest.param("accept_embargo", "Accept", id="accept"),
+    pytest.param("reject_embargo", "Reject", id="reject"),
+]
+
+
+class TestAnswerReceivedEmbargoInvite:
+    """The answer reads a received Invite from its archive (DL-06-006)."""
+
+    @pytest.mark.spec("DL-06-006")
+    @pytest.mark.spec("DL-06-004")
+    @pytest.mark.parametrize(("method", "verb"), _ANSWER_METHODS)
+    def test_an_invite_held_only_as_received_is_answered(
+        self, adapter, dl, method, verb
+    ):
+        proposal_id, embargo_id = _received_proposal(dl)
+
+        _, blob = getattr(adapter, method)(
+            proposal_id=proposal_id, case_id=_CASE_ID, actor=_PEER
+        )
+
+        body = json.loads(blob)
+        assert body["type"] == verb
+        assert body["object"]["id"] == proposal_id
+        assert body["object"]["actor"] == _PROPOSER
+        assert body["object"]["object"]["id"] == embargo_id
+        assert dl.read(proposal_id) is None
+
+    @pytest.mark.parametrize(("method", "verb"), _ANSWER_METHODS)
+    def test_an_invite_this_store_does_not_hold_is_not_found(
+        self, adapter, dl, method, verb
+    ):
+        with pytest.raises(VultronNotFoundError):
+            getattr(adapter, method)(
+                proposal_id="urn:uuid:never-received",
+                case_id=_CASE_ID,
+                actor=_PEER,
+            )
 
 
 class TestRejectEmbargo:

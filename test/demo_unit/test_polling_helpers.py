@@ -599,7 +599,8 @@ def test_shared_budget_hands_out_what_is_left_and_never_goes_negative(
 # ---------------------------------------------------------------------------
 # find_case_invite_for_actor (#3821): the invitee holds the CASE_MANAGER's
 # Invite as intake's ReceivedActivityRecord (CLP-10-017, ADR-0111), or bare
-# under the sender's id while the inbox defers it until the case bootstrap.
+# under the sender's id while the inbox defers it until the case bootstrap --
+# the one bare row a demo finder still reads (DL-06-006).
 # ---------------------------------------------------------------------------
 
 _MANAGER = "http://example.com/actors/case-actor"
@@ -742,18 +743,32 @@ class TestFindFullCaseInviteForActor:
 
 
 class TestAssertReceivedFrom:
-    @pytest.mark.parametrize("held", ["archived", "deferred"])
-    def test_passes_when_the_named_actor_sent_it(self, held):
+    def test_passes_when_the_named_actor_sent_it(self):
         record_id, record = _archived_invite_entry()
-        entries = (
-            {record_id: record}
-            if held == "archived"
-            else {_INVITE_ID: record["activity"]}
-        )
 
         assert_received_from(
-            _dl_client(entries), _INVITE_ID, _MANAGER, "consequence"
+            _dl_client({record_id: record}),
+            _INVITE_ID,
+            _MANAGER,
+            "consequence",
         )
+
+    def test_reads_an_invite_the_inbox_defers_when_told_its_type(self):
+        """The invitee holds no case yet, so only the inbox holds the Invite."""
+        _, record = _archived_invite_entry()
+        client = _dl_client({_INVITE_ID: record["activity"]})
+
+        assert_received_from(
+            client, _INVITE_ID, _MANAGER, "consequence", deferred_type="Invite"
+        )
+
+    @pytest.mark.spec("DL-06-006")
+    def test_a_row_under_the_senders_id_is_not_a_received_activity(self):
+        _, record = _archived_invite_entry()
+        client = _dl_client({_INVITE_ID: record["activity"]})
+
+        with pytest.raises(AssertionError, match="holds no received activity"):
+            assert_received_from(client, _INVITE_ID, _MANAGER, "consequence")
 
     def test_names_the_actual_sender_when_another_actor_sent_it(self):
         record_id, record = _archived_invite_entry()
@@ -1138,38 +1153,39 @@ class TestWaitForParticipantEmbargoAccepted:
 # second, at a cost that grew with the store.
 # ---------------------------------------------------------------------------
 
-_RECEIVED_INVITE_TYPES = ["ReceivedActivityRecord", "Invite"]
+_RECEIVED_TYPES = ["ReceivedActivityRecord"]
 
 _STORE_SCAN_FINDERS = [
     pytest.param(
         lambda c, **kw: find_case_invite_for_actor(c, CASE_ID, ACTOR_B, **kw),
-        _RECEIVED_INVITE_TYPES,
+        # A stub Invite is also read bare while the inbox defers it.
+        ["ReceivedActivityRecord", "Invite"],
         id="case-invite",
     ),
     pytest.param(
         lambda c, **kw: find_full_case_invite_for_actor(
             c, CASE_ID, ACTOR_B, **kw
         ),
-        _RECEIVED_INVITE_TYPES,
+        _RECEIVED_TYPES,
         id="full-case-invite",
     ),
     pytest.param(
         lambda c, **kw: find_embargo_invite_for_actor(
             c, "http://example.com/embargoes/e1", ACTOR_B, **kw
         ),
-        _RECEIVED_INVITE_TYPES,
+        _RECEIVED_TYPES,
         id="embargo-invite",
     ),
     pytest.param(
         lambda c, **kw: find_ownership_transfer_offer_for_actor(
             c, CASE_ID, ACTOR_B, **kw
         ),
-        ["Offer"],
+        _RECEIVED_TYPES,
         id="ownership-transfer-offer",
     ),
     pytest.param(
         lambda c, **kw: find_cp_offer_for_case(c, CASE_ID, **kw),
-        ["ReceivedActivityRecord", "Offer"],
+        _RECEIVED_TYPES,
         id="case-participant-offer",
     ),
 ]

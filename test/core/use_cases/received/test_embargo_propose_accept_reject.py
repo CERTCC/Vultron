@@ -24,6 +24,7 @@ from test.core.use_cases.received.conftest import (
     seed_store_owner_as_case_manager,
 )
 from test.support.embargo_register import propose, write_consent_rows
+from test.support.received import assert_held_only_as_received
 from vultron.adapters.driven.db_record import StorableRecord
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -66,10 +67,17 @@ from vultron.wire.as2.factories import (
 class TestEmbargoProposalLifecycle:
     """Tests for embargo create, invite, accept, and reject use cases."""
 
-    def test_invite_to_embargo_on_case_stores_proposal(
+    @pytest.mark.spec("DL-06-006")
+    @pytest.mark.spec("CLP-10-017")
+    def test_invite_to_embargo_on_case_archives_proposal_not_under_its_id(
         self, monkeypatch, make_payload
     ):
-        """invite_to_embargo_on_case persists the EmProposeEmbargoActivity activity."""
+        """The received Invite is held only as intake archived it (DL-06-006).
+
+        The store holds no ingress row: nothing is held under the Invite's id
+        after the tree runs, the receiver-keyed archive is, and the Invite is
+        applied as before.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
@@ -112,8 +120,8 @@ class TestEmbargoProposalLifecycle:
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
-        stored = dl.get(proposal.type_.value, proposal.id_)
-        assert stored is not None
+        assert_held_only_as_received(dl, proposal.id_)
+        assert dl.read(embargo.id_) is not None
 
     def test_owners_accept_of_an_invite_records_only_its_consent(
         self, monkeypatch, make_payload
@@ -764,7 +772,6 @@ class TestInviteToEmbargoReceivedPxaGuard:
             to=[coordinator_id],
             id_=f"{case_id}/proposals/p1",
         )
-        dl.create(proposal)
 
         event = make_payload(proposal, receiving_actor_id=coordinator_id)
         result = InviteToEmbargoOnCaseReceivedUseCase(
@@ -776,9 +783,9 @@ class TestInviteToEmbargoReceivedPxaGuard:
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
 
-        # Proposal must be stored (BT ran CreateAndStoreInviteNode)
-        stored = dl.read(proposal.id_)
-        assert stored is not None
+        # Intake archived the Invite under the receiver's key, and nothing
+        # holds it under its own id (CLP-10-017, DL-06-006).
+        assert_held_only_as_received(dl, proposal.id_)
 
 
 class TestAcceptInviteToEmbargoReceivedPxaGuard:

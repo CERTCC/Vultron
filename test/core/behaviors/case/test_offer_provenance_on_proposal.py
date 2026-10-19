@@ -312,7 +312,11 @@ class TestProposalCarriesTheOfferItself:
     _END = datetime(2099, 6, 1, tzinfo=UTC)
 
     def _stored_offer(self, datalayer, report, *, with_terms: bool) -> str:
-        """Store the Reporter's Offer (as the inbox does) and its record."""
+        """Keep the Reporter's Offer as intake archives it, and its record.
+
+        Nothing holds the Offer under the id its sender chose (DL-06-006).
+        """
+        from test.support.received import archive_received
         from vultron.wire.as2.factories import rm_submit_report_activity
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             as_VulnerabilityReport,
@@ -332,7 +336,8 @@ class TestProposalCarriesTheOfferItself:
             actor=_REPORTER_URI,
             proposed_embargo=terms,
         )
-        datalayer.create(offer)
+        archive_received(datalayer, offer)
+        assert datalayer.read(offer.id_) is None
         datalayer.save(
             VultronOfferRecord(
                 offer_id=offer.id_,
@@ -356,6 +361,7 @@ class TestProposalCarriesTheOfferItself:
 
     @pytest.mark.spec("CP-01-008")
     @pytest.mark.spec("EP-04-004")
+    @pytest.mark.spec("DL-06-006")
     def test_the_offer_and_its_proposed_terms_are_carried_inline(
         self, datalayer, actor, report, bridge
     ):

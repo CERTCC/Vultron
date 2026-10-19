@@ -55,7 +55,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     post_to_inbox_and_wait,
     setup_demo_logging,
-    verify_object_stored,
+    verify_received_activity_stored,
 )
 from vultron.wire.as2.factories import (
     accept_case_participant_offer_activity,
@@ -113,7 +113,7 @@ def demo_suggest_actor_accept(
         logger.info("Sending Offer(Actor,Case): %s", logfmt(recommendation))
         post_to_inbox_and_wait(client, vendor.id_, recommendation)
         with demo_check("Offer(Actor,Case) stored in data layer"):
-            verify_object_stored(client, recommendation.id_)
+            verify_received_activity_stored(client, recommendation.id_)
 
     cp_offer = None
     with demo_step(
@@ -135,7 +135,7 @@ def demo_suggest_actor_accept(
         logger.info("Sending Offer(as_CaseParticipant): %s", logfmt(cp_offer))
         post_to_inbox_and_wait(client, vendor.id_, cp_offer)
         with demo_check("Offer(as_CaseParticipant) stored in data layer"):
-            verify_object_stored(client, cp_offer.id_)
+            verify_received_activity_stored(client, cp_offer.id_)
 
     with demo_step(
         "Step 4: Case Owner sends Accept(Offer(as_CaseParticipant)) to CaseActor"
@@ -155,7 +155,7 @@ def demo_suggest_actor_accept(
         )
         post_to_inbox_and_wait(client, vendor.id_, accept)
         with demo_check("Accept stored in data layer"):
-            verify_object_stored(client, accept.id_)
+            verify_received_activity_stored(client, accept.id_)
         with demo_check("Case state after accept"):
             log_case_state(client, case.id_, "after accept")
 
@@ -207,7 +207,7 @@ def demo_suggest_actor_reject(
         logger.info("Sending Offer(Actor,Case): %s", logfmt(recommendation))
         post_to_inbox_and_wait(client, vendor.id_, recommendation)
         with demo_check("Offer(Actor,Case) stored in data layer"):
-            verify_object_stored(client, recommendation.id_)
+            verify_received_activity_stored(client, recommendation.id_)
 
     with demo_step(
         "Step 3: CaseActor transforms to Offer(as_CaseParticipant) → Case Owner"
@@ -226,7 +226,7 @@ def demo_suggest_actor_reject(
         logger.info("Sending Offer(as_CaseParticipant): %s", logfmt(cp_offer))
         post_to_inbox_and_wait(client, vendor.id_, cp_offer)
         with demo_check("Offer(as_CaseParticipant) stored in data layer"):
-            verify_object_stored(client, cp_offer.id_)
+            verify_received_activity_stored(client, cp_offer.id_)
 
     with demo_step(
         "Step 4: Case Owner sends Reject(Offer(as_CaseParticipant)) to CaseActor"

@@ -35,9 +35,6 @@ from vultron.core.behaviors.embargo.nodes.cascade import (
 from vultron.core.behaviors.embargo.nodes.invite_answer import (
     SendEmbargoInviteAnswerNode,
 )
-from vultron.core.behaviors.embargo.nodes.proposal import (
-    CreateAndStoreInviteNode,
-)
 from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
     EmbargoInviteNotYetRefusedNode,
     ErFactoryAvailableNode,
@@ -88,7 +85,6 @@ def test_the_invite_refusal_stores_checks_then_sends_the_er_last() -> None:
     assert refusal.emit_exemption == EMBARGO_INVITE_REFUSAL
     assert isinstance(refusal.condition, PxaBarsEmbargoNode)
     assert [type(n) for n in refusal.effects] == [
-        CreateAndStoreInviteNode,
         PersistEmbargoEventNode,
         ReceiverIsInviteeNode,
         ErFactoryAvailableNode,
@@ -103,7 +99,7 @@ def test_an_invite_naming_its_terms_by_uri_stores_no_terms() -> None:
     types = [type(n) for n in _invite_refusal().effects]
 
     assert PersistEmbargoEventNode not in types
-    assert types[0] is CreateAndStoreInviteNode
+    assert types[0] is ReceiverIsInviteeNode
 
 
 @pytest.mark.spec("EMB-02-002")

@@ -137,15 +137,15 @@ def _store_received_invite(
     manager_id: str,
     invitee_id: str,
     to: list[str] | None = None,
-    own_id_copy: bool = True,
+    own_id_copy: bool = False,
     archive_record: bool = True,
 ) -> str:
     """Store a relayed ``Invite(EmbargoEvent)`` as the invitee received it.
 
-    Intake archives it as a ``ReceivedActivityRecord`` and
-    ``CreateAndStoreInviteNode`` keeps the Invite under its own id, so by
-    default both copies are written, as a received relay leaves them.
-    *to* overrides the single-invitee addressing.
+    Intake archives it as a ``ReceivedActivityRecord``, and nothing holds it
+    under the id its sender chose (DL-06-006), so by default only the archive
+    is written.  *own_id_copy* adds the copy an Invite the inbox deferred
+    leaves under that id.  *to* overrides the single-invitee addressing.
     """
     invite = em_propose_embargo_activity(
         embargo,
@@ -396,7 +396,6 @@ def test_a_held_activity_that_is_not_an_invite_is_not_found(
     data = invite.model_dump(by_alias=True, exclude_none=True)
     data["type"] = "Offer"
     offer = VultronActivity.model_validate(data)
-    in_force.dl.create(offer)
     in_force.dl.create(ReceivedActivityRecord.for_activity(offer))
 
     with pytest.raises(VultronNotFoundError, match=offer.id_):
@@ -426,6 +425,7 @@ def test_an_invite_held_only_under_its_own_id_is_answered(
         case_id=in_force.case.id_,
         manager_id=in_force.manager_id,
         invitee_id=in_force.finder_id,
+        own_id_copy=True,
         archive_record=False,
     )
 
@@ -446,13 +446,19 @@ def test_an_invite_held_only_under_its_own_id_is_answered(
     )
 
 
-@pytest.mark.spec("EP-09-012")
-@pytest.mark.parametrize("answer", _ANSWER_ONLY)
-def test_an_invite_with_no_own_id_copy_is_not_found(
+@pytest.mark.spec("EP-09-012", "DL-06-006")
+@pytest.mark.parametrize(("answer", "verb", "semantics"), _ANSWERS)
+def test_an_invite_held_only_as_its_archive_record_is_answered(
     in_force: _InForce,
     answer: _Answer,
+    verb: str,
+    semantics: MessageSemantics,
 ) -> None:
-    """An archive record alone cannot be answered: the answer wraps the copy."""
+    """The archive record alone answers: no copy under the sender's id.
+
+    The answer wraps the Invite as intake archived it, so the store never
+    needs a record readable by the id its sender chose (DL-06-006).
+    """
     embargo_id = in_force.case.active_embargo_id
     assert embargo_id is not None
     embargo = cast(as_EmbargoEvent, in_force.dl.read(embargo_id))
@@ -462,14 +468,26 @@ def test_an_invite_with_no_own_id_copy_is_not_found(
         case_id=in_force.case.id_,
         manager_id=in_force.manager_id,
         invitee_id=in_force.finder_id,
-        own_id_copy=False,
+    )
+    assert in_force.dl.read(archived_invite) is None
+
+    result = answer(
+        in_force.dl, in_force.finder_id, in_force.case.id_, archived_invite
     )
 
-    with pytest.raises(VultronNotFoundError, match="own-id copy"):
-        answer(
-            in_force.dl, in_force.finder_id, in_force.case.id_, archived_invite
-        )
-    assert in_force.dl.outbox_list() == []
+    activity = activity_of(result)
+    assert activity["type"] == verb
+    assert activity["object"]["id"] == archived_invite
+    assert activity["object"]["object"]["id"] == embargo_id
+    assert in_force.dl.read(archived_invite) is None
+    _assert_asked_case_manager(
+        in_force.dl,
+        actor_id=in_force.finder_id,
+        case_id=in_force.case.id_,
+        manager_id=in_force.manager_id,
+        activity_type=verb,
+        semantic_type=semantics.value,
+    )
 
 
 @pytest.mark.spec("EP-09-012")

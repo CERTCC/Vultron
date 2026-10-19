@@ -51,7 +51,10 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
-from vultron.core.use_cases._helpers import read_received_activity
+from vultron.core.services.received_activity import (
+    read_held_activity,
+    read_received_activity,
+)
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -540,18 +543,21 @@ class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        offer = self._dl.read(request.offer_id)
-        if offer is None:
-            raise VultronNotFoundError(
-                "VultronOwnershipTransferOfferRecord", request.offer_id
-            )
+        # The transferee answers the forward it received, archived by intake
+        # under the receiver's key; the offerer withdraws the Offer it sent,
+        # held under its own id.  Neither is read under an id a sender chose
+        # (DL-06-006).  A replica whose only source for the Offer was the
+        # replicated ledger entry holds a VultronOwnershipTransferOfferRecord
+        # under the Offer's id instead.
+        offer = read_held_activity(
+            self._dl, request.offer_id, "Offer(VulnerabilityCase)"
+        )
 
         self._offer_id = request.offer_id
 
-        # Two shapes reach this point for the same Offer: the SYNC replica path
-        # stores a VultronOwnershipTransferOfferRecord (case URI in `case_id`),
-        # while the HTTP-inbox path stores the wire Offer activity (case in
-        # `object_`, possibly rehydrated to a typed object).  Accept either.
+        # Two shapes reach this point: the ledger record names the case in
+        # `case_id`, an Offer activity in `object_` (possibly rehydrated to
+        # a typed object, or inline in an archived one).  Accept either.
         raw_case_id = _as_id(
             getattr(offer, "case_id", None) or getattr(offer, "object_", None)
         )
