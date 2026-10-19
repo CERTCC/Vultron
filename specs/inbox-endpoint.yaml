@@ -394,8 +394,9 @@ groups:
     statement: >-
       The endpoint SHOULD detect a redelivered activity early, at ingress: when the
       receiving actor already holds the activity under a key it derives from the
-      activity id (its `ReceivedActivityRecord`, or the deferred record holding it for
-      replay), the held copy is routed and the redelivered body is not held again.
+      activity id (its `ReceivedActivityRecord`, or the deferred record #4871 adds to
+      hold it for replay), the held copy is routed and the redelivered body is not held
+      again.
     rationale: >-
       Ingress is the first point at which the receiver can consult durable evidence of
       a prior delivery, so the HTTP adapter realises the early filtering ID-05-002
@@ -408,9 +409,8 @@ groups:
       asserts a second body under a held id routes the first copy, and
       `test/adapters/driving/fastapi/test_inbox_redelivery.py::test_second_delivery_leaves_store_and_outbox_unchanged`
       that it adds nothing to the store. Until #4871 the copy consulted is the row
-      ingress writes under the sender's id. No duplicate
-      check keyed on the actor record exists in
-      `vultron/adapters/driving/fastapi/routers/actors/`.
+      ingress writes under the sender's id. No duplicate check keyed on the actor
+      record exists in `vultron/adapters/driving/fastapi/routers/actors/`.
     relationships:
     - rel_type: depends_on
       spec_id: ID-05-002

@@ -496,9 +496,11 @@ groups:
       A receiver MUST NOT hold a received activity in its DataLayer as a record readable
       by the id the sender chose for it, at any stage: not at inbox ingress, not for a
       deferred replay, and not in a received-side tree. A received activity is held only
-      under a key the receiver derives (`ReceivedActivityRecord.build_id`) or inside an
-      opaque record keyed by the delivery, so that a record of an activity type stored
-      under its own id is always one the receiver authored.
+      under a key the receiver derives from the activity id: its
+      `ReceivedActivityRecord.build_id`, or the opaque deferred record that holds it for
+      replay, as `PendingInlineObjects.build_id` keys the staged inline rows today (the
+      record holding the activity itself arrives with #4871). A record of an activity
+      type stored under its own id is then always one the receiver authored.
     rationale: >-
       An actor scans the type tables holding its sent activities to ask "did I already
       send this?" (was the case announced, which stub Invites did it issue). A received
@@ -514,7 +516,9 @@ groups:
       `test/adapters/driving/fastapi/test_received_activity_not_sender_keyed.py`
       delivers a `Create` naming a case through the ingress adapter and asserts that
       nothing is held under its id and that `case_is_announced` does not count it. Both
-      tests are strict xfails until #4871 lands.
+      tests are strict xfails until #4871 lands. Coverage for the received-side trees
+      (`StoreReceivedObjectNode` in `submit_report.py`, `CreateAndStoreInviteNode`)
+      arrives with #4869.
     tags:
     - persistence
 - id: DL-07

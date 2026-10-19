@@ -31,9 +31,12 @@ from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
 )
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _SENDER_URI = "https://example.org/actors/mallory"
+_RECEIVER_URI = "https://example.org/actors/case-actor"
 _CASE_ID = "https://example.org/cases/c1"
 
 _NOT_YET = pytest.mark.xfail(
@@ -43,22 +46,35 @@ _NOT_YET = pytest.mark.xfail(
 )
 
 
-def _received_create() -> as_Create:
+def _create_case(actor: str) -> as_Create:
     return as_Create(
-        actor=_SENDER_URI, object_=as_Note(content="x"), context=_CASE_ID
+        actor=actor,
+        object_=as_VulnerabilityCase(id_=_CASE_ID, name="c1"),
+        context=_CASE_ID,
     )
+
+
+def _deliver(datalayer, activity: as_Create) -> None:
+    body = activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    assert FastAPIIngressAdapter(datalayer).parse(body) is not None
+
+
+@pytest.mark.spec("DL-06-006")
+def test_the_receivers_own_create_is_an_announcement(datalayer):
+    datalayer.create(_create_case(_RECEIVER_URI))
+    assert case_is_announced(datalayer, _CASE_ID) is True
 
 
 @pytest.mark.spec("DL-06-006")
 @_NOT_YET
 def test_ingress_holds_nothing_under_the_senders_id(datalayer):
-    activity = _received_create()
-    FastAPIIngressAdapter(datalayer).parse(activity)
+    activity = _create_case(_SENDER_URI)
+    _deliver(datalayer, activity)
     assert datalayer.read(activity.id_) is None
 
 
 @pytest.mark.spec("DL-06-006")
 @_NOT_YET
 def test_a_received_create_naming_the_case_is_not_an_announcement(datalayer):
-    FastAPIIngressAdapter(datalayer).parse(_received_create())
+    _deliver(datalayer, _create_case(_SENDER_URI))
     assert case_is_announced(datalayer, _CASE_ID) is False
