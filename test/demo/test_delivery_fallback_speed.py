@@ -12,25 +12,29 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Regression test for #527: delivery to unreachable hosts must not block tests.
+"""Regression test for #527: demo deliveries must not take the real HTTP path.
 
-Demo actors use fictional URLs (e.g. ``https://vultron.example/...``) that
-cannot be reached via HTTP.  The default ``HttpDeliveryAdapter`` would
-attempt real HTTP POST requests with 3 retries and exponential backoff
-(≈ 3.5 s per recipient), which caused the integration suite to take 17+
-minutes in CI.
+The default ``HttpDeliveryAdapter`` makes real HTTP POST requests with 3
+retries and exponential backoff (≈ 3.5 s per unreachable recipient), which
+once made the integration suite take 17+ minutes in CI.  The ``client``
+fixture in ``test/demo/conftest.py`` replaces both emitter resolution paths
+with a ``_TestClientRouter``, the sanctioned in-process transport (OX-12-003).
 
-This test verifies that the conftest replaces the default emitter with a
-``_TestClientRouter`` so that deliveries to unreachable hosts complete in
-under 8 seconds.
+This test checks that property directly: the router carries the demo's
+deliveries and the HTTP adapter never attempts one.  It used to assert an
+8 s wall-clock budget instead, which honest work under ``-n`` load exceeded
+(#4365, #4693).
 """
 
-import time
+from unittest.mock import patch
 
+import httpx2 as httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from test.demo._helpers import route_exchange_demo_at_testclient
+from test.demo.conftest import _TestClientRouter
+from vultron.adapters.driven.http_delivery import HttpDeliveryAdapter
 from vultron.demo.exchange import receive_report_demo as demo
 
 
@@ -46,35 +50,55 @@ def demo_env(client: TestClient):
         yield
 
 
-@pytest.mark.timeout(10)
-def test_demo_completes_under_8_seconds(demo_env, caplog):
-    """A single demo workflow must complete in < 8 s (#527, #2738).
+def test_demo_routes_every_delivery_through_the_test_router(
+    demo_env: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every delivery in a demo workflow goes through the test router (#527).
 
     The ``demo_validate_report`` flow creates actors, submits a report, and
-    validates it — exercising several inbox → outbox → delivery cycles.
-
-    Without the conftest null-emitter patch, each delivery to an unreachable
-    host (``vultron.example``) burns ≈ 3.5 s of ``asyncio.sleep`` retries.
-    A single demo function hits 4+ deliveries, so baseline is ≈ 14 s.
-
-    With the patch, the emitter drops unknown recipients.  The demo takes
-    ≈ 5 s of genuine computation (BT execution, SQLite, inbox round-trips,
-    actor provisioning).  The 8 s ceiling gives headroom for full-suite load
-    while remaining well below the unpatched ≈ 14 s baseline; the
-    ``@pytest.mark.timeout(10)`` backstop catches the regression where the
-    patch is entirely absent.
+    validates it — exercising several inbox → outbox → delivery cycles.  If
+    either emitter path fell back to ``HttpDeliveryAdapter``, its retry loop
+    would run; a single attempt fails this test, where the old stopwatch
+    budget only noticed several.
     """
     import logging
 
-    start = time.monotonic()
-    with caplog.at_level(logging.ERROR):
-        demo.main(skip_health_check=True, demos=[demo.demo_validate_report])
-    elapsed = time.monotonic() - start
+    routed: list[list[str]] = []
+    http_attempts: list[str] = []
+    route = _TestClientRouter.emit
 
+    async def record_route(
+        self: _TestClientRouter,
+        activity_id: str,
+        json_body: str,
+        recipients: list[str],
+    ) -> None:
+        routed.append(list(recipients))
+        await route(self, activity_id, json_body, recipients)
+
+    async def record_http_attempt(
+        self: HttpDeliveryAdapter,
+        client: httpx.AsyncClient,
+        json_body: str,
+        recipient_id: str,
+        activity_id: str | None,
+    ) -> None:
+        http_attempts.append(recipient_id)
+
+    with (
+        patch.object(_TestClientRouter, "emit", record_route),
+        patch.object(
+            HttpDeliveryAdapter, "_deliver_with_retry", record_http_attempt
+        ),
+        caplog.at_level(logging.ERROR),
+    ):
+        demo.main(skip_health_check=True, demos=[demo.demo_validate_report])
+
+    assert http_attempts == [], (
+        f"HttpDeliveryAdapter attempted delivery to {http_attempts}; the"
+        " conftest _TestClientRouter is not installed on every emitter path."
+    )
     assert "ERROR SUMMARY" not in caplog.text, (
         f"Demo failed with errors:\n{caplog.text}"
     )
-    assert elapsed < 8.0, (
-        f"Demo took {elapsed:.1f}s — delivery to unreachable hosts is not"
-        f" patched.  Expected < 8 s with the conftest _TestClientRouter."
-    )
+    assert routed, "The demo delivered nothing through the _TestClientRouter."
