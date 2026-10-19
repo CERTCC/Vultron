@@ -68,8 +68,7 @@ selection before continuing.
 
 Ask the user to describe the idea (plain text, open-ended). Synthesize a
 short title. Then select a parent epic (query open Epics and ask the user to
-confirm — see `new-item` Phase 4 for the pattern) and a milestone (see
-`shared/issue-creation-requirements.md`). Then create:
+confirm — see `new-item` Phase 4 for the pattern). Then create:
 
 ```bash
 IDEA_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Idea)
@@ -78,7 +77,6 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --body "${BODY}" \
   --issue-type-id "${IDEA_TYPE_ID}" \
   --parent "${EPIC_NUMBER}" \
-  --milestone "${MILESTONE_NUMBER}" \
   --planned)
 ```
 
@@ -280,15 +278,6 @@ returns the PR URL. Use the returned URL in the `archive-history` call (Phase 9)
 
 Create one Task sub-issue per distinct AC cluster from Phase 4.
 
-Before creating, resolve the milestone to carry forward:
-
-```bash
-MILESTONE_NUMBER=$(gh issue view "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
-  --json milestone --jq '.milestone.number // ""')
-# If the source issue has no milestone, query open milestones and ask the user
-# to pick one (see shared/issue-creation-requirements.md for defaults).
-```
-
 For Ideas and Concerns, wire the impl issue as **blocked-by the source
 issue** and as **child of the parent epic**. `manage_github_issue.sh` requires
 `--parent` on create, so if `EPIC_NUMBER` is empty, resolve it **before** the
@@ -329,7 +318,6 @@ $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
   --issue-type-id "${TASK_TYPE_ID}" \
   --label "size:<S|M|L>" \
   --parent "${EPIC_NUMBER}" \
-  --milestone "${MILESTONE_NUMBER}" \
   --planned \
   --blocked-by "${ISSUE_NUMBER}")
 ```
@@ -436,7 +424,7 @@ See the loaded companion file for the type-specific completion step:
 - [ ] Markdown lint clean (if docs changed)
 - [ ] PR opened with `specs-notes` label — always
 - [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh`
-      (with type, parent epic, and milestone set)
+      (with type and parent epic set)
 - [ ] Every impl issue body has a `Governing specs:` line (IDs, or `none — <reason>`)
 - [ ] Impl issues wired per type (blocked-by for Ideas/Concerns; sub-issue for Epics)
 - [ ] Impl issues reference docs PR URL in their body (Ideas/Concerns only — Phase 8)

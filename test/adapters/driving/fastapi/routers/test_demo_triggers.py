@@ -23,6 +23,7 @@ Verifies TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 
 import json
 import threading
+from typing import cast
 
 import pytest
 from fastapi import FastAPI, status
@@ -209,13 +210,25 @@ class TestDemoNotifyFixReady:
 
     @pytest.mark.spec("DEMOMA-07-001")
     @pytest.mark.spec("TRIG-01-002")
-    def test_two_hops_leave_the_vendor_at_vf_fix_ready(
+    @pytest.mark.spec("RSH-08-006")
+    def test_two_hops_are_sent_in_order_and_left_to_the_case_manager(
         self, client_demo: TestClient, dl, actor, vendor_case
     ):
-        """One request walks vf→Vf→VF; the response is the second hop's
-        status and the stored participant status reads ``VF``."""
+        """One request sends vf→Vf then Vf→VF; the response is the second
+        hop's status, which follows the first.
+
+        Neither hop is appended to the vendor's record: the CASE_MANAGER
+        records each, and the replica copies them (RSH-08-003, CM-23-016).
+        So the second hop is validated as following the first, not the
+        record's ``vf``.
+        """
         from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.cs import CS_vf
+
+        participant_id = vendor_case.actor_participant_index[actor.id_]
+        before = cast(CaseParticipant, dl.read(participant_id))
+        statuses_before = list(before.participant_statuses)
 
         response = client_demo.post(
             f"/actors/{actor.id_}/demo/notify-fix-ready",
@@ -224,19 +237,13 @@ class TestDemoNotifyFixReady:
         assert response.status_code == status.HTTP_202_ACCEPTED, response.text
         body = response.json()
         assert set(body) == {"activity_id", "status_id"}
-        assert body["status_id"] is not None
 
-        participant = dl.read(vendor_case.actor_participant_index[actor.id_])
-        assert isinstance(participant, CaseParticipant)
-        vf_states = [
-            ps.vf.state
-            for ps in participant.participant_statuses
-            if ps.vf is not None
-        ]
-        assert vf_states[-1] == CS_vf.VF
-        assert CS_vf.Vf in vf_states, "the first hop (vf→Vf) must be recorded"
         status_obj = dl.read(body["status_id"])
-        assert status_obj is not None
+        assert isinstance(status_obj, ParticipantStatus)
+        assert status_obj.vf is not None
+        assert status_obj.vf.state == CS_vf.VF
+        participant = cast(CaseParticipant, dl.read(participant_id))
+        assert participant.participant_statuses == statuses_before
 
     @pytest.mark.spec("TRIG-07-001")
     def test_both_hops_are_queued_and_drained(

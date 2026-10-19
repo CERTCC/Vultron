@@ -204,28 +204,22 @@ def _resolve_invite_to_embargo_in_force(
     (EP-09-012).  It must be an ``Invite`` whose sole ``to`` recipient is
     *actor_id* (EP-09-010) and whose object is the case's active embargo,
     and the actor's consent row for that embargo must be ``INVITED`` or
-    ``TIMED_OUT`` (CM-18-001).  The answer is built from the copy
-    ``CreateAndStoreInviteNode`` keeps under the Invite's own id, which
-    every received relay stores alongside the archive record, so that copy
-    must be held too.
+    ``TIMED_OUT`` (CM-18-001).  The answer is built from the same archived
+    Invite, never from a copy under the id its sender chose (DL-06-006).
 
     Raises:
-        VultronNotFoundError: The actor holds no such Invite (or no copy of
-            it under its own id), the Invite names another embargo or
-            another invitee, the actor is the case owner, the actor has no
-            participant record or no row for the embargo, or the row is in
-            any other state.
+        VultronNotFoundError: The actor holds no such Invite, the Invite
+            names another embargo or another invitee, the actor is the case
+            owner, the actor has no participant record or no row for the
+            embargo, or the row is in any other state.
     """
     resource = "Invite(EmbargoEvent)"
-    # The archived record holds a core activity; a copy stored under the
-    # sender's id may rehydrate as its wire class, so both are read by field.
+    # The archived record holds a core activity; a copy the inbox defers
+    # under the sender's id may rehydrate as its wire class, so both are read
+    # by field.
     invite = read_received_activity(dl, invite_id, resource)
     if getattr(invite, "type_", None) != "Invite":
         raise VultronNotFoundError(resource, invite_id)
-    # The answer factory reads the Invite under its own id; an archive
-    # record with no such copy cannot be answered.
-    if dl.read(invite_id) is None:
-        raise VultronNotFoundError(resource, f"{invite_id} (own-id copy)")
     embargo_id = _as_id(getattr(invite, "object_", None))
     if embargo_id is None or embargo_id != case.active_embargo_id:
         raise VultronNotFoundError(

@@ -422,6 +422,53 @@ def test_non_genesis_reject_skips_announce_vulnerability_case(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("SYNC-15-014")
+def test_genesis_announce_skipped_when_replay_rate_limited(
+    datalayer, case_manager_case
+):
+    """A genesis Reject the replay guard suppresses sends no case either.
+
+    The case pre-seed exists to anchor the replay that follows it; while that
+    replay is rate-limited the peer already holds the case announce sent with
+    the last one.  Sending a fresh ``Announce(VulnerabilityCase)`` per Reject
+    anyway kept one message per Reject flowing in the loop the guard bounds
+    (#4882).
+    """
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    entries = [_make_entry(0)]
+    for index in range(1, 5):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+    for entry in entries:
+        datalayer.save(entry)
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+    trigger_activity.announce_vulnerability_case.return_value = (
+        "https://example.org/activities/announce-case-1"
+    )
+    bridge = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    )
+
+    # One genesis Reject per replayed entry, as a peer without the case sends.
+    for entry in entries:
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bridge.execute_with_setup(
+            tree=create_reject_log_entry_tree(
+                CASE_ID,
+                sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+            ),
+            actor_id=OWNER_ACTOR_ID,
+            activity=_make_event(entry, tail_hash=""),
+            sync_port=sync_port,
+        )
+        assert result.status == Status.SUCCESS
+
+    trigger_activity.announce_vulnerability_case.assert_called_once()
+
+
 @pytest.mark.spec("SYNC-15-003")
 @pytest.mark.spec("SYNC-15-009")
 def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(

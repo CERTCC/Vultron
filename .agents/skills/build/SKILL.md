@@ -204,14 +204,11 @@ body (Phase 8), and reviewers use it as their spec floor.
 
 2. Search `vultron/` and `test/` to confirm the current state.
 3. Do not assume missing functionality; verify in code.
-4. If a blocking prerequisite is discovered, create and wire it. Inherit
-   the current task's milestone; if it has none, pick the best-fit one
+4. If a blocking prerequisite is discovered, create and wire it
    (see `shared/issue-creation-requirements.md`):
 
    ```bash
    TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
-   MILESTONE_NUMBER=$(gh issue view "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
-     --json milestone --jq '.milestone.number // ""')
    # Determine parent epic from the current task's parent
    EPIC_NUMBER=$(gh api graphql -f query='{
      repository(owner:"CERTCC", name:"Vultron") {
@@ -227,7 +224,6 @@ body (Phase 8), and reviewers use it as their spec floor.
      --issue-type-id "${TASK_TYPE_ID}" \
      --label "size:<S|M|L>" \
      --parent "${EPIC_NUMBER:-${ISSUE_NUMBER}}" \
-     --milestone "${MILESTONE_NUMBER}" \
      --opened-as separate-defect)
    bash .agents/skills/shared/add-to-project.sh "${NEW_ISSUE}"
    ```

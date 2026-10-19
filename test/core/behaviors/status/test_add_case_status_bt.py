@@ -41,7 +41,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.embargo_register import activate, propose
-from test.support.note_wire import assert_add_note_carries_note_inline
+from test.support.note_wire import assert_case_manager_note_recorded
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -2238,9 +2238,9 @@ class TestPxaEmInvariantDiagnosticNode:
     """PxaEmInvariantDiagnosticNode posts a Note iff invariant still violated.
 
     AC-2: PERMISSIVE gate — teardown fires, EM becomes EXITED, no violation →
-          no Note queued in outbox.
+          no Note recorded.
     AC-3: Blocked gate (AlwaysFail) — teardown blocked, EM stays ACTIVE,
-          violation detected → Note queued in outbox.
+          violation detected → Note committed and attached to the case.
     """
 
     def _build_dl_with_active_embargo(self, actor_id: str = DIAG_CM_ID):
@@ -2361,14 +2361,10 @@ class TestPxaEmInvariantDiagnosticNode:
         updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
         assert updated.current_status.em.state == EM.ACTIVE
 
-        # AlwaysFail gate blocks teardown — only the diagnostic node can post.
-        # Exactly one Note activity must be in the outbox.
-        outbox = dl.outbox_list()
-        assert len(outbox) == 1, (
-            "PxaEmInvariantDiagnosticNode must post exactly one Note when the"
-            " gate blocks teardown and the CSB-18 invariant is still violated"
-        )
-        assert_add_note_carries_note_inline(dl, outbox[0], DIAG_CASE_ID)
+        # AlwaysFail gate blocks teardown — only the diagnostic node can note
+        # it, as the CASE_MANAGER's own committed note (#4829).
+        note = assert_case_manager_note_recorded(dl, DIAG_CASE_ID)
+        assert "Cross-machine entailment violated" in note["content"]
 
 
 # ---------------------------------------------------------------------------

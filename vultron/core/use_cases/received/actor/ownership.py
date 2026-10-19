@@ -6,9 +6,6 @@ from typing import TYPE_CHECKING, ClassVar
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.store_received_object import (
-    StoreReceivedObjectNode,
-)
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
     create_offer_ownership_transfer_tree,
@@ -177,20 +174,6 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             transferee_id=transferee_id,
             original_actor_id=original_actor_id,
             answer_deadline=request.answer_deadline,
-            # An Offer naming no case is refused below, so only intake's
-            # archive keeps it (CLP-10-018); storing it would let any sender
-            # leave an Offer behind (#4737).
-            store_offer=(
-                StoreReceivedObjectNode(
-                    request.activity_type,
-                    request.activity_id,
-                    request.activity,
-                    "OfferCaseOwnershipTransfer",
-                    request.activity_id,
-                )
-                if case_id is not None
-                else None
-            ),
             offer_id=request.activity_id,
             now=now_utc(),
             sender_rule=self.sender_entitlement,
@@ -238,9 +221,10 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             return verdict
         if not_case_manager(tree):
             # The cascade is the CASE_MANAGER's; the transferee (admitted by
-            # the tree's door and sender guards) only stores the forwarded
-            # Offer, so what it did is what intake and the store did
-            # (HP-01-003).
+            # the tree's door and sender guards) only keeps the forwarded
+            # Offer, which intake archived, so what it did is what intake did
+            # (HP-01-003).  The transferee answers it from that archive; it
+            # is never stored under the id its sender chose (DL-06-006).
             return intake_verdict(
                 tree, result, label="OfferOwnershipTransferBT"
             )

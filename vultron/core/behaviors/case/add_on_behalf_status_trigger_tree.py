@@ -32,9 +32,12 @@ only write (step 4):
    gate d→D on the causal precondition that at least one VENDOR participant
    has reached ``vf.state=VF`` (CSB-15-004).
 4. **CreateParticipantStatusNode** — validate (BTND-10-002: role gates and
-   the RM↔D entailment) and write the ParticipantStatus snapshot for the
-   target actor (BT-15-001: protocol-significant write inside BT).  RM is
-   carried over unchanged (PRM-06-003).
+   the RM↔D entailment) and store the ParticipantStatus snapshot for the
+   target actor that the activity carries (BT-15-001).  It is not appended
+   to the target's record (``attach=False``): the CASE_MANAGER appends it
+   when it accepts the assertion, and every replica copies that from the
+   ledger (RSH-08-003, CM-23-016).  RM is carried over unchanged
+   (PRM-06-003).
 5. **sender_side_bt** — resolve the Case Manager, build the outbound
    ``Add(ParticipantStatus)`` activity, and queue it.
 """
@@ -147,6 +150,7 @@ def add_on_behalf_status_trigger_bt(
                 d_state=d_state,
                 pxa_state=None,
                 result_out=result_out,
+                attach=False,
             ),
             sender_side_bt(case_id=case_id, activity_builder=activity_builder),
         ]

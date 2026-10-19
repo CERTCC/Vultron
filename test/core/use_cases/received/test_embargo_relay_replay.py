@@ -25,6 +25,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.received import assert_held_only_as_received
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -265,7 +266,13 @@ def test_the_owners_rejection_returns_every_store_to_the_prior_terms():
 
 
 def _set_pxa(net: _Network, actor_id: str) -> None:
-    """Make the case public in *actor_id*'s store (P/X/A set)."""
+    """Make the case public in *actor_id*'s store (P/X/A set).
+
+    The write is test setup outside the ledger, so the CASE_MANAGER's store no
+    longer rebuilds from it (``bypass_ledger``).
+    """
+    if actor_id == MANAGER:
+        net.bypass_ledger()
     case = net.case(actor_id)
     case.current_status.pxa.state = CS_pxa.Pxa
     net.stores[actor_id].save(case)
@@ -957,7 +964,7 @@ def test_a_refusal_with_no_trigger_port_stands_without_its_er(caplog):
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert "trigger_activity unavailable" in caplog.text
     assert net.queued(OWNER, to=MANAGER, type_="Reject") == []
-    assert net.stores[OWNER].read(body["id"]) is not None
+    assert_held_only_as_received(net.stores[OWNER], body["id"])
 
 
 @pytest.mark.spec("EP-09-010")
@@ -1000,7 +1007,7 @@ def test_a_bare_uri_invite_on_a_private_case_is_stored_and_not_answered():
         verdict.reason
     )
     assert net.queued(OWNER, to=MANAGER) == []
-    assert net.stores[OWNER].read(body["id"]) is not None
+    assert_held_only_as_received(net.stores[OWNER], body["id"])
 
 
 @pytest.mark.spec("EMB-02-002")

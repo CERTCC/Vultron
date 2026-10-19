@@ -48,10 +48,11 @@ def demo_env(client):
 
 
 def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
-    """Run *demo_fn*; return ``(link, vendor_rm)`` read before teardown.
+    """Run *demo_fn*; return ``(link, vendor_rm, vendor_rms)`` read before teardown.
 
     *link* is the vendor's report link; *vendor_rm* is the vendor's RM state as
-    a participant of the linked case, or ``None`` when there is no such case.
+    a participant of the linked case, or ``None`` when there is no such case;
+    *vendor_rms* is every RM state its participant record holds, in order.
     The reporter must take the vendor's case introduction on the trusted route
     (CBT-01-005, #4675).
     """
@@ -71,6 +72,7 @@ def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
             if isinstance(obj, VultronReportCaseLink)
         ]
         vendor_rm = None
+        vendor_rms: list[RM] = []
         case = dl.read(link.case_id) if link.case_id else None
         if isinstance(case, VulnerabilityCase):
             pid = case.actor_participant_index.get(vendor.id_)
@@ -79,14 +81,26 @@ def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
                 status = participant.participant_status
                 assert status is not None
                 vendor_rm = status.rm.state
-        return link, vendor_rm
+                vendor_rms = [
+                    s.rm.state for s in participant.participant_statuses
+                ]
+        return link, vendor_rm, vendor_rms
 
 
 def test_validate_and_engage_settles_on_an_accepted_case(demo_env, caplog):
-    """Validate then engage: the report is VALID and the vendor ACCEPTED a case."""
-    link, vendor_rm = _run(demo_env, demo.demo_validate_and_engage, caplog)
-    assert link.rm_state == RM.VALID
+    """Validate then engage: the vendor's record went VALID, then ACCEPTED.
+
+    The validate trigger sends and writes nothing, its report link included
+    (RSH-08-006): the vendor's VALID is the CASE_MANAGER's status, copied
+    into its replica from the ledger, so it is read from the participant
+    record, not the link.
+    """
+    link, vendor_rm, vendor_rms = _run(
+        demo_env, demo.demo_validate_and_engage, caplog
+    )
     assert link.case_id is not None
+    assert RM.VALID in vendor_rms
+    assert vendor_rms.index(RM.VALID) < vendor_rms.index(RM.ACCEPTED)
     assert vendor_rm == RM.ACCEPTED
 
 
@@ -102,7 +116,7 @@ def test_invalidate_and_close_settles_closed(demo_env, caplog):
     and the vendor's replica replays it, so its participant ends
     ``RM.CLOSED``.  Its report link keeps the ``INVALID`` it recorded.
     """
-    link, vendor_rm = _run(demo_env, demo.demo_invalidate_and_close, caplog)
+    link, vendor_rm, _ = _run(demo_env, demo.demo_invalidate_and_close, caplog)
     assert link.rm_state == RM.INVALID
     assert link.case_id is not None
     assert vendor_rm == RM.CLOSED

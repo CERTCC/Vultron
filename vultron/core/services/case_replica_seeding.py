@@ -92,7 +92,6 @@ def store_embedded_participants(
 
     Called from:
     - ``CreateCaseReceivedUseCase`` (Create/bootstrap path, CBT-05-005)
-    - ``EngageCaseReceivedUseCase`` (Engage path, #573)
     - ``SeedAnnouncedCaseNode`` (Announce path, #566)
 
     Idempotent: ``dl.save()`` upserts so repeated calls are safe.

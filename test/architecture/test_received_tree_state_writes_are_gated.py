@@ -155,10 +155,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "create_engage_case_tree",
             cls,
         ): _CARRIED_SNAPSHOT
-        for cls in (
-            "HoldCarriedEmbargoNode",
-            "StoreEmbeddedParticipantsNode",
-        )
+        for cls in ("HoldCarriedEmbargoNode",)
     },
     **{
         (f"{_Y}/announce_tree.py", "create_announce_log_entry_tree", cls): (
@@ -193,7 +190,6 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyReinstateCaseParticipantFromLedgerNode",
             "ApplyRemoveCaseParticipantFromLedgerNode",
             "ApplyRemoveNoteFromLedgerNode",
-            "ApplyRmVerdictFromLedgerNode",
         )
     },
     (
@@ -343,7 +339,6 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         f"{_B}.embargo.nodes.manager_commit",
         "IndexOwnEmbargoProposalNode",
     ): _PROPOSAL_INDEX,
-    (f"{_B}.embargo.nodes.proposal", "CreateAndStoreInviteNode"): _ARCHIVE,
     (
         f"{_B}.embargo.nodes.proposal",
         "IndexReceivedEmbargoProposalNode",

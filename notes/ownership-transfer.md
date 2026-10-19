@@ -163,7 +163,8 @@ address the Accept to the offerer.
 
 ### `OfferCaseOwnershipTransferReceivedUseCase`
 
-`create_offer_ownership_transfer_tree()` stores the Offer (idempotency guard), commits
+`create_offer_ownership_transfer_tree()` keeps the Offer only as intake's
+`ReceivedActivityRecord`, never under the id its sender chose (DL-06-006). It commits
 through the guarded commit, and forwards via `ForwardOfferToTransfereeNode` passed as
 `manager_effects`, so the factory wraps it in the CASE_MANAGER gate (BT-17-008). The
 forwarded Offer has `actor=case_actor_id`, `attributed_to=` the original offerer,
@@ -243,7 +244,8 @@ CASE_MANAGER inbox receives Reject
 ## Replica-side Materialization (SYNC Path)
 
 On a replica that learns of an Offer only from the ledger, the Offer never arrives by
-inbox, yet `SvcAcceptCaseOwnershipTransferUseCase._prepare` must `dl.read(offer_id)`.
+inbox, so there is no archive. Yet `SvcAcceptCaseOwnershipTransferUseCase._prepare`
+must still find it through `read_held_activity`.
 The announce tree's `OfferOwnershipTransferEffects` slot
 (`IsOfferOwnershipTransferEventNode`, `ApplyOfferOwnershipTransferFromLedgerNode`)
 materializes a `VultronOwnershipTransferOfferRecord` from the entry's snapshot.
@@ -252,8 +254,8 @@ materializes a `VultronOwnershipTransferOfferRecord` from the entry's snapshot.
   satisfies the read and fails on the case lookup one line later.
 - **Name the field `case_id`, not `object_`.** The DataLayer rehydrates AS2 reference
   fields (`object_`, `target`, `origin`, `result`, `instrument`) into typed objects on
-  read. `_prepare` reads `case_id`, then falls back to `object_` for the wire Offer the
-  inbox path stores.
+  read. `_prepare` reads `case_id`, then falls back to `object_` for an Offer activity
+  (the archived forward, or the offerer's own Offer).
 - **Status (SYNC-12-001):** SUCCESS when there is nothing to apply; FAILURE only when a
   well-formed record could not be written, which blocks `PersistReceivedLogEntry`.
 

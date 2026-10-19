@@ -22,9 +22,11 @@ import py_trees.behaviour
 from py_trees.common import Status
 
 from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
+    ParticipantStatus,
     participant_status_d_state,
     participant_status_rm_state,
     participant_status_vf_state,
@@ -36,7 +38,7 @@ from vultron.core.states.participant_transitions import (
 )
 from vultron.core.states.rm import RM, RMRule
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 
 def _create_participant_if_missing(
@@ -219,6 +221,45 @@ def resolve_participant_transition_context(
             if isinstance(participant, CaseParticipant)
             else []
         ),
+    )
+
+
+def context_after_followed(
+    dl: CasePersistence,
+    context: ParticipantTransitionContext,
+    follows: list[str] | None,
+) -> ParticipantTransitionContext:
+    """*context* as the last status in *follows* leaves it.
+
+    *follows* names statuses a trigger already stored for this actor but did
+    not append to its record, because the CASE_MANAGER records them
+    (RSH-08-003).  A step sent after them is validated as following the last
+    one, so a request that sends two steps in order is checked the way the
+    CASE_MANAGER will check them (CSB-16-001).
+
+    Raises:
+        VultronNotFoundError: the followed status is not stored.
+        VultronValidationError: the followed status is another actor's or
+            another case's, so it is no step of this participant's.
+    """
+    if not follows:
+        return context
+    last = dl.read(follows[-1])
+    if not isinstance(last, ParticipantStatus):
+        raise VultronNotFoundError("ParticipantStatus", follows[-1])
+    record = context.participant
+    if not isinstance(record, CaseParticipant) or (
+        _as_id(last.attributed_to),
+        _as_id(last.context),
+    ) != (_as_id(record.attributed_to), _as_id(record.context)):
+        raise VultronValidationError(
+            f"followed status '{last.id_}' is not a step of participant"
+            f" '{getattr(record, 'id_', record)}'"
+        )
+    return context._replace(
+        current_rm=last.rm.state,
+        current_vf=last.vf.state if last.vf is not None else None,
+        current_d=last.d.state if last.d is not None else None,
     )
 
 

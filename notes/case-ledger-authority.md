@@ -259,9 +259,12 @@ the status entries and never derive a closure path from their own state.
 
 The status entries are the CASE_MANAGER's own writes, so their
 `payloadSnapshot.actor` is the CASE_MANAGER; the leaver's act stays attributed to
-the leaver in `close_case`. A replica may still refuse a step with a WARNING (its
-RM ratchet, or a composite-state violation, RSH-05-021), and then writes nothing
-in its place.
+the leaver in `close_case`. A replica copies each step as carried; it refuses
+only a step whose composite state is impossible (RSH-05-021), and then writes
+nothing in its place. Every activity-typed RM move works the same way: the
+report verdicts, engage/defer and the full-case Invite replies commit the act,
+then the status the CASE_MANAGER wrote (`CommitParticipantStatusEntriesNode`,
+CLP-07-013); the act's own entry changes nothing on a replica.
 
 ### A Sent Message Is Committed After Its Outbox Write (SYNC-09-002)
 
@@ -347,9 +350,10 @@ second copy (CLP-07-013). Order:
 
 1. `create_case` — `Create(VulnerabilityCase)`, actor CASE_MANAGER
 2. `add_report_to_case` — actor CASE_MANAGER
-3. `add_participant_status_to_participant` × N — actor CASE_MANAGER; its
-   `target` is the participant record in full, the entry that carries the record
-   (a `Create(CaseParticipant)` shape is #4295's)
+3. per seated record, `create_case_participant` — `Create(CaseParticipant)`
+   carrying the record as created (roles, consent rows, its first status), then
+   `add_participant_status_to_participant` for each later status (the
+   CASE_MANAGER's VALID, ACCEPTED; CM-23-007) — actor CASE_MANAGER
 4. `add_case_status_to_case` — actor **vendor URI**
 
 Each snapshot is the CASE_MANAGER's factory-built activity, sealed and committed

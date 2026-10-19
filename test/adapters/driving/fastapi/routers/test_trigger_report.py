@@ -323,28 +323,43 @@ def test_trigger_validate_report_with_note_returns_202(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
 
-def test_trigger_validate_report_transitions_rm_to_valid(
+@pytest.mark.spec("RSH-08-006")
+def test_trigger_validate_report_sends_to_case_manager_and_writes_nothing(
     client_triggers, dl, actor, offer, received_report
 ):
-    """TB-07-001: Successful validate-report trigger transitions RM to VALID.
+    """TB-07-001: validate-report sends the move to the CASE_MANAGER.
 
-    Per ADR-0015, case creation (and outbox notifications) now happen at
-    RM.RECEIVED via receive_report_case_tree.  The validate-report trigger
-    is responsible only for the RM.RECEIVED → RM.VALID transition.
+    The trigger checks RM.RECEIVED → RM.VALID and sends; it writes nothing
+    of its own, so the report link stays at RM.RECEIVED.  The CASE_MANAGER
+    latches its link and records VALID when it accepts the validation
+    (RSH-08-006, CM-23-016).
     """
+    from vultron.core.participants.authority import resolve_case_manager_id
+
+    case_obj = dl.find_case_by_report_id(offer.object_)
+    assert case_obj is not None
+    case_manager_id = resolve_case_manager_id(case_obj, dl)
+    assert case_manager_id is not None
+    outbox_before = set(dl.outbox_list())
+
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/validate-report",
         json={"offer_id": offer.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
+    sent = set(dl.outbox_list()) - outbox_before
+    assert len(sent) == 1
+    activity = dl.read(next(iter(sent)))
+    assert activity is not None
+    assert getattr(activity, "to", None) == [case_manager_id]
+
     link_id = VultronReportCaseLink.build_id(offer.object_)
     link = dl.read(link_id)
     assert (
-        isinstance(link, VultronReportCaseLink) and link.rm_state == RM.VALID
-    ), (
-        "Expected VultronReportCaseLink.rm_state == RM.VALID after validate-report trigger"
-    )
+        isinstance(link, VultronReportCaseLink)
+        and link.rm_state == RM.RECEIVED
+    ), "The validate-report trigger must not latch its own report link"
 
 
 def test_trigger_validate_report_non_report_offer_returns_404(

@@ -108,9 +108,9 @@ class _Store:
         return self
 
     def invite_dump(self) -> dict[str, dict]:
-        """The dump the full-case Invite poll reads: Invite types only."""
+        """The dump the full-case Invite poll reads: archive records only."""
         return get_datalayer_contents(
-            datalayer=self.dl, types=list(polling._RECEIVED_INVITE_TYPES)
+            datalayer=self.dl, types=list(polling._RECEIVED_ACTIVITY_TYPES)
         )
 
     def invite_poll(self) -> "_PollReads":
@@ -155,7 +155,9 @@ def _client(dumps: list[dict[str, dict]]) -> MagicMock:
     """A client whose successive reads return *dumps*, then the last forever."""
     client = MagicMock()
     client.base_url = "http://vendor2:7999"
-    client.dl_path.side_effect = lambda path="": f"/datalayer/{path}"
+    client.dl_path.side_effect = lambda path="", actor_id=None: (
+        f"/datalayer/{path}"
+    )
     reads = iter(dumps)
     last: list[dict[str, dict]] = [dumps[-1]]
 
@@ -179,7 +181,9 @@ def _invite_poll_client(polls: list[_PollReads]) -> MagicMock:
     """
     client = MagicMock()
     client.base_url = "http://vendor2:7999"
-    client.dl_path.side_effect = lambda path="": f"/datalayer/{path}"
+    client.dl_path.side_effect = lambda path="", actor_id=None: (
+        f"/datalayer/{path}"
+    )
     remaining = iter(polls)
     current: list[_PollReads] = [polls[0]]
 
