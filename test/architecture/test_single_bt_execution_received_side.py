@@ -27,29 +27,45 @@ Two complementary tests enforce the single-BT-execution contract for all
   breakdown.
 
 **Hard invariant** (``test_no_execute_method_calls_execute_with_setup_more_than_once``)
-  Uses ``ast.walk`` to count ``execute_with_setup`` call sites directly inside
-  each ``execute()`` method body. Asserts that the count is **≤ 1** for every
-  method. Unlike the ratchet above, this test has **no** ``KNOWN_VIOLATIONS``
-  escape hatch — it is an unconditional upper bound. The baseline is already
-  clean (zero violations after #1052 / #1066), so the assertion ships
-  unconditional.
+  Counts every ``execute_with_setup()`` call that a received-side ``execute()``
+  (a use case under ``vultron/core/use_cases/received/``) reaches, written in
+  its own body or reached through any function or method defined under
+  ``vultron/core/use_cases/`` or ``vultron/core/services/``, resolved
+  transitively (ADR-0135).  Calls on alternative branches are summed, so
+  Python that chooses between two trees, or runs a door check or a refusal as
+  a tree of its own, counts as two.  Resolution stops at the package
+  boundary: a nested ``BTBridge`` hop inside a BT node the tree runs is the
+  tree's business.  Asserts **≤ 1** for every ``execute()`` with **no**
+  exemption set.  Trigger-side ``execute()`` bodies, which may run
+  ``send_case_actor_activity`` beside their own tree, are governed by
+  BT-15-001 and are out of scope.  The walk is shared with
+  ``test_no_dl_mutations_in_execute.py`` and lives in
+  ``_use_case_call_graph.py``, whose docstring lists the call shapes it does
+  not follow.
 
 A received-side use case's ``execute()`` method MUST do exactly three
 things: build one BT via a tree-factory function in
 ``vultron/core/behaviors/``, call ``BTBridge.execute_with_setup()`` exactly
 once under ``actor_id=receiving_actor_id``, and handle the result.
 
-Spec: CLP-10-005. Decision record: ADR-0022.
+Spec: CLP-10-005, CLP-10-008. Decision records: ADR-0022, ADR-0135.
 """
 
 import ast
 from pathlib import Path
 
+import pytest
+
 from test.architecture import _corpus
+from test.architecture._use_case_call_graph import (
+    INDEXED_ROOTS,
+    RECEIVED_ROOT,
+    USE_CASES_ROOT,
+    _UseCaseCorpus,
+    build_use_case_corpus,
+)
 
 _GUARDED_COMMIT_FACTORY = "create_guarded_commit_case_ledger_entry_tree"
-
-_USE_CASES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "use_cases"
 
 
 def _imports_guarded_commit_factory(tree: ast.AST) -> bool:
@@ -70,7 +86,7 @@ def _collect_violations() -> frozenset[str]:
     """Return repo-relative paths of use-case files importing the factory."""
     violations: set[str] = set()
     for py_file, tree in _corpus.files_mentioning(
-        _GUARDED_COMMIT_FACTORY, under=_USE_CASES_ROOT
+        _GUARDED_COMMIT_FACTORY, under=USE_CASES_ROOT
     ):
         if _imports_guarded_commit_factory(tree):
             violations.add(py_file.relative_to(_corpus.REPO_ROOT).as_posix())
@@ -114,149 +130,179 @@ def test_received_use_cases_do_not_dispatch_guarded_commit_directly():
 
 
 # ---------------------------------------------------------------------------
-# Hard invariant: no execute() method may call execute_with_setup() more
-# than once.  No KNOWN_VIOLATIONS escape hatch — this is unconditional.
-# Spec: CLP-10-005. Decision record: ADR-0022.
+# Hard invariant: no received execute() reaches execute_with_setup() more than
+# once, through helpers or on alternative branches.  No exemption set.
+# Spec: CLP-10-005, CLP-10-008. Decision records: ADR-0022, ADR-0135.
 # ---------------------------------------------------------------------------
 
 
-def _is_execute_with_setup_call(node: ast.AST) -> bool:
-    """Return True if *node* is a call expression targeting execute_with_setup."""
-    if not isinstance(node, ast.Call):
-        return False
-    func = node.func
-    return (
-        isinstance(func, ast.Attribute) and func.attr == "execute_with_setup"
-    ) or (isinstance(func, ast.Name) and func.id == "execute_with_setup")
-
-
-def _walk_own_scope(node: ast.AST):
-    """Yield all descendants of *node* without crossing nested function scopes.
-
-    Unlike ``ast.walk``, this generator stops descending when it encounters a
-    ``FunctionDef`` or ``AsyncFunctionDef`` that is not the root *node* itself.
-    This prevents calls inside inner helper functions defined inside
-    ``execute()`` from being counted as direct calls of ``execute()``.
-    """
-    yield node
-    for child in ast.iter_child_nodes(node):
-        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            # Stop here: inner function bodies are a separate scope.
-            continue
-        yield from _walk_own_scope(child)
-
-
-def _count_multi_execute_violations_in_tree(
-    tree: ast.AST, label: str
+def _tree_runs_over_one(
+    corpus: _UseCaseCorpus, received_root: Path
 ) -> dict[str, int]:
-    """Return ``'file:lineno' → call_count`` for every execute() method that
-    calls execute_with_setup() more than once in its own scope.
+    """``module.Class`` → tree runs, for each received ``execute()`` over one."""
+    return {
+        f"{module}.{cls}": runs
+        for module, _ in corpus.modules_under(received_root)
+        for cls, runs in corpus.tree_runs_per_execute(module).items()
+        if runs > 1
+    }
 
-    Only direct calls inside the ``execute()`` body are counted; calls inside
-    nested helper functions defined within ``execute()`` are excluded.
 
-    Returns an empty dict when no violations are found.
+@pytest.mark.spec("CLP-10-005")
+def test_no_execute_method_calls_execute_with_setup_more_than_once() -> None:
+    """No received execute() reaches execute_with_setup() more than once.
+
+    Hard invariant (CLP-10-005, ADR-0135) with no exemption set: a call
+    reached through a use-case or core-services helper counts, and calls on
+    alternative branches are summed.
     """
-    results: dict[str, int] = {}
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        if node.name != "execute":
-            continue
-        count = sum(
-            1
-            for child in _walk_own_scope(node)
-            if _is_execute_with_setup_call(child)
-        )
-        if count > 1:
-            results[f"{label}:{node.lineno}"] = count
-
-    return results
-
-
-def _count_multi_execute_violations(source_path: Path) -> dict[str, int]:
-    """Parse *source_path* and delegate to ``_count_multi_execute_violations_in_tree``.
-
-    Used by the synthetic-violation detector test, which writes files to
-    ``tmp_path`` that are not in the corpus.
-    """
-    try:
-        source = source_path.read_text(encoding="utf-8")
-        tree = _corpus.parse_inline(source, filename=str(source_path))
-    except (OSError, SyntaxError):
-        return {}
-    try:
-        label = source_path.relative_to(_corpus.REPO_ROOT).as_posix()
-    except ValueError:
-        label = str(source_path)
-    return _count_multi_execute_violations_in_tree(tree, label)
-
-
-def test_no_execute_method_calls_execute_with_setup_more_than_once():
-    """No execute() method in use_cases/ calls execute_with_setup() more than once.
-
-    This is a hard invariant (CLP-10-005) with no KNOWN_VIOLATIONS escape hatch.
-    The baseline is already clean after #1052 / #1066; any new violation causes
-    an immediate failure.
-
-    Spec: CLP-10-005. Decision record: ADR-0022.
-    """
-    violations: dict[str, int] = {}
-    for py_file, tree in _corpus.files_mentioning(
-        "execute_with_setup", under=_USE_CASES_ROOT
-    ):
-        label = py_file.relative_to(_corpus.REPO_ROOT).as_posix()
-        violations.update(_count_multi_execute_violations_in_tree(tree, label))
+    corpus = build_use_case_corpus()
+    assert any(
+        corpus.tree_runs_per_execute(module)
+        for module, _ in corpus.modules_under(RECEIVED_ROOT)
+    ), "no received execute() found — corpus drifted?"
+    violations = _tree_runs_over_one(corpus, RECEIVED_ROOT)
 
     assert not violations, (
-        "execute() methods calling execute_with_setup() more than once"
-        " (CLP-10-005 hard invariant):\n"
+        "received execute() methods reaching execute_with_setup() more than"
+        " once — compose the work into the one tree (CLP-10-005,"
+        " ADR-0135):\n"
         + "\n".join(
-            f"  {path}: {count} call(s)"
-            for path, count in sorted(violations.items())
+            f"  {name}: {count} run(s)"
+            for name, count in sorted(violations.items())
         )
     )
 
 
-def test_detector_catches_synthetic_multi_execute_with_setup_violation(
-    tmp_path: Path,
+# ---------------------------------------------------------------------------
+# Detector self-tests on synthetic sources
+# ---------------------------------------------------------------------------
+
+_SYNTHETIC_MODULE = "vultron.core.use_cases.received.synthetic"
+
+
+def _synthetic_runs(source: str) -> dict[str, int]:
+    """Tree runs per ``execute()`` in one synthetic received module."""
+    path = RECEIVED_ROOT / "synthetic.py"
+    corpus = _UseCaseCorpus(
+        {path: _corpus.parse_inline(source)}, roots=INDEXED_ROOTS
+    )
+    return corpus.tree_runs_per_execute(_SYNTHETIC_MODULE)
+
+
+@pytest.mark.parametrize(
+    ("source", "runs"),
+    [
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        return self._b.execute_with_setup(tree=t)\n",
+            1,
+            id="one-run",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        self._b.execute_with_setup(tree=a)\n"
+            "        return self._b.execute_with_setup(tree=b)\n",
+            2,
+            id="two-direct-runs",
+        ),
+        pytest.param(
+            "def _door(b):\n"
+            "    return b.execute_with_setup(tree=d)\n"
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        _door(self._b)\n"
+            "        return self._b.execute_with_setup(tree=t)\n",
+            2,
+            id="helper-one-call-deep",
+        ),
+        pytest.param(
+            "def _run(b):\n"
+            "    return b.execute_with_setup(tree=d)\n"
+            "def _door(b):\n"
+            "    return _run(b)\n"
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        _door(self._b)\n"
+            "        return self._b.execute_with_setup(tree=t)\n",
+            2,
+            id="helper-two-calls-deep",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def _route(self):\n"
+            "        self._b.execute_with_setup(tree=r)\n"
+            "    def execute(self):\n"
+            "        if late:\n"
+            "            return self._route()\n"
+            "        return self._b.execute_with_setup(tree=t)\n",
+            2,
+            id="alternative-branches",
+        ),
+        pytest.param(
+            "class _Hop(Behaviour):\n"
+            "    def update(self):\n"
+            "        self._b.execute_with_setup(tree=nested)\n"
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        tree = Sequence(children=[_Hop()])\n"
+            "        return self._b.execute_with_setup(tree=tree)\n",
+            1,
+            id="bt-node-call-not-counted",
+        ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        def _retry():\n"
+            "            self._b.execute_with_setup(tree=r)\n"
+            "        return self._b.execute_with_setup(tree=t)\n",
+            1,
+            id="uncalled-nested-function",
+        ),
+    ],
+)
+def test_the_count_follows_helpers_and_sums_branches(
+    source: str, runs: int
 ) -> None:
-    """Confirm the AST scanner flags a synthetic double execute_with_setup call.
+    assert _synthetic_runs(source) == {"UC": runs}
 
-    AC-3: verifies that a future regression would be caught immediately, and
-    that a single call in an inner helper function does NOT produce a false
-    positive.
-    """
-    # Two direct calls in one execute() — should be flagged.
-    violation_file = tmp_path / "synthetic_violation.py"
-    violation_file.write_text(
-        "class FakeUseCase:\n"
-        "    def execute(self):\n"
-        "        self.bridge.execute_with_setup(actor_id='a', bt=None)\n"
-        "        self.bridge.execute_with_setup(actor_id='b', bt=None)\n",
-        encoding="utf-8",
-    )
-    violations = _count_multi_execute_violations(violation_file)
-    assert violations, (
-        "Detector did not flag the synthetic double execute_with_setup call"
-    )
-    counts = list(violations.values())
-    assert counts == [2], (
-        f"Expected exactly 2 calls detected; got: {violations}"
-    )
 
-    # One direct call plus one call inside a nested helper — must NOT be flagged.
-    nested_ok_file = tmp_path / "synthetic_nested_ok.py"
-    nested_ok_file.write_text(
-        "class FakeUseCase:\n"
+def test_the_count_stops_at_the_package_boundary() -> None:
+    """A helper outside the indexed packages (a BT factory) is not followed."""
+    source = (
+        "from vultron.core.behaviors.synthetic import build_and_run\n"
+        "class UC:\n"
         "    def execute(self):\n"
-        "        def _retry():\n"
-        "            self.bridge.execute_with_setup(actor_id='retry', bt=None)\n"
-        "        return self.bridge.execute_with_setup(actor_id='a', bt=None)\n",
-        encoding="utf-8",
+        "        build_and_run(self._b)\n"
+        "        return self._b.execute_with_setup(tree=t)\n"
     )
-    non_violations = _count_multi_execute_violations(nested_ok_file)
-    assert not non_violations, (
-        "Detector produced a false positive for a nested helper function: "
-        f"{non_violations}"
+    assert _synthetic_runs(source) == {"UC": 1}
+
+
+def test_a_module_without_execute_counts_nothing() -> None:
+    assert _synthetic_runs("def helper():\n    pass\n") == {}
+
+
+def test_the_violation_report_names_each_offender() -> None:
+    """The hard invariant's report lists every execute() over one run."""
+    path = RECEIVED_ROOT / "synthetic.py"
+    corpus = _UseCaseCorpus(
+        {
+            path: _corpus.parse_inline(
+                "class Ok:\n"
+                "    def execute(self):\n"
+                "        return self._b.execute_with_setup(tree=t)\n"
+                "class Bad:\n"
+                "    def execute(self):\n"
+                "        if x:\n"
+                "            return self._b.execute_with_setup(tree=a)\n"
+                "        return self._b.execute_with_setup(tree=b)\n"
+            )
+        },
+        roots=INDEXED_ROOTS,
     )
+    assert _tree_runs_over_one(corpus, RECEIVED_ROOT) == {
+        f"{_SYNTHETIC_MODULE}.Bad": 2
+    }

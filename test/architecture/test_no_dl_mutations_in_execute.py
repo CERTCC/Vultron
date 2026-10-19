@@ -77,39 +77,13 @@ from pathlib import Path
 
 from test.architecture import _corpus
 from test.architecture._use_case_call_graph import (
+    RECEIVED_ROOT,
+    USE_CASES_ROOT,
     _has_dl_mutation_in_execute,
     _has_dl_mutation_in_execute_tree,
     _UseCaseCorpus,
+    build_use_case_corpus,
 )
-
-_USE_CASES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "use_cases"
-_RECEIVED_ROOT = _USE_CASES_ROOT / "received"
-_USE_CASES_PKG = "vultron.core.use_cases"
-_SERVICES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "services"
-_SERVICES_PKG = "vultron.core.services"
-
-
-def _build_corpus() -> _UseCaseCorpus:
-    """Index every module of the real use-case and core-services packages.
-
-    ``vultron/core/services/`` is indexed because it holds the helpers a use
-    case shares with a BT node (BT-22-005): a write a received ``execute()``
-    reaches through one is still that ``execute()``'s write.
-
-    ``all_trees`` rather than a fragment prefilter (TB-13-002's escape
-    hatch): a helper chain can pass through a module that never spells
-    ``dl.`` itself, and dropping that module would break the chain.
-    """
-    return _UseCaseCorpus(
-        {
-            **dict(_corpus.all_trees(under=_USE_CASES_ROOT)),
-            **dict(_corpus.all_trees(under=_SERVICES_ROOT)),
-        },
-        roots={
-            _USE_CASES_ROOT: _USE_CASES_PKG,
-            _SERVICES_ROOT: _SERVICES_PKG,
-        },
-    )
 
 
 def _violations_in(
@@ -133,9 +107,9 @@ def _violations_in(
 def _collect_violations() -> frozenset[str]:
     """Return repo-relative paths of use-case files with DL mutations in execute()."""
     return _violations_in(
-        _build_corpus(),
-        dict(_corpus.files_mentioning("dl.", under=_USE_CASES_ROOT)),
-        received_root=_RECEIVED_ROOT,
+        build_use_case_corpus(),
+        dict(_corpus.files_mentioning("dl.", under=USE_CASES_ROOT)),
+        received_root=RECEIVED_ROOT,
         repo_root=_corpus.REPO_ROOT,
     )
 

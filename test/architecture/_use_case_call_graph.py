@@ -15,7 +15,7 @@
 """Call-graph resolution through the use-case package for the use-case ratchets.
 
 Companion to ``test_no_dl_mutations_in_execute.py`` (CLP-10-020) and
-``test_embargo_received_one_tree.py`` (CLP-10-005): the classes
+``test_single_bt_execution_received_side.py`` (CLP-10-005): the classes
 here index every module of ``vultron/core/use_cases/`` — and of
 ``vultron/core/services/``, the neutral home of helpers a use case shares with
 a BT node (BT-22-005), so moving a helper there does not hide its writes — and
@@ -51,6 +51,16 @@ _DL_RECEIVER_ATTRS: frozenset[str] = frozenset(
 )
 
 _FunctionDef = ast.FunctionDef | ast.AsyncFunctionDef
+
+USE_CASES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "use_cases"
+RECEIVED_ROOT = USE_CASES_ROOT / "received"
+SERVICES_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "services"
+
+#: The indexed packages: each directory and its dotted name.
+INDEXED_ROOTS: Mapping[Path, str] = {
+    USE_CASES_ROOT: "vultron.core.use_cases",
+    SERVICES_ROOT: "vultron.core.services",
+}
 
 #: A resolved callee: (module name, enclosing class name or None, def name).
 _Callee = tuple[str, str | None, str]
@@ -382,3 +392,24 @@ class _UseCaseCorpus:
             target_module, original = index.imported_names[name]
             return self._in_package(target_module, original)
         return None
+
+
+def build_use_case_corpus() -> "_UseCaseCorpus":
+    """Index every module of the real use-case and core-services packages.
+
+    ``vultron/core/services/`` is indexed because it holds the helpers a use
+    case shares with a BT node (BT-22-005): a write or a tree run a received
+    ``execute()`` reaches through one is still that ``execute()``'s.
+
+    ``all_trees`` rather than a fragment prefilter (TB-13-002's escape
+    hatch): a helper chain can pass through a module that never spells the
+    fragment itself, and dropping that module would break the chain.
+    """
+    return _UseCaseCorpus(
+        {
+            path: tree
+            for root in INDEXED_ROOTS
+            for path, tree in _corpus.all_trees(under=root)
+        },
+        roots=INDEXED_ROOTS,
+    )
