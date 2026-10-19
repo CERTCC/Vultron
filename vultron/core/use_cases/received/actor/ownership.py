@@ -31,7 +31,6 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.use_cases._helpers import (
-    is_recipient,
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
@@ -147,20 +146,10 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 
         # Two receivers are entitled to this Offer: the CASE_MANAGER it is
         # addressed to (CM-21-005) and the transferee the CASE_MANAGER forwards
-        # it to.  Both are named in `to`; anyone else holds a misaddressed
-        # copy, refuses, and stores nothing (HP-01-005, #3752).
-        if not is_recipient(receiving_actor_id, request.activity):
-            verdict = HandlerResult.refused(
-                f"'{receiving_actor_id}' is not a recipient of ownership"
-                f"-transfer Offer '{request.activity_id}'"
-            )
-            logger.warning(
-                "OfferCaseOwnershipTransferReceived: refused '%s': %s",
-                request.activity_id,
-                verdict.reason,
-            )
-            return verdict
-
+        # it to.  The tree's addressee door guard refuses a copy not addressed
+        # to this store before it stores anything (HP-01-005, #3752); the
+        # sender guard then refuses a sender's own copy at a replica, which
+        # takes the Offer from the CASE_MANAGER alone (PCR-03-001).
         case_id = _as_id(request.activity.object_)
         # The transferee becomes the case owner if it accepts, so it is
         # normalised where it is extracted (OID-01-006).
@@ -219,8 +208,13 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             activity=request,
         )
         if case_id is None:
-            # Intake archived the Offer; there is no case to act on.
-            applied_or_raise(tree, result, label="OfferOwnershipTransferBT")
+            # Intake archived the Offer; there is no case to act on.  A door
+            # guard's refusal (an unaddressed copy, HP-01-005) is its own.
+            verdict = applied_or_raise(
+                tree, result, label="OfferOwnershipTransferBT"
+            )
+            if verdict.disposition is HandlerDisposition.REFUSED:
+                return verdict
             logger.warning(
                 "OfferCaseOwnershipTransferReceived: missing case_id"
                 " on offer '%s' — refusing",
@@ -243,9 +237,10 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             )
             return verdict
         if not_case_manager(tree):
-            # The cascade is the CASE_MANAGER's; the transferee (an addressee,
-            # checked above) only stores the forwarded Offer, so what it did
-            # is what intake and the store did (HP-01-003).
+            # The cascade is the CASE_MANAGER's; the transferee (admitted by
+            # the tree's door and sender guards) only stores the forwarded
+            # Offer, so what it did is what intake and the store did
+            # (HP-01-003).
             return intake_verdict(
                 tree, result, label="OfferOwnershipTransferBT"
             )

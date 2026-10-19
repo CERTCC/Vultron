@@ -167,6 +167,10 @@ It still receives the invitations that ask it to join or to consent, but no ledg
 
 A CASE_MANAGER makes two checks before it acts on a message, and they answer different questions.
 
+Every node first asks whether the message was addressed to it at all.
+A message is addressed to a node that sent it, that its `to` names, or that is an active participant of a case participants collection its `to` names ([HP-01-012](../../reference/specs/architecture.md#hp-01-012)).
+Any other node holds a misaddressed copy, so it refuses the copy and answers nothing ([HP-01-005](../../reference/specs/project.md#hp-01-005)).
+
 The first check is about the receiver: *am I the CASE_MANAGER of this case?*
 A node that receives a message meant for the CASE_MANAGER, but does not hold the role, refuses it and says which role it lacks ([HP-01-005](../../reference/specs/project.md#hp-01-005)).
 It does not treat the message as a harmless duplicate.

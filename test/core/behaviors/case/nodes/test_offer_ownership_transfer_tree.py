@@ -104,6 +104,7 @@ def _offer_event() -> OfferCaseOwnershipTransferReceivedEvent:
         id_=OFFER_ID,
         type_="Offer",
         actor=VENDOR_ID,
+        to=[CASE_ACTOR_ID],
         context=CASE_ID,
         published=now_utc(),
         object_={"id": CASE_ID, "type": "VulnerabilityCase"},

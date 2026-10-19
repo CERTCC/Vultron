@@ -119,7 +119,7 @@ class TestOfferActorToCaseReceivedUseCase:
             recommended,
             target=_case_ref(case_id),
             actor=recommender_id,
-            to=[local_actor_id],
+            to=[TEST_ACTOR_ID],
             suggested_roles=["vendor"],
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
@@ -160,7 +160,7 @@ class TestOfferActorToCaseReceivedUseCase:
         from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.rm import RM
 
-        dl, local_actor_id, case_id = self._setup_dl(seed_case_manager)
+        dl, _, case_id = self._setup_dl(seed_case_manager)
         case = dl.read_case(case_id)
         assert case is not None
         record = dl.read(case.actor_participant_index[self._RECOMMENDER_ID])
@@ -177,7 +177,7 @@ class TestOfferActorToCaseReceivedUseCase:
             as_Actor(id_="https://example.org/actors/vendor-new"),
             target=_case_ref(case_id),
             actor=self._RECOMMENDER_ID,
-            to=[local_actor_id],
+            to=[TEST_ACTOR_ID],
             suggested_roles=["vendor"],
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
@@ -288,7 +288,7 @@ class TestOfferActorToCaseReceivedUseCase:
         the stored wire Offer (ADR-0035 DL-06-002), and that the case itself
         carries no recommender index (CLP-07-014, #4448).
         """
-        dl, local_actor_id, case_id = self._setup_dl(seed_case_manager)
+        dl, _, case_id = self._setup_dl(seed_case_manager)
         recommender_id = "https://example.org/actors/finder"
         recommended_id = "https://example.org/actors/vendor-new"
         recommended = as_Actor(id_=recommended_id)
@@ -297,7 +297,7 @@ class TestOfferActorToCaseReceivedUseCase:
             recommended,
             target=_case_ref(case_id),
             actor=recommender_id,
-            to=[local_actor_id],
+            to=[TEST_ACTOR_ID],
         )
         event = make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
         activity_id = activity.id_
@@ -343,13 +343,13 @@ class TestOfferActorToCaseReceivedUseCase:
         the Offer again leaves exactly one record naming the same recommender
         rather than adding a second one.
         """
-        dl, local_actor_id, case_id = self._setup_dl(seed_case_manager)
+        dl, _, case_id = self._setup_dl(seed_case_manager)
         recommender_id = "https://example.org/actors/finder"
         activity = recommend_actor_activity(
             as_Actor(id_="https://example.org/actors/vendor-new"),
             target=_case_ref(case_id),
             actor=recommender_id,
-            to=[local_actor_id],
+            to=[TEST_ACTOR_ID],
         )
 
         for _ in range(2):
@@ -408,8 +408,9 @@ class TestOfferActorToCaseAtNonCaseManager:
             as_Actor(id_=self._RECOMMENDED_ID),
             target=_case_ref(self._CASE_ID),
             actor=self._RECOMMENDER_ID,
-            to=[self._MANAGER_ID],
-            cc=[TEST_ACTOR_ID],
+            # The copy is addressed to this participant too, so the door
+            # admits it and the CASE_MANAGER role gate is what refuses.
+            to=[self._MANAGER_ID, TEST_ACTOR_ID],
         )
         return make_payload(activity, receiving_actor_id=TEST_ACTOR_ID)
 

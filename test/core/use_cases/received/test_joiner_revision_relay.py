@@ -103,7 +103,7 @@ def _join(dl: SqliteDataLayer, case_id: str, make_payload):
     seed_inert_invitee(dl, case, JOINER)
     dl.save(case)
     event = make_payload(
-        rm_accept_invite_to_case_activity(invite, actor=JOINER)
+        rm_accept_invite_to_case_activity(invite, actor=JOINER, to=[MANAGER])
     )
     return AcceptInviteActorToCaseReceivedUseCase(
         dl,
@@ -431,7 +431,10 @@ def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invit
     )
 
     reply = rm_accept_full_case_invite_activity(
-        invite, ledger_tail_position(case_id, dl), actor=JOINER
+        invite,
+        ledger_tail_position(case_id, dl),
+        actor=JOINER,
+        to=[MANAGER],
     )
     event = extract_event(reply).model_copy(
         update={"receiving_actor_id": MANAGER}

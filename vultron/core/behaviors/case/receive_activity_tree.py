@@ -21,9 +21,12 @@ It fixes the stage order intake → door guards (post-close guard, addressee
 check, closed-sender check, sender guard) → clock decisions → precondition
 guards → guarded commit → protocol effects (CLP-10-006, CLP-10-010,
 CLP-10-025, ADR-0115, CM-23-013, HP-01-005) and
-supplies the shared intake node and the post-close write-boundary guard
-itself (CLP-10-017, ADR-0131), so no handler opts out of recording what
-arrived or forgets the closed-case boundary.
+supplies the shared intake node, the post-close write-boundary guard and the
+addressee door guard itself (CLP-10-017, ADR-0131, HP-01-005), so no handler
+opts out of recording what arrived, forgets the closed-case boundary or acts
+on a copy that was not addressed to it.  A tree leaves a door guard out only
+by naming a registered exemption (``post_close_exemption``,
+``addressee_exemption``) that records why.
 A tree whose CASE_MANAGER must record a decision from its own clock before
 it judges the activity (an expiry) passes ``clock_decisions``: the factory
 runs them at the CASE_MANAGER only, after the door guards, and a refused
@@ -40,8 +43,8 @@ CASE_MANAGER, once per received activity, and the tree still fails before
 the commit (CLP-10-022).
 
 When ``sender_rule`` is provided, the factory composes the sender guard from
-it and places it after the post-close guard (and the addressee check, when
-the tree asks for one) and before the caller's ``precondition_guards``; a
+it and places it after the post-close guard and the addressee check and
+before the caller's ``precondition_guards``; a
 tree whose case is resolved at run time names the read-only steps that
 resolve it (``case_resolution``), which run just before the guard.
 A failed sender guard ends the tree with ``REFUSED`` and nothing is written
@@ -79,7 +82,9 @@ from vultron.core.behaviors.case.case_clock_decisions import (
     case_clock_decisions,
 )
 from vultron.core.behaviors.case.nodes.addressee import (
+    ADDRESSEE_EXEMPTIONS,
     ActivityAddressedToReceiverNode,
+    AddresseeExemption,
 )
 from vultron.core.behaviors.case.nodes.case_lookup import CaseResolving
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
@@ -246,6 +251,28 @@ def _check_replica_effects(
             " the factory gates them on the CASE_MANAGER, or name a"
             " ReplicaEmitExemption that covers them (BT-17-008)"
         )
+
+
+def _addressee_stage(
+    name: str, exemption: AddresseeExemption | None
+) -> list[py_trees.behaviour.Behaviour]:
+    """The addressee door guard, labelled with the tree's name (HP-01-005).
+
+    Nothing for a tree that passes a registered exemption.
+
+    Raises:
+        VultronWiringError: *exemption* is not registered in
+            ``ADDRESSEE_EXEMPTIONS``.
+    """
+    if exemption is None:
+        return [ActivityAddressedToReceiverNode(label=name)]
+    if ADDRESSEE_EXEMPTIONS.get(exemption.name) != exemption:
+        raise VultronWiringError(
+            f"create_receive_activity_tree({name}): addressee exemption"
+            f" {exemption.name!r} is not registered in ADDRESSEE_EXEMPTIONS"
+            " (HP-01-005)"
+        )
+    return []
 
 
 def _manager_stage(
@@ -752,7 +779,7 @@ def create_receive_activity_tree(
     precondition_guards: Sequence[py_trees.behaviour.Behaviour | Diversion],
     case_may_be_absent: bool = False,
     *,
-    addressee_check: str | None = None,
+    addressee_exemption: AddresseeExemption | None = None,
     closed_sender: ClosedSenderCheck | None = None,
     sender_rule: SenderRule | None = None,
     sender_context: SenderContext | None = None,
@@ -774,7 +801,7 @@ def create_receive_activity_tree(
     Structurally enforces the receive-side ordering (ADR-0111, ADR-0115,
     ADR-0135, BT-17-008, CM-23-013)::
 
-        Intake → CaseOpenToExternalWrites → [addressee check]
+        Intake → CaseOpenToExternalWrites → ActivityAddressedToReceiver
             → [closed-sender check] → [*case_resolution]
             → [sender guard]
             → [CaseManagerGate[ClockDecisionStage[
@@ -782,11 +809,16 @@ def create_receive_activity_tree(
             → [*precondition_guards] → GuardedCommit
             → [*replica_effects] → CaseManagerGate[*manager_effects]
 
-    ``addressee_check`` names the activity in the HP-01-005 refusal: when it
-    is given, :class:`~vultron.core.behaviors.case.nodes.addressee.ActivityAddressedToReceiverNode`
-    follows the post-close guard and refuses a copy whose ``to`` does not
-    name the receiver, unless the receiver sent it.  Intake has archived the
-    copy; nothing else runs (CLP-10-010, CLP-10-018).
+    The addressee door guard,
+    :class:`~vultron.core.behaviors.case.nodes.addressee.ActivityAddressedToReceiverNode`,
+    follows the post-close guard in every received tree and refuses a copy
+    not addressed to the receiver (HP-01-005), naming the tree in its
+    reason.  Intake has archived the copy; nothing else runs (CLP-10-010,
+    CLP-10-018).  A tree opts out only with ``addressee_exemption``, a
+    registered
+    :class:`~vultron.core.behaviors.case.nodes.addressee.AddresseeExemption`
+    that records why (an ``Offer(Report)`` stores what it carried first and
+    checks later, CM-15-002); no tree writes its own copy of the check.
 
     ``closed_sender`` places the closed-sender door guard
     (:func:`~vultron.core.behaviors.sender_guard.closed_sender_door`) on
@@ -939,9 +971,8 @@ def create_receive_activity_tree(
             and any diversions, in order.
         case_may_be_absent: Pass ``True`` when the receiver may not hold the
             case yet (e.g. an invitee seeing the first Invite).
-        addressee_check: The activity's label, e.g.
-            ``"Accept(Invite(EmbargoEvent))"``; given, the addressee door
-            guard refuses an unaddressed copy (HP-01-005).
+        addressee_exemption: Why this tree carries no addressee door guard;
+            ``None`` (the default) places it (HP-01-005).
         closed_sender: The sender whose recorded closure stops the tree, for
             a tree whose act may close its sender (CM-23-018).
         sender_rule: The use case's declared sender rule; the factory
@@ -984,7 +1015,8 @@ def create_receive_activity_tree(
             without one (BT-17-008), or a refusal effect is not emit-capable or
             holds a state writer (CLP-10-022), or an exempt tree passes a
             ``post_close_reply`` (CM-23-013), or the sender arguments are
-            inconsistent: ``sender_rule`` without ``sender_context``, a
+            inconsistent: an ``addressee_exemption`` is not registered
+            (HP-01-005), ``sender_rule`` without ``sender_context``, a
             ``sender_context`` without ``sender_rule``, or a
             ``sender_context`` naming another case than ``case_id`` (else
             ``manager_case_id``), or a ``closed_sender`` check on a tree
@@ -1027,8 +1059,7 @@ def create_receive_activity_tree(
             post_close_reply or [],
         )
     )
-    if addressee_check is not None:
-        children.append(ActivityAddressedToReceiverNode(label=addressee_check))
+    children.extend(_addressee_stage(name, addressee_exemption))
     if closed_sender is not None:
         children.append(
             _closed_sender_stage(

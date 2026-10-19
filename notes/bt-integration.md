@@ -265,7 +265,7 @@ guards, commit, effects.
    CASE_MANAGER, once the ledger holds `case_fully_closed`, it fails the tree so
    no commit, effect, or emit runs; on every other store it passes, so replicas
    keep applying the closure fan-out. The handler verdict comes from
-   `post_close_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
+   `door_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
    `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. Never run a
    door guard as a one-node tree ahead of the received tree: that is the
    chained shape CLP-10-005 forbids (ADR-0135). A tree opts out only with a
@@ -274,6 +274,20 @@ guards, commit, effects.
    `ActorConfig.post_close_reply = reject`). Every other late activity is
    dropped with no reply (ADR-0131, CM-23-017). The addressee check, the
    closed-sender door and the sender guard follow.
+
+   The factory places the addressee check, `ActivityAddressedToReceiverNode`
+   (`case/nodes/addressee.py`), in every received tree, labelled with the
+   tree's name: a copy not addressed to the receiver is `REFUSED`, archived,
+   and acts on nothing (HP-01-005). "Addressed" has one definition,
+   `addressed_to_receiver()`: the receiver sent it, is in `to`, or belongs to
+   a `{case_id}/participants` collection `to` names; `cc` and an empty `to`
+   address nobody. Never write a tree's own copy of the check or a Python
+   pre-check in `execute()`; a tree that must differ passes a registered
+   `AddresseeExemption` with its reason (an `Offer(Report)` keeps what it
+   carried first, CM-15-002), and
+   `test/architecture/test_received_tree_addressee_guard.py` pins each use.
+   The check reads `event.activity`, so a registry entry must set
+   `include_activity` or every delivery of that message is refused.
 
    A tree whose sender may already be closed on the case and whose answer must
    be told apart (a `Leave`, a stub or full-case Invite reply) passes

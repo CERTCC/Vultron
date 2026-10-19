@@ -71,6 +71,7 @@ from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    door_refusal,
     named_node_status,
     node_failed,
     node_succeeded,
@@ -283,6 +284,17 @@ class AnnounceLedgerEntryReceivedUseCase:
             self._inbox_hand_back,
         )
 
+        # A copy the door guards refused (an unaddressed one, HP-01-005, or a
+        # closed case, CM-23-013) acts on nothing: the pending assertion it
+        # does not confirm stays pending.
+        if (refusal := door_refusal(tree)) is not None:
+            logger.warning(
+                "sync: refused log-entry announcement '%s': %s",
+                request.activity_id,
+                refusal.reason,
+            )
+            return refusal
+
         verdict = _announce_verdict(tree, result, request, entry)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
@@ -297,9 +309,9 @@ class AnnounceLedgerEntryReceivedUseCase:
                 verdict.reason,
             )
 
-        # Clear pending assertion for this entry regardless of BT outcome
-        # (SYNC-11-003): a canonical ledger entry confirms the assertion has
-        # been processed by the log authority.
+        # Clear pending assertion for this entry whatever the tree decided
+        # past its door guards (SYNC-11-003): a canonical ledger entry
+        # confirms the assertion has been processed by the log authority.
         store = self._pending_assertions
         if store is None and request.receiving_actor_id:
             store = get_pending_assertion_store(request.receiving_actor_id)

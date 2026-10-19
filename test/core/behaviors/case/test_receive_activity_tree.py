@@ -61,6 +61,7 @@ from vultron.errors import VultronWiringError
 CASE_ID = "https://example.org/cases/case-factory-gate-001"
 COMMIT = "GuardedCommitCaseLedgerEntryBT"
 POST_CLOSE = "CaseOpenToExternalWrites"
+ADDRESSEE = "ActivityAddressedToReceiverNode"
 CLOCK_GATE = "ClockDecisionsIfCaseManager"
 #: The case-wide clock decision every case tree with a sender guard takes.
 END_TIME = "EmbargoEndTimeDecision"
@@ -130,6 +131,7 @@ class TestStageOrder:
         assert isinstance(tree.children[0], IntakeReceivedActivityNode)
         assert _names(tree)[1:] == [
             POST_CLOSE,
+            ADDRESSEE,
             "Guard",
             COMMIT,
             "Replica",
@@ -412,13 +414,14 @@ class TestRefusalEffects:
 
         assert _names(tree)[1:] == [
             POST_CLOSE,
+            ADDRESSEE,
             "SenderIsCaseManagerNode",
             CLOCK_GATE,
             "PreconditionGuardStage",
             COMMIT,
             "Replica",
         ]
-        stage = tree.children[4]
+        stage = tree.children[5]
         assert isinstance(stage, PreconditionGuardStage)
         assert list(stage.guards.children) == [guard]
         gates = [
@@ -445,7 +448,7 @@ class TestRefusalEffects:
         )
 
         assert ungated_emitters([tree]) == []
-        stage = tree.children[2]
+        stage = tree.children[3]
         checks = [
             n for n in stage.iterate() if isinstance(n, CheckIsCaseManagerNode)
         ]
@@ -518,6 +521,7 @@ class TestRefusalEffects:
 
         assert _names(tree)[1:] == [
             POST_CLOSE,
+            ADDRESSEE,
             "PreconditionGuardStage",
             COMMIT,
             "ReplicaEffect",
@@ -530,7 +534,7 @@ class TestRefusalEffects:
             precondition_guards=[_effect("Guard")],
         )
 
-        assert _names(tree)[1:] == [POST_CLOSE, "Guard", COMMIT]
+        assert _names(tree)[1:] == [POST_CLOSE, ADDRESSEE, "Guard", COMMIT]
 
 
 class TestPostCloseStage:
@@ -585,7 +589,7 @@ class TestPostCloseStage:
             post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
         )
 
-        assert _names(tree)[1:] == ["Guard", COMMIT]
+        assert _names(tree)[1:] == [ADDRESSEE, "Guard", COMMIT]
 
     @pytest.mark.spec("CM-23-013")
     def test_a_reply_wraps_the_guard_in_a_gated_refusal_stage(self) -> None:
@@ -604,7 +608,12 @@ class TestPostCloseStage:
             post_close_reply=[reply],
         )
 
-        assert _names(tree)[1:] == ["PostCloseStage", "Guard", COMMIT]
+        assert _names(tree)[1:] == [
+            "PostCloseStage",
+            ADDRESSEE,
+            "Guard",
+            COMMIT,
+        ]
         stage = tree.children[1]
         assert isinstance(stage, PreconditionGuardStage)
         assert [type(g) for g in stage.guards.children] == [
@@ -699,6 +708,7 @@ class TestClockDecisionStage:
 
         assert _names(tree)[1:] == [
             POST_CLOSE,
+            ADDRESSEE,
             "SenderIsCaseManagerNode",
             "ClockDecisionsIfCaseManager",
             "Guard",
@@ -719,6 +729,7 @@ class TestClockDecisionStage:
 
         assert _names(tree)[1:] == [
             POST_CLOSE,
+            ADDRESSEE,
             "SenderIsCaseManagerNode",
             "ClockDecisionsIfCaseManager",
             "PreconditionGuardStage",
@@ -745,7 +756,7 @@ class TestClockDecisionStage:
             **_sender_args(),
         )
 
-        gate = tree.children[3]
+        gate = tree.children[4]
         assert isinstance(gate, CaseManagerGate)
         stage = gate.gated_branch
         assert isinstance(stage, ClockDecisionStage)
@@ -826,6 +837,7 @@ class TestClockDecisionStage:
 
         assert _names(tree)[1:] == [
             POST_CLOSE,
+            ADDRESSEE,
             "SenderIsCaseManagerNode",
             CLOCK_GATE,
             "Guard",

@@ -208,10 +208,10 @@ partition of its own.
 **A participant refuses a P/X/A revision with ER, never ET** (EMB-03-003,
 ADR-0118). A participant that is neither owner nor CASE_MANAGER answers a
 revision Invite with ER to the CASE_MANAGER and does not move its own EM state;
-termination is the owner's (or delegated CASE_MANAGER's) decision. A store that
-is not the sender and not in `to` refuses the copy at the tree's addressee
-door guard (`ActivityAddressedToReceiverNode`) and answers nothing; `cc`
-addresses nobody (ADR-0109).
+termination is the owner's (or delegated CASE_MANAGER's) decision. A store the
+revision is not addressed to (`addressed_to_receiver()`, HP-01-012) refuses the
+copy at the tree's addressee door guard (`ActivityAddressedToReceiverNode`) and
+answers nothing; `cc` addresses nobody (ADR-0109).
 
 ---
 

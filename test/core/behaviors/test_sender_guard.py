@@ -76,6 +76,7 @@ from vultron.core.behaviors.sender_guard import (
     compose_sender_guard,
     sender_guard_refused,
 )
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_proposal_admission import (
     CaseProposalAdmissionRecord,
@@ -984,7 +985,8 @@ def test_a_tree_that_commits_nothing_judges_the_context_case() -> None:
         sender_context=SenderCheckContext(sender_id=VENDOR, case_id=CASE_ID),
     )
 
-    assert len(tree.children) == 3  # intake, post-close, sender guard
+    # intake, post-close, addressee door, sender guard
+    assert len(tree.children) == 4
 
 
 def test_factory_rejects_a_context_without_a_rule() -> None:
@@ -1164,7 +1166,8 @@ def test_case_resolution_runs_just_before_the_sender_guard() -> None:
     )
     names = [child.name for child in tree.children]
     at = names.index("ResolveCase")
-    assert names[at - 1] == "CaseOpenToExternalWrites"
+    assert names[at - 2] == "CaseOpenToExternalWrites"
+    assert names[at - 1] == "ActivityAddressedToReceiverNode"
     assert names[at + 1] == "SenderIsParticipantNode"
 
 
@@ -1281,6 +1284,12 @@ def test_sender_guard_refused_names_only_the_sender_guards_refusal(
         actor_id=sender,
         object_=as_VulnerabilityCase(id_=CASE_ID, name="Sender rule case"),
         semantic_type=MessageSemantics.ENGAGE_CASE,
+        activity=VultronActivity(
+            id_="https://example.org/activities/engage-guard",
+            type_="Join",
+            actor=sender,
+            to=[MANAGER],
+        ),
     )
     result = _store(MANAGER).run(tree, activity=event)
     assert result.status == Status.FAILURE

@@ -173,6 +173,7 @@ def _make_close_case_event(
         type_="Leave",
         actor=sender_actor_id,
         object_=as_VulnerabilityCase(id_=case_id),
+        to=[receiving_actor_id],
     )
     return CloseCaseReceivedEvent(
         semantic_type=MessageSemantics.CLOSE_CASE,

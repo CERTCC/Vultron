@@ -134,8 +134,15 @@ def _make_entry(
 
 
 def _make_event(
-    entry: CaseLedgerEntry, tail_hash: str
+    entry: CaseLedgerEntry, tail_hash: str, to: list[str] | None = None
 ) -> RejectLogEntryReceivedEvent:
+    """Build the received Reject, addressed to the CASE_MANAGER by default.
+
+    *to* overrides the recipients, for a copy that also reaches a replica:
+    the tree's addressee door refuses a copy naming nobody it executes as
+    (HP-01-005).
+    """
+    recipients = [OWNER_ACTOR_ID] if to is None else to
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
@@ -143,7 +150,7 @@ def _make_event(
         entry=wire_entry,
         context=tail_hash,
         actor=PEER_ID,
-        to=[OWNER_ACTOR_ID],
+        to=recipients,
     )
     event = cast(RejectLogEntryReceivedEvent, extract_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
@@ -151,6 +158,7 @@ def _make_event(
         id_=event.activity_id,
         type_="Reject",
         actor=PEER_ID,
+        to=recipients,
         object_=entry,
     )
     return event
@@ -162,11 +170,12 @@ def test_create_reject_log_entry_tree_returns_sequence():
         sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
     )
     assert tree.name == "RejectLogEntryReceivedBT"
-    # Intake first (CLP-10-017), the sender guard the factory composes
-    # (HP-01-008, #4696), the case lookup, then the CASE_MANAGER gate holding
-    # every effect (BT-17-008).
+    # Intake first (CLP-10-017), the addressee door (HP-01-005), the sender
+    # guard the factory composes (HP-01-008, #4696), the case lookup, then
+    # the CASE_MANAGER gate holding every effect (BT-17-008).
     assert [child.name for child in tree.children] == [
         "IntakeReceivedActivityNode",
+        "ActivityAddressedToReceiverNode",
         "SenderIsActiveLedgerParticipant",
         "FindCaseActor",
         "AnswerRejectIfCaseManager",
@@ -644,6 +653,7 @@ def test_reject_from_stranger_halts_before_any_write(
         id_=event.activity_id,
         type_="Reject",
         actor=stranger,
+        to=[OWNER_ACTOR_ID],
         object_=entry,
     )
 
@@ -760,7 +770,11 @@ def test_reject_at_a_participant_replica_sends_and_records_nothing():
             sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
         ),
         actor_id=REPLICA_ID,
-        activity=_make_event(entry, tail_hash=""),
+        # The copy reaches the replica too, so the addressee door admits it
+        # and the CASE_MANAGER gate is what keeps the replica idle.
+        activity=_make_event(
+            entry, tail_hash="", to=[OWNER_ACTOR_ID, REPLICA_ID]
+        ),
         sync_port=sync_port,
     )
 

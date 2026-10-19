@@ -260,7 +260,6 @@ def remove_embargo_from_case_tree(
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
         case_id=case_id,
-        addressee_check="Remove(EmbargoEvent)",
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_actor_id, case_id),
         # Every overdue invitation expires first (CM-28-015).
@@ -489,7 +488,6 @@ def invite_to_embargo_on_case_tree(
     root = create_receive_activity_tree(
         name="InviteToEmbargoOnCaseBT",
         case_id=case_id,
-        addressee_check="Invite(EmbargoEvent)",
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_actor_id, case_id),
         # Every overdue invitation expires first (CM-28-015).

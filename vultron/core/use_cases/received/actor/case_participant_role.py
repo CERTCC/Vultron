@@ -29,10 +29,7 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.predicates.addressing import normalise_actor_id
-from vultron.core.use_cases._helpers import (
-    resolve_receiving_actor_id,
-    unaddressed_copy_refusal,
-)
+from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
     role_offer_verdict,
@@ -99,16 +96,6 @@ class OfferCaseParticipantRoleReceivedUseCase:
         )
         offer_id = request.activity_id
 
-        # The Offer is addressed to the CASE_MANAGER, and its forward to the
-        # target (CM-33-001); anyone else holds a misaddressed copy, refuses,
-        # and stores nothing (HP-01-005).
-        if (
-            refusal := unaddressed_copy_refusal(
-                receiving_actor_id, request, label="role Offer"
-            )
-        ) is not None:
-            return refusal
-
         # context carries the VulnerabilityCase; target carries the Actor
         case_id = _as_id(getattr(request.activity, "context", None))
         # The actor the role is offered to is looked up in the case's
@@ -142,8 +129,11 @@ class OfferCaseParticipantRoleReceivedUseCase:
             activity=request,
         )
         if case_id is None:
-            # Intake archived the Offer; there is no case to act on.
-            applied_or_raise(tree, result, label=_LABEL)
+            # Intake archived the Offer; there is no case to act on.  A door
+            # guard's refusal (an unaddressed copy, HP-01-005) is its own.
+            verdict = applied_or_raise(tree, result, label=_LABEL)
+            if verdict.disposition is HandlerDisposition.REFUSED:
+                return verdict
             logger.warning(
                 "OfferCaseParticipantRoleReceivedUseCase: role Offer '%s'"
                 " names no case — refusing",

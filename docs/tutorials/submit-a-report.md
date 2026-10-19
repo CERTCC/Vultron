@@ -138,7 +138,7 @@ Its Inbox — the endpoint where it receives messages — is that same URL with
 Now we send the vendor a `Create(VulnerabilityReport)` message.
 This is an ActivityStreams Vocabulary 2.0 (AS2) activity: a `Create` activity
 whose `object` is the `VulnerabilityReport` we are reporting.
-The `to` field addresses the message to our vendor by its short id, `vendorco`:
+The `to` field addresses the message to our vendor by its `id`, the URL from Step 3:
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.submit_report_tutorial import render_payload

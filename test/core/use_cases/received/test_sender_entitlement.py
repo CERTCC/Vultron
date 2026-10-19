@@ -238,7 +238,9 @@ def _record_ownership_offer(cm_store, owned_case, make_payload, offer_id):
 def _reject_ownership_offer(cm_store, make_payload, offer, sender):
     """*sender* declines *offer* at the CASE_MANAGER."""
     event = make_payload(
-        reject_case_ownership_transfer_activity(offer, actor=sender),
+        reject_case_ownership_transfer_activity(
+            offer, actor=sender, to=[_CASE_MANAGER_ID]
+        ),
         receiving_actor_id=_CASE_MANAGER_ID,
     )
     return RejectCaseOwnershipTransferReceivedUseCase(
@@ -264,7 +266,9 @@ def test_ownership_accept_from_non_transferee_is_refused(
     entries_before = list(cm_store.list_objects("CaseLedgerEntry"))
     outbox_before = cm_store.outbox_list()
     event = make_payload(
-        accept_case_ownership_transfer_activity(offer, actor=_IMPOSTOR_ID),
+        accept_case_ownership_transfer_activity(
+            offer, actor=_IMPOSTOR_ID, to=[_CASE_MANAGER_ID]
+        ),
         receiving_actor_id=_CASE_MANAGER_ID,
     )
 
@@ -1466,7 +1470,10 @@ def test_report_addition_by_a_closed_owner_is_refused(
     report = gen_report()
     event = make_payload(
         add_report_to_case_activity(
-            report, target=owned_case.id_, actor=_OWNER_ID
+            report,
+            target=owned_case.id_,
+            actor=_OWNER_ID,
+            to=[_CASE_MANAGER_ID],
         )
     )
 

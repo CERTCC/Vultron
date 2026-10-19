@@ -206,8 +206,10 @@ class _World:
 
     def create_note_from(self, sender_id: str) -> tuple[HandlerResult, str]:
         note = as_Note(content="A note", context=self.case_id)
+        # Addressed to this store, so the addressee door guard admits it
+        # and the sender guard is what decides (HP-01-005).
         activity = create_note_activity(
-            note, actor=sender_id, to=[self.manager.id_]
+            note, actor=sender_id, to=[self.receiver_id]
         )
         result = CreateNoteReceivedUseCase(
             self.dl, self._event(activity), **self._ports()
@@ -221,7 +223,7 @@ class _World:
             note,
             target=as_VulnerabilityCase(id_=self.case_id),
             actor=sender_id,
-            to=[self.manager.id_],
+            to=[self.receiver_id],
         )
         result = AddNoteToCaseReceivedUseCase(
             self.dl, self._event(activity), **self._ports()
