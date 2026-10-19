@@ -27,6 +27,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     RmDimension,
@@ -286,6 +287,28 @@ class TestValidateEngageChain:
             )
         )
         dl.save(participant)
+        before = set(dl.outbox_list())
+
+        with pytest.raises(VultronValidationError):
+            self._validate(dl, vendor, offer)
+
+        assert set(dl.outbox_list()) == before
+
+    @pytest.mark.spec("RSH-08-006")
+    def test_validate_by_a_sender_the_case_does_not_seat_sends_nothing(
+        self, chain_context
+    ):
+        """A sender with no participant record in the case sends nothing.
+
+        The move cannot be checked against a record that does not exist,
+        so the trigger refuses it rather than sending a validation the
+        CASE_MANAGER could not record.
+        """
+        vendor, _, _, dl, _, offer, case = chain_context
+        stored = cast(VulnerabilityCase, dl.read(case.id_))
+        # Setup only: unseat the vendor from the case index.
+        stored.actor_participant_index.pop(vendor.id_)
+        dl.save(stored)
         before = set(dl.outbox_list())
 
         with pytest.raises(VultronValidationError):

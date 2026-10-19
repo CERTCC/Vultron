@@ -534,6 +534,47 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             "CASE_MANAGER's entry (RSH-08-003)"
         )
 
+    @pytest.mark.spec("RSH-08-006")
+    def test_a_followed_status_of_another_actor_is_refused(self):
+        """``follows_status_id`` naming another actor's status sends nothing.
+
+        The step is validated as the one after the followed status only when
+        that status is the sender's own, in the same case; another actor's
+        status is refused before anything is stored or sent.
+        """
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.rm import RM
+        from vultron.core.use_cases.triggers.case import (
+            SvcAddParticipantStatusUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AddParticipantStatusTriggerRequest,
+        )
+        from vultron.errors import VultronValidationError
+
+        foreign = ParticipantStatus(
+            context=self.case.id_,
+            attributed_to=self.case_actor.id_,
+            rm=RmDimension(state=RM.RECEIVED),
+        )
+        self.dl.create(foreign)
+        request = AddParticipantStatusTriggerRequest(
+            actor_id=self.actor.id_,
+            case_id=self.case.id_,
+            rm_state=RM.RECEIVED,
+            follows_status_id=foreign.id_,
+        )
+        before = _status_snapshot(self.dl, self.actor_participant.id_)
+        outbox_before = set(self.dl.outbox_list())
+
+        with pytest.raises(VultronValidationError):
+            SvcAddParticipantStatusUseCase(
+                self.dl, request, trigger_activity=self.trigger_activity
+            ).execute()
+
+        assert set(self.dl.outbox_list()) == outbox_before
+        assert _status_snapshot(self.dl, self.actor_participant.id_) == before
+
     @pytest.mark.spec("CM-23-016")
     def test_resolve_current_state_returns_emitted_rm_once_copied(self):
         """_resolve_current_participant_state reads the copied emitted status.

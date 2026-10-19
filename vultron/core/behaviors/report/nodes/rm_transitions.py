@@ -299,14 +299,21 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
         return current_rm == RM.VALID
 
     def update(self) -> Status:
-        """Validate the link, advance the participant, then latch the link.
+        """Validate the link, then advance the participant and latch the link.
+
+        With ``record_participant=False`` (the trigger side) the node stops
+        after the checks: it validates the link's move and the sender's
+        participant move and writes nothing, the link included
+        (RSH-08-006).
 
         Returns:
-            SUCCESS once both records read ``RM.VALID``; FAILURE when the
+            Received side: SUCCESS once both records read ``RM.VALID``.
+            Trigger side: SUCCESS once both moves check out.  FAILURE when the
             DataLayer is unavailable, the report-phase transition is illegal,
-            the case-scoped write does not succeed, or the final link save
-            raises.  An absent link advances the participant but is left
-            unpersisted, not a failure (issue #3283).
+            the sender or its participant record is missing, the sender's
+            move is refused, the case-scoped write does not succeed, or the
+            final link save raises.  An absent link advances the participant
+            but is left unpersisted, not a failure (issue #3283).
         """
         if (f := self._require_datalayer()) is not None:
             return f
@@ -390,6 +397,13 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
         it (BTND-10-002); ``None`` when legal.
         """
         assert self.datalayer is not None
+        sender_actor_id = self.sender_actor_id
+        if sender_actor_id is None:
+            # One actor path to trace: the trigger names its sender
+            # (BTND-10-005, ADR-0089); no blackboard actor fallback.
+            self.feedback_message = "no sender_actor_id to check the move for"
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         case_id = self._case_id_bb
         if not isinstance(case_id, str):
             self.feedback_message = "case_id not found in blackboard"
@@ -402,7 +416,7 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
             self,
             self.datalayer,
             case,
-            actor_id=self.sender_actor_id or self.actor_id or "",
+            actor_id=sender_actor_id,
             rm_state=RM.VALID,
         )
 

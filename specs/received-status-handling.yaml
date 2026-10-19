@@ -1415,8 +1415,7 @@ groups:
       sender of a status declaration (CLP-07-013, CM-23-016).
     verification: >
       Each trigger path has a marked test that asserts it leaves the
-      participant record unchanged and queues the declaration, and that a
-      refused move sends nothing: engage
+      participant record unchanged and queues the declaration: engage
       (`test/core/use_cases/triggers/case/test_engage.py`), defer
       (`test/core/use_cases/triggers/case/test_defer.py`), validate
       (`test/core/behaviors/report/test_validate_tree.py`,
@@ -1426,6 +1425,9 @@ groups:
       on-behalf (`test/core/use_cases/triggers/case/test_add_on_behalf_status.py`),
       develop-fix (`test/core/behaviors/report/test_develop_fix_tree.py`) and
       deploy-fix (`test/core/behaviors/report/test_deploy_fix_tree.py`).
+      The paths that check the move before sending (the MAY) have a marked
+      test that a refused move sends nothing, in the same files: engage,
+      defer, validate, self-report and on-behalf.
     relationships:
     - rel_type: extends
       spec_id: PCR-03-002

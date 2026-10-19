@@ -25,7 +25,9 @@ it; there is no hand-mirrored copy to keep in sync (ARCH-15-004, ISSUE-2548).
 Structure:
 
     ValidateReportBT (Selector, memory=False)
-    ├─ CheckRMStateValid                     # idempotent early exit (ID-04-004)
+    ├─ CheckRMStateValid                     # early exit on a latched link
+    │                                        # (received side only: the
+    │                                        # trigger latches nothing)
     └─ ValidationFlow (Sequence, memory=False)
        ├─ CheckRMStateReceivedOrInvalid      # RM precondition
        ├─ EvaluateReportCredibility          # call-out point

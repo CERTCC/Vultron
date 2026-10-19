@@ -729,10 +729,11 @@ def test_tree_execution_repeat_leaves_state_unchanged(
 ):
     """Repeated executions produce the same result and write nothing.
 
-    The trigger latches nothing (RSH-08-006), so until the CASE_MANAGER's
-    VALID reaches the replica a repeat is not short-circuited: each run is
-    the same check and sends the validation again.  Neither run moves the
-    link or the vendor's status.
+    The trigger latches nothing (RSH-08-006), so a repeat is never
+    short-circuited on the trigger side: each run is the same check and
+    sends the validation again, and the CASE_MANAGER treats the repeat as a
+    same-state confirmation (RSH-08-002).  Neither run moves the link or the
+    vendor's status.
     """
     statuses_before = _vendor_statuses(datalayer, case, actor_id)
 
@@ -762,7 +763,8 @@ def test_tree_execution_actor_isolation():
     coordinators and shows each validation is checked and sent from its own
     store only: one actor's run neither queues in nor writes to the other's
     store.  The trigger writes nothing locally (RSH-08-006), so each link
-    stays at ``RM.RECEIVED`` until its CASE_MANAGER's VALID is copied.
+    stays at ``RM.RECEIVED``: a participant's VALID is the CASE_MANAGER's
+    status, copied into its participant record, never a link latch.
 
     The earlier form of this test put both actors in a single DataLayer and
     asserted that actor B saw actor A's VALID latch — a configuration ADR-0073

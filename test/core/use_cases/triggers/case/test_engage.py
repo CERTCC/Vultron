@@ -232,6 +232,58 @@ class TestEngageCaseRMTransitionViaBT:
             r for r in caplog.records if "engaged case" in r.getMessage()
         ], "A repeat engage is a no-op and must not claim an engagement"
 
+    @pytest.mark.spec("RSH-08-006")
+    @pytest.mark.spec("BTND-10-002")
+    def test_engage_refused_move_sends_nothing(self):
+        """A closed participant's engage is refused before anything is sent.
+
+        The trigger writes no status (RSH-08-006) but checks the move the
+        CASE_MANAGER would record: VALID → CLOSED → engage is refused.
+        """
+        participant = self.dl.read(self.vendor_participant.id_)
+        assert isinstance(participant, CaseParticipant)
+        participant.add_participant_status(
+            ParticipantStatus(
+                context=self.case.id_,
+                attributed_to=self.vendor.id_,
+                rm=RmDimension(state=RM.CLOSED),
+            )
+        )
+        self.dl.save(participant)
+        statuses_before = list(participant.participant_statuses)
+        before = set(self.dl.outbox_list())
+
+        with pytest.raises(VultronValidationError):
+            SvcEngageCaseUseCase(
+                self.dl,
+                EngageCaseTriggerRequest(
+                    actor_id=self.vendor.id_, case_id=self.case.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+        assert set(self.dl.outbox_list()) == before
+        after = self.dl.read(self.vendor_participant.id_)
+        assert isinstance(after, CaseParticipant)
+        assert after.participant_statuses == statuses_before
+
+    def test_engage_by_an_actor_with_no_participant_sends_nothing(self):
+        """An actor the case does not index is refused and sends nothing."""
+        case_solo = as_VulnerabilityCase(name="Unseated Case")
+        self.dl.create(case_solo)
+        before = set(self.dl.outbox_list())
+
+        with pytest.raises(VultronValidationError):
+            SvcEngageCaseUseCase(
+                self.dl,
+                EngageCaseTriggerRequest(
+                    actor_id=self.vendor.id_, case_id=case_solo.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+        assert set(self.dl.outbox_list()) == before
+
     def test_engage_case_rm_not_updated_when_no_participant(self):
         case_solo = as_VulnerabilityCase(name="Solo Case")
         case_solo.actor_participant_index[self.vendor.id_] = (
