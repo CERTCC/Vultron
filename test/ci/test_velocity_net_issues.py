@@ -93,3 +93,29 @@ def test_manage_script_rejects_reason_flags_on_update():
     )
     assert result.returncode == 1
     assert "only when creating" in result.stderr
+
+
+def test_manage_script_create_does_not_require_milestone():
+    # Every required create field except --milestone, and no --title, so the
+    # run stops at the title check before any network call.
+    result = subprocess.run(
+        [str(_MANAGE), "--issue-type-id", "X", "--parent", "1", "--planned"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "missing required field" not in result.stderr
+    assert "--title is required" in result.stderr
+
+
+def test_manage_script_create_guard_does_not_list_milestone():
+    result = subprocess.run(
+        [str(_MANAGE), "--title", "t"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "missing required field" in result.stderr
+    assert "--milestone" not in result.stderr
