@@ -2,7 +2,7 @@
 """Ratchet probe for ISSUE-2195.
 
 #2195: "ownership-transfer Offer object never delivered to the receiving
-Coordinator's DataLayer."  In fvcv-handoff, the source actor's forwarded
+Coordinator's DataLayer."  In rvcv-handoff, the source actor's forwarded
 ``_OfferCaseOwnershipTransferActivity`` (keyed by its offer id) never lands in
 the receiving Coordinator's DataLayer, so ``accept-case-ownership-transfer``
 404s: ``SvcAcceptCaseOwnershipTransferUseCase._prepare`` calls
@@ -17,7 +17,7 @@ On the wire, the forwarded Offer reaches the Coordinator via the CaseActor's
 outbox -> HTTP inbox delivery, where ``OfferCaseOwnershipTransferReceived-
 UseCase._idempotent_create`` would store it.  That delivery hop is an
 HTTP-outbox concern with no pure core node, so the authoritative end-to-end
-signal for #2195 is the fvcv-handoff CI job (the demo's
+signal for #2195 is the rvcv-handoff CI job (the demo's
 ``find_ownership_transfer_offer_for_actor(coordinator_client, ...)`` poll).
 
 This test therefore asserts the CLOSEST faithful core-layer analog, exactly as
@@ -75,7 +75,7 @@ _ = as_VulnerabilityCase
 
 # The CaseActor (owner) that signs the replicated Announce(CaseLedgerEntry)s.
 OWNER_ACTOR_ID = "https://example.org/actors/original-owner"
-# The actor being offered ownership (the Coordinator, in fvcv-handoff terms).
+# The actor being offered ownership (the Coordinator, in rvcv-handoff terms).
 COORDINATOR_ACTOR_ID = "https://example.org/actors/coordinator"
 # The Coordinator's own participant identity that owns this replica.
 PARTICIPANT_ACTOR_ID = COORDINATOR_ACTOR_ID

@@ -16,7 +16,7 @@
 #               services use a bind mount) to save significant startup time.
 #               Run without --no-build at least once, or after changing
 #               pyproject.toml, uv.lock, or docker/Dockerfile.
-#   SCENARIO    One of: fv (default), fvv, fcv, fcv-reject, fvcv-extension, fvcv-handoff, fccv-handoff, fccv-extension, fcvcv, rcv-embargo, rcvv-embargo
+#   SCENARIO    One of: rv (default), rvv, rcv, rcv-reject, rvcv-extension, rvcv-handoff, rccv-handoff, rccv-extension, rcvcv, rcv-embargo, rcvv-embargo
 #
 # Environment variables:
 #   DEMO                  Alternative way to specify the scenario (overridden by
@@ -24,7 +24,7 @@
 #   PROJECT_NAME          Docker resource name prefix (default: vultron-it).
 #                         Use a unique prefix to avoid conflicts with a running
 #                         development stack.
-#   FINDER_HOST_PORT      Pin a specific host port for the finder service.
+#   REPORTER_HOST_PORT      Pin a specific host port for the reporter service.
 #   VENDOR_HOST_PORT      Pin a specific host port for the vendor service.
 #   CASE_ACTOR_HOST_PORT  Pin a specific host port for the case-actor service.
 #   COORDINATOR_HOST_PORT Pin a specific host port for the coordinator service.
@@ -44,7 +44,7 @@
 #   bridge and is unaffected by host port assignment.
 #
 #   To inspect the assigned host ports after startup:
-#     docker compose -f docker/docker-compose-multi-actor.yml port finder 7999
+#     docker compose -f docker/docker-compose-multi-actor.yml port reporter 7999
 #
 # Exit codes:
 #   0   Scenario completed successfully.
@@ -80,9 +80,9 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-DEMO="${SCENARIO_ARG:-${DEMO:-fv}}"
+DEMO="${SCENARIO_ARG:-${DEMO:-rv}}"
 
-VALID_SCENARIOS="fv fvv fcv fcv-reject fvcv-extension fvcv-handoff fccv-handoff fccv-extension fcvcv rcv-embargo rcvv-embargo"
+VALID_SCENARIOS="rv rvv rcv rcv-reject rvcv-extension rvcv-handoff rccv-handoff rccv-extension rcvcv rcv-embargo rcvv-embargo"
 if ! echo "${VALID_SCENARIOS}" | grep -qw "${DEMO}"; then
     echo "ERROR: unknown scenario '${DEMO}'. Valid options: ${VALID_SCENARIOS}" >&2
     exit 1

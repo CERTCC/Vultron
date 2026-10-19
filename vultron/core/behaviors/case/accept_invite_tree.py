@@ -283,7 +283,7 @@ def create_accept_invite_actor_to_case_tree(
             # the announce it would hand the invitee a ledger entry for
             # a case it does not hold yet (SYNC-15 pre-genesis Reject,
             # then a from-genesis replay interleaved with the backfill —
-            # fcvcv V2/C2, #2898); placed between announce and backfill
+            # rcvcv V2/C2, #2898); placed between announce and backfill
             # it would arrive as a forward gap ahead of the entries it
             # extends.  Here it reaches the invitee as the next entry in
             # chain order.  No Add(CaseParticipant) precedes it

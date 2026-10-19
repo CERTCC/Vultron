@@ -34,10 +34,10 @@ from vultron.errors import DemoActorRoleError
 def _role(**overrides: object) -> ActorRole:
     """Build a valid role, overriding named fields."""
     fields: dict[str, object] = {
-        "name": "finder",
-        "url_env": "VULTRON_FINDER_BASE_URL",
+        "name": "reporter",
+        "url_env": "VULTRON_REPORTER_BASE_URL",
         "default_url": "http://localhost:7901/api/v2",
-        "url_help": "Base URL of the Finder container API.",
+        "url_help": "Base URL of the Reporter container API.",
     }
     fields.update(overrides)
     return ActorRole(**fields)  # type: ignore[arg-type]
@@ -49,17 +49,17 @@ class TestDerivedNames:
     def test_single_word_name(self) -> None:
         """A one-word name yields matching flags and parameters."""
         role = _role()
-        assert role.url_option == "--finder-url"
-        assert role.id_option == "--finder-id"
-        assert role.url_param == "finder_url"
-        assert role.id_param == "finder_id"
+        assert role.url_option == "--reporter-url"
+        assert role.id_option == "--reporter-id"
+        assert role.url_param == "reporter_url"
+        assert role.id_param == "reporter_id"
 
     def test_hyphenated_name_keeps_hyphens_in_flags_only(self) -> None:
         """Hyphens survive in the flag and become underscores in the parameter.
 
         Spelled out on a hyphenated name because that is the only place the two
         conventions differ — a role helper that applied one rule to both would
-        still pass every assertion made on ``finder``.
+        still pass every assertion made on ``reporter``.
         """
         role = _role(name="case-actor", url_env="VULTRON_CASE_ACTOR_BASE_URL")
         assert role.url_option == "--case-actor-url"
@@ -76,15 +76,15 @@ class TestUrlResolution:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """An unset env var yields ``default_url``."""
-        monkeypatch.delenv("VULTRON_FINDER_BASE_URL", raising=False)
+        monkeypatch.delenv("VULTRON_REPORTER_BASE_URL", raising=False)
         assert _role().url == "http://localhost:7901/api/v2"
 
     def test_env_var_wins(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A set env var overrides ``default_url``."""
         monkeypatch.setenv(
-            "VULTRON_FINDER_BASE_URL", "http://finder:7999/api/v2"
+            "VULTRON_REPORTER_BASE_URL", "http://reporter:7999/api/v2"
         )
-        assert _role().url == "http://finder:7999/api/v2"
+        assert _role().url == "http://reporter:7999/api/v2"
 
     def test_empty_env_var_is_honoured(
         self, monkeypatch: pytest.MonkeyPatch
@@ -96,7 +96,7 @@ class TestUrlResolution:
         returns ``""``, while an ``or``-style fallback would silently substitute
         the default and hide a misconfigured compose file.
         """
-        monkeypatch.setenv("VULTRON_FINDER_BASE_URL", "")
+        monkeypatch.setenv("VULTRON_REPORTER_BASE_URL", "")
         assert _role().url == ""
 
 
@@ -106,13 +106,13 @@ class TestMalformedDeclarations:
     @pytest.mark.parametrize(
         "name",
         [
-            "Finder",  # uppercase would not round-trip a flag stem
-            "finder_url",  # underscores belong to the parameter, not the flag
+            "Reporter",  # uppercase would not round-trip a flag stem
+            "reporter_url",  # underscores belong to the parameter, not the flag
             "",
             # `$` also matches before a trailing newline, so an `re.match(r"…$")`
-            # would accept this and emit a `--finder\n-url` flag.
-            "finder\n",
-            "--finder",
+            # would accept this and emit a `--reporter\n-url` flag.
+            "reporter\n",
+            "--reporter",
             # A fine click flag (`--2nd-vendor-url`) whose parameter stem
             # `2nd_vendor_url` no main() can declare — the half of the invariant
             # a flag-only check misses.
@@ -130,7 +130,7 @@ class TestMalformedDeclarations:
     def test_accepts_a_digit_after_the_first_character(self) -> None:
         """Only a *leading* digit is refused: ``c1``/``v2`` are real role names.
 
-        Guards the guard — `fcvcv` and both `fccv` scenarios name their actors
+        Guards the guard — `rcvcv` and both `rccv` scenarios name their actors
         `c1`, `c2`, `v1`, `v2`, so a regex tightened to letters-only would reject
         the shipped declarations.
         """
@@ -164,8 +164,8 @@ class TestMalformedDeclarations:
     @pytest.mark.parametrize(
         ("field", "value"),
         [
-            ("id_help", "Deterministic full URI for the Finder actor."),
-            ("id_env", "VULTRON_FINDER_ACTOR_ID"),
+            ("id_help", "Deterministic full URI for the Reporter actor."),
+            ("id_env", "VULTRON_REPORTER_ACTOR_ID"),
         ],
     )
     def test_rejects_id_metadata_without_has_id(
@@ -192,15 +192,15 @@ class TestRoleMap:
 
     def test_indexes_by_name(self) -> None:
         """Roles are addressable by name."""
-        finder = _role()
+        reporter = _role()
         vendor = _role(
             name="vendor",
             url_env="VULTRON_VENDOR_BASE_URL",
             default_url="http://localhost:7902/api/v2",
             url_help="Base URL of the Vendor container API.",
         )
-        assert role_map([finder, vendor]) == {
-            "finder": finder,
+        assert role_map([reporter, vendor]) == {
+            "reporter": reporter,
             "vendor": vendor,
         }
 
@@ -238,7 +238,7 @@ class TestRoleKwargNames:
     def test_urls_in_role_order_then_ids_in_role_order(self) -> None:
         """Ids follow every URL, and a role without an id contributes none."""
         roles = [
-            _role(has_id=True, id_help="Finder id."),
+            _role(has_id=True, id_help="Reporter id."),
             _role(
                 name="vendor",
                 url_env="VULTRON_VENDOR_BASE_URL",
@@ -253,9 +253,9 @@ class TestRoleKwargNames:
             ),
         ]
         assert role_kwarg_names(roles) == (
-            "finder_url",
+            "reporter_url",
             "vendor_url",
             "case_actor_url",
-            "finder_id",
+            "reporter_id",
             "vendor_id",
         )

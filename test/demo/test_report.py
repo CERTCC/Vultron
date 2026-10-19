@@ -84,11 +84,11 @@ def _snake_entry(**overrides):
         "event_type": "add_participant_status_to_participant",
         "payload_snapshot": {
             "type": "Add",
-            "actor": "http://finder:7999/api/v2/actors/finder",
+            "actor": "http://reporter:7999/api/v2/actors/reporter",
             "object": {
                 "id": "urn:uuid:ps1",
                 "type": "ParticipantStatus",
-                "attributed_to": "http://finder:7999/api/v2/actors/finder",
+                "attributed_to": "http://reporter:7999/api/v2/actors/reporter",
                 "rm": {"state": "ACCEPTED"},
                 "vf": {"state": "VF"},
                 "case_status": {"pxa": {"state": "Pxa"}},
@@ -134,7 +134,7 @@ class TestCaseTimelineEventParsing:
         event = CaseTimelineEvent.from_raw(_snake_entry())
         assert event.log_index == 1
         assert event.event_type == "add_participant_status_to_participant"
-        assert event.actor_uri == "http://finder:7999/api/v2/actors/finder"
+        assert event.actor_uri == "http://reporter:7999/api/v2/actors/reporter"
 
     def test_dimension_states_from_nested_object(self):
         """RM/VF/PXA states extracted from a nested ParticipantStatus."""
@@ -377,8 +377,8 @@ class TestCaseTimelineEventParsing:
 class TestFriendlyNaming:
     def test_actor_name_from_uri(self):
         assert (
-            friendly_actor_name("http://vendor:7999/api/v2/actors/finder")
-            == "Finder"
+            friendly_actor_name("http://vendor:7999/api/v2/actors/reporter")
+            == "Reporter"
         )
 
     def test_actor_name_hyphenated(self):
@@ -665,7 +665,7 @@ class TestBuildTimeline:
         shared = _camel_entry()  # same entry_hash in both replicas
         vendor_only = _snake_entry()  # only vendor holds it
         replicas = {
-            "finder": [dict(shared)],
+            "reporter": [dict(shared)],
             "vendor": [dict(shared), dict(vendor_only)],
         }
         events = build_timeline(replicas)
@@ -686,12 +686,12 @@ class TestBuildTimeline:
         shared = _camel_entry()
         vendor_only = _snake_entry()
         replicas = {
-            "finder": [dict(shared)],
+            "reporter": [dict(shared)],
             "vendor": [dict(shared), dict(vendor_only)],
         }
         events = build_timeline(replicas)
         by_index = {e.log_index: e for e in events}
-        assert by_index[0].present_in == ["finder", "vendor"]
+        assert by_index[0].present_in == ["reporter", "vendor"]
         assert by_index[1].present_in == ["vendor"]
 
     def test_hashless_entries_not_collapsed(self):
@@ -761,14 +761,14 @@ class TestMultiCasePartitioning:
     def test_presence_matrix_is_per_case(self):
         """Same actor dir name across cases must not conflate presence."""
         replicas = {
-            "finder": [_case_entry("urn:case:A", 0, "a0" + "0" * 62)],
+            "reporter": [_case_entry("urn:case:A", 0, "a0" + "0" * 62)],
             "vendor": [_case_entry("urn:case:B", 0, "b0" + "0" * 62)],
         }
         events = build_timeline(replicas)
         by_case = {e.case_id: e for e in events}
-        # Case A only in finder's replica; case B only in vendor's — the two
+        # Case A only in reporter's replica; case B only in vendor's — the two
         # actor directories are NOT merged into a single shared presence set.
-        assert by_case["urn:case:A"].present_in == ["finder"]
+        assert by_case["urn:case:A"].present_in == ["reporter"]
         assert by_case["urn:case:B"].present_in == ["vendor"]
 
 
@@ -779,10 +779,10 @@ class TestMultiCasePartitioning:
 
 def _sample_events():
     replicas = {
-        "finder": [_camel_entry()],
+        "reporter": [_camel_entry()],
         "vendor": [_camel_entry(), _snake_entry()],
     }
-    return build_timeline(replicas), ["finder", "vendor"]
+    return build_timeline(replicas), ["reporter", "vendor"]
 
 
 class TestMarkdownRenderer:
@@ -792,7 +792,7 @@ class TestMarkdownRenderer:
         lines = md.splitlines()
         header = next(ln for ln in lines if ln.startswith("| #"))
         # Distilled field columns + one column per actor.
-        assert "| finder | vendor |" in header
+        assert "| reporter | vendor |" in header
         assert "Actor" in header and "Event" in header
         assert "PEC" not in header
         # Separator row present.
@@ -946,7 +946,7 @@ class TestHtmlRenderer:
         events, actors = _sample_events()
         out = render_html(events, actors)
         assert "✅" in out  # present
-        assert "⬜" in out  # absent (finder lacks the vendor-only entry)
+        assert "⬜" in out  # absent (reporter lacks the vendor-only entry)
 
     def test_full_uri_retained_as_tooltip(self):
         """DRPT-03-001: full ids allowed only as secondary detail (title=)."""
@@ -1253,11 +1253,11 @@ class TestDiscovery:
     def test_discovers_and_groups_by_actor_dir(self, tmp_path):
         _write_replicas(
             tmp_path,
-            {"finder": [_camel_entry()], "vendor": [_camel_entry()]},
+            {"reporter": [_camel_entry()], "vendor": [_camel_entry()]},
         )
         replicas = discover_replicas(tmp_path)
-        assert set(replicas) == {"finder", "vendor"}
-        assert len(replicas["finder"]) == 1
+        assert set(replicas) == {"reporter", "vendor"}
+        assert len(replicas["reporter"]) == 1
 
     def test_missing_directory_raises(self, tmp_path):
         with pytest.raises(ReportError, match="does not exist"):
@@ -1470,14 +1470,14 @@ class TestActorNameResolution:
                         "type": "Organization",
                         "name": "Vendor",
                     },
-                    {"id": other_uri, "type": "Person", "name": "Finder"},
+                    {"id": other_uri, "type": "Person", "name": "Reporter"},
                 ],
                 "object": {"id": "urn:uuid:r", "type": "VulnerabilityReport"},
             }
         )
         names = collect_actor_names({"vendor": [entry]})
         assert names[_UUID_ACTOR_URI] == "Vendor"
-        assert names[other_uri] == "Finder"
+        assert names[other_uri] == "Reporter"
 
     def test_collect_actor_names_scans_list_valued_object_field(self):
         """A list-valued ``object`` field recurses into each element."""
@@ -1584,9 +1584,9 @@ class TestActorNameResolution:
     def test_friendly_actor_name_falls_back_for_unknown_uri(self):
         names = {"http://other/actors/someone": "Someone"}
         label = friendly_actor_name(
-            "http://vendor:7999/api/v2/actors/finder", actor_names=names
+            "http://vendor:7999/api/v2/actors/reporter", actor_names=names
         )
-        assert label == "Finder"
+        assert label == "Reporter"
 
     def test_build_timeline_populates_actor_display_name(self):
         """actor_display_name is set when the actor URI appears in payloads."""
@@ -1616,13 +1616,13 @@ class TestActorNameResolution:
         entry = _camel_entry(
             payloadSnapshot={
                 "type": "Accept",
-                "actor": "http://vendor:7999/api/v2/actors/finder",
+                "actor": "http://vendor:7999/api/v2/actors/reporter",
                 "object": {"id": "urn:uuid:r", "type": "VulnerabilityReport"},
             }
         )
         replicas = {"vendor": [entry]}
         events = build_timeline(replicas)
-        assert events[0].actor_label == "Finder"
+        assert events[0].actor_label == "Reporter"
 
     def test_build_timeline_populates_target_display_name(self):
         """target_display_name is set when the target URI is a known actor."""

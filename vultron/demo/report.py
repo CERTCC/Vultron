@@ -191,7 +191,7 @@ def _dimension_state(
 # ---------------------------------------------------------------------------
 
 #: ActivityStreams actor types whose ``name`` field, when present, maps the
-#: ``id`` to a human-readable display name (e.g. "Vendor", "Finder").
+#: ``id`` to a human-readable display name (e.g. "Vendor", "Reporter").
 _NAME_BEARING_TYPES = frozenset(
     {
         "Organization",
@@ -250,7 +250,7 @@ def collect_actor_names(
     Walks every payload snapshot in ``replicas`` looking for actor objects
     that carry both an ``id`` (URI) and a ``name`` field.  Returns a
     ``{uri: name}`` mapping used to resolve UUID-based actor URIs to semantic
-    labels (e.g. "Vendor", "Finder") in the rendered report.
+    labels (e.g. "Vendor", "Reporter") in the rendered report.
     """
     names: dict[str, str] = {}
     for actor_key in sorted(replicas):
@@ -330,7 +330,7 @@ def friendly_actor_name(
 
     Checks ``actor_names`` first (a URI→display-name map built from payload
     snapshots); falls back to the last URI path segment when no entry is found
-    (``…/actors/finder`` → "Finder").  Returns an em dash when no acting actor
+    (``…/actors/reporter`` → "Reporter").  Returns an em dash when no acting actor
     is recorded (e.g. genesis entries).
     """
     if not actor_uri:
@@ -702,7 +702,7 @@ def build_timeline(
     Actor URIs are resolved to display names extracted from inline actor objects
     in the payload snapshots (e.g. Organization objects carrying a ``name``
     field).  This resolves UUID-based actor URIs (which produce hex-fragment
-    labels) to semantic names like "Vendor" or "Finder".
+    labels) to semantic names like "Vendor" or "Reporter".
     """
     actor_names = collect_actor_names(replicas)
 

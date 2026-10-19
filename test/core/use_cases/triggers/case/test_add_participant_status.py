@@ -1801,7 +1801,7 @@ class TestCrossMachineEntailments:
     Both RM and VF are per-actor attributes; a contradictory combination is
     rejected at emit time.
 
-    Motivating case: FCV failure shipped VFd + RM.RECEIVED — an impossible
+    Motivating case: RCV failure shipped VFd + RM.RECEIVED — an impossible
     combination because fix readiness entails RM.ACCEPTED.
 
     Note: PXA→EM entailments (CSB-18-002..004) are causal, not contradictory
@@ -1902,10 +1902,10 @@ class TestCrossMachineEntailments:
     # --- CSB-18-001: RM ↔ VF entailment ---
 
     def test_csb18_001_vf_fix_ready_with_rm_received_raises(self):
-        """CSB-18-001: Vf → VF while RM is RECEIVED raises (FCV motivating case).
+        """CSB-18-001: Vf → VF while RM is RECEIVED raises (RCV motivating case).
 
         The actor advances to vendor-aware (Vf) while still at RM.RECEIVED,
-        then tries to assert fix-ready (VF). This is the FCV failure pattern:
+        then tries to assert fix-ready (VF). This is the RCV failure pattern:
         fix readiness requires RM.ACCEPTED.
         """
         from vultron.errors import VultronValidationError

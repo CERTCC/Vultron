@@ -298,7 +298,7 @@ a test bench. One about running, configuring or extending the code is basement.
 |---|---|---|
 | `tutorials/worked_example.md` | Engineering | sequence diagrams of protocol scenarios |
 | `tutorials/submit-a-report.md` | Engineering | teaches the `Create(VulnerabilityReport)` message; the implementation is the test bench |
-| `tutorials/fv-demo.md` | Engineering | walks a whole case through the protocol states |
+| `tutorials/rv-demo.md` | Engineering | walks a whole case through the protocol states |
 | `tutorials/receive_report_demo.md` | basement | running the demo environment |
 | `tutorials/container_demos.md` | basement | running the multi-actor containers |
 | `tutorials/other_demos.md` | basement | running the remaining demos |

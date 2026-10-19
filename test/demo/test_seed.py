@@ -141,7 +141,7 @@ class TestSeedCommand:
     def test_seed_creates_local_actor(self, monkeypatch):
         monkeypatch.delenv("VULTRON_SEED_CONFIG", raising=False)
         monkeypatch.delenv("VULTRON_ACTOR_ID", raising=False)
-        mock_fn = _mock_seed_actor("Finder", "http://finder/actors/f")
+        mock_fn = _mock_seed_actor("Reporter", "http://reporter/actors/f")
         runner = CliRunner()
         with patch("vultron.demo.cli.seed_actor", mock_fn):
             result = runner.invoke(
@@ -149,7 +149,7 @@ class TestSeedCommand:
                 [
                     "seed",
                     "--actor-name",
-                    "Finder",
+                    "Reporter",
                     "--actor-type",
                     "Person",
                     "--api-url",
@@ -159,7 +159,7 @@ class TestSeedCommand:
         assert result.exit_code == 0, result.output
         assert mock_fn.called
         kwargs = mock_fn.call_args.kwargs
-        assert kwargs["name"] == "Finder"
+        assert kwargs["name"] == "Reporter"
         assert kwargs["actor_type"] == "Person"
 
     def test_seed_success_output_contains_emoji(self, monkeypatch):

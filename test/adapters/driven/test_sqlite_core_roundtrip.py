@@ -479,7 +479,7 @@ def test_read_returns_the_core_type_for_a_mixed_spelling_row(dl):
     Before #2232 the shape guard on ``CaseParticipant`` turned this row into an
     ``as_VulnerabilityCase`` from ``dl.read()``, and ``resolve_case`` then raised
     ``Expected VulnerabilityCase, got as_VulnerabilityCase`` — a 422 on every
-    subsequent case operation (fcv-reject demo, Phase 3 add-note-to-case).
+    subsequent case operation (rcv-reject demo, Phase 3 add-note-to-case).
     After ARCH-25-003 (ADR-0099), as_VulnerabilityCase IS VulnerabilityCase, so the
     type mismatch from #2232 is structurally impossible.  The read path still
     recovers mixed-spelling rows via _normalize_wire_nested_objects.

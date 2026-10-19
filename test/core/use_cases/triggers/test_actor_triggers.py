@@ -907,7 +907,7 @@ class TestSvcSuggestActorToCaseUseCase:
         it was wrong for the same reason: the whole point of a recommendation is
         to name an actor the case does not have yet, and under per-actor storage
         that actor's record lives in *its* store (ADR-0073#peer-records-in-knowers-store). The old
-        behaviour refused every genuinely remote candidate — in the fcvcv demo,
+        behaviour refused every genuinely remote candidate — in the rcvcv demo,
         ``suggest-actor-to-case`` answered ``404 Actor '…/vendor-deployer' not
         found`` for a vendor that was running and reachable in another container
         (#2548).

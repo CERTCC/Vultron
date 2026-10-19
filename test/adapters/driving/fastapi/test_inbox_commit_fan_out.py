@@ -17,7 +17,7 @@ factory returns.  ``OFFER_ACTOR_TO_CASE`` got no ``SyncActivityPort``, so the
 receipt commit (``offer_actor_to_case``) and the owner-direct ``Invite`` it
 commits (``invite_actor_to_case``) were persisted but never announced to the
 participants (SYNC-02-003).  Replicas learned of them only through
-``Reject(CaseLedgerEntry)`` catch-up, which made the ``fcv-reject`` demo's
+``Reject(CaseLedgerEntry)`` catch-up, which made the ``rcv-reject`` demo's
 ledger-coverage gate time out.
 
 These tests dispatch through the real :func:`make_dispatcher` wiring, so a

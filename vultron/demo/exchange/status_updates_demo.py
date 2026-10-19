@@ -33,7 +33,7 @@ This corresponds to the workflow documented in:
 When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
-3. Discover actors (finder, vendor, coordinator) via the API
+3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run all three demo workflows
 5. Verify side effects in the data layer
 """
@@ -90,26 +90,26 @@ logger = logging.getLogger(__name__)
 
 def _setup_initialized_case(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
 ) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
-    """Set up a case with the finder seated as a REPORTER participant.
+    """Set up a case with the reporter seated as a REPORTER participant.
 
     Delegates to the shared :func:`~vultron.demo.helpers.workflow.setup_initialized_case`
-    and then looks up the finder's participant record for callers that need it.
+    and then looks up the reporter's participant record for callers that need it.
     """
-    case = setup_initialized_case(client, finder, vendor)
-    participant = _fetch_participant(client, case.id_, finder.id_)
+    case = setup_initialized_case(client, reporter, vendor)
+    participant = _fetch_participant(client, case.id_, reporter.id_)
     if participant is None:
         raise ValueError(
-            f"Finder participant not found in case {case.id_} after setup"
+            f"Reporter participant not found in case {case.id_} after setup"
         )
     return case, participant
 
 
 def demo_notes_workflow(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -128,7 +128,7 @@ def demo_notes_workflow(
     logger.info("DEMO: Notes Workflow")
     logger.info("=" * 80)
 
-    case, _participant = _setup_initialized_case(client, finder, vendor)
+    case, _participant = _setup_initialized_case(client, reporter, vendor)
 
     note = None
     with demo_step("Step 1: Vendor adds a note, carried inline, to the case"):
@@ -184,7 +184,7 @@ def demo_notes_workflow(
 
 def demo_status_workflow(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -202,7 +202,7 @@ def demo_status_workflow(
     logger.info("DEMO: Status Updates Workflow")
     logger.info("=" * 80)
 
-    case, participant = _setup_initialized_case(client, finder, vendor)
+    case, participant = _setup_initialized_case(client, reporter, vendor)
 
     # Bound before the step so Step 2 can read it (#2308 ratchet).
     case_status = None
@@ -236,7 +236,7 @@ def demo_status_workflow(
         participant_status = as_ParticipantStatus(
             context=participant.id_,
             rm=RmDimension(state=RM.RECEIVED),
-            attributed_to=finder.id_,
+            attributed_to=reporter.id_,
             cvd_role=[CVDRole.REPORTER],
             case_status=case_status,
         )

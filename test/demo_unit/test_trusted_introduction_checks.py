@@ -35,7 +35,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 _NODE = "http://node.test/api/v2"
-_REPORTER = as_Actor(id_=f"{_NODE}/actors/finder", name="Finder")
+_REPORTER = as_Actor(id_=f"{_NODE}/actors/reporter", name="Reporter")
 _RECEIVER = as_Actor(id_=f"{_NODE}/actors/vendor", name="Vendor")
 _REPORT = as_VulnerabilityReport(
     id_="urn:uuid:88888888-8888-8888-8888-888888888888",

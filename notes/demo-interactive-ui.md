@@ -153,7 +153,7 @@ Rules for the TypeScript side:
 ### Data path
 
 ```text
-actor container (finder, vendor, coordinator, …; may host several actors)
+actor container (reporter, vendor, coordinator, …; may host several actors)
   └─ GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream   (SSE, prototype-only)
         ▲  one stream per actor — each shows that actor's replica
         │
@@ -201,7 +201,7 @@ state client-side.
 ### Branch points (in priority order)
 
 1. **Report validation** — As the Vendor: validate / invalidate-hold /
-   invalidate-close. *First to build, on the `fv` path.*
+   invalidate-close. *First to build, on the `rv` path.*
 2. **Embargo negotiation** — As the Reporter or Vendor: accept the proposed
    embargo / reject / counter-propose different terms
 3. **Publication** — As any participant: publish on the agreed date /
@@ -222,9 +222,9 @@ All share one UI; only the number of actor lanes differs.
 
 | Presentation | Narrative | Path today |
 |---|---|---|
-| A — Two-Actor | Reporter reports directly to a single vendor | `fv` |
-| B — Coordinator | Reporter routes through a neutral coordinator | `fcv` |
-| C — Multi-Vendor | A shared component's vendor set expands | `fvv`, `fvcv-*`, `fcvcv` |
+| A — Two-Actor | Reporter reports directly to a single vendor | `rv` |
+| B — Coordinator | Reporter routes through a neutral coordinator | `rcv` |
+| C — Multi-Vendor | A shared component's vendor set expands | `rvv`, `rvcv-*`, `rcvcv` |
 
 ### Scripted baseline
 
@@ -239,7 +239,7 @@ any branch point is interactive.
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│  VULTRON DEMO   [Branch: fv ▸]   [Reset]   [Run Auto]   │
+│  VULTRON DEMO   [Branch: rv ▸]   [Reset]   [Run Auto]   │
 │  CERT/CC — Research Prototype                           │
 ├─────────────────────────────────────────────────────────┤
 │  [Reporter] ──msgs──> [Vendor] ──msgs──> [CASE_MANAGER] │

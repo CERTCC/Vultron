@@ -20,7 +20,7 @@ DEMOMA-06-004).  Two harness obligations follow, both tested here:
 - the reset that starts every scenario wipes that identity with every other
   record, so it must be re-seeded or every ``Create(CaseProposal)`` 404s
   (:func:`~vultron.demo.helpers.seeding.reset_containers`);
-- the FV demo confirms the dedicated container holds the case, with its
+- the rv demo confirms the dedicated container holds the case, with its
   CaseActor as the ``CASE_MANAGER`` participant
   (:func:`~vultron.demo.helpers.verification.verify_case_actor_holds_records`).
 """

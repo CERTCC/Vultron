@@ -61,17 +61,17 @@ def _capture_participant_timeouts():
 def test_replica_loop_gives_late_joiner_extended_timeout():
     """Late joiners must receive at least 30 s for participant propagation (#2852).
 
-    fvv previously omitted the loop entirely, so its late joiner used the 15 s
+    rvv previously omitted the loop entirely, so its late joiner used the 15 s
     default and could time out spuriously under CI load.  The consolidated
     helper must grant late joiners the 30 s budget.
     """
-    finder = MagicMock()
+    reporter = MagicMock()
     late = MagicMock()
     timeouts, fake_wait = _capture_participant_timeouts()
 
     with patch.object(polling, "wait_for_case_participants", fake_wait):
         wait_for_participants_on_replicas(
-            replica_clients=(finder, late),
+            replica_clients=(reporter, late),
             case_id="urn:test:case",
             expected_actor_ids={"a", "b"},
             late_joiners=(late,),
@@ -79,7 +79,7 @@ def test_replica_loop_gives_late_joiner_extended_timeout():
 
     assert timeouts[id(late)] == LATE_JOINER_REPLICA_TIMEOUT
     assert timeouts[id(late)] >= 30.0
-    assert timeouts[id(finder)] == REPLICA_PARTICIPANT_TIMEOUT
+    assert timeouts[id(reporter)] == REPLICA_PARTICIPANT_TIMEOUT
 
 
 def test_replica_loop_polls_every_replica_once():

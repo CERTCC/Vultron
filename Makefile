@@ -100,17 +100,17 @@ integration-test:  ## Run demo integration tests (requires Docker)
 	./integration_tests/demo/run_demo_integration_test.sh
 
 .PHONY: integration-test-multi-actor
-integration-test-multi-actor:  ## Run FV multi-actor integration test (requires Docker)
-	./integration_tests/demo/run_multi_actor_integration_test.sh fv
+integration-test-multi-actor:  ## Run rv multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh rv
 
-.PHONY: integration-test-fvv
-integration-test-fvv:  ## Run FVV multi-actor integration test (requires Docker)
-	./integration_tests/demo/run_multi_actor_integration_test.sh fvv
+.PHONY: integration-test-rvv
+integration-test-rvv:  ## Run RVV multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh rvv
 
-.PHONY: integration-test-fvcv-extension
-integration-test-fvcv-extension:  ## Run FVCV-extension multi-actor integration test (requires Docker)
-	./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-extension
+.PHONY: integration-test-rvcv-extension
+integration-test-rvcv-extension:  ## Run RVCV-extension multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh rvcv-extension
 
-.PHONY: integration-test-fvcv-handoff
-integration-test-fvcv-handoff:  ## Run FVCV-handoff multi-actor integration test (requires Docker)
-	./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-handoff
+.PHONY: integration-test-rvcv-handoff
+integration-test-rvcv-handoff:  ## Run RVCV-handoff multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh rvcv-handoff

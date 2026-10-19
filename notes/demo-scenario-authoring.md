@@ -218,7 +218,7 @@ for scenario `_phase_*` functions.
 
 ## Replica Sync Verification Is One Shared Helper, Not a Per-Scenario Phase Body
 
-Every multi-actor scenario guards its notes phase on the Finder holding the case
+Every multi-actor scenario guards its notes phase on the Reporter holding the case
 replica and every replica holding contiguous ledger coverage. That logic exists
 once.
 
@@ -229,7 +229,7 @@ once.
   participant is sent nothing after the entries recording its own closure
   (CM-23-004), so no replica covers the authority's tail then.
 - A scenario's `_phase_sync_verification` is a thin call to
-  `run_sync_verification_phase`, declaring only its authority, Finder, replicas,
+  `run_sync_verification_phase`, declaring only its authority, Reporter, replicas,
   late joiners, expected participants and the replica pairs to state-check
   (DEMOMA-23-007). A replica whose coverage gate failed is not state-checked, and
   an authority with no entries is one failure naming the authority — the

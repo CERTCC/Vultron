@@ -102,18 +102,17 @@ sense the docs actually use.
 *[FAQ]: Frequently Asked Questions
 *[FBI]: U.S. Federal Bureau of Investigation
 *[FCC]: U.S. Federal Communications Commission
-*[FCCV]: Finder, Coordinator, Coordinator, Vendor (demo scenario)
-*[FCV]: Finder, Coordinator, Vendor (demo scenario)
-*[FCVCV]: Finder, Coordinator, Vendor, Coordinator, Vendor (demo scenario)
+*[RCCV]: Reporter, Coordinator, Coordinator, Vendor (demo scenario)
+*[RCV]: Reporter, Coordinator, Vendor (demo scenario)
+*[RCVCV]: Reporter, Coordinator, Vendor, Coordinator, Vendor (demo scenario)
 *[FDA]: U.S. Food and Drug Administration
 *[FERPA]: Family Educational Rights and Privacy Act
 *[FI]: Finland
 *[FIRST]: Forum of Incident Response and Security Teams
 *[FTC]: U.S. Federal Trade Commission
 *[FTP]: File Transfer Protocol
-*[FV]: Finder and Vendor (demo scenario)
-*[FVCV]: Finder, Vendor, Coordinator, Vendor (demo scenario)
-*[FVV]: Finder, Vendor, Vendor (demo scenario)
+*[RVCV]: Reporter, Vendor, Coordinator, Vendor (demo scenario)
+*[RVV]: Reporter, Vendor, Vendor (demo scenario)
 
 *[GE]: General Error (general message)
 *[GI]: General Inquiry (general message)

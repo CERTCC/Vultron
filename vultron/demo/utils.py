@@ -413,23 +413,23 @@ def _log_discovered_actor(role: str, actor: as_Actor) -> None:
 def discover_actors(
     client: DataLayerClient,
 ) -> tuple[as_Actor, as_Actor, as_Actor]:
-    """Retrieve the Finder, Vendor, and Coordinator actors from the DataLayer.
+    """Retrieve the Reporter, Vendor, and Coordinator actors from the DataLayer.
 
     Returns:
-        A tuple of ``(finder, vendor, coordinator)`` actor objects.
+        A tuple of ``(reporter, vendor, coordinator)`` actor objects.
 
     Raises:
         ValueError: If any of the three expected actors are not found.
     """
-    finder = vendor = coordinator = None
+    reporter = vendor = coordinator = None
     logger.info("Discovering actors in the data layer...")
     actors = client.get("/actors/")
 
     for actor_json in actors:
         actor = as_Actor(**actor_json)
         if actor.name and actor.name.startswith("Finn"):
-            finder = actor
-            _log_discovered_actor("finder", finder)
+            reporter = actor
+            _log_discovered_actor("reporter", reporter)
         elif actor.name and actor.name.startswith("Vendor"):
             vendor = actor
             _log_discovered_actor("vendor", vendor)
@@ -437,14 +437,14 @@ def discover_actors(
             coordinator = actor
             _log_discovered_actor("coordinator", coordinator)
 
-    if finder is None:
-        raise ValueError("Finder actor not found.")
+    if reporter is None:
+        raise ValueError("Reporter actor not found.")
     if vendor is None:
         raise ValueError("Vendor actor not found.")
     if coordinator is None:
         raise ValueError("Coordinator actor not found.")
 
-    return finder, vendor, coordinator
+    return reporter, vendor, coordinator
 
 
 def init_actor_ios(actors: Sequence[as_Actor]) -> None:
@@ -647,7 +647,7 @@ _EXCHANGE_ACTORS: tuple[tuple[str, str, str], ...] = (
 def seed_exchange_actors(
     client: DataLayerClient,
 ) -> tuple[as_Actor, as_Actor, as_Actor]:
-    """Create the Finder, Vendor and Coordinator actors on *client*'s node.
+    """Create the Reporter, Vendor and Coordinator actors on *client*'s node.
 
     Each gets its own store, holding its own record, which is the whole of what
     a single-container exchange demo needs: the three actors reach each other by
@@ -657,7 +657,7 @@ def seed_exchange_actors(
     Idempotent, because ``POST /actors/`` is.
 
     Returns:
-        A tuple of ``(finder, vendor, coordinator)`` actors as created.
+        A tuple of ``(reporter, vendor, coordinator)`` actors as created.
     """
     seeded = tuple(
         seed_actor(
@@ -667,19 +667,19 @@ def seed_exchange_actors(
     )
     for actor in seeded:
         logger.info("Seeded exchange actor: %s", actor.id_)
-    finder, vendor, coordinator = seeded
+    reporter, vendor, coordinator = seeded
 
     # One client serves a node hosting three actors, so it cannot infer whose
     # replica a `dl_path` read is about.  Bind it to the vendor: the exchange
     # demos are receiver-side stories and the vendor is the recipient in the
-    # large majority of them.  Reads about the finder's or coordinator's replica
+    # large majority of them.  Reads about the reporter's or coordinator's replica
     # pass `actor_id=` explicitly at the call site, which is what makes those
     # reads legible as cross-actor rather than silently answering from the wrong
     # store (ADR-0073#cross-actor-access-must-be-named).
     client.actor_id = vendor.id_
     logger.debug("Exchange demo reads bound to vendor replica: %s", vendor.id_)
 
-    return finder, vendor, coordinator
+    return reporter, vendor, coordinator
 
 
 def setup_clean_environment(
@@ -687,20 +687,20 @@ def setup_clean_environment(
 ) -> tuple[as_Actor, as_Actor, as_Actor]:
     """Reset the node and provision the three default demo actors.
 
-    Clears every store on the node, then creates the Finder, Vendor and
+    Clears every store on the node, then creates the Reporter, Vendor and
     Coordinator actors.  The seeding step is explicit because clearing a node
     leaves it hosting nothing at all: under ADR-0073 there is no store that
     outlives the reset for a server-side ``init`` to populate.
 
     Returns:
-        A tuple of ``(finder, vendor, coordinator)`` actors.
+        A tuple of ``(reporter, vendor, coordinator)`` actors.
     """
     logger.info("Setting up clean environment...")
     reset = reset_datalayer(client=client)
     logger.info("Reset status: %s", reset)
-    finder, vendor, coordinator = seed_exchange_actors(client=client)
+    reporter, vendor, coordinator = seed_exchange_actors(client=client)
     logger.info("Clean environment setup complete.")
-    return finder, vendor, coordinator
+    return reporter, vendor, coordinator
 
 
 @contextmanager
@@ -713,11 +713,11 @@ def demo_environment(
     when the demo raises an exception (DC-03-001, DC-03-003).
 
     Yields:
-        Tuple of (finder, vendor, coordinator) actors.
+        Tuple of (reporter, vendor, coordinator) actors.
     """
-    finder, vendor, coordinator = setup_clean_environment(client)
+    reporter, vendor, coordinator = setup_clean_environment(client)
     try:
-        yield finder, vendor, coordinator
+        yield reporter, vendor, coordinator
     finally:
         logger.info("Tearing down demo environment...")
         reset_datalayer(client=client)

@@ -1705,7 +1705,7 @@ groups:
       to "could a test fail on this sentence?". Witnessed twice: the
       case-ledger invariant tables (ISSUE-3337), where the two columns no
       test could hold were 100% wrong while every source-derivable column
-      stayed right; and the scenario table (the `fcvcv` and `vc` rows of
+      stayed right; and the scenario table (the `rcvcv` and `vc` rows of
       `vultron/demo/scenario/README.md`, ISSUE-3450 / CONCERN-3466), where a
       free-prose column named four actors for a five-actor scenario. Before
       concluding a column is unverifiable, check whether it conflates more

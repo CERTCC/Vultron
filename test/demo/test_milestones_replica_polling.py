@@ -49,7 +49,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 _CASE_ID = "urn:uuid:test-case-replica-0001"
 _RECEIVER_ID = "http://coordinator:7999/api/v2/actors/coordinator"
-_REPORTER_ID = "http://finder:7999/api/v2/actors/finder"
+_REPORTER_ID = "http://reporter:7999/api/v2/actors/reporter"
 _CASE_ACTOR_ID = "http://coordinator:7999/api/v2/actors/case-actor-1"
 
 
@@ -115,7 +115,7 @@ class _LateReporterClient:
         return _real_dl_path(self.base_url, self.actor_id, key)
 
     def __init__(self, delay: int) -> None:
-        self.base_url = "http://finder:7999/api/v2"
+        self.base_url = "http://reporter:7999/api/v2"
         self.actor_id = _REPORTER_ID
         self._delay = delay
         self.calls = 0
@@ -278,7 +278,7 @@ class _LateOTOfferClient:
 
     def get(self, path: str, params: dict | None = None) -> dict | None:
         if path == self.dl_path():
-            # The finder reads only the type the forwarded Offer is stored as
+            # The reporter reads only the type the forwarded Offer is stored as
             # (#4600), never the whole store.
             assert params == {"type": ["Offer"]}, params
             self.calls += 1

@@ -28,12 +28,12 @@ from vultron.demo.utils import DataLayerClient, discover_actors
 
 _UTILS_LOGGER = "vultron.demo.utils"
 
-_FINDER_ID = "https://example.org/actors/finn"
+_REPORTER_ID = "https://example.org/actors/finn"
 _VENDOR_ID = "https://example.org/actors/vendorco"
 _COORDINATOR_ID = "https://example.org/actors/cert"
 
 _ACTORS: list[dict] = [
-    {"type": "Person", "id": _FINDER_ID, "name": "Finn the Finder"},
+    {"type": "Person", "id": _REPORTER_ID, "name": "Finn the Reporter"},
     {"type": "Organization", "id": _VENDOR_ID, "name": "VendorCo Inc"},
     {"type": "Organization", "id": _COORDINATOR_ID, "name": "Coordinator CC"},
 ]
@@ -59,9 +59,9 @@ def _found_records(caplog) -> list[logging.LogRecord]:
 def test_info_records_contain_only_the_actor_id(client, caplog):
     """At INFO each discovered actor is reported by ID, not full object."""
     with caplog.at_level(logging.INFO, logger=_UTILS_LOGGER):
-        finder, vendor, coordinator = discover_actors(client)
+        reporter, vendor, coordinator = discover_actors(client)
 
-    assert finder.id_ == _FINDER_ID
+    assert reporter.id_ == _REPORTER_ID
     assert vendor.id_ == _VENDOR_ID
     assert coordinator.id_ == _COORDINATOR_ID
 
@@ -71,12 +71,12 @@ def test_info_records_contain_only_the_actor_id(client, caplog):
     assert len(info_records) == 3, "Expected one INFO line per actor"
     messages = [r.getMessage() for r in info_records]
     assert messages == [
-        f"Found finder actor: {_FINDER_ID}",
+        f"Found reporter actor: {_REPORTER_ID}",
         f"Found vendor actor: {_VENDOR_ID}",
         f"Found coordinator actor: {_COORDINATOR_ID}",
     ]
     # The logfmt() dump renders the actor name; it must not appear at INFO.
-    assert not any("Finn the Finder" in m for m in messages)
+    assert not any("Finn the Reporter" in m for m in messages)
 
 
 def test_full_object_dump_is_available_at_debug(client, caplog):
@@ -90,4 +90,4 @@ def test_full_object_dump_is_available_at_debug(client, caplog):
         if r.levelno == logging.DEBUG
     ]
     assert len(debug_messages) == 3, "Expected one DEBUG dump per actor"
-    assert any("Finn the Finder" in m for m in debug_messages)
+    assert any("Finn the Reporter" in m for m in debug_messages)

@@ -18,7 +18,7 @@ The Case Owner's ``Leave(VulnerabilityCase)`` closes the case for everyone
 (CM-23-013).  So the owner leaves after every other participant has left
 (CM-23-015), and only once the CASE_MANAGER has recorded each of those
 departures: a trigger returns 202 and the ``Leave`` commits later on another
-container, so "the Finder closed, then the Vendor closed" in script order is
+container, so "the Reporter closed, then the Vendor closed" in script order is
 not the same as that order on the ledger (EDF-06-002).
 
 :func:`close_case_owner_last` is the one place that sequence lives, so no

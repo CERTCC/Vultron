@@ -42,11 +42,10 @@ related_notes:
 
 Scenarios are named by the sequence of actor roles involved:
 
-- **R** = Reporter (preferred; replaces the older **F** = Finder convention for
-  new scenarios), **V** = Vendor, **C** = Coordinator, **D** = Deployer
+- **R** = Reporter, **V** = Vendor, **C** = Coordinator, **D** = Deployer
 - Numbers distinguish multiple actors of the same role (V1, V2, C1, C2)
-- Existing scenario names that use **F** (FV, FCV, FCVCV, etc.) are not renamed
-  retroactively; new scenarios use **R**
+- No scenario uses the retired **F** = Finder letter: a Finder that enters the
+  protocol is a Reporter (ADR-0078)
 
 ## Planned scenario register
 
@@ -62,7 +61,7 @@ canonical order for every scenario table.
 
 | Scenario | Tracking issue | Spec IDs | What it would demonstrate |
 |---|---|---|---|
-| `fcvd` | #2594 | DEMOMA-24, DEMOMA-16-014 | V develops the fix; D deploys it in their own environment (d→D, gated on the CSB-15-004 causal precondition) |
+| `rcvd` | #2594 | DEMOMA-24, DEMOMA-16-014 | V develops the fix; D deploys it in their own environment (d→D, gated on the CSB-15-004 causal precondition) |
 | `vc` | #2591 | DEMOMA-25, DEMOMA-16-015 | V self-reports and owns the case; C joins as Observer |
 
 **Do not list a built scenario here.** Registration means built, so a scenario
@@ -86,12 +85,12 @@ spec group is written, and a `@scenario` decorator when its demo is.
 
 | Scenario | Tracking issue | What it would demonstrate | Status |
 |---|---|---|---|
-| In-process fuzz | #1732 | FCV in-process with STOCHASTIC bundles over N configurable iterations, run as `vultron demo fuzz` | see below |
+| In-process fuzz | #1732 | RCV in-process with STOCHASTIC bundles over N configurable iterations, run as `vultron demo fuzz` | see below |
 | Case split | #4242 (build), #4243 (demo) | A Vendor case spawns a child case for a second Vendor; the child inherits only the embargo (ADR-0125, CM-32) | planned |
 | Case merge | #4244 | Owner-consent offer; the offered case freezes and its participants migrate by invitation (ADR-0105) | blocked by the merge spec #3701 and build #3702 |
 | Multi-reporter | #3671 | Two Finders; the Coordinator adds the second report to the existing case and invites F2, with no merge | planned |
 | Concurrent cases | #3672 | Two independent cases through shared actors, one CaseActor managing both, with no cross-case bleed | planned |
-| RM non-linear paths | #2050 | R→I→V in `fvcv-handoff` (tentative rejection, then reconsideration) and A→D→A in `fcvcv` | planned |
+| RM non-linear paths | #2050 | R→I→V in `rvcv-handoff` (tentative rejection, then reconsideration) and A→D→A in `rcvcv` | planned |
 
 The in-process fuzz scenario is misfiled here: it has a spec group, DEMOMA-18,
 so DEMOCI-11-010 places it in the [planned scenario
@@ -101,5 +100,5 @@ the partition check keys on. Its design is in `notes/call-out-simulation-plan.md
 § "Multi-Actor In-Process Simulation (#1732, DEMOMA-18)".
 
 The Deployer-role and Vendor-as-finder scenarios are specified, so they sit in
-the planned scenario register as `fcvd` and `vc`. CVD recipe injects are
+the planned scenario register as `rcvd` and `vc`. CVD recipe injects are
 planned in [cvd-recipe-injects.md](cvd-recipe-injects.md).

@@ -1,7 +1,7 @@
 ---
 description: >
-  Run any of the multi-actor demo scenarios, from the two-party Finder + Vendor
-  (FV) baseline to the five-party coordination cases, across isolated
+  Run any of the multi-actor demo scenarios, from the two-party Reporter + Vendor
+  (rv) baseline to the five-party coordination cases, across isolated
   participant containers with Docker Compose.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
@@ -87,18 +87,18 @@ The [Demo Scenario Narratives](../topics/scenarios/index.md) explain what each s
 From the repository root, run the compose stack with `DEMO` set to the value you chose:
 
 ```bash
-DEMO=fcv docker compose -f docker/docker-compose-multi-actor.yml \
+DEMO=rcv docker compose -f docker/docker-compose-multi-actor.yml \
     up --abort-on-container-exit --exit-code-from demo-runner
 ```
 
-If you leave `DEMO` unset, the runner executes the `fv` scenario.
-[Run the FV Demo](fv-demo.md) walks through that run milestone by milestone.
+If you leave `DEMO` unset, the runner executes the `rv` scenario.
+[Run the `rv` Demo](rv-demo.md) walks through that run milestone by milestone.
 
 Docker builds the images on the first run, which takes a few minutes.
 Subsequent runs reuse the cached images and start immediately.
 Once the images exist, compose:
 
-1. starts the actor containers (`finder`, `vendor`, `coordinator`, `case-actor`, `actor5`, and `actor6`), whether or not the chosen scenario uses them all,
+1. starts the actor containers (`reporter`, `vendor`, `coordinator`, `case-actor`, `actor5`, and `actor6`), whether or not the chosen scenario uses them all,
 2. waits until every actor container passes its `/health/ready` probe,
 3. starts `demo-runner`, which resets state, seeds actors, drives the workflow, verifies each milestone, and exits, and
 4. stops the whole stack when `demo-runner` exits, propagating its exit code.
@@ -108,10 +108,10 @@ Every scenario uses `case-actor`: it hosts the Case Actor that manages each case
 !!! success "Success indicator"
 
     Every scenario ends with its own banner, `<SCENARIO> DEMO COMPLETE ✓`, followed by a note on what it demonstrated.
-    A default `fv` run, for example, ends with:
+    A default `rv` run, for example, ends with:
 
     ```text
-    FV DEMO COMPLETE ✓  (VFDPxa full lifecycle)
+    rv DEMO COMPLETE ✓  (VFDPxa full lifecycle)
     ```
 
     A non-zero exit code from `demo-runner` means a step or check failed; see Step 5.
@@ -176,15 +176,15 @@ The integration test script builds the images, runs one scenario, checks the exi
 
 ```bash
 # From the repository root:
-./integration_tests/demo/run_multi_actor_integration_test.sh fv
-./integration_tests/demo/run_multi_actor_integration_test.sh fcv
-./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-handoff
+./integration_tests/demo/run_multi_actor_integration_test.sh rv
+./integration_tests/demo/run_multi_actor_integration_test.sh rcv
+./integration_tests/demo/run_multi_actor_integration_test.sh rvcv-handoff
 ```
 
 A passing run ends with the script's own summary line:
 
 ```text
-[multi-actor-integration] SUCCESS: scenario 'fv' passed.
+[multi-actor-integration] SUCCESS: scenario 'rv' passed.
 ```
 
 !!! tip
@@ -193,9 +193,9 @@ A passing run ends with the script's own summary line:
     Override `PROJECT_NAME` to run scenarios in parallel:
 
     ```bash
-    PROJECT_NAME=vultron-it-two   DEMO=fv   \
+    PROJECT_NAME=vultron-it-two   DEMO=rv   \
         ./integration_tests/demo/run_multi_actor_integration_test.sh
-    PROJECT_NAME=vultron-it-three DEMO=fcv \
+    PROJECT_NAME=vultron-it-three DEMO=rcv \
         ./integration_tests/demo/run_multi_actor_integration_test.sh
     ```
 
@@ -213,9 +213,9 @@ We have:
 
 ## Next steps
 
-- **Follow one run in detail** — [Run the FV Demo](fv-demo.md) explains each phase and milestone of the default scenario.
+- **Follow one run in detail** — [Run the `rv` Demo](rv-demo.md) explains each phase and milestone of the default scenario.
 - **Understand what each scenario shows** — the [Demo Scenario Narratives](../topics/scenarios/index.md) describe every scenario's case in CVD terms, step by step.
-- **Read the message-level trace** — the [FV Demo Protocol Reference](../reference/fv-demo-protocol.md) lists every activity the FV run exchanges and the ledger entries it produces.
+- **Read the message-level trace** — the [`rv` Demo Protocol Reference](../reference/rv-demo-protocol.md) lists every activity the `rv` run exchanges and the ledger entries it produces.
 - **Explore the single-container demos** — see [Run the Receive-Report Demo](receive_report_demo.md) and [Running the Other Demos](other_demos.md) to step through individual protocol exchanges.
 - **Read the scenario source** — the scripts are in `vultron/demo/scenario/`; the shared helpers are in `vultron/demo/helpers/`.
 - **Consult the Docker README** — `docker/README.md` documents port mappings, environment variable overrides, and manual seed commands for debugging individual containers.
