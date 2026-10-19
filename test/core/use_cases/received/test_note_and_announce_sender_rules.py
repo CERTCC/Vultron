@@ -13,9 +13,8 @@
 
 """The sender rules of the note and ``Announce(VulnerabilityCase)`` use cases.
 
-``Create(Note)`` and ``Add(Note)`` go from an active participant to the
-CASE_MANAGER, and a replica takes them from the CASE_MANAGER alone
-(CM-23-018, PCR-03-001).  For each:
+``Add(Note)`` goes from an active participant to the CASE_MANAGER, and a
+replica takes it from the CASE_MANAGER alone (CM-23-018, PCR-03-001):
 
 - a sender with no standing, or one whose closure the case records, is
   ``REFUSED`` with nothing committed, attached or sent (HP-01-006,
@@ -56,7 +55,9 @@ from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     ClockDecision,
     ClockDecisionStage,
 )
-from vultron.core.behaviors.note.create_note_tree import create_note_tree
+from vultron.core.behaviors.note.add_note_received_tree import (
+    create_add_note_to_case_received_tree,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderIsCaseManagerNode,
@@ -85,16 +86,12 @@ from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
-from vultron.core.use_cases.received.note import (
-    AddNoteToCaseReceivedUseCase,
-    CreateNoteReceivedUseCase,
-)
+from vultron.core.use_cases.received.note import AddNoteToCaseReceivedUseCase
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     announce_vulnerability_case_activity,
-    create_note_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -204,21 +201,10 @@ class _World:
             update={"receiving_actor_id": self.receiver_id}
         )
 
-    def create_note_from(self, sender_id: str) -> tuple[HandlerResult, str]:
+    def add_note_from(self, sender_id: str) -> tuple[HandlerResult, str]:
         note = as_Note(content="A note", context=self.case_id)
         # Addressed to this store, so the addressee door guard admits it
         # and the sender guard is what decides (HP-01-005).
-        activity = create_note_activity(
-            note, actor=sender_id, to=[self.receiver_id]
-        )
-        result = CreateNoteReceivedUseCase(
-            self.dl, self._event(activity), **self._ports()
-        ).execute()
-        return result, note.id_
-
-    def add_note_from(self, sender_id: str) -> tuple[HandlerResult, str]:
-        note = as_Note(content="A note", context=self.case_id)
-        self.dl.create(note)
         activity = add_note_to_case_activity(
             note,
             target=as_VulnerabilityCase(id_=self.case_id),
@@ -235,12 +221,6 @@ def _overdue() -> datetime:
     return now_utc() - timedelta(minutes=5)
 
 
-_NOTE_SENDS = [
-    pytest.param(_World.create_note_from, id="create-note"),
-    pytest.param(_World.add_note_from, id="add-note"),
-]
-
-
 # ---------------------------------------------------------------------------
 # The declarations (HP-01-007, HP-01-008)
 # ---------------------------------------------------------------------------
@@ -251,13 +231,6 @@ _NOTE_SENDS = [
 @pytest.mark.parametrize(
     ("use_case", "rule"),
     [
-        pytest.param(
-            CreateNoteReceivedUseCase,
-            SenderRule.to_case_manager(
-                SenderEntitlementKind.ACTIVE_PARTICIPANT
-            ),
-            id="create-note",
-        ),
         pytest.param(
             AddNoteToCaseReceivedUseCase,
             SenderRule.to_case_manager(
@@ -279,20 +252,19 @@ def test_use_case_declares_its_sender_rule(
 
 
 # ---------------------------------------------------------------------------
-# Create(Note) and Add(Note)
+# Add(Note)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.spec("HP-01-006")
 @pytest.mark.spec("CLP-10-025")
-@pytest.mark.parametrize("send", _NOTE_SENDS)
-def test_note_from_a_stranger_is_refused_and_changes_nothing(send) -> None:
+def test_note_from_a_stranger_is_refused_and_changes_nothing() -> None:
     """Refused before the end-time check: an overdue embargo stays, and
     nothing is stored, attached, committed or sent."""
     world = _World(end_time=_overdue())
     before = world.ledger_size()
 
-    result, note_id = send(world, world.stranger.id_)
+    result, note_id = world.add_note_from(world.stranger.id_)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "is not an active participant" in (result.reason or "")
@@ -304,16 +276,13 @@ def test_note_from_a_stranger_is_refused_and_changes_nothing(send) -> None:
 
 @pytest.mark.spec("CM-23-018")
 @pytest.mark.spec("HP-01-006")
-@pytest.mark.parametrize("send", _NOTE_SENDS)
-def test_note_from_a_closed_sender_is_refused_and_changes_nothing(
-    send,
-) -> None:
+def test_note_from_a_closed_sender_is_refused_and_changes_nothing() -> None:
     """A participant whose closure the case records may act on nothing
     further; the shared predicate refuses it (CM-23-018)."""
     world = _World(finder_closed=True)
     before = world.ledger_size()
 
-    result, note_id = send(world, world.finder.id_)
+    result, note_id = world.add_note_from(world.finder.id_)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "has left it" in (result.reason or "")
@@ -323,12 +292,11 @@ def test_note_from_a_closed_sender_is_refused_and_changes_nothing(
 
 
 @pytest.mark.spec("PCR-03-001")
-@pytest.mark.parametrize("send", _NOTE_SENDS)
-def test_note_at_a_replica_from_a_non_manager_is_refused(send) -> None:
+def test_note_at_a_replica_from_a_non_manager_is_refused() -> None:
     """A replica takes case content from the CASE_MANAGER alone."""
     world = _World(store_owner="finder")
 
-    result, note_id = send(world, world.stranger.id_)
+    result, note_id = world.add_note_from(world.stranger.id_)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "CASE_MANAGER" in (result.reason or "")
@@ -337,27 +305,14 @@ def test_note_at_a_replica_from_a_non_manager_is_refused(send) -> None:
 
 
 @pytest.mark.spec("PCR-03-001")
-def test_create_note_at_a_replica_from_a_non_manager_stores_no_note() -> None:
-    """The refused sender's note is not kept, though every replica keeps an
-    admitted one (CLP-10-017)."""
+@pytest.mark.spec("CLP-10-017")
+def test_add_note_at_a_replica_from_a_non_manager_stores_no_note() -> None:
+    """The refused sender's inline note is not kept (CLP-10-017)."""
     world = _World(store_owner="finder")
 
-    _, note_id = world.create_note_from(world.stranger.id_)
+    _, note_id = world.add_note_from(world.stranger.id_)
 
     assert world.dl.read(note_id) is None
-
-
-@pytest.mark.spec("PCR-03-001")
-def test_create_note_at_a_replica_from_the_manager_is_stored() -> None:
-    """The other side of the replica rule: the CASE_MANAGER's ``Create(Note)``
-    passes the sender guard and the replica keeps the note (CLP-10-017)."""
-    world = _World(store_owner="finder")
-
-    result, note_id = world.create_note_from(world.manager.id_)
-
-    assert result.disposition is HandlerDisposition.APPLIED
-    assert world.dl.read(note_id) is not None
-    assert world.outbox() == []
 
 
 @pytest.mark.spec("PCR-03-001")
@@ -383,11 +338,10 @@ def test_add_note_at_a_replica_from_the_manager_passes_the_sender_guard() -> (
 
 
 @pytest.mark.spec("CM-23-018")
-@pytest.mark.parametrize("send", _NOTE_SENDS)
-def test_note_from_an_active_participant_is_attached(send) -> None:
+def test_note_from_an_active_participant_is_attached() -> None:
     world = _World()
 
-    result, note_id = send(world, world.finder.id_)
+    result, note_id = world.add_note_from(world.finder.id_)
 
     assert result.disposition is HandlerDisposition.APPLIED
     assert note_id in world.notes()
@@ -395,11 +349,10 @@ def test_note_from_an_active_participant_is_attached(send) -> None:
 
 @pytest.mark.spec("CLP-10-025")
 @pytest.mark.spec("EMB-13-003")
-@pytest.mark.parametrize("send", _NOTE_SENDS)
-def test_note_from_a_participant_ends_an_overdue_embargo(send) -> None:
+def test_note_from_a_participant_ends_an_overdue_embargo() -> None:
     world = _World(end_time=_overdue())
 
-    send(world, world.finder.id_)
+    world.add_note_from(world.finder.id_)
 
     case = world.case()
     assert case.active_embargo_id is None
@@ -572,11 +525,11 @@ def test_announce_tree_takes_no_clock_decision() -> None:
     # The probe finds the stage where the factory composes one: a note tree.
     world = _World()
     note = VultronNote(content="A note", context=world.case_id)
-    note_tree = create_note_tree(
+    note_tree = create_add_note_to_case_received_tree(
         note_obj=note,
         case_id=world.case_id,
         sender_id=world.finder.id_,
-        sender_rule=CreateNoteReceivedUseCase.sender_entitlement,
+        sender_rule=AddNoteToCaseReceivedUseCase.sender_entitlement,
     )
     assert any(
         isinstance(node, ClockDecisionStage) for node in note_tree.iterate()

@@ -152,6 +152,10 @@ def test_connect_replay_commit_receive_disconnect(base_url: str, caplog):
             _wait_until(lambda: "client disconnected" in caplog.text)
 
 
+# The waits below can add up to ~85s (30s readiness, 10s per stream read, 15s
+# exit), past the 60s integration ceiling; this ceiling stays above them so an
+# overrun fails this test by name instead of killing the session (#4868).
+@pytest.mark.timeout(120)
 def test_sigterm_sends_close_and_lets_the_server_exit(tmp_path: Path):
     """A real SIGTERM ends an open stream with ``event: close``.
 

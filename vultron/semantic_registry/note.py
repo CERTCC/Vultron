@@ -17,12 +17,10 @@ from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
-    CreateNoteReceivedEvent,
     RemoveNoteFromCaseReceivedEvent,
 )
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
-    CreateNoteReceivedUseCase,
     RemoveNoteFromCaseReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
@@ -34,7 +32,6 @@ from vultron.semantic_registry._occasion import (
 )
 from vultron.wire.as2.extractor import (
     AddNoteToCaseActivityPattern,
-    CreateNotePattern,
     RemoveNoteFromCasePattern,
 )
 from vultron.wire.as2.vocab.activities.case import (
@@ -42,34 +39,6 @@ from vultron.wire.as2.vocab.activities.case import (
 )
 
 ENTRIES: list[SemanticEntry] = [
-    SemanticEntry(
-        semantics=MessageSemantics.CREATE_NOTE,
-        pattern=CreateNotePattern,
-        event_class=CreateNoteReceivedEvent,
-        use_case_class=CreateNoteReceivedUseCase,
-        phrase="{actor} created a note",
-        include_activity=True,
-        occasions=(
-            Occasion(
-                when="a Participant posts a new note to the case",
-                anchor="create-note",
-                addressee=AddresseeSide.CASE_MANAGER,
-                heading="Create note",
-                description=(
-                    "Creates a note and, when the note's context names the "
-                    "case, posts it to that case: the Case Manager attaches "
-                    "the note and records the attachment in the case "
-                    "ledger. The Create carries no target. A receiver also "
-                    "accepts a Create followed by an Add of the same note, "
-                    "and the Add then changes nothing more."
-                ),
-                example="create_note",
-                howto=HowToGuide.STATUS_UPDATES,
-                shorthand=ProtocolShorthand.GI,
-            ),
-        ),
-        page=MessagePage.GENERAL,
-    ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_NOTE_TO_CASE,
         pattern=AddNoteToCaseActivityPattern,
@@ -88,9 +57,9 @@ ENTRIES: list[SemanticEntry] = [
                     "Posts the note to the case named by the target, with "
                     "the note carried inline as the object: the Case Manager "
                     "stores the note, attaches it to the case and records "
-                    "the attachment in the case ledger. A receiver also "
-                    "accepts it after a Create of the same note, and it then "
-                    "changes nothing more."
+                    "the attachment in the case ledger. It is the one "
+                    "message that attaches a note: a received Create of a "
+                    "note is not a protocol message."
                 ),
                 example="add_note_to_case",
                 howto=HowToGuide.STATUS_UPDATES,

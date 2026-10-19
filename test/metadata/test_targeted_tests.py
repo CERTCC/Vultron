@@ -15,6 +15,7 @@ from test.support.git_repo import git, init_git_repo
 from vultron.metadata.planning import targeted_tests
 from vultron.metadata.planning.targeted_tests import (
     ALWAYS_SELECTED,
+    GATE_CEILING,
     METADATA_TESTS,
     build_index,
     conflict_suite_trigger,
@@ -434,7 +435,8 @@ def test_module_nothing_tests_is_unmapped():
 def test_pytest_argv_enables_the_integration_marker():
     selection = _select(["vultron/a/mod.py"], [_change()])
     argv = pytest_argv(selection)
-    assert argv[:3] == ["uv", "run", "pytest"]
+    ceiling = len(GATE_CEILING)
+    assert argv[ceiling : ceiling + 3] == ["uv", "run", "pytest"]
     marker = argv.index("-m")
     assert argv[marker + 1] == ""
     assert argv[-len(selection.tests) :] == selection.tests
@@ -537,6 +539,14 @@ def test_full_pytest_argv_has_no_paths():
     selection = _select(["uv.lock"], [])
     argv = pytest_argv(selection)
     assert argv[-2:] == ["-m", ""]
+
+
+@pytest.mark.spec("TB-14-005")
+@pytest.mark.parametrize("changed", [["vultron/a/mod.py"], ["uv.lock"]])
+def test_pytest_argv_runs_under_the_wall_clock_ceiling(changed):
+    """A hung gate run ends with ``timeout``'s 124, not never (#4809)."""
+    argv = pytest_argv(_select(changed, [_change()]))
+    assert argv[: len(GATE_CEILING)] == list(GATE_CEILING)
 
 
 # ---------------------------------------------------------------------------

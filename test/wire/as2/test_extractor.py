@@ -219,12 +219,10 @@ def test_extract_intent_embargo_keeps_its_descriptive_fields():
     assert e.model_dump() == embargo.model_dump()
 
 
-@pytest.mark.spec("VAM-07-001")
+@pytest.mark.spec("VAM-07-002")
 def test_extract_intent_note_pass_through_fields():
     """New VultronNote fields (summary, url) survive extraction."""
-    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Create,
-    )
+    from vultron.wire.as2.factories import add_note_to_case_activity
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
     note = as_Note(
@@ -235,7 +233,11 @@ def test_extract_intent_note_pass_through_fields():
         attributed_to="https://example.org/alice",
         context="https://example.org/cases/1",
     )
-    activity = as_Create(actor="https://example.org/alice", object_=note)
+    activity = add_note_to_case_activity(
+        note,
+        actor="https://example.org/alice",
+        target="https://example.org/cases/1",
+    )
     event = extract_event(activity)
 
     n = cast(Any, event).note
@@ -971,18 +973,19 @@ def test_extract_intent_normalises_slash_spelled_sender_id():
     stored activity and the ledger postmark are built from the snapshot, so
     they keep the sender's spelling, while core acts on one spelling (#4775).
     """
-    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Create,
-    )
+    from vultron.wire.as2.factories import add_note_to_case_activity
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
     canonical = "https://example.org/alice"
+    case_id = "https://example.org/cases/1"
     note = as_Note(
         content="Note body",
         attributed_to=canonical + "/",
-        context="https://example.org/cases/1",
+        context=case_id,
     )
-    activity = as_Create(actor=canonical + "/", object_=note)
+    activity = add_note_to_case_activity(
+        note, target=case_id, actor=canonical + "/"
+    )
     event = extract_event(activity)
 
     assert event.actor_id == canonical

@@ -77,9 +77,22 @@ from vultron.enums.roles import CVDRole, validate_roles
 logger = logging.getLogger(__name__)
 
 
-class CreateInertInviteeParticipantNode(
-    DataLayerActionWithPorts, StateWriteCapable
-):
+def validated_invitee_roles(raw: list | tuple | None) -> list[CVDRole]:
+    """*raw* as CVD roles, or empty when it is empty or names no valid role.
+
+    Empty makes the seating refuse (CM-11-019); it never defaults to VENDOR.
+    """
+    if not raw:
+        return []
+    if all(isinstance(r, CVDRole) for r in raw):
+        return list(raw)
+    try:
+        return validate_roles(list(raw))
+    except (TypeError, ValueError, KeyError):
+        return []
+
+
+class _SeatInertInviteeBase(DataLayerActionWithPorts, StateWriteCapable):
     """Create the invitee's inert participant record at invite-send time.
 
     ADR-0114 / CM-11-006: the CASE_MANAGER records the invitee the moment it
@@ -103,65 +116,24 @@ class CreateInertInviteeParticipantNode(
     An invitee that already has a record is decided before anything is
     built (:meth:`_existing_record_outcome`): a re-invite keeps the same
     record (CM-11-015), so the node never resets or re-seats it.
+
+    A subclass names the invitee (:meth:`_invitee`) and its roles
+    (:meth:`_resolve_roles`): fixed at construction
+    (:class:`CreateInertInviteeParticipantNode`), or read from the recorded
+    Offer the Case Owner accepted.
     """
 
-    def __init__(
-        self,
-        invitee_id: str,
-        case_id: str,
-        recommendation_id: str | None = None,
-        roles: list[str] | None = None,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.invitee_id = invitee_id
         self.case_id = case_id
-        self._injected_roles = roles
-        self._roles_key = (
-            f"/{suggested_roles_key(recommendation_id)}"
-            if recommendation_id is not None
-            else None
-        )
-        self._suggested_roles_bb: list | None = None
 
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "suggested_roles": PortInformation(data_type=list, required=False),
-    }
-
-    def _instance_port_remappings(self) -> dict[str, str]:
-        if self._roles_key is None:
-            return {}
-        return {"suggested_roles": self._roles_key}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._suggested_roles_bb = None
-        if self._roles_key is None:
-            return
-        try:
-            self._suggested_roles_bb = self.get_input("suggested_roles")
-        except (NoDataAvailable, NotImplementedError):
-            pass
+    def _invitee(self) -> str:
+        """The actor whose inert record the node seats."""
+        raise NotImplementedError
 
     def _resolve_roles(self) -> list[CVDRole]:
-        """Resolve roles: injected > blackboard > default VENDOR."""
-        if self._injected_roles:
-            try:
-                return validate_roles(self._injected_roles)
-            except (TypeError, ValueError, KeyError):
-                pass
-        if (
-            isinstance(self._suggested_roles_bb, list)
-            and self._suggested_roles_bb
-        ):
-            if all(isinstance(r, CVDRole) for r in self._suggested_roles_bb):
-                return list(self._suggested_roles_bb)
-            try:
-                return validate_roles(self._suggested_roles_bb)
-            except (TypeError, ValueError, KeyError):
-                pass
-        return []
+        """The roles the record is seated with; empty refuses (CM-11-019)."""
+        raise NotImplementedError
 
     def _build_initial_status(
         self, roles: list[CVDRole], case_id: str
@@ -172,7 +144,7 @@ class CreateInertInviteeParticipantNode(
             vf = VfDimension(state=CS_vf.vf)
         return ParticipantStatus(
             context=case_id,
-            attributed_to=self.invitee_id,
+            attributed_to=self._invitee(),
             rm=RmDimension(state=RM.RECEIVED),
             vf=vf,
             cvd_role=roles,
@@ -194,12 +166,12 @@ class CreateInertInviteeParticipantNode(
         Both are left unchanged.
         """
         assert self.datalayer is not None
-        existing = invitee_record(self.datalayer, case, self.invitee_id)
+        existing = invitee_record(self.datalayer, case, self._invitee())
         if existing is None:
             return None
         if existing.rm_closed:
             self.feedback_message = (
-                f"{self.name}: invitee '{self.invitee_id}' is at RM.CLOSED in"
+                f"{self.name}: invitee '{self._invitee()}' is at RM.CLOSED in"
                 f" case '{self.case_id}' — no rejoin (CM-11-015)"
             )
             self.logger.warning("%s", self.feedback_message)
@@ -208,7 +180,7 @@ class CreateInertInviteeParticipantNode(
             "%s: invitee '%s' already has %s record '%s' in case '%s'"
             " — kept unchanged",
             self.name,
-            self.invitee_id,
+            self._invitee(),
             "a joined" if existing.joined else "an inert",
             existing.id_,
             self.case_id,
@@ -227,27 +199,29 @@ class CreateInertInviteeParticipantNode(
         if (done := self._existing_record_outcome(case)) is not None:
             return done
 
+        invitee_id = self._invitee()
+
         roles = self._resolve_roles()
         if not roles:
             self.feedback_message = (
-                f"{self.name}: no roles resolved for invitee '{self.invitee_id}'"
+                f"{self.name}: no roles resolved for invitee '{invitee_id}'"
                 f" — inviter must specify the invitee's roles (CM-11-019)"
             )
             self.logger.error(
                 "%s: no roles resolved for invitee '%s' in case '%s'"
                 " — refusing inert-participant creation (CM-11-019)",
                 self.name,
-                self.invitee_id,
+                invitee_id,
                 self.case_id,
             )
             return Status.FAILURE
         status = self._build_initial_status(roles, self.case_id)
         participant_id = (
-            f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}"
+            f"{self.case_id}/participants/{invitee_id.split('/')[-1]}"
         )
         participant = CaseParticipant(
             id_=participant_id,
-            attributed_to=self.invitee_id,
+            attributed_to=invitee_id,
             context=self.case_id,
             case_roles=roles,
             participant_statuses=[status],
@@ -268,7 +242,7 @@ class CreateInertInviteeParticipantNode(
                 "%s: set PEC INVITED for invitee '%s' (active embargo '%s',"
                 " CM-11-006)",
                 self.name,
-                self.invitee_id,
+                invitee_id,
                 active_embargo_id,
             )
 
@@ -276,7 +250,7 @@ class CreateInertInviteeParticipantNode(
             self.datalayer,
             participant,
             case_id=self.case_id,
-            actor_id_for_index=self.invitee_id,
+            actor_id_for_index=invitee_id,
             logger=self.logger,
         )
         if updated_case is None:
@@ -313,10 +287,67 @@ class CreateInertInviteeParticipantNode(
             " (RM.RECEIVED, joined=False, CM-11-006)",
             self.name,
             participant_id,
-            self.invitee_id,
+            invitee_id,
             self.case_id,
         )
         return Status.SUCCESS
+
+
+class CreateInertInviteeParticipantNode(_SeatInertInviteeBase):
+    """Seat the inert record of an invitee fixed at construction.
+
+    Roles are the injected ones, else those ``EvaluateDefaultRolesNode``
+    wrote for *recommendation_id*; see :class:`_SeatInertInviteeBase`.
+    """
+
+    def __init__(
+        self,
+        invitee_id: str,
+        case_id: str,
+        recommendation_id: str | None = None,
+        roles: list[str] | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(case_id=case_id, name=name)
+        self.invitee_id = invitee_id
+        self._injected_roles = roles
+        self._roles_key = (
+            f"/{suggested_roles_key(recommendation_id)}"
+            if recommendation_id is not None
+            else None
+        )
+        self._suggested_roles_bb: list | None = None
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "suggested_roles": PortInformation(data_type=list, required=False),
+    }
+
+    def _instance_port_remappings(self) -> dict[str, str]:
+        if self._roles_key is None:
+            return {}
+        return {"suggested_roles": self._roles_key}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._suggested_roles_bb = None
+        if self._roles_key is None:
+            return
+        try:
+            self._suggested_roles_bb = self.get_input("suggested_roles")
+        except (NoDataAvailable, NotImplementedError):
+            pass
+
+    def _invitee(self) -> str:
+        return self.invitee_id
+
+    def _resolve_roles(self) -> list[CVDRole]:
+        """Resolve roles: injected > blackboard > none."""
+        if roles := validated_invitee_roles(self._injected_roles):
+            return roles
+        if isinstance(self._suggested_roles_bb, list):
+            return validated_invitee_roles(self._suggested_roles_bb)
+        return []
 
 
 class AdvanceInviteeVFToVendorAwareNode(
@@ -437,4 +468,5 @@ class AdvanceInviteeVFToVendorAwareNode(
 __all__ = [
     "AdvanceInviteeVFToVendorAwareNode",
     "CreateInertInviteeParticipantNode",
+    "validated_invitee_roles",
 ]

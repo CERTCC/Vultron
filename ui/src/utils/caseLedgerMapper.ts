@@ -628,9 +628,9 @@ function handleEntry(
       return handleCreateCase(entry, participants, shadow, x, laneIndex)
     case 'validate_report':
       return handleValidateReport(entry, participants, shadow, x, laneIndex)
-    // A note reaches the case either as a `Create(Note)` whose note names the
-    // case as its `context` (`create_note`) or as an `Add(Note, target=Case)`
-    // of an existing note (`add_note_to_case`); both render the same way.
+    // A note reaches the case as an `Add(Note, target=Case)` carrying the note
+    // (`add_note_to_case`). `create_note` is the pre-2026-10 verb (a received
+    // `Create(Note)`, retired by #4707), kept for replaying older uploaded logs.
     case 'create_note':
     case 'add_note_to_case':
       return handleNote(entry, participants, shadow, x, laneIndex)

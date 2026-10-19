@@ -309,12 +309,8 @@ POST /api/v2/actors/{finder_id}/demo/notify-published
 
 | Activity | Occasion | Direction |
 |:---------|:---------|:----------|
-| `Add(ParticipantStatus)[target=CaseParticipant]`, its case status at `Pxa` | none yet; see the note below | Vendor → Case Actor; Finder → Case Actor |
+| `Add(ParticipantStatus)[target=CaseParticipant]`, `caseStatus.pxaState` = `Pxa` | [Public awareness in a participant status](messages/cs.md#participant-public-awareness) | Vendor → Case Actor; Finder → Case Actor |
 | `Remove(Event)` | [Tell a participant the embargo has ended](messages/em.md#embargo-termination-notice) | Case Actor → Vendor, Finder |
-
-!!! note "Public awareness inside a participant status"
-    The demo reports public awareness as a participant status whose embedded case status carries `pxaState` `Pxa`.
-    The occasion table has no row for that form yet ([#4569](https://github.com/CERTCC/Vultron/issues/4569)): its [Public Awareness (CP)](messages/cs.md#public-awareness) occasion is `Add(CaseStatus)[target=VulnerabilityCase]`.
 
 ### What happens
 

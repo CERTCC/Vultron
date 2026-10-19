@@ -114,11 +114,13 @@ def test_spec_lint_reports_a_syntax_fault_without_a_traceback(tmp_path):
     spec_dir = tmp_path / "specs"
     _write(spec_dir / "a.yaml", "a: 1\n" + _UNQUOTED_COLON)
 
+    # Below the 30s unit ceiling, so an overrun fails this test by name instead
+    # of tripping the ``thread``-method ceiling, which kills the session (#4868).
     result = subprocess.run(
         [sys.executable, "-m", "vultron.metadata.specs.lint", str(spec_dir)],
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=25,
         check=False,
     )
 

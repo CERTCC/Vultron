@@ -37,9 +37,6 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_receive_offer_case_participant_tree,
     create_reject_actor_recommendation_received_tree,
 )
-from vultron.core.models.actor_recommendation_record import (
-    ActorRecommendationRecord,
-)
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
     OfferCaseParticipantReceivedEvent,
@@ -49,7 +46,6 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
@@ -59,7 +55,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     not_case_manager_refusal,
     verdict_from_bt,
 )
-from vultron.enums.roles import serialize_roles
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -168,145 +163,6 @@ class OfferCaseParticipantReceivedUseCase:
         return verdict
 
 
-def _require_recorded_recommendation(
-    dl: CasePersistence,
-    inner_offer: object,
-    case_id: str,
-    *,
-    verb: str,
-    activity_id: str,
-) -> tuple[str, str] | HandlerResult:
-    """``(recommendation_id, recommender_id)`` for a decided Offer, or a refusal.
-
-    The transformed ``Offer(CaseParticipant)`` carries the original
-    ``Offer(Actor)`` id as ``origin`` (CM-16-004), and the recommender behind
-    it is whatever :class:`ActorRecommendationRecord` this CASE_MANAGER kept
-    for the case when that recommendation arrived (case bookkeeping,
-    CLP-07-014).  CM-16-006/007 step 3 sends the decision
-    to that recommender, so an Accept/Reject whose inner Offer names no
-    ``origin``, or an ``origin`` with no such record, has nobody to notify
-    and cannot be applied.
-
-    Until #3877 the missing id was passed on as ``""`` and the notification
-    went out with a blank ``actor``; the core reference fields now refuse a
-    blank (CS-08-001), so the absence is decided here, at the edge (ADR-0032),
-    with a reason that names what is missing.
-    """
-    raw_recommendation_id = getattr(inner_offer, "origin", None)
-    recommendation_id = getattr(
-        raw_recommendation_id, "id_", raw_recommendation_id
-    )
-    if not isinstance(recommendation_id, str) or not recommendation_id:
-        return _unrecorded_recommendation_refusal(
-            verb,
-            activity_id,
-            "no recommendation (its inner Offer has no origin)",
-        )
-    record = dl.read(
-        ActorRecommendationRecord.build_id(case_id, recommendation_id)
-    )
-    if not isinstance(record, ActorRecommendationRecord):
-        return _unrecorded_recommendation_refusal(
-            verb,
-            activity_id,
-            f"a recommendation this CASE_MANAGER never recorded"
-            f" ({recommendation_id})",
-        )
-    return recommendation_id, record.recommender_id
-
-
-def _require_recorded_offer(
-    dl: CasePersistence,
-    inner_offer: object,
-    case_id: str,
-    *,
-    verb: str,
-    activity_id: str,
-) -> tuple[str, list | None] | HandlerResult:
-    """``(invitee_id, roles)`` from the recorded Offer, or a refusal.
-
-    The actor to invite and its roles come from the ``Offer(CaseParticipant)``
-    this CASE_MANAGER recorded when it forwarded the recommendation, found by
-    the id the reply names, never from the reply's own copy of the Offer: the
-    sender may have altered that copy or sent a bare reference (ISSUE-1745,
-    CM-16-019).
-    A reply naming an Offer this store never recorded has no invitee to act
-    on and is refused.
-    Intake archives every inbound activity, refused ones included, so a stored
-    object is "recorded" only when the case's CASE_MANAGER sent it about this
-    case: an archived Offer from any other actor is not a record (CM-16-019).
-    ``roles`` is ``None`` when the recorded Offer carries none.
-    """
-    raw_offer_id = getattr(inner_offer, "id_", None)
-    stored_offer = (
-        dl.read(raw_offer_id)
-        if isinstance(raw_offer_id, str) and raw_offer_id
-        else None
-    )
-    if not _is_managers_offer_about(dl, stored_offer, case_id):
-        return _unrecorded_recommendation_refusal(
-            verb,
-            activity_id,
-            f"an Offer(CaseParticipant) this CASE_MANAGER never recorded"
-            f" ({raw_offer_id})",
-        )
-    stored_participant = getattr(stored_offer, "object_", None)
-    # AKM-03-003: dehydration stores object_ as a bare ID string;
-    # follow the reference to retrieve the full as_CaseParticipant.
-    if isinstance(stored_participant, str):
-        stored_participant = dl.read(stored_participant)
-    raw_invitee = getattr(stored_participant, "attributed_to", None)
-    invitee_id = getattr(raw_invitee, "id_", raw_invitee)
-    if not isinstance(invitee_id, str) or not invitee_id:
-        return _unrecorded_recommendation_refusal(
-            verb,
-            activity_id,
-            f"an Offer(CaseParticipant) this CASE_MANAGER never recorded"
-            f" ({raw_offer_id})",
-        )
-    raw_roles = getattr(stored_participant, "roles", None)
-    roles = (
-        serialize_roles(raw_roles)
-        if isinstance(raw_roles, list) and raw_roles
-        else None
-    )
-    return invitee_id, roles
-
-
-def _is_managers_offer_about(
-    dl: CasePersistence, stored_offer: object, case_id: str
-) -> bool:
-    """True when *stored_offer* was sent by *case_id*'s CASE_MANAGER about it."""
-    if stored_offer is None:
-        return False
-    case = dl.read_case(case_id)
-    manager_id = resolve_case_manager_id(case, dl) if case else None
-    raw_actor = getattr(stored_offer, "actor", None)
-    actor_id = getattr(raw_actor, "id_", raw_actor)
-    raw_target = getattr(stored_offer, "target", None)
-    target_id = getattr(raw_target, "id_", raw_target)
-    return (
-        manager_id is not None
-        and actor_id == manager_id
-        and target_id == case_id
-    )
-
-
-def _unrecorded_recommendation_refusal(
-    verb: str, activity_id: str, what: str
-) -> HandlerResult:
-    """Log and build the refusal for a decision with no recorded recommender."""
-    logger.warning(
-        "%sOfferCaseParticipantReceived: event '%s' names %s — refusing",
-        verb,
-        activity_id,
-        what,
-    )
-    return HandlerResult.refused(
-        f"{verb}(Offer(CaseParticipant)) names {what}"
-    )
-
-
 class AcceptOfferCaseParticipantReceivedUseCase:
     """The CASE_MANAGER received Accept(Offer(CaseParticipant)) from the Case Owner.
 
@@ -314,7 +170,9 @@ class AcceptOfferCaseParticipantReceivedUseCase:
     BTBridge to commit the ledger entry, notify the recommender, and invite the
     recommended actor (CM-16-006, ADR-0026).  Those effects are gated on the
     receiving actor holding ``CVDRole.CASE_MANAGER`` (BT-17-001); any other
-    receiver refuses (HP-01-005, #3752).
+    receiver refuses (HP-01-005, #3752).  The tree looks up the recorded Offer
+    the Accept names, so an Accept naming one this CASE_MANAGER never recorded
+    is archived and refused in the tree (CLP-10-005, CLP-10-018).
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
@@ -339,7 +197,6 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         request = self._request
         activity_id = request.activity_id
         case_id = request.target_id or request.inner_target_id
-        inner_offer = getattr(request.activity, "object_", None)
 
         if not case_id:
             logger.warning(
@@ -351,41 +208,17 @@ class AcceptOfferCaseParticipantReceivedUseCase:
                 "Accept(Offer(CaseParticipant)) is missing its case id"
             )
 
-        # The invitee and roles are the recorded Offer's, not the Accept's
-        # (CM-16-019, ISSUE-1745).
-        recorded = _require_recorded_offer(
-            self._dl,
-            inner_offer,
-            case_id,
-            verb="Accept",
-            activity_id=activity_id,
-        )
-        if isinstance(recorded, HandlerResult):
-            return recorded
-        invitee_id, offer_roles = recorded
-
-        resolved = _require_recorded_recommendation(
-            self._dl,
-            inner_offer,
-            case_id,
-            verb="Accept",
-            activity_id=activity_id,
-        )
-        if isinstance(resolved, HandlerResult):
-            return resolved
-        recommendation_id, recommender_id = resolved
-
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
 
+        # The tree looks up the Offer the Accept names: the invitee, its
+        # roles and the recommender are the recorded Offer's, not the
+        # Accept's (CM-16-019, ISSUE-1745).
         tree = create_accept_actor_recommendation_received_tree(
-            recommendation_id=recommendation_id,
-            recommender_id=recommender_id,
-            invitee_id=invitee_id,
+            answer_id=activity_id,
             case_id=case_id,
             sender_id=request.actor_id,
-            roles=offer_roles,
             sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
@@ -420,7 +253,9 @@ class RejectOfferCaseParticipantReceivedUseCase:
     BTBridge to commit the ledger entry and notify the original recommender
     (CM-16-007, ADR-0026).  The notification is gated on the receiving actor
     holding ``CVDRole.CASE_MANAGER`` (BT-17-001); any other receiver refuses
-    (HP-01-005, #3752).
+    (HP-01-005, #3752).  The tree looks up the recorded Offer the Reject
+    names, so a Reject naming one this CASE_MANAGER never recorded is
+    archived and refused in the tree (CLP-10-005, CLP-10-018).
     """
 
     sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
@@ -445,7 +280,6 @@ class RejectOfferCaseParticipantReceivedUseCase:
         request = self._request
         activity_id = request.activity_id
         case_id = request.target_id
-        inner_offer = getattr(request.activity, "object_", None)
         if not case_id:
             logger.warning(
                 "RejectOfferCaseParticipantReceived: missing case_id in"
@@ -456,37 +290,14 @@ class RejectOfferCaseParticipantReceivedUseCase:
                 "Reject(Offer(CaseParticipant)) names no case"
             )
 
-        resolved = _require_recorded_recommendation(
-            self._dl,
-            inner_offer,
-            case_id,
-            verb="Reject",
-            activity_id=activity_id,
-        )
-        if isinstance(resolved, HandlerResult):
-            return resolved
-        recommendation_id, recommender_id = resolved
-        # The recommended actor is the recorded Offer's, not the Reject's
-        # (CM-16-019).
-        recorded = _require_recorded_offer(
-            self._dl,
-            inner_offer,
-            case_id,
-            verb="Reject",
-            activity_id=activity_id,
-        )
-        if isinstance(recorded, HandlerResult):
-            return recorded
-        recommended_id, _roles = recorded
-
         local_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
 
+        # The tree looks up the Offer the Reject names: the recommender and
+        # the recommended actor are the recorded Offer's (CM-16-019).
         tree = create_reject_actor_recommendation_received_tree(
-            recommendation_id=recommendation_id,
-            recommender_id=recommender_id,
-            recommended_id=recommended_id,
+            answer_id=activity_id,
             case_id=case_id,
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,

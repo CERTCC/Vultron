@@ -99,6 +99,7 @@ It refuses a reply from any other sender, invites no one, and tells the recommen
 The actor it invites is the one named in the `Offer(CaseParticipant)` it forwarded, never the one named in your reply.
 It also refuses an `Accept` for an actor that has already joined or has closed its record, and it commits and sends nothing for it.
 The same holds for an actor the case has removed.
+It also refuses a reply that names an `Offer(CaseParticipant)` it never forwarded, or a recommendation it holds no record of, and it commits and sends nothing for it.
 
 !!! warning "Replying to the recommender skips the record"
 

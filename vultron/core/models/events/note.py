@@ -12,22 +12,6 @@ else:
     VultronNote = object
 
 
-class CreateNoteReceivedEvent(VultronEvent):
-    """Actor created a Note."""
-
-    semantic_type: Literal[MessageSemantics.CREATE_NOTE] = (
-        MessageSemantics.CREATE_NOTE
-    )
-
-    @property
-    def note_id(self) -> str | None:
-        return self.object_id
-
-    @property
-    def note(self) -> "VultronNote | None":
-        return cast("VultronNote | None", self.object_)
-
-
 class AddNoteToCaseReceivedEvent(VultronEvent):
     """Actor added a Note to a VulnerabilityCase."""
 

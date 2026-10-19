@@ -93,7 +93,7 @@ stakeholder_type: [project-contributor]
   Everything under `test/demo/` is marked by a `test/demo/conftest.py` collection hook, not by `pytestmark`.
 - **Other registered markers** (`pyproject.toml` `[tool.pytest.ini_options].markers`): `case_ledger_invariants` (require `devlogs/` JSONL artifacts; skip when absent), `executes_as(actor_id)` (actor identity the test's BT runs under; opens that actor's store per ADR-0073), `spec_corpus` (tests that load real `specs/` YAML; gated on `specs/**` changes via `spec-check.yml`)
 - **Warnings are errors**: `filterwarnings = ["error", ...]`, with the two spec-gate warnings exempted by `always::` entries placed after `"error"`
-- **Per-test timeout**: `pytest-timeout` unit tier is 30 s (raised from 5 s in #2270; `timeout_method = "thread"`), integration tier 60 s (`INTEGRATION_TIMEOUT_SECONDS` in `test/conftest.py`)
+- **Per-test timeout**: `pytest-timeout` unit tier is 30 s (raised from 5 s in #2270; `timeout_method = "signal"`, so a trip fails only that test), integration tier 60 s (`INTEGRATION_TIMEOUT_SECONDS` in `test/conftest.py`)
 - **Registry isolation**: tests that define a local `CoreObject`/`CoreRecord` subclass request the `isolated_core_registries` fixture (TB-06-003, TB-06-004)
 - **Mocking strategy**: real `sqlite:///:memory:` database (no DB mocking); `test/conftest.py` sets the env var before any `vultron` import
 - **Coverage expectation**: [TODO] — no coverage tool configured in `pyproject.toml`; CI does not report coverage percentage

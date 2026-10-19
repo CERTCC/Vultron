@@ -30,11 +30,11 @@ this ratchet reads both:
 * Each activity class names its AS2 base, as in
   ``_RmCloseReportActivity(as_Reject)``.
 * Each registered ``ActivityPattern`` names its verb, as in
-  ``CreateNotePattern(activity_=TAtype.CREATE)``.
+  ``RemoveNoteFromCasePattern(activity_=TAtype.REMOVE)``.
 
-Both are needed because the docs draw names from both systems.  ``CreateNote``
-is a registry pattern with no dedicated class; ``AddStatusToParticipant`` is a
-class whose pattern carries a different name
+Both are needed because the docs draw names from both systems.
+``RemoveNoteFromCase`` is a registry pattern with no dedicated class;
+``AddStatusToParticipant`` is a class whose pattern carries a different name
 (``AddParticipantStatusToParticipant``).  A class-only map makes the first kind invisible, which is how
 ``CreateStatus`` — a name belonging to neither system — survived review.  The
 two sources agree wherever they overlap, and a disagreement is itself a finding.
@@ -159,7 +159,7 @@ _INLINE_WIRE_FORM = re.compile(r"`([A-Z][A-Za-z]+\([^`]*\))`")
 #: present, a ``> 30`` floor tolerated 19 disappearing while every test stayed
 #: green.  Pin it at the real count so losing even one is loud, and raise it
 #: when nodes are added (MS-11 ratchet discipline, DF-09-009).
-_MIN_LABELLED_NODES = 49
+_MIN_LABELLED_NODES = 48
 
 #: Node ids whose wire form no registry entry carries on its own, mapped to the
 #: pattern that does carry it.  ``ActivateEmbargo`` shares
@@ -226,8 +226,8 @@ def _class_verbs() -> dict[str, str]:
 def _pattern_verbs() -> dict[str, str]:
     """Map the doc-facing activity name to the ``as:Verb`` its pattern matches.
 
-    ``CreateNotePattern`` and ``AddNoteToCaseActivityPattern`` are written
-    ``CreateNote`` and ``AddNoteToCase``.
+    ``RemoveNoteFromCasePattern`` and ``AddNoteToCaseActivityPattern`` are
+    written ``RemoveNoteFromCase`` and ``AddNoteToCase``.
     """
     return {
         re.sub(r"(Activity)?Pattern$", "", name): f"as:{value.activity_}"

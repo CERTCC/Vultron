@@ -76,7 +76,7 @@ Read it field by field.
 | `object` | The thing acted on: a Vultron object, or an earlier activity being answered | `Accept`, `Reject`, `TentativeReject`, and `Read` carry the activity they answer, not the object inside it |
 | `target` | Where the object goes | `Add` names the case here, as do `Remove(Note)` and `Remove(CaseParticipant)`; `Offer(CaseParticipantRole)` names the actor being offered the role |
 | `origin` | Where the object comes from | `Remove(Event)`, which terminates an embargo, names the case here rather than in `target` |
-| `context` | The case an activity belongs to | `Create(Note)` and `Invite(Event)` name the case here |
+| `context` | The case an activity belongs to | `Invite(Event)` names the case here, and so does the `Note` an `Add(Note)` carries |
 | `inReplyTo` | The earlier activity this one answers, when the verb alone does not say so | `Add(Event)` with `inReplyTo` activates an agreed embargo; without it, it imposes one |
 | `to` | The recipient inboxes | A report is offered to each recipient separately; case traffic goes to the CASE_MANAGER |
 

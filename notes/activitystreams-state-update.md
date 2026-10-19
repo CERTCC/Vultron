@@ -21,6 +21,7 @@ relevant_packages:
   - pydantic
   - vultron/wire/as2
   - vultron/core/models/events
+  - vultron/core/behaviors/case/nodes/suggest_actor
 ---
 
 # ActivityStreams: Case State Update and Advanced Patterns
@@ -124,8 +125,9 @@ the suffix, so log a warning if it is reached.
 
 On `Accept(Offer(CaseParticipant))`, the CASE_MANAGER reads the invitee's roles
 from the stored Offer it constructed, never from the participant embedded in
-the Accept: the acceptor could substitute or omit roles (ADR-0026). See
-`vultron/core/use_cases/received/actor/offer_case_participant.py`.
+the Accept: the acceptor could substitute or omit roles (ADR-0026). The lookup
+is a precondition guard of the received tree, never `execute()` (CLP-10-005);
+see `vultron/core/behaviors/case/nodes/suggest_actor/recorded_offer.py`.
 
 ## Patterns Sharing a Verb and Object Need a Strict Discriminator
 

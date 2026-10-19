@@ -20,6 +20,10 @@ This is the default local maintainer command.
 The worker count comes from the container's CPU and memory limits, not from `nproc`, so a worktree slot gets one worker per CPU it is capped at (`SLOT_CPUS`), memory permitting.
 Set `PYTEST_XDIST_AUTO_NUM_WORKERS` to choose a different count.
 
+If a worker process dies, for example when the container runs out of memory, the run stops at once and reports `worker 'gwN' crashed while running <test>`.
+The named test is the one the worker was running, which is not always the cause.
+A test that runs past its per-test timeout fails on its own with `Failed: Timeout`, and the rest of the run goes on.
+
 ## Run a focused file while iterating
 
 If you need faster feedback during implementation, run:

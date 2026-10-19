@@ -86,7 +86,7 @@ An activity and an `Add(ParticipantStatus)` that report the same move record it 
 - **Triggering transition:** any unexpected RM message.
 - **Wire activity:** none dedicated. Faults are conveyed by
   `Create(ProcessingFault)` (not understood), `as:Reject` (understood but
-  declined), or `Create(Note)` (needing explanation), partitioned by failure
+  declined), or `Add(Note)` (needing explanation), partitioned by failure
   mode rather than by state machine
   ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types).
