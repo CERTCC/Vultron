@@ -39,58 +39,55 @@ from vultron.core.models.base import (
     NonEmptyString,
     UriString,
     ValidatedAssignmentMixin,
-    with_record_id,
 )
 from vultron.core.models.embargo_apply import ConsentRowChange, RegisterStep
+
+
+class RecordedEntryActivity(ValidatedAssignmentMixin):
+    """The CASE_MANAGER's own record activity for one planned entry.
+
+    Sealed before the act's first commit and carrying the changed object in
+    full: a later run commits exactly this body (ADR-0146).
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    activity_id: NonEmptyString
+    event_type: NonEmptyString
+    #: The sealed activity body, verbatim.  Held as one JSON string so
+    #: storage does not normalise the nested keys of the body it holds.
+    activity_json: NonEmptyString
 
 
 class PlannedEmbargoEntryRecord(ValidatedAssignmentMixin):
     """One entry an embargo act will commit after its own, as data.
 
     *change* is what applying the entry writes; ``None`` for an entry that
-    changes no embargo object.  *activity_id*, *event_type* and
-    *activity_json* are the CASE_MANAGER's own activity for the entry,
-    sealed before the act's first commit and carrying the changed object in
-    full: a later run commits exactly this body.  All three are absent for
-    a change the act's own entry carries (such as the owner's ``AGREED`` row
-    at activation), which has no commit of its own.
+    changes no embargo object.  *recorded* is the entry's record activity;
+    ``None`` for a change the act's own entry carries (such as the owner's
+    ``AGREED`` row at activation), which has no commit of its own.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     change: RegisterStep | ConsentRowChange | None = None
-    activity_id: NonEmptyString | None = None
-    event_type: NonEmptyString | None = None
-    #: The sealed activity body, verbatim.  Held as one JSON string so
-    #: storage does not normalise the nested keys of the body it holds.
-    activity_json: NonEmptyString | None = None
+    recorded: RecordedEntryActivity | None = None
 
     @model_validator(mode="after")
-    def _activity_fields_together(self) -> "PlannedEmbargoEntryRecord":
-        given = [
-            self.activity_id is not None,
-            self.event_type is not None,
-            self.activity_json is not None,
-        ]
-        if any(given) and not all(given):
-            raise ValueError(
-                "a planned entry with its own commit names its activity id,"
-                " event type and sealed body; one with none names none"
-            )
-        if not any(given) and self.change is None:
+    def _commits_or_changes(self) -> "PlannedEmbargoEntryRecord":
+        if self.recorded is None and self.change is None:
             raise ValueError(
                 "a planned entry with no commit of its own must carry a change"
             )
         return self
 
-    @property
-    def commits(self) -> bool:
-        """True when the entry has a commit of its own."""
-        return self.activity_id is not None
-
 
 class PendingEmbargoEntries(CoreRecord):
     """The entries an embargo act still owes after its own (CLP-07-015).
+
+    Built with :meth:`for_act`, whose id names the case, the act and the
+    act's first owed entry, so two acts naming the same object (two
+    invitees' expiries of an Invite that cannot be named) never share one.
 
     Attributes:
         case_id: URI of the case the act is on.
@@ -101,6 +98,11 @@ class PendingEmbargoEntries(CoreRecord):
             object it names may also be the object of other entries (an
             expiry names the Invite that expired).  ``None`` matches any
             entry naming *act_id*.
+        act_committed_after: When this run commits the act's own entry, the
+            ledger's last ``log_index`` before it (``-1`` for an empty
+            ledger): only an entry after it is the act's, so an earlier entry
+            naming the same object is never taken for it.  ``None`` when the
+            act's entry was committed before the plan (a received act).
         act_change: The change the act's own entry carries, when this run
             commits that entry: a later run applies it again only when the
             case file lacks it (a save that failed after the commits).
@@ -122,6 +124,11 @@ class PendingEmbargoEntries(CoreRecord):
     act_event_type: NonEmptyString | None = Field(
         default=None, description="event_type of the act's own ledger entry"
     )
+    act_committed_after: int | None = Field(
+        default=None,
+        ge=-1,
+        description="The ledger's last log_index before the act's own entry",
+    )
     act_change: RegisterStep | ConsentRowChange | None = Field(
         default=None, description="The change the act's own entry carries"
     )
@@ -133,22 +140,45 @@ class PendingEmbargoEntries(CoreRecord):
     )
 
     @classmethod
-    def build_id(cls, case_id: str, act_id: str) -> str:
-        """Return the stable DataLayer ID for the act *act_id* on *case_id*."""
-        case_slug = urllib.parse.quote(case_id, safe="")
-        act_slug = urllib.parse.quote(act_id, safe="")
-        return f"pending-embargo-entries/{case_slug}/{act_slug}"
+    def build_id(cls, case_id: str, act_id: str, first_owed_id: str) -> str:
+        """The stable DataLayer ID of a plan on *case_id*.
 
-    @model_validator(mode="before")
+        *act_id* names the act; *first_owed_id* is the activity id of the
+        first entry the plan owes, which the act and its row derive.
+        """
+        slugs = "/".join(
+            urllib.parse.quote(part, safe="")
+            for part in (case_id, act_id, first_owed_id)
+        )
+        return f"pending-embargo-entries/{slugs}"
+
     @classmethod
-    def _set_id(cls, data: Any) -> Any:
-        """Compute ``id_`` deterministically from ``case_id`` and ``act_id``."""
-        if isinstance(data, dict):
-            case_id = data.get("case_id")
-            act_id = data.get("act_id")
-            if case_id is not None and act_id is not None:
-                data = with_record_id(data, cls.build_id(case_id, act_id))
-        return data
+    def for_act(cls, **fields: Any) -> "PendingEmbargoEntries":
+        """A plan whose id :meth:`build_id` derives from *fields*.
+
+        Raises:
+            ValueError: no entry in ``entries`` has a commit of its own, so
+                the plan would owe nothing.
+        """
+        entries = [
+            PlannedEmbargoEntryRecord.model_validate(entry)
+            for entry in fields["entries"]
+        ]
+        first = next(
+            (entry.recorded for entry in entries if entry.recorded), None
+        )
+        if first is None:
+            raise ValueError("a plan owes at least one entry with a commit")
+        return cls(
+            id_=cls.build_id(
+                fields["case_id"], fields["act_id"], first.activity_id
+            ),
+            **{**fields, "entries": entries},
+        )
 
 
-__all__ = ["PendingEmbargoEntries", "PlannedEmbargoEntryRecord"]
+__all__ = [
+    "PendingEmbargoEntries",
+    "PlannedEmbargoEntryRecord",
+    "RecordedEntryActivity",
+]

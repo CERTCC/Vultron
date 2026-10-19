@@ -83,9 +83,11 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "author_id": f"{_URI}/manager",
         "entries": [
             {
-                "activity_id": f"{_URI}/row-entry",
-                "event_type": "update_embargo_consent",
-                "activity_json": "{}",
+                "recorded": {
+                    "activity_id": f"{_URI}/row-entry",
+                    "event_type": "update_embargo_consent",
+                    "activity_json": "{}",
+                }
             }
         ],
     },

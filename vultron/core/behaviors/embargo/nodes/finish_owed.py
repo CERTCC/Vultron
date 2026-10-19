@@ -17,21 +17,28 @@
 
 An embargo act stores the entries it owes before its first commit
 (:func:`~vultron.core.behaviors.embargo.copy_commit.commit_and_apply_embargo_entries`).
-:class:`FinishOwedEmbargoEntriesNode` runs first in every CASE_MANAGER
-embargo tree for the case, received and trigger alike, before any guard
-reads a consent row (ADR-0146).  It is the first case-wide clock decision
-(:func:`~vultron.core.behaviors.case.case_clock_decisions.case_clock_decisions`),
-ahead of the end-time check, whose termination would freeze the rows an act
-still owes; an embargo trigger that opts out of the case-wide decisions takes
-it on its own (``SvcEmbargoTriggerBase``).  Either way it runs inside the
-CASE_MANAGER gate, so a replica, which stores no plan, never runs it.
+:class:`FinishOwedEmbargoEntriesNode` runs in every CASE_MANAGER embargo tree
+for the case, received and trigger alike, before any node reads a consent
+row (ADR-0146):
+
+- as the first case-wide clock decision
+  (:func:`~vultron.core.behaviors.case.case_clock_decisions.case_clock_decisions`),
+  ahead of the end-time check, whose termination would freeze the rows an
+  act still owes; the stage runs inside the CASE_MANAGER gate, so a
+  replica, which stores no plan, never runs it there;
+- alone, for an embargo trigger that opts out of the case-wide decisions
+  (``SvcEmbargoTriggerBase``);
+- just before the creation-time revision relay, in the case-proposal tree
+  and the startup retry tree.  The case-proposal tree runs it ungated: its
+  receiver mints the case and is its first manager, so it holds every plan
+  on the case.
 """
 
 from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.copy_commit import (
+from vultron.core.behaviors.embargo.owed_entries import (
     finish_owed_embargo_entries,
 )
 from vultron.core.behaviors.helpers import (

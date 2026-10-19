@@ -213,10 +213,11 @@ _PASS_THROUGH_EVENT_TYPES = frozenset(
         "self.event_type",
         "self._event_type",
         "chain_entry.event_type",
-        # A stored embargo plan's entry (``finish_owed_embargo_entries``):
-        # the scan resolves its type where ``consent_row_entry`` or another
-        # ``recorded_entry`` caller planned it (CLP-07-015).
-        "item.event_type",
+        # A stored embargo plan's entry, recommitted by
+        # ``finish_owed_embargo_entries``: the scan resolves its type where
+        # ``consent_row_entry`` or another ``recorded_entry`` caller planned
+        # it (CLP-07-015).
+        "activity.event_type",
     }
 )
 

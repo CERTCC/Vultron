@@ -146,6 +146,7 @@ class CommitEmbargoDecisionNode(
             actor_id=cast(str, self.actor_id),
             cause_id=activity_id,
             act_commit=send_and_commit,
+            act_entry_id=self._ledger_object_id(activity_id),
         )
 
 

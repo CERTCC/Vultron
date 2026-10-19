@@ -44,7 +44,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo.copy_commit import open_embargo_plans
 from vultron.core.behaviors.embargo.expiry_tree import (
     create_commit_and_record_expiry_tree,
 )
@@ -52,6 +51,7 @@ from vultron.core.behaviors.embargo.nodes import (
     EMBARGO_ACTIVATION_EVENT_TYPE,
     EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
 )
+from vultron.core.behaviors.embargo.owed_entries import open_embargo_plans
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case_participant import CaseParticipant
@@ -605,7 +605,7 @@ def _invited_bystander(name: str) -> tuple[LedgerNetwork, str]:
     return net, revision_id
 
 
-def _expire(net: LedgerNetwork, embargo_id: str):
+def _expire(net: LedgerNetwork, embargo_id: str, invitee: str = BYSTANDER):
     dl = net.stores[MANAGER]
     return BTBridge(
         datalayer=dl,
@@ -615,7 +615,7 @@ def _expire(net: LedgerNetwork, embargo_id: str):
     ).execute_with_setup(
         tree=create_commit_and_record_expiry_tree(
             case_id=net.case_id,
-            invitee_id=BYSTANDER,
+            invitee_id=invitee,
             invite_id=None,
             embargo_id=embargo_id,
             published=now_utc().isoformat(),
@@ -702,6 +702,44 @@ class TestInviteTimeOut:
         )
         assert _state(net, MANAGER, BYSTANDER, revision_id) is _S.TIMED_OUT
         assert open_embargo_plans(net.stores[MANAGER], net.case_id) == []
+
+    @pytest.mark.spec("CLP-07-015")
+    def test_an_earlier_act_naming_the_same_object_is_not_this_act(
+        self, monkeypatch
+    ):
+        """Two expiries of Invites that cannot be named both name the case.
+
+        The bystander's expiry is committed; the owner's expiry act is then
+        refused.  Its plan owes nothing, though an expiry entry naming the
+        case is in the ledger: only an entry after the plan's tail is its
+        act's (ADR-0146).
+        """
+        net, revision_id = _invited_bystander("ac-timeout-same-object")
+        assert _state(net, MANAGER, OWNER, revision_id) is _S.INVITED
+        assert _expire(net, revision_id).status.name == "SUCCESS"
+        failing = [True]
+        fail_commits(
+            monkeypatch,
+            commit_tree,
+            when=lambda kw: (
+                failing[0] and kw["event_type"] == INVITE_EXPIRED_EVENT_TYPE
+            ),
+        )
+        assert _expire(net, revision_id, OWNER).status.name != "SUCCESS"
+        failing[0] = False
+        dl = net.stores[MANAGER]
+        (plan,) = open_embargo_plans(dl, net.case_id)
+        assert plan.act_id == net.case_id
+        since = _count(net)
+
+        _propose(net, "next", 60)
+
+        assert (
+            UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+            not in (_embargo_entries(net, since)[:1])
+        )
+        assert _state(net, MANAGER, OWNER, revision_id) is _S.INVITED
+        assert open_embargo_plans(dl, net.case_id) == []
 
     @pytest.mark.spec("CM-28-009")
     def test_a_row_no_longer_invited_commits_nothing(self):

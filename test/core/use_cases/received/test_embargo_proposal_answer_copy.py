@@ -742,7 +742,7 @@ def test_a_replacement_whose_row_did_not_commit_is_finished_next_run(
     An invitee answering in between is that next tree: its answer is judged
     against the row the replacement invited it with.
     """
-    from vultron.core.behaviors.embargo.copy_commit import open_embargo_plans
+    from vultron.core.behaviors.embargo.owed_entries import open_embargo_plans
 
     net = _stub_network("reissue-row-retry")
     original_id = _send_stub(net)
@@ -798,8 +798,8 @@ def test_a_replacement_whose_row_did_not_commit_is_finished_next_run(
         assert row.rsvp_deadline == replacement.end_time
     (owed,) = plan.entries
     committed = [e.log_object_id for e in ledger_entries(dl, net.case_id)]
-    assert owed.activity_id is not None
-    assert committed.count(owed.activity_id) == 1, "committed once"
+    assert owed.recorded is not None
+    assert committed.count(owed.recorded.activity_id) == 1, "committed once"
     assert open_embargo_plans(dl, net.case_id) == []
 
 

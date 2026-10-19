@@ -320,10 +320,12 @@ guards, commit, effects.
    a case and both door guards (`case_clock_decisions`), and a case-scoped
    trigger runs the same gated stage first in its own tree (BT-15-003). The
    step that finishes a part-way embargo act runs before it there, and raises
-   rather than fails (CLP-07-015). A
-   commit the ledger refuses logs a warning and does not end the tree; an
-   internal error does. A decision built from CASE_MANAGER commit nodes, which
-   raise on a failed commit, must judge the ledger's refusal (a gapped prefix,
+   rather than fails (CLP-07-015). A commit the ledger refuses logs a warning
+   and does not end the tree; an internal error does. The exception is an act
+   left part-way, its own entry committed and a later one refused: the
+   decision raises, so no later node reads its rows before the next run
+   finishes it (CLP-07-015). A decision built from CASE_MANAGER commit nodes,
+   which raise on a failed commit, must judge the ledger's refusal (a gapped prefix,
    SYNC-10-001) as FAILURE before it commits, as `end_time_clock_decision`
    does with `CheckLedgerFreshnessNode`. Pass
    the decision as `clock_decisions`: the factory wraps each in a

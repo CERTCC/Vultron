@@ -44,7 +44,7 @@ order.  :func:`commit_and_apply_embargo_entries` then:
 
 A failed commit leaves the plan stored.  The next CASE_MANAGER embargo run
 on the case finishes it before any guard reads a consent row
-(:func:`finish_owed_embargo_entries`, from
+(``owed_entries.finish_owed_embargo_entries``, from
 ``FinishOwedEmbargoEntriesNode``): when the act's own entry is in the
 ledger it commits the owed entries unchanged and in order, and applies
 them; when it is not, it discards the plan (CLP-07-015, ADR-0146).
@@ -64,7 +64,6 @@ unless the case changed in between, and commits the consequence entries.  Call i
 import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from functools import partial
 from typing import TYPE_CHECKING, Any
 
 # The case-file read and save live outside this package so the replica copy
@@ -81,7 +80,6 @@ from vultron.core.models.embargo_apply import (
     EmbargoCaseFile,
     EmbargoChange,
     apply_embargo_change,
-    change_is_in_place,
 )
 from vultron.core.models.embargo_consent_event_types import (
     CREATE_EMBARGO_CONSENT_EVENT_TYPE,
@@ -90,11 +88,12 @@ from vultron.core.models.embargo_consent_event_types import (
 from vultron.core.models.pending_embargo_entries import (
     PendingEmbargoEntries,
     PlannedEmbargoEntryRecord,
+    RecordedEntryActivity,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.sync_helpers import recorded_entries_for_case
-from vultron.errors import VultronBTInternalError, VultronEntryRefusedError
+from vultron.errors import VultronBTInternalError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -103,7 +102,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 #: Storage table of the stored plans (:class:`PendingEmbargoEntries`).
-_PLAN_TYPE = "PendingEmbargoEntries"
+PLAN_TYPE = "PendingEmbargoEntries"
 
 
 @dataclass(frozen=True)
@@ -125,9 +124,11 @@ class RecordedActivity:
         """This activity as the stored plan's entry carrying *change*."""
         return PlannedEmbargoEntryRecord(
             change=change,
-            activity_id=self.activity_id,
-            event_type=self.event_type,
-            activity_json=self.blob,
+            recorded=RecordedEntryActivity(
+                activity_id=self.activity_id,
+                event_type=self.event_type,
+                activity_json=self.blob,
+            ),
         )
 
 
@@ -220,6 +221,7 @@ def _act_and_owed(
 
 
 def _plan(
+    datalayer: CasePersistence,
     case_id: str,
     entries: Sequence[PlannedEmbargoEntry],
     committed_act: str | None,
@@ -264,23 +266,35 @@ def _plan(
             f" commits after its own name {sorted(authors)} as their author;"
             " the CASE_MANAGER authors them all"
         )
-    return PendingEmbargoEntries(
+    ledger = recorded_entries_for_case(case_id=case_id, dl=datalayer)
+    return PendingEmbargoEntries.for_act(
         case_id=case_id,
         act_id=act_id,
         act_event_type=act.event_type,
+        # Only an entry after today's tail is this run's act, so an earlier
+        # entry naming the same object is never taken for it.
+        act_committed_after=(
+            None
+            if committed_act is not None
+            else (ledger[-1].log_index if ledger else -1)
+        ),
         act_change=act.change,
         author_id=authors.pop(),
         entries=records,
     )
 
 
-def _commit_then_save(
+def commit_then_save(
     datalayer: CasePersistence,
     before: EmbargoCaseFile,
     entries: Sequence[PlannedEmbargoEntry],
     states: Sequence[EmbargoCaseFile],
 ) -> EmbargoCaseFile:
-    """Commit *entries* in order, then save the case file *states* reach."""
+    """Commit *entries* in order, then save the case file *states* reach.
+
+    *states* are the trial's result for *entries*, from *before*.  The save
+    in ``finally`` keeps every change whose entry committed, and no other.
+    """
     applied = before
     try:
         for entry, state in zip(entries, states, strict=True):
@@ -309,7 +323,8 @@ def commit_and_apply_embargo_entries(
     and removed once every entry has committed and the case file is saved.
     A run that fails part-way leaves the record, and the next CASE_MANAGER
     embargo run on the case finishes the act from it
-    (:func:`finish_owed_embargo_entries`, CLP-07-015).
+    (:func:`~vultron.core.behaviors.embargo.owed_entries
+    .finish_owed_embargo_entries`, CLP-07-015).
 
     *committed_act* is the ``log_object_id`` of the act's own entry when it
     is already in the ledger (a received act, committed by intake,
@@ -330,152 +345,13 @@ def commit_and_apply_embargo_entries(
     """
     before = read_embargo_case_file(datalayer, case_id)
     states = trial_apply(before, [entry.change for entry in entries])
-    plan = _plan(case_id, entries, committed_act)
+    plan = _plan(datalayer, case_id, entries, committed_act)
     if plan is not None:
         datalayer.save(plan)
-    applied = _commit_then_save(datalayer, before, entries, states)
+    applied = commit_then_save(datalayer, before, entries, states)
     if plan is not None:
-        datalayer.delete(_PLAN_TYPE, plan.id_)
+        datalayer.delete(PLAN_TYPE, plan.id_)
     return applied
-
-
-def open_embargo_plans(
-    datalayer: CasePersistence, case_id: str
-) -> list[PendingEmbargoEntries]:
-    """The stored plans of embargo acts on *case_id* not yet finished."""
-    return sorted(
-        (
-            plan
-            for plan in datalayer.list_objects(_PLAN_TYPE)
-            if isinstance(plan, PendingEmbargoEntries)
-            and plan.case_id == case_id
-        ),
-        key=lambda plan: plan.id_,
-    )
-
-
-def _act_recorded(
-    plan: PendingEmbargoEntries, recorded: set[tuple[str, str]]
-) -> bool:
-    return any(
-        object_id == plan.act_id
-        and (plan.act_event_type is None or event_type == plan.act_event_type)
-        for object_id, event_type in recorded
-    )
-
-
-def _owed_entries(
-    datalayer: CaseOutboxPersistence,
-    plan: PendingEmbargoEntries,
-    case_file: EmbargoCaseFile,
-    recorded: set[tuple[str, str]],
-    actor_id: str,
-) -> list[PlannedEmbargoEntry]:
-    """The planned entries still to commit or apply, rebuilt from *plan*.
-
-    An entry already committed is not committed again, and a change already
-    in *case_file* is not applied again; the act's own change, committed with
-    its entry, comes first when the case file lacks it.  Each commit is the sealed body the
-    plan stored, unchanged.
-    """
-    owed: list[PlannedEmbargoEntry] = []
-    if plan.act_change is not None and not change_is_in_place(
-        case_file, plan.act_change
-    ):
-        # The act's entry is committed (the caller checked), so its change
-        # is applied with no commit of its own.
-        owed.append(PlannedEmbargoEntry(change=plan.act_change))
-    for item in plan.entries:
-        change = (
-            item.change
-            if item.change is not None
-            and not change_is_in_place(case_file, item.change)
-            else None
-        )
-        commit: Callable[[], Any] | None = None
-        if item.commits:
-            assert item.activity_id is not None
-            assert item.event_type is not None
-            assert item.activity_json is not None
-            if (item.activity_id, item.event_type) not in recorded:
-                commit = partial(
-                    commit_emitted_activity,
-                    datalayer=datalayer,
-                    actor_id=actor_id,
-                    case_id=plan.case_id,
-                    activity_id=item.activity_id,
-                    activity_blob=item.activity_json,
-                    event_type=item.event_type,
-                )
-        if change is not None or commit is not None:
-            owed.append(PlannedEmbargoEntry(change=change, commit=commit))
-    return owed
-
-
-def finish_owed_embargo_entries(
-    datalayer: CaseOutboxPersistence, case_id: str, actor_id: str
-) -> list[PendingEmbargoEntries]:
-    """Finish every embargo act on *case_id* that a failed commit left open.
-
-    For each stored plan: when the act's own entry is in the ledger, commit
-    the entries the plan still owes, unchanged and in their planned order,
-    and apply them through the one apply function; when it is not, the act
-    never happened, and the plan is discarded with nothing committed
-    (CLP-07-015, ADR-0146).  The plan is read only to commit what was
-    already decided, never to decide a case-file value (CLP-07-014).
-    *actor_id* is the executing CASE_MANAGER, who authored the plan's
-    entries.  Returns the plans handled.
-
-    Raises:
-        VultronBTInternalError: the plan was authored by another actor, or
-            an owed entry no longer applies to the case; the plan is kept.
-        Exception: whatever a commit raised; the plan is kept, and the
-            changes of the entries committed before it are saved.
-    """
-    plans = open_embargo_plans(datalayer, case_id)
-    for plan in plans:
-        recorded = {
-            (entry.log_object_id, str(entry.event_type))
-            for entry in recorded_entries_for_case(
-                case_id=case_id, dl=datalayer
-            )
-        }
-        if not _act_recorded(plan, recorded):
-            logger.info(
-                "Discarding the plan of embargo act '%s' on case '%s': its"
-                " own entry was never committed, so it owes nothing"
-                " (CLP-07-015)",
-                plan.act_id,
-                case_id,
-            )
-            datalayer.delete(_PLAN_TYPE, plan.id_)
-            continue
-        if plan.author_id != actor_id:
-            raise VultronBTInternalError(
-                f"the plan of embargo act '{plan.act_id}' on case"
-                f" '{case_id}' was authored by '{plan.author_id}', not by"
-                f" the executing CASE_MANAGER '{actor_id}'"
-            )
-        before = read_embargo_case_file(datalayer, case_id)
-        owed = _owed_entries(datalayer, plan, before, recorded, actor_id)
-        if owed:
-            try:
-                states = trial_apply(before, [entry.change for entry in owed])
-            except VultronEntryRefusedError as exc:
-                raise VultronBTInternalError(
-                    f"the entries embargo act '{plan.act_id}' on case"
-                    f" '{case_id}' still owes no longer apply: {exc}"
-                ) from exc
-            _commit_then_save(datalayer, before, owed, states)
-        datalayer.delete(_PLAN_TYPE, plan.id_)
-        logger.info(
-            "Finished embargo act '%s' on case '%s': %d owed entr(ies)"
-            " committed or applied (CLP-07-015)",
-            plan.act_id,
-            case_id,
-            len(owed),
-        )
-    return plans
 
 
 def recorded_entry(
@@ -494,7 +370,7 @@ def recorded_entry(
     to nobody, authored by *actor_id*, whose id is derived, so a re-run
     rebuilds the same one.  The entry carries its record activity, so a
     later run can commit it unchanged when this run's commit fails
-    (:func:`finish_owed_embargo_entries`).  *sync_port*, when given, fans
+    (``owed_entries.finish_owed_embargo_entries``).  *sync_port*, when given, fans
     the entry out to the case's participants; a node inside a tree that
     carries one may leave it unset, and the nested commit inherits the
     tree's.
@@ -580,12 +456,12 @@ def consent_row_entry(
 
 
 __all__ = [
+    "PLAN_TYPE",
     "PlannedEmbargoEntry",
     "RecordedActivity",
     "commit_and_apply_embargo_entries",
+    "commit_then_save",
     "consent_row_entry",
-    "finish_owed_embargo_entries",
-    "open_embargo_plans",
     "recorded_entry",
     "read_embargo_case_file",
     "save_case_file",

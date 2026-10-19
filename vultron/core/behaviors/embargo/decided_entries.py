@@ -321,6 +321,7 @@ def commit_and_apply_decision(
     cause_id: str,
     act_commit: Callable[[], Any] | None = None,
     cause_is_act: bool = True,
+    act_entry_id: str | None = None,
 ) -> EmbargoCaseFile:
     """Commit the act's entry, then each consent-row entry; apply by copying.
 
@@ -338,6 +339,8 @@ def commit_and_apply_decision(
     (CLP-07-015).  ``False`` when the act has no entry but its rows and
     *cause_id* names what it answers (the CASE_MANAGER's policy consent
     names the proposal): its first row is then the act's own entry.
+    *act_entry_id* is the ``log_object_id`` *act_commit* commits the act
+    under, when it is not *cause_id* itself.
 
     Raises:
         VultronEntryRefusedError: the case changed since the decision, and
@@ -351,7 +354,7 @@ def commit_and_apply_decision(
             PlannedEmbargoEntry(
                 change=decision.act,
                 commit=act_commit,
-                entry_id=cause_id if cause_is_act else None,
+                entry_id=(act_entry_id or cause_id) if cause_is_act else None,
             )
         )
     entries.extend(

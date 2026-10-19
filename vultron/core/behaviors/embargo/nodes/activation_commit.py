@@ -175,7 +175,12 @@ class CommitAndApplyEmbargoActivationNode(
             PlannedEmbargoEntry(
                 change=decision.step,
                 commit=accept,
-                entry_id=accept_id,
+                # The entry names the object the base frame commits it under.
+                entry_id=(
+                    None
+                    if accept_id is None
+                    else self._ledger_object_id(accept_id)
+                ),
                 event_type=EMBARGO_ACTIVATION_EVENT_TYPE,
             ),
             *(

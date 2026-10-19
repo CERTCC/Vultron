@@ -47,7 +47,18 @@ from vultron.adapters.driving.fastapi import pending_retry
 from vultron.adapters.driving.fastapi.pending_retry import (
     retry_pending_creation_time_revision_relays,
 )
+from vultron.core.behaviors.embargo.owed_entries import open_embargo_plans
+from vultron.core.models.embargo_apply import ConsentRowChange, ConsentRowVerb
+from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.pending_embargo_entries import (
+    PendingEmbargoEntries,
+    PlannedEmbargoEntryRecord,
+    RecordedEntryActivity,
+)
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.enums.roles import CVDRole
 
 
@@ -241,3 +252,43 @@ def test_a_marker_owed_by_another_actor_is_skipped(
     assert "skipped" in runner[0].getMessage()
     assert invites(scenario) == []
     assert owed(scenario) is not None
+
+
+@pytest.mark.spec("CLP-07-015")
+def test_an_open_embargo_plan_is_handled_before_the_relay(
+    scenario: BTTestScenario,
+) -> None:
+    """The retry tree finishes the case's open embargo plans before the relay
+    reads a consent row; a plan whose act never committed is discarded."""
+    scenario.dl.save(
+        PendingEmbargoEntries.for_act(
+            case_id=CASE_ID,
+            act_id="urn:uuid:an-act-that-never-committed",
+            author_id=MANAGER,
+            entries=[
+                PlannedEmbargoEntryRecord(
+                    change=ConsentRowChange(
+                        verb=ConsentRowVerb.UPDATE,
+                        row=EmbargoConsent(
+                            embargo_id=EMBARGO_ID,
+                            state=EmbargoConsentState.DECLINED,
+                            attributed_to=OWNER,
+                        ),
+                    ),
+                    recorded=RecordedEntryActivity(
+                        activity_id="urn:uuid:the-owed-row",
+                        event_type="update_embargo_consent",
+                        activity_json="{}",
+                    ),
+                )
+            ],
+        )
+    )
+
+    count = retry_pending_creation_time_revision_relays(
+        datalayers_factory=lambda: {MANAGER: scenario.dl}
+    )
+
+    assert count == 1
+    assert open_embargo_plans(scenario.dl, CASE_ID) == []
+    assert owed(scenario) is None

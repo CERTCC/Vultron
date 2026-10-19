@@ -27,6 +27,7 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.pending_embargo_entries import (
     PendingEmbargoEntries,
     PlannedEmbargoEntryRecord,
+    RecordedEntryActivity,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -47,35 +48,40 @@ def _row() -> ConsentRowChange:
     )
 
 
-def _committing(**overrides: object) -> dict[str, object]:
-    return {
-        "change": _row(),
-        "activity_id": f"{_BASE}/activities/row",
-        "event_type": "update_embargo_consent",
-        "activity_json": '{"id": "x"}',
+def _recorded(activity_id: str = f"{_BASE}/activities/row", **kw: str):
+    return RecordedEntryActivity(
+        activity_id=activity_id,
+        event_type=kw.get("event_type", "update_embargo_consent"),
+        activity_json=kw.get("activity_json", '{"id": "x"}'),
+    )
+
+
+def _plan(**overrides: object) -> PendingEmbargoEntries:
+    fields: dict[str, object] = {
+        "case_id": f"{_BASE}/cases/c",
+        "act_id": f"{_BASE}/activities/act",
+        "author_id": f"{_BASE}/actors/m",
+        "entries": [
+            PlannedEmbargoEntryRecord(change=_row(), recorded=_recorded())
+        ],
         **overrides,
     }
+    return PendingEmbargoEntries.for_act(**fields)
 
 
 @pytest.mark.parametrize(
     "missing", ["activity_id", "event_type", "activity_json"]
 )
-def test_an_entry_with_a_commit_names_its_whole_activity(missing: str):
-    with pytest.raises(ValidationError, match="names its activity id"):
-        PlannedEmbargoEntryRecord.model_validate(
-            _committing(**{missing: None})
-        )
+def test_a_record_activity_names_its_whole_activity(missing: str):
+    data = _recorded().model_dump()
+    del data[missing]
+    with pytest.raises(ValidationError):
+        RecordedEntryActivity.model_validate(data)
 
 
 def test_an_entry_with_no_commit_must_carry_a_change():
     with pytest.raises(ValidationError, match="must carry a change"):
         PlannedEmbargoEntryRecord()
-
-
-def test_an_entry_carried_by_the_acts_own_has_no_commit():
-    entry = PlannedEmbargoEntryRecord(change=_row())
-    assert entry.commits is False
-    assert PlannedEmbargoEntryRecord.model_validate(_committing()).commits
 
 
 def test_a_plan_owes_at_least_one_entry():
@@ -88,29 +94,46 @@ def test_a_plan_owes_at_least_one_entry():
         )
 
 
-def test_the_plan_id_derives_from_the_case_and_the_act():
-    plan = PendingEmbargoEntries(
-        case_id=f"{_BASE}/cases/c",
-        act_id=f"{_BASE}/activities/act",
-        author_id=f"{_BASE}/actors/m",
-        entries=[PlannedEmbargoEntryRecord(change=_row())],
+def test_a_plan_owes_an_entry_with_a_commit():
+    with pytest.raises(ValueError, match="with a commit"):
+        _plan(entries=[PlannedEmbargoEntryRecord(change=_row())])
+
+
+def test_two_acts_naming_one_object_have_two_plans():
+    """Two invitees' expiries of an unnamed Invite name the case; their
+    plans differ by the first entry each owes."""
+    first = _plan()
+    second = _plan(
+        entries=[
+            PlannedEmbargoEntryRecord(
+                change=_row(),
+                recorded=_recorded(f"{_BASE}/activities/other-row"),
+            )
+        ]
     )
-    assert plan.id_ == PendingEmbargoEntries.build_id(
-        f"{_BASE}/cases/c", f"{_BASE}/activities/act"
+    assert first.id_ != second.id_
+    assert first.id_ == PendingEmbargoEntries.build_id(
+        f"{_BASE}/cases/c",
+        f"{_BASE}/activities/act",
+        f"{_BASE}/activities/row",
     )
 
 
 def test_a_stored_plan_reads_back_unchanged():
     """Every change kind and the sealed body survive the store (ADR-0146)."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=f"{_BASE}/actors/m")
-    plan = PendingEmbargoEntries(
-        case_id=f"{_BASE}/cases/c",
-        act_id=f"{_BASE}/activities/act",
+    plan = _plan(
         act_event_type="activate_embargo_on_case",
-        author_id=f"{_BASE}/actors/m",
+        act_committed_after=3,
+        act_change=RegisterStep(
+            kind=RegisterStepKind.ACTIVATE, embargo=_EMBARGO
+        ),
         entries=[
-            PlannedEmbargoEntryRecord.model_validate(
-                _committing(activity_json='{"id": "x", "object": {"id": 1}}')
+            PlannedEmbargoEntryRecord(
+                change=_row(),
+                recorded=_recorded(
+                    activity_json='{"id": "x", "object": {"id": 1}}'
+                ),
             ),
             PlannedEmbargoEntryRecord(
                 change=RegisterStep(

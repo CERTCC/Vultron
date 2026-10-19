@@ -39,16 +39,16 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo import copy_commit
+from vultron.core.behaviors.embargo import copy_commit, owed_entries
 from vultron.core.behaviors.embargo.copy_commit import (
     PlannedEmbargoEntry,
     commit_and_apply_embargo_entries,
     consent_row_entry,
-    open_embargo_plans,
 )
 from vultron.core.behaviors.embargo.nodes.finish_owed import (
     FinishOwedEmbargoEntriesNode,
 )
+from vultron.core.behaviors.embargo.owed_entries import open_embargo_plans
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models import ledger_gap_buffer
 from vultron.core.models._helpers import days_from_now_utc
@@ -63,7 +63,11 @@ from vultron.core.models.embargo_consent_event_types import (
     UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
 )
 from vultron.core.models.ledger_gap_buffer import get_ledger_gap_buffer
-from vultron.core.models.pending_embargo_entries import PendingEmbargoEntries
+from vultron.core.models.pending_embargo_entries import (
+    PendingEmbargoEntries,
+    PlannedEmbargoEntryRecord,
+    RecordedEntryActivity,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
@@ -138,7 +142,7 @@ def _plan_rows(net: LedgerNetwork) -> None:
     owed = _entry(net, _row_change(net, OWNER, _S.DECLINED))
     assert owed.record is not None
     dl.save(
-        PendingEmbargoEntries(
+        PendingEmbargoEntries.for_act(
             case_id=net.case_id,
             act_id=_CAUSE,
             author_id=MANAGER,
@@ -254,6 +258,12 @@ def _rows(record: CaseParticipant) -> list[dict[str, Any]]:
     return [row.model_dump(mode="json") for row in record.embargo_consents]
 
 
+def _recorded(owed: PlannedEmbargoEntryRecord) -> RecordedEntryActivity:
+    """*owed*'s record activity; every committing planned row has one."""
+    assert owed.recorded is not None
+    return owed.recorded
+
+
 def _initial_row(net: LedgerNetwork, holder: str, actor_id: str) -> Any:
     """*holder*'s copy of *actor_id*'s row for the initial embargo."""
     row = _record(net, holder, actor_id).held_row(net.initial_embargo_id)
@@ -363,7 +373,7 @@ class TestCaseManagerCommitsThenApplies:
             _propose(net)
         failing[0] = False
         (plan,) = open_embargo_plans(dl, net.case_id)
-        owed_ids = [owed.activity_id for owed in plan.entries]
+        owed_ids = [_recorded(owed).activity_id for owed in plan.entries]
         assert len(owed_ids) >= 2, "the proposal owes more than one row"
         (embargo_id,) = net.case(MANAGER).proposed_embargo_ids
         assert _record(net, MANAGER, BYSTANDER).held_row(embargo_id) is None
@@ -378,7 +388,7 @@ class TestCaseManagerCommitsThenApplies:
             owed_ids[1:]
         )
         assert [e.payload_snapshot for e in new[: len(owed_ids) - 1]] == [
-            json.loads(cast(str, owed.activity_json))
+            json.loads(_recorded(owed).activity_json)
             for owed in plan.entries[1:]
         ]
         assert new[len(owed_ids) - 1].event_type == "invite_to_embargo_on_case"
@@ -420,7 +430,7 @@ class TestCaseManagerCommitsThenApplies:
         _next_embargo_run(net)
 
         recorded = {e.log_object_id for e in ledger_entries(dl, net.case_id)}
-        assert not {owed.activity_id for owed in plan.entries} & recorded
+        assert not {_recorded(o).activity_id for o in plan.entries} & recorded
         assert open_embargo_plans(dl, net.case_id) == []
         for actor_id, row in held.items():
             assert _initial_row(net, MANAGER, actor_id) == row
@@ -520,7 +530,7 @@ class TestCaseManagerCommitsThenApplies:
         net.bypass_ledger()
 
         with pytest.raises(VultronBTInternalError, match="no longer apply"):
-            copy_commit.finish_owed_embargo_entries(dl, net.case_id, MANAGER)
+            owed_entries.finish_owed_embargo_entries(dl, net.case_id, MANAGER)
 
         assert open_embargo_plans(dl, net.case_id) != []
 
@@ -532,7 +542,7 @@ class TestCaseManagerCommitsThenApplies:
         _leave_owner_row_owed(net, monkeypatch)
 
         with pytest.raises(VultronBTInternalError, match="authored by"):
-            copy_commit.finish_owed_embargo_entries(
+            owed_entries.finish_owed_embargo_entries(
                 dl, net.case_id, "https://example.org/users/someone-else"
             )
 
@@ -570,11 +580,50 @@ class TestCaseManagerCommitsThenApplies:
             net.initial_embargo_id
         ) == (_S.AGREED)
 
-        copy_commit.finish_owed_embargo_entries(dl, net.case_id, MANAGER)
+        owed_entries.finish_owed_embargo_entries(dl, net.case_id, MANAGER)
 
         assert committed_event_types(dl, net.case_id) == before
-        owner = _record(net, MANAGER, OWNER)
-        assert owner.consent_for(net.initial_embargo_id) == _S.DECLINED
+        # The act's own row and the row it owed are both applied.
+        for actor_id in (BYSTANDER, OWNER):
+            record = _record(net, MANAGER, actor_id)
+            assert record.consent_for(net.initial_embargo_id) == _S.DECLINED
+        assert open_embargo_plans(dl, net.case_id) == []
+
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_finished_act_whose_plan_was_kept_only_loses_the_plan(
+        self, monkeypatch
+    ):
+        """Every entry committed and saved, but the plan's removal failed:
+        the next run commits and applies nothing, and removes the plan."""
+        net = _net("cc-kept")
+        dl = net.stores[MANAGER]
+        real_delete = dl.delete
+
+        def _delete(table: str, id_: str) -> bool:
+            if table == copy_commit.PLAN_TYPE:
+                raise RuntimeError("delete failed")
+            return bool(real_delete(table, id_))
+
+        monkeypatch.setattr(dl, "delete", _delete)
+        with pytest.raises(RuntimeError, match="delete failed"):
+            commit_and_apply_embargo_entries(
+                dl,
+                net.case_id,
+                [
+                    _entry(net, _row_change(net, BYSTANDER, _S.DECLINED)),
+                    _entry(net, _row_change(net, OWNER, _S.DECLINED)),
+                ],
+            )
+        monkeypatch.setattr(dl, "delete", real_delete)
+        before = committed_event_types(dl, net.case_id)
+        rows = {a: _initial_row(net, MANAGER, a) for a in (BYSTANDER, OWNER)}
+
+        owed_entries.finish_owed_embargo_entries(dl, net.case_id, MANAGER)
+
+        assert committed_event_types(dl, net.case_id) == before
+        assert {
+            a: _initial_row(net, MANAGER, a) for a in (BYSTANDER, OWNER)
+        } == rows
         assert open_embargo_plans(dl, net.case_id) == []
 
     @pytest.mark.spec("CLP-07-015")
