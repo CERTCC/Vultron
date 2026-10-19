@@ -56,6 +56,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.stub_invite_lifetime import (
     RecordedStubInvite,
     outstanding_stale_stubs,
@@ -594,7 +595,6 @@ def test_a_replacement_whose_commit_failed_is_recorded_once_by_the_next_run(
     same id: one queued Invite, one entry (ADR-0119, OX-06-002).
     """
     from test.support.ledger import fail_commits
-    from vultron.core.behaviors.bridge import BTBridge
     from vultron.core.behaviors.case.nodes.stub_reissue import (
         ReissueStubInvitesNode,
     )
@@ -786,9 +786,8 @@ def _send_stub_invite_during_revision(
     return owner, invitee, dl, stored, revision.id_, invite
 
 
-def _run_reissue(dl: Any, case_id: str, owner_id: str) -> Any:
+def _run_reissue(dl: Any, case_id: str, owner_id: str) -> BTExecutionResult:
     """Run the CASE_MANAGER's re-issue node once; return the BT result."""
-    from vultron.core.behaviors.bridge import BTBridge
     from vultron.core.behaviors.case.nodes.stub_reissue import (
         ReissueStubInvitesNode,
     )

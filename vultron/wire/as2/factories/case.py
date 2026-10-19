@@ -113,7 +113,7 @@ def _project_case_to_stub(
     case: VulnerabilityCase,
     embargo_obj: Any,
 ) -> as_VulnerabilityCaseStub:
-    """Project a ``as_VulnerabilityCase`` (core or wire) to a ``as_VulnerabilityCaseStub``.
+    """Project a ``VulnerabilityCase`` to a ``as_VulnerabilityCaseStub``.
 
     While an embargo is in force (``case.embargo_in_force``: EM ``ACTIVE`` or
     ``REVISE``) the stub carries ``case_status`` (with ``em_state``) and
@@ -774,8 +774,8 @@ def rm_invite_to_case_activity(
 
     Args:
         invitee: The ``as_Actor`` (or actor URI) being invited.
-        target: The case to join — either a ``as_VulnerabilityCase`` (core or wire;
-            projected to an enriched ``as_VulnerabilityCaseStub`` via
+        target: The case to join — either a ``VulnerabilityCase`` (projected
+            to an enriched ``as_VulnerabilityCaseStub`` via
             :func:`_project_case_to_stub`), a pre-built ``as_VulnerabilityCaseStub``,
             or the case URI (wrapped in a bare stub).  The Invite's
             ``context`` defaults to the case URI, never the stub's ID.
