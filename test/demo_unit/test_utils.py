@@ -118,7 +118,9 @@ class TestIsSameNode:
 
     def test_a_different_host_is_a_different_node(self):
         assert (
-            _is_same_node(_NODE, "http://finder:7999/api/v2/actors/finndervul")
+            _is_same_node(
+                _NODE, "http://reporter:7999/api/v2/actors/finndervul"
+            )
             is False
         )
 

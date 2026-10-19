@@ -370,7 +370,7 @@ def test_transition_rm_to_valid_absent_link_advances_without_latching(
     participant regardless.  But because the link is report-scoped *per store*,
     latching an absent link to VALID for one participant would make
     ``CheckRMStateValid`` short-circuit every sibling participant in a shared
-    CaseActor store (the fcvcv/fvcv-handoff regression).  So the node advances
+    CaseActor store (the rcvcv/rvcv-handoff regression).  So the node advances
     the participant's own record while leaving the absent link unpersisted.
     This fixture omits the ``report_case_link`` fixture: no link exists, but the
     case + participant do.
@@ -422,13 +422,13 @@ def test_two_participants_one_report_both_reach_valid_in_shared_store(
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
 ) -> None:
-    """fcvcv-in-miniature: two participants on one report both reach RM.VALID.
+    """rcvcv-in-miniature: two participants on one report both reach RM.VALID.
 
     Issue #3283 / #3266.  The CaseActor's store holds every participant of the
     one report but only one report-scoped ``ReportCaseLink``.  If the first
     participant's validate latches that shared link to VALID, ``CheckRMStateValid``
     short-circuits the second participant's validate and it never advances — the
-    fcvcv/fvcv-handoff regression.  With no link pre-seeded, advancing participant
+    rcvcv/rvcv-handoff regression.  With no link pre-seeded, advancing participant
     A must leave the shared link unlatched so participant B still advances.
     """
     from vultron.core.models.participant_status import (

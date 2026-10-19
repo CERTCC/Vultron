@@ -55,7 +55,7 @@ the `ReportError` boundary:
 
 ## Partition Multi-Case Logs (DRPT-02-006)
 
-`log_index` restarts at 0 per case, and actor directory names (`finder`,
+`log_index` restarts at 0 per case, and actor directory names (`reporter`,
 `vendor`) recur across demos. So group by `case_id` first, order by
 `(case_id, log_index)`, and compute replica-presence per case. A merged timeline
 interleaves `0, 0, 1, 1, …` and collapses same-named actors into one column.

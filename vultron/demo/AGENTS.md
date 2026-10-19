@@ -59,7 +59,7 @@ A scenario module declares itself, and nothing else anywhere does:
 - `ROLES: list[ActorRole]` (`helpers/actor_roles.py`), one frozen role per actor
   **in `main()` parameter order**, and `CLI_HELP: str`. These generate the
   scenario's `--<role>-url` / `--<role>-id` options, its `--help`, and the module's
-  own `*_BASE_URL` constants (`FINDER_BASE_URL = _ROLES["finder"].url`). So **never
+  own `*_BASE_URL` constants (`REPORTER_BASE_URL = _ROLES["reporter"].url`). So **never
   add a `@main.command` block to `cli.py`** (DEMOCI-11-011), and mind the quiet
   drift direction the `main()`-signature ratchet catches: a keyword no role declares
   gets no option, keeps its default, and runs the scenario against the wrong
@@ -100,7 +100,7 @@ sub-issues were this one defect in different scenarios.
    (DEMOCI-01-007, EDF-06-005) — see the next rule.
 5. **Put the gate in `vultron/demo/helpers/`** — scenario modules MUST NOT define
    their own polling loops. That is how the #2178 fix landed in
-   `fvcv_handoff_demo.py` but not `fccv_handoff_demo.py` (DEMOMA-22-002,
+   `rvcv_handoff_demo.py` but not `rccv_handoff_demo.py` (DEMOMA-22-002,
    DEMOMA-17-001).
 6. **Label irreducibly temporal waits as such** at the call site — liveness
    probes, embargo deadlines, transport backoff (EDF-06-006).

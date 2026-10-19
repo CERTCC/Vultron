@@ -13,19 +13,19 @@
 
 """Regression guards for issues #2361 and #2337.
 
-#2361: fv Demo Integration — M4/M5 vfd_state replication timeout
-Two separate demo_check blocks both poll finder_client for vfd_state=VFd
+#2361: rv Demo Integration — M4/M5 vfd_state replication timeout
+Two separate demo_check blocks both poll reporter_client for vfd_state=VFd
 independently.  Under CI load Docker replication takes >30 s intermittently,
 both checks time out, and two CHECK FAILED entries are recorded instead of
 one — burying the real signal and making the run appear to have two distinct
 failures when only one causal event (replication lag) caused them.
 
-Fix: wrap the shared finder poll and the M4/M5 milestones in a single
+Fix: wrap the shared reporter poll and the M4/M5 milestones in a single
 demo_gate; on timeout the gate records one GATE FAILED and the dependent
 M4/M5 blocks are skipped entirely (ADR-0058).
 
-#2337: fcvcv Demo Integration — intermittent Finder ledger-coverage timeout
-demo_check with 15 s timeout for Finder/V1/C2 ledger coverage.  Under CI
+#2337: rcvcv Demo Integration — intermittent Reporter ledger-coverage timeout
+demo_check with 15 s timeout for Reporter/V1/C2 ledger coverage.  Under CI
 load 15 s is too tight; the error log showed 0 of 29 entries present after
 the check fired.  Fix: demo_gate (causal gate, not advisory check) and a 30 s
 budget for the non-V2 replicas; V2 keeps the late-joiner budget.
@@ -41,15 +41,15 @@ the real helper (patching its collaborators on the sync module) and assert the
 from unittest.mock import MagicMock
 
 import vultron.demo.helpers.sync as sync_module
-import vultron.demo.scenario.fv_demo as fv_demo_module
+import vultron.demo.scenario.rv_demo as rv_demo_module
 import vultron.demo.utils as demo_utils
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
     LATE_JOINER_COVERAGE_TIMEOUT,
     LEDGER_COVERAGE_TIMEOUT,
 )
-from vultron.demo.scenario.fcvcv_demo import _phase_sync_verification
-from vultron.demo.scenario.fv_demo import _phase_fix_lifecycle
+from vultron.demo.scenario.rcvcv_demo import _phase_sync_verification
+from vultron.demo.scenario.rv_demo import _phase_fix_lifecycle
 from vultron.demo.utils import reset_demo_failures
 
 _CASE_ID = "urn:uuid:test-case-2361-0001"
@@ -57,19 +57,19 @@ _VENDOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 
 
 # ===========================================================================
-# Issue #2361 — fv M4/M5 double failure when finder replication times out
+# Issue #2361 — rv M4/M5 double failure when reporter replication times out
 # ===========================================================================
 
 
-def test_fv_finder_timeout_records_single_gate_failure_not_two_check_failures(
+def test_rv_reporter_timeout_records_single_gate_failure_not_two_check_failures(
     monkeypatch,
 ):
-    """A single finder replication timeout must produce exactly one GATE FAILED.
+    """A single reporter replication timeout must produce exactly one GATE FAILED.
 
-    Before the fix two independent demo_check blocks each polled finder_client
+    Before the fix two independent demo_check blocks each polled reporter_client
     for vfd_state.  On timeout both recorded CHECK FAILED, producing two entries
     for a single causal event.  After the fix a single demo_gate wraps the
-    shared finder poll; M4/M5 are nested inside and skipped on gate failure.
+    shared reporter poll; M4/M5 are nested inside and skipped on gate failure.
 
     Regression guard for #2361.
     """
@@ -77,8 +77,8 @@ def test_fv_finder_timeout_records_single_gate_failure_not_two_check_failures(
 
     vendor_client = MagicMock()
     vendor_client.base_url = "http://vendor:7999/api/v2"
-    finder_client = MagicMock()
-    finder_client.base_url = "http://finder:7999/api/v2"
+    reporter_client = MagicMock()
+    reporter_client.base_url = "http://reporter:7999/api/v2"
 
     vendor = MagicMock()
     vendor.id_ = _VENDOR_ID
@@ -90,25 +90,25 @@ def test_fv_finder_timeout_records_single_gate_failure_not_two_check_failures(
         ActorSession, "notify_fix_ready", lambda *a, **kw: None
     )
     monkeypatch.setattr(
-        fv_demo_module, "verify_fix_ready", lambda *a, **kw: None
+        rv_demo_module, "verify_fix_ready", lambda *a, **kw: None
     )
     monkeypatch.setattr(
-        fv_demo_module, "wait_for_participant_rm_state", lambda *a, **kw: None
+        rv_demo_module, "wait_for_participant_rm_state", lambda *a, **kw: None
     )
 
     def _vfd_poll(client, case_id, actor_id, expected_states, **kw):
-        if client is finder_client:
+        if client is reporter_client:
             raise AssertionError(
                 f"Timed out waiting for vfd_state on {client.base_url}"
             )
         # vendor_client polls resolve immediately
 
     monkeypatch.setattr(
-        fv_demo_module, "wait_for_participant_vf_state", _vfd_poll
+        rv_demo_module, "wait_for_participant_vf_state", _vfd_poll
     )
 
     _phase_fix_lifecycle(
-        finder_client=finder_client,
+        reporter_client=reporter_client,
         vendor_client=vendor_client,
         vendor=vendor,
         vendor_in_vendor=vendor_in_vendor,
@@ -118,7 +118,7 @@ def test_fv_finder_timeout_records_single_gate_failure_not_two_check_failures(
     failures = demo_utils._demo_failures
 
     assert len(failures) == 1, (
-        f"Expected exactly 1 failure when finder replication times out, "
+        f"Expected exactly 1 failure when reporter replication times out, "
         f"got {len(failures)}: {failures!r}. "
         f"Two separate CHECK FAILED entries indicate demo_check is still used "
         f"for M4/M5 instead of a shared demo_gate (#2361)."
@@ -126,12 +126,12 @@ def test_fv_finder_timeout_records_single_gate_failure_not_two_check_failures(
     assert "GATE FAILED" in failures[0], (
         f"Expected 'GATE FAILED' in the failure message, "
         f"got {failures[0]!r}. "
-        f"Use demo_gate (not demo_check) for the causal finder precondition "
+        f"Use demo_gate (not demo_check) for the causal reporter precondition "
         f"(#2361, ADR-0058)."
     )
 
 
-def test_fv_phase_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
+def test_rv_phase_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
     """_phase_fix_lifecycle polls vendor RM ∈ {ACCEPTED,DEFERRED,CLOSED} before notify-fix-ready (ADR-0058/CSB-18-001)."""
     from vultron.core.states.rm import RM
 
@@ -139,8 +139,8 @@ def test_fv_phase_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
 
     vendor_client = MagicMock()
     vendor_client.base_url = "http://vendor:7999/api/v2"
-    finder_client = MagicMock()
-    finder_client.base_url = "http://finder:7999/api/v2"
+    reporter_client = MagicMock()
+    reporter_client.base_url = "http://reporter:7999/api/v2"
     vendor = MagicMock()
     vendor.id_ = _VENDOR_ID
     vendor_in_vendor = MagicMock()
@@ -155,7 +155,7 @@ def test_fv_phase_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
         call_order.append("rm_wait")
 
     monkeypatch.setattr(
-        fv_demo_module, "wait_for_participant_rm_state", _rm_wait
+        rv_demo_module, "wait_for_participant_rm_state", _rm_wait
     )
     monkeypatch.setattr(
         ActorSession,
@@ -163,14 +163,14 @@ def test_fv_phase_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
         lambda *a, **kw: call_order.append("fix_ready"),
     )
     monkeypatch.setattr(
-        fv_demo_module, "verify_fix_ready", lambda *a, **kw: None
+        rv_demo_module, "verify_fix_ready", lambda *a, **kw: None
     )
     monkeypatch.setattr(
-        fv_demo_module, "wait_for_participant_vf_state", lambda *a, **kw: None
+        rv_demo_module, "wait_for_participant_vf_state", lambda *a, **kw: None
     )
 
     _phase_fix_lifecycle(
-        finder_client=finder_client,
+        reporter_client=reporter_client,
         vendor_client=vendor_client,
         vendor=vendor,
         vendor_in_vendor=vendor_in_vendor,
@@ -191,11 +191,11 @@ def test_fv_phase_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
 
 
 # ===========================================================================
-# Issue #2337 — fcvcv sync-verification gate semantics
+# Issue #2337 — rcvcv sync-verification gate semantics
 # ===========================================================================
 
 
-def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
+def test_rcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
     monkeypatch,
 ):
     """Ledger coverage failures must say GATE FAILED, not CHECK FAILED.
@@ -208,8 +208,8 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
     """
     reset_demo_failures()
 
-    finder_client = MagicMock()
-    finder_client.base_url = "http://finder:7999/api/v2"
+    reporter_client = MagicMock()
+    reporter_client.base_url = "http://reporter:7999/api/v2"
     c1_client = MagicMock()
     c1_client.base_url = "http://c1:7999/api/v2"
     v1_client = MagicMock()
@@ -220,8 +220,8 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
     v2_client.base_url = "http://v2:7999/api/v2"
     c1 = MagicMock()
     c1.id_ = "http://c1:7999/api/v2/actors/c1"
-    finder = MagicMock()
-    finder.id_ = "http://finder:7999/api/v2/actors/finder"
+    reporter = MagicMock()
+    reporter.id_ = "http://reporter:7999/api/v2/actors/reporter"
     case = MagicMock()
     case.id_ = _CASE_ID
 
@@ -239,7 +239,7 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
     def _ledger_coverage(
         client, case_id, expected_tail_index, timeout_seconds
     ):
-        if client is finder_client:
+        if client is reporter_client:
             raise AssertionError(
                 f"Timed out waiting for ledger coverage on {client.base_url}"
             )
@@ -259,13 +259,13 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
     )
 
     _phase_sync_verification(
-        finder_client=finder_client,
+        reporter_client=reporter_client,
         c1_client=c1_client,
         v1_client=v1_client,
         c2_client=c2_client,
         v2_client=v2_client,
         c1=c1,
-        finder=finder,
+        reporter=reporter,
         case=case,
         v1=MagicMock(),
         c2_in_c2=MagicMock(),
@@ -290,10 +290,10 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
     )
 
 
-def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
+def test_rcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
     """Non-V2 ledger coverage timeout must be at least 30 s.
 
-    Before the fix the timeout for Finder/V1/C2 was 15 s — too tight for CI
+    Before the fix the timeout for Reporter/V1/C2 was 15 s — too tight for CI
     load.  Those replicas now receive the shared helper's
     ``LEDGER_COVERAGE_TIMEOUT`` and V2, the late joiner, its
     ``LATE_JOINER_COVERAGE_TIMEOUT`` (#3846).
@@ -302,8 +302,8 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
     """
     reset_demo_failures()
 
-    finder_client = MagicMock()
-    finder_client.base_url = "http://finder:7999/api/v2"
+    reporter_client = MagicMock()
+    reporter_client.base_url = "http://reporter:7999/api/v2"
     c1_client = MagicMock()
     c1_client.base_url = "http://c1:7999/api/v2"
     v1_client = MagicMock()
@@ -314,8 +314,8 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
     v2_client.base_url = "http://v2:7999/api/v2"
     c1 = MagicMock()
     c1.id_ = "http://c1:7999/api/v2/actors/c1"
-    finder = MagicMock()
-    finder.id_ = "http://finder:7999/api/v2/actors/finder"
+    reporter = MagicMock()
+    reporter.id_ = "http://reporter:7999/api/v2/actors/reporter"
     case = MagicMock()
     case.id_ = _CASE_ID
 
@@ -352,28 +352,28 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
     )
 
     _phase_sync_verification(
-        finder_client=finder_client,
+        reporter_client=reporter_client,
         c1_client=c1_client,
         v1_client=v1_client,
         c2_client=c2_client,
         v2_client=v2_client,
         c1=c1,
-        finder=finder,
+        reporter=reporter,
         case=case,
         v1=MagicMock(),
         c2_in_c2=MagicMock(),
         v2=MagicMock(),
     )
 
-    finder_timeout = timeouts_by_client_id.get(id(finder_client))
-    assert finder_timeout is not None, (
-        "wait_for_contiguous_ledger_coverage was not called for finder_client"
+    reporter_timeout = timeouts_by_client_id.get(id(reporter_client))
+    assert reporter_timeout is not None, (
+        "wait_for_contiguous_ledger_coverage was not called for reporter_client"
     )
-    assert finder_timeout >= 30.0, (
-        f"Finder ledger coverage timeout is {finder_timeout} s, expected >= 30.0 s. "
+    assert reporter_timeout >= 30.0, (
+        f"Reporter ledger coverage timeout is {reporter_timeout} s, expected >= 30.0 s. "
         f"CI load requires at least 30 s for non-V2 replicas (#2337)."
     )
-    assert finder_timeout == LEDGER_COVERAGE_TIMEOUT
+    assert reporter_timeout == LEDGER_COVERAGE_TIMEOUT
     assert timeouts_by_client_id[id(v1_client)] == LEDGER_COVERAGE_TIMEOUT
     assert timeouts_by_client_id[id(c2_client)] == LEDGER_COVERAGE_TIMEOUT
     assert timeouts_by_client_id[id(v2_client)] == LATE_JOINER_COVERAGE_TIMEOUT

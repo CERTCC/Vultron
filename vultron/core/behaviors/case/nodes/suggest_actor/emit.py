@@ -65,7 +65,7 @@ def _resolve_owner_recipient(
 
     A DM the CaseActor addresses to itself never reaches the owner, who then
     never sees the ``Offer(CaseParticipant)`` it is required to decide on
-    (CM-16-004): the fcvcv ADR-0026 chain stalls, and
+    (CM-16-004): the rcvcv ADR-0026 chain stalls, and
     ``accept-actor-recommendation`` returns 422 because no offer arrived.
     ``attributed_to`` names the owner (CP-09-001), but a store may hold a case
     attributed to the CaseActor itself, so that field alone is not enough.

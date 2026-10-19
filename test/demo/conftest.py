@@ -266,7 +266,7 @@ def create_isolated_actor_app(
     live.
 
     Args:
-        base_url: Base URL for this actor (e.g. ``"http://finder.test"``).
+        base_url: Base URL for this actor (e.g. ``"http://reporter.test"``).
             Actor IDs will use this as their URL prefix.
         router: Shared :class:`_TestClientRouter` instance that all apps
             register with so cross-app deliveries are routed correctly.

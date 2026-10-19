@@ -37,7 +37,7 @@ groups:
       unset) and MUST discover input files by recursively globbing
       `**/*-case-ledger.jsonl` beneath it.
     rationale: >-
-      This mirrors the layout written by `fv_demo._phase_dump_case_ledgers`
+      This mirrors the layout written by `rv_demo._phase_dump_case_ledgers`
       (`{DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-ledger.jsonl`)
       and read by the invariant harnesses in `test/ci/invariants/`.
   - id: DRPT-01-003

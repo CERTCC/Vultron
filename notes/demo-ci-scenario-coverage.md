@@ -38,17 +38,17 @@ protocol phase recorded in the replicated ledger.
 
 | Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case | invite_to_embargo_on_case | accept_invite_to_embargo_on_case | activate_embargo_on_case | remove_embargo_event_from_case |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
-| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |   |
-| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
-| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   | ✓ |   |   |   |   |
-| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
-| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |   |
-| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
-| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |   |
-| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
+| rccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
+| rccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |   |
+| rcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
 | rcv-embargo       | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ | ✓ |
+| rcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   | ✓ |   |   |   |   |
+| rcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
 | rcvv-embargo      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ | ✓ | ✓ | ✓ |
+| rv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |   |
+| rvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
+| rvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |   |   |   |   |
+| rvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
 
 - The first five columns are the universal types (DEMOMA-16-001). `engage_case`
   is emitted from the shared helpers, not scenario call sites — see
@@ -56,7 +56,7 @@ protocol phase recorded in the replicated ledger.
   scenario-specific".
 - `offer_case_participant` and `accept_actor_recommendation` come only from the
   suggest-actor flow (ADR-0026).
-- `reject_invite_actor_to_case` comes only from `fcv-reject`: the Vendor sends
+- `reject_invite_actor_to_case` comes only from `rcv-reject`: the Vendor sends
   `Reject(Invite(actor, stub))`, so `accept_invite_actor_to_case` is absent. The
   stub Reject is an RM message that closes the Vendor's inert record, `R → C`
   (ADR-0114, CM-11-007).
@@ -72,7 +72,7 @@ Some dimensions are not ledger event types, so Invariant 5 cannot see them:
 |---|---|---|
 | CVD role variation | Every scenario | Actor roles in the scenario scripts |
 | RM closure for every participant | Every scenario | Invariant 7 (`test_invariant_7_log_terminates_all_rm_closed`) |
-| Multi-vendor vs single-vendor fix paths | `fvv`, `fcvcv`, `fvcv-extension` vs `fv`, `fcv` | Scenario composition; `fcvcv` is in the minimum set |
+| Multi-vendor vs single-vendor fix paths | `rvv`, `rcvcv`, `rvcv-extension` vs `rv`, `rcv` | Scenario composition; `rcvcv` is in the minimum set |
 | Embargo EM states | Scenarios with an embargo | `demo_check` and EM state assertions in the scenario scripts |
 | Non-linear RM paths | See "RM State-Transition Path Coverage" | `demo_check` assertions in the scenario scripts |
 
@@ -86,23 +86,23 @@ canonical order, everywhere".
 
 | Scenario | Covered by minimum set | Rationale |
 |---|:---:|---|
-| fccv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
-| fccv-handoff | covered by fvcv-handoff | Same invite+accept+ownership-transfer; no additional phases |
-| fcv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
-| fcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, stub))` (declines the stub Invite) |
-| fcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
-| fv | ✓ (member) | 2-actor baseline; covers all universal event types (DEMOMA-16-001) with no invitation phases |
-| fvcv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
-| fvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
-| fvv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
+| rccv-extension | covered by rcvcv | Same offer+invite+accept coverage; no additional phases |
+| rccv-handoff | covered by rvcv-handoff | Same invite+accept+ownership-transfer; no additional phases |
+| rcv | covered by rvcv-handoff | Same invite+accept coverage; no additional phases |
 | rcv-embargo | ✓ (member) | Adds `invite_to_embargo_on_case` + `accept_invite_to_embargo_on_case` + `activate_embargo_on_case` + `remove_embargo_event_from_case` — the only scenario that proposes, activates and terminates an embargo |
+| rcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, stub))` (declines the stub Invite) |
+| rcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
 | rcvv-embargo | ✓ (member) | Same embargo event types as `rcv-embargo`, reached by other paths: a second revision cycle, a late vendor that signs the revised embargo, and a teardown that CS.P causes instead of a deliberate termination |
+| rv | ✓ (member) | 2-actor baseline; covers all universal event types (DEMOMA-16-001) with no invitation phases |
+| rvcv-extension | covered by rcvcv | Same offer+invite+accept coverage; no additional phases |
+| rvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
+| rvv | covered by rvcv-handoff | Same invite+accept coverage; no additional phases |
 
 **Why the set is sufficient.** Together the members cover every event-type
 column, and every non-member names a member that already covers its event types
 and protocol paths. Non-members add regression depth, not breadth, so they run
 only on push to `main` (DEMOCI-06-003) and cost a PR nothing. The other
-dimensions are covered either by a member (`fcvcv` for multi-vendor), by an
+dimensions are covered either by a member (`rcvcv` for multi-vendor), by an
 invariant that needs no extra scenario (Invariant 7), or by `demo_check`
 assertions that run wherever the scenario runs.
 
@@ -136,9 +136,9 @@ on the participant's RM state in the scenario script, not by the harness.
 | R → V (report valid) | linear | all scenarios |
 | V → A (report accepted / engaged) | linear | all scenarios |
 | A → C (case closed) | linear | all scenarios |
-| R → C (stub Invite rejected) | non-linear | `fcv-reject` (CM-11-007) |
-| R → I, I → V (invalidated, then re-validated) | non-linear | none — planned for `fvcv-handoff` in #2050 |
-| A → D, D → A (deferred, then resumed) | non-linear | none — planned for `fcvcv` in #2050 |
+| R → C (stub Invite rejected) | non-linear | `rcv-reject` (CM-11-007) |
+| R → I, I → V (invalidated, then re-validated) | non-linear | none — planned for `rvcv-handoff` in #2050 |
+| A → D, D → A (deferred, then resumed) | non-linear | none — planned for `rcvcv` in #2050 |
 | I → C (closed from invalid) | non-linear | none |
 | V → D (deferred without accepting) | non-linear | none |
 

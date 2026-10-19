@@ -16,9 +16,9 @@ Each scenario module under ``vultron/demo/scenario/`` declares itself by
 decorating its own ``main()``::
 
     @scenario(
-        name="fv",
-        label="FV",
-        participants="Finder + Vendor",
+        name="rv",
+        label="rv",
+        participants="Reporter + Vendor",
         feature="Baseline two-actor CVD",
         in_pr_set=True,
     )
@@ -81,7 +81,7 @@ MODULE_SUFFIX = "_demo"
 #: rather than producing an unresolvable derived path later.
 #:
 #: Anchored with ``\Z`` rather than ``$``, which also matches before a trailing
-#: newline: ``"fv\n"`` would pass this check and then fail the module-name
+#: newline: ``"rv\n"`` would pass this check and then fail the module-name
 #: comparison in :func:`_register`, pointing the author at the wrong problem.
 _NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\Z")
 
@@ -106,12 +106,12 @@ class ScenarioSpec:
     derived property; see the module docstring for why none of them is a field.
     """
 
-    #: Sub-command spelling, e.g. ``"fvcv-handoff"``. The identity of the
+    #: Sub-command spelling, e.g. ``"rvcv-handoff"``. The identity of the
     #: scenario and the stem of all three derived paths.
     name: str
-    #: Display casing for table cells, e.g. ``"FVCV-handoff"``.
+    #: Display casing for table cells, e.g. ``"RVCV-handoff"``.
     label: str
-    #: Prose participant list, e.g. ``"Finder + Vendor1 → Coordinator + Vendor2"``.
+    #: Prose participant list, e.g. ``"Reporter + Vendor1 → Coordinator + Vendor2"``.
     participants: str
     #: One-line notable protocol feature.
     feature: str
@@ -124,7 +124,7 @@ class ScenarioSpec:
             raise DemoScenarioRegistryError(
                 f"scenario name {self.name!r} is not a valid sub-command "
                 "spelling; expected lowercase alphanumerics separated by "
-                "single hyphens (e.g. 'fvcv-handoff'). Every derived artifact "
+                "single hyphens (e.g. 'rvcv-handoff'). Every derived artifact "
                 "path is built from this value."
             )
         for field_name in ("label", "participants", "feature"):

@@ -40,13 +40,13 @@ def test_demo(demo_env, demo_fn, caplog):
     Tests that the invite_actor demo workflows complete successfully.
 
     For the accept path, verifies:
-    - Case initialized with report and finder participant
+    - Case initialized with report and reporter participant
     - Invite sent to coordinator inbox
     - Coordinator acceptance sent to vendor inbox
     - Coordinator appears as a case participant
 
     For the reject path, verifies:
-    - Case initialized with report and finder participant
+    - Case initialized with report and reporter participant
     - invite-actor-to-case trigger fired (creates inert participant, CM-11-006)
     - Invite also delivered to coordinator inbox
     - Coordinator rejection sent to vendor inbox
@@ -81,9 +81,9 @@ def test_setup_initialized_case_registers_case_manager(demo_env, client):
     base = str(client.base_url).rstrip("/") + "/api/v2"
     dl_client = DataLayerClient(base_url=base, actor_id=None)
     seed_exchange_actors(dl_client)
-    finder, vendor, _coordinator = discover_actors(dl_client)
+    reporter, vendor, _coordinator = discover_actors(dl_client)
 
-    case = setup_initialized_case(dl_client, finder, vendor)
+    case = setup_initialized_case(dl_client, reporter, vendor)
 
     vendor_dl = get_datalayer(vendor.id_)
     stored_case = vendor_dl.read_case(case.id_)

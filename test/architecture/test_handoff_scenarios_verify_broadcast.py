@@ -21,8 +21,8 @@ transfer and would see the change through the offer/accept exchange itself.
 
 This is a structural ratchet rather than a per-scenario behavioural test because
 the defect it guards is an *omission*, and an omission in a scenario nobody
-thought to check is exactly what slipped through: ``fvcv_handoff_demo`` gained
-this check in #2789 while its sibling ``fccv_handoff_demo`` — same phase, same
+thought to check is exactly what slipped through: ``rvcv_handoff_demo`` gained
+this check in #2789 while its sibling ``rccv_handoff_demo`` — same phase, same
 topology, same protocol hop — did not, and every test stayed green.  A ratchet
 over "all scenarios defining this phase" also covers handoff scenarios that do
 not exist yet.

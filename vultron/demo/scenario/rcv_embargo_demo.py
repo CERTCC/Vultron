@@ -69,7 +69,7 @@ from vultron.demo.helpers.runner import check_all_containers
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
     reset_containers as _reset_containers,
-    seed_containers_fcv,
+    seed_containers_rcv,
 )
 from vultron.demo.scenario.registry import scenario
 from vultron.demo.utils import (
@@ -87,16 +87,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 logger = logging.getLogger(__name__)
 
-# Default container base URLs — override via environment variables.  The
-# Reporter runs in the ``finder`` container slot: compose service names are
-# routing labels, not CVD roles (vultron/demo/AGENTS.md).
+# Default container base URLs — override via environment variables.
 ROLES: list[ActorRole] = [
     ActorRole(
         name="reporter",
-        url_env="VULTRON_FINDER_BASE_URL",
+        url_env="VULTRON_REPORTER_BASE_URL",
         default_url="http://localhost:7901/api/v2",
         url_help="Base URL of the Reporter container API "
-        "(env: VULTRON_FINDER_BASE_URL).",
+        "(env: VULTRON_REPORTER_BASE_URL).",
         has_id=True,
         id_help="Deterministic full URI for the Reporter actor (optional).",
     ),
@@ -225,8 +223,8 @@ def _phase_report_submission(
     )
     reporter = coordinator = vendor = None
     with demo_step("Seeding Reporter, Coordinator, and Vendor containers"):
-        reporter, coordinator, vendor = seed_containers_fcv(
-            finder_client=reporter_client,
+        reporter, coordinator, vendor = seed_containers_rcv(
+            reporter_client=reporter_client,
             coordinator_client=coordinator_client,
             vendor_client=vendor_client,
             reporter_actor_id=reporter_id,

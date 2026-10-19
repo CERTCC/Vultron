@@ -99,7 +99,7 @@ Send `Add(ParticipantStatus)` targeting your own participant record, and make th
 Your report is your view of the case status, not a change to it.
 The CASE_MANAGER records the status on your participant record and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization (RSH-07-001).
 If it adopts the change, the CASE_MANAGER records it in its own `Add(CaseStatus)`, and while an embargo is active or proposed, ends or abandons the embargo (RSH-03-001).
-The Finder + Vendor demo reports public awareness this way.
+The Reporter + Vendor (`rv`) demo reports public awareness this way.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/participant-public-awareness.md" %}
 

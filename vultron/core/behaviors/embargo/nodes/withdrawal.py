@@ -65,6 +65,7 @@ from vultron.core.behaviors.embargo.nodes.relay_effect import (
     _EmbargoRelayEffectNode,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import (
@@ -139,7 +140,9 @@ class _EmbargoRefusalGuardNode(DataLayerConditionWithPorts):
         raise NotImplementedError
 
 
-class IsWithdrawableEmbargoNode(_EmbargoRefusalGuardNode):
+class IsWithdrawableEmbargoNode(
+    FlaggedRepeatGuardMixin, _EmbargoRefusalGuardNode
+):
     """Guard that a ``Leave(EmbargoEvent)`` names a withdrawal the case admits.
 
     Refuses unless *embargo_id* is the embargo in force, the withdrawing
@@ -153,6 +156,8 @@ class IsWithdrawableEmbargoNode(_EmbargoRefusalGuardNode):
     ``SKIPPED``.  A new Leave from a row the earlier one already declined is
     still refused (MSM-07-010).
     """
+
+    _REPEAT_FLAG = "is_redelivery"
 
     def __init__(
         self,

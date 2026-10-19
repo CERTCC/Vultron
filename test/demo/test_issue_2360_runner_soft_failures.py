@@ -48,7 +48,7 @@ class TestRunnerSoftFailuresOnException:
         """Soft failures accumulated before a hard exception ride along as notes."""
         soft_msg = "a soft precondition"
 
-        def demo_fn(client, finder, vendor, coordinator):
+        def demo_fn(client, reporter, vendor, coordinator):
             with demo_check(soft_msg):
                 raise AssertionError("precondition not met")
             raise RuntimeError("hard failure")
@@ -78,7 +78,7 @@ class TestRunnerSoftFailuresOnException:
     def test_no_notes_when_no_soft_failures_occurred(self, caplog) -> None:
         """A hard exception without prior soft failures has no extra notes."""
 
-        def demo_fn(client, finder, vendor, coordinator):
+        def demo_fn(client, reporter, vendor, coordinator):
             raise RuntimeError("hard failure only")
 
         with patch(
@@ -106,12 +106,12 @@ class TestRunnerSoftFailuresOnException:
         """A failed demo does not prevent subsequent demos from running."""
         calls: list[str] = []
 
-        def demo_fails(client, finder, vendor, coordinator):
+        def demo_fails(client, reporter, vendor, coordinator):
             with demo_check("soft check in failing demo"):
                 raise AssertionError("soft")
             raise RuntimeError("hard failure")
 
-        def demo_succeeds(client, finder, vendor, coordinator):
+        def demo_succeeds(client, reporter, vendor, coordinator):
             calls.append("ran")
 
         with patch(

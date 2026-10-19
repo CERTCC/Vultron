@@ -87,14 +87,14 @@ docker-compose run --rm demo
 ## Multi-Actor Demo Setup
 
 `docker-compose-multi-actor.yml` defines four isolated actor services
-(`finder`, `vendor`, `coordinator`, `case-actor`) plus a `demo-runner` for
+(`reporter`, `vendor`, `coordinator`, `case-actor`) plus a `demo-runner` for
 multi-actor demo scenarios (D5-2 and later).
 
 ### Services and port mappings
 
 | Service       | Host port override      | Docker-internal URL                  |
 |:--------------|:------------------------|:-------------------------------------|
-| `finder`      | `${FINDER_HOST_PORT:-0}`     | `http://finder:7999/api/v2/`    |
+| `reporter`      | `${REPORTER_HOST_PORT:-0}`     | `http://reporter:7999/api/v2/`    |
 | `vendor`      | `${VENDOR_HOST_PORT:-0}`     | `http://vendor:7999/api/v2/`    |
 | `coordinator` | `${COORDINATOR_HOST_PORT:-0}`| `http://coordinator:7999/api/v2/` |
 | `case-actor`  | `${CASE_ACTOR_HOST_PORT:-0}` | `http://case-actor:7999/api/v2/`|
@@ -127,11 +127,11 @@ resets it with the other containers and then re-seeds that CaseActor
 identity, so it must be running in every scenario. See
 `notes/case-proposal.md` § "The Dedicated Case-Actor Container".
 
-### Run the D5-2 FV acceptance scenario
+### Run the D5-2 `rv` acceptance scenario
 
 The `demo-runner` service now performs the D5-2 scenario end to end:
 it waits for healthy actor services, resets container state to a clean
-baseline, re-seeds the CaseActor and seeds Finder/Vendor, runs the workflow,
+baseline, re-seeds the CaseActor and seeds Reporter/Vendor, runs the workflow,
 verifies final state, and exits non-interactively.
 
 ```bash
@@ -140,30 +140,30 @@ docker compose -f docker-compose-multi-actor.yml up --abort-on-container-exit de
 ```
 
 This is the canonical single-command acceptance run for the current
-FV scenario.
+`rv` scenario.
 
-### Run the FVV scenario
+### Run the RVV scenario
 
-The FVV scenario (Finder + Vendor + Vendor2, no Coordinator) runs the Finder,
+The RVV scenario (Reporter + Vendor + Vendor2, no Coordinator) runs the Reporter,
 both vendor containers and the `case-actor` container:
 
 ```bash
 # From the docker/ directory:
-DEMO=fvv docker compose -f docker-compose-multi-actor.yml \
+DEMO=rvv docker compose -f docker-compose-multi-actor.yml \
     up --abort-on-container-exit demo-runner
 ```
 
-### Run the FVCV-extension or FVCV-handoff scenario
+### Run the RVCV-extension or RVCV-handoff scenario
 
-The FVCV scenarios use all five actor services (Finder, Vendor, Coordinator,
+The RVCV scenarios use all five actor services (Reporter, Vendor, Coordinator,
 Vendor2, CaseActor):
 
 ```bash
 # From the docker/ directory:
-DEMO=fvcv-extension docker compose -f docker-compose-multi-actor.yml \
+DEMO=rvcv-extension docker compose -f docker-compose-multi-actor.yml \
     up --abort-on-container-exit demo-runner
 
-DEMO=fvcv-handoff docker compose -f docker-compose-multi-actor.yml \
+DEMO=rvcv-handoff docker compose -f docker-compose-multi-actor.yml \
     up --abort-on-container-exit demo-runner
 ```
 
@@ -175,19 +175,19 @@ volumes on exit for a clean baseline:
 
 ```bash
 # From the repository root:
-./integration_tests/demo/run_multi_actor_integration_test.sh fv
-./integration_tests/demo/run_multi_actor_integration_test.sh fvv
-./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-extension
-./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-handoff
+./integration_tests/demo/run_multi_actor_integration_test.sh rv
+./integration_tests/demo/run_multi_actor_integration_test.sh rvv
+./integration_tests/demo/run_multi_actor_integration_test.sh rvcv-extension
+./integration_tests/demo/run_multi_actor_integration_test.sh rvcv-handoff
 ```
 
 Or via the Makefile targets:
 
 ```bash
-make integration-test-multi-actor    # fv
-make integration-test-fvv            # fvv
-make integration-test-fvcv-extension # fvcv-extension
-make integration-test-fvcv-handoff   # fvcv-handoff
+make integration-test-multi-actor    # rv
+make integration-test-rvv            # rvv
+make integration-test-rvcv-extension # rvcv-extension
+make integration-test-rvcv-handoff   # rvcv-handoff
 ```
 
 See `integration_tests/README.md` for full usage notes and isolation tips.
@@ -197,7 +197,7 @@ See `integration_tests/README.md` for full usage notes and isolation tips.
 ```bash
 # From the docker/ directory:
 docker compose -f docker-compose-multi-actor.yml up -d \
-    finder vendor coordinator case-actor
+    reporter vendor coordinator case-actor
 ```
 
 All three services expose `/api/v2/health/ready` and will be marked healthy
@@ -212,7 +212,7 @@ and register peer actors:
 ```bash
 # Seed each actor service from the demo-runner container:
 docker compose -f docker-compose-multi-actor.yml run --rm \
-    -e VULTRON_API_BASE_URL=http://finder:7999/api/v2 demo-runner \
+    -e VULTRON_API_BASE_URL=http://reporter:7999/api/v2 demo-runner \
     vultron-demo seed
 
 docker compose -f docker-compose-multi-actor.yml run --rm \
@@ -234,7 +234,7 @@ scenarios that do not use the `demo-runner` workflow.
 
 ### Reset actor state between runs
 
-Named volumes (`finder-data`, `vendor-data`, `case-actor-data`) persist the
+Named volumes (`reporter-data`, `vendor-data`, `case-actor-data`) persist the
 SQLite database files across container restarts.  To wipe all state and start fresh:
 
 ```bash
@@ -248,7 +248,7 @@ The containers communicate via a dedicated Docker bridge network
 service name `api-dev` as the hostname, which Docker resolves internally.
 
 For multi-actor setups, each container uses its service name as the hostname
-in `VULTRON_SERVER__BASE_URL` (e.g., `http://finder:7999/api/v2/`) so that peer
+in `VULTRON_SERVER__BASE_URL` (e.g., `http://reporter:7999/api/v2/`) so that peer
 containers can derive inbox URLs that route correctly on the Docker network.
 
 ## Customizing the docker setup

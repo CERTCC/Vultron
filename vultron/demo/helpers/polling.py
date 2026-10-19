@@ -270,8 +270,8 @@ def wait_for_case_on_container(
     )
 
 
-def wait_for_finder_case(
-    finder_client: DataLayerClient,
+def wait_for_reporter_case(
+    reporter_client: DataLayerClient,
     case_id: str,
     timeout_seconds: float = 30.0,
     poll_interval: float = 0.5,
@@ -279,13 +279,13 @@ def wait_for_finder_case(
     """Backward-compatible alias for :func:`wait_for_case_on_container`.
 
     Args:
-        finder_client: DataLayerClient connected to the Finder container.
+        reporter_client: DataLayerClient connected to the Reporter container.
         case_id: Full URI of the ``as_VulnerabilityCase`` to wait for.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
     """
     wait_for_case_on_container(
-        finder_client, case_id, timeout_seconds, poll_interval
+        reporter_client, case_id, timeout_seconds, poll_interval
     )
 
 
@@ -302,7 +302,7 @@ def wait_for_case_participants(
 
     Gates on identity: all actors in *expected_actor_ids* must appear in
     ``actor_participant_index``.  A count check (``>= N``) would accept the
-    wrong participant set — for example CaseActor + Finder instead of
+    wrong participant set — for example CaseActor + Reporter instead of
     CaseActor + Vendor — masking a missing invite delivery (EDF-06-002).
 
     Args:
@@ -361,7 +361,7 @@ def wait_for_participants_on_replicas(
     This is the single implementation of the per-scenario replica
     participant-wait loop: previously each scenario carried its own copy of
     ``for replica_client in (...): p_timeout = 30.0 if ... else 10.0; ...``.
-    fvv omitted the loop entirely — its two bare
+    rvv omitted the loop entirely — its two bare
     :func:`wait_for_case_participants` calls used the 15 s default, so the
     late joiner (Vendor2) never received the extended budget and could time
     out spuriously under CI load (#2852, extending the #2202/#2337
@@ -452,21 +452,21 @@ def wait_for_note_in_case(
     )
 
 
-def wait_for_finder_log_entry(
-    finder_client: DataLayerClient,
+def wait_for_reporter_log_entry(
+    reporter_client: DataLayerClient,
     case_id: str,
     entry_hash: str,
     timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
 ) -> None:
-    """Poll finder's DataLayer until a ``CaseLedgerEntry`` with *entry_hash* appears.
+    """Poll reporter's DataLayer until a ``CaseLedgerEntry`` with *entry_hash* appears.
 
     Proves that the vendor's ``Announce(CaseLedgerEntry)`` outbox activity was
-    delivered to the finder's inbox and processed by
+    delivered to the reporter's inbox and processed by
     ``AnnounceLedgerEntryReceivedUseCase`` (LedgerFanout receive side).
 
     Args:
-        finder_client: DataLayerClient connected to the Finder container.
+        reporter_client: DataLayerClient connected to the Reporter container.
         case_id: Full URI of the ``as_VulnerabilityCase`` (used for filtering).
         entry_hash: ``entry_hash`` value of the expected log entry.
         timeout_seconds: Maximum time to wait before raising.
@@ -479,7 +479,7 @@ def wait_for_finder_log_entry(
     """
 
     def _check_with_log() -> bool:
-        raw = finder_client.get(finder_client.dl_path("CaseLedgerEntrys/"))
+        raw = reporter_client.get(reporter_client.dl_path("CaseLedgerEntrys/"))
         if not isinstance(raw, dict):
             return False
         for v in raw.values():
@@ -489,7 +489,7 @@ def wait_for_finder_log_entry(
                 and v.get("entry_hash") == entry_hash
             ):
                 logger.info(
-                    "Log entry with hash=%s found in finder's DataLayer",
+                    "Log entry with hash=%s found in reporter's DataLayer",
                     entry_hash[:16],
                 )
                 return True
@@ -500,7 +500,7 @@ def wait_for_finder_log_entry(
         timeout_seconds,
         poll_interval,
         f"Timed out waiting for log entry (hash={entry_hash!r}) for case "
-        f"{case_id!r} to appear in finder's DataLayer — replication may "
+        f"{case_id!r} to appear in reporter's DataLayer — replication may "
         "not have completed",
         swallow_exceptions=True,
     )
@@ -671,7 +671,7 @@ def wait_for_contiguous_ledger_coverage(
 ) -> None:
     """Poll *client*'s DataLayer until it holds all log indices 0…*expected_tail_index*.
 
-    :func:`wait_for_finder_log_entry` only confirms that the tail entry (by
+    :func:`wait_for_reporter_log_entry` only confirms that the tail entry (by
     hash) has arrived.  Because ``Announce(CaseLedgerEntry)`` activities are
     delivered independently, an intermediate entry (e.g. logIndex=17) can
     arrive *after* the tail entry, so the dump may still capture a gapped log.

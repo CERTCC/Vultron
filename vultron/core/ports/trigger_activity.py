@@ -768,26 +768,6 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
-    def accept_actor_recommendation(
-        self,
-        recommended_id: str,
-        recommender_id: str,
-        recommendation_id: str,
-        case_id: str,
-        actor: str,
-        to: list[str] | None = None,
-        id_: str | None = None,
-    ) -> tuple[str, str]:
-        """Create and persist an ``Accept(Offer)`` actor-recommendation activity.
-
-        The recommendation offer is reconstructed ephemerally from
-        ``recommended_id``, ``recommender_id``, ``recommendation_id``, and
-        ``case_id``; it does not need to already exist in the DataLayer.
-        ``id_`` allows callers to supply a deterministic ID for idempotency.
-        Returns ``(activity_id, activity_dict)``.
-        """
-        ...
-
     def add_participant_to_case(
         self,
         participant_id: str,
@@ -1175,6 +1155,29 @@ class TriggerActivityPort(Protocol):
 
         Returns:
             The activity ID.
+        """
+        ...
+
+    def refusal_notice(
+        self,
+        case_id: str | None,
+        actor: str,
+        refused_activity: dict[str, Any],
+        asserter: str,
+        reason: str,
+    ) -> tuple[str, str]:
+        """Create and persist the CASE_MANAGER's refusal notice.
+
+        The ``Reject`` a precondition guard's refusal owes the asserting
+        participant (CLP-02-005, CLP-05-001, ADR-0141): ``refused_activity``
+        is the refused activity in its AS2 JSON form, as recorded when
+        received, carried inline; ``inReplyTo`` names its id; ``asserter``
+        is the sole ``to`` recipient; ``reason`` is the refusing guard's
+        reason, carried in ``summary``; ``case_id``, when given, is the
+        notice's ``context``.  ``actor`` is the CASE_MANAGER.  The id is
+        derived from the CASE_MANAGER and the refused activity, so one
+        refused activity is answered by one notice (ID-04-004).
+        Returns ``(activity_id, activity_blob)``.
         """
         ...
 

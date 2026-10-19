@@ -22,8 +22,8 @@ This demo script showcases the case initialization process:
 2. Create Case: vendor explicitly creates a as_VulnerabilityCase
 3. Add Vendor as Participant: vendor adds themselves as case creator/owner
 4. Add Report to Case: vendor links the submitted report to the case
-5. Invite the Finder: vendor sends the finder the stub Invite
-6. Finder Joins: the finder accepts, and the vendor, as CASE_MANAGER, seats it
+5. Invite the Reporter: vendor sends the reporter the stub Invite
+6. Reporter Joins: the reporter accepts, and the vendor, as CASE_MANAGER, seats it
    (ADR-0114; ``Add(CaseParticipant)`` only reinstates, CM-31-011)
 7. Show final case state
 
@@ -33,7 +33,7 @@ This corresponds to the workflow documented in:
 When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
-3. Discover actors (finder, vendor, coordinator) via the API
+3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run the initialize_case demo workflow
 5. Verify side effects in the data layer
 
@@ -80,7 +80,7 @@ logger = logging.getLogger(__name__)
 
 def demo_initialize_case(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ):
@@ -88,14 +88,14 @@ def demo_initialize_case(
     Demonstrates the full case initialization workflow.
 
     Steps:
-    1. Finder submits a vulnerability report to vendor inbox
+    1. Reporter submits a vulnerability report to vendor inbox
     2. Vendor validates the report (RmValidateReportActivity)
     3. Vendor creates the case through the create-case trigger
     4. The trigger registers the vendor as CASE_OWNER and CASE_MANAGER
     5. Vendor adds the report to the case (AddReportToCaseActivity)
-    6. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
+    6. Vendor asks the CASE_MANAGER (itself) to invite the reporter, which
        sends the stub Invite
-    7. Finder accepts (RmAcceptInviteToCaseActivity), which seats it as a
+    7. Reporter accepts (RmAcceptInviteToCaseActivity), which seats it as a
        REPORTER participant (ADR-0114, ADR-0078)
     8. Final case state is logged
 
@@ -109,13 +109,13 @@ def demo_initialize_case(
     logger.info("=" * 80)
 
     report = report_offer = None
-    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        # Through the finder's own submit-report trigger, which writes the
+    with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
+        # Through the reporter's own submit-report trigger, which writes the
         # anchor the vendor's case introduction is checked against
         # (CBT-01-005, #4675).
         report, report_offer = reporter_submits_report(
             client,
-            finder,
+            reporter,
             vendor,
             reporter_client=client,
             report_name="Remote Code Execution Vulnerability",
@@ -186,30 +186,30 @@ def demo_initialize_case(
                 )
 
     with demo_step(
-        "Steps 6-7: Vendor invites finder; finder accepts and joins"
+        "Steps 6-7: Vendor invites reporter; reporter accepts and joins"
     ):
         participant = seat_participant_through_stub_invite(
-            client, case, owner=vendor, invitee=finder, role=CVDRole.REPORTER
+            client, case, owner=vendor, invitee=reporter, role=CVDRole.REPORTER
         )
         logger.info("Seated participant: %s", logfmt(participant))
-        with demo_check("Finder participant in case participant list"):
+        with demo_check("Reporter participant in case participant list"):
             final_case = log_case_state(
-                client, case.id_, "after the finder accepted"
+                client, case.id_, "after the reporter accepted"
             )
             if final_case and participant.id_ not in [
                 (ref_id(p) or str(p)) for p in final_case.case_participants
             ]:
                 raise ValueError(
                     f"Participant '{participant.id_}' not found in case "
-                    "after the finder accepted its stub Invite"
+                    "after the reporter accepted its stub Invite"
                 )
 
     # The vendor created a case for the report on receipt, and introduces it
-    # to the finder with its own Create(VulnerabilityCase) (CBT-01-001).
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    # to the reporter with its own Create(VulnerabilityCase) (CBT-01-001).
+    verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
-        "✅ DEMO COMPLETE: Case initialized with vendor and finder participants."
+        "✅ DEMO COMPLETE: Case initialized with vendor and reporter participants."
     )
 
 

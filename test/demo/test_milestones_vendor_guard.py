@@ -317,7 +317,7 @@ class TestVerifyFixDeployedDeployerGuard:
             )
 
     def test_vendor_and_deployer_passes_guard(self):
-        """VENDOR+DEPLOYER actor passes the guard — the V2 case in FCVCV."""
+        """VENDOR+DEPLOYER actor passes the guard — the V2 case in RCVCV."""
         participant = _make_participant_mock(
             [CVDRole.VENDOR, CVDRole.DEPLOYER]
         )

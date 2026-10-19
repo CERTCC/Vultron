@@ -90,7 +90,7 @@ treeprocessor on **its own** `Markdown` instance, and `markdown-exec` converts a
 block's output on a child instance that does not carry it. A `.md` target
 printed from an exec block reaches the built HTML verbatim and 404s, and
 `mkdocs build --strict` stays silent because it never saw the link. Emit
-built-site URLs (`fv/`) from a renderer, not source paths.
+built-site URLs (`rv/`) from a renderer, not source paths.
 
 ## Loader Failure Attribution (MS-17)
 

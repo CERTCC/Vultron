@@ -21,7 +21,7 @@ single instant the authoritative copy may not yet hold an entry a replica has
 already received — the entry is still *in flight*, not missing.
 
 Issue #2768 originally read this as a snapshot read-ordering artifact.  It is
-not: the fcvcv / fvcv-handoff demos showed the authoritative ledger genuinely
+not: the rcvcv / rvcv-handoff demos showed the authoritative ledger genuinely
 lacking the replica's tail index even when read last (freshest), because the
 entry had reached the replica but not yet the authoritative copy.  Reordering
 the two reads cannot fix an entry that is still arriving.

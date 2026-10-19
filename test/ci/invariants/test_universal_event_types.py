@@ -9,7 +9,7 @@ scenario harness implements that requirement as the leading entries of its
 
 DEMOMA-16-008 requires the spec requirement and the test constants to change
 in the same PR.  Nothing enforced that structurally: ``engage_case`` was added
-to ``test_fvcv_handoff_invariants.py`` alone (PR #2018) without amending the
+to ``test_rvcv_handoff_invariants.py`` alone (PR #2018) without amending the
 spec, leaving an engage-case regression silent in every other scenario
 (CONCERN-2243, ISSUE-2266).  These tests close that gap by checking, without
 running any demo, that

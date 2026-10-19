@@ -13,7 +13,7 @@ acknowledgments). In the AS2 wire vocabulary, both concerns are served by
 mechanisms partitioned on **different axes** from the formal set. Neither is
 unimplemented; both are shaped differently.
 
-This page is the primary reference for `Create(ProcessingFault)`.
+This page is the primary reference for `Create(ProcessingFault)` and the refusal notice.
 It is the second home of two activities documented elsewhere: the ledger negative acknowledgment, [Reject case ledger entry](ledger_replication.md#reject-case-ledger-entry), and [Close report](rm.md#report-closed) as an ordinary `as:Reject` on the fault axis.
 The normative mapping is the [Fault and Acknowledgment Mechanism Evolution](../specs/protocol.md#msm-05) requirements group; the design rationale is in [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) and [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md).
 
@@ -41,6 +41,26 @@ in a way that state-machine origin is not.
 In the example, the CASE_MANAGER refuses a status assertion that names an impossible state and reports the fault to the sender.
 
 The formal fault shorthands have no dedicated wire counterpart ([MSM-05-001](../specs/protocol.md#msm-05-001)).
+
+{% include-markdown "./_occasions/sections/refusal-notice.md" heading-offset=1 %}
+
+In the example, the CASE_MANAGER refuses a Vendor's status assertion because a precondition did not hold.
+
+The refusal notice is the one answer a precondition guard's refusal owes the asserting participant ([CLP-05-001](../specs/protocol.md#clp-05-001)).
+Its `object` is the refused activity, inline, and `inReplyTo` names that activity's id.
+It goes to the asserting participant alone, and its `summary` gives the refusing guard's reason.
+Its id is derived from the CASE_MANAGER and the refused activity, so a refused activity is answered once.
+
+The CASE_MANAGER sends it only when a precondition guard refuses the assertion.
+It sends none when the sender guard refuses the sender, when the activity repeats one whose effect is already in place, when the activity is a redelivery, or when the case is fully closed ([CLP-02-005](../specs/protocol.md#clp-02-005)).
+A refusal is not a case event, so the notice is not ledgered ([CLP-05-002](../specs/protocol.md#clp-05-002)).
+
+The participant closes the pending assertion it recorded for the refused activity ([CLP-06-006](../specs/project.md#clp-06-006)).
+It writes no case state and does not send the assertion again.
+
+A `Reject` from the CASE_MANAGER of an `Invite` or an `Offer` the participant sent is both a decline and a refusal.
+The two have the same shape, and either way the request had no effect.
+The participant reads it with the use case that reads the decline, which closes the pending entry.
 
 ### `as:Reject` is overloaded
 

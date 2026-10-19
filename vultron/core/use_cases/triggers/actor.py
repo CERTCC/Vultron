@@ -312,7 +312,7 @@ def _record_named_peer(
     peer is on another node whose record will never be here.  Refusing with
     "Actor '…' not found" therefore refused every cross-node peer — which is
     what made ``suggest-actor-to-case`` answer 404 for a vendor that existed and
-    was reachable, just not locally recorded (#2548, fcvcv).
+    was reachable, just not locally recorded (#2548, rcvcv).
 
     Recording it is the honest Actor Knowledge Model move: this actor has now
     been told about that peer, so it legitimately knows it.  What it does not

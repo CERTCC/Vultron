@@ -30,6 +30,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
+from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models._helpers import _as_id
 
@@ -100,7 +101,9 @@ class CaseReferenceEditNode(DataLayerActionWithPorts, StateWriteCapable):
         return Status.SUCCESS
 
 
-class CaseReferenceEditPendingNode(DataLayerConditionWithPorts):
+class CaseReferenceEditPendingNode(
+    FlaggedRepeatGuardMixin, DataLayerConditionWithPorts
+):
     """Guard: the edit would change the case's list (it is not a duplicate).
 
     ``SUCCESS`` when attaching a reference the case lacks, or detaching one it
@@ -109,6 +112,8 @@ class CaseReferenceEditPendingNode(DataLayerConditionWithPorts):
     Any other ``FAILURE`` (no datalayer, unknown case) is not a duplicate and
     stays a refusal.
     """
+
+    _REPEAT_FLAG = "is_duplicate"
 
     def __init__(
         self,
@@ -128,6 +133,7 @@ class CaseReferenceEditPendingNode(DataLayerConditionWithPorts):
         self.is_duplicate = False
 
     def update(self) -> Status:
+        self.is_duplicate = False
         if (f := self._require_datalayer()) is not None:
             return f
         case, failure = self._require_case(self.case_id)

@@ -235,7 +235,7 @@ that dead-letters a row.
 
 ### Delete `devlogs/` Before Running the Invariant Harness Locally
 
-`test/demo/test_fv_demo.py` runs the demo in-process and writes real ledger files
+`test/demo/test_rv_demo.py` runs the demo in-process and writes real ledger files
 into the gitignored repo-root `devlogs/`. `test/ci/invariants/` then reads them
 instead of skipping, and a second run accumulates two chains whose `prevLogHash`
 values mismatch. `rm -rf devlogs/` after the integration suite and before the

@@ -1039,7 +1039,7 @@ def test_make_dispatcher_gives_every_semantic_a_sync_port(monkeypatch):
     CASE_MANAGER announces each entry to the participants through this port
     (SYNC-02-003).  A semantic left off a hand-kept list committed without
     fan-out: ``OFFER_ACTOR_TO_CASE``, ``VALIDATE_REPORT`` and
-    ``REJECT_INVITE_ACTOR_TO_CASE`` did, and the ``fcv-reject`` demo's ledger
+    ``REJECT_INVITE_ACTOR_TO_CASE`` did, and the ``rcv-reject`` demo's ledger
     coverage gate timed out on the gap (#4113).
     """
     from vultron.semantic_registry import use_case_map

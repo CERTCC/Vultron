@@ -93,7 +93,7 @@ _NOT_A_MODIFIER = r"(?!(?:as|of|in|and|or|to|a|an|the|is|are|was|were)\s)"
 #: - at most two modifier words, none of them a stopword — see
 #:   :data:`_NOT_A_MODIFIER`.
 #: - the hyphenated form is a separate alternative rather than ``[-\\s]``, so
-#:   ``FCVCV 5-Party Scenario`` (which counts *parties*) does not match while
+#:   ``RCVCV 5-Party Scenario`` (which counts *parties*) does not match while
 #:   ``full 9-scenario suite`` does.
 #: - ``one`` is absent from :data:`_COUNT_WORDS`: ``one scenario per matrix
 #:   entry`` is a rate, not an inventory.

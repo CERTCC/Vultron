@@ -496,7 +496,9 @@ class _ActorsMixin:
         """Create and persist an AcceptActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner accepts
-        the Offer(as_CaseParticipant) (CM-16-006 step 3).
+        the Offer(as_CaseParticipant) (CM-16-006 step 3), or at once for an
+        actor already invited or joined (CM-16-009).  ``inReplyTo`` names
+        the recommendation it answers.
         """
         recommendation = recommend_actor_activity(
             recommended=recommended_id,
@@ -506,7 +508,10 @@ class _ActorsMixin:
         )
         extra = _addressing(actor, to or [recommender_id], id_)
         activity = accept_actor_recommendation_activity(
-            offer=recommendation, target=case_id, **extra
+            offer=recommendation,
+            target=case_id,
+            in_reply_to=recommendation_id,
+            **extra,
         )
         return _create_and_seal(
             self._dl, activity, "emit_accept_actor_recommendation"
@@ -525,7 +530,8 @@ class _ActorsMixin:
         """Create and persist a RejectActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner rejects
-        the Offer(as_CaseParticipant) (CM-16-007 step 3).
+        the Offer(as_CaseParticipant) (CM-16-007 step 3).  ``inReplyTo``
+        names the recommendation it answers.
         """
         recommendation = recommend_actor_activity(
             recommended=recommended_id,
@@ -535,40 +541,13 @@ class _ActorsMixin:
         )
         extra = _addressing(actor, to or [recommender_id], id_)
         activity = reject_actor_recommendation_activity(
-            offer=recommendation, target=case_id, **extra
+            offer=recommendation,
+            target=case_id,
+            in_reply_to=recommendation_id,
+            **extra,
         )
         return _create_and_seal(
             self._dl, activity, "emit_reject_actor_recommendation"
-        )
-
-    def accept_actor_recommendation(
-        self,
-        recommended_id: str,
-        recommender_id: str,
-        recommendation_id: str,
-        case_id: str,
-        actor: str,
-        to: list[str] | None = None,
-        id_: str | None = None,
-    ) -> tuple[str, str]:
-        """Create and persist an ``Accept(Offer)`` actor-recommendation activity.
-
-        The recommendation offer is reconstructed ephemerally (not read from
-        DataLayer) to allow callers that never stored the offer to still
-        accept it, provided they know its deterministic ID.
-        """
-        recommendation = recommend_actor_activity(
-            recommended=recommended_id,
-            target=case_id,
-            id_=recommendation_id,
-            actor=recommender_id,
-        )
-        extra = _addressing(actor, to, id_)
-        activity = accept_actor_recommendation_activity(
-            offer=recommendation, target=case_id, **extra
-        )
-        return _create_and_seal(
-            self._dl, activity, "accept_actor_recommendation"
         )
 
     def add_participant_to_case(

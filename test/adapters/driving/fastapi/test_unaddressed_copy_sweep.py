@@ -74,10 +74,7 @@ _UNDISPATCHABLE = frozenset({"update_case", "create_participant"})
 #: archives them; each names the issue that owns moving the refusal into the
 #: tree (CLP-10-005, CLP-10-018).  They are still refused, write nothing and
 #: send nothing.
-_REFUSED_BEFORE_ANY_TREE: dict[str, str] = {
-    "accept_actor_recommendation": "routes to UNKNOWN (#4527)",
-    "reject_actor_recommendation": "routes to UNKNOWN (#4527)",
-}
+_REFUSED_BEFORE_ANY_TREE: dict[str, str] = {}
 
 #: Examples whose tree keeps what the message carried before its addressee
 #: check (``OFFER_REPORT_STORED_FIRST``, CM-15-002), with the object types it

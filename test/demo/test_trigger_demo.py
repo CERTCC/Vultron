@@ -52,7 +52,7 @@ def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
 
     *link* is the vendor's report link; *vendor_rm* is the vendor's RM state as
     a participant of the linked case, or ``None`` when there is no such case.
-    The finder must take the vendor's case introduction on the trusted route
+    The reporter must take the vendor's case introduction on the trusted route
     (CBT-01-005, #4675).
     """
     reset_demo_failures()
@@ -60,9 +60,9 @@ def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
     with (
         caplog.at_level(logging.WARNING),
         expect_trusted_introductions(caplog),
-        demo_environment(client) as (finder, vendor, coordinator),
+        demo_environment(client) as (reporter, vendor, coordinator),
     ):
-        demo_fn(client, finder, vendor, coordinator)
+        demo_fn(client, reporter, vendor, coordinator)
         assert_demo_success()
         dl = get_datalayer(vendor.id_)
         (link,) = [

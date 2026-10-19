@@ -252,6 +252,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0140 A Ledger Entry's Semantic Type Is the Registry Label of Its AS2 Payload](0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md)
 - [ADR-0143 A Fix Commit's Local Gate Escalates Only for Shared Test Infrastructure](0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 - [ADR-0146 An Embargo Act Stores Its Planned Entries Before It Commits, and the Next Run Finishes Them](0146-an-embargo-act-stores-its-planned-entries-and-the-next-run-finishes-them.md)
+- [ADR-0147 The Protocol Specification Renders Its Normative Text from the YAML Requirements](0147-the-protocol-specification-renders-its-normative-text-from-the-yaml-requirements.md)
 
 ## Rejected ADRs
 

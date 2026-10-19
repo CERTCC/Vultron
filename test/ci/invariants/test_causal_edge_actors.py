@@ -125,7 +125,7 @@ def test_recorded_actor_name_accepts_an_object_actor() -> None:
 def test_load_actor_names_reads_the_manifest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    scenario = tmp_path / "fv"
+    scenario = tmp_path / "rv"
     scenario.mkdir()
     (scenario / common.DUMP_MANIFEST_FILENAME).write_text(
         json.dumps(
@@ -143,7 +143,7 @@ def test_load_actor_names_reads_the_manifest(
         encoding="utf-8",
     )
     monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-    assert load_actor_names("fv") == {
+    assert load_actor_names("rv") == {
         _VENDOR_KEY: "vendor",
         "route-r": "rejector",
     }

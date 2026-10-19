@@ -49,34 +49,34 @@ from vultron.errors import DemoFailureError
 
 # (module path, run function name, devlogs sub-directory name)
 SCENARIOS: list[tuple[str, str, str]] = [
-    ("vultron.demo.scenario.fv_demo", "run_fv_demo", "fv"),
-    ("vultron.demo.scenario.fvv_demo", "run_fvv_demo", "fvv"),
-    ("vultron.demo.scenario.fcv_demo", "run_fcv_demo", "fcv"),
+    ("vultron.demo.scenario.rv_demo", "run_rv_demo", "rv"),
+    ("vultron.demo.scenario.rvv_demo", "run_rvv_demo", "rvv"),
+    ("vultron.demo.scenario.rcv_demo", "run_rcv_demo", "rcv"),
     (
-        "vultron.demo.scenario.fcv_reject_demo",
-        "run_fcv_reject_demo",
-        "fcv-reject",
+        "vultron.demo.scenario.rcv_reject_demo",
+        "run_rcv_reject_demo",
+        "rcv-reject",
     ),
-    ("vultron.demo.scenario.fcvcv_demo", "run_fcvcv_demo", "fcvcv"),
+    ("vultron.demo.scenario.rcvcv_demo", "run_rcvcv_demo", "rcvcv"),
     (
-        "vultron.demo.scenario.fccv_extension_demo",
-        "run_fccv_extension_demo",
-        "fccv-extension",
-    ),
-    (
-        "vultron.demo.scenario.fvcv_extension_demo",
-        "run_fvcv_extension_demo",
-        "fvcv-extension",
+        "vultron.demo.scenario.rccv_extension_demo",
+        "run_rccv_extension_demo",
+        "rccv-extension",
     ),
     (
-        "vultron.demo.scenario.fccv_handoff_demo",
-        "run_fccv_handoff_demo",
-        "fccv-handoff",
+        "vultron.demo.scenario.rvcv_extension_demo",
+        "run_rvcv_extension_demo",
+        "rvcv-extension",
     ),
     (
-        "vultron.demo.scenario.fvcv_handoff_demo",
-        "run_fvcv_handoff_demo",
-        "fvcv-handoff",
+        "vultron.demo.scenario.rccv_handoff_demo",
+        "run_rccv_handoff_demo",
+        "rccv-handoff",
+    ),
+    (
+        "vultron.demo.scenario.rvcv_handoff_demo",
+        "run_rvcv_handoff_demo",
+        "rvcv-handoff",
     ),
 ]
 
@@ -145,17 +145,17 @@ class TestManifestWrittenWhenScenarioDiesEarly:
 class TestDumpRunsAfterMidPhaseFailure:
     """A scenario that dies after the case exists still dumps its ledgers."""
 
-    def test_fvv_dumps_ledgers_when_a_later_phase_raises(
+    def test_rvv_dumps_ledgers_when_a_later_phase_raises(
         self, tmp_path, monkeypatch
     ) -> None:
-        module = importlib.import_module("vultron.demo.scenario.fvv_demo")
+        module = importlib.import_module("vultron.demo.scenario.rvv_demo")
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
         case = module.as_VulnerabilityCase(
             id_="https://example.org/cases/issue-2239"
         )
-        # fvv phase 1 returns
-        # (finder, vendor, vendor_in_vendor, vendor2, report, offer, case).
+        # rvv phase 1 returns
+        # (reporter, vendor, vendor_in_vendor, vendor2, report, offer, case).
         phase_one_result = (
             MagicMock(),
             MagicMock(),
@@ -181,11 +181,11 @@ class TestDumpRunsAfterMidPhaseFailure:
             patch.object(module, "_phase_dump_case_ledgers") as dump,
         ):
             with pytest.raises((RuntimeError, DemoFailureError)):
-                run_fn = module.run_fvv_demo
+                run_fn = module.run_rvv_demo
                 run_fn(**_client_kwargs(run_fn))
 
         assert dump.called, (
-            "run_fvv_demo skipped the case-ledger dump when a phase raised; "
+            "run_rvv_demo skipped the case-ledger dump when a phase raised; "
             "the forensic artifacts the invariant harness needs were lost"
         )
         assert dump.call_args.kwargs["case"] is case
@@ -194,7 +194,7 @@ class TestDumpRunsAfterMidPhaseFailure:
         self, tmp_path, monkeypatch
     ) -> None:
         """A broken dump must not replace the exception that caused the failure."""
-        module = importlib.import_module("vultron.demo.scenario.fvv_demo")
+        module = importlib.import_module("vultron.demo.scenario.rvv_demo")
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
         case = module.as_VulnerabilityCase(
@@ -229,5 +229,5 @@ class TestDumpRunsAfterMidPhaseFailure:
             ),
         ):
             with pytest.raises(RuntimeError, match="the real cause"):
-                run_fn = module.run_fvv_demo
+                run_fn = module.run_rvv_demo
                 run_fn(**_client_kwargs(run_fn))

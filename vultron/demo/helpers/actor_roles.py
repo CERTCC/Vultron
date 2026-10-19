@@ -16,12 +16,12 @@ A demo scenario runs N actors, each in its own container.  Three facts about
 each of them are ad hoc per scenario and derivable from nothing:
 
 * which ``VULTRON_*_BASE_URL`` env var names that actor's container — the URL
-  options key to **physical container slots, not roles**, so ``fccv-handoff``'s
-  ``--c1-url`` reads ``VULTRON_VENDOR_BASE_URL`` while ``fccv-extension``'s
+  options key to **physical container slots, not roles**, so ``rccv-handoff``'s
+  ``--c1-url`` reads ``VULTRON_VENDOR_BASE_URL`` while ``rccv-extension``'s
   reads ``VULTRON_COORDINATOR_BASE_URL``;
 * the fallback port when that env var is unset;
 * whether the actor also takes a ``--<name>-id`` option, and whether *that*
-  option has an env binding (only ``fcvcv`` binds ids to env vars).
+  option has an env binding (only ``rcvcv`` binds ids to env vars).
 
 :class:`ActorRole` is where a scenario declares them, **once**.  Both consumers
 read the same list:
@@ -63,7 +63,7 @@ from vultron.errors import DemoActorRoleError
 #: declaration site this check exists to guard.
 #:
 #: Anchored with ``\Z`` rather than ``$``, which also matches before a trailing
-#: newline: ``"finder\n"`` would pass and then yield a ``--finder\n-url`` flag.
+#: newline: ``"reporter\n"`` would pass and then yield a ``--reporter\n-url`` flag.
 _NAME_RE = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*\Z")
 
 
@@ -77,7 +77,7 @@ class ActorRole:
     default and the fallback different containers.
     """
 
-    #: Flag stem, e.g. ``"finder"``, ``"c1"``, ``"case-actor"``.  Yields
+    #: Flag stem, e.g. ``"reporter"``, ``"c1"``, ``"case-actor"``.  Yields
     #: ``--<name>-url`` / ``--<name>-id`` and ``<name_>_url`` / ``<name_>_id``.
     name: str
     #: Env var naming this actor's container, e.g. ``"VULTRON_VENDOR_BASE_URL"``.
@@ -96,7 +96,7 @@ class ActorRole:
     #: :attr:`has_id`, forbidden otherwise.
     id_help: str | None = None
     #: Env var backing the ``--<name>-id`` option.  ``None`` for every scenario
-    #: but ``fcvcv``, whose actor ids are supplied by the compose environment.
+    #: but ``rcvcv``, whose actor ids are supplied by the compose environment.
     id_env: str | None = None
 
     def __post_init__(self) -> None:

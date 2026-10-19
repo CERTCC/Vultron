@@ -175,7 +175,7 @@ Load-bearing details:
 - **The signature ratchet checks both directions.** A `main()` keyword no role
   declares gets no option, so the scenario silently runs against its fallback
   constant — a working-looking demo pointed at the wrong container.
-- **No hand-declared sub-command.** A stray `@main.command(name="fv")` would
+- **No hand-declared sub-command.** A stray `@main.command(name="rv")` would
   shadow the generated one with every runtime check green;
   `test_no_scenario_subcommand_is_hand_declared` checks the AST, and a sibling
   test asserts `cli.py` imports no `*_demo` module by name.
@@ -193,10 +193,10 @@ about the same rows.
 
 ## A rendered link is not a MkDocs link
 
-A `[FV](fv.md)` link printed from a `markdown-exec` block is **not** rewritten:
+A `[rv](rv.md)` link printed from a `markdown-exec` block is **not** rewritten:
 the block renders on a child `Markdown` instance without MkDocs's link
 treeprocessor, so the `.md` href 404s on the built site and
-`mkdocs build --strict` stays green. The renderer emits built-site URLs (`fv/`),
+`mkdocs build --strict` stays green. The renderer emits built-site URLs (`rv/`),
 which assumes `use_directory_urls`; a test pins that assumption.
 
 ## Pitfalls

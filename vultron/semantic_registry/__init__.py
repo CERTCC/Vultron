@@ -63,6 +63,10 @@ from vultron.core.models.events import AnyReceivedEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.errors import RegistryOrderError
 from vultron.semantic_registry._entry import SemanticEntry
+from vultron.wire.as2.extractor._pattern import (
+    ActivityPattern,
+    InlineActivityObjectPattern,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 from . import (
@@ -158,6 +162,42 @@ def _check_group_order(
             )
 
 
+def _check_inline_activity_order(registry: list[SemanticEntry]) -> None:
+    """Raise if an entry an inline-activity catch-all would shadow follows it.
+
+    An :class:`InlineActivityObjectPattern` matches every inline activity of
+    a verb it does not exclude, which the dump-subset comparison in
+    :func:`_check_group_order` cannot see.  So any later entry of the same
+    activity type whose object is a nested pattern of an included verb would
+    never be reached (SE-03-002).
+
+    Raises:
+        RegistryOrderError: When such an entry follows the catch-all.
+    """
+    for idx, entry in enumerate(registry):
+        catch_all = entry.pattern
+        if not isinstance(catch_all, InlineActivityObjectPattern):
+            continue
+        excluded = {str(v) for v in catch_all.excluded_object_verbs}
+        for later in registry[idx + 1 :]:
+            pattern = later.pattern
+            if (
+                pattern is not None
+                and pattern.activity_ == catch_all.activity_
+                and isinstance(pattern.object_, ActivityPattern)
+                and str(pattern.object_.activity_) not in excluded
+            ):
+                raise RegistryOrderError(
+                    f"Registry ordering violation in"
+                    f" '{catch_all.activity_}' group:"
+                    f" {entry.semantics.name!r} takes every inline"
+                    f" {pattern.object_.activity_} activity, so"
+                    f" {later.semantics.name!r} after it is never reached."
+                    f" Move {later.semantics.name!r} before"
+                    f" {entry.semantics.name!r}."
+                )
+
+
 def _validate_registry_order(registry: list[SemanticEntry]) -> None:
     """Raise ``RegistryOrderError`` if any less-specific pattern precedes a
     more-specific one within the same ``activity_`` group.
@@ -188,6 +228,7 @@ def _validate_registry_order(registry: list[SemanticEntry]) -> None:
     for act_type, indexed_entries in groups.items():
         if len(indexed_entries) >= 2:
             _check_group_order(act_type, indexed_entries)
+    _check_inline_activity_order(registry)
 
 
 # ---------------------------------------------------------------------------

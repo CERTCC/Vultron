@@ -67,7 +67,7 @@ class TestInviteActorToCaseWithInlineEmbargo:
     stored case may hold the ``EmbargoEvent`` object rather than its id.  The
     adapter used to hand that object to ``dl.read`` and the Coordinator's
     invite trigger failed with "expected string or bytes-like object, got
-    'EmbargoEvent'" (fvcv-handoff, #3923).  The stub must still carry the
+    'EmbargoEvent'" (rvcv-handoff, #3923).  The stub must still carry the
     embargo's id and end time (CM-17-002).
     """
 

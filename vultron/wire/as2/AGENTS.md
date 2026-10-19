@@ -89,7 +89,8 @@ specific than an existing entry in the same `activity_` group, place it
 ### Import-Time Order Guard
 
 `_validate_registry_order()` is called at module load — a mis-ordered registry
-**prevents the module from loading**. Also run
+**prevents the module from loading**. An `InlineActivityObjectPattern` catch-all
+(`RefusalNoticePattern`) is checked by `_check_inline_activity_order()` instead. Also run
 `test/test_semantic_activity_patterns.py` after any registry edit (belt-and-
 suspenders for edge cases the runtime guard might miss).
 

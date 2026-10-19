@@ -359,7 +359,7 @@ class _RmInviteToCaseActivity(as_Invite):
     read it back from, so the stored Invite came back carrying a bare string and
     outbox delivery refused it (AKM-03-003) after exhausting its retries. The
     invitation never arrived, and the invitee's ``reject-case-invite`` then
-    answered 404 for an invite it had never been told about (#2548, fcv-reject).
+    answered 404 for an invite it had never been told about (#2548, rcv-reject).
     """
 
     object_: as_Actor = Field(

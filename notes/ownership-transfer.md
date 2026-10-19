@@ -27,8 +27,8 @@ relevant_packages:
   - vultron/core/behaviors/case/nodes/
   - vultron/core/use_cases/received/actor/
   - vultron/demo/exchange/transfer_ownership_demo.py
-  - vultron/demo/scenario/fvcv_handoff_demo.py
-  - vultron/demo/scenario/fccv_handoff_demo.py
+  - vultron/demo/scenario/rvcv_handoff_demo.py
+  - vultron/demo/scenario/rccv_handoff_demo.py
 ---
 
 # Ownership Transfer Protocol — Routing and Cascade Model
@@ -278,9 +278,9 @@ import wire (ARCH-03-001). So the record also carries `actor_id` and `target_id`
 ## Demos
 
 - **Address the Accept to the CASE_MANAGER and hand-deliver nothing.** The handoff
-  scenarios (`fvcv_handoff_demo.py`, `fccv_handoff_demo.py`) gate on the
+  scenarios (`rvcv_handoff_demo.py`, `rccv_handoff_demo.py`) gate on the
   `accept_case_ownership_transfer` entry on a **non-party** actor's own replica (the
-  Finder), since only the CASE_MANAGER's fan-out can put it there (CM-21-007,
+  Reporter), since only the CASE_MANAGER's fan-out can put it there (CM-21-007,
   EDF-06-002). `test/architecture/test_handoff_scenarios_verify_broadcast.py` enforces
   this for every scenario defining `_phase_ownership_handoff`.
 - **Accept the forwarded Offer, not the original.** The CASE_MANAGER forwards a new

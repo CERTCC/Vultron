@@ -343,7 +343,9 @@ guards, commit, effects.
    factory wraps the guards in a `PreconditionGuardStage`
    (`case/nodes/refusal_stage.py`) that runs them only when a precondition guard
    (not the sender guard) fails, inside a CASE_MANAGER gate, and skips them on a
-   redelivery whose intake was already archived. The stage then fails with the
+   redelivery whose intake was already archived and on a failed guard whose
+   `failed_as_repeat` is set (`ReportsIdempotentRepeat`, the repeat a handler
+   reports `SKIPPED`). The stage then fails with the
    guard's reason, so nothing commits and the handler reads `REFUSED`. A refusal
    effect must be `EmitCapable` and hold no `StateWriteCapable` node. Do not
    hand-build a `Selector[guard, emit]`: the emit would run ahead of the commit

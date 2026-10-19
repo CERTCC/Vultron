@@ -219,7 +219,7 @@ def invite_actors():
     offer.id_ = "urn:uuid:offer-invite-1"
     report = MagicMock()
     report.id_ = "urn:uuid:report-1"
-    finder = MagicMock()
+    reporter = MagicMock()
     auth_client = MagicMock(name="auth_client")
     case = MagicMock()
     case.id_ = "urn:uuid:case-invite-1"
@@ -230,7 +230,7 @@ def invite_actors():
         invited_actor,
         offer,
         report,
-        finder,
+        reporter,
         auth_client,
         case,
         invited_obj,
@@ -244,7 +244,7 @@ def test_invite_path_engage_gated_on_own_rm_valid(invite_actors):
         invited_actor,
         offer,
         report,
-        finder,
+        reporter,
         auth_client,
         case,
         invited_obj,
@@ -281,7 +281,7 @@ def test_invite_path_engage_gated_on_own_rm_valid(invite_actors):
             invited_actor=invited_actor,
             offer=offer,
             report=report,
-            finder=finder,
+            reporter=reporter,
             auth_client=auth_client,
             case=case,
             invited_obj=invited_obj,
@@ -305,14 +305,14 @@ def test_invite_path_caseactor_checks_read_the_case_actors_own_store(
     ``add_participant_status_to_participant`` ledger entry for it, so nothing
     ever advances the host's copy.  Reading the host's replica therefore reports
     ``RM.START`` until the timeout expires, no matter how healthy the run is
-    (observed in fcvcv for both the RM.VALID and RM.ACCEPTED checks).
+    (observed in rcvcv for both the RM.VALID and RM.ACCEPTED checks).
     """
     (
         invited_client,
         invited_actor,
         offer,
         report,
-        finder,
+        reporter,
         auth_client,
         case,
         invited_obj,
@@ -338,7 +338,7 @@ def test_invite_path_caseactor_checks_read_the_case_actors_own_store(
             invited_actor=invited_actor,
             offer=offer,
             report=report,
-            finder=finder,
+            reporter=reporter,
             auth_client=auth_client,
             case=case,
             invited_obj=invited_obj,
@@ -359,7 +359,7 @@ def test_invite_path_engage_not_called_when_own_rm_valid_never_commits(
         invited_actor,
         offer,
         report,
-        finder,
+        reporter,
         auth_client,
         case,
         invited_obj,
@@ -384,7 +384,7 @@ def test_invite_path_engage_not_called_when_own_rm_valid_never_commits(
             invited_actor=invited_actor,
             offer=offer,
             report=report,
-            finder=finder,
+            reporter=reporter,
             auth_client=auth_client,
             case=case,
             invited_obj=invited_obj,
@@ -401,7 +401,7 @@ def test_invite_path_never_validates_the_original_report(invite_actors):
         invited_actor,
         offer,
         report,
-        finder,
+        reporter,
         auth_client,
         case,
         invited_obj,
@@ -417,7 +417,7 @@ def test_invite_path_never_validates_the_original_report(invite_actors):
             invited_actor=invited_actor,
             offer=offer,
             report=report,
-            finder=finder,
+            reporter=reporter,
             auth_client=auth_client,
             case=case,
             invited_obj=invited_obj,

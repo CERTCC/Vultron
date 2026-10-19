@@ -7,7 +7,8 @@ description: >
   under docs/reference/vultron-spec/: the page map (routing landing page, body
   pages, annex pages, Open Questions, hidden full.md) and the fragments each
   page includes, the full.md in-page link rewrite, fragment kinds and naming,
-  annex embedding, the section citation convention, source treatment, STE
+  annex embedding, the section citation convention, normative text rendered
+  from the YAML (callouts and the Requirements Catalog), source treatment, STE
   style, and the DAG-first authoring workflow.
 related_notes:
   - notes/documentation-strategy.md
@@ -16,6 +17,7 @@ related_notes:
 related_specs:
   - specs/diataxis-requirements.yaml
   - specs/docs-build-workflow.yaml
+  - specs/spec-registry.yaml
 ---
 
 # RFC Spec Document Authoring Decisions
@@ -268,6 +270,48 @@ Keep the current order; each alternative was measured and is worse:
 
 ---
 
+## Normative Text Comes from the YAML
+
+The specification writes no normative sentence of its own (DF-12, ADR-0147).
+The `protocol` and `foundation` tiers of `specs/*.yaml` are the normative text,
+and the specification renders them in two forms:
+
+- **Callouts** in the narrative: an `info` admonition holding a short table of
+  the requirements a passage discusses, rendered by ID in the catalog's row
+  format. The ID cell links to the catalog row. A callout naming an ID of any
+  other kind fails the build (DF-12-003).
+- **The Requirements Catalog**, a body section after §12 Conformance: every
+  requirement of the two tiers, once, one subsection per requirement file,
+  files grouped onto themed pages, `foundation` rows on a page of their own
+  (DF-12-001). The catalog row is the requirement's only anchor, apart from its
+  in-page copy in `full.md` (DF-12-002).
+
+Rules for the narrative around them:
+
+- **No RFC 2119 keyword in prose** outside a rendered block; the §1.4 Document
+  Conventions paragraph that states the convention is the one exception
+  (DF-12-004). Prose
+  says what a rule is for and how rules work together; the rule itself is a
+  callout.
+- **Reconcile, don't restate.** A prose statement the YAML holds becomes a
+  callout and the YAML wording wins; if the prose was right, fix the YAML. A
+  statement the YAML lacks becomes a new requirement or is reworded as
+  informative. A cited ID that is not `protocol` or `foundation` is dropped or
+  re-checked with the MS-12 tree — the specification never presents it as
+  protocol.
+- **Exec-printed links bypass the `full.md` rewrite.** The `full.md` link hook
+  skips fenced code, which is how exec blocks are written, so the callout and
+  catalog renderers emit in-page links themselves when rendering for `full.md`
+  (DF-12-002).
+- **The catalog waits for the kind re-audit.** Publishing makes the two tiers
+  the normative text, so the catalog does not publish until every `protocol` and
+  `foundation` item's kind is re-checked with the MS-12 tree (ADR-0147, #4888).
+- **Placement is one table on the docs side** (DF-12-005). A new requirement
+  file holding either tier fails the check until it is placed on a catalog
+  page; the requirement files carry no placement field.
+
+---
+
 ## Source Treatment
 
 A draft section may carry `*Source:` pointers. These are **author construction
@@ -275,7 +319,7 @@ notes**, not citations that appear in the published document.
 
 | Source type | Treatment in published doc |
 |---|---|
-| `specs/*.yaml` pointers | Absorb into prose; remove the pointer |
+| `specs/*.yaml` pointers | Render as a callout (see "Normative Text Comes from the YAML"); never absorb into prose |
 | `docs/**/*.md` pointers | Convert to `!!! info "See also"` admonition |
 | `notes/*.md` pointers | Internal only; remove entirely |
 | Bare YAML filenames | Never appear in published output |
@@ -297,7 +341,8 @@ or more normative framing.
 Sections are written to ASD-STE100 aspirational style:
 
 - Short sentences. Active voice. One instruction per sentence.
-- Normative requirements use RFC 2119 keywords (MUST, SHOULD, MAY, etc.).
+- Normative requirements are rendered callouts, never prose with RFC 2119
+  keywords (DF-12-004).
 - Apply the `simplified-technical-english` skill per section after drafting.
 
 Enforcement is aspirational (style-guide level), not linted. Protocol vocabulary

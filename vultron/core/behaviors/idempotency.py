@@ -13,14 +13,59 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Reusable BT mixin enforcing the CLP-13 idempotency guard silence contract.
+"""Reusable BT contracts for guards that detect an idempotent repeat.
 
-Per ``specs/case-ledger-processing.yaml`` CLP-13-001, CLP-13-002, CLP-13-003.
+- :class:`SilentIdempotencyGuardMixin` enforces the CLP-13 silence contract.
+- :class:`ReportsIdempotentRepeat` is how a guard says its ``FAILURE`` was a
+  repeat the handler reports ``SKIPPED``, not a refusal, so the refusal stage
+  sends no refusal effect for it (CLP-10-022, CLP-05-001).
+
+Per ``specs/case-ledger-processing.yaml`` CLP-13-001, CLP-13-002, CLP-13-003,
+CLP-10-022.
 """
 
 import logging
+from typing import ClassVar, Protocol, runtime_checkable
 
 from py_trees.common import Status
+
+
+@runtime_checkable
+class ReportsIdempotentRepeat(Protocol):
+    """A guard whose ``FAILURE`` may be an idempotent repeat, not a refusal.
+
+    ``failed_as_repeat`` is ``True`` only when the guard's last run failed
+    because the activity repeats one whose effect is already in place, so
+    the handler reports it ``SKIPPED`` (HP-01-003, ID-05-003).  A repeat was
+    not refused, so the refusal stage runs no refusal effect for it: a
+    ``Reject`` of it would contradict the effect already in place
+    (CLP-10-022, CLP-05-001).
+    """
+
+    @property
+    def failed_as_repeat(self) -> bool:
+        """Whether the last run failed as an idempotent repeat."""
+        ...
+
+
+class FlaggedRepeatGuardMixin:
+    """:class:`ReportsIdempotentRepeat` for a guard that sets a repeat flag.
+
+    A guard that records a repeat in an attribute of its own (``is_repeat``,
+    ``is_redelivery``, ``is_duplicate``) names it in ``_REPEAT_FLAG``; the
+    guard resets the flag at the start of every run.
+    """
+
+    _REPEAT_FLAG: ClassVar[str]
+    status: Status
+
+    @property
+    def failed_as_repeat(self) -> bool:
+        """Whether the last run failed with the repeat flag set."""
+        return (
+            bool(getattr(self, self._REPEAT_FLAG))
+            and self.status == Status.FAILURE
+        )
 
 
 class SilentIdempotencyGuardMixin:
@@ -51,8 +96,24 @@ class SilentIdempotencyGuardMixin:
                     )
                 return Status.SUCCESS
 
+    A guard using it satisfies :class:`ReportsIdempotentRepeat`: its
+    :attr:`failed_as_repeat` is ``True`` after a run that ended in
+    :meth:`_idempotent_failure`.
+
     Per ``specs/case-ledger-processing.yaml`` CLP-13-001, CLP-13-002, CLP-13-003.
     """
+
+    _repeat_detected: bool = False
+    status: Status
+
+    def initialise(self) -> None:
+        self._repeat_detected = False
+        super().initialise()  # type: ignore[misc]
+
+    @property
+    def failed_as_repeat(self) -> bool:
+        """Whether the last run ended in :meth:`_idempotent_failure`."""
+        return self._repeat_detected and self.status == Status.FAILURE
 
     def _idempotent_failure(
         self,
@@ -75,7 +136,12 @@ class SilentIdempotencyGuardMixin:
             ``Status.FAILURE`` unconditionally.
         """
         logger.info(message, *args)
+        self._repeat_detected = True
         return Status.FAILURE
 
 
-__all__ = ["SilentIdempotencyGuardMixin"]
+__all__ = [
+    "FlaggedRepeatGuardMixin",
+    "ReportsIdempotentRepeat",
+    "SilentIdempotencyGuardMixin",
+]
