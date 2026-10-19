@@ -1,6 +1,6 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-## Public Awareness (CP) { #public-awareness }
+## Public awareness in a case status { #public-awareness }
 
 Announces evidence that the vulnerability is known to the public.
 

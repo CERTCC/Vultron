@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.case_status import CaseStatus
@@ -232,6 +232,135 @@ def test_field_value_reads_a_dimension_field_as_its_state():
         context="urn:uuid:case", pxa=PxaDimension(state=CS_pxa.PXa)
     )
     assert distinguisher.read(status) is CS_pxa.PXa
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_field_value_accepts_a_member_of_an_embedded_field_enum():
+    """A participant's view of the public state is the ``pxa`` of the case
+    status its participant status embeds (#4569)."""
+    distinguisher = FieldValue(
+        object_type=ParticipantStatus,
+        within="case_status",
+        field="pxa",
+        value=CS_pxa.Pxa,
+    )
+    assert distinguisher.declaring_type is CaseStatus
+    assert distinguisher.path == "case_status.pxa"
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_field_value_reads_a_field_within_an_embedded_model():
+    distinguisher = FieldValue(
+        object_type=ParticipantStatus,
+        within="case_status",
+        field="pxa",
+        value=CS_pxa.Pxa,
+    )
+    status = ParticipantStatus(
+        context="urn:uuid:participant",
+        case_status=CaseStatus(
+            context="urn:uuid:case", pxa=PxaDimension(state=CS_pxa.Pxa)
+        ),
+    )
+    assert distinguisher.read(status) is CS_pxa.Pxa
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_field_value_reads_nothing_when_the_model_is_not_embedded():
+    distinguisher = FieldValue(
+        object_type=ParticipantStatus,
+        within="case_status",
+        field="pxa",
+        value=CS_pxa.Pxa,
+    )
+    status = ParticipantStatus(context="urn:uuid:participant")
+    assert status.case_status is None
+    assert distinguisher.read(status) is None
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_field_value_rejects_a_value_of_another_embedded_field_enum():
+    with pytest.raises(
+        ValueError, match=r"ParticipantStatus\.case_status\.pxa"
+    ):
+        FieldValue(
+            object_type=ParticipantStatus,
+            within="case_status",
+            field="pxa",
+            value=CS_vf.VF,
+        )
+
+
+@pytest.mark.spec("MSM-08-002")
+@pytest.mark.parametrize(
+    ("within", "match"),
+    [
+        ("fix_state", "no typed field"),
+        ("vf", "does not embed exactly one model"),
+        ("case_engagement", "does not embed exactly one model"),
+    ],
+)
+def test_field_value_rejects_a_within_that_embeds_no_model(
+    within: str, match: str
+):
+    with pytest.raises(ValueError, match=match):
+        FieldValue(
+            object_type=ParticipantStatus,
+            within=within,
+            field="pxa",
+            value=CS_pxa.Pxa,
+        )
+
+
+class _StatusOrIri(BaseModel):
+    """A carrier whose field holds an embedded model *or* an IRI string."""
+
+    status: CaseStatus | str | None = None
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_field_value_rejects_a_within_that_may_hold_a_non_model():
+    """Only ``| None`` may accompany the embedded model: an IRI member
+    would leave read() nothing to look the field up on."""
+    with pytest.raises(ValueError, match="does not embed exactly one model"):
+        FieldValue(
+            object_type=_StatusOrIri,
+            within="status",
+            field="pxa",
+            value=CS_pxa.Pxa,
+        )
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_field_value_rejects_a_field_the_embedded_model_does_not_declare():
+    with pytest.raises(ValueError, match="CaseStatus has no typed field 'vf'"):
+        FieldValue(
+            object_type=ParticipantStatus,
+            within="case_status",
+            field="vf",
+            value=CS_vf.VF,
+        )
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_field_value_rejects_an_embedded_field_no_enum_types():
+    with pytest.raises(
+        ValueError,
+        match=r"ParticipantStatus\.case_status\.context is not typed by an enum",
+    ):
+        FieldValue(
+            object_type=ParticipantStatus,
+            within="case_status",
+            field="context",
+            value=CS_pxa.Pxa,
+        )
+
+
+def test_wire_spelling_names_an_embedded_field_by_its_dotted_path():
+    assert (
+        wire_spelling(ParticipantStatus, "pxa", "case_status")
+        == "caseStatus.pxaState"
+    )
 
 
 @pytest.mark.parametrize(
@@ -451,3 +580,22 @@ def test_occasion_howto_link_resolves(item: tuple[SemanticEntry, Occasion]):
     howto = item[1].howto
     assert howto is not None
     assert (_DOCS / howto).is_file(), f"docs/{howto} does not exist"
+
+
+@pytest.mark.spec("MSM-08-001")
+def test_notify_published_form_is_a_declared_occasion():
+    """The demo's notify-published report (CSB-15-003) has its own row: an
+    ``Add(ParticipantStatus)`` whose embedded case status is at ``Pxa``
+    (#4569)."""
+    entry = next(
+        e
+        for e in SEMANTIC_REGISTRY
+        if e.semantics
+        is MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+    )
+    declared = {
+        (o.shorthand, o.distinguisher.within, o.distinguisher.value)
+        for o in entry.occasions
+        if isinstance(o.distinguisher, FieldValue)
+    }
+    assert (ProtocolShorthand.CP, "case_status", CS_pxa.Pxa) in declared

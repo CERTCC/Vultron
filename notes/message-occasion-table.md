@@ -10,7 +10,8 @@ description: >-
   "When…" grammar, and typed distinguishers (field value, state context,
   sender standing) that every same-addressee sibling must declare. Occasions,
   the generated fragments, the pages that include them, the how-to embeds with
-  "Seen in" and the addressees (#4438) have landed.
+  "Seen in", the addressees (#4438) and the nested field-value distinguisher
+  (#4569) have landed.
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/handler-protocol.yaml
@@ -127,7 +128,9 @@ lookup table is mostly links.
   (DF-09-008, MSM-08-007).
 - **Details link** names the formal message and code ("Fix Readiness (CF)")
   (DF-09-010, MSM-08-008). Expansion rows (`GI`, `RV`, `RI`, `RC`) link by
-  section heading instead, since one label would repeat on every row.
+  section heading instead, since one label would repeat on every row; so do
+  `CP`, `CX` and `CA`, which have a row on both `Add(CaseStatus)` and
+  `Add(ParticipantStatus)` (RSH-04-001).
 - **A distinguisher is typed** (MSM-08-002): a field value checked against its
   enum, a state context naming a state machine and states (the EM state
   separating `EP` from `EV` on `Invite(Event)`), or a sender standing naming a
@@ -139,6 +142,8 @@ lookup table is mostly links.
   the CASE_MANAGER's register, not the receiver's: a participant may not hold
   the embargo before the announcement stores it, and the status is per embargo,
   not per case (MSM-08-003).
+  A field value may sit in a model the object embeds: `FieldValue(within=...)`
+  reads `ParticipantStatus.case_status.pxa` and renders `caseStatus.pxaState`.
 - **Same entry, same addressee: every occasion is distinguished** (MSM-08-011).
   Each declares a distinguisher and no two are equal, so a pair that differs
   only in prose fails construction instead of rendering two "—" rows. Two of

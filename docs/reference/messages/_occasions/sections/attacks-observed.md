@@ -1,6 +1,6 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-## Attacks Observed (CA) { #attacks-observed }
+## Attacks observed in a case status { #attacks-observed }
 
 Announces evidence that attackers are exploiting the vulnerability.
 

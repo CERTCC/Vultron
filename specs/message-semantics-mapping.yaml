@@ -403,51 +403,105 @@ groups:
   - id: MSM-03-004
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `CP` (Public Aware) MUST dispatch as `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2
-      wire form is `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The `CaseStatus` payload encodes the `public_aware`
-      state flag.
+    statement: >-
+      Protocol shorthand `CP` (Public Aware) MUST dispatch as
+      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
+      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), and as
+      `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
+      reports it in the `CaseStatus` that its
+      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001). In
+      both forms the `CaseStatus` payload encodes the `public_aware` state flag.
+    rationale: >-
+      RSH-04-001 has every participant other than the CASE_MANAGER embed a
+      suggested `CaseStatus` in `Add(ParticipantStatus)` instead of sending
+      `Add(CaseStatus)`, so the same formal message reaches the CASE_MANAGER in
+      two wire forms. The participant's form is its view of the case status,
+      not a change to it: the CASE_MANAGER chooses whether to adopt it, by
+      default only with the Case Owner's authorization (RSH-07-001), and an
+      adopted value reaches the case as the CASE_MANAGER's own case status.
+      Each form dispatches to its own entry, which declares the message as one
+      of its occasions (MSM-08-001, #4569).
     verification: >-
-      Inspection of `vultron/wire/` confirms that
-      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` maps to
-      `Add(CaseStatus)[target=VulnerabilityCase]`, and the `public_aware` flag is
-      encoded in the `CaseStatus` payload sent with CP.
+      `test/test_message_semantics_mapping.py` asserts that `CP` rides both
+      the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
+      embedded `caseStatus`. `test/test_semantic_registry_occasions.py` asserts
+      that each occasion carrying `CP` dispatches only to its own entry and
+      that its example carries its `pxaState` value.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002
+    - rel_type: depends_on
+      spec_id: RSH-04-001
     stories:
     - story_2022_069
     - story_2022_081
   - id: MSM-03-005
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `CX` (Exploit Published) MUST dispatch as `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its
-      AS2 wire form is `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The `CaseStatus` payload encodes the `exploit_published`
-      state flag.
+    statement: >-
+      Protocol shorthand `CX` (Exploit Published) MUST dispatch as
+      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
+      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), and as
+      `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
+      reports it in the `CaseStatus` that its
+      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001). In
+      both forms the `CaseStatus` payload encodes the `exploit_published` state flag.
+    rationale: >-
+      RSH-04-001 has every participant other than the CASE_MANAGER embed a
+      suggested `CaseStatus` in `Add(ParticipantStatus)` instead of sending
+      `Add(CaseStatus)`, so the same formal message reaches the CASE_MANAGER in
+      two wire forms. The participant's form is its view of the case status,
+      not a change to it: the CASE_MANAGER chooses whether to adopt it, by
+      default only with the Case Owner's authorization (RSH-07-001), and an
+      adopted value reaches the case as the CASE_MANAGER's own case status.
+      Each form dispatches to its own entry, which declares the message as one
+      of its occasions (MSM-08-001, #4569).
     verification: >-
-      Inspection of `vultron/wire/` confirms that
-      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` maps to
-      `Add(CaseStatus)[target=VulnerabilityCase]`, and the `exploit_published` flag
-      is encoded in the `CaseStatus` payload sent with CX.
+      `test/test_message_semantics_mapping.py` asserts that `CX` rides both
+      the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
+      embedded `caseStatus`. `test/test_semantic_registry_occasions.py` asserts
+      that each occasion carrying `CX` dispatches only to its own entry and
+      that its example carries its `pxaState` value.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002
+    - rel_type: depends_on
+      spec_id: RSH-04-001
     stories:
     - story_2022_018
     - story_2022_081
   - id: MSM-03-006
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `CA` (Attacks Observed) MUST dispatch as `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its
-      AS2 wire form is `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The `CaseStatus` payload encodes the `attacks_observed`
-      state flag.
+    statement: >-
+      Protocol shorthand `CA` (Attacks Observed) MUST dispatch as
+      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
+      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), and as
+      `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
+      reports it in the `CaseStatus` that its
+      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001). In
+      both forms the `CaseStatus` payload encodes the `attacks_observed` state flag.
+    rationale: >-
+      RSH-04-001 has every participant other than the CASE_MANAGER embed a
+      suggested `CaseStatus` in `Add(ParticipantStatus)` instead of sending
+      `Add(CaseStatus)`, so the same formal message reaches the CASE_MANAGER in
+      two wire forms. The participant's form is its view of the case status,
+      not a change to it: the CASE_MANAGER chooses whether to adopt it, by
+      default only with the Case Owner's authorization (RSH-07-001), and an
+      adopted value reaches the case as the CASE_MANAGER's own case status.
+      Each form dispatches to its own entry, which declares the message as one
+      of its occasions (MSM-08-001, #4569).
     verification: >-
-      Inspection of `vultron/wire/` confirms that
-      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` maps to
-      `Add(CaseStatus)[target=VulnerabilityCase]`, and the `attacks_observed` flag
-      is encoded in the `CaseStatus` payload sent with CA.
+      `test/test_message_semantics_mapping.py` asserts that `CA` rides both
+      the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
+      embedded `caseStatus`. `test/test_semantic_registry_occasions.py` asserts
+      that each occasion carrying `CA` dispatches only to its own entry and
+      that its example carries its `pxaState` value.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002
+    - rel_type: depends_on
+      spec_id: RSH-04-001
     stories:
     - story_2022_019
     - story_2022_081
