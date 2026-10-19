@@ -158,7 +158,7 @@ _INERT_TEST_SUFFIXES = (".md",)
 #: The wall-clock ceiling on every local gate run, and its exit status 124.
 #: ``-k 30`` follows the ``SIGTERM`` with a ``SIGKILL`` should pytest not exit.
 #: A run that hits it hung where no per-test timeout reaches, such as a C
-#: call holding the GIL or a stuck xdist controller (#4809, TB-14-005).
+#: call holding the GIL or a stuck xdist controller (#4809).
 #: Stock macOS has no ``timeout``; there the command exits 127.
 GATE_CEILING = ("timeout", "-k", "30", "1800")
 
