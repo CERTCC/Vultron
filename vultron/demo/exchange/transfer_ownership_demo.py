@@ -37,7 +37,7 @@ This corresponds to the workflow documented in:
 When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
-3. Discover actors (finder, vendor, coordinator) via the API
+3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run the demo workflows (accept, reject and withdraw)
 5. Verify side effects in the data layer
 
@@ -46,7 +46,7 @@ The ``Offer(VulnerabilityCase)``, the response to it and its withdrawal are
 addressed to the **CaseActor's** inbox, never to the transferee or the offerer
 directly (CM-21-005, CM-21-006, CM-21-010, CM-21-015).  The CaseActor records
 the Offer, commits a ``CaseLedgerEntry``, broadcasts ``Announce(CaseLedgerEntry)`` to every
-participant — which is how actors outside the negotiation, such as the finder,
+participant — which is how actors outside the negotiation, such as the reporter,
 learn a transfer is pending — and only then forwards a **new** Offer of its own
 to the transferee.  The demo therefore discovers the forwarded Offer by its
 properties rather than by the original offer's id (EDF-06-004).
@@ -100,7 +100,7 @@ _VALIDATION_CONTENT = (
 
 def _setup_transfer_precondition(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> tuple[as_VulnerabilityCase, str]:
@@ -117,7 +117,7 @@ def _setup_transfer_precondition(
     """
     case, case_actor_id = setup_canonical_case(
         client,
-        finder,
+        reporter,
         vendor,
         report_name=_REPORT_NAME,
         report_content=_REPORT_CONTENT,
@@ -272,7 +272,7 @@ def _initial_owner(
 
 def demo_transfer_ownership_accept(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -299,7 +299,7 @@ def demo_transfer_ownership_accept(
     logger.info("=" * 80)
 
     case, case_actor_id = _setup_transfer_precondition(
-        client, finder, vendor, coordinator
+        client, reporter, vendor, coordinator
     )
 
     # Confirm initial owner is vendor
@@ -362,7 +362,7 @@ def demo_transfer_ownership_accept(
 
 def demo_transfer_ownership_reject(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -388,7 +388,7 @@ def demo_transfer_ownership_reject(
     logger.info("=" * 80)
 
     case, case_actor_id = _setup_transfer_precondition(
-        client, finder, vendor, coordinator
+        client, reporter, vendor, coordinator
     )
 
     original_owner = _initial_owner(client, case, case_actor_id)
@@ -455,7 +455,7 @@ def demo_transfer_ownership_reject(
 
 def demo_transfer_ownership_withdraw(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -482,7 +482,7 @@ def demo_transfer_ownership_withdraw(
     logger.info("=" * 80)
 
     case, case_actor_id = _setup_transfer_precondition(
-        client, finder, vendor, coordinator
+        client, reporter, vendor, coordinator
     )
     original_owner = _initial_owner(client, case, case_actor_id)
 

@@ -18,7 +18,7 @@ manages before each demo's teardown clears the node, and the conftest fails
 the test that left a case its ledger cannot rebuild (CLP-07-013, CM-23-016).
 This module shows the check runs: an embargo demo's negotiated case is
 rebuilt, embargo and consent entries included.  The multi-container scenario
-demos (``rcv-embargo``, ``rcvv-embargo`` and the ``fcv`` family) need Docker;
+demos (``rcv-embargo``, ``rcvv-embargo`` and the ``rcv`` family) need Docker;
 their in-process equivalents are the per-actor-store scenarios under
 ``test/core/use_cases/received/``, each rebuilt by that package's conftest.
 """

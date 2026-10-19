@@ -2,7 +2,7 @@
 """Ratchet signal for ISSUE-2194: outbound Accept ``object_`` emitted as a bare
 URN string instead of a fully-inline typed object.
 
-Symptom (confirmed across fcv / fcvcv / fvv / fccv-extension / fvcv-extension
+Symptom (confirmed across rcv / rcvcv / rvv / rccv-extension / rvcv-extension
 demo scenarios): a participant validates a report (the RM.RECEIVED -> VALID /
 ACCEPTED transition). The participant builds the validate-report ``Accept(Offer)``
 exactly as the production ``TriggerActivityAdapter.validate_report()`` does — via

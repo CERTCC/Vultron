@@ -601,6 +601,47 @@ groups:
       spec_id: CM-21-015
     stories:
     - story_2022_050
+  - id: VAM-04-016
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `ACCEPT_ACTOR_RECOMMENDATION` MUST be represented as
+      `Accept(Offer(Actor)[target=VulnerabilityCase])`: the CASE_MANAGER's answer to
+      the recommender, wrapping the recommender's own `Offer(Actor)` (VAM-04-001), with
+      `inReplyTo` naming that Offer (CM-16-006, CM-16-009).
+    rationale: >-
+      This is the third hop of the exchange, addressed back to the recommender. It
+      wraps the first offer, where the Case Owner's decision (VAM-04-002) wraps the
+      second, so the inner object type tells the two `Accept`s apart.
+    verification: >-
+      A unit test confirms that the answer the CASE_MANAGER's adapter builds matches
+      `AcceptSuggestActorToCasePattern`, resolves to `ACCEPT_ACTOR_RECOMMENDATION` and
+      carries `inReplyTo`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-16-006
+    stories:
+    - story_2022_054
+  - id: VAM-04-017
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `REJECT_ACTOR_RECOMMENDATION` MUST be represented as
+      `Reject(Offer(Actor)[target=VulnerabilityCase])`: the CASE_MANAGER's answer to
+      the recommender after the Case Owner declines, with `inReplyTo` naming the
+      recommender's `Offer(Actor)` (CM-16-007).
+    rationale: >-
+      Symmetric with VAM-04-016; the Case Owner's `Reject` (VAM-04-003) wraps
+      `Offer(CaseParticipant)` instead.
+    verification: >-
+      A unit test confirms that the answer the CASE_MANAGER's adapter builds matches
+      `RejectSuggestActorToCasePattern`, resolves to `REJECT_ACTOR_RECOMMENDATION` and
+      carries `inReplyTo`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-16-007
+    stories:
+    - story_2022_054
 - id: VAM-05
   title: Embargo Management Messages
   specs:

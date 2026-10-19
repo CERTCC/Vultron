@@ -753,8 +753,8 @@ def _scenario_start_group(with_behavioral_spec: bool):
         "groups": [
             {
                 "id": "SCN-01",
-                "title": "FV Scenario",
-                "trigger": {"type": "scenario_start", "value": "fv"},
+                "title": "rv Scenario",
+                "trigger": {"type": "scenario_start", "value": "rv"},
                 "specs": [
                     {
                         "id": "SCN-01-001",
@@ -1030,7 +1030,7 @@ def test_lint_phantom_path_without_placeholder_token_fails(tmp_path):
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
     data["groups"][0]["specs"][0]["statement"] = (
-        "Each scenario MUST have a `test/ci/invariants/test_fv_invariants.py`"
+        "Each scenario MUST have a `test/ci/invariants/test_rv_invariants.py`"
     )
     write_yaml(spec_dir, data)
     assert lint(spec_dir) == 1

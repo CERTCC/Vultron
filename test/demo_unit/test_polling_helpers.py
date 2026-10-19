@@ -67,7 +67,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 CASE_ID = "http://example.com/cases/case-123"
-ACTOR_A = "http://example.com/actors/finder"
+ACTOR_A = "http://example.com/actors/reporter"
 ACTOR_B = "http://example.com/actors/vendor"
 
 
@@ -483,7 +483,7 @@ class TestCaseActorParticipantIdIn:
             {
                 "http://vendor.test/api/v2/actors/vendor": "urn:uuid:p1",
                 "http://ca.test/api/v2/actors/case-actor": "urn:uuid:p2",
-                "http://finder.test/api/v2/actors/finder": "urn:uuid:p3",
+                "http://reporter.test/api/v2/actors/reporter": "urn:uuid:p3",
             }
         )
         assert (
@@ -497,7 +497,7 @@ class TestCaseActorParticipantIdIn:
         case = _case_with_index(
             {
                 "http://vendor.test/api/v2/actors/vendor": "urn:uuid:p1",
-                "http://finder.test/api/v2/actors/finder": "urn:uuid:p2",
+                "http://reporter.test/api/v2/actors/reporter": "urn:uuid:p2",
             }
         )
         assert case_actor_participant_id_in(case) is None
@@ -1224,7 +1224,7 @@ class TestStoreScanFindersReadOnlyTheirTypes:
 # ---------------------------------------------------------------------------
 
 _INTRO_NODE = "http://node.test/api/v2"
-_INTRO_REPORTER = f"{_INTRO_NODE}/actors/finder"
+_INTRO_REPORTER = f"{_INTRO_NODE}/actors/reporter"
 _INTRO_RECEIVER = f"{_INTRO_NODE}/actors/vendor"
 _INTRO_REPORT = "urn:uuid:44444444-4444-4444-4444-444444444444"
 _INTRO_CASE = "urn:uuid:55555555-5555-5555-5555-555555555555"
@@ -1272,7 +1272,7 @@ def test_wait_for_reporter_introduction_returns_the_bound_case():
     )
     assert case_id == _INTRO_CASE
     # It reads the reporter's own store, not the client's bound actor.
-    assert "/actors/finder/" in seen["path"]
+    assert "/actors/reporter/" in seen["path"]
     assert seen["params"] == {"type": ["ReportCaseLink"]}
 
 

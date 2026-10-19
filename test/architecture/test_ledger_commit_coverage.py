@@ -75,7 +75,12 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     # removes these two rows.
     "accept_case_participant_role": "#4703",
     "announce_embargo_event_to_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
+    # The recommender's receipt of the CASE_MANAGER's answer, which the
+    # CASE_MANAGER ledgered when it sent it (CM-16-006, CM-16-007, CM-16-010).
+    "accept_actor_recommendation": NotACaseEvent.SENT_BY_CASE_MANAGER,
+    "reject_actor_recommendation": NotACaseEvent.SENT_BY_CASE_MANAGER,
     "create_processing_fault": NotACaseEvent.PROCESSING_FAULT,
+    "refusal_notice": NotACaseEvent.LEDGER_MECHANICS,
     "reject_case_participant_role": "#4703",
 }
 

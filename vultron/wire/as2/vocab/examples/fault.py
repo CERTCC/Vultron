@@ -15,11 +15,18 @@
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
 )
-from vultron.wire.as2.factories.fault import create_processing_fault_activity
+from vultron.wire.as2.factories.fault import (
+    create_processing_fault_activity,
+    refusal_notice_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
+    as_Reject,
 )
 from vultron.wire.as2.vocab.examples._base import _CASE_ACTOR, vendor
+from vultron.wire.as2.vocab.examples.status import (
+    add_fix_readiness_to_participant,
+)
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
 
@@ -41,4 +48,28 @@ def create_processing_fault() -> as_Create:
         actor=_CASE_ACTOR.id_,
         fault=fault,
         to=[_vendor.id_],
+    )
+
+
+def refusal_notice() -> as_Reject:
+    """The Case Manager refuses a Vendor's status assertion a guard rejected.
+
+    The refused ``Add(ParticipantStatus)`` is carried inline, ``inReplyTo``
+    names it, and ``summary`` gives the guard's reason (CLP-05-001).  Nothing
+    is ledgered for the refusal (CLP-05-002).
+    """
+    refused = add_fix_readiness_to_participant()
+    assert isinstance(refused.actor, str)
+    return refusal_notice_activity(
+        refused.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude_none=True,
+            serialize_as_any=True,
+        ),
+        "fix readiness (VF) asserted before vendor awareness (Vf) was"
+        " recorded for the Vendor",
+        actor=_CASE_ACTOR.id_,
+        to=[refused.actor],
+        context="https://vultron.example/cases/1",
     )

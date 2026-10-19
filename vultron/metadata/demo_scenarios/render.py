@@ -89,7 +89,7 @@ def _table(header: Iterable[str], rows: Iterable[Iterable[str]]) -> str:
 def narrative_link(spec: ScenarioSpec) -> str:
     """Return the index page's link target for *spec*'s narrative page.
 
-    A **built-site URL** (``fv/``), not a source path (``fv.md``), and that is
+    A **built-site URL** (``rv/``), not a source path (``rv.md``), and that is
     not a style choice. MkDocs rewrites ``.md`` links to page URLs with a
     treeprocessor registered on its own ``Markdown`` instance; ``markdown-exec``
     converts a block's output on a *child* instance, which does not carry that
@@ -98,7 +98,7 @@ def narrative_link(spec: ScenarioSpec) -> str:
     never saw the link as an internal one to validate.
 
     Assumes ``use_directory_urls`` (the MkDocs default, and unset in
-    ``mkdocs.yml``): with it disabled these would need to be ``fv.html``. That
+    ``mkdocs.yml``): with it disabled these would need to be ``rv.html``. That
     assumption is pinned by a test rather than left to this docstring, because
     flipping the setting would break every link here without failing the build.
     """
@@ -171,7 +171,7 @@ def _subcommands_table(specs: tuple[ScenarioSpec, ...]) -> str:
 
     Carries ``participants`` as its own column rather than folding it into the
     description: the hand-written descriptions this replaces mixed the two, and
-    that is how the FCVCV row came to name four actors where the scenario has
+    that is how the RCVCV row came to name four actors where the scenario has
     five.
     """
     return _table(

@@ -49,7 +49,7 @@ them.
 
 | Layer | Meaning | Container log | Log line |
 |---|---|---|---|
-| **1 — Sent** | Outbound delivery succeeded | Sender (`finder`, `vendor`, …) | `Delivered activity <id> to <url> (HTTP 202)` (INFO, `vultron.adapters.driven.http_delivery`) |
+| **1 — Sent** | Outbound delivery succeeded | Sender (`reporter`, `vendor`, …) | `Delivered activity <id> to <url> (HTTP 202)` (INFO, `vultron.adapters.driven.http_delivery`) |
 | **2 — Received** | Inbox accepted the activity | Receiver (`case-actor`, `vendor`, …) | `Parsing activity from request body (type=…)` (DEBUG, `uvicorn.error`) |
 | **3 — Committed** | Ledger entry written | `case-actor` | `PersistLogEntryNode: committed log entry case_id=… event_type=… log_index=… actor_id=…` (INFO) |
 
@@ -73,7 +73,7 @@ Harnesses live under `test/ci/invariants/`, one per scenario, at
 `test/ci/README-case-log-ratchet.md` lists them (DEMOCI-11-003). Run one with:
 
 ```bash
-uv run pytest test/ci/invariants/test_fv_invariants.py -v --tb=short
+uv run pytest test/ci/invariants/test_rv_invariants.py -v --tb=short
 ```
 
 ### Invariant Status and Diagnostic Focus
@@ -134,9 +134,9 @@ the promotion steps.
 ### Reading individual invariants
 
 - **Invariant 8 (late-joiner backfill) is scenario-local**, so it is not a row.
-  It names a specific early and late actor, so each harness except `fcv_reject`
+  It names a specific early and late actor, so each harness except `rcv_reject`
   declares one test per late joiner, named
-  `test_<scenario>_<late_actor>_late_joiner_has_full_history` (FV's keeps the
+  `test_<scenario>_<late_actor>_late_joiner_has_full_history` (`rv`'s keeps the
   `test_invariant_8_` prefix). Start at Layer 2. Grep
   `late_joiner_has_full_history` to enumerate them.
 - **Invariant 16 is injected only when the harness passes `narrative_path`**,
@@ -214,10 +214,10 @@ Reproduce a CI failure locally before reading logs:
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml build
 mkdir -p devlogs
-DEMO=fv VULTRON_SERVER__LOG_LEVEL=DEBUG \
+DEMO=rv VULTRON_SERVER__LOG_LEVEL=DEBUG \
   docker compose -f docker/docker-compose-multi-actor.yml \
   up --abort-on-container-exit --exit-code-from demo-runner
-uv run pytest test/ci/invariants/test_fv_invariants.py -v --tb=short
+uv run pytest test/ci/invariants/test_rv_invariants.py -v --tb=short
 docker compose -f docker/docker-compose-multi-actor.yml logs > /tmp/demo-logs.log 2>&1
 docker compose -f docker/docker-compose-multi-actor.yml down -v
 ```
@@ -326,7 +326,7 @@ dump:
 ```python
 wait_for_replica_ledger_coverage(
     auth_client=vendor_client,
-    replicas=[(finder_client, "Finder")],
+    replicas=[(reporter_client, "Reporter")],
     case_id=case.id_,
     phase_label="notes phase",
 )

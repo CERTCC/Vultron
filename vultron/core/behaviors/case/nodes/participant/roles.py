@@ -58,7 +58,7 @@ def resolve_case_owner_id(
     creation path the two agree at creation (CM-02-008, CP-09-001), but a
     store can hold a case whose ``attributed_to`` names the **CaseActor**.
     Reading ``attributed_to`` there and calling the result "the Case Owner"
-    addresses the CaseActor's own messages to itself, which stalls the fcvcv
+    addresses the CaseActor's own messages to itself, which stalls the rcvcv
     ADR-0026 chain: the ``Offer(CaseParticipant)`` never reaches the owner, so
     ``accept-actor-recommendation`` has nothing to accept and returns 422.
 

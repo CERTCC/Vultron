@@ -39,7 +39,7 @@ _INTEGRATION_SCRIPT = (
     / "run_multi_actor_integration_test.sh"
 )
 
-# Matches the assignment line:  VALID_SCENARIOS="fv fvv fvcv-extension fvcv-handoff"
+# Matches the assignment line:  VALID_SCENARIOS="rv rvv rvcv-extension rvcv-handoff"
 _VALID_SCENARIOS_RE = re.compile(r'^VALID_SCENARIOS="([^"]+)"')
 
 

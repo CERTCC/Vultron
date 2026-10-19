@@ -5,14 +5,13 @@ kind: plan
 tracks:
   - "#4727"
   - "#4733"
-  - "#4736"
   - "#4759"
   - "#4747"
 description: >
   Design for making the demo scenario tree explicit (#4726): branch points
   defined once in a table, each scenario declaring its full path on `@scenario`,
-  trigger-only choices, the letter-grammar names with Finder renamed to
-  Reporter, the generated tree index the demo UI reads, and the isomorphic
+  trigger-only choices, the letter-grammar names and how a rename keeps old
+  URLs, the generated tree index the demo UI reads, and the isomorphic
   shared-prefix check over recordings. Records the mapping of today's
   scenarios onto the tree and the Task order.
 related_specs:
@@ -49,7 +48,7 @@ retires each family's declarations as it lands.
   nowhere else, so offline and live mode cannot disagree.
 - **Each scenario declares its full path** on `@scenario`, as ordered
   (branch point, choice) pairs from the root (DEMOCI-11-014). A
-  parent-scenario pointer was rejected: `fv` and `fvv` are siblings, neither a
+  parent-scenario pointer was rejected: `rv` and `rvv` are siblings, neither a
   prefix of the other.
 - **A tree node is identified by its path prefix.** A branch point is a table
   entry that labels one or more nodes: a decision can recur on one path (#2050
@@ -81,8 +80,7 @@ the scenario plays the other parties until the next branch point.
 
 Every path opens with submit, then the receiver's validate and engage. The
 default embargo starts at case creation, so embargo terms are a later branch
-point, not a root one. Steps in brackets are shared steps, not choices. Names
-are shown after the Finder → Reporter rename.
+point, not a root one. Steps in brackets are shared steps, not choices.
 
 ```text
 Reporter: whom to tell?                (room for "Vendor found it itself": #2591, #3667)
@@ -110,9 +108,9 @@ Reporter: whom to tell?                (room for "Vendor found it itself": #2591
 Today's code does not follow this order everywhere. #4759 moves these steps,
 with no pass or fail verdict changed (DEMOMA-17-002):
 
-- `fvv`, `fvcv-extension`, `fvcv-handoff`: the notes exchange moves before the
+- `rvv`, `rvcv-extension`, `rvcv-handoff`: the notes exchange moves before the
   invites, so the Vendor's branch point follows it.
-- `fcvcv`: the second Coordinator's invite moves after the notes exchange.
+- `rcvcv`: the second Coordinator's invite moves after the notes exchange.
 - `rcv-embargo`, `rcvv-embargo`: the notes exchange moves after the embargo
   proposal, so the Reporter's choice is between proposing and asking.
 
@@ -131,7 +129,7 @@ above is what the paths must produce.
 
 Names keep the letter grammar: the leading letters spell the roles that join, in
 order, and a suffix names the outcome (DEMOCI-11-015). The letter set is `r`,
-`v`, `c` and `d` (Deployer, for `fcvd`), gaining one letter per new role. The
+`v`, `c` and `d` (Deployer, for `rcvd`), gaining one letter per new role. The
 grammar is a convention kept in review, with no check: some joins happen in
 scripted steps no choice records (`rcvv-embargo`'s late Vendor2 invite), so a
 check would need the recordings, which is more upkeep than demo names are worth.
@@ -139,13 +137,14 @@ Path-generated names were rejected: inserting a branch
 point upstream would rename every scenario below it, and a name is the stem of
 the module, harness, narrative page, `scenario_start` marker and CI entry.
 
-Rename plan (#4736), one PR, before the declarations land:
+Write the two-party scenario `rv` in lowercase everywhere, labels and prose
+included: uppercase `RV` is the Report Valid message shorthand, and the docs
+acronym list keeps only that meaning.
 
-- `f` becomes `r` in every name; spec group IDs stay, titles and markers change.
-- Actor names and the reporter's container-URL variable become Reporter.
-- Old narrative-page URLs get `mkdocs-redirects` entries.
-- **No sub-command aliases.** An alias table is a second list of names
-  (DEMOCI-11-011); update the instructions and docs instead.
+A renamed scenario keeps its spec group ID and its old narrative-page URL, via
+a `mkdocs-redirects` entry in `mkdocs.yml`. It gets **no sub-command alias**: an
+alias table is a second list of names (DEMOCI-11-011), so update the
+instructions and docs instead (#4736).
 
 ## Tree index
 
@@ -170,7 +169,7 @@ DEMOCI-11-018).
 - Relabel each recording's ids by first appearance, drop timestamps, and require
   equal entries up to the branch point, references between objects included.
 - Byte identity is not required yet: siblings seed different actor names,
-  container slots and ports (`fccv-handoff` puts Coordinator1 in the vendor
+  container slots and ports (`rccv-handoff` puts Coordinator1 in the vendor
   slot), so ids differ even where logic matches. A composed family tightens to
   byte identity, which then holds by construction.
 - The check needs to know where each branch point falls in the ledger. Have the
@@ -181,8 +180,7 @@ DEMOCI-11-018).
 
 ## Task order
 
-1. #4736 — Finder → Reporter rename (no longer waits on #2677).
-2. #4759 — the branch-point table, path declarations and registry checks (no
+1. #4759 — the branch-point table, path declarations and registry checks (no
    recordings needed).
-3. #4727 — the tree-index exporter and the isomorphic prefix check, after #3901.
-4. #4733 — composition, family by family.
+2. #4727 — the tree-index exporter and the isomorphic prefix check, after #3901.
+3. #4733 — composition, family by family.

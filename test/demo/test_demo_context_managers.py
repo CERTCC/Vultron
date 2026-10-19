@@ -474,7 +474,7 @@ class TestUnboundLocalErrorRegression:
         )
 
         reporter = MagicMock()
-        reporter.id_ = "http://example.com/api/v2/actors/finder-1"
+        reporter.id_ = "http://example.com/api/v2/actors/reporter-1"
         receiver = MagicMock()
         receiver.id_ = "http://example.com/api/v2/actors/vendor-1"
 

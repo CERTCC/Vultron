@@ -14,7 +14,7 @@
 """Scenario-verification primitives shared across demo workflows.
 
 Lower-level assertion helpers used by milestone verification functions in the
-individual scenario modules (e.g. ``fv_demo.py``).  Keeping them here
+individual scenario modules (e.g. ``rv_demo.py``).  Keeping them here
 avoids duplication when future multi-actor scenarios need the same checks.
 """
 
@@ -483,7 +483,7 @@ def verify_activity_in_inbox(
             store* read: an activity delivered to one actor is absent from every
             other actor's store (CM-01-001), so a lookup by id alone has no
             answer.  It was logging-only when a container had a single shared
-            store, which made "not in the finder's inbox" report on whichever
+            store, which made "not in the reporter's inbox" report on whichever
             actor the client happened to be bound to.
         activity_id: Full URI of the activity to find.
 

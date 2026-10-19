@@ -18,14 +18,14 @@ Demonstrates the acknowledgement workflow for vulnerability reports via the Vult
 
 This demo script showcases the RmReadReportActivity (as:Read) acknowledgement mechanism:
 
-1. Acknowledge Only: submit → vendor sends ack (RmReadReportActivity) to finder
-2. Acknowledge then Validate: submit → ack to finder → validate → notify finder
-3. Acknowledge then Invalidate: submit → ack to finder → invalidate → notify finder
+1. Acknowledge Only: submit → vendor sends ack (RmReadReportActivity) to reporter
+2. Acknowledge then Validate: submit → ack to reporter → validate → notify reporter
+3. Acknowledge then Invalidate: submit → ack to reporter → invalidate → notify reporter
 
-The finder submits through its ``submit-report`` trigger, so it holds the
+The reporter submits through its ``submit-report`` trigger, so it holds the
 Offer and admits the ack only from the Offer's addressee, the vendor
 (RMB-08-004).  The vendor sends the ack through its ``ack-report`` trigger,
-which addresses the finder alone, never the CASE_MANAGER, case or no case
+which addresses the reporter alone, never the CASE_MANAGER, case or no case
 (RMB-08-003).
 
 The acknowledge workflow corresponds to:
@@ -40,12 +40,13 @@ good protocol hygiene.
 When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
-3. Discover actors (finder, vendor, coordinator) via the API
+3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run three separate demo workflows, each with a unique report:
-   - demo_acknowledge_only: Submit → RmReadReportActivity to finder
-   - demo_acknowledge_then_validate: Submit → RmReadReportActivity → Validate → notify finder
-   - demo_acknowledge_then_invalidate: Submit → RmReadReportActivity → Invalidate → notify finder
-5. Verify side effects in the data layer and finder's inbox for each workflow
+   - demo_acknowledge_only: Submit → RmReadReportActivity to reporter
+   - demo_acknowledge_then_validate: Submit → RmReadReportActivity → Validate → notify reporter
+   - demo_acknowledge_then_invalidate: Submit → RmReadReportActivity → Invalidate →
+     notify reporter
+5. Verify side effects in the data layer and reporter's inbox for each workflow
 """
 
 # Standard library imports
@@ -83,37 +84,37 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 logger = logging.getLogger(__name__)
 
 
-def _finder_submits_report(
-    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+def _reporter_submits_report(
+    client: DataLayerClient, reporter: as_Actor, vendor: as_Actor
 ) -> as_Offer:
-    """Step 1 of every demo: the finder submits a report to the vendor.
+    """Step 1 of every demo: the reporter submits a report to the vendor.
 
-    The finder's ``submit-report`` trigger records the Offer in the finder's
-    own store, which is what lets the finder check who may acknowledge it
+    The reporter's ``submit-report`` trigger records the Offer in the reporter's
+    own store, which is what lets the reporter check who may acknowledge it
     (RMB-08-004), and its outbox delivers the Offer to the vendor.  The
-    vendor opens a case on receipt and introduces it to the finder, which
+    vendor opens a case on receipt and introduces it to the reporter, which
     takes it on the trusted route (CBT-01-005, #4675).
     """
     report, offer = reporter_submits_report(
-        client, finder, vendor, reporter_client=client
+        client, reporter, vendor, reporter_client=client
     )
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    verify_reporter_trusts_introduction(client, reporter, vendor, report)
     return offer
 
 
-def _vendor_acknowledges_to_finder(
+def _vendor_acknowledges_to_reporter(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     offer: as_Offer,
     content: str,
 ) -> None:
-    """The vendor, the Offer's addressee, sends RK to the finder.
+    """The vendor, the Offer's addressee, sends RK to the reporter.
 
     The vendor's ``ack-report`` trigger emits the ``Read(Offer)`` to the
     reporter alone, never to the CASE_MANAGER (RMB-08-003), whether or not a
-    case exists yet, and its outbox delivers it.  The finder admits it
-    because the vendor is an addressee of the Offer the finder recorded
+    case exists yet, and its outbox delivers it.  The reporter admits it
+    because the vendor is an addressee of the Offer the reporter recorded
     (RMB-08-004).
 
     The check below confirms delivery only: intake stores a refused RK too,
@@ -124,15 +125,15 @@ def _vendor_acknowledges_to_finder(
         offer_id=offer.id_, note=content
     )
     ack_id = (result.activity or {}).get("id")
-    with demo_check("RmReadReportActivity delivered to finder"):
+    with demo_check("RmReadReportActivity delivered to reporter"):
         if not isinstance(ack_id, str):
             raise TypeError("ack-report returned no activity id.")
-        wait_for_received_activity(client, ack_id, actor_id=finder.id_)
+        wait_for_received_activity(client, ack_id, actor_id=reporter.id_)
 
 
 def demo_acknowledge_only(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ):
@@ -141,22 +142,22 @@ def demo_acknowledge_only(
     committing to validate or invalidate it.
 
     Workflow:
-      1. Finder submits report to vendor
+      1. Reporter submits report to vendor
       2. Vendor, the Offer's addressee, sends RmReadReportActivity (as:Read)
-         to the finder, and the demo verifies it reached the finder's inbox
+         to the reporter, and the demo verifies it reached the reporter's inbox
     """
     logger.info("=" * 80)
     logger.info("DEMO 1: Acknowledge Only (RmReadReportActivity)")
     logger.info("=" * 80)
 
     offer = None
-    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        offer = _finder_submits_report(client, finder, vendor)
+    with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
+        offer = _reporter_submits_report(client, reporter, vendor)
 
-    with demo_step("Step 2: Vendor acknowledges the report to the finder"):
-        _vendor_acknowledges_to_finder(
+    with demo_step("Step 2: Vendor acknowledges the report to the reporter"):
+        _vendor_acknowledges_to_reporter(
             client,
-            finder,
+            reporter,
             vendor,
             offer,
             "We have received your report and will review it shortly.",
@@ -167,7 +168,7 @@ def demo_acknowledge_only(
 
 def demo_acknowledge_then_validate(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ):
@@ -175,22 +176,22 @@ def demo_acknowledge_then_validate(
     Demonstrates acknowledge followed by validation.
 
     Workflow:
-      1. Finder submits report to vendor
-      2. Vendor sends RmReadReportActivity (as:Read) to the finder
+      1. Reporter submits report to vendor
+      2. Vendor sends RmReadReportActivity (as:Read) to the reporter
       3. Vendor then sends RmValidateReportActivity (as:Accept)
-      4. Verify both activities stored; verify validate notification to finder
+      4. Verify both activities stored; verify validate notification to reporter
     """
     logger.info("=" * 80)
     logger.info("DEMO 2: Acknowledge then Validate")
     logger.info("=" * 80)
 
     offer = None
-    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        offer = _finder_submits_report(client, finder, vendor)
+    with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
+        offer = _reporter_submits_report(client, reporter, vendor)
 
-    with demo_step("Step 2: Vendor acknowledges the report to the finder"):
-        _vendor_acknowledges_to_finder(
-            client, finder, vendor, offer, "Report received — under review."
+    with demo_step("Step 2: Vendor acknowledges the report to the reporter"):
+        _vendor_acknowledges_to_reporter(
+            client, reporter, vendor, offer, "Report received — under review."
         )
 
     with demo_step(
@@ -205,32 +206,32 @@ def demo_acknowledge_then_validate(
         with demo_check("RmValidateReportActivity activity stored"):
             verify_received_activity_stored(client, validate.id_)
 
-    with demo_step("Step 4: Vendor notifies finder of validation"):
-        validate_to_finder = rm_validate_report_activity(
+    with demo_step("Step 4: Vendor notifies reporter of validation"):
+        validate_to_reporter = rm_validate_report_activity(
             offer,
             actor=vendor.id_,
-            to=[finder.id_],
+            to=[reporter.id_],
             content="Your report has been validated. A case has been created.",
         )
-        post_to_inbox_and_wait(client, finder.id_, validate_to_finder)
+        post_to_inbox_and_wait(client, reporter.id_, validate_to_reporter)
         with demo_check(
-            "RmValidateReportActivity notification in finder's inbox"
+            "RmValidateReportActivity notification in reporter's inbox"
         ):
             if not verify_activity_in_inbox(
-                client, finder.id_, validate_to_finder.id_
+                client, reporter.id_, validate_to_reporter.id_
             ):
                 raise ValueError(
-                    "RmValidateReportActivity notification not found in finder's inbox."
+                    "RmValidateReportActivity notification not found in reporter's inbox."
                 )
 
     logger.info(
-        "✅ DEMO 2 COMPLETE: Report acknowledged then validated; finder notified."
+        "✅ DEMO 2 COMPLETE: Report acknowledged then validated; reporter notified."
     )
 
 
 def demo_acknowledge_then_invalidate(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ):
@@ -238,23 +239,23 @@ def demo_acknowledge_then_invalidate(
     Demonstrates acknowledge followed by invalidation.
 
     Workflow:
-      1. Finder submits report to vendor
-      2. Vendor sends RmReadReportActivity (as:Read) to the finder
+      1. Reporter submits report to vendor
+      2. Vendor sends RmReadReportActivity (as:Read) to the reporter
       3. Vendor sends RmInvalidateReportActivity (as:TentativeReject)
-      4. Vendor notifies finder of the invalidation
-      5. Verify activities stored and invalidation in finder's inbox
+      4. Vendor notifies reporter of the invalidation
+      5. Verify activities stored and invalidation in reporter's inbox
     """
     logger.info("=" * 80)
     logger.info("DEMO 3: Acknowledge then Invalidate")
     logger.info("=" * 80)
 
     offer = None
-    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        offer = _finder_submits_report(client, finder, vendor)
+    with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
+        offer = _reporter_submits_report(client, reporter, vendor)
 
-    with demo_step("Step 2: Vendor acknowledges the report to the finder"):
-        _vendor_acknowledges_to_finder(
-            client, finder, vendor, offer, "Report received — under review."
+    with demo_step("Step 2: Vendor acknowledges the report to the reporter"):
+        _vendor_acknowledges_to_reporter(
+            client, reporter, vendor, offer, "Report received — under review."
         )
 
     with demo_step(
@@ -272,28 +273,28 @@ def demo_acknowledge_then_invalidate(
         with demo_check("RmInvalidateReportActivity activity stored"):
             verify_received_activity_stored(client, invalidate.id_)
 
-    with demo_step("Step 4: Vendor notifies finder of invalidation"):
-        invalidate_to_finder = rm_invalidate_report_activity(
+    with demo_step("Step 4: Vendor notifies reporter of invalidation"):
+        invalidate_to_reporter = rm_invalidate_report_activity(
             offer,
             actor=vendor.id_,
-            to=[finder.id_],
+            to=[reporter.id_],
             content=(
                 "After review, this does not appear to be a security vulnerability."
             ),
         )
-        post_to_inbox_and_wait(client, finder.id_, invalidate_to_finder)
+        post_to_inbox_and_wait(client, reporter.id_, invalidate_to_reporter)
         with demo_check(
-            "RmInvalidateReportActivity notification in finder's inbox"
+            "RmInvalidateReportActivity notification in reporter's inbox"
         ):
             if not verify_activity_in_inbox(
-                client, finder.id_, invalidate_to_finder.id_
+                client, reporter.id_, invalidate_to_reporter.id_
             ):
                 raise ValueError(
-                    "RmInvalidateReportActivity notification not found in finder's inbox."
+                    "RmInvalidateReportActivity notification not found in reporter's inbox."
                 )
 
     logger.info(
-        "✅ DEMO 3 COMPLETE: Report acknowledged then invalidated; finder notified."
+        "✅ DEMO 3 COMPLETE: Report acknowledged then invalidated; reporter notified."
     )
 
 

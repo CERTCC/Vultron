@@ -32,7 +32,7 @@ This corresponds to the workflow documented in:
 When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
-3. Discover actors (finder, vendor, coordinator) via the API
+3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run both demo workflows
 5. Verify side effects in the data layer
 
@@ -77,7 +77,7 @@ logger = logging.getLogger(__name__)
 
 def demo_activate_then_terminate(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -101,7 +101,7 @@ def demo_activate_then_terminate(
     logger.info("DEMO: Manage Embargo — Activate/Terminate Path")
     logger.info("=" * 80)
 
-    case = setup_two_participant_case(client, finder, vendor, coordinator)
+    case = setup_two_participant_case(client, reporter, vendor, coordinator)
 
     embargo = proposal = None
     with demo_step("Step 2: Coordinator proposes embargo"):
@@ -193,7 +193,7 @@ def demo_activate_then_terminate(
 
 def demo_reject_then_repropose(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -218,7 +218,7 @@ def demo_reject_then_repropose(
     logger.info("DEMO: Manage Embargo — Reject/Repropose Path")
     logger.info("=" * 80)
 
-    case = setup_two_participant_case(client, finder, vendor, coordinator)
+    case = setup_two_participant_case(client, reporter, vendor, coordinator)
 
     embargo_v1 = proposal_v1 = None
     with demo_step("Step 2: Coordinator proposes first embargo (45-day)"):

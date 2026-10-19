@@ -192,17 +192,17 @@ annotations such as `(≥3)` belong to the count tests and are not checked.
 
 | Scenario | Spec | Universal 5 | Additional required |
 |---|---|---|---|
-| FCCV-extension | DEMOMA-16-010 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
-| FCCV-handoff | DEMOMA-16-006 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
-| FCV | DEMOMA-16-007 | same | invite_actor_to_case, accept_invite_actor_to_case |
-| FCV-reject | DEMOMA-16-011 | same | invite_actor_to_case, reject_invite_actor_to_case |
-| FCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
-| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
-| FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
-| FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
-| FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| RCCV-extension | DEMOMA-16-010 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
+| RCCV-handoff | DEMOMA-16-006 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
+| RCV | DEMOMA-16-007 | same | invite_actor_to_case, accept_invite_actor_to_case |
 | RCV embargo | DEMOMA-16-016 | same | invite_actor_to_case, accept_invite_actor_to_case, invite_to_embargo_on_case, accept_invite_to_embargo_on_case, activate_embargo_on_case, remove_embargo_event_from_case |
+| RCV-reject | DEMOMA-16-011 | same | invite_actor_to_case, reject_invite_actor_to_case |
+| RCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
 | RCVV embargo | DEMOMA-16-017 | same | invite_actor_to_case, accept_invite_actor_to_case, invite_to_embargo_on_case, accept_invite_to_embargo_on_case, activate_embargo_on_case, remove_embargo_event_from_case |
+| rv | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
+| RVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
+| RVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
+| RVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
 
 ### Relationship to scenario-specific test functions
 
@@ -213,9 +213,9 @@ an event **N or more times** adds a `test_XXX_<event>_at_least_N` test built on
 `check_event_type_count` also takes a keyword-only `max_count`. Add one where a
 count above the scenario's own sends would itself be a defect that the universal
 duplicate-commit check (`test_invariant_clp07_unique_payload_snapshot_ids`,
-CLP-07-002) cannot see, such as a second Invite with its own activity id. FCV
+CLP-07-002) cannot see, such as a second Invite with its own activity id. RCV
 pins `invite_actor_to_case` to exactly one: the Coordinator invites only the
-Vendor, because the CASE_MANAGER seats the reporting Finder at case creation
+Vendor, because the CASE_MANAGER seats the Reporter at case creation
 (CM-22-002).
 
 ### Audit an invariant against the scenario before copying it
@@ -223,7 +223,7 @@ Vendor, because the CASE_MANAGER seats the reporting Finder at case creation
 An invariant holds only on its scenario's protocol path. Before copying a check
 to a new harness, check it against that scenario's participants and phases. A
 check asserting "event X was observed" is a false failure where X is impossible
-by design: in `fcv-reject` no Vendor joins, so the VFD `VFd` state is
+by design: in `rcv-reject` no Vendor joins, so the VFD `VFd` state is
 unreachable, and its harness passes `check_fix_ready=False` (DEMOCI-06-001). Use
 the check's parameter; do not skip the invariant.
 
@@ -267,10 +267,10 @@ file finds nothing:
   `receiver_engages_case()` for the direct receiver in every multi-actor
   scenario;
 - `run_invite_path_rm_triage()` calls it for an invitee whose invite is accepted
-  (CM-11-002) — not in `fcv-reject`, whose Vendor rejects;
-- `fv_demo.py` calls it through `vendor_engages_case()`.
+  (CM-11-002) — not in `rcv-reject`, whose Vendor rejects;
+- `rv_demo.py` calls it through `vendor_engages_case()`.
 
-The `fvcv-handoff` `check_event_type_count(..., "engage_case", min_count=2)`
+The `rvcv-handoff` `check_event_type_count(..., "engage_case", min_count=2)`
 stays scenario-specific: it asserts the count Vendor2's post-join triage implies.
 
 ---

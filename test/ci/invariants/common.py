@@ -8,7 +8,7 @@ either returns a list of violation strings (empty = pass) or raises
 Scenario test files import and call these helpers rather than duplicating the
 invariant logic inline.  All universal invariants (hash-chain consistency,
 cross-actor agreement, RM-closed termination, CS transitions, event-type
-completeness) live here.  Scenario-specific checks (e.g., FCV requires
+completeness) live here.  Scenario-specific checks (e.g., RCV requires
 ``invite_actor_to_case`` at least twice) belong in the per-scenario file.
 
 Usage pattern::
@@ -937,7 +937,7 @@ def check_cs_state_transitions_observed(
     When ``check_fix_ready=True`` (default), also checks vf_state == "VF"
     (fix ready, CS_vf.VF).  Set ``check_fix_ready=False`` for scenarios where
     no Vendor ever becomes a case participant and therefore no actor advances
-    the VF state machine (e.g. fcv-reject: Vendor rejects the invitation).
+    the VF state machine (e.g. rcv-reject: Vendor rejects the invitation).
 
     Fix-deployed (d_state == "D") is NOT checked here because demo scenarios
     use vendor-only actors (CVDRole.VENDOR, no CVDRole.DEPLOYER); per
@@ -1207,7 +1207,7 @@ def check_per_actor_replica_cs_state_transitions_observed(
         check_fix_ready: Passed through to
             ``check_cs_state_transitions_observed``.  Set ``False`` for
             scenarios where no Vendor ever becomes a participant (e.g.
-            ``fcv-reject``), matching the canonical invariant's behaviour.
+            ``rcv-reject``), matching the canonical invariant's behaviour.
     """
     return for_each_replica(
         replicas,

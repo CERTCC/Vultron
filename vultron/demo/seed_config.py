@@ -125,9 +125,9 @@ class SeedConfig(BaseSettings):
     The YAML schema uses top-level keys ``local_actor`` and ``peers``::
 
         local_actor:
-          name: Finder
+          name: Reporter
           actor_type: Person
-          id: http://finder:7999/api/v2/actors/finder-uuid
+          id: http://reporter:7999/api/v2/actors/reporter-uuid
         peers:
           - name: Vendor
             actor_type: Organization

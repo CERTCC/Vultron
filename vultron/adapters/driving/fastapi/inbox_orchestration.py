@@ -520,7 +520,7 @@ async def run_inbox_pipeline(
         # HTTP response goes out, no delivery from a peer is accepted, the
         # co-hosted OutboxMonitor coroutine cannot drain, and a trigger route
         # waiting on the BT lock from its threadpool thread starves (IE-06-002,
-        # BT-11-002).  The fv/fcvcv demo flakes were the CaseActor's outbox
+        # BT-11-002).  The rv/rcvcv demo flakes were the CaseActor's outbox
         # paying one full BT tick per delivery on the vendor container (#3033,
         # #2898).  ``asyncio.to_thread`` matches what the sync trigger routes
         # already do; the BT global RLock serialises BT execution across

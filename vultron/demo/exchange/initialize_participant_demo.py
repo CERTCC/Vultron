@@ -20,7 +20,7 @@ This demo script showcases the participant initialization process:
 
 1. Setup: Submit and validate a vulnerability report; the report-validation BT
    triggers ProposeReportCaseToActorNode, which causes the CaseActor to create
-   the canonical VulnerabilityCase with vendor (CASE_OWNER), finder (reporter),
+   the canonical VulnerabilityCase with vendor (CASE_OWNER), reporter,
    and CaseActor (CASE_MANAGER) as initial participants.
 2. Invite the Coordinator: the vendor, as Case Owner, asks the CaseActor to
    invite the coordinator, and the CaseActor sends the stub Invite
@@ -36,7 +36,7 @@ invite_actor_demo.py, which drives the same join through the triggers.
 When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
-3. Discover actors (finder, vendor, coordinator) via the API
+3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run the initialize_participant demo workflow
 5. Verify side effects in the data layer
 """
@@ -77,7 +77,7 @@ logger = logging.getLogger(__name__)
 
 def setup_case_precondition(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
 ) -> as_VulnerabilityCase:
     """Set up the precondition for the demo.
@@ -85,7 +85,7 @@ def setup_case_precondition(
     Thin wrapper over
     :func:`~vultron.demo.helpers.workflow.setup_canonical_case`, which drives
     the report → validate → ``Create(CaseProposal)`` → CaseActor path so the
-    resulting case has vendor (CASE_OWNER), finder/reporter, and the CaseActor
+    resulting case has vendor (CASE_OWNER), reporter, and the CaseActor
     (CASE_MANAGER) as initial participants (ADR-0041, CP-01-004).
 
     Returns:
@@ -94,7 +94,7 @@ def setup_case_precondition(
     logger.info("Setting up case precondition...")
     case, _case_actor_id = setup_canonical_case(
         client,
-        finder,
+        reporter,
         vendor,
         report_name="Integer Overflow in Network Stack",
         report_content=(
@@ -110,14 +110,14 @@ def setup_case_precondition(
 
 def demo_initialize_participant(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ):
     """Demonstrate the standalone CaseParticipant initialization workflow.
 
     Precondition: A canonical VulnerabilityCase exists with vendor
-    (CASE_OWNER), finder (reporter), and the CaseActor (CASE_MANAGER) as
+    (CASE_OWNER), reporter, and the CaseActor (CASE_MANAGER) as
     initial participants.  This is set up automatically by the report
     validation → ProposeReportCaseToActorNode → CaseActor flow (ADR-0041).
 
@@ -136,7 +136,7 @@ def demo_initialize_participant(
     logger.info("DEMO: Initialize Case Participant")
     logger.info("=" * 80)
 
-    case = setup_case_precondition(client, finder, vendor)
+    case = setup_case_precondition(client, reporter, vendor)
 
     initial_case = None
     with demo_check("Initial case state"):

@@ -22,8 +22,8 @@ This demo script showcases three different outcomes when processing vulnerabilit
 3. Invalidate and Close: ``as_TentativeReject`` + ``as_Leave`` - invalidates the
    report and closes the case opened for it
 
-The finder submits each report through its own ``submit-report`` trigger, so the
-finder holds the anchor it checks the vendor's case introduction against
+The reporter submits each report through its own ``submit-report`` trigger, so the
+reporter holds the anchor it checks the vendor's case introduction against
 (CBT-01-005).  The vendor's responses are posted directly to inboxes rather than
 relying on outbox processing. For the inbox pipeline those posts enter, see the
 "From HTTP delivery to behavior tree: the inbox pipeline" section of
@@ -32,13 +32,13 @@ docs/topics/reference_architecture.md.
 When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
-3. Discover actors (finder, vendor, coordinator) via the API
+3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run three separate demo workflows, each with a unique report:
-   - demo_validate_report: Submit → Validate → Case introduced to the finder
-   - demo_invalidate_report: Submit → Invalidate → Notify finder via inbox
+   - demo_validate_report: Submit → Validate → Case introduced to the reporter
+   - demo_invalidate_report: Submit → Invalidate → Notify reporter via inbox
    - demo_invalidate_and_close_report: Submit → Invalidate → Close the case →
-     Notify finder via inbox
-5. Verify side effects in the data layer and finder's inbox for each workflow
+     Notify reporter via inbox
+5. Verify side effects in the data layer and reporter's inbox for each workflow
 
 Note on Behavior Tree Execution:
 The validate_report handler uses py_trees behavior tree execution to orchestrate the validation
@@ -118,7 +118,7 @@ def find_case_by_report(
 
 def demo_validate_report(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ):
@@ -126,8 +126,8 @@ def demo_validate_report(
     Demonstrates the workflow where a vendor validates a report and creates a case.
 
     Uses VultronActivity (Accept) activity.  The vendor's own
-    ``Create(VulnerabilityCase)`` then introduces the case to the finder
-    (CBT-01-001), and the demo checks the finder took it on the trusted route.
+    ``Create(VulnerabilityCase)`` then introduces the case to the reporter
+    (CBT-01-001), and the demo checks the reporter took it on the trusted route.
 
     This follows the "Receiver Accepts Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
@@ -137,13 +137,13 @@ def demo_validate_report(
     logger.info("=" * 80)
 
     report = report_offer = None
-    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        # Through the finder's own submit-report trigger, which writes the
+    with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
+        # Through the reporter's own submit-report trigger, which writes the
         # anchor the vendor's case introduction is checked against
         # (CBT-01-005, #4675).
         report, report_offer = reporter_submits_report(
             client,
-            finder,
+            reporter,
             vendor,
             reporter_client=client,
             report_name="Authentication Bypass Vulnerability",
@@ -162,7 +162,9 @@ def demo_validate_report(
         with demo_check("ValidateReport activity stored"):
             verify_received_activity_stored(client, validate_activity.id_)
 
-    with demo_step("Step 3: Vendor creates case and introduces it to finder"):
+    with demo_step(
+        "Step 3: Vendor creates case and introduces it to reporter"
+    ):
         case_data = None
         with demo_check("Case created for report"):
             case_data = find_case_by_report(client, report.id_)
@@ -170,23 +172,23 @@ def demo_validate_report(
                 logger.error("Could not find case related to this report.")
                 raise ValueError("Could not find case related to this report.")
         # The vendor's own Create(VulnerabilityCase) introduces the case to
-        # the finder (CBT-01-001); the demo builds and posts none (#4675).
+        # the reporter (CBT-01-001); the demo builds and posts none (#4675).
         verify_reporter_trusts_introduction(
             client,
-            finder,
+            reporter,
             vendor,
             report,
             case_id=case_data.id_ if case_data else None,
         )
 
     logger.info(
-        "✅ DEMO 1 COMPLETE: Report validated, case created, and introduced to the finder."
+        "✅ DEMO 1 COMPLETE: Report validated, case created, and introduced to the reporter."
     )
 
 
 def demo_invalidate_report(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ):
@@ -194,13 +196,13 @@ def demo_invalidate_report(
     Demonstrates the workflow where a vendor invalidates a report.
 
     Uses VultronActivity (TentativeReject) activity, followed by vendor posting
-    the response directly to the finder's inbox.
+    the response directly to the reporter's inbox.
 
     This follows the "Receiver Invalidates and Holds Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
 
     Note: This demo uses direct inbox-to-inbox communication. The vendor posts
-    the invalidation response directly to the finder's inbox (see the inbox
+    the invalidation response directly to the reporter's inbox (see the inbox
     pipeline section of docs/topics/reference_architecture.md).
     """
     logger.info("=" * 80)
@@ -208,13 +210,13 @@ def demo_invalidate_report(
     logger.info("=" * 80)
 
     report = report_offer = offer = None
-    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        # Through the finder's own submit-report trigger, which writes the
+    with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
+        # Through the reporter's own submit-report trigger, which writes the
         # anchor the vendor's case introduction is checked against
         # (CBT-01-005, #4675).
         report, report_offer = reporter_submits_report(
             client,
-            finder,
+            reporter,
             vendor,
             reporter_client=client,
             report_name="Potential Payment Processing Issue",
@@ -235,39 +237,39 @@ def demo_invalidate_report(
         with demo_check("InvalidateReport activity stored"):
             verify_received_activity_stored(client, invalidate_activity.id_)
 
-    with demo_step("Step 3: Vendor notifies finder of invalidation"):
-        invalidate_response_to_finder = rm_invalidate_report_activity(
+    with demo_step("Step 3: Vendor notifies reporter of invalidation"):
+        invalidate_response_to_reporter = rm_invalidate_report_activity(
             offer,
             actor=vendor.id_,
-            to=[finder.id_],
+            to=[reporter.id_],
             content="We are holding this report for further investigation.",
         )
         post_to_inbox_and_wait(
-            client, finder.id_, invalidate_response_to_finder
+            client, reporter.id_, invalidate_response_to_reporter
         )
-        with demo_check("InvalidateReport response in finder's inbox"):
+        with demo_check("InvalidateReport response in reporter's inbox"):
             if not verify_activity_in_inbox(
-                client, finder.id_, invalidate_response_to_finder.id_
+                client, reporter.id_, invalidate_response_to_reporter.id_
             ):
                 logger.error(
-                    "TentativeReject activity not found in finder's inbox."
+                    "TentativeReject activity not found in reporter's inbox."
                 )
                 raise ValueError(
-                    "TentativeReject activity not found in finder's inbox."
+                    "TentativeReject activity not found in reporter's inbox."
                 )
 
     # The vendor created the case on receipt (auto_create_case), so its
-    # introduction reaches the finder whatever the RM outcome (CBT-01-001).
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    # introduction reaches the reporter whatever the RM outcome (CBT-01-001).
+    verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
-        "✅ DEMO 2 COMPLETE: Report invalidated and finder notified via inbox."
+        "✅ DEMO 2 COMPLETE: Report invalidated and reporter notified via inbox."
     )
 
 
 def demo_invalidate_and_close_report(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ):
@@ -277,14 +279,14 @@ def demo_invalidate_and_close_report(
     Uses VultronActivity (TentativeReject) followed by a Leave(VulnerabilityCase):
     the vendor opened a case for the report on receipt, and once a case holds
     the report its owner closes the case by Leave, never by ``Close(Report)``
-    (CM-23-019).  The invalidation notice is posted directly to the finder's
-    inbox; the finder learns of the closure from the case.
+    (CM-23-019).  The invalidation notice is posted directly to the reporter's
+    inbox; the reporter learns of the closure from the case.
 
     This follows the "Receiver Invalidates and Closes Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
 
     Note: This demo uses direct inbox-to-inbox communication. The vendor posts
-    response activities directly to the finder's inbox (see the inbox pipeline
+    response activities directly to the reporter's inbox (see the inbox pipeline
     section of docs/topics/reference_architecture.md).
     """
     logger.info("=" * 80)
@@ -292,13 +294,13 @@ def demo_invalidate_and_close_report(
     logger.info("=" * 80)
 
     report = report_offer = offer = None
-    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        # Through the finder's own submit-report trigger, which writes the
+    with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
+        # Through the reporter's own submit-report trigger, which writes the
         # anchor the vendor's case introduction is checked against
         # (CBT-01-005, #4675).
         report, report_offer = reporter_submits_report(
             client,
-            finder,
+            reporter,
             vendor,
             reporter_client=client,
             report_name="False Positive Report",
@@ -323,35 +325,35 @@ def demo_invalidate_and_close_report(
             verify_received_activity_stored(client, invalidate_activity.id_)
             verify_received_activity_stored(client, close_activity.id_)
 
-    with demo_step("Step 3: Vendor notifies finder of invalidation"):
-        invalidate_response_to_finder = rm_invalidate_report_activity(
+    with demo_step("Step 3: Vendor notifies reporter of invalidation"):
+        invalidate_response_to_reporter = rm_invalidate_report_activity(
             offer,
             actor=vendor.id_,
-            to=[finder.id_],
+            to=[reporter.id_],
             content="This report has been invalidated as a false positive.",
         )
         post_to_inbox_and_wait(
             client,
-            finder.id_,
-            invalidate_response_to_finder,
+            reporter.id_,
+            invalidate_response_to_reporter,
         )
-        with demo_check("InvalidateReport response in finder's inbox"):
+        with demo_check("InvalidateReport response in reporter's inbox"):
             if not verify_activity_in_inbox(
-                client, finder.id_, invalidate_response_to_finder.id_
+                client, reporter.id_, invalidate_response_to_reporter.id_
             ):
                 logger.error(
-                    "TentativeReject activity not found in finder's inbox."
+                    "TentativeReject activity not found in reporter's inbox."
                 )
                 raise ValueError(
-                    "TentativeReject activity not found in finder's inbox."
+                    "TentativeReject activity not found in reporter's inbox."
                 )
 
     # The vendor created the case on receipt (auto_create_case), so its
-    # introduction reaches the finder whatever the RM outcome (CBT-01-001).
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    # introduction reaches the reporter whatever the RM outcome (CBT-01-001).
+    verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
-        "✅ DEMO 3 COMPLETE: Report invalidated, case closed, and finder notified via inbox."
+        "✅ DEMO 3 COMPLETE: Report invalidated, case closed, and reporter notified via inbox."
     )
 
 

@@ -91,7 +91,7 @@ _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 #: The harness constants whose ``pytest.param`` entries become per-case
 #: parametrization of the universal invariants (``_CHAIN_ACTORS``,
-#: ``_FV_EXPECTED_EVENT_TYPES``, ...).
+#: ``_RV_EXPECTED_EVENT_TYPES``, ...).
 _PARAM_CONSTANT_RE = re.compile(
     r"^_(CHAIN_ACTORS|[A-Z0-9_]+_EXPECTED_EVENT_TYPES)$"
 )
@@ -128,7 +128,7 @@ def _factory_markers() -> tuple[Mapping[str, str | None], Mapping[str, str]]:
         replicas_fixture="_unused_replicas",
         chain_actors=["case-actor"],
         expected_event_types=["validate_report"],
-        narrative_path="docs/topics/scenarios/fv.md",
+        narrative_path="docs/topics/scenarios/rv.md",
     )
     invariants: dict[str, str | None] = {}
     unrepresentable: dict[str, str] = {}
@@ -459,7 +459,7 @@ def test_no_param_level_marks_on_factory_arguments(
 
     That is not hypothetical drift — it is the drift the retired table in
     ``test/ci/README-case-log-ratchet.md`` recorded as "✅ case-actor,
-    ✅ vendor, ⏳ finder" for invariants 12 and 13.  The map has one Status
+    ✅ vendor, ⏳ reporter" for invariants 12 and 13.  The map has one Status
     cell per invariant and so cannot express a per-actor state; rather than let
     it under-report, the per-param form is rejected here.
 

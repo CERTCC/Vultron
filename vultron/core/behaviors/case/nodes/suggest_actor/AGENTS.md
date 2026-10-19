@@ -35,3 +35,9 @@ guard, `RequireRecordedOfferAnswerNode`, looks up the recorded
 | `create_recommend_actor_to_case_received_tree` | `suggested_roles_{id_segment}` | ✅ |
 | `create_accept_actor_recommendation_received_tree` | `recorded_offer_answer_{id_segment}` | ✅ |
 | `create_reject_actor_recommendation_received_tree` | `recorded_offer_answer_{id_segment}` | ✅ |
+
+The accept/reject factories above route the Case Owner's decision
+(`ACCEPT_`/`REJECT_OFFER_CASE_PARTICIPANT`), despite their names. The
+recommender's receipt of the CASE_MANAGER's answer
+(`ACCEPT_`/`REJECT_ACTOR_RECOMMENDATION`) is
+`create_recommendation_answer_received_tree`, which writes no key.

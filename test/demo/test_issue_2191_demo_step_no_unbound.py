@@ -33,7 +33,7 @@ block so that a swallowed trigger failure leaves the variable as ``None``
     # accept_ownership is None; failure surfaces via assert_demo_success()
 
 This test is a shape-replica of the affected sites
-(``fvcv_handoff_demo.py``, ``fccv_handoff_demo.py``) using the REAL
+(``rvcv_handoff_demo.py``, ``rccv_handoff_demo.py``) using the REAL
 ``demo_step`` / ``_demo_failures`` / ``assert_demo_success`` from
 ``vultron.demo.utils`` and REAL ``post_to_trigger`` (monkeypatched to raise),
 so no Docker or live HTTP is required.
@@ -56,8 +56,8 @@ from vultron.errors import DemoFailureError
 def _accept_ownership_transfer_shape() -> dict | None:
     """Fixed replica of the ``accept_result`` site in the handoff demos.
 
-    Mirrors the fix applied to ``fvcv_handoff_demo.py`` and
-    ``fccv_handoff_demo.py``: the result dereference is moved *inside* the
+    Mirrors the fix applied to ``rvcv_handoff_demo.py`` and
+    ``rccv_handoff_demo.py``: the result dereference is moved *inside* the
     ``with demo_step(...)`` block so that a swallowed trigger failure leaves
     ``accept_ownership`` as ``None`` (initialised before the block) rather than
     raising ``UnboundLocalError``.

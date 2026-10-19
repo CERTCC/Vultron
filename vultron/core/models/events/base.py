@@ -37,6 +37,8 @@ class MessageSemantics(StrEnum):
     OFFER_CASE_PARTICIPANT = auto()
     ACCEPT_OFFER_CASE_PARTICIPANT = auto()
     REJECT_OFFER_CASE_PARTICIPANT = auto()
+    ACCEPT_ACTOR_RECOMMENDATION = auto()
+    REJECT_ACTOR_RECOMMENDATION = auto()
     OFFER_CASE_PARTICIPANT_ROLE = auto()
     ACCEPT_CASE_PARTICIPANT_ROLE = auto()
     REJECT_CASE_PARTICIPANT_ROLE = auto()
@@ -89,6 +91,7 @@ class MessageSemantics(StrEnum):
     REJECT_CASE_PROPOSAL = auto()
 
     CREATE_PROCESSING_FAULT = auto()
+    REFUSAL_NOTICE = auto()
 
 
 class VultronEvent(ValidatedAssignmentMixin, BaseModel):

@@ -14,6 +14,7 @@ Public surface:
 """
 
 from vultron.core.models.events.actor import (
+    AcceptActorRecommendationReceivedEvent,
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptCaseParticipantRoleReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
@@ -26,6 +27,7 @@ from vultron.core.models.events.actor import (
     OfferCaseOwnershipTransferReceivedEvent,
     OfferCaseParticipantReceivedEvent,
     OfferCaseParticipantRoleReceivedEvent,
+    RejectActorRecommendationReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectCaseParticipantRoleReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
@@ -71,6 +73,7 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.models.events.fault import (
     CreateProcessingFaultReceivedEvent,
+    RefusalNoticeReceivedEvent,
 )
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
@@ -118,6 +121,8 @@ AnyReceivedEvent = (
     | OfferCaseParticipantReceivedEvent
     | AcceptOfferCaseParticipantReceivedEvent
     | RejectOfferCaseParticipantReceivedEvent
+    | AcceptActorRecommendationReceivedEvent
+    | RejectActorRecommendationReceivedEvent
     | OfferCaseParticipantRoleReceivedEvent
     | AcceptCaseParticipantRoleReceivedEvent
     | RejectCaseParticipantRoleReceivedEvent
@@ -167,6 +172,7 @@ AnyReceivedEvent = (
     |
     # fault
     CreateProcessingFaultReceivedEvent
+    | RefusalNoticeReceivedEvent
     |
     # unknown
     UnknownReceivedEvent
@@ -199,6 +205,8 @@ __all__ = [
     "OfferCaseParticipantReceivedEvent",
     "AcceptOfferCaseParticipantReceivedEvent",
     "RejectOfferCaseParticipantReceivedEvent",
+    "AcceptActorRecommendationReceivedEvent",
+    "RejectActorRecommendationReceivedEvent",
     "OfferCaseParticipantRoleReceivedEvent",
     "AcceptCaseParticipantRoleReceivedEvent",
     "RejectCaseParticipantRoleReceivedEvent",
@@ -244,4 +252,5 @@ __all__ = [
     "RejectLogEntryReceivedEvent",
     # fault
     "CreateProcessingFaultReceivedEvent",
+    "RefusalNoticeReceivedEvent",
 ]

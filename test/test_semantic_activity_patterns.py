@@ -13,6 +13,7 @@ from vultron.wire.as2.extractor import (
     OfferCaseOwnershipTransferActivityPattern,
     UndoCaseOwnershipTransferActivityPattern,
 )
+from vultron.wire.as2.extractor._instances import RefusalNoticePattern
 from vultron.wire.as2.factories import (
     accept_case_participant_role_activity,
     announce_vulnerability_case_activity,
@@ -34,6 +35,7 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_Person,
     as_Service,
 )
+from vultron.wire.as2.vocab.examples.vocab_examples import refusal_notice
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseStub,
@@ -1058,3 +1060,16 @@ def test_undo_of_ownership_offer_matches_the_withdrawal_pattern():
         find_matching_semantics(undo)
         == MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER
     )
+
+
+@pytest.mark.spec("CLP-05-001")
+def test_refusal_notice_pattern_matches_the_notice_example():
+    """Pattern unit test for ``RefusalNoticePattern`` (SE-05-003).
+
+    The rest of its coverage — excluded verbs, bare URIs, routing, the
+    every-example check — is in ``test/wire/as2/test_refusal_notice_wire.py``.
+    """
+    notice = refusal_notice()
+
+    assert RefusalNoticePattern.match(notice)
+    assert find_matching_semantics(notice) is MessageSemantics.REFUSAL_NOTICE

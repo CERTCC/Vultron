@@ -84,11 +84,11 @@ class TestSeedConfigFromEnv:
         assert cfg.peers == []
 
     def test_from_env_reads_name(self, monkeypatch):
-        monkeypatch.setenv("VULTRON_ACTOR_NAME", "Finder")
+        monkeypatch.setenv("VULTRON_ACTOR_NAME", "Reporter")
         monkeypatch.delenv("VULTRON_ACTOR_TYPE", raising=False)
         monkeypatch.delenv("VULTRON_ACTOR_ID", raising=False)
         cfg = SeedConfig.from_env()
-        assert cfg.local_actor.name == "Finder"
+        assert cfg.local_actor.name == "Reporter"
 
     def test_from_env_reads_type(self, monkeypatch):
         monkeypatch.delenv("VULTRON_ACTOR_NAME", raising=False)
@@ -100,21 +100,24 @@ class TestSeedConfigFromEnv:
     def test_from_env_actor_id_env_var_not_read(self, monkeypatch):
         # VULTRON_ACTOR_ID env var is intentionally not read by from_env().
         # Pass actor_id explicitly, or use VULTRON_SEED_CONFIG (YAML) instead.
-        monkeypatch.setenv("VULTRON_ACTOR_NAME", "Finder")
+        monkeypatch.setenv("VULTRON_ACTOR_NAME", "Reporter")
         monkeypatch.delenv("VULTRON_ACTOR_TYPE", raising=False)
         monkeypatch.setenv(
-            "VULTRON_ACTOR_ID", "http://finder:7999/api/v2/actors/finder"
+            "VULTRON_ACTOR_ID", "http://reporter:7999/api/v2/actors/reporter"
         )
         cfg = SeedConfig.from_env()
         assert cfg.local_actor.id_ is None
 
     def test_from_env_explicit_id_arg_is_used(self, monkeypatch):
-        monkeypatch.setenv("VULTRON_ACTOR_NAME", "Finder")
+        monkeypatch.setenv("VULTRON_ACTOR_NAME", "Reporter")
         monkeypatch.delenv("VULTRON_ACTOR_TYPE", raising=False)
         cfg = SeedConfig.from_env(
-            actor_id="http://finder:7999/api/v2/actors/finder"
+            actor_id="http://reporter:7999/api/v2/actors/reporter"
         )
-        assert cfg.local_actor.id_ == "http://finder:7999/api/v2/actors/finder"
+        assert (
+            cfg.local_actor.id_
+            == "http://reporter:7999/api/v2/actors/reporter"
+        )
 
     def test_from_env_explicit_args_override_env(self, monkeypatch):
         monkeypatch.setenv("VULTRON_ACTOR_NAME", "EnvName")
@@ -128,26 +131,26 @@ class TestSeedConfigFromFile:
     def test_from_file_local_actor_only(self, tmp_path):
         data = {
             "local_actor": {
-                "name": "Finder",
+                "name": "Reporter",
                 "actor_type": "Person",
-                "id": "http://finder:7999/api/v2/actors/finder-uuid",
+                "id": "http://reporter:7999/api/v2/actors/reporter-uuid",
             }
         }
         config_file = tmp_path / "seed.yaml"
         config_file.write_text(yaml.dump(data))
         cfg = SeedConfig.from_file(str(config_file))
-        assert cfg.local_actor.name == "Finder"
+        assert cfg.local_actor.name == "Reporter"
         assert cfg.local_actor.actor_type == "Person"
         assert (
             cfg.local_actor.id_
-            == "http://finder:7999/api/v2/actors/finder-uuid"
+            == "http://reporter:7999/api/v2/actors/reporter-uuid"
         )
         assert cfg.peers == []
 
     def test_from_file_with_peers(self, tmp_path):
         data = {
             "local_actor": {
-                "name": "Finder",
+                "name": "Reporter",
                 "actor_type": "Person",
                 "id": "http://f/actors/a",
             },

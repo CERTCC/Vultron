@@ -40,7 +40,7 @@ This corresponds to the workflow documented in:
 When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
-3. Discover actors (finder, vendor, coordinator) via the API
+3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run both demo workflows (accept+manage and reject)
 5. Verify side effects in the data layer
 """
@@ -89,17 +89,17 @@ logger = logging.getLogger(__name__)
 
 def _setup_case_with_vendor(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
 ) -> as_VulnerabilityCase:
     """
     Set up an initialized case owned by the vendor as a precondition for the
     manage-participants workflow.
 
-    Steps 1–4 and the finder's introduction check are
+    Steps 1–4 and the reporter's introduction check are
     :func:`submit_validate_and_create_case`:
 
-    1. Finder submits the report through its own ``submit-report`` trigger
+    1. Reporter submits the report through its own ``submit-report`` trigger
     2. Vendor validates the report
     3. Vendor creates the case through the ``create-case`` trigger, which
        seats it as Vendor, Case Owner and CASE_MANAGER (CM-02-014,
@@ -112,7 +112,7 @@ def _setup_case_with_vendor(
     """
     _report, case = submit_validate_and_create_case(
         client,
-        finder,
+        reporter,
         vendor,
         report_name="Use-After-Free in Memory Allocator",
         report_content=(
@@ -136,7 +136,7 @@ def _setup_case_with_vendor(
 
 def demo_manage_participants_accept(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -167,7 +167,7 @@ def demo_manage_participants_accept(
     logger.info("DEMO: Manage Participants — Accept + Status + Remove Path")
     logger.info("=" * 80)
 
-    case = _setup_case_with_vendor(client, finder, vendor)
+    case = _setup_case_with_vendor(client, reporter, vendor)
 
     # Bound before the step so later steps can read it (#2308 ratchet).
     coordinator_participant = None
@@ -345,7 +345,7 @@ def demo_manage_participants_accept(
 
 def demo_manage_participants_reject(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -366,7 +366,7 @@ def demo_manage_participants_reject(
     logger.info("DEMO: Manage Participants — Reject Path")
     logger.info("=" * 80)
 
-    case = _setup_case_with_vendor(client, finder, vendor)
+    case = _setup_case_with_vendor(client, reporter, vendor)
 
     initial_case = log_case_state(client, case.id_, "initial")
     initial_count = len(initial_case.case_participants) if initial_case else 0

@@ -151,7 +151,7 @@ def single_actor_replicas() -> dict[str, list[dict]]:
 def two_actor_replicas() -> dict[str, list[dict]]:
     """Two actors sharing an identical five-entry chain."""
     chain = _build_chain("case-actor", _base_events())
-    return {"case-actor": chain, "finder": list(chain)}
+    return {"case-actor": chain, "reporter": list(chain)}
 
 
 @pytest.fixture

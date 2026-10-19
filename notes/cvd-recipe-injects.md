@@ -285,8 +285,8 @@ affected and brings them in as MPCVD participants.
 **Gap**: none. The upstream-invites-downstream pattern and policy
 synchronisation both exist:
 
-- **Multi-vendor invites**: `fvv` has the owning vendor invite a second vendor.
-  `fcvcv` and `fvcv-extension` have a non-owner participant suggest one.
+- **Multi-vendor invites**: `rvv` has the owning vendor invite a second vendor.
+  `rcvcv` and `rvcv-extension` have a non-owner participant suggest one.
 - **Policy synchronisation**: shortest-wins at case creation (EP-04-003).
   Late invitees receive the active embargo in the Invite (CM-17-002), and
   revision cycles are what x18 already exercises.
@@ -325,7 +325,7 @@ a late invite, which other scenarios already cover, not self-identification.
 **Protocol mapping**: The parties in a failing case bring in a Coordinator
 mid-case to mediate.
 
-**Gap**: none for the owner-initiated form. `fvcv-handoff` already
+**Gap**: none for the owner-initiated form. `rvcv-handoff` already
 invites a Coordinator into an active case and transfers ownership to it
 (CM-21). The recipe adds only a failure precursor, such as an x06-style stall
 or an x08/x19 extension deadlock.
@@ -350,7 +350,7 @@ worth modelling as demo injects.
 |---|---|
 | x01 — Finder exits early | Minor RM variant (Reporter disengages); no new state |
 | x04 — No bug bounty | Vendor-internal policy; not Vultron-protocol-visible |
-| x09 — Too many vendors / excessive complexity | Already covered by MPCVD scenarios (FCVCV, etc.) |
+| x09 — Too many vendors / excessive complexity | Already covered by MPCVD scenarios (RCVCV, etc.) |
 | x13 — Out-of-scope report | Vendor-internal RM routing; INVALID is already modelled |
 | x14 — Policy violation in discovery | Vendor-internal; orthogonal to CVD protocol state |
 | x20 — Unanticipated media attention | External to protocol; no Vultron state to exercise |

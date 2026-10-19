@@ -4,9 +4,9 @@ local_actor:
   id: http://actor5:7999/api/v2/actors/vendor2
 
 peers:
-  - name: Finder
+  - name: Reporter
     actor_type: Person
-    id: http://finder:7999/api/v2/actors/finder
+    id: http://reporter:7999/api/v2/actors/reporter
   - name: Vendor
     actor_type: Organization
     id: http://vendor:7999/api/v2/actors/vendor

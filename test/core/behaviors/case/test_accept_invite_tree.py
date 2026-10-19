@@ -534,7 +534,7 @@ def test_case_announce_and_backfill_precede_the_first_committing_effect():
     entry for a case it does not hold yet (SYNC-15 pre-genesis reject, then a
     replay that interleaves with the join backfill); CM-17-004 orders the
     announce and the backfill with no fan-out to the invitee in between, so
-    every committing effect belongs after both (#2898, fcvcv late joiners).
+    every committing effect belongs after both (#2898, rcvcv late joiners).
     No ``Add(CaseParticipant)`` is emitted at all (CM-31-012).
     """
     from vultron.core.behaviors.case.accept_invite_tree import (

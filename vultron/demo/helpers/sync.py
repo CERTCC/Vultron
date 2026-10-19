@@ -137,7 +137,7 @@ def verify_replica_state(
             (the actor that received a replicated copy).
         case_id: Full URI of the ``as_VulnerabilityCase`` being verified.
         vendor_actor_id: Full URI of the Vendor actor (retained for symmetry).
-        reporter_actor_id: Full URI of the Reporter/Finder actor (retained for
+        reporter_actor_id: Full URI of the Reporter actor (retained for
             future participant-status checks).
         auth_coverage_timeout_seconds: How long to wait for the authoritative
             ledger to catch up to the replica's tail index before declaring
@@ -435,8 +435,8 @@ def run_sync_verification_phase(
     auth_client: DataLayerClient,
     auth_label: str,
     auth_actor_id: str,
-    finder_client: DataLayerClient,
-    finder_actor_id: str,
+    reporter_client: DataLayerClient,
+    reporter_actor_id: str,
     replicas: ReplicaSpec,
     case_id: str,
     expected_participant_ids: Collection[str] = frozenset(),
@@ -448,13 +448,13 @@ def run_sync_verification_phase(
 
     Composes, in order:
 
-    1. The Finder-case gate: the Finder must hold the ``VulnerabilityCase`` (and
+    1. The Reporter-case gate: the Reporter must hold the ``VulnerabilityCase`` (and
        so its per-case genesis hash) before any coverage wait, or every
        ``Announce(CaseLedgerEntry)`` is rejected and replayed rather than
        accepted and the coverage timeout reports the wrong problem
        (SYNC-15-001, CLP-08-005, #1873).
     2. :func:`wait_for_replica_ledger_coverage` as the causal gate, nested in
-       the Finder gate so an unseeded Finder skips it (EDF-06-005).
+       the Reporter gate so an unseeded Reporter skips it (EDF-06-005).
     3. ``wait_for_participants_on_replicas`` for *expected_participant_ids*,
        when the scenario declares any — a temporal wait (EDF-06-006) that gives
        *late_joiners* the extended participant-index budget (#2852).
@@ -473,8 +473,8 @@ def run_sync_verification_phase(
         auth_client: Client for the authoritative container.
         auth_label: Display name of the authority (``"Vendor1"``, ``"C1"``).
         auth_actor_id: Full URI of the authoritative actor.
-        finder_client: Client for the Finder container, gated first.
-        finder_actor_id: Full URI of the Finder (reporter) actor.
+        reporter_client: Client for the Reporter container, gated first.
+        reporter_actor_id: Full URI of the Reporter actor.
         replicas: ``(client, label)`` pairs to wait for coverage on.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         expected_participant_ids: Actor URIs every replica must index. Empty
@@ -484,8 +484,10 @@ def run_sync_verification_phase(
         default_coverage_timeout: Coverage budget for non-late-joiner replicas.
     """
     covered: list[DataLayerClient] = []
-    with demo_gate("Finder case seeded before ledger coverage wait (SYNC-15)"):
-        wait_for_case_on_container(client=finder_client, case_id=case_id)
+    with demo_gate(
+        "Reporter case seeded before ledger coverage wait (SYNC-15)"
+    ):
+        wait_for_case_on_container(client=reporter_client, case_id=case_id)
         covered = wait_for_replica_ledger_coverage(
             auth_client,
             replicas,
@@ -520,5 +522,5 @@ def run_sync_verification_phase(
                 replica_client=replica_client,
                 case_id=case_id,
                 vendor_actor_id=auth_actor_id,
-                reporter_actor_id=finder_actor_id,
+                reporter_actor_id=reporter_actor_id,
             )

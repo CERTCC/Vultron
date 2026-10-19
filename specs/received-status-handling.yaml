@@ -284,7 +284,7 @@ groups:
       EM state changes are only observable to remote actors via `CaseStatus`
       entries in `Announce(CaseLedgerEntry)` messages. A mutation without a
       subsequent ledger write leaves participant replicas with a stale EM state
-      (observed in fv/fcv/fvv CI scenarios — see CONCERN-1667).
+      (observed in rv/rcv/rvv CI scenarios — see CONCERN-1667).
     verification: '`test/architecture/test_vfd_rm_pxa_write_sites.py` confirms every BT node that mutates EM state is
       immediately followed by a `CaseStatus` ledger write, with no uncovered write sites allowed.'
     stories:
