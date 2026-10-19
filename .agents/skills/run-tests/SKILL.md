@@ -42,6 +42,7 @@ in a short tail; tell them apart by the `exit:` line and the log:
 | `exit: 124` (137 if the `-k` kill was needed) | The run hung and was killed. No test verdict. Report it with the log's last lines; do not re-run to "see if it passes". |
 | `exit: 1` and `worker 'gwN' crashed while running <test>` | A worker died. `--max-worker-restart=0` (`addopts`) ends the run here instead of hanging. Read `/sys/fs/cgroup/memory.events`: a risen `oom_kill` means the named test is not the cause. |
 | `exit: 1` and `Failed: Timeout (>Ns)` | That one test hit its per-test ceiling. The rest of the run still ran and is summarized. |
+| `exit: 127` and `timeout: command not found` | No test ran: the host has no `timeout` (stock macOS). Run the gate in the devcontainer. |
 
 See `notes/testing-pitfalls.md` § "A Dead xdist Worker Hung the Run".
 

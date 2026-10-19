@@ -4,8 +4,9 @@ status: active
 kind: guidance
 description: >
   Full write-ups for pytest pitfalls in this repo: reading a killed run, a dead
-  xdist worker hanging the run, the two-tier timeout guardrail and why the timeout *method* matters more than the
-  ceiling, measuring effective markers rather than declarations,
+  xdist worker hanging the run, the two-tier timeout guardrail and why the
+  timeout *method* matters more than the ceiling, measuring effective markers
+  rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, py_trees test patterns, CoreObject subclass isolation,
@@ -58,7 +59,7 @@ pipeline exits with its last stage's status. Never end a gate command with a
 pipe. Redirect, capture `$?` at once, then re-raise it:
 
 ```bash
-uv run pytest --tb=short > /tmp/unit.log 2>&1; rc=$?; tail -5 /tmp/unit.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest --tb=short > /tmp/unit.log 2>&1; rc=$?; tail -5 /tmp/unit.log; echo "exit: $rc"; (exit $rc)
 ```
 
 - **`rc=$?` directly after the redirected command**: anything in between,
@@ -482,7 +483,7 @@ Verify:
 ```bash
 grep -r "old_mark_name" .github/workflows/  # no output
 grep "new_mark_name" pyproject.toml
-uv run pytest -m "new_mark_name" --collect-only > /tmp/collect.log 2>&1; rc=$?; tail -5 /tmp/collect.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest -m "new_mark_name" --collect-only > /tmp/collect.log 2>&1; rc=$?; tail -5 /tmp/collect.log; echo "exit: $rc"; (exit $rc)
 ```
 
 ### Trigger Use Cases Need Per-Use-Case Tests

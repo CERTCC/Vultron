@@ -566,13 +566,18 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Every documented local gate command and the CI test job MUST run under a
-      wall-clock ceiling, so that a hang no per-test timeout can reach ends the run
-      with a known exit status.
+      Every local gate command written for agents, and the CI test job, MUST run
+      under a wall-clock ceiling, so that a hang no per-test timeout can reach ends
+      the run with a known exit status.
     rationale: >-
       A signal-based per-test timeout cannot interrupt a C call that holds the GIL,
       and a stuck xdist controller runs no test at all. Without an outer ceiling
       such a run waits until the agent's tool timeout or GitHub's job default.
+      Agents run in the Linux devcontainer. Human how-to pages under
+      `docs/developer/` keep the bare command, because stock macOS has no
+      `timeout`.
     verification: >-
       `test/metadata/test_targeted_tests.py` checks that the printed gate command
-      starts with `GATE_CEILING`.
+      starts with `GATE_CEILING`. `test/metadata/test_gate_ceiling.py` checks every
+      redirected pytest gate in agent-facing files for the ceiling, and the CI test
+      job for `timeout-minutes`.

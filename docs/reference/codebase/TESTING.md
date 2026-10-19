@@ -27,7 +27,7 @@ uv run pytest -m integration
 uv run pytest test/test_config.py --tb=short
 
 # Gate form: redirect, read the exit line (never end a gate command with a pipe)
-uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 ### 2) Test Layout
