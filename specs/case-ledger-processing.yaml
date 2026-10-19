@@ -250,6 +250,8 @@ groups:
       `semantic_type`, serialized under the wire key `semanticType`. A stored or
       received entry that still carries the retired key `eventType` MUST be
       refused with a message naming the rename, never read through an alias.
+      `HashChainLedgerRecord` MUST carry the same value as `semantic_type` and
+      hash it under that key.
     rationale: >-
       The field holds a semantic type, the registry's label for the entry's
       payload (ADR-0140), and the glossary lists "event type" as a term to avoid
@@ -259,8 +261,10 @@ groups:
       not translated (#4128, #4734).
     verification: >-
       A test marked `CLP-02-014` confirms that a `CaseLedgerEntry` serializes its
-      semantic type under `semanticType` and that a payload carrying `eventType`
-      is refused with an error naming the rename.
+      semantic type under `semanticType`, that a payload carrying `eventType`
+      beside `semanticType` is refused with an error naming the rename, and that
+      a `HashChainLedgerRecord` hashes the value under `semantic_type` and
+      verifies its own hash.
     relationships:
     - rel_type: refines
       spec_id: CLP-02-001
