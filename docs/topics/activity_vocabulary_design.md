@@ -31,6 +31,7 @@ These rules have a visible cost.
 Where the formal protocol distinguishes several messages, the wire vocabulary often carries one activity and distinguishes them by payload.
 The `CP`, `CX`, and `CA` messages all ride a single `Add(CaseStatus)[target=VulnerabilityCase]`, discriminated by the `pxaState` field rather than by the verb (MSM-03-004 through MSM-03-006).
 A participant other than the CASE_MANAGER reports the same three messages in the `CaseStatus` that its `Add(ParticipantStatus)[target=CaseParticipant]` embeds, discriminated by `caseStatus.pxaState` (RSH-04-001).
+That report is the participant's view, which the CASE_MANAGER may adopt as the case status (RSH-07-001).
 Minting three Vultron-specific activities for those three messages would have added vocabulary where ActivityStreams already supplies an adequate verb.
 
 We accepted that cost deliberately.

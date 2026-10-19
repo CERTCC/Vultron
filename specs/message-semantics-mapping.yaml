@@ -415,8 +415,12 @@ groups:
       RSH-04-001 has every participant other than the CASE_MANAGER embed a
       suggested `CaseStatus` in `Add(ParticipantStatus)` instead of sending
       `Add(CaseStatus)`, so the same formal message reaches the CASE_MANAGER in
-      two wire forms. Each form dispatches to its own entry, which declares the
-      message as one of its occasions (MSM-08-001, #4569).
+      two wire forms. The participant's form is its view of the case status,
+      not a change to it: the CASE_MANAGER chooses whether to adopt it, by
+      default only with the Case Owner's authorization (RSH-07-001), and an
+      adopted value reaches the case as the CASE_MANAGER's own case status.
+      Each form dispatches to its own entry, which declares the message as one
+      of its occasions (MSM-08-001, #4569).
     verification: >-
       `test/test_message_semantics_mapping.py` asserts that `CP` rides both
       the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
@@ -446,8 +450,12 @@ groups:
       RSH-04-001 has every participant other than the CASE_MANAGER embed a
       suggested `CaseStatus` in `Add(ParticipantStatus)` instead of sending
       `Add(CaseStatus)`, so the same formal message reaches the CASE_MANAGER in
-      two wire forms. Each form dispatches to its own entry, which declares the
-      message as one of its occasions (MSM-08-001, #4569).
+      two wire forms. The participant's form is its view of the case status,
+      not a change to it: the CASE_MANAGER chooses whether to adopt it, by
+      default only with the Case Owner's authorization (RSH-07-001), and an
+      adopted value reaches the case as the CASE_MANAGER's own case status.
+      Each form dispatches to its own entry, which declares the message as one
+      of its occasions (MSM-08-001, #4569).
     verification: >-
       `test/test_message_semantics_mapping.py` asserts that `CX` rides both
       the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
@@ -477,8 +485,12 @@ groups:
       RSH-04-001 has every participant other than the CASE_MANAGER embed a
       suggested `CaseStatus` in `Add(ParticipantStatus)` instead of sending
       `Add(CaseStatus)`, so the same formal message reaches the CASE_MANAGER in
-      two wire forms. Each form dispatches to its own entry, which declares the
-      message as one of its occasions (MSM-08-001, #4569).
+      two wire forms. The participant's form is its view of the case status,
+      not a change to it: the CASE_MANAGER chooses whether to adopt it, by
+      default only with the Case Owner's authorization (RSH-07-001), and an
+      adopted value reaches the case as the CASE_MANAGER's own case status.
+      Each form dispatches to its own entry, which declares the message as one
+      of its occasions (MSM-08-001, #4569).
     verification: >-
       `test/test_message_semantics_mapping.py` asserts that `CA` rides both
       the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's

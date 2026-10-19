@@ -66,10 +66,13 @@ _PXA_WHEN: dict[CS_pxa, str] = {
 _PARTICIPANT_PXA_NOTES = (
     "A participant status is a snapshot of every dimension the sender "
     "holds, so it can also carry an unchanged `vfState` or `dState`; the "
-    "dimension that changed makes the occasion. The Case Manager records "
-    "the status on the sender's participant record and, while an embargo "
-    "is active or proposed, ends or abandons it, as it does for the same "
-    "report in a case status."
+    "dimension that changed makes the occasion. The report is the "
+    "sender's view of the case status, not a change to it. The Case "
+    "Manager records the status on the sender's participant record and "
+    "chooses whether to adopt the reported `pxaState` for the case, by "
+    "default only with the Case Owner's authorization. Only an adopted "
+    "value changes the case status, and while an embargo is active or "
+    "proposed, it ends or abandons the embargo."
 )
 
 
@@ -229,10 +232,12 @@ ENTRIES: list[SemanticEntry] = [
                 usual_senders=(CVDRole.DEPLOYER,),
             ),
             # A participant's own view of the public state travels in the
-            # case status its participant status embeds (CSB-15-003).  The
-            # CASE_MANAGER adjudicates it with the other dimensions (RSH-05)
-            # and ends or abandons the embargo on any of P, X or A
-            # (RSH-03-001), so each is an occasion of this entry (#4569).
+            # case status its participant status embeds (CSB-15-003).  It is
+            # a suggestion: the CASE_MANAGER adjudicates it with the other
+            # dimensions (RSH-05), adopts it only through StatusAdoptionGate
+            # (RSH-07-001), and an adopted P, X or A ends or abandons the
+            # embargo (RSH-03-001), so each is an occasion of this entry
+            # (#4569).
             _participant_pxa_occasion(
                 anchor="participant-public-awareness",
                 heading="Public awareness in a participant status",

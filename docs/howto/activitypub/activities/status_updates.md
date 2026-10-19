@@ -96,7 +96,9 @@ The state change hangs off the `Add`, because that is the activity that asserts 
 A participant status embeds a case status that carries your own view of `pxaState`.
 Only the CASE_MANAGER sends `Add(CaseStatus)` directly; every other participant reports public awareness, exploit publication or observed attacks in its own participant status (RSH-04-001).
 Send `Add(ParticipantStatus)` targeting your own participant record, and make the same change to `pxaState` in its embedded case status.
-The CASE_MANAGER records the status on your participant record and, while an embargo is active or proposed, ends or abandons it, as it does for an `Add(CaseStatus)`.
+Your report is your view of the case status, not a change to it.
+The CASE_MANAGER records the status on your participant record and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization (RSH-07-001).
+If it adopts the change, the CASE_MANAGER records it in its own `Add(CaseStatus)`, and while an embargo is active or proposed, ends or abandons the embargo (RSH-03-001).
 The Finder + Vendor demo reports public awareness this way.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/participant-public-awareness.md" %}
