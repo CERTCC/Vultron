@@ -8,7 +8,7 @@ tags:
   - ci
 shell: "zsh"
 commands:
-  - "uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo \"exit: $rc\"; (exit $rc)"
+  - "timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo \"exit: $rc\"; (exit $rc)"
 inputs:
   - name: repo_root
     description: "Repository root"
@@ -24,15 +24,26 @@ outputs:
 
 | Suite | Command |
 |---|---|
-| Unit (default) | `uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)` |
-| Integration | `uv run pytest -m integration -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)` |
-| All | `uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)` |
+| Unit (default) | `timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)` |
+| Integration | `timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)` |
+| All | `timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)` |
 
 The shape is always the same: **redirect, capture `$?` immediately, tail the log,
 print the code last, then re-raise it.** `rc=$?` must come directly after the
 redirected command — any other command in between overwrites `$?`. The trailing
 `(exit $rc)` is what makes the whole statement carry pytest's status, so the
 command is safe to chain or to use as a gate.
+
+`timeout -k 30 1800` is the run's wall-clock ceiling. Three outcomes look alike
+in a short tail; tell them apart by the `exit:` line and the log:
+
+| You see | It means |
+|---|---|
+| `exit: 124` (137 if the `-k` kill was needed) | The run hung and was killed. No test verdict. Report it with the log's last lines; do not re-run to "see if it passes". |
+| `exit: 1` and `worker 'gwN' crashed while running <test>` | A worker died. `--max-worker-restart=0` (`addopts`) ends the run here instead of hanging. Read `/sys/fs/cgroup/memory.events`: a risen `oom_kill` means the named test is not the cause. |
+| `exit: 1` and `Failed: Timeout (>Ns)` | That one test hit its per-test ceiling. The rest of the run still ran and is summarized. |
+
+See `notes/testing-pitfalls.md` § "A Dead xdist Worker Hung the Run".
 
 `-n auto` runs the suite on `pytest-xdist` workers. `test/conftest.py` sizes
 `auto` to the container's cgroup CPU and memory limits
@@ -53,8 +64,8 @@ the specific test files it is writing or changing while it works. The gate is
 both suites:
 
 ```bash
-uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
-uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
 ```
 
 The first command covers the unit suite (integration tests excluded by
@@ -95,7 +106,7 @@ Phase 5 Step 3 is the canonical caller.
   must keep the rest of the shape intact.
 - **Never end a validation command with a pipe.** A pipeline exits with its
   *last* stage's status, so `… | tail`, `… | tee … | tail`, `… | head`, and
-  `… | wc` all report 0 no matter how pytest exited — a `pytest-timeout` kill
+  `… | wc` all report 0 no matter how pytest exited — a killed or failed run
   reads as success. This applies to every gate command (`pytest`, `mkdocs
   build --strict`, `ruff`, `mypy`, `pyright`, `markdownlint`), not just
   pytest, and to the bare `2>&1 | tail -5` form as much as to `tee | tail`.

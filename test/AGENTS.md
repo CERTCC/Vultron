@@ -12,7 +12,7 @@ need on *every* run; the longer pitfall write-ups live in
 ## ⚠️ Running the Test Suite — ONE RUN RULE (MUST)
 
 ```bash
-uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Run **exactly once**; never re-run for counts, a longer tail, or `-q`. `-n auto`
@@ -20,8 +20,8 @@ is sized to the slot's cgroup, not `nproc` ([pitfalls](../notes/testing-pitfalls
 
 **Read `exit:` before the tail — it is the verdict; the tail is only detail.**
 Never pipe the run into `tail` (`… 2>&1 | tail -5`) or through `tee`: a pipeline
-exits with `tail`'s status, so a `pytest-timeout` kill reports 0 and shows dump
-frames where the summary line would be — indistinguishable from a pass if you
+exits with `tail`'s status, so a killed run reports 0 and shows its last output
+where the summary line would be — indistinguishable from a pass if you
 only read the tail. The redirect form above is the default for every run, not a
 diagnostic fallback. See
 [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md) § "A Killed `pytest`
@@ -34,7 +34,7 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 ```
 
 <!-- markdownlint-disable-next-line MD013 -->
-Before a Pull Request's first push, if `vultron/demo/` or `test/demo/` was touched, run the full suite (after the push, a fix commit is gated by `targeted-tests`, PAD-18-002/003): `uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
+Before a Pull Request's first push, if `vultron/demo/` or `test/demo/` was touched, run the full suite (after the push, a fix commit is gated by `targeted-tests`, PAD-18-002/003): `timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
 
 ---
 
@@ -65,10 +65,10 @@ Before a Pull Request's first push, if `vultron/demo/` or `test/demo/` was touch
 | Unit (default) | 30s | `timeout = 30`, `pyproject.toml` |
 | `@pytest.mark.integration` | 60s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
 
-`timeout_method = "thread"` kills the *whole pytest process*, so a trip produces
-no summary line at all. An explicit `@pytest.mark.timeout(N)` wins over the tier
-default, is a last resort, and MUST carry a comment explaining why. Why these
-numbers, and why a too-tight ceiling reads as flakiness:
+`timeout_method = "signal"`: a trip fails that one test and the session goes on.
+An explicit `@pytest.mark.timeout(N)` wins over the tier default, is a last
+resort, and MUST carry a comment explaining why. Why these numbers, and why the
+method matters more than the ceiling:
 [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md) § "Per-Test Timeout
 Guardrail".
 
@@ -188,13 +188,12 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   helpers; trigger use cases need per-use-case tests
   ([`notes/triggers-test-coverage.md`](../notes/triggers-test-coverage.md)).
 - **The timeout *method* sets what a trip costs; the ceiling only sets how
-  often** — raising a ceiling never reduces the severity of `thread`'s
-  whole-session kill, which is why the real dial went untouched for six
-  re-diagnoses (#3603).
+  often** — `thread` killed the session or xdist worker, `signal` fails one test
+  (#3603); a dead worker fails the run, and gate exit 124 means it hung (#4809).
 - **A marker sweep that counts declarations misses a directory hook** — grepping
   `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; ask
-  what collected items carry via a `trylast` probe. A tier assertion over
-  `FakeItem`s or a synthetic `pytester` session misses the real collection (#3604).
+  what collected items carry via a probe; the tier is asserted over the real
+  collection (#3604).
 - **SYNC replication test setup** —
   [`notes/sync-ledger-replication.md`](../notes/sync-ledger-replication.md)
   § "SYNC Replication Test Patterns".

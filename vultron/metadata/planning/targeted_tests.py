@@ -155,7 +155,15 @@ PACKAGE_ROOT = "vultron/__init__.py"
 #: Files under ``test/`` that no test run reads.
 _INERT_TEST_SUFFIXES = (".md",)
 
-PYTEST_BASE = ("uv", "run", "pytest", "-n", "auto", "--tb=short", "-m", "")
+#: The wall-clock ceiling on every local gate run, and its exit status 124.
+#: ``-k 30`` follows the ``SIGTERM`` with a ``SIGKILL`` should pytest not exit.
+#: A run that hits it hung: look in its log for ``node down`` (#4809).
+GATE_CEILING = ("timeout", "-k", "30", "1800")
+
+PYTEST_BASE = (
+    *GATE_CEILING,
+    *("uv", "run", "pytest", "-n", "auto", "--tb=short", "-m", ""),
+)
 
 
 @dataclass(frozen=True)
@@ -510,7 +518,7 @@ def pytest_argv(selection: Selection) -> list[str]:
     ``-m ""`` replaces the ``-m 'not integration'`` in ``addopts``: pytest
     keeps the last ``-m``, so marker-bearing tests among the selected files
     are not deselected (PAD-18-002). The full suite is the same command with
-    no paths.
+    no paths. It runs under :data:`GATE_CEILING`.
     """
     return list(PYTEST_BASE) + ([] if selection.full else selection.tests)
 
