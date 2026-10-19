@@ -49,6 +49,19 @@ from vultron.wire.as2.vocab.activities.case_participant import (
     _AddStatusToParticipantActivity,
 )
 
+#: When a participant sends each P/X/A report, in either wire form.
+_PXA_WHEN: dict[CS_pxa, str] = {
+    CS_pxa.Pxa: (
+        "a Participant learns that the public knows of the vulnerability"
+    ),
+    CS_pxa.PXa: (
+        "a Participant learns that an exploit for the vulnerability is public"
+    ),
+    CS_pxa.pxA: (
+        "a Participant observes attacks that exploit the vulnerability"
+    ),
+}
+
 #: What every participant P/X/A occasion says about the wire form.
 _PARTICIPANT_PXA_NOTES = (
     "A participant status is a snapshot of every dimension the sender "
@@ -62,7 +75,6 @@ _PARTICIPANT_PXA_NOTES = (
 
 def _participant_pxa_occasion(
     *,
-    when: str,
     anchor: str,
     heading: str,
     description: str,
@@ -73,7 +85,7 @@ def _participant_pxa_occasion(
     """An occasion for a participant's own P/X/A report, which travels as
     the ``pxa`` of the case status its ``ParticipantStatus`` embeds."""
     return Occasion(
-        when=when,
+        when=_PXA_WHEN[pxa],
         anchor=anchor,
         addressee=AddresseeSide.CASE_MANAGER,
         heading=heading,
@@ -103,10 +115,7 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when=(
-                    "a Participant learns that the public knows of the "
-                    "vulnerability"
-                ),
+                when=_PXA_WHEN[CS_pxa.Pxa],
                 anchor="public-awareness",
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Public awareness in a case status",
@@ -122,10 +131,7 @@ ENTRIES: list[SemanticEntry] = [
                 shorthand=ProtocolShorthand.CP,
             ),
             Occasion(
-                when=(
-                    "a Participant learns that an exploit for the "
-                    "vulnerability is public"
-                ),
+                when=_PXA_WHEN[CS_pxa.PXa],
                 anchor="exploit-public",
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Exploit public in a case status",
@@ -140,10 +146,7 @@ ENTRIES: list[SemanticEntry] = [
                 shorthand=ProtocolShorthand.CX,
             ),
             Occasion(
-                when=(
-                    "a Participant observes attacks that exploit the "
-                    "vulnerability"
-                ),
+                when=_PXA_WHEN[CS_pxa.pxA],
                 anchor="attacks-observed",
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Attacks observed in a case status",
@@ -231,10 +234,6 @@ ENTRIES: list[SemanticEntry] = [
             # and ends or abandons the embargo on any of P, X or A
             # (RSH-03-001), so each is an occasion of this entry (#4569).
             _participant_pxa_occasion(
-                when=(
-                    "a Participant learns that the public knows of the "
-                    "vulnerability"
-                ),
                 anchor="participant-public-awareness",
                 heading="Public awareness in a participant status",
                 description=(
@@ -246,10 +245,6 @@ ENTRIES: list[SemanticEntry] = [
                 shorthand=ProtocolShorthand.CP,
             ),
             _participant_pxa_occasion(
-                when=(
-                    "a Participant learns that an exploit for the "
-                    "vulnerability is public"
-                ),
                 anchor="participant-exploit-public",
                 heading="Exploit public in a participant status",
                 description=(
@@ -261,10 +256,6 @@ ENTRIES: list[SemanticEntry] = [
                 shorthand=ProtocolShorthand.CX,
             ),
             _participant_pxa_occasion(
-                when=(
-                    "a Participant observes attacks that exploit the "
-                    "vulnerability"
-                ),
                 anchor="participant-attacks-observed",
                 heading="Attacks observed in a participant status",
                 description=(

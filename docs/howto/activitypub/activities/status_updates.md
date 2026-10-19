@@ -65,7 +65,7 @@ Use a case status for public awareness, exploit publication, and observed attack
 Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all implemented in ActivityStreams as `Add(CaseStatus)`, or in your own participant status (see [Report it in your own participant status](#report-it-in-your-own-participant-status)).
 All three set `pxaState`; which one you are sending is determined by which letter in it changes case.
 
-In every case, send `Add(CaseStatus)` naming the case in `target`, with the new status, carrying the new `pxaState`, inline as its `object`.
+When you send a case status, send `Add(CaseStatus)` naming the case in `target`, with the new status, carrying the new `pxaState`, inline as its `object`.
 The protocol names `Add(CaseStatus)` as the one form; a received `Create(CaseStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 ### Report that the vulnerability is public
@@ -94,7 +94,8 @@ The state change hangs off the `Add`, because that is the activity that asserts 
 ### Report it in your own participant status
 
 A participant status embeds a case status that carries your own view of `pxaState`.
-You can report public awareness, exploit publication or observed attacks there instead: send `Add(ParticipantStatus)` targeting your own participant record, and make the same change to `pxaState` in its embedded case status.
+Only the CASE_MANAGER sends `Add(CaseStatus)` directly; every other participant reports public awareness, exploit publication or observed attacks in its own participant status (RSH-04-001).
+Send `Add(ParticipantStatus)` targeting your own participant record, and make the same change to `pxaState` in its embedded case status.
 The CASE_MANAGER records the status on your participant record and, while an embargo is active or proposed, ends or abandons it, as it does for an `Add(CaseStatus)`.
 The Finder + Vendor demo reports public awareness this way.
 

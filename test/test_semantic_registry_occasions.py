@@ -310,6 +310,31 @@ def test_field_value_rejects_a_within_that_embeds_no_model(
         )
 
 
+@pytest.mark.spec("MSM-08-002")
+def test_field_value_rejects_a_field_the_embedded_model_does_not_declare():
+    with pytest.raises(ValueError, match="CaseStatus has no typed field 'vf'"):
+        FieldValue(
+            object_type=ParticipantStatus,
+            within="case_status",
+            field="vf",
+            value=CS_vf.VF,
+        )
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_field_value_rejects_an_embedded_field_no_enum_types():
+    with pytest.raises(
+        ValueError,
+        match=r"ParticipantStatus\.case_status\.context is not typed by an enum",
+    ):
+        FieldValue(
+            object_type=ParticipantStatus,
+            within="case_status",
+            field="context",
+            value=CS_pxa.Pxa,
+        )
+
+
 def test_wire_spelling_names_an_embedded_field_by_its_dotted_path():
     assert (
         wire_spelling(ParticipantStatus, "pxa", "case_status")
