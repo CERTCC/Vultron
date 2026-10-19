@@ -49,7 +49,7 @@ def test_demo(demo_env, demo_fn, caplog):
     - demo_engage_path: submit → validate → create_case → engage → close
     - demo_defer_reengage_path: submit → validate → create_case →
       defer → re-engage → close
-    - demo_invalidate_path: submit → invalidate → close_report
+    - demo_invalidate_path: submit → invalidate → close the case (Leave)
     """
     import logging
 

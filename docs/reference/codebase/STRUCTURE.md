@@ -112,7 +112,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
   The `as_` prefix marks a wire class only for unpaired AS2 vocabulary (e.g., `as_Activity`, `as_Link`); for the paired domain types, `as_VulnerabilityCase` and `VulnerabilityCase` are the same class (ADR-0099, ARCH-14-001).
 - **Domain abbreviation**: `vul` (not `vuln`) for vulnerability; `em` for embargo management; `rm` for report management; `cs` for case state
 - **Role enum**: `CvdRole.OBSERVER` (alias `O`, formerly `OTHER`) identifies monitoring participants, in `vultron/enums/roles.py` and `vultron/bt/roles/enums.py`
-- **Use-case naming**: trigger use cases are `Svc` + verb + noun + `UseCase` (e.g., `SvcCloseCaseUseCase`, `SvcEngageCaseUseCase`); received-message use cases end in `ReceivedUseCase` (e.g., `CreateReportReceivedUseCase`); see `vultron/core/AGENTS.md`
+- **Use-case naming**: trigger use cases are `Svc` + verb + noun + `UseCase` (e.g., `SvcLeaveCaseUseCase`, `SvcEngageCaseUseCase`); received-message use cases end in `ReceivedUseCase` (e.g., `CreateReportReceivedUseCase`); see `vultron/core/AGENTS.md`
 - **Directory organization**: by architectural layer (`core/`, `wire/`, `adapters/`) then by CVD domain area within layers
 - **Import conventions**: absolute `vultron.*` imports dominate; relative imports appear in some package `__init__.py` files and in the `datalayer_sqlite/` and `trigger_activity_adapter/` subpackages.
   Core must not import from adapters or wire, and split modules re-export from `__init__.py` (CS-18-003).

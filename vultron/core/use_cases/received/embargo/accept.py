@@ -44,7 +44,6 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
-    addressee_refusal,
     embargo_answer_repeat_verdict,
     failure_reason,
     not_case_manager_refusal,
@@ -180,8 +179,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         verdict = verdict_from_bt(tree, result, label=_TREE_LABEL)
         if verdict.disposition is not HandlerDisposition.REFUSED:
             return self._applied_verdict(tree, verdict, case_id)
-        if (refusal := addressee_refusal(tree)) is not None:
-            return refusal
         if (
             refusal := pxa_refusal_verdict(
                 tree,

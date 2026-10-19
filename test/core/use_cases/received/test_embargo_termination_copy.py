@@ -368,10 +368,12 @@ class TestReplicaCopiesTheTermination:
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("EMB-13-004")
     def test_a_threat_termination(self):
-        """The what is copied; the why is the CASE_MANAGER's alone.
+        """The what is copied; the why is not copied yet.
 
-        Copying the cause (``THREAT_SIGNAL`` with ``X``) to replicas is
-        #4748, so the comparison leaves the cause out.
+        EMB-13-005 has the ``Remove`` carry the cause (#4857) and replicas
+        copy it (#4748), which removes ``drop_cause`` here and the
+        what-only assertion below.  Until then the comparison leaves the
+        cause (``THREAT_SIGNAL`` with ``X``) out.
         """
         net = _net("tc-threat")
         assert _cascade(net) == py_trees.common.Status.SUCCESS
@@ -381,7 +383,7 @@ class TestReplicaCopiesTheTermination:
         assert recorded.cause is not None
         assert recorded.cause.kind is TerminationCauseKind.THREAT_SIGNAL
 
-        # #4748: the Remove does not carry the why, so drop it here.
+        # Until #4857 and #4748 the Remove carries no why, so drop it here.
         self._replay_and_compare(net, drop_cause=True)
         for replica in _REPLICAS:
             assert net.case(replica).embargo_termination == (

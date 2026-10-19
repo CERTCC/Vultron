@@ -38,7 +38,7 @@ from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.sync_helpers import (
     _find_equivalent_recorded_entry,
     _find_prev_actor_published,
-    _reconstruct_tail_hash,
+    reconstruct_tail_hash,
     recorded_entries_for_case,
 )
 from vultron.errors import VultronError, VultronValidationError
@@ -46,7 +46,7 @@ from vultron.errors import VultronError, VultronValidationError
 logger = logging.getLogger(__name__)
 
 
-def _require_case_id_from_activity(activity: Any, node_name: str) -> str:
+def require_case_id_from_activity(activity: Any, node_name: str) -> str:
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "rejected_entry", None)
@@ -117,14 +117,14 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
         if self._case_id is not None:
             case_id = self._case_id
         else:
-            case_id = _require_case_id_from_activity(self.activity, self.name)
+            case_id = require_case_id_from_activity(self.activity, self.name)
 
         try:
-            tail_hash, tail_index = _reconstruct_tail_hash(
+            tail_hash, tail_index = reconstruct_tail_hash(
                 case_id, self.datalayer
             )
         except VultronValidationError as exc:
-            # _reconstruct_tail_hash raises here for exactly one condition:
+            # reconstruct_tail_hash raises here for exactly one condition:
             # an empty local ledger with no per-case genesis hash yet — the
             # pre-genesis bootstrap window where an Announce(CaseLedgerEntry)
             # arrived before the Create(VulnerabilityCase) that seeds genesis.

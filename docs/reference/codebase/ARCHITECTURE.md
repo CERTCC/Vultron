@@ -19,13 +19,14 @@ stakeholder_type: [project-contributor]
   3. Use-case entry points follow `UseCase.__init__(dl, request)` + `execute()`.
      Received use cases return `HandlerResult` (ADR-0095); trigger use cases return their verb's `TriggerResult` subtype (ADR-0110); both live in `vultron/core/models/use_case_result.py`.
      Routing is table-driven on both sides: `use_case_map()` in `vultron/semantic_registry/` for received activities, `TRIGGER_REGISTRY` in `vultron/trigger_registry/` for trigger verbs.
-  4. Every received-side tree is built by `create_receive_activity_tree()` in the order intake → door guards (post-close boundary, [case resolution], [sender guard]) → [clock decisions] → precondition guards → commit → `replica_effects` → `manager_effects` (ADR-0111, ADR-0115, ADR-0135, CLP-10-006, CLP-10-010).
+  4. Every received-side tree is built by `create_receive_activity_tree()` in the order intake → door guards (post-close boundary, addressee check, [closed-sender door], [case resolution], [sender guard]) → [clock decisions] → precondition guards → commit → `replica_effects` → `manager_effects` (ADR-0111, ADR-0115, ADR-0135, CLP-10-006, CLP-10-010).
      Clock decisions are the CASE_MANAGER's own decisions from its clock, such as an expiry; the factory runs them only at the CASE_MANAGER, and a refused commit there logs a warning and lets the tree continue (CLP-10-025).
      The embargo end-time check is a clock decision of every tree with a case and both door guards, and the first, CASE_MANAGER-gated step of every case-scoped trigger's tree (EMB-13-003, BT-15-003); no dispatcher runs it as a hook.
      `refusal_effects`, when a tree passes them, run inside the guard stage only when a precondition guard refuses, and only at the CASE_MANAGER (CLP-10-022).
      The factory wraps `manager_effects` in the CASE_MANAGER gate and refuses an emit node in `replica_effects` that no named exemption covers (BT-17-008).
      The sender-guard stage is the per-use-case sender-entitlement check declared via `sender_entitlement` on the use-case class (HP-01-006, HP-01-007).
      The factory composes it from the declared `SenderRule` and a `SenderCheckContext` for the receiver's addressee side (`vultron/core/behaviors/sender_guard.py`, HP-01-008); a tree cannot pass a guard of its own, and the ratchet's allow-list of guards not yet migrated is empty.
+     A tree whose sender may already be closed on the case passes `closed_sender=ClosedSenderCheck(...)`, and its handler reads the door's result with `closed_sender_verdict()` in `vultron/core/use_cases/received/_bt_verdict.py`: a repeat of a closing act is `SKIPPED`, and any other act is `REFUSED` (CM-23-018, ID-05-003).
      A tree whose case is resolved at run time passes the read-only `CaseResolving` steps that resolve it as `case_resolution`, which run just before the guard, or, for a ledger activity, a `LedgerActivityContext`, whose nodes read the case from the carried entry.
 
 ### 2) System Flow
@@ -40,7 +41,9 @@ HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
   -> HTTP 202 Accepted; work continues in a BackgroundTasks task
   -> inbox orchestration           `vultron/adapters/driving/fastapi/inbox_orchestration.py`
      (BT work runs in a worker thread via asyncio.to_thread, IE-06-003)
-  -> rehydrate()                   `vultron/wire/as2/rehydration.py`
+  -> stores the activity only      `vultron/adapters/driving/fastapi/inbox_storage.py`
+  -> rehydrate() via staging       `vultron/adapters/driving/fastapi/inbox_staging.py`, `vultron/wire/as2/rehydration.py`
+     (inline objects staged in a throwaway store, never stored; effect nodes write records, IO-03-004)
   -> semantic extraction           `vultron/wire/as2/extractor/`
      (AS2 pattern -> MessageSemantics + VultronEvent)
   -> dispatcher                    `vultron/core/dispatcher.py` (port: `vultron/core/ports/dispatcher.py`)

@@ -89,6 +89,7 @@ from vultron.core.models.embargo_apply import (
     RegisterStepKind,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
@@ -370,8 +371,7 @@ class ApplyEmbargoAbandonmentFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
         ):
             log_em_transition(
                 self.logger,
-                _extract_id_from_field(entry.payload_snapshot.get("actor"))
-                or "",
+                snapshot_actor_id(entry.payload_snapshot.get("actor")) or "",
                 entry.case_id,
                 before.em_state,
                 after.em_state,

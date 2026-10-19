@@ -135,7 +135,9 @@ def _deliver(
         RM.INVALID: TentativeRejectInviteActorToFullCaseReceivedUseCase,
         RM.CLOSED: RejectInviteActorToFullCaseReceivedUseCase,
     }
-    activity = builders[declared](invite, tail, actor=sender)
+    activity = builders[declared](
+        invite, tail, actor=sender, to=[CASE_MANAGER_ID]
+    )
     event = extract_event(activity)
     return use_cases[declared](
         dl,
@@ -234,6 +236,21 @@ class TestClosedInviteeReply:
         )
         assert result.disposition is expected, result.reason
         assert "CM-23-018" in (result.reason or ""), result.reason
+        # The reason the retired pre-flight gave, now from the tree's door,
+        # labelled with the handler's tree name.
+        tree_names = {
+            RM.VALID: "AcceptInviteActorToFullCaseReceivedBT",
+            RM.INVALID: "TentativeRejectInviteActorToFullCaseReceivedBT",
+            RM.CLOSED: "RejectInviteActorToFullCaseReceivedBT",
+        }
+        assert (result.reason or "").startswith(
+            f"{tree_names[case.declared]}: "
+        ), result.reason
+        assert (result.reason or "").endswith(
+            "— a repeat of a closing act, nothing to apply (ID-05-003)"
+            if case.declared is RM.CLOSED
+            else "— it may act on nothing further"
+        ), result.reason
         assert recorded_rm(dl) == RM.CLOSED
         assert status_count(dl) == before
         assert ledger_tail_position(CASE_ID, dl) == ledger_before

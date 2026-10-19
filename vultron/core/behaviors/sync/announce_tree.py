@@ -47,6 +47,7 @@ from vultron.core.behaviors.sync.nodes import (
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
+    HandBackBufferedSuccessorNode,
     IsAcceptCaseParticipantRoleEventNode,
     IsAcceptEmbargoInviteEventNode,
     IsAddCaseStatusEventNode,
@@ -434,6 +435,11 @@ def create_announce_log_entry_tree(
                 child=CheckIsCaseManagerNode(name="CheckIsCaseManagerInverse"),
             ),
             entry_processing,
+            # The entry this delivery stored (or found stored) may be the
+            # predecessor a buffered entry waits on.  That successor is its
+            # own delivery, handed back to this actor's inbox; its tree hands
+            # back the next one (SYNC-14-009, ADR-0135).
+            HandBackBufferedSuccessorNode(name="HandBackBufferedSuccessor"),
         ],
     )
     # The replication envelope is never itself a canonical entry (CLP-10-004),

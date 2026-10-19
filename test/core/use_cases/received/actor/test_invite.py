@@ -45,6 +45,34 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 
+def _addressed_to_inviter(invite, also_to: tuple[str, ...]) -> list[str]:
+    """The answer's ``to``: the inviter, as the trigger adapter derives it.
+
+    ``accept_case_invite`` / ``reject_case_invite`` address the answer to the
+    invite's ``actor`` (OX-08-001); *also_to* adds a copy-holder, so a test of
+    what a non-CASE_MANAGER does with its copy gets past the addressee door
+    (HP-01-005).
+    """
+    inviter = (
+        invite.actor if isinstance(invite.actor, str) else invite.actor.id_
+    )
+    return [inviter, *also_to]
+
+
+def _accept_invite(invite, *, actor: str, also_to: tuple[str, ...] = ()):
+    """``Accept(Invite)`` addressed as the trigger adapter sends it."""
+    return rm_accept_invite_to_case_activity(
+        invite, actor=actor, to=_addressed_to_inviter(invite, also_to)
+    )
+
+
+def _reject_invite(invite, *, actor: str, also_to: tuple[str, ...] = ()):
+    """``Reject(Invite)`` addressed as the trigger adapter sends it."""
+    return rm_reject_invite_to_case_activity(
+        invite, actor=actor, to=_addressed_to_inviter(invite, also_to)
+    )
+
+
 def _outbound_blob(activity) -> str:
     """The sealed body the real adapter returns alongside the activity id."""
     return str(
@@ -69,9 +97,9 @@ def _seed_ledger_entry(
     """
     from vultron.core.models.case_ledger import HashChainLedgerRecord
     from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-    from vultron.core.sync_helpers import _reconstruct_tail_hash
+    from vultron.core.sync_helpers import reconstruct_tail_hash
 
-    tail_hash, tail_index = _reconstruct_tail_hash(case_id, dl)
+    tail_hash, tail_index = reconstruct_tail_hash(case_id, dl)
     chain_entry = HashChainLedgerRecord(
         case_id=case_id,
         log_index=tail_index + 1,
@@ -770,7 +798,7 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        reject = rm_reject_invite_to_case_activity(
+        reject = _reject_invite(
             invite,
             actor=invitee_id,
         )
@@ -839,7 +867,7 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(
+        accept = _accept_invite(
             invite,
             actor=invitee_id,
         )
@@ -904,7 +932,7 @@ class TestInviteActorUseCases:
         dl.create(embargo)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(
+        accept = _accept_invite(
             invite,
             actor=invitee_id,
         )
@@ -971,7 +999,7 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(
+        accept = _accept_invite(
             invite,
             actor=invitee_id,
         )
@@ -1054,7 +1082,7 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(
+        accept = _accept_invite(
             invite,
             actor=invitee_id,
         )
@@ -1164,7 +1192,7 @@ class TestInviteActorUseCases:
         dl.save(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(
+        accept = _accept_invite(
             invite,
             actor=invitee_id,
         )
@@ -1202,7 +1230,7 @@ class TestInviteActorUseCases:
         trigger_activity = lj["trigger_activity"]
         sync_port = MagicMock()
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1273,7 +1301,7 @@ class TestInviteActorUseCases:
         dl, invitee_id, invite = lj["dl"], lj["invitee_id"], lj["invite"]
         events = record_sends_and_commits(monkeypatch, lj["case_actor_id"])
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
             make_payload(accept),
@@ -1323,7 +1351,7 @@ class TestInviteActorUseCases:
         lj = _seed_late_joiner_case()
         dl, invitee_id, invite = lj["dl"], lj["invitee_id"], lj["invite"]
         case_id = lj["case"].id_
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         with pytest.MonkeyPatch.context() as mp:
             failed = fail_commits(
                 mp,
@@ -1386,7 +1414,7 @@ class TestInviteActorUseCases:
         manager.attach_mock(trigger_activity, "trigger")
         manager.attach_mock(sync_port, "sync")
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1526,7 +1554,7 @@ class TestInviteActorUseCases:
         )
         sync_port = MagicMock()
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1654,7 +1682,7 @@ class TestInviteActorUseCases:
         )
         sync_port = MagicMock()
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1760,7 +1788,7 @@ class TestInviteActorUseCases:
         trigger_activity.announce_vulnerability_case.side_effect = (
             RuntimeError("announce unavailable")
         )
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1829,7 +1857,7 @@ class TestAcceptInviteRolesAC4:
         dl.create(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1888,7 +1916,7 @@ class TestAcceptInviteRolesAC4:
         dl.create(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         result = AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -2010,7 +2038,7 @@ class TestInviteDispositions:
         dl = self._dl()
         self._seed_case(dl, case_id, manager_id=self._OWNER)
         event = make_payload(
-            rm_reject_invite_to_case_activity(
+            _reject_invite(
                 self._recorded_invite(dl, case_id), actor=self._INVITEE
             )
         )
@@ -2040,8 +2068,10 @@ class TestInviteDispositions:
         case = self._seed_case(dl, case_id, manager_id=self._OWNER)
         invite = self._invite(case_id)
         dl.create(invite)
+        # The copy names this store too, so the CASE_MANAGER gate, not the
+        # addressee door (HP-01-005), is what refuses it.
         event = make_payload(
-            rm_accept_invite_to_case_activity(invite, actor=self._INVITEE)
+            _accept_invite(invite, actor=self._INVITEE, also_to=(dl.actor_id,))
         )
 
         result = AcceptInviteActorToCaseReceivedUseCase(
@@ -2062,7 +2092,7 @@ class TestInviteDispositions:
     def test_reject_invite_for_unknown_case_is_refused(self, make_payload):
         dl = self._dl()
         event = make_payload(
-            rm_reject_invite_to_case_activity(
+            _reject_invite(
                 self._recorded_invite(
                     dl, "https://example.org/cases/d-rj-missing"
                 ),
@@ -2095,7 +2125,7 @@ class TestInviteDispositions:
         dl = self._dl(actor_id=self._OWNER)
         self._seed_case(dl, case_id, manager_id=self._OWNER)
         event = make_payload(
-            rm_reject_invite_to_case_activity(
+            _reject_invite(
                 self._recorded_invite(dl, case_id), actor=self._INVITEE
             ),
             receiving_actor_id=self._OWNER,
@@ -2160,7 +2190,7 @@ class TestInviteDispositions:
         dl.save(_case)
 
         event = make_payload(
-            rm_reject_invite_to_case_activity(
+            _reject_invite(
                 self._recorded_invite(dl, case_id), actor=self._INVITEE
             ),
             receiving_actor_id=self._OWNER,
@@ -2199,7 +2229,7 @@ class TestInviteDispositions:
     def test_accept_invite_for_unknown_case_is_refused(self, make_payload):
         dl = self._dl()
         event = make_payload(
-            rm_accept_invite_to_case_activity(
+            _accept_invite(
                 self._recorded_invite(
                     dl, "https://example.org/cases/d-ac-missing"
                 ),
@@ -2233,9 +2263,7 @@ class TestInviteDispositions:
         self._seed_case(dl, case_id, manager_id=dl.actor_id)
         invite = self._invite(case_id, issuer=dl.actor_id)
         dl.create(invite)
-        event = make_payload(
-            rm_accept_invite_to_case_activity(invite, actor=self._INVITEE)
-        )
+        event = make_payload(_accept_invite(invite, actor=self._INVITEE))
         sync_port = MagicMock()
 
         result = AcceptInviteActorToCaseReceivedUseCase(
@@ -2277,9 +2305,7 @@ class TestInviteDispositions:
         assert isinstance(seeded, VulnerabilityCase)
         seed_inert_invitee(dl, seeded, self._INVITEE)
         dl.save(seeded)
-        event = make_payload(
-            rm_accept_invite_to_case_activity(invite, actor=self._INVITEE)
-        )
+        event = make_payload(_accept_invite(invite, actor=self._INVITEE))
 
         first = AcceptInviteActorToCaseReceivedUseCase(
             dl,

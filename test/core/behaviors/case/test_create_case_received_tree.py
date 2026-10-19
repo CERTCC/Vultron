@@ -21,6 +21,9 @@ from vultron.core.behaviors.case.create_case_received_tree import (
 from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     ClassifyBootstrapRouteNode,
 )
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsExpectedCaseCreatorNode,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -31,7 +34,10 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.use_cases.received._bt_verdict import find_node
+from vultron.core.use_cases.received._bt_verdict import find_node, node_failed
+from vultron.core.use_cases.received.case.create import (
+    CreateCaseReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import create_case_activity
@@ -80,9 +86,14 @@ def _case(manager: str = _CREATOR) -> as_VulnerabilityCase:
 
 
 def _run(dl, make_payload, sender: str, case: as_VulnerabilityCase):
-    activity = create_case_activity(case, actor=sender)
+    activity = create_case_activity(case, actor=sender, to=[_RECEIVER])
     event = make_payload(activity)
-    tree = create_create_case_received_tree(event.case, _CASE_ID, sender)
+    tree = create_create_case_received_tree(
+        event.case,
+        _CASE_ID,
+        sender,
+        sender_rule=CreateCaseReceivedUseCase.sender_entitlement,
+    )
     result = BTBridge(datalayer=dl).execute_with_setup(
         tree=tree, actor_id=_RECEIVER, activity=event
     )
@@ -112,6 +123,21 @@ def test_pending_link_selects_the_trusted_route(dl, make_payload):
     assert bound.case_id == _CASE_ID
 
 
+@pytest.mark.spec("CBT-01-005")
+def test_a_sender_id_differing_by_a_trailing_slash_is_the_anchored_creator(
+    dl, make_payload
+):
+    """The guard and the route compare actor ids the same way, so the one
+    actor written two ways takes the trusted route (#4522)."""
+    dl.save(_link())
+
+    _, result, route, _ = _run(dl, make_payload, f"{_CREATOR}/", _case())
+
+    assert result.status == Status.SUCCESS
+    assert route.name == "trusted"
+    assert isinstance(dl.read(_CASE_ID), VulnerabilityCase)
+
+
 def test_route_is_chosen_before_the_trusted_write_changes_the_answer(
     dl, make_payload
 ):
@@ -139,15 +165,41 @@ def test_bound_link_selects_redelivery_and_writes_nothing(dl, make_payload):
 
 
 @pytest.mark.spec("CBT-01-011")
+@pytest.mark.spec("HP-01-008")
 def test_no_anchor_is_refused_though_the_snapshot_names_the_sender_manager(
     dl, make_payload
 ):
-    """#4472: the sender's own roster is not an anchor, so nothing is stored."""
-    _, result, route, _ = _run(dl, make_payload, _CREATOR, _case())
+    """#4472: the sender's own roster is not an anchor, so nothing is stored.
+
+    The composed sender guard refuses it before any route is chosen.
+    """
+    tree, result, route, _ = _run(dl, make_payload, _CREATOR, _case())
 
     assert result.status == Status.FAILURE
-    assert route.name == "unanchored"
+    assert node_failed(tree, SenderIsExpectedCaseCreatorNode)
+    assert route.name is None
     assert route.replica_stored is False
+    assert dl.read(_CASE_ID) is None
+
+
+@pytest.mark.spec("CBT-01-011")
+def test_a_link_bound_to_another_case_does_not_vouch_for_this_one(
+    dl, make_payload
+):
+    """A creator anchored for one case is not trusted to bootstrap another."""
+    dl.save(
+        VultronReportCaseLink(
+            report_id=_REPORT_ID,
+            case_id="https://example.org/cases/another",
+            case_creator_id=_CREATOR,
+        )
+    )
+
+    tree, result, route, _ = _run(dl, make_payload, _CREATOR, _case())
+
+    assert result.status == Status.FAILURE
+    assert node_failed(tree, SenderIsExpectedCaseCreatorNode)
+    assert route.name is None
     assert dl.read(_CASE_ID) is None
 
 
@@ -176,7 +228,7 @@ def test_unanchored_refusal_names_the_untrusted_sender(dl, make_payload):
     tree, result, route, _ = _run(dl, make_payload, _IMPOSTER, _case())
 
     assert result.status == Status.FAILURE
-    assert route.name == "unanchored"
+    assert route.name is None
     reason = BTBridge.get_failure_reason(tree)
     assert _IMPOSTER in reason
     assert "CBT-01-011" in reason
@@ -306,7 +358,12 @@ def _run_at_owner(
         owner_dl.save(_link(creator=sender))
     activity = create_case_activity(case, actor=sender, to=[_OWNER])
     event = cast(CreateCaseReceivedEvent, extract_event(activity))
-    tree = create_create_case_received_tree(event.case, _CASE_ID, sender)
+    tree = create_create_case_received_tree(
+        event.case,
+        _CASE_ID,
+        sender,
+        sender_rule=CreateCaseReceivedUseCase.sender_entitlement,
+    )
     result = BTBridge(
         datalayer=owner_dl, trigger_activity=TriggerActivityAdapter(owner_dl)
     ).execute_with_setup(tree=tree, actor_id=_OWNER, activity=event)
@@ -429,7 +486,12 @@ def test_reporter_receiving_the_introduction_relays_nothing(dl, make_payload):
     case = _owned_case(extra=(_participant(_RECEIVER, CVDRole.REPORTER),))
     activity = create_case_activity(case, actor=_OWNER, to=[_RECEIVER])
     event = make_payload(activity)
-    tree = create_create_case_received_tree(event.case, _CASE_ID, _OWNER)
+    tree = create_create_case_received_tree(
+        event.case,
+        _CASE_ID,
+        _OWNER,
+        sender_rule=CreateCaseReceivedUseCase.sender_entitlement,
+    )
     result = BTBridge(
         datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
     ).execute_with_setup(tree=tree, actor_id=_RECEIVER, activity=event)
@@ -560,7 +622,12 @@ def test_reporter_trusts_a_receiver_that_is_its_own_case_manager(
     )
     activity = create_case_activity(case, actor=_OWNER, to=[_RECEIVER])
     event = make_payload(activity)
-    tree = create_create_case_received_tree(event.case, _CASE_ID, _OWNER)
+    tree = create_create_case_received_tree(
+        event.case,
+        _CASE_ID,
+        _OWNER,
+        sender_rule=CreateCaseReceivedUseCase.sender_entitlement,
+    )
     result = BTBridge(
         datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
     ).execute_with_setup(tree=tree, actor_id=_RECEIVER, activity=event)

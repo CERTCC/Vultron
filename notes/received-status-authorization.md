@@ -50,8 +50,10 @@ property of the pipeline:
 
 - **Only the CASE_MANAGER turns an announcement into case state.** It applies the
   state machine's acceptance rule to the *sender's* declaration, whichever
-  message carried it (RSH-06-006, RSH-08-001). Every other participant applies
-  the ledger (PCR-03-001, RSH-08-003).
+  message carried it (RSH-06-006, RSH-08-001). A participant declares in
+  `Add(ParticipantStatus)`; `Add(CaseStatus)` is the CASE_MANAGER's own
+  (RSH-04-005). Every other participant applies the ledger (PCR-03-001,
+  RSH-08-003).
 - **One RM acceptance rule, from one place.** The activity-typed RM handlers and
   `FilterParticipantStatusDimensionsNode` share `classify_rm_declaration`
   (`core/states/rm.py`), composed by `report/rm_declaration_tree.py`. Tests on
@@ -202,6 +204,9 @@ sender check: authorization happened at the gates.
 - **Only the CASE_MANAGER emits `Add(CaseStatus)`.** Other participants embed a
   suggested `CaseStatus` in `Add(ParticipantStatus)` and let the gates decide
   (RSH-04-001).
+- **Refuse `Add(CaseStatus)` from anyone else.** `add_case_status_tree` has no
+  adoption gate, so admitting it from a participant skips the Case Owner's
+  approval (RSH-04-005, RSH-07-001).
 - **Every CASE_MANAGER-side EM or P/X/A mutation is followed by a canonical
   `CaseStatus` ledger write** through `EmitCaseStatusUpdateNode` (RSH-04-002,
   RSH-04-003); without it every replica stays stale. Wire it after any new EM

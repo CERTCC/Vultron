@@ -31,7 +31,6 @@ import py_trees.behaviour
 
 from vultron.core.behaviors.report.trigger_report_trees import (
     create_ack_report_trigger_tree,
-    create_close_case_trigger_tree,
     create_invalidate_report_trigger_tree,
     create_reject_report_trigger_tree,
     submit_report_trigger_bt,
@@ -55,7 +54,6 @@ from vultron.core.use_cases.triggers._helpers import (
 )
 from vultron.core.use_cases.triggers.requests import (
     AckReportTriggerRequest,
-    CloseReportTriggerRequest,
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
     SubmitReportTriggerRequest,
@@ -257,58 +255,6 @@ class SvcRejectReportUseCase(SvcActivityTriggerBase):
             self._report.id_,
             request.note,
         )
-
-
-class SvcCloseCaseUseCase(SvcActivityTriggerBase):
-    """Close a VulnerabilityCase via the RM lifecycle (RM → C transition).
-
-    Only the Case Owner may close the case.  The ``case_id`` is resolved
-    from the ``VulnerabilityCase`` linked to the report at ``_prepare`` time
-    and injected into the BT via ``_extra_execute_kwargs`` so that
-    ``CheckIsCaseOwnerNode`` can validate the CASE_OWNER role.
-    """
-
-    def _prepare(self) -> None:
-        request = cast(CloseReportTriggerRequest, self._request)
-        actor = resolve_actor(request.actor_id, self._dl)
-        self._actor_id = actor.id_
-        self._offer, self._report = _resolve_offer_and_report(
-            request.offer_id, self._dl
-        )
-        case = self._dl.find_case_by_report_id(self._report.id_)
-        if case is None:
-            raise VultronNotFoundError(
-                "VulnerabilityCase", f"linked to report {self._report.id_}"
-            )
-        self._case_id: str = case.id_
-
-    def _build_tree(self) -> py_trees.behaviour.Behaviour:
-        return create_close_case_trigger_tree(
-            actor_id=self._actor_id,
-            case_id=self._case_id,
-            offer_id=self._offer.offer_id,
-            report_id=self._report.id_,
-            result_out=self._result_out,
-            captured=self._captured,
-        )
-
-    def _extra_execute_kwargs(self) -> dict:
-        return {"case_id": self._case_id}
-
-    def _handle_result(self) -> None:
-        request = cast(CloseReportTriggerRequest, self._request)
-        logger.info(
-            "Actor '%s' closed case '%s' (offer '%s', report '%s')"
-            " via RM lifecycle; note: %s",
-            self._actor_id,
-            self._case_id,
-            self._offer.offer_id,
-            self._report.id_,
-            request.note,
-        )
-
-
-SvcCloseReportUseCase = SvcCloseCaseUseCase
 
 
 class SvcSubmitReportUseCase(SvcBTTriggerBase[OfferResult]):

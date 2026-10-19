@@ -98,7 +98,6 @@ def announce_embargo_received_tree(
     return create_receive_activity_tree(
         name="AnnounceEmbargoEventToCaseReceivedBT",
         case_id=None,
-        addressee_check="Announce(EmbargoEvent)",
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_id, case_id),
         precondition_guards=[],

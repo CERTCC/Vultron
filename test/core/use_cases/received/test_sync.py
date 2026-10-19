@@ -18,6 +18,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.case_manager import add_case_manager_participant
+from test.support.inbox_hand_back import (
+    HandedBack,
+    RecordingInboxHandBack,
+    deliver_handed_back,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case import VulnerabilityCase
@@ -28,13 +34,14 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
+from vultron.core.models.pending_assertion import PendingAssertionStore
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.sync_helpers import reconstruct_tail_hash
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
-    _reconstruct_tail_hash,
-    drain_gap_buffer,
 )
+from vultron.errors import VultronBTInternalError
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
@@ -94,9 +101,13 @@ def first_entry() -> CaseLedgerEntry:
 
 @pytest.fixture
 def case_with_genesis(dl) -> VulnerabilityCase:
-    """Create and store a VulnerabilityCase so genesis hash is known."""
+    """Create and store a VulnerabilityCase so genesis hash is known.
+
+    Its roster names ``ACTOR_URI`` as CASE_MANAGER, the sender a handed-back
+    entry is attributed to (SYNC-14-009).
+    """
     case = _make_case()
-    dl.save(case)
+    add_case_manager_participant(dl, case, ACTOR_URI)
     return case
 
 
@@ -119,7 +130,7 @@ class TestReconstructTailHash:
     def test_empty_log_returns_genesis(self, dl):
         case = _make_case()
         dl.save(case)
-        tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
+        tail_hash, tail_index = reconstruct_tail_hash(CASE_URI, dl)
         assert tail_hash == case.genesis_hash
         assert len(tail_hash) == 64
         assert tail_index == -1
@@ -136,12 +147,12 @@ class TestReconstructTailHash:
         from vultron.errors import VultronValidationError
 
         with pytest.raises(VultronValidationError, match="genesis hash"):
-            _reconstruct_tail_hash(CASE_URI, dl)
+            reconstruct_tail_hash(CASE_URI, dl)
 
     @pytest.mark.spec("SYNC-01-002")
     def test_one_entry_returns_its_hash(self, dl, first_entry):
         dl.save(first_entry)
-        tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
+        tail_hash, tail_index = reconstruct_tail_hash(CASE_URI, dl)
         assert tail_hash == first_entry.entry_hash
         assert tail_index == 0
 
@@ -150,7 +161,7 @@ class TestReconstructTailHash:
         dl.save(first_entry)
         second = _make_entry(CASE_URI, 1, first_entry.entry_hash)
         dl.save(second)
-        tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
+        tail_hash, tail_index = reconstruct_tail_hash(CASE_URI, dl)
         assert tail_hash == second.entry_hash
         assert tail_index == 1
 
@@ -159,7 +170,7 @@ class TestReconstructTailHash:
         dl.save(first_entry)
         other = _make_entry("https://example.org/cases/other", 0, _ZERO_HASH)
         dl.save(other)
-        tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
+        tail_hash, tail_index = reconstruct_tail_hash(CASE_URI, dl)
         assert tail_hash == first_entry.entry_hash
         assert tail_index == 0
 
@@ -174,7 +185,9 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
-        activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
+        activity = announce_log_entry_activity(
+            wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI]
+        )
         event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
         # The inbox adapter always sets receiving_actor_id in production; set
         # it here so the reject is enqueued against the receiving actor's
@@ -389,7 +402,9 @@ class TestOutOfOrderAnnounceBuffering:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
-        activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
+        activity = announce_log_entry_activity(
+            wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI]
+        )
         return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
 
     def _chain(
@@ -404,6 +419,28 @@ class TestOutOfOrderAnnounceBuffering:
             prev = entry.entry_hash
         return entries
 
+    def _deliver(
+        self,
+        dl: SqliteDataLayer,
+        entry: CaseLedgerEntry,
+        gap_buffer: LedgerGapBuffer,
+        sync_port: SyncActivityPort,
+        hand_back: RecordingInboxHandBack,
+    ) -> None:
+        """Deliver *entry*, then each entry its tree hands back, in turn."""
+
+        def run(event: AnnounceLogEntryReceivedEvent) -> None:
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                event,
+                sync_port=sync_port,
+                gap_buffer=gap_buffer,
+                inbox_hand_back=hand_back,
+            ).execute()
+
+        run(self._make_event(entry))
+        deliver_handed_back(hand_back, run)
+
     def _present_indices(self, dl: SqliteDataLayer) -> set[int]:
         return {
             obj.log_index
@@ -411,6 +448,108 @@ class TestOutOfOrderAnnounceBuffering:
             if getattr(obj, "case_id", None) == CASE_URI
             and isinstance(obj, CaseLedgerEntry)
         }
+
+    @pytest.mark.spec("SYNC-14-009")
+    def test_commit_hands_back_buffered_successor_without_running_it(
+        self, dl, case_with_genesis, gap_buffer
+    ):
+        """Committing e0 with e1 buffered hands e1 to the inbox port, from
+        the CASE_MANAGER and under the receiving actor, and runs no second
+        tree in the same ``execute()`` (SYNC-14-009, CLP-10-005)."""
+        e0, e1 = self._chain(case_with_genesis, 2)
+        assert gap_buffer.buffer(e1)
+        hand_back = RecordingInboxHandBack()
+        event = self._make_event(e0).model_copy(
+            update={"receiving_actor_id": RECEIVER_URI}
+        )
+
+        result = AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+            gap_buffer=gap_buffer,
+            inbox_hand_back=hand_back,
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert hand_back.handed_back == [
+            HandedBack(
+                entry=e1,
+                case_manager_id=ACTOR_URI,
+                receiving_actor_id=RECEIVER_URI,
+            )
+        ]
+        # e1 left the buffer for the inbox, and this delivery did not apply it.
+        assert gap_buffer.depth(CASE_URI) == 0
+        assert self._present_indices(dl) == {0}
+
+    @pytest.mark.spec("SYNC-14-009")
+    def test_only_the_next_successor_is_handed_back(
+        self, dl, case_with_genesis, gap_buffer
+    ):
+        """With e1 and e2 buffered, committing e0 hands back e1 alone: e1's
+        own delivery hands back e2, so the use case has no drain loop."""
+        e0, e1, e2 = self._chain(case_with_genesis, 3)
+        gap_buffer.buffer(e1)
+        gap_buffer.buffer(e2)
+        hand_back = RecordingInboxHandBack()
+
+        AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            self._make_event(e0),
+            sync_port=MagicMock(spec=SyncActivityPort),
+            gap_buffer=gap_buffer,
+            inbox_hand_back=hand_back,
+        ).execute()
+
+        assert [h.entry for h in hand_back.handed_back] == [e1]
+        assert gap_buffer.depth(CASE_URI) == 1
+
+    @pytest.mark.spec("SYNC-14-009")
+    def test_no_case_manager_leaves_the_successor_held(
+        self, dl, gap_buffer, caplog
+    ):
+        """The drain never guesses a sender: with no CASE_MANAGER on the
+        roster, the successor is not handed back and stays buffered."""
+        case = _make_case()
+        dl.save(case)  # no CASE_MANAGER participant
+        e0, e1 = self._chain(case, 2)
+        gap_buffer.buffer(e1)
+        hand_back = RecordingInboxHandBack()
+
+        with caplog.at_level("WARNING"):
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                self._make_event(e0),
+                sync_port=MagicMock(spec=SyncActivityPort),
+                gap_buffer=gap_buffer,
+                inbox_hand_back=hand_back,
+            ).execute()
+
+        assert hand_back.handed_back == []
+        assert gap_buffer.depth(CASE_URI) == 1
+        assert "no resolvable CASE_MANAGER" in caplog.text
+
+    @pytest.mark.spec("SYNC-14-009")
+    def test_missing_hand_back_port_is_a_wiring_error(
+        self, dl, case_with_genesis, gap_buffer
+    ):
+        """No port with a successor waiting is a composition fault: the
+        handler raises and the successor stays buffered, never applied
+        inline."""
+        e0, e1 = self._chain(case_with_genesis, 2)
+        gap_buffer.buffer(e1)
+
+        with pytest.raises(VultronBTInternalError, match="inbox_hand_back"):
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                self._make_event(e0),
+                sync_port=MagicMock(spec=SyncActivityPort),
+                gap_buffer=gap_buffer,
+            ).execute()
+
+        assert dl.read(e1.id_) is None
+        assert gap_buffer.depth(CASE_URI) == 1
 
     @pytest.mark.spec("SYNC-14-001")
     @pytest.mark.spec("SYNC-14-003")
@@ -422,15 +561,11 @@ class TestOutOfOrderAnnounceBuffering:
         """
         e0, e1, e2 = self._chain(case_with_genesis, 3)
         sync_port = MagicMock(spec=SyncActivityPort)
+        hand_back = RecordingInboxHandBack()
 
         # Reverse order: the two later entries arrive before their predecessor.
         for entry in (e2, e1, e0):
-            AnnounceLedgerEntryReceivedUseCase(
-                dl,
-                self._make_event(entry),
-                sync_port=sync_port,
-                gap_buffer=gap_buffer,
-            ).execute()
+            self._deliver(dl, entry, gap_buffer, sync_port, hand_back)
 
         assert self._present_indices(dl) == {0, 1, 2}
 
@@ -444,24 +579,15 @@ class TestOutOfOrderAnnounceBuffering:
         """
         e0, e1 = self._chain(case_with_genesis, 2)
         sync_port = MagicMock(spec=SyncActivityPort)
+        hand_back = RecordingInboxHandBack()
 
-        AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            self._make_event(e1),
-            sync_port=sync_port,
-            gap_buffer=gap_buffer,
-        ).execute()
+        self._deliver(dl, e1, gap_buffer, sync_port, hand_back)
         # Before the predecessor arrives, nothing is stored but the entry is
         # held in the buffer (not dropped).
         assert self._present_indices(dl) == set()
         assert gap_buffer.depth(CASE_URI) == 1
 
-        AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            self._make_event(e0),
-            sync_port=sync_port,
-            gap_buffer=gap_buffer,
-        ).execute()
+        self._deliver(dl, e0, gap_buffer, sync_port, hand_back)
         assert self._present_indices(dl) == {0, 1}
         assert gap_buffer.depth(CASE_URI) == 0
 
@@ -478,35 +604,21 @@ class TestOutOfOrderAnnounceBuffering:
         """
         e0, e1, e2, e3, e4, e5, e6 = self._chain(case_with_genesis, 7)
         sync_port = MagicMock(spec=SyncActivityPort)
+        hand_back = RecordingInboxHandBack()
 
         # Establish a contiguous prefix 0,1,2.
         for entry in (e0, e1, e2):
-            AnnounceLedgerEntryReceivedUseCase(
-                dl,
-                self._make_event(entry),
-                sync_port=sync_port,
-                gap_buffer=gap_buffer,
-            ).execute()
+            self._deliver(dl, entry, gap_buffer, sync_port, hand_back)
         assert self._present_indices(dl) == {0, 1, 2}
 
         # 4, 5 and 6 arrive out of order (all forward gaps) and are buffered.
         for entry in (e4, e5, e6):
-            AnnounceLedgerEntryReceivedUseCase(
-                dl,
-                self._make_event(entry),
-                sync_port=sync_port,
-                gap_buffer=gap_buffer,
-            ).execute()
+            self._deliver(dl, entry, gap_buffer, sync_port, hand_back)
         assert self._present_indices(dl) == {0, 1, 2}
         assert gap_buffer.depth(CASE_URI) == 3
 
         # 3 lands → cascade should drain 4, 5, 6 as well.
-        AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            self._make_event(e3),
-            sync_port=sync_port,
-            gap_buffer=gap_buffer,
-        ).execute()
+        self._deliver(dl, e3, gap_buffer, sync_port, hand_back)
         assert self._present_indices(dl) == {0, 1, 2, 3, 4, 5, 6}
         assert gap_buffer.depth(CASE_URI) == 0
 
@@ -525,22 +637,13 @@ class TestOutOfOrderAnnounceBuffering:
         # Participant is stuck at index 0; the CaseActor replays 1..4.
         entries = self._chain(case_with_genesis, 5)
         sync_port = MagicMock(spec=SyncActivityPort)
-        AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            self._make_event(entries[0]),
-            sync_port=sync_port,
-            gap_buffer=gap_buffer,
-        ).execute()
+        hand_back = RecordingInboxHandBack()
+        self._deliver(dl, entries[0], gap_buffer, sync_port, hand_back)
         assert self._present_indices(dl) == {0}
 
         # Replayed entries arrive in a shuffled order (3, 1, 4, 2).
         for entry in (entries[3], entries[1], entries[4], entries[2]):
-            AnnounceLedgerEntryReceivedUseCase(
-                dl,
-                self._make_event(entry),
-                sync_port=sync_port,
-                gap_buffer=gap_buffer,
-            ).execute()
+            self._deliver(dl, entry, gap_buffer, sync_port, hand_back)
 
         assert self._present_indices(dl) == {0, 1, 2, 3, 4}
 
@@ -568,7 +671,9 @@ class TestPreGenesisAnnounceBuffering:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
-        activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
+        activity = announce_log_entry_activity(
+            wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI]
+        )
         event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
         return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
@@ -595,73 +700,6 @@ class TestPreGenesisAnnounceBuffering:
         # Reject still queued as the backstop (SYNC-15-001).
         assert len(dl.outbox_list()) == 1
 
-    @pytest.mark.spec("SYNC-15-004")
-    @pytest.mark.spec("SYNC-15-005")
-    def test_buffered_pre_genesis_entry_drains_when_case_seeded(
-        self, dl, gap_buffer
-    ):
-        """Once the case is seeded, the buffered genesis entry applies via the
-        same effects-before-persist path (SYNC-15-005, SYNC-14-004)."""
-        case = _make_case()
-        entry = _make_entry(CASE_URI, 0, case.genesis_hash)
-        sync_port = SyncActivityAdapter(dl)
-
-        AnnounceLedgerEntryReceivedUseCase(
-            dl,
-            self._make_event(entry),
-            sync_port=sync_port,
-            gap_buffer=gap_buffer,
-        ).execute()
-        assert dl.read(entry.id_) is None
-        assert gap_buffer.depth(CASE_URI) == 1
-
-        # Seed the case — genesis anchor is now derivable (deterministic from
-        # attributed_to), so the buffered entry can drain.
-        dl.save(case)
-        drain_gap_buffer(
-            dl,
-            CASE_URI,
-            RECEIVER_URI,
-            gap_buffer,
-            sync_port,
-        )
-
-        assert dl.read(entry.id_) is not None
-        assert gap_buffer.depth(CASE_URI) == 0
-
-    @pytest.mark.spec("SYNC-15-004")
-    @pytest.mark.spec("SYNC-15-005")
-    def test_pre_genesis_cascade_drains_full_chain_on_seed(
-        self, dl, gap_buffer
-    ):
-        """Several entries arriving pre-genesis all buffer, then cascade-drain
-        in hash-chain order the moment the case is seeded."""
-        case = _make_case()
-        prev = case.genesis_hash
-        entries: list[CaseLedgerEntry] = []
-        for i in range(3):
-            e = _make_entry(CASE_URI, i, prev)
-            entries.append(e)
-            prev = e.entry_hash
-        sync_port = SyncActivityAdapter(dl)
-
-        # All three arrive before the case is seeded.
-        for e in entries:
-            AnnounceLedgerEntryReceivedUseCase(
-                dl,
-                self._make_event(e),
-                sync_port=sync_port,
-                gap_buffer=gap_buffer,
-            ).execute()
-        assert gap_buffer.depth(CASE_URI) == 3
-        assert dl.read(entries[0].id_) is None
-
-        dl.save(case)
-        drain_gap_buffer(dl, CASE_URI, RECEIVER_URI, gap_buffer, sync_port)
-
-        assert all(dl.read(e.id_) is not None for e in entries)
-        assert gap_buffer.depth(CASE_URI) == 0
-
 
 class TestAnnounceLedgerEntryDisposition:
     """Each ``Announce(CaseLedgerEntry)`` exit reports what happened (#2255).
@@ -683,7 +721,9 @@ class TestAnnounceLedgerEntryDisposition:
         wire_entry = WireCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
-        activity = announce_log_entry_activity(wire_entry, actor=actor)
+        activity = announce_log_entry_activity(
+            wire_entry, actor=actor, to=[RECEIVER_URI]
+        )
         event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
         return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
@@ -708,12 +748,13 @@ class TestAnnounceLedgerEntryDisposition:
         case.actor_participant_index[manager_id] = manager.id_
         dl.create(case)
 
-    def _run(self, dl, event, gap_buffer=None):
+    def _run(self, dl, event, gap_buffer=None, hand_back=None):
         return AnnounceLedgerEntryReceivedUseCase(
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
             gap_buffer=gap_buffer,
+            inbox_hand_back=hand_back,
         ).execute()
 
     @pytest.mark.spec("HP-01-003")
@@ -781,11 +822,18 @@ class TestAnnounceLedgerEntryDisposition:
     ):
         e0 = _make_entry(CASE_URI, 0, case_with_genesis.genesis_hash)
         e1 = _make_entry(CASE_URI, 1, e0.entry_hash)
-        self._run(dl, self._make_event(e1), gap_buffer)
+        hand_back = RecordingInboxHandBack()
+        self._run(dl, self._make_event(e1), gap_buffer, hand_back)
 
-        result = self._run(dl, self._make_event(e0), gap_buffer)
+        result = self._run(dl, self._make_event(e0), gap_buffer, hand_back)
 
         assert result.disposition == HandlerDisposition.APPLIED
+        # e1 is its own delivery, handed back to the inbox (SYNC-14-009).
+        assert dl.read(e1.id_) is None
+        deliver_handed_back(
+            hand_back,
+            lambda ev: self._run(dl, ev, gap_buffer, hand_back),
+        )
         assert dl.read(e1.id_) is not None
 
     @pytest.mark.spec("HP-01-003")
@@ -855,3 +903,61 @@ class TestAnnounceLedgerEntryDisposition:
         assert result.reason is not None
         assert self._IMPOSTER_URI in result.reason
         assert "is not the CASE_MANAGER" in result.reason
+
+
+class TestUnaddressedAnnounceActsOnNothing:
+    """A copy the addressee door guard refuses hands nothing back and leaves
+    the receiver's pending assertion pending (HP-01-005, #4832)."""
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("HP-01-012")
+    def test_refused_copy_hands_nothing_back_and_clears_no_assertion(
+        self, dl, case_with_genesis
+    ):
+        """The same delivery addressed to the receiver commits e0 and hands
+        e1 back (``test_commit_hands_back_buffered_successor_without_running_it``);
+        unaddressed, the door refuses it before either happens."""
+        genesis = _make_entry(CASE_URI, 0, case_with_genesis.genesis_hash)
+        successor = _make_entry(CASE_URI, 1, genesis.entry_hash)
+        # The successor waits in the buffer for the genesis entry the copy
+        # announces, so an admitted copy would hand it back.
+        gap_buffer = LedgerGapBuffer()
+        gap_buffer.buffer(successor)
+        pending = PendingAssertionStore()
+        pending.add(CASE_URI, genesis.event_type, genesis.log_object_id)
+        hand_back = RecordingInboxHandBack()
+        sync_port = MagicMock(spec=SyncActivityPort)
+        wire_entry = WireCaseLedgerEntry.model_validate(
+            genesis.model_dump(mode="json")
+        )
+        copy = cast(
+            AnnounceLogEntryReceivedEvent,
+            extract_event(
+                announce_log_entry_activity(
+                    wire_entry,
+                    actor=ACTOR_URI,
+                    to=["https://example.org/actors/someone-else"],
+                )
+            ),
+        ).model_copy(update={"receiving_actor_id": RECEIVER_URI})
+
+        result = AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            copy,
+            sync_port=sync_port,
+            pending_assertions=pending,
+            gap_buffer=gap_buffer,
+            inbox_hand_back=hand_back,
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert hand_back.handed_back == []
+        assert "unaddressed copy is refused (HP-01-005)" in (
+            result.reason or ""
+        )
+        assert gap_buffer.depth(CASE_URI) == 1
+        assert pending.is_suppressed(
+            CASE_URI, genesis.event_type, genesis.log_object_id
+        )
+        assert sync_port.mock_calls == []
+        assert dl.list_objects("CaseLedgerEntry") == []

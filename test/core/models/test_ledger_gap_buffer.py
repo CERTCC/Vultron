@@ -83,6 +83,17 @@ class TestBufferAndTakeNext:
         assert taken.log_index == 1
         assert buf.depth(CASE_A) == 0
 
+    def test_peek_next_finds_the_successor_without_taking_it(self):
+        buf = LedgerGapBuffer()
+        e0, e1 = _chain(2)
+        buf.buffer(e1)
+        assert buf.peek_next(CASE_A, e0.entry_hash) == e1
+        assert buf.depth(CASE_A) == 1
+        assert buf.peek_next(CASE_A, "deadbeef" * 8) is None
+        assert (
+            buf.peek_next("https://example.org/cases/none", "0" * 64) is None
+        )
+
     def test_take_next_wrong_tail_returns_none(self):
         buf = LedgerGapBuffer()
         _e0, e1, _e2 = _chain(3)

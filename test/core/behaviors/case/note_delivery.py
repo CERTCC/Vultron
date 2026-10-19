@@ -29,13 +29,19 @@ SENDER = "https://example.org/actors/sender"
 CASE_ID = "https://example.org/cases/intake-only"
 
 
-def create_note_delivery() -> tuple[as_Note, as_Create, AnyReceivedEvent]:
-    """Return the note, the ``Create(Note)`` carrying it, and its event."""
+def create_note_delivery(
+    to: str,
+) -> tuple[as_Note, as_Create, AnyReceivedEvent]:
+    """Return the note, the ``Create(Note)`` carrying it, and its event.
+
+    The activity is addressed *to* the actor the tree runs as: every received
+    tree refuses a copy that does not name the receiver (HP-01-005).
+    """
     note = as_Note(
         id_=f"{CASE_ID}/notes/n1",
         name="intake-only",
         content="a note",
         context=CASE_ID,
     )
-    activity = as_Create(actor=SENDER, object_=note, context=CASE_ID)
+    activity = as_Create(actor=SENDER, object_=note, context=CASE_ID, to=[to])
     return note, activity, extract_event(activity)

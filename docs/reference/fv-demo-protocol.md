@@ -333,8 +333,8 @@ POST /api/v2/actors/{finder_id}/demo/notify-published
 ### Triggers
 
 ```text
-POST /api/v2/actors/{finder_id}/demo/close-case
-POST /api/v2/actors/{vendor_id}/demo/close-case
+POST /api/v2/actors/{finder_id}/trigger/leave-case
+POST /api/v2/actors/{vendor_id}/trigger/leave-case
 ```
 
 ### Activities
@@ -443,7 +443,7 @@ The table shows the states the FV run traverses in each.
 
 | Machine | Path the run traverses | Notes |
 |:--------|:-----------------------|:------|
-| RM (Vendor) | `RECEIVED → VALID → ACCEPTED → CLOSED` | driven by `validate-report`, `engage-case`, `close-case` |
+| RM (Vendor) | `RECEIVED → VALID → ACCEPTED → CLOSED` | driven by `validate-report`, `engage-case`, `leave-case` |
 | RM (Finder) | `ACCEPTED → CLOSED` | seated at `ACCEPTED` on creation (CBT-01-008) |
 | RM (Case Actor) | `RECEIVED → VALID → ACCEPTED → CLOSED` | its own record tracks the proposal and the owner closure (CM-23-005) |
 | EM | `ACTIVE → EXITED` | the default embargo is active from creation; `PROPOSED` is never entered |
@@ -474,8 +474,8 @@ The demo is a live protocol run, not a simulation.
 |:-----|:-----|
 | `vultron/demo/scenario/fv_demo.py` | Demo orchestration script |
 | `vultron/demo/helpers/` | Shared helper modules for scenario scripts: actor roles, seeding, causal polling and gating, verification, and workflow emission |
-| `vultron/adapters/driving/fastapi/routers/trigger_report.py`, `trigger_case.py` | Protocol trigger endpoints (`submit-report`, `validate-report`, `engage-case`) |
-| `vultron/adapters/driving/fastapi/routers/demo_triggers.py` | Demo-only trigger endpoints (`add-note-to-case`, `notify-*`, `close-case`) |
+| `vultron/adapters/driving/fastapi/routers/trigger_report.py`, `trigger_case.py` | Protocol trigger endpoints (`submit-report`, `validate-report`, `engage-case`, `leave-case`) |
+| `vultron/adapters/driving/fastapi/routers/demo_triggers.py` | Demo-only trigger endpoints (`add-note-to-case`, `notify-*`) |
 | `vultron/adapters/driving/fastapi/routers/actors/` | Inbox endpoint |
 | `vultron/wire/as2/extractor/` | Activity pattern matching (AS2 → `MessageSemantics`) |
 | `vultron/core/dispatcher.py` | Message routing (`MessageSemantics` → use case) |

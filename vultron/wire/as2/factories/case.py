@@ -625,6 +625,11 @@ def offer_case_ownership_transfer_activity(
     a bare string ID, so the recipient can distinguish this activity from
     a ``SUBMIT_REPORT`` Offer during semantic pattern matching.
 
+    A *target* given as a bare actor URI is wrapped as an ``as_Actor`` so the
+    transferee travels and is stored inline (DL-08-003): the CASE_MANAGER
+    need not hold the transferee's profile, and its ledger snapshot must
+    carry the transferee inline (CLP-07-006).
+
     Args:
         case: The ``as_VulnerabilityCase`` whose ownership is being offered.
         target: The actor (or actor URI) to whom ownership is offered.
@@ -637,6 +642,8 @@ def offer_case_ownership_transfer_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
+    if isinstance(target, str):
+        target = as_Actor(id_=target)
     try:
         return _OfferCaseOwnershipTransferActivity(
             object_=case, target=target, **kwargs

@@ -1444,7 +1444,8 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         assert activity_data["type"] == "Offer"
         assert activity_data["actor"] == owner.id_
         assert activity_data.get("to") == [case_actor.id_]
-        assert activity_data.get("target") == transferee.id_
+        # The transferee travels inline (DL-08-003, CLP-07-006, #4843).
+        assert activity_data["target"]["id"] == transferee.id_
         assert "attributedTo" not in activity_data
         assert "cc" not in activity_data
         # Only the CASE_MANAGER's forward links to a recorded Offer

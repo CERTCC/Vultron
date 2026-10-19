@@ -357,7 +357,7 @@ groups:
       not written as ledger entries. Freshness-gate and tail-reconstruction helpers
       operate on the ledger directly and therefore require no disposition filter.
     verification: '`test/core/test_sync_helpers.py` confirms that `is_ledger_fresh_for_case`
-      and `_reconstruct_tail_hash` return correct results with a ledger containing
+      and `reconstruct_tail_hash` return correct results with a ledger containing
       only canonical entries, and that no `disposition` field exists on
       `HashChainLedgerRecord` or `CaseLedgerEntry`.'
     stories:
@@ -604,6 +604,41 @@ groups:
       spec_id: CLP-04-006
     adr:
     - ADR-0124
+    stories:
+    - story_2022_045
+  - id: CLP-07-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When an embargo act's own entry is committed and an entry the act's
+      consequences require is not, the CASE_MANAGER MUST commit the entries it
+      still owes, unchanged from what it decided before the act's first commit and
+      in that order, before any later embargo act on the case reads a consent row.
+      An act whose own entry is not committed owes nothing.
+    rationale: >-
+      The entries after an act's own are committed one at a time, so a failed commit
+      leaves the act committed without its consent rows, a state no single act
+      produces: a proposal in the register that some participant holds no row for,
+      or an invitee whose row never moved to its invitation (ADR-0122). Nothing else
+      re-commits them, because a repeated trigger starts a new act and a redelivered
+      act is stopped by its idempotency guard (#4764). Re-deciding the entries later
+      could decide a different row once the clock or local policy has moved, so the
+      entries are the ones already decided (ADR-0146). The stored plan is case
+      bookkeeping read only to commit those entries unchanged, never to decide a
+      case-file value, so CLP-07-014 still holds.
+    verification: >-
+      A test fails an act's second commit, then runs a CASE_MANAGER embargo tree for
+      the case, and asserts the owed entries are committed in their planned order and
+      the case file equals the one a run with no failure produces; a test stores a
+      plan whose act's own entry did not commit, runs the finishing step, and asserts
+      it commits nothing and discards the plan.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-07-013
+    - rel_type: depends_on
+      spec_id: CLP-07-014
+    adr:
+    - ADR-0146
     stories:
     - story_2022_045
   - id: CLP-07-003
@@ -1659,7 +1694,7 @@ groups:
       (EMB-13-003), MUST be a clock decision of every receive-side tree that
       names a case and has a sender guard and the post-close boundary, with no
       argument from the tree; a tree still exempt from a sender check takes it
-      once it declares its sender rule (ISSUE-4522). A clock decision MUST
+      once it declares its sender rule (HP-01-007). A clock decision MUST
       commit only
       CASE_MANAGER-authored entries, one for each AS2 activity needed to express
       what it decided, and the case-file changes those entries record, and

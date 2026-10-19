@@ -608,6 +608,41 @@ class TestAcceptCaseParticipantOffer:
         )
         assert obj.get("id") == cp_offer_id
 
+    def test_accept_embeds_the_participant_the_owner_received(
+        self, adapter, dl
+    ):
+        """#3763: the Offer the owner received keeps its inline participant.
+
+        Ingress stores the received Offer with its participant as an id and
+        stores no participant record, so the Accept reads the Offer from the
+        intake archive, which holds it as the event carried it.
+        """
+        from vultron.adapters.driving.fastapi.inbox_orchestration import (
+            FastAPIIngressAdapter,
+        )
+
+        case = _make_case(dl)
+        vendor = as_Service(id_=_INVITEE, name="Vendor")
+        offer = offer_case_participant_activity(
+            recommended=vendor, target=case.id_, actor=_ACTOR, to=[_ACTOR]
+        )
+        FastAPIIngressAdapter(dl=dl).parse(
+            offer.model_dump(mode="json", by_alias=True, exclude_none=True)
+        )
+        archive_received(dl, offer)
+        participant_id = getattr(offer.object_, "id_", None)
+        assert participant_id is not None
+        assert dl.read(participant_id) is None
+
+        _, activity_dict = adapter.accept_case_participant_offer(
+            cp_offer_id=offer.id_, actor=_ACTOR
+        )
+
+        embedded = json.loads(activity_dict)["object"]
+        assert embedded["id"] == offer.id_
+        assert isinstance(embedded["object"], dict)
+        assert embedded["object"]["id"] == participant_id
+
 
 _VENDOR = "https://example.org/actors/vendor"
 _CASE_ACTOR = "https://example.org/actors/case-actor"

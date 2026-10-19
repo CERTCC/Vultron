@@ -33,7 +33,6 @@ from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.use_cases.triggers.request_bodies import (
     AckReportRequest,
-    CloseReportRequest,
     InvalidateReportRequest,
     RejectReportRequest,
     SubmitReportRequest,
@@ -41,7 +40,6 @@ from vultron.core.use_cases.triggers.request_bodies import (
 )
 from vultron.core.use_cases.triggers.requests import (
     AckReportTriggerRequest,
-    CloseReportTriggerRequest,
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
     SubmitReportTriggerRequest,
@@ -178,7 +176,9 @@ def trigger_invalidate_report(
         "Persists a ParticipantStatus record with RM.CLOSED for the actor "
         "and report. "
         "Returns HTTP 409 if the report's RM state has no close edge "
-        "(e.g. VALID; VP-02-004): nothing is emitted."
+        "(e.g. VALID; VP-02-004), or if a case holds the report, whose "
+        "participants close their part in it with leave-case instead "
+        "(CM-23-019, TRIG-13-001): nothing is emitted."
     ),
     operation_id="actors_trigger_reject_report",
     response_model=ActivityResult,
@@ -202,50 +202,6 @@ def trigger_reject_report(
     return run_trigger(
         RejectReportTriggerRequest(
             actor_id=actor_id, offer_id=body.offer_id, note=body.note or None
-        ),
-        dispatcher=dispatcher,
-        dl=actor_dl,
-        background_tasks=background_tasks,
-    )
-
-
-@router.post(
-    "/{actor_id}/trigger/close-report",
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Trigger RM lifecycle closure of a report.",
-    description=(
-        "Triggers the close-report behavior for the given actor. "
-        "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) "
-        "representing the RM → C (CLOSED) transition, and returns it in the "
-        "response body (TRIG-04-001). "
-        "Persists a ParticipantStatus record with RM.CLOSED for the actor "
-        "and report. "
-        "Unlike reject-report (a hard-reject, which also accepts a repeat "
-        "close as a confirmation), this endpoint closes a report that has "
-        "progressed through the RM lifecycle. Returns HTTP 409 if the report "
-        "is already CLOSED, or if its RM state has no close edge (e.g. VALID; "
-        "VP-02-004)."
-    ),
-    operation_id="actors_trigger_close_report",
-    response_model=ActivityResult,
-)
-def trigger_close_report(
-    actor_id: str,
-    body: CloseReportRequest,
-    background_tasks: BackgroundTasks,
-    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
-    actor_dl: DataLayer = Depends(get_trigger_dl),
-) -> ActivityResult:
-    """
-    Trigger the close-report (RM → CLOSED) behavior for the given actor.
-
-    Implements:
-        TRIG-01-001, TRIG-01-002, HTTP-03-005, TRIG-02-001, TRIG-03-001, TRIG-03-002,
-        TRIG-03-003, TRIG-04-001, TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
-    """
-    return run_trigger(
-        CloseReportTriggerRequest(
-            actor_id=actor_id, offer_id=body.offer_id, note=body.note
         ),
         dispatcher=dispatcher,
         dl=actor_dl,

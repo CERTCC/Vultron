@@ -97,7 +97,6 @@ def withdraw_from_embargo_on_case_tree(
     root = create_receive_activity_tree(
         name="WithdrawFromEmbargoOnCaseBT",
         case_id=case_id,
-        addressee_check="Leave(EmbargoEvent)",
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=withdrawing_actor_id, case_id=case_id

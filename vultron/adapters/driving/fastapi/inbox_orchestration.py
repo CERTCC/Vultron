@@ -39,9 +39,11 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
+from vultron.adapters.driving.fastapi.inbox_staging import (
+    InlineObjectStaging,
+)
 from vultron.adapters.driving.fastapi.inbox_storage import (
     _store_inbox_activity,
-    _store_nested_inbox_object,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.behaviors.inbox import (
@@ -56,7 +58,6 @@ from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.parser import parse_activity as _parse_activity
-from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
@@ -113,8 +114,11 @@ class FastAPIIngressAdapter:
     ``parse`` parses a raw JSON request-body dict into a typed
     ``as_Activity`` and stores the activity in the *receiving actor's* store so
     later rehydration can resolve references (ADR-0073: there is no shared
-    DataLayer; the ``dl`` handed in is already one actor's own).  ``rehydrate`` deep-hydrates
-    the *in-memory* parsed activity's reference fields via the DataLayer.
+    DataLayer; the ``dl`` handed in is already one actor's own).  It stores
+    nothing from the objects the activity carries inline: only the handler,
+    after its guards, writes a record from those (CLP-10-017, #3763).
+    ``rehydrate`` rebuilds the stored activity with those inline objects
+    staged in a throwaway store (:mod:`.inbox_staging`).
 
     ``rehydrate`` intentionally hydrates the in-memory activity rather than
     re-reading it by ID from the DataLayer.  A by-ID re-read would collapse an
@@ -127,10 +131,15 @@ class FastAPIIngressAdapter:
 
     Args:
         dl: Shared DataLayer (for storing activities and rehydration).
+        staging: The inbox run's inline-object staging, shared with its queue
+            port so a deferred delivery keeps its inline objects for replay.
     """
 
-    def __init__(self, dl: DataLayer) -> None:
+    def __init__(
+        self, dl: DataLayer, staging: InlineObjectStaging | None = None
+    ) -> None:
         self._dl = dl
+        self._staging = staging or InlineObjectStaging(dl)
         # Whether ``parse`` wrote this delivery, or found the id already held.
         self._stored_this_delivery = False
 
@@ -144,7 +153,6 @@ class FastAPIIngressAdapter:
         """
         if isinstance(payload, as_Activity):
             # Already parsed (e.g., passed directly from the router DI).
-            _store_nested_inbox_object(self._dl, payload)
             self._stored_this_delivery = _store_inbox_activity(
                 self._dl, payload
             )
@@ -165,7 +173,6 @@ class FastAPIIngressAdapter:
             )
             return None
 
-        _store_nested_inbox_object(self._dl, activity)
         self._stored_this_delivery = _store_inbox_activity(self._dl, activity)
         return activity
 
@@ -174,7 +181,11 @@ class FastAPIIngressAdapter:
 
         For most activities this re-reads the stored activity by ID through the
         canonical DataLayer pipeline (``_from_row`` → field expansion → semantic
-        coercion), preserving established behavior.
+        coercion), preserving established behavior.  The stored activity names
+        its inline objects by id, and ingress stores none of them, so the
+        re-read runs against a staging store that holds this delivery's inline
+        objects and reads through to the receiver's own (#3763,
+        :class:`~.inbox_staging.InlineObjectStaging`).
 
         An ``Announce(CaseLedgerEntry)`` is the exception: per SYNC-13-002 the
         inline entry is deliberately NOT pre-stored, so a by-ID re-read would
@@ -204,8 +215,8 @@ class FastAPIIngressAdapter:
                 activity, self._hydrate_in_place(activity)
             )
 
-        result = rehydrate(activity.id_, dl=self._dl)
-        if not isinstance(result, as_Activity):
+        result = self._staging.rehydrate_parsed(activity)
+        if result is None:
             return activity
         if not self._stored_this_delivery:
             # The by-id read rebuilt an *earlier* delivery under this id, so
@@ -248,10 +259,15 @@ class StoredActivityIngressAdapter:
 
     Args:
         dl: Shared DataLayer for activity lookup and rehydration.
+        staging: The inbox run's inline-object staging, which holds each
+            deferred activity's inline objects for its replay.
     """
 
-    def __init__(self, dl: DataLayer) -> None:
+    def __init__(
+        self, dl: DataLayer, staging: InlineObjectStaging | None = None
+    ) -> None:
         self._dl = dl
+        self._staging = staging or InlineObjectStaging(dl)
 
     def parse(
         self,
@@ -269,8 +285,8 @@ class StoredActivityIngressAdapter:
             logger.warning("StoredActivityIngressAdapter.parse: empty payload")
             return None
 
-        result = rehydrate(activity_id, dl=self._dl)
-        if isinstance(result, as_Activity):
+        result = self._staging.rehydrate_deferred(activity_id)
+        if result is not None:
             return result
 
         logger.warning(
@@ -326,6 +342,8 @@ class FastAPIQueuePort:
         actor_dl: Actor-scoped DataLayer for queue management.
         actor_id: Canonical URI of the receiving actor; used when
             building a replay Question on expiry.
+        staging: The inbox run's inline-object staging; a deferred activity's
+            staged inline objects are held through it for the replay.
     """
 
     def __init__(
@@ -333,10 +351,12 @@ class FastAPIQueuePort:
         dl: DataLayer,
         actor_dl: DataLayer,
         actor_id: str,
+        staging: InlineObjectStaging | None = None,
     ) -> None:
         self._dl = dl
         self._actor_dl = cast(DataLayer, actor_dl)
         self._actor_id = actor_id
+        self._staging = staging or InlineObjectStaging(actor_dl)
 
     def is_case_known(self, case_id: str) -> bool:
         """Return ``True`` if the case replica is locally available."""
@@ -348,13 +368,18 @@ class FastAPIQueuePort:
         case_id: str,
         case_actor_id: str | None = None,
     ) -> None:
-        """Persist *activity_id* in the deferred queue for *case_id*."""
+        """Persist *activity_id* in the deferred queue for *case_id*.
+
+        The activity's staged inline objects are held with it, because the
+        replay rebuilds it by id after this delivery's staging is gone.
+        """
         _queue_pending_case_activity(
             queue_dl=self._actor_dl,
             case_id=case_id,
             activity_id=activity_id,
             case_actor_id=case_actor_id,
         )
+        self._staging.hold_for_replay(activity_id)
 
     def check_and_expire(self, case_id: str) -> bool:
         """Check expiry; drop queue and return ``True`` when expired."""
@@ -428,7 +453,8 @@ async def run_inbox_pipeline(
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
     """
-    ingress = FastAPIIngressAdapter(dl=actor_dl)
+    staging = InlineObjectStaging(actor_dl)
+    ingress = FastAPIIngressAdapter(dl=actor_dl, staging=staging)
     dispatch_adp = FastAPIDispatchAdapter(
         dl=actor_dl, actor_id=actor_id, dispatcher=dispatcher
     )
@@ -436,6 +462,7 @@ async def run_inbox_pipeline(
         dl=actor_dl,
         actor_dl=cast(DataLayer, actor_dl),
         actor_id=actor_id,
+        staging=staging,
     )
 
     # Serialise concurrent inbox background tasks for this actor so that
@@ -464,7 +491,9 @@ async def run_inbox_pipeline(
 
         # Process any replayed activities (pushed back to the queue by
         # DeferCheckNode/DispatchNode replay after bootstrap).
-        stored_ingress = StoredActivityIngressAdapter(dl=actor_dl)
+        stored_ingress = StoredActivityIngressAdapter(
+            dl=actor_dl, staging=staging
+        )
         while actor_dl.inbox_list():
             item_id = actor_dl.inbox_pop()
             if item_id is None:

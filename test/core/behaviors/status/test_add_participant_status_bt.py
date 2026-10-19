@@ -912,6 +912,7 @@ class TestAddParticipantStatusTree:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
+            to=[CASE_MANAGER_ID],
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
@@ -1512,6 +1513,7 @@ class TestRejectionValidatorBeforeCommit:
             status=incoming_status,
             target=vendor_participant,
             actor=ACTOR_ID,
+            to=[CASE_MANAGER_ID],
             context=as_VulnerabilityCase(id_=CASE_ID, name="Fix1 Regression"),
         )
         event = make_payload(activity)

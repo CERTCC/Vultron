@@ -131,6 +131,7 @@ def _owner_reinstates(
         case.participant(actor_id),
         target=CASE_ID,
         actor=by,
+        to=[MANAGER],
         id_=_ADD_ACTIVITY_ID,
     )
 
@@ -298,7 +299,9 @@ def test_add_naming_another_actor_than_the_record_is_refused(
     )
 
     result = case.route(
-        add_participant_to_case_activity(forged, target=CASE_ID, actor=OWNER)
+        add_participant_to_case_activity(
+            forged, target=CASE_ID, actor=OWNER, to=[MANAGER]
+        )
     )
 
     assert result.disposition is HandlerDisposition.REFUSED

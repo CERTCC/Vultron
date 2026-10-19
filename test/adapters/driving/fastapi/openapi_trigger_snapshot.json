@@ -323,45 +323,6 @@
         "title": "CaseTriggerRequest",
         "type": "object"
       },
-      "CloseCaseRequest": {
-        "description": "Request body for the close-case demo trigger.\n\nSignals that the actor is closing the case (RM \u2192 CLOSED).\nTRIG-03-002: Unknown fields are silently ignored.",
-        "properties": {
-          "case_id": {
-            "title": "Case Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "case_id"
-        ],
-        "title": "CloseCaseRequest",
-        "type": "object"
-      },
-      "CloseReportRequest": {
-        "description": "Request body for the close-report trigger endpoint.\n\nDistinction from reject-report: close-report closes a report after the\nRM lifecycle has proceeded (RM \u2192 C transition; emits RC message), while\nreject-report hard-rejects an incoming offer before validation completes.",
-        "properties": {
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "offer_id": {
-            "title": "Offer Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "offer_id"
-        ],
-        "title": "CloseReportRequest",
-        "type": "object"
-      },
       "CreateCaseRequest": {
         "description": "Request body for the create-case trigger endpoint.\n\nThe actor creates a local VulnerabilityCase and queues a\nCreateCaseActivity in their outbox for delivery to the actors named in\n``to``.  With no ``to`` the case is created locally and nothing is\nqueued (OX-08-001); a blank ``to`` entry is refused (CS-08-002).\n\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
@@ -489,6 +450,20 @@
           "invitee_id"
         ],
         "title": "InviteActorToCaseRequest",
+        "type": "object"
+      },
+      "LeaveCaseRequest": {
+        "description": "Request body for the leave-case trigger.\n\nNames the case the actor leaves by sending Leave(VulnerabilityCase) to its\nCASE_MANAGER (TRIG-13-001).  For the Case Owner the Leave closes the case;\nfor any other participant the case stays open (CM-23-002, CM-23-003).\nTRIG-03-002: Unknown fields are silently ignored.",
+        "properties": {
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_id"
+        ],
+        "title": "LeaveCaseRequest",
         "type": "object"
       },
       "NoteResult": {
@@ -1375,59 +1350,6 @@
         ]
       }
     },
-    "/api/v2/actors/{actor_id}/demo/close-case": {
-      "post": {
-        "description": "Demo-only scaffold. Triggers Leave(VulnerabilityCase) via the canonical RM closure path (ADR-0050). Only available in ``RunMode.PROTOTYPE``. Spec: DEMOMA-07-001.",
-        "operationId": "actors_demo_close_case",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "actor_id",
-            "required": true,
-            "schema": {
-              "title": "Actor Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CloseCaseRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ActivityResult"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "[Demo] Actor sends Leave(VulnerabilityCase) to close the case.",
-        "tags": [
-          "Demo Triggers"
-        ]
-      }
-    },
     "/api/v2/actors/{actor_id}/demo/notify-fix-deployed": {
       "post": {
         "description": "Demo-only scaffold. Self-reports VFD state VFD (fix deployed) to the Case Manager via Add(ParticipantStatus, CaseParticipant). Only available in ``RunMode.PROTOTYPE``. Spec: DEMOMA-07-001.",
@@ -2170,59 +2092,6 @@
         ]
       }
     },
-    "/api/v2/actors/{actor_id}/trigger/close-report": {
-      "post": {
-        "description": "Triggers the close-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) representing the RM \u2192 C (CLOSED) transition, and returns it in the response body (TRIG-04-001). Persists a ParticipantStatus record with RM.CLOSED for the actor and report. Unlike reject-report (a hard-reject, which also accepts a repeat close as a confirmation), this endpoint closes a report that has progressed through the RM lifecycle. Returns HTTP 409 if the report is already CLOSED, or if its RM state has no close edge (e.g. VALID; VP-02-004).",
-        "operationId": "actors_trigger_close_report",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "actor_id",
-            "required": true,
-            "schema": {
-              "title": "Actor Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CloseReportRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ActivityResult"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Trigger RM lifecycle closure of a report.",
-        "tags": [
-          "Triggers"
-        ]
-      }
-    },
     "/api/v2/actors/{actor_id}/trigger/create-case": {
       "post": {
         "description": "Creates a local VulnerabilityCase attributed to the actor and queues a CreateCaseActivity in the actor's outbox for delivery to the CaseActor.  An optional report_id links an existing VulnerabilityReport to the new case.",
@@ -2483,6 +2352,59 @@
           }
         },
         "summary": "Directly invite an actor to a case.",
+        "tags": [
+          "Triggers"
+        ]
+      }
+    },
+    "/api/v2/actors/{actor_id}/trigger/leave-case": {
+      "post": {
+        "description": "Triggers the leave-case behavior for the given actor, which any participant of the case may call (TRIG-13-001). Runs the actor's PreCloseAction call-out, then queues a Leave(VulnerabilityCase) activity addressed to the case's CASE_MANAGER alone, and returns it in the response body (TRIG-04-001). The CASE_MANAGER decides what the Leave means: the Case Owner's Leave closes the case, and any other participant departs while the case stays open (CM-23-002, CM-23-003). Returns HTTP 409 and queues nothing when the caller is the Case Owner and its replica records an active embargo: terminate the embargo first (TRIG-13-003). Returns HTTP 422 and queues nothing when the PreCloseAction call-out fails (TRIG-13-002).",
+        "operationId": "actors_trigger_leave_case",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "actor_id",
+            "required": true,
+            "schema": {
+              "title": "Actor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveCaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Leave a case.",
         "tags": [
           "Triggers"
         ]
@@ -2914,7 +2836,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/reject-report": {
       "post": {
-        "description": "Triggers the reject-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) and returns it in the response body (TRIG-04-001). A non-empty note is required (TRIG-03-004). Persists a ParticipantStatus record with RM.CLOSED for the actor and report. Returns HTTP 409 if the report's RM state has no close edge (e.g. VALID; VP-02-004): nothing is emitted.",
+        "description": "Triggers the reject-report behavior for the given actor. Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) and returns it in the response body (TRIG-04-001). A non-empty note is required (TRIG-03-004). Persists a ParticipantStatus record with RM.CLOSED for the actor and report. Returns HTTP 409 if the report's RM state has no close edge (e.g. VALID; VP-02-004), or if a case holds the report, whose participants close their part in it with leave-case instead (CM-23-019, TRIG-13-001): nothing is emitted.",
         "operationId": "actors_trigger_reject_report",
         "parameters": [
           {

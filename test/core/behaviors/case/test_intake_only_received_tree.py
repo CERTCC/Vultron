@@ -7,7 +7,9 @@ here once: intake archives the activity, and nothing else is written.
 import pytest
 from py_trees.common import Status
 
-from test.core.behaviors.case.note_delivery import create_note_delivery
+from test.core.behaviors.case.note_delivery import (
+    create_note_delivery,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.intake_only_received_tree import (
     create_incomplete_activity_received_tree,
@@ -30,7 +32,7 @@ def test_archives_the_activity_and_stores_nothing_else(datalayer, actor_id):
     its own committed entry (CLP-07-013), so the intake-only tree never stores
     it (#4598).
     """
-    note, activity, event = create_note_delivery()
+    note, activity, event = create_note_delivery(actor_id)
 
     tree = create_intake_only_received_tree("IntakeOnlyTest")
     result = BTBridge(datalayer=datalayer).execute_with_setup(
@@ -54,7 +56,7 @@ def test_incomplete_activity_tree_archives_then_refuses(datalayer, actor_id):
     The tree fails on ``ActivityIncompleteNode`` with its reason, after intake
     archived the activity, and commits or stores nothing else.
     """
-    note, activity, event = create_note_delivery()
+    note, activity, event = create_note_delivery(actor_id)
 
     tree = create_incomplete_activity_received_tree(
         "IncompleteTest", "Create(Note) carries no note object"

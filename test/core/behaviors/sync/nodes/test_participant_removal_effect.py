@@ -129,6 +129,29 @@ def test_replay_keeps_the_first_removal(
     assert record.removal_activity == "https://example.org/activities/first"
 
 
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CM-31-007")
+def test_a_slash_spelled_participant_actor_resolves_to_the_replica_record(
+    bridge, datalayer, case_actor, replica_record
+) -> None:
+    """The inline participant's ``attributedTo`` keeps the sender's trailing
+    slash; the replica's index names the actor canonically, and the record
+    is still found by actor."""
+    entry = _entry(
+        participant={
+            "id": SNAPSHOT_PARTICIPANT_ID,
+            "type": "CaseParticipant",
+            "attributedTo": REMOVED_ACTOR_ID + "/",
+        }
+    )
+
+    assert _apply(bridge, case_actor, entry).status == Status.SUCCESS
+
+    record = datalayer.read(REPLICA_PARTICIPANT_ID)
+    assert isinstance(record, CaseParticipant)
+    assert record.removal_activity == REMOVE_ID
+
+
 @pytest.mark.spec("CM-31-007")
 def test_falls_back_to_the_snapshot_record_id_on_the_roster(
     bridge, datalayer, case_actor, replica_record

@@ -33,7 +33,6 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    addressee_refusal,
     find_node,
     verdict_from_bt,
 )
@@ -93,8 +92,6 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="AnnounceEmbargoEventToCaseReceivedBT"
         )
-        if (refusal := addressee_refusal(tree)) is not None:
-            return refusal
         if verdict.disposition is not HandlerDisposition.APPLIED:
             return verdict
         apply_node = find_node(tree, ApplyAnnouncedEmbargoRevisionNode)
