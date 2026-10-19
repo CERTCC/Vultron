@@ -147,6 +147,10 @@ The case manager makes every decision before the first commit: who is invited, w
 It checks the whole act against a copy of the case, commits the entries, and only then writes the case.
 A refused act commits nothing.
 An act whose entry fails to commit changes nothing.
+Before its first commit, the case manager stores the entries the act owes after its own.
+If the act's own entry commits and a later one fails, the next case-manager tree for the case commits the rest, unchanged and in order.
+It does so before anything reads a consent row (CLP-07-015, [ADR-0146](../../../adr/0146-an-embargo-act-stores-its-planned-entries-and-the-next-run-finishes-them.md)).
+If the act's own entry never committed, the stored entries are discarded.
 
 | Act | What the act's own entry records | What follows, one entry per row |
 |---|---|---|
