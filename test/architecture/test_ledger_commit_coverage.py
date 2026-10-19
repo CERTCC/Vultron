@@ -121,6 +121,7 @@ def test_exemptions_name_a_ground_or_an_issue():
 
 
 @pytest.mark.spec("CLP-02-013")
+@pytest.mark.spec("CLP-10-004")
 def test_exemptions_name_routed_use_cases_that_do_not_commit(
     committed: set[str],
 ):
