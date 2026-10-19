@@ -27,11 +27,13 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from test.architecture import _corpus
-from test.architecture._use_case_call_graph import _UseCaseCorpus
+from test.architecture._use_case_call_graph import (
+    INDEXED_ROOTS,
+    SERVICES_ROOT,
+    USE_CASES_ROOT,
+    _UseCaseCorpus,
+)
 from test.architecture.test_no_dl_mutations_in_execute import _violations_in
-
-_SYNTHETIC_PKG = "vultron.core.use_cases"
-_SYNTHETIC_SERVICES = "vultron.core.services"
 
 
 def _synthetic_violations(
@@ -43,8 +45,9 @@ def _synthetic_violations(
     ``_helpers.py``, ``../services/x.py`` for an indexed core-services module,
     ``../behaviors/node.py`` for an unindexed one) to its source.  Returns the violation set relative to *tmp_path*.
     """
-    root = tmp_path / "vultron" / "core" / "use_cases"
-    services = (tmp_path / "vultron" / "core" / "services").resolve()
+    tmp_root = tmp_path.resolve()
+    root = tmp_root / USE_CASES_ROOT.relative_to(_corpus.REPO_ROOT)
+    services = tmp_root / SERVICES_ROOT.relative_to(_corpus.REPO_ROOT)
     trees: dict[Path, ast.AST] = {}
     for rel, source in files.items():
         path = (root / rel).resolve()
@@ -61,7 +64,10 @@ def _synthetic_violations(
     }
     corpus = _UseCaseCorpus(
         indexed,
-        roots={root.resolve(): _SYNTHETIC_PKG, services: _SYNTHETIC_SERVICES},
+        roots={
+            tmp_root / indexed_root.relative_to(_corpus.REPO_ROOT): package
+            for indexed_root, package in INDEXED_ROOTS.items()
+        },
     )
     return _violations_in(
         corpus,
@@ -147,6 +153,48 @@ def test_transitive_rule_flags_self_method_helper(tmp_path: Path) -> None:
                 "        self._persist()\n"
                 "    def _persist(self):\n"
                 "        self._dl.save(self._obj)\n"
+            ),
+        },
+    )
+    assert found == frozenset({_RECEIVED})
+
+
+def test_transitive_rule_flags_a_subclass_override(tmp_path: Path) -> None:
+    """An inherited execute() → self._hook() walks the subclass's override."""
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/_frame.py": (
+                "class Frame:\n"
+                "    def execute(self):\n"
+                "        self._hook()\n"
+                "    def _hook(self):\n"
+                "        pass\n"
+            ),
+            "received/uc.py": (
+                "from vultron.core.use_cases.received._frame import Frame\n"
+                "class UC(Frame):\n"
+                "    def _hook(self):\n"
+                "        self._dl.save(self._obj)\n"
+            ),
+        },
+    )
+    assert found == frozenset({_RECEIVED})
+
+
+def test_transitive_rule_flags_a_called_nested_function(
+    tmp_path: Path,
+) -> None:
+    """A nested function execute() defines and calls is part of execute()."""
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/uc.py": (
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        def _store():\n"
+                "            self._dl.save(self._obj)\n"
+                "        _store()\n"
             ),
         },
     )

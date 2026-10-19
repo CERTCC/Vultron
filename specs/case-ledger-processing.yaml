@@ -1157,12 +1157,22 @@ groups:
       any match outside the guarded-commit factory''s own module is a violation. Known
       violations are tracked as a ratchet set (`KNOWN_VIOLATIONS`) that must shrink
       to empty as each use case migrates to the single-tree shape. Its hard invariant
-      counts every `execute_with_setup()` call a received-side `execute()` reaches,
-      directly or through use-case-package helpers resolved transitively, and asserts
-      at most one, with no exemption set; detector self-tests assert that a helper
-      call, a helper two calls deep, and two calls on alternative branches are each
-      counted. A reviewer MUST still confirm no other domain-significant code remains
-      in `execute()` when closing each migration.'
+      counts every `execute_with_setup()` call that an `execute()` under
+      `vultron/core/use_cases/received/` reaches, directly or through functions and
+      methods under `vultron/core/use_cases/` or `vultron/core/services/` resolved
+      transitively over the call shapes `_use_case_call_graph.py` lists as followed
+      (the walk shared with `test_no_dl_mutations_in_execute.py`), with a `self`
+      or `super()` method dispatched in the concrete class''s method resolution
+      order, sums calls on alternative branches, and asserts at most one, with no
+      exemption set; a received `execute()` that reaches none is named in the exact
+      `RUNS_NO_TREE` set, and every class `use_case_map()` routes to must appear in
+      the count. Trigger-side `execute()` bodies are counted body-only, since their
+      helpers are governed by BT-15-001. Detector self-tests on synthetic sources
+      assert that a helper call, a helper two calls deep, two calls on alternative
+      branches, a subclass override and a `super()` call are each counted, and that a
+      call inside a BT node the tree runs is not. A reviewer MUST still confirm no
+      other domain-significant code remains in `execute()` when closing each
+      migration.'
     adr:
     - ADR-0021
     - ADR-0022
@@ -1186,9 +1196,10 @@ groups:
     statement: The guarded-commit subtree MUST be composed as a child of the tree-factory
       function, not invoked as a separate `execute_with_setup()` call.
     verification: '`test/architecture/test_single_bt_execution_received_side.py` confirms
-      that no received-side `execute()` method calls `BTBridge.execute_with_setup()`
-      more than once, enforcing that the guarded-commit subtree is composed into the
-      single tree rather than invoked separately.'
+      that no received-side `execute()` method reaches `BTBridge.execute_with_setup()`
+      more than once, directly or through use-case or core-services helpers,
+      enforcing that the guarded-commit subtree is composed into the single tree
+      rather than invoked separately.'
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005
