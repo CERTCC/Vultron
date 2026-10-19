@@ -88,7 +88,7 @@ spec group is written, and a `@scenario` decorator when its demo is.
 | In-process fuzz | #1732 | RCV in-process with STOCHASTIC bundles over N configurable iterations, run as `vultron demo fuzz` | see below |
 | Case split | #4242 (build), #4243 (demo) | A Vendor case spawns a child case for a second Vendor; the child inherits only the embargo (ADR-0125, CM-32) | planned |
 | Case merge | #4244 | Owner-consent offer; the offered case freezes and its participants migrate by invitation (ADR-0105) | blocked by the merge spec #3701 and build #3702 |
-| Multi-reporter | #3671 | Two Finders; the Coordinator adds the second report to the existing case and invites F2, with no merge | planned |
+| Multi-reporter | #3671 | Two Reporters; the Coordinator adds the second report to the existing case and invites R2, with no merge | planned |
 | Concurrent cases | #3672 | Two independent cases through shared actors, one CaseActor managing both, with no cross-case bleed | planned |
 | RM non-linear paths | #2050 | R→I→V in `rvcv-handoff` (tentative rejection, then reconsideration) and A→D→A in `rcvcv` | planned |
 

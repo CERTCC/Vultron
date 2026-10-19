@@ -37,18 +37,18 @@
 #                          redirected to a file or pipe passes through unmodified.
 #                          See docker/service-colors.env for format and defaults.
 #
-#   Host                   port variables are optional.  When unset (the default), Docker
-#   assigns                an ephemeral host port for each service automatically, so no
-#   port                   conflicts with a running development stack can occur.  All
-#   inter-actor            communication happens over the internal vultron-network
-#   bridge                 and is unaffected by host port assignment.
+#   Host port variables are optional.  When unset (the default), Docker
+#   assigns an ephemeral host port for each service automatically, so no
+#   port conflicts with a running development stack can occur.  All
+#   inter-actor communication happens over the internal vultron-network
+#   bridge and is unaffected by host port assignment.
 #
-#   To                     inspect the assigned host ports after startup:
-#                          docker compose -f docker/docker-compose-multi-actor.yml port reporter 7999
+#   To inspect the assigned host ports after startup:
+#     docker compose -f docker/docker-compose-multi-actor.yml port reporter 7999
 #
 # Exit codes:
-#   0                      Scenario completed successfully.
-#   1                      Build failure, health-check timeout, or scenario failure.
+#   0   Scenario completed successfully.
+#   1   Build failure, health-check timeout, or scenario failure.
 #
 # Prerequisites: Docker and docker compose available on PATH.
 # Run from the repository root.
