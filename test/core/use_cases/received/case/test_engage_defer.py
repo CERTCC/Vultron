@@ -638,9 +638,10 @@ class TestEngageCaseLedgerCommit:
             sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
 
+        # The act, then the status it wrote as its own entry (CLP-07-013).
         assert [
             e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
-        ] == ["engage_case"]
+        ] == ["engage_case", "add_participant_status_to_participant"]
 
     def test_engage_case_transitions_vendor_rm_to_accepted(self, seeded_dl):
         """EngageCaseReceivedUseCase still transitions the engaging actor's RM to ACCEPTED.
@@ -763,9 +764,10 @@ class TestDeferCaseLedgerCommit:
             sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
 
+        # The act, then the status it wrote as its own entry (CLP-07-013).
         assert [
             e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
-        ] == ["defer_case"]
+        ] == ["defer_case", "add_participant_status_to_participant"]
 
     def test_defer_case_commits_ledger_entry_when_receiving_actor_is_case_manager(
         self, seeded_dl

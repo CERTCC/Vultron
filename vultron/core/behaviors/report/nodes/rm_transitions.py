@@ -215,6 +215,7 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
         sender_actor_id: str | None = None,
         name: str | None = None,
         rm_rule: RMRule = RMRule.TRANSITION,
+        written_ids: list[str] | None = None,
     ) -> None:
         """Initialize the combined RM.VALID transition node.
 
@@ -231,6 +232,8 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
                 side passes ``DECLARATION`` (RSH-06-006).  The report-link
                 latch keeps its own adjacency check either way: it is the
                 report-phase record, not the sender's participant.
+            written_ids: Passed to :class:`CreateParticipantStatusNode`, which
+                reports in it the id of the status it writes.
         """
         super().__init__(name=name or "TransitionRMtoValid")
         self.report_id = report_id
@@ -247,6 +250,7 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
             pxa_state=None,
             name="CreateRMValidStatus",
             rm_rule=rm_rule,
+            written_ids=written_ids,
         )
 
     INPUT_PORTS: dict[str, PortInformation] = {

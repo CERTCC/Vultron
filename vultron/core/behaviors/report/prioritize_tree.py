@@ -162,9 +162,10 @@ def create_engage_case_tree(
             rm_declaration_guard(actor_id, RM.ACCEPTED, case_id),
         ],
         # RSH-08-003: the sender's RM move is canonical participant state only
-        # the CASE_MANAGER writes; ``engage_case`` is committed and replayed
-        # onto the sender's participant (RmVerdict slot), so a replica takes it
-        # from the ledger fan-out, not from the direct Join (#3814).  Only the
+        # the CASE_MANAGER writes; ``engage_case`` is committed, then the
+        # status it wrote follows as its own entry, which a replica copies
+        # from the ledger fan-out, not from the direct Join (#3814,
+        # CLP-07-013).  Only the
         # CASE_MANAGER then announces the canonical case state, authored as the
         # executing actor (CM-06-001).
         manager_effects=[
@@ -216,9 +217,9 @@ def create_defer_case_tree(
         precondition_guards=[
             rm_declaration_guard(actor_id, RM.DEFERRED, case_id),
         ],
-        # RSH-08-003: the sender's RM move is committed and replayed onto the
-        # sender's participant (RmVerdict slot), so a replica takes it from the
-        # ledger fan-out, not from the direct Ignore (#3814).
+        # RSH-08-003: the sender's RM move is committed as the status entry
+        # that follows the act, so a replica copies it from the ledger
+        # fan-out, not from the direct Ignore (#3814, CLP-07-013).
         manager_effects=record_rm_declaration(
             actor_id, RM.DEFERRED, case_id, name="TransitionRMtoDeferred"
         ),

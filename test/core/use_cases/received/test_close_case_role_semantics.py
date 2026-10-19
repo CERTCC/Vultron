@@ -1607,14 +1607,14 @@ class TestLeaveCommitsEachClosureStep:
         _seed_rm(dl, VENDOR_ID, RM.VALID)
         before = _case_file(dl, VENDOR_ID)
         monkeypatch.setattr(
-            "vultron.core.behaviors.case.nodes.leave.record"
+            "vultron.core.behaviors.case.nodes.participant.status_entries"
             ".create_commit_log_entry_tree",
             lambda *a, **kw: py_trees.behaviours.Failure(name="ForcedFailure"),
         )
 
         with caplog.at_level(
             logging.WARNING,
-            logger="vultron.core.behaviors.case.nodes.leave.record",
+            logger="vultron.core.behaviors.case.nodes.participant.status_entries",
         ):
             result = _close(
                 dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
@@ -1633,9 +1633,11 @@ class TestLeaveCommitsEachClosureStep:
     @pytest.mark.spec("CLP-07-013")
     def test_a_committed_step_stays_when_a_later_one_fails(self, monkeypatch):
         """V → D commits, D → C does not: only the C step is taken back."""
-        from vultron.core.behaviors.case.nodes.leave import record
+        from vultron.core.behaviors.case.nodes.participant import (
+            status_entries,
+        )
 
-        calls = fail_commits(monkeypatch, record, allowed=1)
+        calls = fail_commits(monkeypatch, status_entries, allowed=1)
         dl = _make_full_dl()
         _seed_rm(dl, VENDOR_ID, RM.VALID)
 
@@ -1659,7 +1661,7 @@ class TestLeaveCommitsEachClosureStep:
         dl = _make_full_dl()
         with monkeypatch.context() as patch:
             patch.setattr(
-                "vultron.core.behaviors.case.nodes.leave.record"
+                "vultron.core.behaviors.case.nodes.participant.status_entries"
                 ".create_commit_log_entry_tree",
                 lambda *a, **kw: py_trees.behaviours.Failure(name="Forced"),
             )
@@ -1692,7 +1694,7 @@ class TestLeaveCommitsEachClosureStep:
 
         dl = _make_full_dl()
         monkeypatch.setattr(
-            "vultron.core.behaviors.case.nodes.leave.record"
+            "vultron.core.behaviors.case.nodes.participant.status_entries"
             ".create_commit_log_entry_tree",
             lambda *a, **kw: _Crash(name="CrashingCommit"),
         )
@@ -2623,7 +2625,9 @@ class TestCaseActorRMClosedRecordingFailsClosed:
     @staticmethod
     def _fail_case_actor_commits(monkeypatch, dl: SqliteDataLayer) -> None:
         """Fail only the commits of the CaseActor's own closure steps."""
-        from vultron.core.behaviors.case.nodes.leave import record
+        from vultron.core.behaviors.case.nodes.participant import (
+            status_entries,
+        )
 
         def _case_actors(kwargs: dict) -> bool:
             status = dl.read(kwargs["object_id"])
@@ -2632,7 +2636,7 @@ class TestCaseActorRMClosedRecordingFailsClosed:
                 and status.attributed_to == CASE_ACTOR_ID
             )
 
-        fail_commits(monkeypatch, record, when=_case_actors)
+        fail_commits(monkeypatch, status_entries, when=_case_actors)
 
     @pytest.fixture
     def rm_closed_node_without_port(self, monkeypatch):
@@ -2769,7 +2773,7 @@ class TestCaseActorRMClosedRecordingFailsClosed:
         self._fail_case_actor_commits(monkeypatch, dl)
         with caplog.at_level(
             logging.WARNING,
-            logger="vultron.core.behaviors.case.nodes.leave.record",
+            logger="vultron.core.behaviors.case.nodes.participant.status_entries",
         ):
             _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 

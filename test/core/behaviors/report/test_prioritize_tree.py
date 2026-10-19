@@ -419,8 +419,11 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     body = gate.gated_branch
     names = [n.name for n in body.children]
     # Idempotency Selector: skip write when already ACCEPTED (RSH-08-002)
+    # ... then the status it wrote is committed as its own entry
+    # (CLP-07-013)
     assert names == [
         "IdempotentTransitionRMtoAccepted",
+        "RecordTransitionRMtoAccepted",
         "EmitRMGapNote",
         "CaptureCaseUpdateBroadcastExclusionsNode",
         "BroadcastCaseUpdateNode",
@@ -464,7 +467,13 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
     body = gate.gated_branch
     names = [n.name for n in body.children]
     # Idempotency Selector: skip write when already DEFERRED (RSH-08-002)
-    assert names == ["IdempotentTransitionRMtoDeferred", "EmitRMGapNote"]
+    # ... then the status it wrote is committed as its own entry
+    # (CLP-07-013)
+    assert names == [
+        "IdempotentTransitionRMtoDeferred",
+        "RecordTransitionRMtoDeferred",
+        "EmitRMGapNote",
+    ]
     assert body.children[0].children[0].name == "AlreadyRecordedDeferred"
     assert body.children[0].children[1].name == "TransitionRMtoDeferred"
 

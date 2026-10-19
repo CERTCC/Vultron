@@ -30,6 +30,9 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.case.announce_case_received_tree import (
     create_announce_vulnerability_case_received_tree,
@@ -153,6 +156,7 @@ def _committed(dl: SqliteDataLayer) -> list[str]:
 def _ports(dl: SqliteDataLayer) -> dict:
     return {
         "sync_port": SyncActivityAdapter(dl),
+        "trigger_activity": TriggerActivityAdapter(dl),
         "wire_render_port": As2WireRenderAdapter(),
     }
 

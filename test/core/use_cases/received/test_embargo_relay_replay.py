@@ -265,7 +265,13 @@ def test_the_owners_rejection_returns_every_store_to_the_prior_terms():
 
 
 def _set_pxa(net: _Network, actor_id: str) -> None:
-    """Make the case public in *actor_id*'s store (P/X/A set)."""
+    """Make the case public in *actor_id*'s store (P/X/A set).
+
+    The write is test setup outside the ledger, so the CASE_MANAGER's store no
+    longer rebuilds from it (``bypass_ledger``).
+    """
+    if actor_id == MANAGER:
+        net.bypass_ledger()
     case = net.case(actor_id)
     case.current_status.pxa.state = CS_pxa.Pxa
     net.stores[actor_id].save(case)

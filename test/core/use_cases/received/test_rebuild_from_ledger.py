@@ -17,9 +17,10 @@ Every per-actor-store scenario in this package is rebuilt from its
 CASE_MANAGER's ledger when it ends (``conftest``), and every exchange demo is
 rebuilt before its node is cleared (``test/demo/_helpers.py``).  These tests
 show the check is not vacuous: it reaches the CASE_MANAGER's state through a
-whole embargo cycle, it catches a change no entry records, it fails on a
-missing entry, and its one embargo exclusion (#4748) hides only the
-termination's cause.
+whole embargo cycle, it catches a change no entry records,
+it fails on a missing entry, it compares every participant status and case
+status whole, ids and times included (#4295), and its one embargo exclusion
+(#4748) hides only the termination's cause.
 """
 
 from datetime import UTC, datetime
@@ -38,6 +39,7 @@ from test.support.ledger_rebuild import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_termination import TerminationCauseKind
 from vultron.core.models.participant_status import ParticipantStatus
@@ -197,29 +199,46 @@ def _status(state: RM, **fields: Any) -> ParticipantStatus:
 
 
 @pytest.mark.parametrize(
-    "replica, differs",
+    "replica",
     [
-        (
-            _status(
-                RM.VALID,
-                id_=f"{_STATUS_CASE}/statuses/replayed",
-                published=datetime(2100, 1, 1, tzinfo=UTC),
-                updated=datetime(2100, 1, 1, tzinfo=UTC),
-            ),
-            False,
+        _status(RM.VALID, id_=f"{_STATUS_CASE}/statuses/replayed"),
+        _status(
+            RM.VALID,
+            id_=f"{_STATUS_CASE}/statuses/held",
+            published=datetime(2100, 1, 1, tzinfo=UTC),
+            updated=datetime(2100, 1, 1, tzinfo=UTC),
         ),
-        (_status(RM.INVALID), True),
+        _status(RM.INVALID, id_=f"{_STATUS_CASE}/statuses/held"),
     ],
-    ids=["id-and-times-only", "rm-state"],
+    ids=["id", "times", "rm-state"],
 )
-def test_only_a_statuss_id_and_times_are_left_out(replica, differs):
-    """#4295: a replayed status has its own id; every other field compares."""
-    manager = _status(RM.VALID)
+@pytest.mark.spec("CM-23-016")
+def test_a_status_is_compared_whole(replica):
+    """#4295: a replica copies each status, so its id and times compare too."""
+    manager = _status(RM.VALID, id_=f"{_STATUS_CASE}/statuses/held")
 
-    assert (
-        ledger_rebuild._participant(_with_status(replica))
-        != ledger_rebuild._participant(_with_status(manager))
-    ) is differs
+    assert ledger_rebuild._participant(
+        _with_status(replica)
+    ) != ledger_rebuild._participant(_with_status(manager))
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_a_case_status_no_entry_records_is_caught():
+    """A case status written outside the ledger differs from the rebuild."""
+    net, _ = _negotiated("case-status")
+    net.bypass_ledger()
+    manager = net.stores[MANAGER]
+    case = net.case(MANAGER)
+    current = case.current_status
+    case.add_case_status(
+        CaseStatus(context=net.case_id, em=current.em, pxa=current.pxa)
+    )
+    manager.save(case)
+
+    with pytest.raises(AssertionError, match="case statuses"):
+        assert_rebuilds_from_ledger(
+            manager, net.case_id, as_actor=BYSTANDER, seed=_seed(net)
+        )
 
 
 def test_creation_records_stop_at_the_first_act():

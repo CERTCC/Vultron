@@ -474,6 +474,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
             self._make_validate_event(),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -490,6 +491,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
             self._make_validate_event(),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
@@ -517,6 +519,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -547,6 +550,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
             self._make_validate_event(),  # actor_id=VENDOR, receiving=CASE_ACTOR,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
@@ -704,6 +708,7 @@ class TestFullValidateReportLedgerChain:
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(case_actor_dl),
+            trigger_activity=TriggerActivityAdapter(case_actor_dl),
         ).execute()
 
         # ── Step 6: assert CaseActor ledger has the validate_report entry ─────

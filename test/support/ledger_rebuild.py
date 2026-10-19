@@ -247,16 +247,7 @@ def _participant(record: CaseParticipant) -> dict[str, Any]:
     own id, so each status is compared without its id and times.  Every other
     field of the status, and of the record, is compared.
     """
-    data = record.model_dump(mode="json")
-    data["participant_statuses"] = [
-        {
-            k: v
-            for k, v in status.items()
-            if k not in ("id_", "published", "updated")
-        }
-        for status in data.get("participant_statuses") or []
-    ]
-    return data
+    return record.model_dump(mode="json")
 
 
 def case_file_differences(
@@ -288,6 +279,10 @@ def case_file_differences(
             for field in want
             if got.get(field) != want[field]
         )
+    want_cs = [s.model_dump(mode="json") for s in manager.case_statuses]
+    got_cs = [s.model_dump(mode="json") for s in replica.case_statuses]
+    if got_cs != want_cs:
+        found.append(f"case statuses: {got_cs} != {want_cs}")
     want_register, got_register = _register(manager), _register(replica)
     if got_register != want_register:
         found.append(f"embargo register: {got_register} != {want_register}")

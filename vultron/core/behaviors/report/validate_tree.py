@@ -115,6 +115,7 @@ def create_validate_report_subtree(
     emit: bool = True,
     name: str = "ValidateReportBT",
     rm_rule: RMRule = RMRule.TRANSITION,
+    written_ids: list[str] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build the canonical validate-report subtree.
 
@@ -145,6 +146,10 @@ def create_validate_report_subtree(
             ``DECLARATION``, because the write records the state the sender
             declared, which the received-side acceptance rule adjudicates
             (RSH-06-006).
+        written_ids: Given to the participant write, which reports in it the
+            id of the status it writes.  The received side passes it so the
+            CASE_MANAGER can commit that status as its own entry
+            (CLP-07-013).
 
     Returns:
         Root node of the validation subtree (a Selector).
@@ -178,6 +183,7 @@ def create_validate_report_subtree(
             offer_id=offer_id,
             sender_actor_id=sender_actor_id,
             rm_rule=rm_rule,
+            written_ids=written_ids,
         )
     )
 

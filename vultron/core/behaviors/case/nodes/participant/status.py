@@ -99,6 +99,7 @@ class CreateParticipantStatusNode(
         name: str | None = None,
         force_rm_state: bool = False,
         rm_rule: RMRule = RMRule.TRANSITION,
+        written_ids: list[str] | None = None,
     ) -> None:
         """Create the node.
 
@@ -139,6 +140,11 @@ class CreateParticipantStatusNode(
                 ``test/architecture/test_participant_status_validation.py``
                 pins the exempt call sites as an exact pinned exemption set
                 (ARCH-18-005).
+            written_ids: When given, cleared on each run and then given the
+                id of the status this node writes, so a
+                :class:`~vultron.core.behaviors.case.nodes.participant\
+.status_entries.CommitParticipantStatusEntriesNode` after it can commit
+                that status as its own entry (CLP-07-013).
         """
         super().__init__(name=name or self.__class__.__name__)
         self._actor_id = actor_id
@@ -153,9 +159,12 @@ class CreateParticipantStatusNode(
         self._result_out = result_out
         self._force_rm_state = force_rm_state
         self._rm_rule = rm_rule
+        self._written_ids = written_ids
 
     def initialise(self) -> None:
         super().initialise()
+        if self._written_ids is not None:
+            self._written_ids.clear()
         if not self._actor_id:
             self._actor_id = self.actor_id or ""
 
@@ -356,6 +365,8 @@ class CreateParticipantStatusNode(
 
         status = self._build_status(case, context, effective, case_id)
         self._persist_status(dl, participant_id, status)
+        if self._written_ids is not None:
+            self._written_ids.append(status.id_)
 
         if self._result_out is not None:
             self._result_out["status_id"] = status.id_
