@@ -115,6 +115,7 @@ If the case is public, an exploit is public, or attacks are observed when the Ca
   The Case Owner's `Remove` may name `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, and the Case Manager records the cause as given.
   Only the Case Manager's own `Remove` may name `THREAT_SIGNAL`.
   A Case Owner reports public awareness, a public exploit or observed attacks as a case status update setting `P`, `X` or `A`; the Case Manager then ends the embargo with the signals the case carries.
+  Each replica copies the cause from the ledger entry onto its own register, and never works a cause out from its own case state.
 - **At the end time:** when the end time of the embargo in force has passed, the Case Manager ends it with `END_TIME_REACHED`.
   It does so the next time it handles the case, or when an outside service such as a [Sentinel](../glossary.md) asks it to.
   Whichever comes second finds the embargo already ended and sends nothing.

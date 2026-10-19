@@ -224,22 +224,10 @@ def _replay(
         )
 
 
-def _register(case: VulnerabilityCase) -> list[dict[str, Any]]:
-    """The embargo register, as compared.
-
-    Known difference (#4748): the ``Remove`` that ends an embargo carries the
-    termination's cause as ``terminationCause`` (EMB-13-005), but the replica
-    slot copies only its reason, so a replica records a caused termination as
-    ``EARLY`` with no cause.  The cause is left out of the comparison; the
-    reason is still compared.
-    """
-    rows = []
-    for entry in case.embargo_register:
-        row = entry.model_dump(mode="json")
-        if row.get("termination"):
-            row["termination"].pop("cause", None)
-        rows.append(row)
-    return rows
+def register_rows(case: VulnerabilityCase) -> list[dict[str, Any]]:
+    """The embargo register, as compared: whole, each termination's reason
+    and cause included (EMB-13-005)."""
+    return [entry.model_dump(mode="json") for entry in case.embargo_register]
 
 
 def _participant(record: CaseParticipant) -> dict[str, Any]:
@@ -291,7 +279,10 @@ def case_file_differences(
     want_cs, got_cs = _case_statuses(manager), _case_statuses(replica)
     if got_cs != want_cs:
         found.append(f"case statuses: {got_cs} != {want_cs}")
-    want_register, got_register = _register(manager), _register(replica)
+    want_register, got_register = (
+        register_rows(manager),
+        register_rows(replica),
+    )
     if got_register != want_register:
         found.append(f"embargo register: {got_register} != {want_register}")
     return found

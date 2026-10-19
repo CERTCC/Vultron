@@ -32,6 +32,7 @@ from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
     received_event,
+    register_rows,
     run_use_case,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -60,6 +61,9 @@ PROPOSER = "https://example.org/users/vendor"
 OWNER = "https://example.org/users/vendor-a"
 #: A participant that is neither the proposer nor the owner.
 BYSTANDER = "https://example.org/users/vendor-b"
+#: The stores in a network that hold a replica: every one but the
+#: CASE_MANAGER's.
+REPLICAS = (OWNER, BYSTANDER)
 
 
 #: Every network built in the current test, for the rebuild check
@@ -264,6 +268,10 @@ class LedgerNetwork:
         return cast(
             VulnerabilityCase, self.stores[actor_id].read(self.case_id)
         )
+
+    def register(self, actor_id: str) -> list[dict[str, Any]]:
+        """*actor_id*'s embargo register, whole, as compared (CM-23-016)."""
+        return register_rows(self.case(actor_id))
 
 
 def rebuild_every_network(networks: list[LedgerNetwork]) -> None:
