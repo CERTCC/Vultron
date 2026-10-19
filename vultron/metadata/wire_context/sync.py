@@ -27,7 +27,8 @@ what enforces it in CI (no workflow runs pre-commit or this CLI directly).
 The term set is every distinct concrete ``type_`` value carried by a wire class
 whose ``_vocab_ns`` is :data:`VocabNamespace.VULTRON`, plus every non-AS2
 ``type_`` value of a core class registered in ``WIRE_TYPE_MAP`` (the ADR-0099
-aliases; VM-10-002). It is keyed
+aliases; VM-10-002), plus the wire name of every field a wire class marks as a
+Vultron property (:func:`vultron_property_terms`). It is keyed
 by the emitted ``type`` *value*, not the class name: a class that shares
 another's ``type`` value needs no separate term, because the value's term
 already resolves it.
@@ -53,6 +54,7 @@ from vultron.subclasses import all_subclasses
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
     VULTRON_NS_URI,
+    VULTRON_PROPERTY_KEY,
 )
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -177,6 +179,26 @@ def vultron_context_terms() -> dict[str, str]:
     return {term: f"vultron:{term}" for term in sorted(terms)}
 
 
+def vultron_property_terms() -> dict[str, str]:
+    """Map each Vultron-namespace wire property to its ``vultron:`` IRI.
+
+    A property is a field a wire class marks with
+    :data:`~vultron.wire.as2.vocab.base.base.VULTRON_PROPERTY_KEY` in its
+    ``json_schema_extra``, such as a termination ``Remove``'s
+    ``terminationCause`` (EMB-13-005).  The term is the field's wire name:
+    its serialization alias, else its alias, else its name.  A property is
+    one term however many classes declare it.
+    """
+    terms: set[str] = set()
+    for cls in _all_object_subclasses():
+        assert issubclass(cls, as_Object)  # narrowed for the type checkers
+        for name, info in cls.model_fields.items():
+            extra = info.json_schema_extra
+            if isinstance(extra, dict) and extra.get(VULTRON_PROPERTY_KEY):
+                terms.add(info.serialization_alias or info.alias or name)
+    return {term: f"vultron:{term}" for term in sorted(terms)}
+
+
 def build_context_document() -> dict[str, object]:
     """Return the full ``context.jsonld`` document as a dict.
 
@@ -186,6 +208,7 @@ def build_context_document() -> dict[str, object]:
     """
     term_block: dict[str, str] = {"vultron": VULTRON_NS_URI}
     term_block.update(vultron_context_terms())
+    term_block.update(vultron_property_terms())
     return {"@context": [ACTIVITY_STREAMS_NS, term_block]}
 
 
@@ -236,7 +259,7 @@ def main(argv: list[str] | None = None) -> None:
     if is_stale():
         print(
             f"[ERROR] {CONTEXT_JSONLD_PATH} is stale — run '{WRITE_COMMAND}' "
-            "(VM-10-001, VM-10-002). A Vultron-namespace wire type was added, "
+            "(VM-10-001, VM-10-002). A Vultron-namespace wire type or property was added, "
             "removed, or re-annotated without regenerating the context.",
             file=sys.stderr,
         )

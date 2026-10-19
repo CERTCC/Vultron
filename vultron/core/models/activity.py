@@ -22,6 +22,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.embargo_termination import TerminationCause
 
 
 class VultronActivity(CoreObject):
@@ -66,6 +67,10 @@ class VultronActivity(CoreObject):
     # A Reporter's proposed embargo terms on Offer(VulnerabilityReport)
     # (EP-04-004); the wire dump carries it as ``proposedEmbargo``.
     proposed_embargo: Any | None = None
+    # A termination Remove(EmbargoEvent)'s why (EMB-13-005); the wire dump
+    # carries it as ``terminationCause``, and the ledger entry that records
+    # the Remove carries it with it.
+    termination_cause: TerminationCause | None = None
     # ``Question`` fields (AS2 §4.1); the CBT-03-004 bootstrap-replay Question
     # is delivered through this model.
     any_of: Any | None = None

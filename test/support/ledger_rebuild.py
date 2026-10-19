@@ -225,10 +225,11 @@ def _replay(
 def _register(case: VulnerabilityCase) -> list[dict[str, Any]]:
     """The embargo register, as compared.
 
-    Known difference (#4748): the ``Remove`` that ends an embargo carries only
-    the termination's reason, never its cause, so a replica records a
-    threat-signal termination as ``EARLY`` with no cause.  The cause is left
-    out of the comparison; the reason is still compared.
+    Known difference (#4748): the ``Remove`` that ends an embargo carries the
+    termination's cause as ``terminationCause`` (EMB-13-005), but the replica
+    slot copies only its reason, so a replica records a caused termination as
+    ``EARLY`` with no cause.  The cause is left out of the comparison; the
+    reason is still compared.
     """
     rows = []
     for entry in case.embargo_register:

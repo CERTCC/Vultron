@@ -15,6 +15,8 @@
 import json
 import re
 
+import pytest
+
 from vultron.metadata.base import repo_root
 from vultron.metadata.wire_context.sync import (
     CONTEXT_JSONLD_PATH,
@@ -26,6 +28,7 @@ from vultron.metadata.wire_context.sync import (
     is_stale,
     render_context_json,
     vultron_context_terms,
+    vultron_property_terms,
 )
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
@@ -220,7 +223,23 @@ def test_generator_terms_match_committed_terms() -> None:
     """The generator's term set equals the committed term set (sans prefix)."""
     committed = _term_block(_committed_context())
     committed.pop("vultron")
-    assert committed == vultron_context_terms()
+    assert committed == vultron_context_terms() | vultron_property_terms()
+
+
+@pytest.mark.spec("EMB-13-005")
+def test_termination_cause_is_a_declared_vultron_property() -> None:
+    """The termination ``Remove``'s ``terminationCause`` resolves (#4857).
+
+    It is a Vultron property, not an AS2 one, so a receiver resolves it only
+    through the Vultron context.
+    """
+    assert vultron_property_terms() == {
+        "terminationCause": "vultron:terminationCause"
+    }
+    committed = _term_block(_committed_context())
+    assert committed["terminationCause"] == "vultron:terminationCause"
+    # A property is not a type, so the type-term guards above do not see it.
+    assert "terminationCause" not in vultron_context_terms()
 
 
 def test_render_is_deterministic_and_sorted() -> None:
@@ -243,11 +262,13 @@ def test_namespace_index_page_lists_exactly_the_generated_terms() -> None:
     """
     page = (repo_root() / "docs/ns/index.md").read_text(encoding="utf-8")
     rows = re.findall(r"^\|\s*`(\w+)`\s*\|", page, flags=re.MULTILINE)
+    # The "Declared types" and "Declared properties" tables together.
+    terms = set(vultron_context_terms()) | set(vultron_property_terms())
 
     assert rows, "found no 'Declared types' rows in docs/ns/index.md"
-    assert set(rows) == set(vultron_context_terms()), (
-        "docs/ns/index.md's declared-type table disagrees with the generated "
-        f"context. Only on the page: {sorted(set(rows) - set(vultron_context_terms()))}; "
-        f"only in the context: {sorted(set(vultron_context_terms()) - set(rows))}. "
-        f"Regenerate with '{WRITE_COMMAND}' and update the table to match."
+    assert set(rows) == terms, (
+        "docs/ns/index.md's declared-term tables disagree with the generated "
+        f"context. Only on the page: {sorted(set(rows) - terms)}; "
+        f"only in the context: {sorted(terms - set(rows))}. "
+        f"Regenerate with '{WRITE_COMMAND}' and update the tables to match."
     )

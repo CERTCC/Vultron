@@ -140,6 +140,7 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
     ClearActiveEmbargoNode,
     HasEmbargoActiveNode,
     SendAnnounceEmbargoEventNode,
+    TerminationCauseIsAdmissibleNode,
     TerminationIsTimelyNode,
 )
 from vultron.core.behaviors.embargo.nodes.terminate import (
@@ -178,6 +179,7 @@ __all__ = [
     "HasEmbargoActiveNode",
     "ClearActiveEmbargoNode",
     "TerminationIsTimelyNode",
+    "TerminationCauseIsAdmissibleNode",
     "ApplyEmbargoTeardownNode",
     "SendAnnounceEmbargoEventNode",
     # The case owner's decision on a proposal (ADR-0122) and its replay

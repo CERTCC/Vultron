@@ -17,6 +17,7 @@ Provides Vultron Activity Streams Vocabulary classes for Embargo activities
 
 from pydantic import Field, model_validator
 
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.states.embargo_register import (
     termination_reason_from_content,
 )
@@ -187,6 +188,9 @@ class _RemoveEmbargoFromCaseActivity(as_Remove):
     content: the termination's what — exactly ``END_TIME_REACHED`` or
         ``EARLY`` (ADR-0122); anything else is refused.  ``summary`` is a
         human-readable account the protocol does not read.
+    termination_cause: the termination's why, when its sender names one,
+        as ``terminationCause`` (EMB-13-004, EMB-13-005); an
+        ``END_TIME_REACHED`` termination has none.
     """
 
     object_: as_EmbargoEvent = Field(
@@ -196,7 +200,10 @@ class _RemoveEmbargoFromCaseActivity(as_Remove):
 
     @model_validator(mode="after")
     def _content_is_a_termination_reason(self):
-        termination_reason_from_content(self.content)
+        EmbargoTermination.from_reason(
+            termination_reason_from_content(self.content),
+            self.termination_cause,
+        )
         return self
 
 

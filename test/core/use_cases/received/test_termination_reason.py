@@ -4,7 +4,9 @@ ADR-0122: the ``Remove``'s ``content`` is the termination's what, exactly
 ``END_TIME_REACHED`` or ``EARLY``, checked at the parse edge.  The receiver
 records it on the ``TERMINATED`` register entry, and refuses an
 ``END_TIME_REACHED`` published before the embargo's end time — at the
-CASE_MANAGER before the commit, at a replica on replay.
+CASE_MANAGER before the commit, at a replica on replay.  The why the
+``Remove`` carries beside it, ``terminationCause``, is covered in
+``test_termination_cause.py`` (EMB-13-005).
 """
 
 from datetime import timedelta
@@ -236,7 +238,8 @@ def test_replica_replay_records_the_what_the_remove_carries() -> None:
 
     assert status == Status.SUCCESS
     ended = cast(VulnerabilityCase, dl.read(case.id_))
-    # The Remove carries the what alone; copying the why is #4748.
+    # The entry names no cause, and the replica slot copies the what alone
+    # even when it does (EMB-13-005); copying the why is #4748.
     assert ended.embargo_termination == EmbargoTermination.end_time_reached()
 
 

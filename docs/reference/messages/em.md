@@ -108,16 +108,19 @@ If the case is public, an exploit is public, or attacks are observed when the Ca
 - **Reason:** `content` says what ended the embargo, exactly `END_TIME_REACHED` or `EARLY`.
   A receiver refuses a `Remove` whose `content` is anything else.
   `summary` is a human-readable account that the protocol does not read.
-- **Why it ended:** the Case Manager's embargo register records a cause beside the reason when it knows one.
-  A termination caused by public awareness, a public exploit or observed attacks carries `EARLY`, and the register names the signal.
-  The termination message does not carry the cause, so a replica that learns of the termination from it records only the reason.
+- **Why it ended:** `terminationCause` gives the cause, when the sender names one, and the Case Manager's embargo register records it beside the reason (EMB-13-004, EMB-13-005).
+  Its `kind` is `THREAT_SIGNAL` (with the `signals` `P`, `X` or `A`), `FIX_READY` (with the `vendors` whose readiness made the quorum), `FIX_DEPLOYED`, or `OTHER` (whose account is the `summary`).
+  Every cause goes with `EARLY`; a `Remove` that carries `END_TIME_REACHED` names no cause.
+  A receiver refuses a `Remove` with an unknown `kind`, a missing or malformed detail, or a cause on `END_TIME_REACHED`.
+  The Case Owner's `Remove` may name `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, and the Case Manager records the cause as given.
+  Only the Case Manager's own `Remove` may name `THREAT_SIGNAL`: a Case Owner reports public awareness, a public exploit or observed attacks as a case status update setting `P`, `X` or `A`, and the Case Manager then ends the embargo with the signals the case carries.
 - **At the end time:** when the end time of the embargo in force has passed, the Case Manager ends it with `END_TIME_REACHED`.
   It does so the next time it handles the case, or when an outside service such as a [Sentinel](../glossary.md) asks it to.
   Whichever comes second finds the embargo already ended and sends nothing.
   A `Remove` that claims `END_TIME_REACHED` before the embargo's end time is refused.
 - **Bound participants that are no longer active:** a signatory that was removed from the case, or that left it and is at RM `CLOSED`, stays bound by the embargo but no longer receives ledger entries.
   The CASE_MANAGER sends each such participant `ET` directly, one activity per participant, outside the ledger stream.
-  The notice carries the embargo and nothing else, and it is not a ledger entry.
+  The notice carries the embargo, the reason and the cause the Case Manager recorded, and nothing else, and it is not a ledger entry.
   The participant applies it only when the CASE_MANAGER sent it.
   A termination on or after the embargo's agreed end date is expiry, and sends no notice.
 

@@ -317,8 +317,9 @@ class TestCaseManagerCommitsFirst:
 def _without_cause(register: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """*register* with each termination's cause removed.
 
-    The ``Remove`` carries only the what, so a replica's ``TERMINATED`` entry
-    records no cause; copying the why is #4748 (blocked by #4609).
+    The replica slot copies only the what, so a replica's ``TERMINATED``
+    entry records no cause, though the ``Remove`` carries it (#4857);
+    copying the why is #4748.
     """
     stripped = []
     for entry in register:
@@ -377,7 +378,7 @@ class TestReplicaCopiesTheTermination:
 
         EMB-13-005 has the ``Remove`` carry the cause (#4857) and replicas
         copy it (#4748), which removes ``drop_cause`` here and the
-        what-only assertion below.  Until then the comparison leaves the
+        what-only assertion below.  Until #4748 the comparison leaves the
         cause (``THREAT_SIGNAL`` with ``X``) out.
         """
         net = _net("tc-threat")
@@ -388,7 +389,7 @@ class TestReplicaCopiesTheTermination:
         assert recorded.cause is not None
         assert recorded.cause.kind is TerminationCauseKind.THREAT_SIGNAL
 
-        # Until #4857 and #4748 the Remove carries no why, so drop it here.
+        # Until #4748 the replica does not copy the why, so drop it here.
         self._replay_and_compare(net, drop_cause=True)
         for replica in _REPLICAS:
             assert net.case(replica).embargo_termination == (

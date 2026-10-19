@@ -30,6 +30,7 @@ from vultron.core.models.dimensions import (
     dimension_state,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.note import VultronNote
@@ -41,7 +42,6 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
-    TerminationReason,
     termination_reason_from_content,
 )
 from vultron.core.states.rm import RM
@@ -107,19 +107,26 @@ def _get_type(field: object) -> str | None:
     return str(t) if t is not None else None
 
 
-def termination_reason_of(activity: as_Activity) -> TerminationReason:
-    """Parse the reason a termination ``Remove`` carries in its ``content``.
+def termination_of(activity: as_Activity) -> EmbargoTermination:
+    """Parse the termination a ``Remove(EmbargoEvent)`` carries.
 
-    Exactly ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122), checked here at the
-    parse edge so core receives the enum (ADR-0032).
+    The what is ``content``, exactly ``END_TIME_REACHED`` or ``EARLY``
+    (ADR-0122, EMB-13-004); the why, when the sender names one, is
+    ``terminationCause``, which the wire model has already validated
+    against the cause kinds (EMB-13-005).  Both are checked here, at the
+    parse edge, so core receives a valid termination (ADR-0032): a cause on
+    an ``END_TIME_REACHED`` termination is refused.
 
     Raises:
-        VultronParseValidationError: when ``content`` is anything else,
-            naming the activity.
+        VultronParseValidationError: when ``content`` is not a termination
+            reason, or the cause does not fit it, naming the activity.
     """
     try:
-        return termination_reason_from_content(
-            getattr(activity, "content", None)
+        return EmbargoTermination.from_reason(
+            termination_reason_from_content(
+                getattr(activity, "content", None)
+            ),
+            getattr(activity, "termination_cause", None),
         )
     except ValueError as exc:
         raise VultronParseValidationError(
@@ -243,6 +250,7 @@ def _build_activity_snapshot(
         content=getattr(activity, "content", None) or None,
         suggested_roles=getattr(activity, "suggested_roles", None) or None,
         roles=getattr(activity, "roles", None) or None,
+        termination_cause=getattr(activity, "termination_cause", None),
         end_time=end_time,
     )
 

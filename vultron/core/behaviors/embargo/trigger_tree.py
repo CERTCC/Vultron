@@ -614,13 +614,17 @@ def terminate_embargo_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Shared BT for terminating the active embargo (BT-19-001, EP-09-008).
 
-    *termination* is how the embargo ends (ADR-0122): ``EARLY`` with no
-    recorded cause for a participant's own decision,
+    *termination* is how the embargo ends (ADR-0122): ``EARLY`` with the
+    cause the requester names, or none, for a participant's own decision;
     :class:`ThreatSignalTermination` for the CS ``P``/``X``/``A`` cascades
-    (``EARLY``, caused by the signals the case carries at the write), and
-    ``END_TIME_REACHED`` for the end-time paths, claimed at
+    (``EARLY``, caused by the signals the case carries at the write); and
+    ``END_TIME_REACHED``, with no cause, for the end-time paths, claimed at
     *terminated_at* and refused before the embargo's end time.  The
-    ``Remove`` carries only the what; the ``TERMINATED`` entry records both.
+    CASE_MANAGER's ``Remove`` carries the what in ``content`` and the cause
+    its ``TERMINATED`` entry records as ``terminationCause`` (EMB-13-005).
+    A participant's ask on a cascade carries the what alone: only the
+    CASE_MANAGER may name a ``THREAT_SIGNAL`` cause, and the CASE_MANAGER
+    learns the signals from the case status update instead.
 
     Satisfies the routing-gated state-mutation ordering:
 
@@ -665,6 +669,8 @@ def terminate_embargo_bt(
         )
     else:
         # The ask carries the what; a threat-signal termination is EARLY.
+        # It names no cause: a THREAT_SIGNAL cause from anyone but the
+        # CASE_MANAGER is refused (EMB-13-005).
         ask = ask_case_manager_to_terminate_once(case_id, termination.reason)
     capture, notices = embargo_ending_notice_nodes(
         case_id, requested_by=requested_by

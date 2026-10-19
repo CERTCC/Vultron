@@ -34,7 +34,7 @@ from vultron.wire.as2.extractor._builders import (
     _to_domain_obj,
     ledger_position_from_content,
     proposed_embargo_from,
-    termination_reason_of,
+    termination_of,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
@@ -216,8 +216,11 @@ def _content_kwargs(
         kwargs["ledger_tail"] = ledger_position_from_content(activity)
     if "termination_reason" in event_class.model_fields:
         # A termination Remove carries its what in ``content``: exactly
-        # END_TIME_REACHED or EARLY, refused otherwise (ADR-0122).
-        kwargs["termination_reason"] = termination_reason_of(activity)
+        # END_TIME_REACHED or EARLY, refused otherwise (ADR-0122); and its
+        # why, when named, as ``terminationCause`` (EMB-13-005).
+        termination = termination_of(activity)
+        kwargs["termination_reason"] = termination.reason
+        kwargs["termination_cause"] = termination.cause
     return kwargs
 
 

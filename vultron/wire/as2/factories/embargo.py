@@ -29,6 +29,7 @@ from typing import Any, cast
 from pydantic import ValidationError
 
 from vultron.core.models._helpers import as_utc, now_utc
+from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.rsvp_deadline import (
     DEFAULT_MIN_RSVP_WINDOW,
     RsvpDeadlineClamp,
@@ -467,6 +468,7 @@ def remove_embargo_from_case_activity(
     origin: as_VulnerabilityCaseRef | None = None,
     *,
     reason: TerminationReason,
+    cause: TerminationCause | None = None,
     **kwargs,
 ) -> as_Remove:
     """Build a Remove(as_EmbargoEvent, origin=VulnerabilityCase).
@@ -477,9 +479,11 @@ def remove_embargo_from_case_activity(
     owner, or by the CASE_MANAGER.
 
     *reason* is the termination's what, carried as ``content``: exactly
-    ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122).  ``summary`` defaults to a
+    ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122).  *cause* is its why, when
+    the sender names one, carried as ``terminationCause`` (EMB-13-005); an
+    ``END_TIME_REACHED`` termination has none.  ``summary`` defaults to a
     human-readable account the protocol does not read; pass ``summary`` to
-    override it.
+    override it, as an ``OTHER`` cause does to give its account.
 
     Note: this activity uses ``origin`` (not ``target``) for the case
     reference, following the ActivityStreams convention for Remove.
@@ -489,6 +493,7 @@ def remove_embargo_from_case_activity(
         origin: The ``VulnerabilityCase`` (or its URI) from which
             the embargo is removed.
         reason: What ended the embargo; required.
+        cause: Why it ended, or ``None`` when the sender names no cause.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
@@ -497,12 +502,17 @@ def remove_embargo_from_case_activity(
         ``origin`` is the case reference.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails,
+            including a *cause* on an ``END_TIME_REACHED`` termination.
     """
     try:
         kwargs.setdefault("summary", _TERMINATION_SUMMARY[reason])
         return _RemoveEmbargoFromCaseActivity(
-            object_=embargo, origin=origin, content=reason.value, **kwargs
+            object_=embargo,
+            origin=origin,
+            content=reason.value,
+            termination_cause=cause,
+            **kwargs,
         )
     except ValidationError as exc:
         logger.warning(
