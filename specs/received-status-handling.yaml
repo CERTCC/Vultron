@@ -215,10 +215,9 @@ groups:
       replica before the teardown entries do, and the replica would then ask
       the CASE_MANAGER to terminate the embargo it has already terminated,
       an ask answered with a refusal (#4149). An open proposal raises no ask
-      either way (EMB-16-002). The same replica would also post the
-      CASE_MANAGER a CSB-18 diagnostic Note for the P/X/A–EM gap the
-      teardown entry is about to close, so `PxaEmInvariantDiagnosticNode`
-      skips on the same condition.
+      either way (EMB-16-002). The CSB-18 diagnostic note raises no such
+      false alarm: `PxaEmInvariantDiagnosticNode` runs only at the
+      CASE_MANAGER (#4829), never at a replica that lags its teardown.
     note: >
       The skip decides who carries out the teardown, not whether it is
       allowed (RSH-03-002).

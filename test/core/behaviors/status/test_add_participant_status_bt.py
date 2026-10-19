@@ -1736,6 +1736,34 @@ class TestEmitRMGapNoteNode:
         assert case is not None
         assert case.notes == []
 
+    def test_a_case_lost_after_the_commit_is_an_internal_error(
+        self, populated_dl, monkeypatch
+    ):
+        """A failure after the entry committed is not logged as 'not recorded'.
+
+        The best-effort skip covers a refused commit only; once the entry
+        exists, the attach failing is an internal error.
+        """
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(sender_actor_id=ACTOR_ID, case_id=CASE_ID)
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+        real_require_case = node._require_case
+        calls: list[str] = []
+
+        def _require_case_then_lose_it(case_id):
+            calls.append(case_id)
+            if len(calls) == 1:
+                return real_require_case(case_id)
+            return None, Status.FAILURE
+
+        monkeypatch.setattr(node, "_require_case", _require_case_then_lose_it)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert "vanished after its" in result.feedback_message
+
     def test_no_case_id_is_noop_success(self, populated_dl):
         """case_id=None → SUCCESS with no outbox entry (no case context)."""
         bridge = self._bridge_with_factory(populated_dl)

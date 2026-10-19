@@ -20,8 +20,9 @@ Two-seam authorization model (ADR-0046, RSH-02-001 to RSH-03-003): after the
 canonical CaseStatus write, a ``FailureIsSuccess``-wrapped ``TeardownEffects``
 Sequence gates and fires embargo teardown when the CaseStatus signals a threat
 (P=True OR X=True OR A=True).  A post-cascade ``PxaEmInvariantDiagnosticNode``
-then verifies the CSB-18-002..004 invariant and posts a Note to the case if the
-invariant is still violated (e.g. authorization gate blocked teardown).
+then verifies the CSB-18-002..004 invariant and, at the CASE_MANAGER, commits a
+note as its own ``add_note_to_case`` entry if the invariant is still violated
+(e.g. authorization gate blocked teardown; #4829).
 
     AddCaseStatusToCaseBT (Sequence)
     ├─ <intake, post-close guard, sender guard, clock decisions>  # factory
@@ -32,12 +33,13 @@ invariant is still violated (e.g. authorization gate blocked teardown).
     ├─ FilterCsPxaDimensionNode                    # per-dim PXA adjudication (RSH-05, ISSUE-2256)
     ├─ FinalizeCsFilterNode                        # whole-refusal gate; FAILURE if nothing new
     ├─ GuardedCommitOrSkip                         # canonical ledger commit (CLP-10-006)
-    ├─ AppendCaseStatusToCaseNode                  # AC-1: append status and persist
-    ├─ TeardownEffectsOrSkip (FailureIsSuccess)    # RSH-03-001 to RSH-03-003
+    ├─ TeardownEffectsOrSkip (FailureIsSuccess)    # RSH-03-001 to RSH-03-003 (ungated)
     │   └─ TeardownEffects (Sequence)
     │       ├─ EmbargoTeardownAuthorizationGate    # call-out (RSH-02-001)
     │       └─ ThreatTerminationBranchNode         # Embargo teardown (RSH-03-001)
-    └─ PxaEmInvariantDiagnosticNode                # CSB-18-002..004 post-cascade check
+    └─ AppendCaseStatusIfCaseManager (CaseManagerGate, from the factory)
+        ├─ AppendCaseStatusToCaseNode              # AC-1: append status and persist
+        └─ PxaEmInvariantDiagnosticNode            # CSB-18-002..004 post-cascade check
 
 Per issue #758 (BT-SM Integration: AddCaseStatusToCaseReceivedUseCase),
 RSH-02-001 to RSH-03-003, ADR-0046, CLP-10-006, CLP-10-009.
@@ -113,10 +115,12 @@ def add_case_status_tree(
        (RSH-02-001) and ``ThreatTerminationBranchNode`` (RSH-03-001 to
        RSH-03-003). Decorated so that authorization-gate FAILURE does not
        abort the outer Sequence — teardown side-effects are optional.
-    9. ``PxaEmInvariantDiagnosticNode`` — reads fresh EM state from the
-       DataLayer after the teardown block and posts a ``Note`` to the case
-       if the CSB-18-002..004 invariant is still violated (e.g. gate blocked
-       teardown). Always returns SUCCESS. (CONCERN-3008)
+    9. ``PxaEmInvariantDiagnosticNode`` — at the CASE_MANAGER only, reads
+       fresh EM state from the DataLayer after the teardown block and commits
+       a note as its own ``add_note_to_case`` entry if the CSB-18-002..004
+       invariant is still violated (e.g. gate blocked teardown). A missing
+       trigger-activity port or a refused commit is logged and succeeds; an
+       internal error propagates. (CONCERN-3008, #4829)
 
     Args:
         request: The parsed inbound domain event.
@@ -181,7 +185,6 @@ def add_case_status_tree(
             PxaEmInvariantDiagnosticNode(
                 status_obj=status_obj,
                 case_id=case_id,
-                sender_actor_id=sender_actor_id,
                 name="PxaEmInvariantDiagnostic",
             ),
         ]

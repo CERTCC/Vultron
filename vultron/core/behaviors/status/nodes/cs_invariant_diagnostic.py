@@ -20,8 +20,8 @@ after :class:`~vultron.core.behaviors.status.nodes.threat_termination.ThreatTerm
 has had a chance to terminate the embargo.  When the invariant is still
 violated — embargo still active with PXA P/X/A bit set — the CASE_MANAGER
 records a note on the case as its own ``add_note_to_case`` entry (#4829).
-A declaration the CASE_MANAGER itself made ahead of its teardown entry gets
-no note (RSH-03-004): that gap is expected, not a violation worth reporting.
+It runs only at the CASE_MANAGER, so a replica lagging the CASE_MANAGER's
+committed teardown (RSH-03-004) never reports that gap as a violation.
 
 Per CSB-18-002, CSB-18-003, CSB-18-004. Resolves CONCERN-3008.
 """
@@ -34,7 +34,6 @@ from vultron.core.behaviors.note.case_manager_note import (
 )
 from vultron.core.behaviors.status.nodes.threat_termination import (
     resolve_pxa_threat_state,
-    teardown_left_to_case_manager,
 )
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.composite_state_invariants import (
@@ -77,7 +76,6 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
         self,
         status_obj: PersistableModel | None,
         case_id: str | None,
-        sender_actor_id: str | None = None,
         name: str | None = None,
     ):
         # No case context is a no-op (``_compose``), never a commit.
@@ -86,7 +84,6 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
         )
         self.status_obj = status_obj
         self.case_id = case_id
-        self.sender_actor_id = sender_actor_id
 
     def _get_pxa_state(self):
         """Return PXA state from status_obj if a threat is present; None otherwise."""
@@ -114,20 +111,6 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
 
         violation = violation_pxa_em_entailment(pxa, case.em_state)
         if violation is None:
-            return None
-
-        if teardown_left_to_case_manager(
-            case, self.datalayer, self.sender_actor_id, self.actor_id
-        ):
-            # RSH-03-004: the CASE_MANAGER declared this status after its
-            # own teardown, so the violation is only this replica lagging
-            # the committed entry.  Telling the manager is noise.
-            logger.info(
-                "PxaEmInvariantDiagnosticNode: case '%s' awaits the"
-                " CASE_MANAGER's teardown entry (%s); no Note posted",
-                self.case_id,
-                violation,
-            )
             return None
 
         logger.warning(

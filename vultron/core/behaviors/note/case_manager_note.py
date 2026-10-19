@@ -40,8 +40,8 @@ from py_trees.common import Status
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
+from vultron.core.behaviors.note.attach import attach_note
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.base import MessageSemantics
 
 
@@ -88,6 +88,7 @@ class _CommitCaseManagerNoteBase(
         )
         self._composed: CaseManagerNote | None = None
         self._note_id: str | None = None
+        self._entry_committed = False
 
     def _compose(self) -> CaseManagerNote | None:
         """Return the note the case is owed, or ``None``."""
@@ -96,6 +97,7 @@ class _CommitCaseManagerNoteBase(
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
+        self._entry_committed = False
         self._composed = self._compose()
         if self._composed is None:
             return Status.SUCCESS
@@ -106,6 +108,10 @@ class _CommitCaseManagerNoteBase(
         try:
             return super().update()
         except RuntimeError as exc:
+            if self._entry_committed:
+                # The entry exists, so this is no refused commit to log as
+                # "not recorded": the BT bridge reports it as internal.
+                raise
             # The ledger refused the commit, so nothing was attached.
             return self._skip(str(exc))
 
@@ -144,6 +150,7 @@ class _CommitCaseManagerNoteBase(
         # Attached once its entry commits, as a replica attaches it from the
         # entry (CLP-07-013, ADR-0124).
         send_and_commit()
+        self._entry_committed = True
         assert self.datalayer is not None
         case, failure = self._require_case(self._case_id)
         if failure is not None:
@@ -151,9 +158,7 @@ class _CommitCaseManagerNoteBase(
                 f"{self.name}: case '{self._case_id}' vanished after its"
                 f" '{self._event_type}' entry committed"
             )
-        if self._note_id not in [_as_id(n) for n in case.notes]:
-            case.notes.append(cast(str, self._note_id))
-            self.datalayer.save(case)
+        attach_note(self.datalayer, case, cast(str, self._note_id))
         self.logger.info(
             "%s: recorded note '%s' (%s) on case '%s' as its own '%s' entry",
             self.name,

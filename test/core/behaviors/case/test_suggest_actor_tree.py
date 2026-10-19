@@ -886,6 +886,14 @@ def _ledger(*rows: tuple[str, dict]) -> SqliteDataLayer:
     return dl
 
 
+def _answer(request_index: int, link: str = "object") -> dict:
+    """A reply snapshot answering the request at *request_index* via *link*."""
+    return {
+        "type": "Accept",
+        link: f"https://example.org/activities/a-{request_index}",
+    }
+
+
 _LOOKUPS = [
     pytest.param(
         InviteInFlightNode,
@@ -949,10 +957,11 @@ class TestPendingRequestLookup:
             Status.FAILURE
         )
 
+    @pytest.mark.parametrize("link", ["object", "inReplyTo"])
     def test_failure_when_the_request_was_answered(
-        self, node_type, request_type, snapshot, reply
+        self, node_type, request_type, snapshot, reply, link
     ):
-        dl = _ledger((request_type, snapshot), (reply, {"type": "Accept"}))
+        dl = _ledger((request_type, snapshot), (reply, _answer(0, link)))
         assert self._run(node_type, dl) == Status.FAILURE
 
     def test_success_when_a_later_request_is_unanswered(
@@ -960,8 +969,21 @@ class TestPendingRequestLookup:
     ):
         dl = _ledger(
             (request_type, snapshot),
-            (reply, {"type": "Accept"}),
+            (reply, _answer(0)),
             (request_type, snapshot),
+        )
+        assert self._run(node_type, dl) == Status.SUCCESS
+
+    def test_success_when_only_another_actors_request_was_answered(
+        self, node_type, request_type, snapshot, reply
+    ):
+        other = json.loads(
+            json.dumps(snapshot).replace(_RECOMMENDED, _RECOMMENDER)
+        )
+        dl = _ledger(
+            (request_type, snapshot),
+            (request_type, other),
+            (reply, _answer(1)),
         )
         assert self._run(node_type, dl) == Status.SUCCESS
 

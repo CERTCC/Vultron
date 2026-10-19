@@ -323,7 +323,9 @@ def add_note_to_case_activity(
     The note travels inline as the ``Add``'s ``object``: the ``object``
     field takes an ``as_Note`` and refuses a URI or a ``Link``, so this is
     the single message that both brings the note to its receiver and
-    attaches it to the case (VAM-07-002, VAM-01-010).
+    attaches it to the case (VAM-07-002, VAM-01-010).  ``context`` defaults
+    to the case, so a CASE_MANAGER entry's sealed snapshot carries it
+    (CLP-07-007).
 
     Args:
         note: The ``as_Note`` to add to the case, carried inline.

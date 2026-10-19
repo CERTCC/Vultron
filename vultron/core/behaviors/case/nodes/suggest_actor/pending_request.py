@@ -31,6 +31,7 @@ from vultron.core.models.wire_keys import wire_key
 from vultron.core.ports.case_persistence import CasePersistence
 
 _ATTRIBUTED_TO = wire_key("attributed_to")
+_IN_REPLY_TO = wire_key("in_reply_to")
 
 
 def invitee(snapshot: dict[str, Any]) -> str | None:
@@ -58,27 +59,38 @@ def request_naming_actor_is_pending(
 
     A request the CASE_MANAGER sends is committed under its own activity id
     (ADR-0119), not the id of the actor it concerns, so the entry is found by
-    the actor its snapshot names (*named_actor*) and its reply state is then
-    read under the entry's ``log_object_id``, as the ownership-transfer Offer
-    is (``core/participants/ownership_offer.py``).
+    the actor its snapshot names (*named_actor*).  It is answered only by a
+    later *reply_event_types* entry that answers it (:func:`answers`): with
+    Invites to two actors open, the Accept of one leaves the other pending.
     """
+    entries = sorted_case_ledger_entries(dl, case_id)
     requests = [
         entry
-        for entry in sorted_case_ledger_entries(dl, case_id)
+        for entry in entries
         if entry.event_type == request_event_type
         and named_actor(entry.payload_snapshot) == actor_id
     ]
     if not requests:
         return False
-    return dl.find_protocol_pair(
-        case_id=case_id,
-        request_event_type=request_event_type,
-        object_id=requests[-1].log_object_id,
-        reply_event_types=reply_event_types,
-    ).is_pending()
+    request = requests[-1]
+    return not any(
+        entry.log_index > request.log_index
+        and entry.event_type in reply_event_types
+        and answers(entry.payload_snapshot, request.log_object_id)
+        for entry in entries
+    )
+
+
+def answers(reply_snapshot: dict[str, Any], request_id: str) -> bool:
+    """True when the reply snapshot's ``object`` or ``inReplyTo`` is *request_id*."""
+    return request_id in (
+        _as_id(reply_snapshot.get("object")),
+        _as_id(reply_snapshot.get(_IN_REPLY_TO)),
+    )
 
 
 __all__ = [
+    "answers",
     "invitee",
     "offered_participant_actor",
     "request_naming_actor_is_pending",

@@ -465,9 +465,9 @@ cascade suppress each other (#4147).
 The declaration can arrive before the teardown entries, so
 `_DeclaredByCaseManagerNode` skips the branch when the status's sender holds
 CASE_MANAGER and is not the executing actor. It decides *who* tears down, not
-*whether* — it is not a sender-role authorization gate (RSH-03-002). For the
-same reason `PxaEmInvariantDiagnosticNode` posts no CSB-18 Note for such a
-status.
+*whether* — it is not a sender-role authorization gate (RSH-03-002). The
+CSB-18 diagnostic needs no such skip: `PxaEmInvariantDiagnosticNode` runs only
+at the CASE_MANAGER (#4829).
 
 **The P/X/A abandonment decides every open proposal (EMB-16-001).** The
 CASE_MANAGER commits one `Reject(Invite(EmbargoEvent))` per proposal under
