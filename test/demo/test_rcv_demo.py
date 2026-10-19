@@ -72,7 +72,7 @@ def patch_datalayer_call(client: TestClient, base: str):
 # ---------------------------------------------------------------------------
 
 
-class TestSeedContainersFcv:
+class TestSeedContainersRcv:
     """Test that seeding creates actors on all three containers."""
 
     def test_seed_creates_all_three_actors(self, base: str):
@@ -127,7 +127,7 @@ class TestSeedContainersFcv:
 # ---------------------------------------------------------------------------
 
 
-class TestResetContainersFcv:
+class TestResetContainersRcv:
     """Test container reset orchestration for RCV scenario."""
 
     def test_reset_containers_calls_reset_for_all_targets(self):

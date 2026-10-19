@@ -39,7 +39,7 @@ def patch_datalayer_call(client: TestClient, base: str):
         mp.undo()
 
 
-class TestSeedContainersFcvcv:
+class TestSeedContainersRcvcv:
     """seed_containers_rcvcv creates five actors and 20 cross-registrations."""
 
     def test_returns_five_actors(self, base: str):

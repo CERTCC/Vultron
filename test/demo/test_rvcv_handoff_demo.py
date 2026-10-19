@@ -79,7 +79,7 @@ def _bound_client(slug: str) -> MagicMock:
     return client
 
 
-class TestPhaseDumpCaseLedgersFvcv:
+class TestPhaseDumpCaseLedgersRvcv:
     """Tests for the case-ledger dump phase in the RVCV-handoff demo."""
 
     def test_writes_jsonl_files_for_all_four_actors(

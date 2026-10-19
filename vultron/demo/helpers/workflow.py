@@ -16,8 +16,8 @@
 Provides generic CVD workflow actions — report submission, report validation,
 and case lookup — that can be reused across rv, three-actor, and
 multi-vendor demo scenarios.  Each function is named after the CVD role that
-performs the action (reporter, coordinator) rather than any scenario-specific
-persona (reporter, vendor).
+performs the action (reporter, coordinator) rather than after a scenario that
+uses it.
 """
 
 import logging
@@ -682,7 +682,7 @@ def wait_for_case_for_offer(
     outbox: exactly the kind of causal arrow ADR-0058 wants gated.
 
     Lives next to :func:`find_case_for_offer` rather than in ``polling.py``
-    because it is that reporter's polling wrapper; putting it here keeps the
+    because it is that lookup's polling wrapper; putting it here keeps the
     offer→report→case resolution chain in one module (ARCH-15-004).
 
     Args:

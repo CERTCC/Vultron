@@ -19,36 +19,36 @@
 #   SCENARIO    One of: rv (default), rvv, rcv, rcv-reject, rvcv-extension, rvcv-handoff, rccv-handoff, rccv-extension, rcvcv, rcv-embargo, rcvv-embargo
 #
 # Environment variables:
-#   DEMO                  Alternative way to specify the scenario (overridden by
-#                         the positional argument when both are supplied).
-#   PROJECT_NAME          Docker resource name prefix (default: vultron-it).
-#                         Use a unique prefix to avoid conflicts with a running
-#                         development stack.
-#   REPORTER_HOST_PORT      Pin a specific host port for the reporter service.
-#   VENDOR_HOST_PORT      Pin a specific host port for the vendor service.
-#   CASE_ACTOR_HOST_PORT  Pin a specific host port for the case-actor service.
-#   COORDINATOR_HOST_PORT Pin a specific host port for the coordinator service.
-#   ACTOR5_HOST_PORT      Pin a specific host port for the actor5 service.
-#   ACTOR6_HOST_PORT      Pin a specific host port for the actor6 service.
+#   DEMO                   Alternative way to specify the scenario (overridden by
+#                          the positional argument when both are supplied).
+#   PROJECT_NAME           Docker resource name prefix (default: vultron-it).
+#                          Use a unique prefix to avoid conflicts with a running
+#                          development stack.
+#   REPORTER_HOST_PORT     Pin a specific host port for the reporter service.
+#   VENDOR_HOST_PORT       Pin a specific host port for the vendor service.
+#   CASE_ACTOR_HOST_PORT   Pin a specific host port for the case-actor service.
+#   COORDINATOR_HOST_PORT  Pin a specific host port for the coordinator service.
+#   ACTOR5_HOST_PORT       Pin a specific host port for the actor5 service.
+#   ACTOR6_HOST_PORT       Pin a specific host port for the actor6 service.
 #   COMPOSE_SERVICE_COLORS
-#                         Path to a service-colors.env file that maps service
-#                         names to hex colors (default: docker/service-colors.env).
-#                         Colors are applied only when stdout is a TTY; output
-#                         redirected to a file or pipe passes through unmodified.
-#                         See docker/service-colors.env for format and defaults.
+#                          Path to a service-colors.env file that maps service
+#                          names to hex colors (default: docker/service-colors.env).
+#                          Colors are applied only when stdout is a TTY; output
+#                          redirected to a file or pipe passes through unmodified.
+#                          See docker/service-colors.env for format and defaults.
 #
-#   Host port variables are optional.  When unset (the default), Docker
-#   assigns an ephemeral host port for each service automatically, so no
-#   port conflicts with a running development stack can occur.  All
-#   inter-actor communication happens over the internal vultron-network
-#   bridge and is unaffected by host port assignment.
+#   Host                   port variables are optional.  When unset (the default), Docker
+#   assigns                an ephemeral host port for each service automatically, so no
+#   port                   conflicts with a running development stack can occur.  All
+#   inter-actor            communication happens over the internal vultron-network
+#   bridge                 and is unaffected by host port assignment.
 #
-#   To inspect the assigned host ports after startup:
-#     docker compose -f docker/docker-compose-multi-actor.yml port reporter 7999
+#   To                     inspect the assigned host ports after startup:
+#                          docker compose -f docker/docker-compose-multi-actor.yml port reporter 7999
 #
 # Exit codes:
-#   0   Scenario completed successfully.
-#   1   Build failure, health-check timeout, or scenario failure.
+#   0                      Scenario completed successfully.
+#   1                      Build failure, health-check timeout, or scenario failure.
 #
 # Prerequisites: Docker and docker compose available on PATH.
 # Run from the repository root.

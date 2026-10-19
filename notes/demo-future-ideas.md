@@ -99,6 +99,6 @@ carries the MS-13-003 `trigger: {type: scenario_start, value: <name>}` marker
 the partition check keys on. Its design is in `notes/call-out-simulation-plan.md`
 § "Multi-Actor In-Process Simulation (#1732, DEMOMA-18)".
 
-The Deployer-role and Vendor-as-finder scenarios are specified, so they sit in
+The Deployer-role and Vendor-as-reporter scenarios are specified, so they sit in
 the planned scenario register as `rcvd` and `vc`. CVD recipe injects are
 planned in [cvd-recipe-injects.md](cvd-recipe-injects.md).

@@ -77,7 +77,7 @@ def patch_datalayer_call(client: TestClient, base: str):
 
 
 @pytest.mark.spec("VP-08-004")
-class TestSeedContainersFvv:
+class TestSeedContainersRvv:
     """Test that seeding creates actors on all three containers."""
 
     def test_seed_creates_reporter_actor(self, client: TestClient, base: str):
@@ -166,7 +166,7 @@ class TestSeedContainersFvv:
 # ---------------------------------------------------------------------------
 
 
-class TestResetContainersFvv:
+class TestResetContainersRvv:
     """Test container reset orchestration for RVV scenario."""
 
     def test_reset_containers_calls_reset_for_all_targets(self):

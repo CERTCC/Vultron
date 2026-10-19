@@ -74,7 +74,7 @@ def patch_datalayer_call(client: TestClient, base: str):
 # ---------------------------------------------------------------------------
 
 
-class TestSeedContainersFccv:
+class TestSeedContainersRccv:
     """Test that seeding creates actors on all four containers."""
 
     def test_seed_creates_all_four_actors(self, base: str):
@@ -144,7 +144,7 @@ class TestSeedContainersFccv:
 # ---------------------------------------------------------------------------
 
 
-class TestResetContainersFccv:
+class TestResetContainersRccv:
     """Test container reset orchestration for RCCV-handoff scenario."""
 
     def test_reset_containers_calls_reset_for_all_targets(self):
@@ -394,7 +394,7 @@ def _bound_client(slug: str) -> MagicMock:
     return client
 
 
-class TestPhaseDumpCaseLedgersFccv:
+class TestPhaseDumpCaseLedgersRccv:
     """Tests for the case-ledger dump phase in the RCCV-handoff demo."""
 
     def test_writes_jsonl_files_for_all_four_actors(

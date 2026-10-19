@@ -95,10 +95,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 logger = logging.getLogger(__name__)
 
-# Default container base URLs — override via environment variables.  The
-# Reporter runs in the ``reporter`` container slot and Vendor2 in ``actor5``:
-# compose service names are routing labels, not CVD roles
-# (vultron/demo/AGENTS.md).
+# Default container base URLs — override via environment variables.  Vendor2
+# runs in the ``actor5`` container slot: compose service names are routing
+# labels, not CVD roles (vultron/demo/AGENTS.md).
 ROLES: list[ActorRole] = [
     ActorRole(
         name="reporter",

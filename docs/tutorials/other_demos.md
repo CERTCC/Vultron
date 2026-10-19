@@ -67,7 +67,7 @@ All commands in the remaining steps are run inside this container shell.
 
 {% include-markdown "../howto/activitypub/activities/_demo_initialize_case.md" %}
 
-This demo walks through the steps a vendor takes to open a new case after receiving a report: create the case, which seats the vendor as Case Owner and CASE_MANAGER, link the report to the case, and invite the finder, which joins when it accepts.
+This demo walks through the steps a vendor takes to open a new case after receiving a report: create the case, which seats the vendor as Case Owner and CASE_MANAGER, link the report to the case, and invite the reporter, which joins when it accepts.
 
 See [How to Initialize a Case](../howto/activitypub/activities/initialize_case.md) for the full activity-by-activity walkthrough.
 
@@ -119,7 +119,7 @@ See [How to Invite an Actor to a Case](../howto/activitypub/activities/invite_ac
 
 {% include-markdown "../howto/activitypub/activities/_demo_suggest_actor.md" %}
 
-This demo shows a finder *suggesting* a coordinator for the case.
+This demo shows a reporter *suggesting* a coordinator for the case.
 The suggestion goes to the Case Actor, which forwards it to the Case Owner as a proposed participant.
 Two paths are demonstrated: the vendor **accepts** the suggestion, and the Case Actor invites the coordinator; or the vendor **rejects** it, and no invitation is sent.
 The vendor's `Reject` is ledgered like its `Accept`.
@@ -129,12 +129,12 @@ The vendor's `Reject` is ledgered like its `Accept`.
 title: suggest-actor — accept and reject paths
 ---
 sequenceDiagram
-    participant F as Finder
+    participant R as Reporter
     participant CA as Case Actor
     participant V as Vendor (Case Owner)
     participant C as Coordinator
 
-    F->>CA: Suggest an actor<br/>Offer(Actor, target=Case)
+    R->>CA: Suggest an actor<br/>Offer(Actor, target=Case)
     CA->>V: Offer Case Participant Role<br/>Offer(CaseParticipant, target=Case)
     alt Vendor accepts suggestion
         V->>CA: Accept(Offer(CaseParticipant))
@@ -350,32 +350,32 @@ See [How to Revise or Terminate an Embargo](../howto/activitypub/activities/mana
 {% include-markdown "../howto/activitypub/activities/_demo_acknowledge.md" %}
 
 This demo shows how a vendor acknowledges receipt of a report without committing to an outcome, using a Report Acknowledgment (RK), `Read(Offer(VulnerabilityReport))`.
-The finder submits through its `submit-report` trigger, so it holds the Offer and accepts the acknowledgment because the vendor is the Offer's addressee.
-The vendor sends the acknowledgment through its `ack-report` trigger, which addresses the finder alone and never the CASE_MANAGER, even though a case already exists.
+The reporter submits through its `submit-report` trigger, so it holds the Offer and accepts the acknowledgment because the vendor is the Offer's addressee.
+The vendor sends the acknowledgment through its `ack-report` trigger, which addresses the reporter alone and never the CASE_MANAGER, even though a case already exists.
 Three paths are demonstrated:
 
-1. **Acknowledge only** — the vendor sends the acknowledgment to the finder.
-2. **Acknowledge then validate** — the acknowledgment, then a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, then notify the finder.
-3. **Acknowledge then invalidate** — the acknowledgment, then a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, then notify the finder.
+1. **Acknowledge only** — the vendor sends the acknowledgment to the reporter.
+2. **Acknowledge then validate** — the acknowledgment, then a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, then notify the reporter.
+3. **Acknowledge then invalidate** — the acknowledgment, then a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, then notify the reporter.
 
 ```mermaid
 ---
 title: acknowledge — three paths
 ---
 sequenceDiagram
-    participant F as Finder
+    participant R as Reporter
     participant V as Vendor
 
-    F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
-    V->>F: Report Acknowledgment (RK)<br/>Read(Offer(VulnerabilityReport))
+    R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
+    V->>R: Report Acknowledgment (RK)<br/>Read(Offer(VulnerabilityReport))
     alt Path 1 — Acknowledge only
-        Note over F,V: done
+        Note over R,V: done
     else Path 2 — Acknowledge then validate
         V->>V: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
-        V-->>F: Notify finder (validated)
+        V-->>R: Notify reporter (validated)
     else Path 3 — Acknowledge then invalidate
         V->>V: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
-        V-->>F: Notify finder (invalidated)
+        V-->>R: Notify reporter (invalidated)
     end
 ```
 
@@ -417,10 +417,10 @@ Only a report that no case holds is closed with a Report Closed (RC), `Reject(Of
 title: manage-case — three paths through the RM state machine
 ---
 sequenceDiagram
-    participant F as Finder
+    participant R as Reporter
     participant V as Vendor
 
-    F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
+    R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
     alt Path 1 — Engage
         V->>V: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
         Note over V: Create Case<br/>Create(VulnerabilityCase)
@@ -457,12 +457,12 @@ vultron-demo trigger
 ```
 
 Most activities in the demos so far were posted to an inbox, which is how an actor *reacts* to another actor.
-The finder's report submission already went through a trigger: its own `submit-report`.
+The reporter's report submission already went through a trigger: its own `submit-report`.
 This demo shows the other direction: an actor *initiates* a protocol behavior from its own state by calling one of its trigger endpoints, and the actor's behavior tree builds the activity and queues it for delivery.
 Two workflows are shown:
 
-1. **Validate and engage** — the finder submits a report; the vendor then calls `POST /actors/{actor_id}/trigger/validate-report` and `POST /actors/{actor_id}/trigger/engage-case`.
-2. **Invalidate and close** — the finder submits a second report; the vendor calls `trigger/invalidate-report`, ends the case's embargo with `trigger/terminate-embargo`, and then closes the case it opened for the report with `trigger/leave-case`, which sends `Leave(VulnerabilityCase)`.
+1. **Validate and engage** — the reporter submits a report; the vendor then calls `POST /actors/{actor_id}/trigger/validate-report` and `POST /actors/{actor_id}/trigger/engage-case`.
+2. **Invalidate and close** — the reporter submits a second report; the vendor calls `trigger/invalidate-report`, ends the case's embargo with `trigger/terminate-embargo`, and then closes the case it opened for the report with `trigger/leave-case`, which sends `Leave(VulnerabilityCase)`.
    Once a case holds a report, its owner closes the case this way, never with `Close(Report)`.
    The vendor ends the embargo first because `leave-case` refuses the Case Owner while the case's embargo is active.
 
