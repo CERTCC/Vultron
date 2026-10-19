@@ -18,7 +18,8 @@ beside the what, as ``terminationCause``, checked at the parse edge.  The
 CASE_MANAGER records a case owner's ``FIX_READY``, ``FIX_DEPLOYED`` or
 ``OTHER`` claim as given and refuses a ``THREAT_SIGNAL`` before it commits;
 every ``Remove`` the CASE_MANAGER sends carries the cause it records
-(EMB-13-005).  A replica copying the cause from the ledger is #4748.
+(EMB-13-005).  A replica copies the cause from the ledger entry, never from
+its own case state (#4748).
 """
 
 from typing import Any, cast
@@ -50,6 +51,7 @@ from vultron.core.models.embargo_termination import (
     ThreatSignal,
     ThreatSignalCause,
     ThreatSignalTermination,
+    threat_signals_of,
 )
 from vultron.core.models.events.embargo import (
     RemoveEmbargoEventFromCaseReceivedEvent,
@@ -387,6 +389,80 @@ def test_an_owner_threat_signal_cause_is_refused_before_the_commit() -> None:
     assert net.case(MANAGER).em_state is EM.ACTIVE
     # Refused before the commit (CLP-10-006): nothing is ledgered.
     assert ledger_entries(net.stores[MANAGER], net.case_id) == before
+
+
+# ---------------------------------------------------------------------------
+# #4748 AC-3: a replica copies the cause the ledger entry carries
+# ---------------------------------------------------------------------------
+
+#: The replicas in a :class:`LedgerNetwork`: every store but the
+#: CASE_MANAGER's.
+_REPLICAS = (OWNER, BYSTANDER)
+
+
+def _register(net: LedgerNetwork, holder: str) -> list[dict[str, Any]]:
+    return [
+        entry.model_dump(mode="json")
+        for entry in net.case(holder).embargo_register
+    ]
+
+
+def _assert_replicas_copy_the_termination(
+    net: LedgerNetwork, expected: EmbargoTermination
+) -> None:
+    """Replay the ledger to each replica; its register must equal the
+    CASE_MANAGER's, the ``TERMINATED`` entry's termination included."""
+    assert net.case(MANAGER).embargo_termination == expected
+    for replica in _REPLICAS:
+        assert EMBARGO_TEARDOWN_EVENT_TYPE in net.replay_ledger(replica)
+        assert net.case(replica).em_state is EM.EXITED, replica
+        assert net.case(replica).embargo_termination == expected, replica
+        assert _register(net, replica) == _register(net, MANAGER), replica
+
+
+@pytest.mark.spec("EMB-13-005")
+@pytest.mark.spec("CM-23-016")
+def test_a_replica_copies_an_owner_fix_ready_cause() -> None:
+    """Nothing in a replica's case state names the vendors whose readiness
+    made the owner's quorum, so it can only copy them from the entry."""
+    net = LedgerNetwork("https://example.org/cases/tc-replica-fix-ready")
+    cause = FixReadyCause(vendors=[BYSTANDER, VENDOR])
+
+    result = _owner_remove(net, cause)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    _assert_replicas_copy_the_termination(
+        net, EmbargoTermination(reason=TerminationReason.EARLY, cause=cause)
+    )
+
+
+@pytest.mark.spec("EMB-13-005")
+@pytest.mark.spec("CM-23-016")
+def test_a_replica_copies_signals_its_own_pxa_does_not_carry() -> None:
+    """The CASE_MANAGER names ``P`` and ``A`` while every replica's case
+    still reads ``pxa``: a replica that worked the cause out from its own
+    state would record no signal, or other signals."""
+    net = LedgerNetwork("https://example.org/cases/tc-replica-signals")
+    for replica in _REPLICAS:
+        assert (
+            threat_signals_of(net.case(replica).current_status.pxa.state) == []
+        )
+
+    result = _bridge(net).execute_with_setup(
+        terminate_embargo_bt(
+            case_id=net.case_id,
+            result_out={},
+            termination=ThreatSignalTermination(
+                signals=[ThreatSignal.P, ThreatSignal.A]
+            ),
+        ),
+        actor_id=MANAGER,
+    )
+
+    assert result.status == py_trees.common.Status.SUCCESS
+    _assert_replicas_copy_the_termination(
+        net, EmbargoTermination.threat([ThreatSignal.P, ThreatSignal.A])
+    )
 
 
 # ---------------------------------------------------------------------------

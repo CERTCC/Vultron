@@ -314,34 +314,12 @@ class TestCaseManagerCommitsFirst:
         assert _queued_removes(net) == []
 
 
-def _without_cause(register: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """*register* with each termination's cause removed.
-
-    The replica slot copies only the what, so a replica's ``TERMINATED``
-    entry records no cause, though the ``Remove`` carries it (#4857);
-    copying the why is #4748.
-    """
-    stripped = []
-    for entry in register:
-        termination = entry.get("termination")
-        stripped.append(
-            entry
-            if termination is None
-            else {**entry, "termination": {**termination, "cause": None}}
-        )
-    return stripped
-
-
 class TestReplicaCopiesTheTermination:
     """AC-2 and AC-4: a replica's register and rows equal the CASE_MANAGER's."""
 
     @staticmethod
-    def _replay_and_compare(
-        net: LedgerNetwork, *, drop_cause: bool = False
-    ) -> None:
+    def _replay_and_compare(net: LedgerNetwork) -> None:
         manager_register = _register(net, MANAGER)
-        if drop_cause:
-            manager_register = _without_cause(manager_register)
         for replica in _REPLICAS:
             assert EMBARGO_TEARDOWN_EVENT_TYPE in net.replay_ledger(replica)
             assert net.case(replica).em_state is EM.EXITED
@@ -373,13 +351,13 @@ class TestReplicaCopiesTheTermination:
 
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("EMB-13-004")
+    @pytest.mark.spec("EMB-13-005")
     def test_a_threat_termination(self):
-        """The what is copied; the why is not copied yet.
+        """The what and the why are both copied (EMB-13-005).
 
-        EMB-13-005 has the ``Remove`` carry the cause (#4857) and replicas
-        copy it (#4748), which removes ``drop_cause`` here and the
-        what-only assertion below.  Until #4748 the comparison leaves the
-        cause (``THREAT_SIGNAL`` with ``X``) out.
+        The ``Remove`` carries the cause (``THREAT_SIGNAL`` with ``X``) as
+        ``terminationCause``, and each replica's ``TERMINATED`` entry
+        records it as the CASE_MANAGER's does.
         """
         net = _net("tc-threat")
         assert _cascade(net) == py_trees.common.Status.SUCCESS
@@ -389,9 +367,6 @@ class TestReplicaCopiesTheTermination:
         assert recorded.cause is not None
         assert recorded.cause.kind is TerminationCauseKind.THREAT_SIGNAL
 
-        # Until #4748 the replica does not copy the why, so drop it here.
-        self._replay_and_compare(net, drop_cause=True)
+        self._replay_and_compare(net)
         for replica in _REPLICAS:
-            assert net.case(replica).embargo_termination == (
-                EmbargoTermination.early()
-            )
+            assert net.case(replica).embargo_termination == recorded

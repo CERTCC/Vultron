@@ -616,10 +616,10 @@ groups:
       A rebuild-from-ledger check replays the CASE_MANAGER's ledger into an empty
       store and asserts that the roster, every participant record (consent rows
       and every participant status included, ids and times too), the case
-      statuses and the embargo register equal the CASE_MANAGER's. It leaves out
-      only the termination cause a `Remove` does not carry (#4748). It runs
-      after every in-process exchange demo and every per-actor-store scenario; the
-      multi-container scenario demos are covered by those in-process equivalents.
+      statuses and the embargo register, each termination's cause included,
+      equal the CASE_MANAGER's. It runs after every in-process exchange demo and
+      every per-actor-store scenario; the multi-container scenario demos are
+      covered by those in-process equivalents.
       `test/core/use_cases/received/test_rebuild_from_ledger.py` and
       `test/demo/test_rebuild_from_ledger.py` pin it. A test per
       consequence-producing act asserts that the act's own entry carries its whole

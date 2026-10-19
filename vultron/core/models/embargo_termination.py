@@ -34,7 +34,7 @@ A termination has two parts:
   is recorded: an end-time termination, or an ``EARLY`` one whose sender
   named none.  The termination ``Remove`` carries the cause as
   ``terminationCause``, checked at the parse edge (EMB-13-005).  A replica
-  that copies the ledger entry still records the what alone until #4748.
+  copies the cause from the ledger entry and never works it out itself.
 
 :func:`end_time_violations` is the end-time rule every node applies before
 an ``END_TIME_REACHED`` termination: it is refused when it is claimed before

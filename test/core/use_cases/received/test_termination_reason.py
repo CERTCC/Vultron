@@ -28,7 +28,10 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    ThreatSignal,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
@@ -238,8 +241,7 @@ def test_replica_replay_records_the_what_the_remove_carries() -> None:
 
     assert status == Status.SUCCESS
     ended = cast(VulnerabilityCase, dl.read(case.id_))
-    # The entry names no cause, and the replica slot copies the what alone
-    # even when it does (EMB-13-005); copying the why is #4748.
+    # The entry names no cause, so the replica records the what alone.
     assert ended.embargo_termination == EmbargoTermination.end_time_reached()
 
 
@@ -271,6 +273,56 @@ def test_replica_replay_refuses_an_entry_without_a_reason() -> None:
 
     assert status == Status.FAILURE
     assert cast(VulnerabilityCase, dl.read(case.id_)).em_state is EM.ACTIVE
+
+
+@pytest.mark.spec("EMB-13-005")
+def test_replica_replay_copies_the_cause_the_entry_carries() -> None:
+    """The replica records the entry's ``terminationCause`` as stated; its
+    own case reads ``pxa``, which names no signal."""
+    dl, case, _ = _case_with_embargo(
+        "https://example.org/cases/tr-replica-cause", ended=False
+    )
+    snapshot = _teardown_entry(case.id_, "EARLY", now_utc())
+    snapshot["terminationCause"] = {"kind": "THREAT_SIGNAL", "signals": ["X"]}
+
+    status = _replay(dl, case.id_, snapshot)
+
+    assert status == Status.SUCCESS
+    ended = cast(VulnerabilityCase, dl.read(case.id_))
+    assert ended.embargo_termination == EmbargoTermination.threat(
+        [ThreatSignal.X]
+    )
+
+
+@pytest.mark.spec("EMB-13-004")
+@pytest.mark.spec("EMB-13-005")
+@pytest.mark.parametrize(
+    "content, cause",
+    [
+        ("EARLY", {"kind": "LEAK"}),
+        ("EARLY", {"kind": "FIX_READY"}),
+        ("EARLY", "FIX_DEPLOYED"),
+        ("END_TIME_REACHED", {"kind": "OTHER"}),
+    ],
+    ids=["unknown-kind", "missing-detail", "not-an-object", "end-time"],
+)
+def test_replica_replay_refuses_an_entry_with_a_bad_cause(
+    content: str, cause: object
+) -> None:
+    """A cause that is malformed, or that its reason cannot have, is
+    refused: nothing is applied, so the entry is not persisted."""
+    dl, case, _ = _case_with_embargo(
+        "https://example.org/cases/tr-replica-bad-cause", ended=True
+    )
+    snapshot = _teardown_entry(case.id_, content, now_utc())
+    snapshot["terminationCause"] = cause
+
+    status = _replay(dl, case.id_, snapshot)
+
+    assert status == Status.FAILURE
+    kept = cast(VulnerabilityCase, dl.read(case.id_))
+    assert kept.em_state is EM.ACTIVE
+    assert kept.embargo_termination is None
 
 
 @pytest.mark.spec("CLP-02-013")
