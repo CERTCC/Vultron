@@ -23,11 +23,13 @@ on the wire; see `notes/message-type-reference.md` and ADR-0083 for the rational
 import pytest
 
 from vultron.core.models.events import MessageSemantics
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
 )
 from vultron.semantic_registry import SEMANTIC_REGISTRY
+from vultron.semantic_registry._occasion import FieldValue, ProtocolShorthand
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
 from vultron.wire.as2.vocab.objects import as_CaseStatus, as_ParticipantStatus
@@ -156,12 +158,16 @@ def test_pxa_also_rides_a_participant_status_embedded_case_status():
         is MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
     )
     carried = {
-        o.shorthand.value
+        (o.shorthand, o.distinguisher.field, o.distinguisher.value)
         for o in entry.occasions
-        if o.shorthand is not None
-        and getattr(o.distinguisher, "within", None) == "case_status"
+        if isinstance(o.distinguisher, FieldValue)
+        and o.distinguisher.within == "case_status"
     }
-    assert carried == {"CP", "CX", "CA"}
+    assert carried == {
+        (ProtocolShorthand.CP, "pxa", CS_pxa.Pxa),
+        (ProtocolShorthand.CX, "pxa", CS_pxa.PXa),
+        (ProtocolShorthand.CA, "pxa", CS_pxa.pxA),
+    }
 
 
 # ---------------------------------------------------------------------------

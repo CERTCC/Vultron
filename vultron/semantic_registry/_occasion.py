@@ -263,19 +263,20 @@ def _embedded_model(object_type: type, field_name: str) -> type[BaseModel]:
         if typing.get_origin(annotation) in (typing.Union, types.UnionType)
         else (annotation,)
     )
-    models = [
-        m
-        for m in members
-        if isinstance(m, type)
-        and issubclass(m, BaseModel)
-        and not is_dimension_model(m)
-    ]
-    if len(models) != 1:
+    # Only ``| None`` may accompany the model: any other member (an IRI
+    # string, say) is a value read() could not look a field up on.
+    held = [m for m in members if m is not types.NoneType]
+    if not (
+        len(held) == 1
+        and isinstance(held[0], type)
+        and issubclass(held[0], BaseModel)
+        and not is_dimension_model(held[0])
+    ):
         raise ValueError(
             f"{object_type.__name__}.{field_name} does not embed exactly one"
             " model, so no field can be read within it (MSM-08-002)"
         )
-    return models[0]
+    return held[0]
 
 
 _FROZEN = ConfigDict(frozen=True, strict=True, arbitrary_types_allowed=True)

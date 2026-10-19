@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.case_status import CaseStatus
@@ -305,6 +305,25 @@ def test_field_value_rejects_a_within_that_embeds_no_model(
         FieldValue(
             object_type=ParticipantStatus,
             within=within,
+            field="pxa",
+            value=CS_pxa.Pxa,
+        )
+
+
+class _StatusOrIri(BaseModel):
+    """A carrier whose field holds an embedded model *or* an IRI string."""
+
+    status: CaseStatus | str | None = None
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_field_value_rejects_a_within_that_may_hold_a_non_model():
+    """Only ``| None`` may accompany the embedded model: an IRI member
+    would leave read() nothing to look the field up on."""
+    with pytest.raises(ValueError, match="does not embed exactly one model"):
+        FieldValue(
+            object_type=_StatusOrIri,
+            within="status",
             field="pxa",
             value=CS_pxa.Pxa,
         )
