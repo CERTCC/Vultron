@@ -288,14 +288,19 @@ def _managed_cases() -> Iterator[tuple[Any, str]]:
                 yield dl, case.id_
 
 
-def _holds_a_multi_party_case() -> bool:
-    """Whether any hosted store holds a case seating more than one actor."""
-    return any(
-        isinstance(case, VulnerabilityCase)
-        and len(case.actor_participant_index) > 1
+def _multi_party_cases() -> set[str]:
+    """The id of every case a hosted store holds seating more than one actor.
+
+    Each such case has a replica, so its ledger must rebuild it: one the
+    check passes over is a gap, not a case with nothing to replicate.
+    """
+    return {
+        case.id_
         for dl in get_all_actor_datalayers().values()
         for case in dl.list_objects("VulnerabilityCase")
-    )
+        if isinstance(case, VulnerabilityCase)
+        and len(case.actor_participant_index) > 1
+    }
 
 
 def check_cases_rebuild_from_their_ledgers() -> None:
@@ -305,8 +310,9 @@ def check_cases_rebuild_from_their_ledgers() -> None:
     rebuild differs from its CASE_MANAGER's, or fails in any other way, is
     recorded in :data:`REBUILD_FAILURES` rather than raised, because the demo
     runner would log a raise as a failed demo and hide the difference.  So
-    is a node holding a multi-party case when no case was rebuilt: every
-    case :func:`_managed_cases` passed over would otherwise pass unchecked.
+    is each multi-party case held on the node that is not rebuilt
+    (:func:`_multi_party_cases`): one :func:`_managed_cases` passed over
+    would otherwise pass unchecked.
     Logging is silenced while it runs: the rebuild's own log lines are not
     the demo's, and the demo tests fail on any ERROR they capture.
     """
@@ -314,11 +320,12 @@ def check_cases_rebuild_from_their_ledgers() -> None:
     logging.disable(logging.CRITICAL)
     try:
         managed = list(_managed_cases())
-        if not managed and _holds_a_multi_party_case():
-            REBUILD_FAILURES.append(
-                "a multi-party case is held, but no case was rebuilt: none"
-                " has a CASE_MANAGER holding its ledger and a replica"
-            )
+        rebuilt = {case_id for _dl, case_id in managed}
+        REBUILD_FAILURES.extend(
+            f"'{case_id}': a multi-party case is held, but not rebuilt: no"
+            " hosted CASE_MANAGER holds it with a ledger and a replica"
+            for case_id in sorted(_multi_party_cases() - rebuilt)
+        )
         for dl, case_id in managed:
             REBUILT_CASES.append(
                 (

@@ -217,8 +217,8 @@ def _model_methods() -> dict[str, tuple[types.FunctionType, ...]]:
                 function = _function_of(attr)
                 if (
                     function is not None
-                    # Generated methods (validators, dataclass dunders) have
-                    # no source of their own to walk.
+                    # Methods compiled elsewhere (dataclass- or
+                    # pydantic-generated dunders) have no source here to walk.
                     and function.__code__.co_filename == module.__file__
                     and function.__qualname__ not in _UNWALKED_MODEL_WRITES
                 ):
@@ -252,8 +252,11 @@ def _reach(
 
     Blind spots, by construction: a function reached as ``module.func`` (an
     attribute that names no model method is not resolved); a method of a
-    class outside ``vultron.core.models``; and a lifecycle-running node
-    class outside ``embargo/nodes`` (:func:`_lifecycle_nodes`).
+    class outside ``vultron.core.models``, or of a class nested inside
+    another; a ``functools.cached_property`` (not unwrapped by
+    :func:`_function_of`); and a lifecycle-running node class outside
+    ``embargo/nodes`` (:func:`_lifecycle_nodes`).  None of the nested or
+    cached kinds exists in ``vultron.core.models`` today.
 
     Two model writes behind the one apply function stay unwalked, on
     purpose (:data:`_UNWALKED_MODEL_WRITES`):

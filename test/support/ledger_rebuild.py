@@ -55,6 +55,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.events import AnyReceivedEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -76,7 +77,7 @@ _CREATION_RECORDS: Mapping[str, tuple[str, type[CoreObject]]] = {
 }
 
 
-def received_event(activity: Any, receiver: str) -> Any:
+def received_event(activity: as_Activity, receiver: str) -> AnyReceivedEvent:
     """The event the inbox routes for *activity* delivered to *receiver*."""
     return extract_event(activity).model_copy(
         update={"receiving_actor_id": receiver}

@@ -29,6 +29,7 @@ import pytest
 
 import test.demo._helpers as helpers
 from test.demo._helpers import route_exchange_demo_at_testclient
+from vultron.core.models.case import VulnerabilityCase
 from vultron.demo.exchange import (
     establish_embargo_demo as demo,
     initialize_case_demo as init_demo,
@@ -70,6 +71,7 @@ def test_any_rebuild_failure_is_recorded_not_raised(monkeypatch, error):
         raise error
 
     monkeypatch.setattr(helpers, "_managed_cases", lambda: iter([(None, "c")]))
+    monkeypatch.setattr(helpers, "_multi_party_cases", set)
     monkeypatch.setattr(helpers, "ledger_entries", lambda *_a: [])
     monkeypatch.setattr(helpers, "assert_rebuilds_from_ledger", _fails)
 
@@ -83,27 +85,59 @@ def test_any_rebuild_failure_is_recorded_not_raised(monkeypatch, error):
     assert helpers.REBUILD_FAILURES == []
 
 
-@pytest.mark.parametrize("multi_party", [True, False], ids=["held", "none"])
-def test_a_multi_party_case_with_nothing_rebuilt_is_a_failure(
-    monkeypatch, multi_party
-):
-    """A demo cannot pass the check by leaving every case unrebuildable."""
-    monkeypatch.setattr(helpers, "_managed_cases", lambda: iter([]))
+def test_each_multi_party_case_not_rebuilt_is_a_failure(monkeypatch):
+    """One rebuilt case does not cover another the check passed over."""
+    monkeypatch.setattr(helpers, "_managed_cases", lambda: iter([(None, "a")]))
+    monkeypatch.setattr(helpers, "ledger_entries", lambda *_a: [])
     monkeypatch.setattr(
-        helpers, "_holds_a_multi_party_case", lambda: multi_party
+        helpers, "assert_rebuilds_from_ledger", lambda *_a, **_k: None
     )
+    monkeypatch.setattr(helpers, "_multi_party_cases", lambda: {"a", "b"})
 
     helpers.check_cases_rebuild_from_their_ledgers()
 
     failures = list(helpers.REBUILD_FAILURES)
     helpers.REBUILD_FAILURES.clear()
-    assert bool(failures) is multi_party
-    assert all("no case was rebuilt" in f for f in failures)
+    assert len(failures) == 1
+    assert failures[0].startswith("'b': a multi-party case is held")
+
+
+class _Store:
+    def __init__(self, *objects):
+        self._objects = list(objects)
+
+    def list_objects(self, _type):
+        return self._objects
+
+
+def _seating(case_id, *actors):
+    case = VulnerabilityCase(id_=case_id)
+    for n, actor in enumerate(actors):
+        case.actor_participant_index[actor] = f"{case_id}/participants/{n}"
+    return case
+
+
+def test_a_case_seating_more_than_one_actor_is_multi_party(monkeypatch):
+    stores = {
+        "https://example.org/actors/x": _Store(
+            _seating("https://example.org/cases/solo", "https://x.example"),
+            _seating(
+                "https://example.org/cases/pair",
+                "https://x.example",
+                "https://y.example",
+            ),
+            object(),  # not a case
+        ),
+        "https://example.org/actors/y": _Store(),
+    }
+    monkeypatch.setattr(helpers, "get_all_actor_datalayers", lambda: stores)
+
+    assert helpers._multi_party_cases() == {"https://example.org/cases/pair"}
 
 
 def test_the_check_restores_the_logging_level_it_found(monkeypatch):
     monkeypatch.setattr(helpers, "_managed_cases", lambda: iter([]))
-    monkeypatch.setattr(helpers, "_holds_a_multi_party_case", lambda: False)
+    monkeypatch.setattr(helpers, "_multi_party_cases", set)
     logging.disable(logging.INFO)
     try:
         helpers.check_cases_rebuild_from_their_ledgers()
