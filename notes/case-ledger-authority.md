@@ -107,6 +107,13 @@ including for the CASE_MANAGER's own acts. Today each write path stamps
 `event_type` from its own string constant. The shapes for ledger-only acts are
 decided in #4723; the equality test is #4724.
 
+**Planned: the field is renamed `semantic_type` (wire `semanticType`) first
+(CLP-02-014).** The rename is mechanical and lands before the ADR-0140 work,
+which is then written against the new name. The hashed key follows the field
+name, as `object_id` already does, so only newly written entries hash
+differently; a stored `eventType` row is refused and the store reset, never
+aliased (`notes/datalayer-design.md`).
+
 ## Refusals Go to the Process Log
 
 Only admitted assertions enter the ledger; there is no disposition field.
