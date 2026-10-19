@@ -17,7 +17,8 @@
       "VulnerabilityCase": "vultron:VulnerabilityCase",
       "VulnerabilityCaseStub": "vultron:VulnerabilityCaseStub",
       "VulnerabilityRecord": "vultron:VulnerabilityRecord",
-      "VulnerabilityReport": "vultron:VulnerabilityReport"
+      "VulnerabilityReport": "vultron:VulnerabilityReport",
+      "terminationCause": "vultron:terminationCause"
     }
   ]
 }

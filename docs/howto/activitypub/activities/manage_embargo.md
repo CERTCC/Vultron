@@ -120,6 +120,21 @@ Set `content` to the reason the embargo ends: `EARLY` to end it before its end t
 A receiver refuses a `Remove(Event)` whose `content` is anything else, and refuses `END_TIME_REACHED` sent before the end time.
 Put a human-readable account in `summary` if you want one; the protocol does not read it.
 
+With `EARLY`, you may also say why the embargo ends, in `terminationCause`.
+Set its `kind` to one of these:
+
+- `FIX_READY`, with `vendors` listing the actor IDs of the Vendors whose readiness made the quorum, each once.
+- `FIX_DEPLOYED`, with no detail.
+- `OTHER`, with no detail; give the account in `summary`.
+
+The CASE_MANAGER records the cause as you give it.
+Do not send `terminationCause` with `END_TIME_REACHED`.
+A receiver refuses a `Remove(Event)` with an unknown `kind`, a missing or malformed detail, or a cause on `END_TIME_REACHED`.
+
+Do not use `THREAT_SIGNAL`: the CASE_MANAGER refuses it on any `Remove(Event)` but its own.
+To end the embargo because the vulnerability is public, an exploit is public or attacks are observed, send a case status update setting `P`, `X` or `A` instead.
+The CASE_MANAGER then ends the embargo itself, with a `THREAT_SIGNAL` cause naming the signals the case carries.
+
 {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-termination.md" %}
 
 Only the CASE_MANAGER changes the case's EM state (EP-09-008).

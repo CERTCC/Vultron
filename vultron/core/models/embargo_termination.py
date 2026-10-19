@@ -19,14 +19,22 @@ A termination has two parts:
   ``END_TIME_REACHED`` or ``EARLY``.  It travels on the wire as the
   termination ``Remove``'s ``content`` and is checked at the parse edge.
 - **Why** — a structured :data:`TerminationCause`, recorded on the
-  ``TERMINATED`` register entry beside the what.  The one cause defined so
-  far is :class:`ThreatSignalCause`, naming the CS signals (``P``, ``X``,
-  ``A``) that ended the embargo early.  Other early causes stay open-ended:
-  :data:`TerminationCause` grows into a union discriminated on ``kind``.
-  ``cause`` is ``None`` when no structured cause is recorded — an end-time
-  termination, a participant's own early decision, or a replica that has
-  learned only the what from the ``Remove``, which does not carry the why
-  (ADR-0122; copying the why is #4748).
+  ``TERMINATED`` register entry beside the what.  It is a union discriminated
+  on ``kind`` (EMB-13-004, ADR-0122):
+
+  - :class:`ThreatSignalCause` — the CS signals (``P``, ``X``, ``A``) that
+    ended the embargo; only the CASE_MANAGER names it;
+  - :class:`FixReadyCause` — the vendors whose fix readiness made the quorum
+    (VP-09-007);
+  - :class:`FixDeployedCause` — the fix is deployed;
+  - :class:`OtherCause` — anything else; the ``Remove``'s ``summary`` gives
+    the account.
+
+  Every cause is ``EARLY``.  ``cause`` is ``None`` when no structured cause
+  is recorded: an end-time termination, or an ``EARLY`` one whose sender
+  named none.  The termination ``Remove`` carries the cause as
+  ``terminationCause``, checked at the parse edge (EMB-13-005).  A replica
+  that copies the ledger entry still records the what alone until #4748.
 
 :func:`end_time_violations` is the end-time rule every node applies before
 an ``END_TIME_REACHED`` termination: it is refused when it is claimed before
@@ -35,7 +43,7 @@ the embargo's end time.
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
@@ -43,6 +51,7 @@ from pydantic.alias_generators import to_camel
 from vultron.core.models.base import ValidatedAssignmentMixin
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.embargo_register import TerminationReason
+from vultron.primitives import NormalisedActorId
 
 
 class ThreatSignal(StrEnum):
@@ -67,7 +76,23 @@ def threat_signals_of(pxa: CS_pxa) -> list[ThreatSignal]:
 class TerminationCauseKind(StrEnum):
     """The kinds of structured cause a termination may record."""
 
+    #: The case carries P, X or A; only the CASE_MANAGER names it.
     THREAT_SIGNAL = "THREAT_SIGNAL"
+    #: A quorum of vendors is fix-ready (VP-09-007).
+    FIX_READY = "FIX_READY"
+    #: The fix is deployed.
+    FIX_DEPLOYED = "FIX_DEPLOYED"
+    #: Anything else; the ``Remove``'s ``summary`` gives the account.
+    OTHER = "OTHER"
+
+
+#: The cause kinds only the CASE_MANAGER may name on a ``Remove``.  A
+#: threat signal ends an embargo through a case status update setting
+#: ``P``, ``X`` or ``A``, after which the CASE_MANAGER terminates it with the
+#: signals the case carries (EMB-13-005).
+CASE_MANAGER_ONLY_CAUSE_KINDS: frozenset[TerminationCauseKind] = frozenset(
+    {TerminationCauseKind.THREAT_SIGNAL}
+)
 
 
 _FROZEN = ConfigDict(
@@ -102,16 +127,76 @@ class ThreatSignalCause(ValidatedAssignmentMixin, BaseModel):
         return self
 
 
-#: The structured why of a termination.  A single cause today; a new cause is
-#: a new model with its own ``kind`` literal, and this becomes a union
-#: discriminated on ``kind``.
-TerminationCause = ThreatSignalCause
+class FixReadyCause(ValidatedAssignmentMixin, BaseModel):
+    """The embargo ended early because a quorum of vendors is fix-ready.
 
-#: The causes each what admits.  A threat signal ends an embargo before its
-#: end time, so it is always ``EARLY``.
+    On a case owner's ``Remove`` it is the owner's claim, recorded as given:
+    the CASE_MANAGER does not check that the vendors are fix-ready, because
+    ending early on a quorum is the owner's judgment (EMB-13-005).
+    """
+
+    model_config = _FROZEN
+
+    kind: Literal[TerminationCauseKind.FIX_READY] = (
+        TerminationCauseKind.FIX_READY
+    )
+    #: The actor IDs of the vendors whose readiness made the quorum
+    #: (VP-09-007); at least one, each named once, in its normalised
+    #: spelling (OID-01-006), so one vendor has one form.
+    vendors: list[NormalisedActorId] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _vendors_are_distinct(self) -> "FixReadyCause":
+        """Refuse a vendor named twice, so one quorum has one form."""
+        repeated = sorted(
+            {
+                vendor
+                for vendor in self.vendors
+                if self.vendors.count(vendor) > 1
+            }
+        )
+        if repeated:
+            raise ValueError(
+                f"a FIX_READY cause names each vendor once; {repeated}"
+                " appear more than once"
+            )
+        return self
+
+
+class FixDeployedCause(ValidatedAssignmentMixin, BaseModel):
+    """The embargo ended early because the fix is deployed."""
+
+    model_config = _FROZEN
+
+    kind: Literal[TerminationCauseKind.FIX_DEPLOYED] = (
+        TerminationCauseKind.FIX_DEPLOYED
+    )
+
+
+class OtherCause(ValidatedAssignmentMixin, BaseModel):
+    """The embargo ended early for a reason no other kind names.
+
+    It carries no detail: the ``Remove``'s ``summary`` gives the account.
+    """
+
+    model_config = _FROZEN
+
+    kind: Literal[TerminationCauseKind.OTHER] = TerminationCauseKind.OTHER
+
+
+#: The structured why of a termination: one model per kind, discriminated on
+#: ``kind`` (EMB-13-004).  A new cause is a new model with its own ``kind``
+#: literal, added here and to :data:`_CAUSE_KINDS_BY_REASON`.
+TerminationCause = Annotated[
+    ThreatSignalCause | FixReadyCause | FixDeployedCause | OtherCause,
+    Field(discriminator="kind"),
+]
+
+#: The causes each what admits.  Every cause ends an embargo before its end
+#: time, so it is always ``EARLY``; an end-time termination has none.
 _CAUSE_KINDS_BY_REASON: dict[TerminationReason, frozenset[str]] = {
     TerminationReason.END_TIME_REACHED: frozenset(),
-    TerminationReason.EARLY: frozenset({TerminationCauseKind.THREAT_SIGNAL}),
+    TerminationReason.EARLY: frozenset(TerminationCauseKind),
 }
 
 
@@ -131,8 +216,8 @@ class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
             and self.cause.kind not in _CAUSE_KINDS_BY_REASON[self.reason]
         ):
             raise ValueError(
-                f"a {self.reason} termination cannot have a"
-                f" {self.cause.kind} cause"
+                f"an {self.reason} termination cannot have a"
+                f" {self.cause.kind} cause (EMB-13-004)"
             )
         return self
 
@@ -155,12 +240,37 @@ class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
         )
 
     @classmethod
-    def from_reason(cls, reason: TerminationReason) -> "EmbargoTermination":
-        """The termination a ``Remove`` carrying *reason* tells its receiver.
+    def from_reason(
+        cls,
+        reason: TerminationReason,
+        cause: "TerminationCause | None" = None,
+    ) -> "EmbargoTermination":
+        """The termination a ``Remove`` tells its receiver.
 
-        The ``Remove`` carries only the what, so no cause is recorded.
+        *reason* is the what the ``Remove`` carries in ``content``; *cause*
+        is the why it carries as ``terminationCause``, or ``None`` when it
+        names none (EMB-13-005).
+
+        Raises:
+            ValidationError: *cause* does not fit *reason* (an
+                ``END_TIME_REACHED`` termination has no cause).
         """
-        return cls(reason=reason)
+        return cls(reason=reason, cause=cause)
+
+    @property
+    def participant_cause(self) -> "TerminationCause | None":
+        """The cause a participant's ask for this termination may carry.
+
+        The cause itself, unless only the CASE_MANAGER may name its kind
+        (``THREAT_SIGNAL``): the CASE_MANAGER would refuse that ask, and it
+        learns the signals from the case status update instead (EMB-13-005).
+        """
+        if (
+            self.cause is None
+            or self.cause.kind in CASE_MANAGER_ONLY_CAUSE_KINDS
+        ):
+            return None
+        return self.cause
 
 
 class ThreatSignalTermination(ValidatedAssignmentMixin, BaseModel):
@@ -189,6 +299,15 @@ class ThreatSignalTermination(ValidatedAssignmentMixin, BaseModel):
     def reason(self) -> TerminationReason:
         """The what: a threat signal ends an embargo early (ADR-0122)."""
         return TerminationReason.EARLY
+
+    @property
+    def participant_cause(self) -> None:
+        """A participant's ask names no threat-signal cause (EMB-13-005).
+
+        Only the CASE_MANAGER may name ``THREAT_SIGNAL``; it learns the
+        signals from the case status update instead.
+        """
+        return None
 
     def resolve(self, pxa: CS_pxa) -> EmbargoTermination:
         """The termination this names, reading *pxa* when no signals are given.
@@ -251,7 +370,11 @@ def end_time_violations(
 
 
 __all__ = [
+    "CASE_MANAGER_ONLY_CAUSE_KINDS",
     "EmbargoTermination",
+    "FixDeployedCause",
+    "FixReadyCause",
+    "OtherCause",
     "TerminationCause",
     "TerminationCauseKind",
     "ThreatSignal",

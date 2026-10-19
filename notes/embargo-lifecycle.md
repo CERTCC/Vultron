@@ -114,17 +114,21 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   `content`, parsed at the edge (`termination_reason_from_content()`); the why
   is a structured cause (`vultron/core/models/embargo_termination.py`), a
   union discriminated on `kind`: `THREAT_SIGNAL` (`P`/`X`/`A`), `FIX_READY`
-  (the quorum's vendors), `FIX_DEPLOYED` and `OTHER` (ADR-0122 rev 7; only
-  `ThreatSignalCause` is built until #4857). Both sit on the `TERMINATED`
+  (the quorum's vendors), `FIX_DEPLOYED` and `OTHER` (ADR-0122 rev 7). Both
+  sit on the `TERMINATED`
   entry as one `EmbargoTermination`, required there and refused elsewhere. The
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
   triggering status, or, when unknown at build time, the case's PXA at the
-  write. The `Remove` carries the why as `terminationCause`, checked at the
-  parse edge (EMB-13-005, #4857), because a replica learns the why only from
-  the ledger entry: it copies the cause, never works it out from its own PXA
-  (#4748). An owner's `Remove` may claim `FIX_READY`, `FIX_DEPLOYED` or
-  `OTHER`, recorded as given; one naming `THREAT_SIGNAL` is refused, since a
-  threat signal arrives as a case status update setting `P`, `X` or `A`.
+  write. The `Remove` carries the why as `terminationCause` (a field on the
+  base `as_Remove`, marked a Vultron property so `context.jsonld` names it),
+  checked at the parse edge (EMB-13-005), because a replica learns the why
+  only from the ledger entry: it copies the cause, never works it out from its
+  own PXA (#4748). Every `Remove` the CASE_MANAGER sends passes the cause it
+  records to `terminate_embargo(cause=...)`. An owner's `Remove` may claim
+  `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, recorded as given; one naming
+  `THREAT_SIGNAL` is refused before the commit
+  (`TerminationCauseIsAdmissibleNode`), since a threat signal arrives as a
+  case status update setting `P`, `X` or `A`.
   The CASE_MANAGER decides the termination first (`decide_termination()`),
   builds its `Remove` from that decision, commits it, and only then applies
   the step (#4714), so the wire and the entry cannot disagree. The CM-31-009

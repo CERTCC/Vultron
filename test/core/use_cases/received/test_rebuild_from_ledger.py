@@ -168,7 +168,8 @@ def _terminated(cause: bool, reason: TerminationReason) -> VulnerabilityCase:
     ids=["cause-only", "reason"],
 )
 def test_only_the_termination_cause_is_left_out(replica, differs):
-    """#4748: a replica cannot learn the cause; the reason is still compared."""
+    """#4748: the replica slot does not copy the cause yet, though the
+    ``Remove`` carries it (EMB-13-005); the reason is still compared."""
     manager = _terminated(True, TerminationReason.EARLY)
 
     assert (

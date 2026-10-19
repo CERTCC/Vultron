@@ -49,6 +49,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.embargo_register import TerminationReason
@@ -1055,6 +1056,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         *,
         reason: TerminationReason,
+        cause: TerminationCause | None = None,
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
@@ -1062,7 +1064,9 @@ class TriggerActivityPort(Protocol):
 
         Corresponds to the ET (Embargo Termination) protocol message.
         *reason* is the termination's what, carried as ``content``
-        (ADR-0122); the why stays on the sender's register entry.
+        (ADR-0122); *cause* is its why, carried as ``terminationCause``
+        when given (EMB-13-005).  The CASE_MANAGER passes the cause it
+        records on its own ``TERMINATED`` entry.
         *attributed_to*, when given, names the actor whose request the
         CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
         to a bound signatory the ledger no longer reaches.
