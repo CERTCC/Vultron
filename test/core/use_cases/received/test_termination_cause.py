@@ -70,7 +70,13 @@ from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
+from ._ledger_network import (
+    BYSTANDER,
+    MANAGER,
+    OWNER,
+    REPLICAS,
+    LedgerNetwork,
+)
 
 VENDOR = "https://example.org/users/vendor"
 CASE = "https://example.org/cases/tc-wire"
@@ -395,17 +401,6 @@ def test_an_owner_threat_signal_cause_is_refused_before_the_commit() -> None:
 # #4748 AC-3: a replica copies the cause the ledger entry carries
 # ---------------------------------------------------------------------------
 
-#: The replicas in a :class:`LedgerNetwork`: every store but the
-#: CASE_MANAGER's.
-_REPLICAS = (OWNER, BYSTANDER)
-
-
-def _register(net: LedgerNetwork, holder: str) -> list[dict[str, Any]]:
-    return [
-        entry.model_dump(mode="json")
-        for entry in net.case(holder).embargo_register
-    ]
-
 
 def _assert_replicas_copy_the_termination(
     net: LedgerNetwork, expected: EmbargoTermination
@@ -413,11 +408,11 @@ def _assert_replicas_copy_the_termination(
     """Replay the ledger to each replica; its register must equal the
     CASE_MANAGER's, the ``TERMINATED`` entry's termination included."""
     assert net.case(MANAGER).embargo_termination == expected
-    for replica in _REPLICAS:
+    for replica in REPLICAS:
         assert EMBARGO_TEARDOWN_EVENT_TYPE in net.replay_ledger(replica)
         assert net.case(replica).em_state is EM.EXITED, replica
         assert net.case(replica).embargo_termination == expected, replica
-        assert _register(net, replica) == _register(net, MANAGER), replica
+        assert net.register(replica) == net.register(MANAGER), replica
 
 
 @pytest.mark.spec("EMB-13-005")
@@ -443,7 +438,7 @@ def test_a_replica_copies_signals_its_own_pxa_does_not_carry() -> None:
     still reads ``pxa``: a replica that worked the cause out from its own
     state would record no signal, or other signals."""
     net = LedgerNetwork("https://example.org/cases/tc-replica-signals")
-    for replica in _REPLICAS:
+    for replica in REPLICAS:
         assert (
             threat_signals_of(net.case(replica).current_status.pxa.state) == []
         )

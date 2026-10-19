@@ -224,7 +224,7 @@ def _replay(
         )
 
 
-def _register(case: VulnerabilityCase) -> list[dict[str, Any]]:
+def register_rows(case: VulnerabilityCase) -> list[dict[str, Any]]:
     """The embargo register, as compared: whole, each termination's reason
     and cause included (EMB-13-005)."""
     return [entry.model_dump(mode="json") for entry in case.embargo_register]
@@ -279,7 +279,10 @@ def case_file_differences(
     want_cs, got_cs = _case_statuses(manager), _case_statuses(replica)
     if got_cs != want_cs:
         found.append(f"case statuses: {got_cs} != {want_cs}")
-    want_register, got_register = _register(manager), _register(replica)
+    want_register, got_register = (
+        register_rows(manager),
+        register_rows(replica),
+    )
     if got_register != want_register:
         found.append(f"embargo register: {got_register} != {want_register}")
     return found

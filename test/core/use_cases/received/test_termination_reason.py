@@ -310,16 +310,16 @@ def test_replica_replay_refuses_an_entry_with_a_bad_cause(
     content: str, cause: object
 ) -> None:
     """A cause that is malformed, or that its reason cannot have, is
-    refused: nothing is applied, so the entry is not persisted."""
+    refused: nothing is applied, so the entry is not persisted, and its
+    redelivery is refused again."""
     dl, case, _ = _case_with_embargo(
         "https://example.org/cases/tr-replica-bad-cause", ended=True
     )
     snapshot = _teardown_entry(case.id_, content, now_utc())
     snapshot["terminationCause"] = cause
 
-    status = _replay(dl, case.id_, snapshot)
-
-    assert status == Status.FAILURE
+    assert _replay(dl, case.id_, snapshot) == Status.FAILURE
+    assert _replay(dl, case.id_, snapshot) == Status.FAILURE
     kept = cast(VulnerabilityCase, dl.read(case.id_))
     assert kept.em_state is EM.ACTIVE
     assert kept.embargo_termination is None

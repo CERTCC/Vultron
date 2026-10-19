@@ -59,9 +59,11 @@ from vultron.core.states.embargo_register import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
-
-_REPLICAS = (OWNER, BYSTANDER)
+from ._ledger_network import (
+    MANAGER,
+    REPLICAS,
+    LedgerNetwork,
+)
 
 
 def _net(name: str) -> LedgerNetwork:
@@ -157,13 +159,6 @@ def _lazy_end_time_check(net: LedgerNetwork) -> None:
     run_end_time_check(net.stores[MANAGER], net.case_id, MANAGER)
 
 
-def _register(net: LedgerNetwork, holder: str) -> list[dict[str, Any]]:
-    return [
-        entry.model_dump(mode="json")
-        for entry in net.case(holder).embargo_register
-    ]
-
-
 def _rows(net: LedgerNetwork, holder: str) -> dict[str, list[dict]]:
     """Every participant's consent rows in *holder*'s store, by actor."""
     case = net.case(holder)
@@ -249,7 +244,7 @@ class TestCaseManagerCommitsFirst:
         embargo locally with no entry.  Now nothing changes, and a retry can
         still end it."""
         net = _net(f"tc-fail-{path}")
-        register, rows = _register(net, MANAGER), _rows(net, MANAGER)
+        register, rows = net.register(MANAGER), _rows(net, MANAGER)
         failed = fail_commits(
             monkeypatch,
             commit_tree,
@@ -261,7 +256,7 @@ class TestCaseManagerCommitsFirst:
 
         assert len(failed) == 1, "the teardown was never committed"
         assert net.case(MANAGER).em_state is EM.REVISE
-        assert _register(net, MANAGER) == register
+        assert net.register(MANAGER) == register
         assert _rows(net, MANAGER) == rows
         assert _queued_removes(net) == [], "an unrecorded Remove was queued"
         assert EMBARGO_TEARDOWN_EVENT_TYPE not in committed_event_types(
@@ -278,7 +273,7 @@ class TestCaseManagerCommitsFirst:
         any entry is committed."""
         net = _net("tc-refused")
         before = committed_event_types(net.stores[MANAGER], net.case_id)
-        register = _register(net, MANAGER)
+        register = net.register(MANAGER)
 
         status = _cascade(net, ThreatSignalTermination())
 
@@ -286,7 +281,7 @@ class TestCaseManagerCommitsFirst:
         assert committed_event_types(net.stores[MANAGER], net.case_id) == (
             before
         )
-        assert _register(net, MANAGER) == register
+        assert net.register(MANAGER) == register
         assert _queued_removes(net) == []
 
     @pytest.mark.spec("CLP-07-013")
@@ -303,14 +298,14 @@ class TestCaseManagerCommitsFirst:
         monkeypatch.setattr(termination_commit, "trial_apply", _refuse)
         net = _net("tc-trial")
         before = committed_event_types(net.stores[MANAGER], net.case_id)
-        register = _register(net, MANAGER)
+        register = net.register(MANAGER)
 
         assert _cascade(net) == py_trees.common.Status.FAILURE
 
         assert committed_event_types(net.stores[MANAGER], net.case_id) == (
             before
         )
-        assert _register(net, MANAGER) == register
+        assert net.register(MANAGER) == register
         assert _queued_removes(net) == []
 
 
@@ -319,11 +314,11 @@ class TestReplicaCopiesTheTermination:
 
     @staticmethod
     def _replay_and_compare(net: LedgerNetwork) -> None:
-        manager_register = _register(net, MANAGER)
-        for replica in _REPLICAS:
+        manager_register = net.register(MANAGER)
+        for replica in REPLICAS:
             assert EMBARGO_TEARDOWN_EVENT_TYPE in net.replay_ledger(replica)
             assert net.case(replica).em_state is EM.EXITED
-            assert _register(net, replica) == manager_register, replica
+            assert net.register(replica) == manager_register, replica
             assert _rows(net, replica) == _rows(net, MANAGER), replica
 
     @pytest.mark.spec("CM-23-016")
@@ -368,5 +363,5 @@ class TestReplicaCopiesTheTermination:
         assert recorded.cause.kind is TerminationCauseKind.THREAT_SIGNAL
 
         self._replay_and_compare(net)
-        for replica in _REPLICAS:
+        for replica in REPLICAS:
             assert net.case(replica).embargo_termination == recorded

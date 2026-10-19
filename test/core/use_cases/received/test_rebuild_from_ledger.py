@@ -173,8 +173,8 @@ def test_a_termination_difference_is_caught(replica):
     reason (EMB-13-005), so a missing cause is a difference too."""
     manager = _terminated(True, TerminationReason.EARLY)
 
-    assert ledger_rebuild._register(replica) != (
-        ledger_rebuild._register(manager)
+    assert ledger_rebuild.register_rows(replica) != (
+        ledger_rebuild.register_rows(manager)
     )
 
 
