@@ -253,6 +253,36 @@ class TestValidateEngageChain:
         assert isinstance(link, VultronReportCaseLink)
         assert link.rm_state == RM.VALID
 
+    @pytest.mark.spec("RSH-08-006")
+    @pytest.mark.spec("BTND-10-002")
+    def test_validate_checks_the_participant_before_it_sends(
+        self, chain_context
+    ):
+        """A sender whose record forbids the move sends nothing.
+
+        The trigger writes no status, but still checks the move the
+        CASE_MANAGER would record: a closed participant cannot validate.
+        """
+        vendor, _, _, dl, _, offer, case = chain_context
+        participant = cast(
+            CaseParticipant,
+            dl.read(case.actor_participant_index[vendor.id_]),
+        )
+        participant.add_participant_status(
+            ParticipantStatus(
+                context=case.id_,
+                attributed_to=vendor.id_,
+                rm=RmDimension(state=RM.CLOSED),
+            )
+        )
+        dl.save(participant)
+        before = set(dl.outbox_list())
+
+        with pytest.raises(VultronValidationError):
+            self._validate(dl, vendor, offer)
+
+        assert set(dl.outbox_list()) == before
+
     def test_engage_before_the_recorded_validation_is_refused(
         self, chain_context
     ):

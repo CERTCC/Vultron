@@ -33,8 +33,9 @@ Structure:
        ├─ RequireCaseForReport               # case must be in *this* store
        ├─ EnsureEmbargoExists                # embargo present (DUR-07-004)
        └─ ValidationActions (Sequence, memory=False)
-          ├─ MaybeEmitValidateReport         # only when emit=True
-          └─ TransitionRMtoValid             # case participant, then RM latch
+          ├─ TransitionRMtoValid             # participant write (received) or
+          │                                  # check (trigger), then RM latch
+          └─ MaybeEmitValidateReport         # only when emit=True
 
 Why the guards precede the actions
 ----------------------------------
@@ -136,7 +137,7 @@ def create_validate_report_subtree(
             ``EvaluateReportValidity``.
         captured: Optional dict; ``captured["activity"]`` is set to the
             serialised emitted activity on success (DL-06-001, AC-1).
-        emit: When ``True``, ``ValidationActions`` starts with a
+        emit: When ``True``, ``ValidationActions`` ends with a
             ``Read(Offer(Report))``-style emit to the Case Actor so its inbox
             can write the canonical ledger entry (ADR-0021 CLP-10-001).  Pass
             ``False`` on the received side: the activity being handled *is* that
@@ -160,7 +161,19 @@ def create_validate_report_subtree(
     """
     bundle = call_out if call_out is not None else VALIDATION_DETERMINISTIC
 
-    action_children: list[py_trees.behaviour.Behaviour] = []
+    # The transition comes first: on the trigger side it is the check that
+    # refuses a move before anything is sent (RSH-08-006), and it latches the
+    # report link; on the received side it is the CASE_MANAGER's write.
+    action_children: list[py_trees.behaviour.Behaviour] = [
+        TransitionRMtoValid(
+            report_id=report_id,
+            offer_id=offer_id,
+            sender_actor_id=sender_actor_id,
+            rm_rule=rm_rule,
+            written_ids=written_ids,
+            record_participant=record_participant,
+        )
+    ]
     if emit:
         # The emit is masked by a Success fallback because emit failure was
         # already tolerated by design: callers that run this tree without a
@@ -181,16 +194,6 @@ def create_validate_report_subtree(
                 ],
             )
         )
-    action_children.append(
-        TransitionRMtoValid(
-            report_id=report_id,
-            offer_id=offer_id,
-            sender_actor_id=sender_actor_id,
-            rm_rule=rm_rule,
-            written_ids=written_ids,
-            record_participant=record_participant,
-        )
-    )
 
     validation_actions = py_trees.composites.Sequence(
         name="ValidationActions",

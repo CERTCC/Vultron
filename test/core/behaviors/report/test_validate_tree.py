@@ -283,12 +283,13 @@ def test_tree_structure_matches_spec(report, offer):
     actions = validation_flow.children[5]
     assert actions.name == "ValidationActions"
     # Per ADR-0015: case/participant creation moved to receive_report_case_tree.
-    # ValidationActions now only emits and transitions RM state.
+    # ValidationActions only checks/latches RM state, then emits: the check
+    # refuses a move before anything is sent (RSH-08-006).
     assert len(actions.children) == 2
-    maybe_emit = actions.children[0]
+    assert actions.children[0].name == "TransitionRMtoValid"
+    maybe_emit = actions.children[1]
     assert maybe_emit.name == "MaybeEmitValidateReport"
     assert maybe_emit.children[0].name == "EmitValidateReportActivity"
-    assert actions.children[1].name == "TransitionRMtoValid"
 
 
 # ============================================================================

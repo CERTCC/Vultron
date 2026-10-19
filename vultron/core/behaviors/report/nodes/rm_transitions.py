@@ -50,6 +50,9 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
+from vultron.core.behaviors.case.nodes.participant.trigger_validation import (
+    check_participant_status_move,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
@@ -344,7 +347,9 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
         # 2. Case-scoped write FIRST (ID-04-005), through the sole
         #    ParticipantStatus writer.
         failure = (
-            self._advance_participant() if self._record_participant else None
+            self._advance_participant()
+            if self._record_participant
+            else self._check_participant()
         )
         if failure is not None:
             return failure
@@ -373,6 +378,40 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
                 e,
             )
             return Status.FAILURE
+
+    def _check_participant(self) -> Status | None:
+        """Check the sender may move to VALID; write nothing (RSH-08-006).
+
+        The trigger side sends the validation and leaves the record to the
+        CASE_MANAGER, so the move is checked here as the write would check
+        it (BTND-10-002); ``None`` when legal.
+        """
+        assert self.datalayer is not None
+        case_id = self._case_id_bb
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id not found in blackboard"
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure
+        subject = self.sender_actor_id or self.actor_id or ""
+        participant_id = case.actor_participant_index.get(subject)
+        if participant_id is None:
+            self.feedback_message = (
+                f"No participant record for actor '{subject}' in case"
+                f" '{case_id}'"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return check_participant_status_move(
+            self,
+            self.datalayer,
+            case,
+            participant_id,
+            actor_id=subject,
+            rm_state=RM.VALID,
+        )
 
     def _advance_participant(self) -> Status | None:
         """Advance the sender's participant to VALID; ``None`` on success."""
