@@ -43,7 +43,7 @@ jobs:
         with:
           uv-sync-args: "--dev"
 
-      - name: Check ADR index and nav are in sync
+      - name: ADR index in sync, and no ADR in the nav
         run: |
           # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
           # distinguishable by shellcheck, which flags the bare form as SC1007.
