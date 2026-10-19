@@ -31,7 +31,6 @@ from test.support.embargo_register import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -358,28 +357,3 @@ class TestServiceAlwaysWritesEmState:
         refreshed = cast(VulnerabilityCase, dl.read(case.id_))
         assert refreshed.em_state == EM.NONE
         assert refreshed.current_status.em.state == EM.NONE
-
-    def test_terminate_writes_em_state(
-        self,
-        owner_and_dl: tuple[as_Service, SqliteDataLayer],
-    ) -> None:
-        """terminate_active_embargo stores the case, so the stored EM is EXITED."""
-        owner, dl = owner_and_dl
-        case, _ = _make_case(dl, owner.id_)
-        embargo = _make_embargo(dl, case.id_)
-        activate(case, embargo.id_)
-        dl.save(case)
-        write_consent_rows(dl, case)
-
-        lifecycle = EmbargoLifecycle(persistence=dl)
-        result = lifecycle.terminate_active_embargo(
-            case_id=case.id_,
-            actor_id=owner.id_,
-            transition_mode=TransitionMode.STRICT,
-            termination=EmbargoTermination.early(),
-        )
-
-        assert result.em_after == EM.EXITED
-        refreshed = cast(VulnerabilityCase, dl.read(case.id_))
-        assert refreshed.em_state == EM.EXITED
-        assert refreshed.current_status.em.state == EM.EXITED

@@ -7,7 +7,7 @@ Shared scripts and reference documents referenced by multiple skills.
 | File | Purpose | Loaded by |
 |---|---|---|
 | `completeness-doctrine.md` | Project quality standard: what "done" means, finding severity taxonomy (FAIL/IMPROVE/DEFER), scope expansion rules | `orient-agent` Step 3 — in context for every workflow |
-| `issue-creation-requirements.md` | Three required fields (type, parent epic, milestone) for every new issue; lookup commands and defaults | `manage-github-issue`, `new-item`, `plan-issue`, `bugfix`, `build` |
+| `issue-creation-requirements.md` | Two required fields (type, parent epic) for every new issue; lookup commands and defaults | `manage-github-issue`, `new-item`, `plan-issue`, `bugfix`, `build` |
 | `pr-body-guide.md` | PR body templates and formatting rules | `build`, `bugfix`, `plan-issue` |
 | `bundling.md` | Normative definition of a bundle: the two selection stages, the three fit signals and their authorities, and how one bundle becomes one PR (PAD-15) | `propose-bundle`, `build`, `bugfix`, `plan-issue` |
 | `asking-the-user.md` | How to present a question or decision to the user: one at a time, problem before decision, plain language, no bare IDs, restate rather than point by number, which tool to use | `AGENTS.md` (every session), `grill-me`, `plan-issue`, `learn`, `decision-audit`, `spec-audit`, `bugfix`, `process-concerns`, `review-priorities` |

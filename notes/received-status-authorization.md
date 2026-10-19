@@ -193,11 +193,11 @@ sender check: authorization happened at the gates.
 - **A CASE_MANAGER-declared status is torn down by the CASE_MANAGER.** At any
   other actor the branch does nothing (`_DeclaredByCaseManagerNode`, RSH-03-004);
   the replica waits for the committed teardown entry. The skip decides *who*
-  tears down, not *whether*. `PxaEmInvariantDiagnosticNode` skips on the same
-  condition.
+  tears down, not *whether*.
 - **A blocked teardown leaves the PXA↔EM entailment violated** (CSB-18-002 to
-  CSB-18-004). `PxaEmInvariantDiagnosticNode` detects it after the cascade and
-  posts a Note to the case.
+  CSB-18-004). `PxaEmInvariantDiagnosticNode` detects it after the cascade, at
+  the CASE_MANAGER only, and commits a note as its own `add_note_to_case`
+  entry, so a lagging replica never reports the gap (RSH-06-004, #4829).
 
 ## CaseStatus emission authority (RSH-04)
 

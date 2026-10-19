@@ -242,14 +242,11 @@ all, the reject is what prompts the CASE_MANAGER to send it again.
 The CASE_MANAGER also does not replay for just anyone.
 It acts on a `Reject(CaseLedgerEntry)` only from an active participant in the case, and reports `REFUSED` to any other sender ([SYNC-03-005](../../reference/specs/protocol.md#sync-03-005)).
 
-The CASE_MANAGER does not replay on demand without limit. If a peer keeps
-rejecting from the same position, the CASE_MANAGER waits out a short cooldown
-before replaying to it again
-([SYNC-15-003](../../reference/specs/protocol.md#sync-15-003)). Without that bound, a
-peer that cannot anchor its chain rejects every entry it is sent, each reject
-triggers another full replay, and the two feed each other into a storm. A
-reject from a position that *has* advanced always triggers a replay, so a peer
-making progress is never held back.
+The CASE_MANAGER does not replay on demand without limit.
+If a peer keeps rejecting from the same position, the CASE_MANAGER waits out a short cooldown before replaying to it again ([SYNC-15-003](../../reference/specs/protocol.md#sync-15-003)).
+Without that bound, a peer that cannot anchor its chain rejects every entry it is sent, each reject triggers another full replay, and the two feed each other into a storm.
+Each further replay from that same position doubles the wait, up to a ceiling, so a peer that never catches up is retried less and less often ([SYNC-15-013](../../reference/specs/protocol.md#sync-15-013)).
+A reject from a position that *has* advanced always triggers a replay, so a peer making progress is never held back.
 
 The holding area should also be bounded, so that a hostile or broken peer
 streaming far-future entries cannot exhaust memory. When it is full, the replica

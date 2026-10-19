@@ -516,9 +516,13 @@ groups:
       `test/adapters/driving/fastapi/test_received_activity_not_sender_keyed.py`
       delivers a `Create` naming a case through the ingress adapter and asserts that
       nothing is held under its id and that `case_is_announced` does not count it. Both
-      tests are strict xfails until #4871 lands. Coverage for the received-side trees
-      (`StoreReceivedObjectNode` in `submit_report.py`, `CreateAndStoreInviteNode`)
-      arrives with #4869.
+      tests are strict xfails until #4871 lands. For the received-side trees, the
+      `Invite(EmbargoEvent)`, `Offer(VulnerabilityReport)` and ownership-transfer
+      `Offer` tests in `test/core/use_cases/received/` (marked DL-06-006) run each tree
+      on a store with no ingress row and assert, through `assert_held_only_as_received`
+      (`test/support/received.py`), that nothing is held under the activity's id and
+      that its `ReceivedActivityRecord` is. Trigger tests marked DL-06-006 seed only
+      that record and assert each reply is built from it.
     tags:
     - persistence
 - id: DL-07

@@ -106,6 +106,18 @@ class VultronReplicationState(CoreRecord):
         validation_alias="lastReplayedAt",
         serialization_alias="lastReplayedAt",
     )
+    replays_at_position: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "How many consecutive non-empty replays have been sent to this"
+            " peer from last_replayed_from_hash; each one doubles the cooldown"
+            " before the next, and a replay from a different position resets"
+            " it to 1. 0 means no replay has run yet (SYNC-15-003)"
+        ),
+        validation_alias="replaysAtPosition",
+        serialization_alias="replaysAtPosition",
+    )
     join_backfill_complete: bool = Field(
         default=True,
         description=(

@@ -13,7 +13,8 @@
 #   --label LABEL           Label to apply (repeatable)
 #   --issue-type-id ID      GraphQL node ID for the issue type
 #   --parent N              Set this issue as sub-issue of parent #N (required on create)
-#   --milestone N           Milestone number to assign (required on create)
+#   --milestone N           Milestone number to assign (optional, e.g. a release
+#                           milestone)
 #   --blocked-by N          This issue is blocked by #N (repeatable, idempotent)
 #   --blocks N              This issue blocks #N (repeatable, idempotent)
 #   --sub-issue N           Add #N as sub-issue of this issue (repeatable, idempotent)
@@ -28,20 +29,19 @@
 #                           --opened-as)
 #
 # On CREATE (no --issue-number), the following are REQUIRED:
-#   --issue-type-id, --parent, --milestone, and exactly one of
-#   --opened-as or --planned
+#   --issue-type-id, --parent, and exactly one of --opened-as or --planned
 # Missing any one exits non-zero. See shared/issue-creation-requirements.md.
 #
 # Outputs:
 #   Issue number on stdout. Progress and status on stderr.
 #
 # Examples:
-#   # Create with parent, milestone, and blocker:
+#   # Create with parent and blocker:
 #   NUM=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 #     --title "Implement X" --body "..." \
 #     --issue-type-id "${TASK_TYPE_ID}" \
 #     --label "size:M" \
-#     --parent 42 --milestone 25 --planned --blocked-by 50)
+#     --parent 42 --planned --blocked-by 50)
 #
 #   # Wire relationships on an existing issue:
 #   .agents/skills/manage-github-issue/manage_github_issue.sh \
@@ -96,7 +96,6 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
   MISSING=()
   [[ -z "${ISSUE_TYPE_ID}" ]] && MISSING+=("--issue-type-id")
   [[ -z "${PARENT_ISSUE}"  ]] && MISSING+=("--parent (epic parent required)")
-  [[ -z "${MILESTONE}"     ]] && MISSING+=("--milestone")
   if [[ -z "${OPENED_AS}" && "${PLANNED}" -eq 0 ]]; then
     MISSING+=("--opened-as REASON (or --planned)")
   fi
@@ -217,7 +216,7 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
     echo "  Applied labels: ${LABEL_STR}" >&2
   fi
 
-  # Apply milestone
+  # Apply milestone (optional)
   if [[ -n "${MILESTONE}" ]]; then
     gh api "repos/${REPO}/issues/${ISSUE_NUMBER}" \
       -X PATCH -f "milestone=${MILESTONE}" > /dev/null

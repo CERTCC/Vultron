@@ -714,9 +714,10 @@ class TestTerminalClosedParticipant:
     ):
         """A backward rm with no other change → refused outright.
 
-        Nothing is appended and no canonical ledger entry is committed: the
-        assertion carried no acceptable information.  Executed as the Case
-        Manager so a commit *would* fire if the guards let it through.
+        Nothing is appended and nothing of the assertion is committed: it
+        carried no acceptable information.  The one entry is the CASE_MANAGER's
+        own RSH-06-004 note on the regression (CLP-10-022, #4829).  Executed as
+        the Case Manager so a commit *would* fire if the guards let it through.
         """
         dl = store_for(CASE_MANAGER_ID)
         current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
@@ -727,7 +728,9 @@ class TestTerminalClosedParticipant:
         assert result.status == Status.FAILURE
 
         assert ASSERTED_STATUS_ID not in _status_ids(dl, PARTICIPANT_ID)
-        assert _ledger_entries(dl) == []
+        assert [e.event_type for e in _ledger_entries(dl)] == [
+            "add_note_to_case"
+        ]
 
 
 # ---------------------------------------------------------------------------

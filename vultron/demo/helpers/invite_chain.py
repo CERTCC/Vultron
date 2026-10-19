@@ -280,6 +280,9 @@ def _await_and_answer(
                     invite_id,
                     expect_emitted_by.case_actor_id,
                     expect_emitted_by.consequence,
+                    # The invitee holds no case yet, so its inbox may still
+                    # be deferring the Invite (MV-10-003).
+                    deferred_type="Invite",
                 )
 
         session = ActorSession(

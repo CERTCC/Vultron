@@ -18,9 +18,14 @@ from datetime import timedelta
 
 import pytest
 
+from test.support.received import archive_received
 from vultron.core.models.actor import CoreActor, VultronOrganization
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.semantic_registry import extract_event
+from vultron.wire.as2.factories import (
+    rm_invite_to_case_activity,
+    rm_submit_report_activity,
+)
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -118,3 +123,89 @@ class TestCreateCaseProposal:
         assert profile.id_ == _VENDOR
         assert profile.embargo_policy is not None
         assert profile.embargo_policy.preferred_duration == timedelta(days=30)
+
+
+class TestCreateCaseProposalCarriesTheHeldOffer:
+    """CP-01-008: the Offer travels inline when this store holds it."""
+
+    _FINDER = "https://example.org/actors/finder"
+
+    @pytest.mark.spec("CP-01-008")
+    @pytest.mark.spec("DL-06-006")
+    def test_a_received_offer_is_carried_from_its_archive(self, adapter, dl):
+
+        report = _make_report(dl)
+        dl.save(_vendor_profile(timedelta(days=30)))
+        offer = rm_submit_report_activity(
+            report, to=_VENDOR, actor=self._FINDER
+        )
+        archive_received(dl, offer)
+        assert dl.read(offer.id_) is None
+
+        _, blob = adapter.create_case_proposal(
+            actor=_VENDOR,
+            report_id=report.id_,
+            case_actor_id=_CASE_ACTOR,
+            offer_id=offer.id_,
+            offer_actor_id=self._FINDER,
+        )
+
+        carried = json.loads(blob)["object"]["inReplyTo"]
+        assert carried["id"] == offer.id_
+        assert carried["object"]["id"] == report.id_
+
+    @pytest.mark.spec("CP-01-007")
+    def test_a_held_activity_that_is_not_a_report_offer_is_not_carried(
+        self, adapter, dl, caplog
+    ):
+        """Only the bare provenance travels when the held activity under the
+        Offer's id is some other kind of activity."""
+
+        report = _make_report(dl)
+        dl.save(_vendor_profile(timedelta(days=30)))
+        other = rm_invite_to_case_activity(
+            _VENDOR,
+            target="https://example.org/cases/other",
+            actor=self._FINDER,
+        )
+        archive_received(dl, other)
+
+        with caplog.at_level("WARNING"):
+            _, blob = adapter.create_case_proposal(
+                actor=_VENDOR,
+                report_id=report.id_,
+                case_actor_id=_CASE_ACTOR,
+                offer_id=other.id_,
+                offer_actor_id=self._FINDER,
+            )
+
+        proposal = json.loads(blob)["object"]
+        assert proposal.get("inReplyTo") is None
+        assert proposal["offerId"] == other.id_
+        assert "bare provenance only" in caplog.text
+        # The archive was found and refused as a report Offer, not missed.
+        assert "invalid offer data" in caplog.text
+        assert dl.read(other.id_) is None
+
+    @pytest.mark.spec("CP-01-007")
+    def test_an_offer_this_store_does_not_hold_is_not_carried(
+        self, adapter, dl, caplog
+    ):
+        report = _make_report(dl)
+        dl.save(_vendor_profile(timedelta(days=30)))
+        offer_id = "https://example.org/activities/offer-not-held"
+
+        with caplog.at_level("WARNING"):
+            _, blob = adapter.create_case_proposal(
+                actor=_VENDOR,
+                report_id=report.id_,
+                case_actor_id=_CASE_ACTOR,
+                offer_id=offer_id,
+                offer_actor_id=self._FINDER,
+            )
+
+        proposal = json.loads(blob)["object"]
+        assert proposal.get("inReplyTo") is None
+        assert proposal["offerId"] == offer_id
+        assert "bare provenance only" in caplog.text
+        assert "invalid offer data" not in caplog.text

@@ -24,8 +24,8 @@ When a participant receives ``Announce(CaseLedgerEntry)`` for the
 id and case id from the entry's ``payloadSnapshot`` and stores a
 :class:`~vultron.core.models.ownership_transfer_offer_record.VultronOwnershipTransferOfferRecord`
 in the local DataLayer.  This makes the offer readable by
-``SvcAcceptCaseOwnershipTransferUseCase._prepare``, which calls
-``dl.read(offer_id)`` and 404s when the object is absent (#2195).
+``SvcAcceptCaseOwnershipTransferUseCase._prepare``, which reads it with
+``read_held_activity`` and 404s when nothing is held (#2195).
 
 Per ADR-0035 DL-06-002, SYNC-02-002, SYNC-12-001, CM-21-005, ISSUE-2195.
 
@@ -112,10 +112,11 @@ class ApplyOfferOwnershipTransferFromLedgerNode(
     stores a :class:`~vultron.core.models.ownership_transfer_offer_record.VultronOwnershipTransferOfferRecord`
     keyed by ``offer_id``.
 
-    This is the SYNC-path equivalent of what ``OfferCaseOwnershipTransferReceivedUseCase``
-    does on the HTTP-inbox path: the replica MUST hold a readable record so that
-    ``SvcAcceptCaseOwnershipTransferUseCase._prepare`` can call
-    ``dl.read(offer_id)`` without a 404 (#2195).
+    This is the SYNC-path equivalent of the ``ReceivedActivityRecord`` intake
+    keeps for a delivered Offer: the replica MUST hold a readable record so
+    that ``SvcAcceptCaseOwnershipTransferUseCase._prepare`` finds the Offer
+    (``read_held_activity`` reads this record under ``offer_id`` when no
+    archive is held) without a 404 (#2195).
 
     Idempotent: if the object is already present the node returns SUCCESS
     without overwriting.

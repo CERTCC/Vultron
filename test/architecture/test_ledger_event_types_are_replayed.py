@@ -249,9 +249,9 @@ def test_the_derivation_finds_both_commit_paths():
         INVITE_EXPIRED_EVENT_TYPE,
     } <= explicit_event_types()
     # A replay slot's own constant is compared, never committed, so defining
-    # it must not make its type look committed: Add(Note) is committed only
-    # on the receive side.
-    assert MS.ADD_NOTE_TO_CASE.value not in explicit_event_types()
+    # it must not make its type look committed: Remove(Note) is committed
+    # only on the receive side.
+    assert MS.REMOVE_NOTE_FROM_CASE.value not in explicit_event_types()
 
 
 @pytest.mark.spec("RSH-08-004")

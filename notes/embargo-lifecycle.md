@@ -16,6 +16,7 @@ description: >
   (EP-09, ADR-0113); and who may send each embargo message (ADR-0115).
 related_specs:
   - specs/case-management.yaml
+  - specs/datalayer.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
   - specs/message-semantics-mapping.yaml
@@ -265,8 +266,9 @@ catch-up fetch or deferral, refuse instead.
   in `vultron/core/behaviors/embargo/refusal_tree.py`, CLP-10-026), never a
   refusal effect: refusal effects run only at the CASE_MANAGER and are skipped
   on a redelivery, and a participant owes the ER too and re-queues an ER
-  sealed but never queued (ID-04-005). It stores the Invite and its
-  `EmbargoEvent` first (the ER factory needs the proposal) and answers where
+  sealed but never queued (ID-04-005). It stores the Invite's `EmbargoEvent`
+  first; the ER factory reads the proposal from intake's archive, never a copy
+  under the sender's id (DL-06-006). It answers where
   any Invite answer goes: the CASE_MANAGER answers the proposer, a participant
   answers the CASE_MANAGER, never a peer (PCR-08-001). An Invite naming its
   terms by URI only is still answered (ADR-0123).
@@ -465,9 +467,9 @@ cascade suppress each other (#4147).
 The declaration can arrive before the teardown entries, so
 `_DeclaredByCaseManagerNode` skips the branch when the status's sender holds
 CASE_MANAGER and is not the executing actor. It decides *who* tears down, not
-*whether* — it is not a sender-role authorization gate (RSH-03-002). For the
-same reason `PxaEmInvariantDiagnosticNode` posts no CSB-18 Note for such a
-status.
+*whether* — it is not a sender-role authorization gate (RSH-03-002). The
+CSB-18 diagnostic needs no such skip: `PxaEmInvariantDiagnosticNode` runs only
+at the CASE_MANAGER (#4829).
 
 **The P/X/A abandonment decides every open proposal (EMB-16-001).** The
 CASE_MANAGER commits one `Reject(Invite(EmbargoEvent))` per proposal under

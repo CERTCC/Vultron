@@ -43,6 +43,7 @@ from vultron.wire.as2.factories._context import (
     case_uri_of,
     with_case_context,
 )
+from vultron.wire.as2.factories._held import as_answered
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case import (
     _AcceptCaseOwnershipTransferActivity,
@@ -323,7 +324,9 @@ def add_note_to_case_activity(
     The note travels inline as the ``Add``'s ``object``: the ``object``
     field takes an ``as_Note`` and refuses a URI or a ``Link``, so this is
     the single message that both brings the note to its receiver and
-    attaches it to the case (VAM-07-002, VAM-01-010).
+    attaches it to the case (VAM-07-002, VAM-01-010).  ``context`` defaults
+    to the case, so a CASE_MANAGER entry's sealed snapshot carries it
+    (CLP-07-007).
 
     Args:
         note: The ``as_Note`` to add to the case, carried inline.
@@ -340,7 +343,9 @@ def add_note_to_case_activity(
     """
     try:
         return _AddNoteToCaseActivity(
-            object_=note, target=case_target_ref(target), **kwargs
+            object_=note,
+            target=case_target_ref(target),
+            **with_case_context(kwargs, target),
         )
     except ValidationError as exc:
         logger.warning("add_note_to_case_activity: invalid arguments: %s", exc)
@@ -646,6 +651,7 @@ def _ownership_offer_reply(
     """Build *reply_class* around an ownership-transfer *offer*.
 
     Shared by the transferee's Accept and Reject and the offerer's Undo.
+    *offer* may be the Offer as a receiver archived it (its core form).
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails, as it
@@ -654,7 +660,7 @@ def _ownership_offer_reply(
     """
     try:
         return reply_class(
-            object_=cast(_OfferCaseOwnershipTransferActivity, offer),
+            object_=as_answered(_OfferCaseOwnershipTransferActivity, offer),
             **kwargs,
         )
     except ValidationError as exc:

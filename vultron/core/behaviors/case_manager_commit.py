@@ -27,8 +27,9 @@ commit the sealed blob.  A sent activity is committed after it is queued,
 because a ledger entry records a completed act (ADR-0119).  An act every
 replica learns from the entry alone is addressed to nobody and only
 committed, as soon as it is decided; the ledger fan-out is its delivery.  The embargo decisions (``embargo/nodes/manager_commit.py``), the
-case closure (``case/nodes/leave/fully_closed.py``) and the late-Accept
-acknowledgement (``embargo/nodes/late_accept.py``) all subclass it.
+case closure (``case/nodes/leave/fully_closed.py``), the late-Accept
+acknowledgement (``embargo/nodes/late_accept.py``) and the CASE_MANAGER's own
+notes (``note/case_manager_note.py``) all subclass it.
 
 Like the relay node, it catches nothing: a missing factory, a failed factory
 call or a failed commit is not a protocol refusal, so the exception escapes to
