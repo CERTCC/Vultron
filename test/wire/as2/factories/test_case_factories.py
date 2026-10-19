@@ -993,33 +993,45 @@ def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
 
 
 @pytest.mark.spec("CM-17-002")
-def test_a_proposed_embargo_alone_leaves_the_stub_bare(sample_actor):
-    """A proposal is not an embargo in force, so the stub carries no terms.
+@pytest.mark.parametrize(
+    ("entry", "em_state"),
+    [("proposed", EM.PROPOSED), ("terminated", EM.EXITED)],
+    ids=["proposal-only", "embargo-ended"],
+)
+def test_no_embargo_in_force_leaves_the_stub_bare(
+    sample_actor, entry, em_state
+):
+    """With no embargo in force the stub carries no terms.
 
     The stub is enriched from the register's ``ACTIVE`` entry, not from any
-    entry: in EM ``PROPOSED`` nothing is in force and nothing binds the
-    invitee yet (CM-17-002, CM-17-010).
+    entry: a proposal (EM ``PROPOSED``) binds nobody yet, and an ended embargo
+    (EM ``EXITED``) binds nobody any more (CM-17-002, CM-17-010).
     """
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCaseStub,
     )
 
-    case_id = "https://example.org/cases/proposed-stub"
-    proposal = _full_embargo(case_id)
+    case_id = f"https://example.org/cases/{entry}-stub"
+    embargo = _full_embargo(case_id)
+    entries = (
+        register(proposed=[embargo])
+        if entry == "proposed"
+        else register(terminated=embargo)
+    )
     case = VulnerabilityCase(
         id_=case_id,
         name="CVE-2025-014",
-        stub_summary="Vulnerability with an embargo proposed",
+        stub_summary="Vulnerability with no embargo in force",
         attributed_to=_ACTOR_URI,
-        embargo_register=register(proposed=[proposal]),
+        embargo_register=entries,
     )
-    assert case.em_state == EM.PROPOSED
+    assert case.em_state == em_state
 
     invite = rm_invite_to_case_activity(
         invitee=sample_actor,
         target=case,
         actor=_ACTOR_URI,
-        embargo_obj=proposal,
+        embargo_obj=embargo,
     )
 
     stub = invite.target

@@ -672,10 +672,7 @@ class TestInviteRolesAndEmbargoEnrichment:
             "activeEmbargo must be a full embargo object (CM-17-002)"
         )
         assert active_embargo.get("id") == harness.embargo_id
-        assert target.get("caseStatus", {}).get("emState") in (
-            "revise",
-            "REVISE",
-        )
+        assert target.get("caseStatus", {}).get("emState") == EM.REVISE.value
 
     @pytest.mark.spec("CM-17-002")
     def test_no_embargo_fields_when_not_active(self, make_payload):

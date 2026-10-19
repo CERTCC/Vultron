@@ -786,13 +786,14 @@ def _send_stub_invite_during_revision(
     return owner, invitee, dl, stored, revision.id_, invite
 
 
-def _run_reissue(dl: Any, case_id: str, owner_id: str) -> None:
+def _run_reissue(dl: Any, case_id: str, owner_id: str) -> Any:
+    """Run the CASE_MANAGER's re-issue node once; return the BT result."""
     from vultron.core.behaviors.bridge import BTBridge
     from vultron.core.behaviors.case.nodes.stub_reissue import (
         ReissueStubInvitesNode,
     )
 
-    result = BTBridge(
+    return BTBridge(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
@@ -800,7 +801,6 @@ def _run_reissue(dl: Any, case_id: str, owner_id: str) -> None:
     ).execute_with_setup(
         tree=ReissueStubInvitesNode(case_id=case_id), actor_id=owner_id
     )
-    assert result.status.name == "SUCCESS", result
 
 
 @pytest.mark.spec("CM-11-016")
@@ -823,7 +823,7 @@ def test_a_rejected_revision_does_not_reissue_a_stub_sent_in_revise(
     assert case.em_state == EM.ACTIVE
 
     assert outstanding_stale_stubs(dl, case, owner.id_, now_utc()) == []
-    _run_reissue(dl, case.id_, owner.id_)
+    assert _run_reissue(dl, case.id_, owner.id_).status.name == "SUCCESS"
     assert [i.id_ for i in _invites_to(dl, invitee.id_)] == [invite["id"]]
 
 
@@ -848,13 +848,75 @@ def test_an_activated_revision_reissues_a_stub_sent_in_revise(
 
     (stale,) = outstanding_stale_stubs(dl, case, owner.id_, now_utc())
     assert stale.invite_id == invite["id"]
-    _run_reissue(dl, case.id_, owner.id_)
+    assert _run_reissue(dl, case.id_, owner.id_).status.name == "SUCCESS"
     (replacement,) = [
         i for i in _invites_to(dl, invitee.id_) if i.id_ != invite["id"]
     ]
     assert replacement.in_reply_to == invite["id"]
     carried = getattr(replacement.target, "active_embargo", None)
     assert getattr(carried, "id_", carried) == revision_id
+
+
+@pytest.mark.spec("CM-11-016")
+@pytest.mark.spec("OX-06-002")
+def test_a_replacement_left_unrecorded_is_recorded_during_a_later_revision(
+    actor_store,
+) -> None:
+    """A replacement whose commit failed is recorded by a run in EM REVISE.
+
+    The replacement invites to the embargo in force; a revision opened before
+    the next run leaves that embargo in force (EP-05-002), so the run records
+    the replacement once, still carrying it (CM-11-016, CM-17-002).
+    """
+    from test.support.ledger import fail_commits
+    from vultron.core.behaviors.sync import commit_tree
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+    owner, invitee, dl, case, revision_id, invite = (
+        _send_stub_invite_during_revision(actor_store)
+    )
+    activate(case, revision_id)
+    dl.save(case)
+    with pytest.MonkeyPatch.context() as mp:
+        failed = fail_commits(
+            mp,
+            commit_tree,
+            when=lambda kw: kw["event_type"] == "invite_actor_to_case",
+        )
+        result = _run_reissue(dl, case.id_, owner.id_)
+    assert result.internal_error, result
+    (replacement_id,) = failed
+
+    stored = dl.read_case(case.id_)
+    assert stored is not None
+    later = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(120))
+    dl.create(later)
+    propose(stored, later.id_)
+    dl.save(stored)
+    write_consent_rows(dl, stored)
+    assert stored.em_state == EM.REVISE
+    assert stored.active_embargo_id == revision_id
+
+    assert _run_reissue(dl, case.id_, owner.id_).status.name == "SUCCESS"
+
+    recorded = [
+        e.log_object_id
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry) and e.log_object_id == replacement_id
+    ]
+    assert recorded == [replacement_id]
+    assert dl.outbox_list().count(replacement_id) == 1
+    (replacement,) = [
+        i for i in _invites_to(dl, invitee.id_) if i.id_ != invite["id"]
+    ]
+    assert replacement.id_ == replacement_id
+    carried = getattr(replacement.target, "active_embargo", None)
+    assert getattr(carried, "id_", carried) == revision_id
+    # The replacement invites to the embargo in force (CM-11-016, CM-28-013).
+    row = _participant_of(dl, case.id_, invitee.id_).held_row(revision_id)
+    assert row is not None
+    assert row.state is EmbargoConsentState.INVITED
+    assert row.rsvp_deadline == replacement.end_time
 
 
 @pytest.mark.spec("CM-11-016")

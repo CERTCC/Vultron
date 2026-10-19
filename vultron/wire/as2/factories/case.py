@@ -110,7 +110,7 @@ logger = logging.getLogger(__name__)
 
 
 def _project_case_to_stub(
-    case: Any,
+    case: VulnerabilityCase,
     embargo_obj: Any,
 ) -> as_VulnerabilityCaseStub:
     """Project a ``as_VulnerabilityCase`` (core or wire) to a ``as_VulnerabilityCaseStub``.
@@ -130,7 +130,8 @@ def _project_case_to_stub(
     before emitting a stub Invite so the invitee can evaluate the case.
 
     Args:
-        case: A core or wire ``as_VulnerabilityCase`` to project.
+        case: The ``VulnerabilityCase`` to project (``as_VulnerabilityCase``
+            is the same class, ARCH-25-003).
         embargo_obj: The fetched ``EmbargoEvent`` (core or wire), or ``None``
             when the case holds its active embargo inline.
 
@@ -141,11 +142,10 @@ def _project_case_to_stub(
             embargo cannot be embedded whole (CM-17-011); see
             :func:`_stub_embargo`.
     """
-    stub_summary = getattr(case, "stub_summary", None)
+    stub_summary = case.stub_summary
     if stub_summary is None:
-        case_id_for_err = getattr(case, "id_", "<unknown>")
         raise VultronActivityConstructionError(
-            f"_project_case_to_stub: case {case_id_for_err!r} has no "
+            f"_project_case_to_stub: case {case.id_!r} has no "
             "'stub_summary' — set VulnerabilityCase.stub_summary before "
             "emitting a stub Invite (CM-17-010, MV-10-001)"
         )
@@ -153,7 +153,7 @@ def _project_case_to_stub(
     # EM is derived from the case's embargo register (ADR-0122).
     # "In force" is the register's ACTIVE entry, so it holds through a
     # revision (EM REVISE), not only while EM is exactly ACTIVE (CM-17-002).
-    if not getattr(case, "embargo_in_force", False):
+    if not case.embargo_in_force:
         return as_VulnerabilityCaseStub(case_id=case_id, summary=stub_summary)
     em_state = case.em_state
     active_embargo = case.active_embargo

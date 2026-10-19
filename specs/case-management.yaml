@@ -2364,10 +2364,11 @@ groups:
       `caseStatus.emState`; unit tests marked `CM-17-002` in
       `test/core/use_cases/triggers/test_actor_triggers.py` and
       `test/wire/as2/factories/test_case_factories.py` confirm the same for EM
-      `ACTIVE`, and that a stub sent with no embargo in force carries neither;
+      `ACTIVE` and `REVISE`, and that a stub sent with no embargo in force (none
+      yet, a proposal only, or an ended one) carries neither;
       `test_revise_stub_carries_the_embargo_in_force_not_the_revision` in the latter
       file confirms that a `REVISE` stub carries the embargo in force and not the
-      revision (strict `xfail` until #4744 implements it).
+      revision.
     relationships:
     - rel_type: implements
       spec_id: MV-10-006
