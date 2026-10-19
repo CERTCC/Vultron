@@ -725,14 +725,20 @@ def _is_invitee_row_update(kwargs: dict[str, Any]) -> bool:
 @pytest.mark.spec("CM-11-016")
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.parametrize(
-    "declined_first", [False, True], ids=["owed", "answered-meanwhile"]
+    ("declined_first", "revising"),
+    [(False, False), (True, False), (False, True)],
+    ids=["owed", "answered-meanwhile", "owed-during-revision"],
 )
 def test_a_replacement_whose_row_did_not_commit_is_completed_next_run(
-    declined_first,
+    declined_first, revising
 ):
     """The replacement committed and its invitee's row did not: the next
     run of the re-issue commits the row it owes, once, unless the invitee
-    has answered in between."""
+    has answered in between.
+
+    A revision opened before the next run leaves the embargo the replacement
+    invited to in force (EP-05-002), so the row is still owed (CM-17-002).
+    """
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter as _Sync,
     )
@@ -798,6 +804,11 @@ def test_a_replacement_whose_row_did_not_commit_is_completed_next_run(
         assert _rerun() == []
         assert _invitee_row(net, MANAGER, revision_id).state is _S.DECLINED
         return
+
+    if revising:
+        _propose(net, days=60)
+        assert net.case(MANAGER).em_state is EM.REVISE
+        assert net.case(MANAGER).active_embargo_id == revision_id
 
     assert _rerun() == [UPDATE_EMBARGO_CONSENT_EVENT_TYPE]
     row = _invitee_row(net, MANAGER, revision_id)

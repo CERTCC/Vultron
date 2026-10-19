@@ -52,8 +52,9 @@ It carries exactly these fields ([CM-17-010](../specs/protocol.md#cm-17-010)):
 - `type`: `VulnerabilityCaseStub`.
   A receiver tells a stub from a case by its `type` alone.
 - `caseId`: the identifier of the case the stub stands for.
-- `activeEmbargo` and `caseStatus`: present only when an embargo is active.
-  They state the embargo terms the invitee would agree to by accepting: the active embargo and the case's embargo state ([CM-17-002](../specs/protocol.md#cm-17-002)).
+- `activeEmbargo` and `caseStatus`: present whenever an embargo is in force, that is, while the embargo state is `ACTIVE` or `REVISE`.
+  They state the embargo terms the invitee would agree to by accepting: the embargo in force and the case's embargo state ([CM-17-002](../specs/protocol.md#cm-17-002)).
+  During a revision the stub carries the embargo in force, never the open revision, which the invitee receives after joining ([EP-09-011](../specs/protocol.md#ep-09-011)).
   The stub may carry the embargo inline or name it by an identifier the invitee can ask the inviter to resolve.
   This implementation always carries the full embargo inline, because it does not build that lookup ([CM-17-011](../specs/project.md#cm-17-011)).
 - `summary`: required human-readable context saying what the invitee is being asked to join ([MV-10-001](../specs/protocol.md#mv-10-001)).

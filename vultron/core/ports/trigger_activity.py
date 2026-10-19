@@ -398,7 +398,8 @@ class TriggerActivityPort(Protocol):
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``VulnerabilityCase`` (the adapter projects it
-        to an enriched stub including ``end_time`` when ``em_state == EM.ACTIVE``),
+        to an enriched stub carrying the embargo in force, EM ``ACTIVE`` or
+        ``REVISE``),
         a pre-built stub, or a bare URI string.  When ``None``, the adapter reads
         the case from the DataLayer by ``case_id`` (CM-17-002).
         ``rsvp_deadline`` becomes the Invite's ``endTime``, the reply deadline
