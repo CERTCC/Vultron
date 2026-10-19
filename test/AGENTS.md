@@ -194,8 +194,7 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; ask
   what collected items carry via a probe; the tier is asserted over the real
   collection (#3604).
-- **SYNC replication test setup** —
-  [`notes/sync-ledger-replication.md`](../notes/sync-ledger-replication.md)
-  § "SYNC Replication Test Patterns". A `LedgerNetwork` test is rebuilt from its
-  ledger at teardown; direct CASE_MANAGER writes as setup call `bypass_ledger()`
+- **SYNC replication test setup** — `notes/sync-ledger-replication.md` § "SYNC
+  Replication Test Patterns". A `LedgerNetwork` is rebuilt from its ledger at
+  teardown; direct CASE_MANAGER setup writes call `bypass_ledger()`
   ([`notes/case-ledger-authority.md`](../notes/case-ledger-authority.md)).
