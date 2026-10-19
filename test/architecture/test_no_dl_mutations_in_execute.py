@@ -45,10 +45,12 @@ Two rules, one ratchet:
    BT-15-001 and are not resolved transitively here.
 
 Resolution lives in ``_use_case_call_graph.py``; that module's docstring
-lists the call shapes it does not follow (an inline-built instance's method, an
-inherited method from another module, a lambda or nested function handed to a
-helper — the last for the same reason the direct rule skips them — and a
-receiver not spelled ``dl``/``datalayer``).  Its self-tests for the transitive
+lists the call shapes it follows (``self`` methods dispatched on the concrete
+class, so a subclass override counts; nested functions ``execute()`` calls) and
+those it does not (an inline-built instance's method, a base class outside the
+indexed packages, a lambda or nested function handed to a helper — the last for
+the same reason the direct rule skips them — and a receiver not spelled
+``dl``/``datalayer``).  Its self-tests for the transitive
 rule are in ``test_use_case_call_graph.py``; the direct rule's are below.
 
 The helper rule exists because eleven received ``execute()`` bodies in nine

@@ -18,23 +18,26 @@ Companion to ``test_no_dl_mutations_in_execute.py`` (CLP-10-020) and
 ``test_single_bt_execution_received_side.py`` (CLP-10-005): the classes
 here index every module of ``vultron/core/use_cases/`` — and of
 ``vultron/core/services/``, the neutral home of helpers a use case shares with
-a BT node (BT-22-005), so moving a helper there does not hide its writes — and
-follow a call from an ``execute()`` body to the function or method it names — a
-module-level helper, a ``self._method()``, a name imported absolutely,
-relatively, or through a package ``__init__`` re-export — until the search
-leaves the indexed packages.  The test
-module owns the rule and the ``KNOWN_VIOLATIONS`` set; this module owns the
-walk.  No ``ast.parse`` or ``rglob`` here (TB-13-003): trees come from
-``_corpus`` or from the test's ``parse_inline`` calls.
+a BT node (BT-22-005), so moving a helper there hides neither its writes nor
+its tree runs — and follow a call from an ``execute()`` body to the function
+or method it names, until the search leaves the indexed packages.  Followed:
+a module-level helper; a name imported absolutely, relatively, or through a
+package ``__init__`` re-export; a nested function ``execute()`` defines and
+calls; and a ``self._method()``, looked up on the concrete class first, then
+its indexed bases, so a subclass override is the one walked and an inherited
+``execute()`` is walked once per class that inherits it.  The test modules own
+the rules and their exact sets; this module owns the walk.  No ``ast.parse``
+or ``rglob`` here (TB-13-003): trees come from ``_corpus`` or from the test's
+``parse_inline`` calls.
 
 Not resolved, by design: a call on an instance built inline
-(``Helper().store(...)``), a method inherited from a base class in another
-module, a lambda or nested function passed to a helper, and a write whose
-receiver is not spelled ``dl``/``_dl``/``datalayer``/``_datalayer`` (a helper
-parameter named ``persistence``, say — ``_is_dl_mutation_call`` matches the
-receiver by name, so the write is invisible whatever the parameter's type).
-None occurs in the use-case package today; the ratchet's exact set would
-surface one that started to matter.
+(``Helper().store(...)``) — which is also how a BT node's ``update()`` stays
+out of the walk — a base class outside the indexed packages, a lambda or
+nested function passed to a helper, and a write whose receiver is not spelled
+``dl``/``_dl``/``datalayer``/``_datalayer`` (a helper parameter named
+``persistence``, say — ``_is_dl_mutation_call`` matches the receiver by name,
+so the write is invisible whatever the parameter's type).  None occurs in the
+use-case package today.
 """
 
 import ast
@@ -149,8 +152,15 @@ def _has_dl_mutation_in_execute(source_path: Path) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Transitive resolution through the use-case package (CLP-10-020)
+# Transitive resolution through the use-case package (CLP-10-005, CLP-10-020)
 # ---------------------------------------------------------------------------
+
+#: A concrete class ``self`` is bound to: (module name, class name).
+_SelfType = tuple[str, str]
+
+#: A walk step: a definition, the module it lives in, and ``self``'s class.
+#: The key (callee plus ``self``'s class) stops a cycle being followed twice.
+_Step = tuple[str, _SelfType | None, _FunctionDef, tuple[object, ...]]
 
 
 class _ModuleIndex:
@@ -159,6 +169,8 @@ class _ModuleIndex:
     def __init__(self, module: str, tree: ast.AST) -> None:
         self.functions: dict[str, _FunctionDef] = {}
         self.methods: dict[str, dict[str, _FunctionDef]] = {}
+        #: class name → its base-class expressions, in MRO order.
+        self.bases: dict[str, list[ast.expr]] = {}
         #: local name → (defining module, name there) for ``from m import n``.
         self.imported_names: dict[str, tuple[str, str]] = {}
         #: local alias → module for ``import m [as alias]``.
@@ -183,6 +195,7 @@ class _ModuleIndex:
                 for item in node.body
                 if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
             }
+            self.bases[node.name] = list(node.bases)
         elif isinstance(node, ast.ImportFrom):
             self._index_import_from(module, node)
         elif isinstance(node, ast.Import):
@@ -211,6 +224,16 @@ def _absolute_module(module: str, node: ast.ImportFrom) -> str | None:
     if node.module:
         return f"{base}.{node.module}"
     return base
+
+
+def _local_functions(func: _FunctionDef) -> dict[str, _FunctionDef]:
+    """Functions *func* defines in its own scope, by name."""
+    return {
+        child.name: child
+        for node in _walk_own_scope(func)
+        for child in ast.iter_child_nodes(node)
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
 
 
 class _UseCaseCorpus:
@@ -251,123 +274,124 @@ class _UseCaseCorpus:
                 continue
             yield name, path
 
+    # -- the two rules --------------------------------------------------------
+
     def execute_reaches_mutation(self, module: str) -> bool:
         """True if any ``execute()`` in *module* reaches an indexed DL write."""
-        index = self._modules[module]
-        for cls, methods in index.methods.items():
-            execute = methods.get("execute")
-            if execute is not None and self._reaches_mutation(
-                module, cls, execute, set()
-            ):
-                return True
-        return False
+        return any(
+            self._reaches_mutation(step, set())
+            for _, step in self._executes(module)
+        )
 
-    def tree_runs_per_execute(self, module: str) -> dict[str, int]:
+    def tree_runs_per_execute(
+        self, module: str, *, transitive: bool = True
+    ) -> dict[str, int]:
         """``execute_with_setup()`` calls each ``execute()`` in *module* reaches.
 
-        Keyed by class.  Calls are summed along every path through the
+        Keyed by class, including a class that inherits its ``execute()``
+        from an indexed base.  Calls are summed along every path through the
         indexed packages, so a helper called twice counts twice and two
         calls on alternative branches count as two (CLP-10-005).  A cycle is
-        not followed a second time.
+        not followed a second time.  With ``transitive=False`` only the calls
+        written in ``execute()``'s own body count.
         """
-        index = self._modules[module]
         return {
-            cls: self._count_tree_runs(module, cls, execute, ())
-            for cls, methods in index.methods.items()
-            if (execute := methods.get("execute")) is not None
+            cls: self._count_tree_runs(step, (), transitive=transitive)
+            for cls, step in self._executes(module)
         }
 
+    def _executes(self, module: str) -> Iterator[tuple[str, _Step]]:
+        """``(class, step)`` for each class in *module* with an ``execute()``."""
+        for cls in self._modules[module].methods:
+            self_type = (module, cls)
+            found = self._lookup_method(self_type, "execute")
+            if found is not None:
+                def_module, def_cls, func = found
+                key = (def_module, def_cls, "execute", self_type)
+                yield cls, (def_module, self_type, func, key)
+
     def _count_tree_runs(
-        self,
-        module: str,
-        cls: str | None,
-        func: _FunctionDef,
-        stack: tuple[_Callee, ...],
+        self, step: _Step, stack: tuple[object, ...], *, transitive: bool
     ) -> int:
         total = 0
-        for node in _walk_own_scope(func):
-            if not isinstance(node, ast.Call):
-                continue
-            if _is_execute_with_setup_call(node):
+        for call, callee in self._calls(step):
+            if _is_execute_with_setup_call(call):
                 total += 1
-                continue
-            callee = self._resolve(module, cls, node.func)
-            if callee is None or callee in stack:
-                continue
-            target = self._definition(*callee)
-            if target is not None:
+            elif transitive and callee is not None and callee[3] not in stack:
                 total += self._count_tree_runs(
-                    callee[0], callee[1], target, (*stack, callee)
+                    callee, (*stack, step[3]), transitive=True
                 )
         return total
 
-    def _reaches_mutation(
-        self,
-        module: str,
-        cls: str | None,
-        func: _FunctionDef,
-        seen: set[_Callee],
-    ) -> bool:
-        for node in _walk_own_scope(func):
-            if _is_dl_mutation_call(node):
+    def _reaches_mutation(self, step: _Step, seen: set[object]) -> bool:
+        seen.add(step[3])
+        for call, callee in self._calls(step):
+            if _is_dl_mutation_call(call):
                 return True
-            if not isinstance(node, ast.Call):
-                continue
-            callee = self._resolve(module, cls, node.func)
-            if callee is None or callee in seen:
-                continue
-            seen.add(callee)
-            target_module, target_cls, name = callee
-            target = self._definition(target_module, target_cls, name)
-            if target is not None and self._reaches_mutation(
-                target_module, target_cls, target, seen
+            if (
+                callee is not None
+                and callee[3] not in seen
+                and self._reaches_mutation(callee, seen)
             ):
                 return True
         return False
 
-    def _definition(
-        self, module: str, cls: str | None, name: str
-    ) -> _FunctionDef | None:
-        index = self._modules.get(module)
-        if index is None:
-            return None
-        if cls is not None:
-            return index.methods.get(cls, {}).get(name)
-        return index.functions.get(name)
+    # -- resolution -----------------------------------------------------------
+
+    def _calls(self, step: _Step) -> Iterator[tuple[ast.Call, _Step | None]]:
+        """Each call in *step*'s own scope, with the indexed step it resolves to."""
+        module, self_type, func, key = step
+        local = _local_functions(func)
+        for node in _walk_own_scope(func):
+            if not isinstance(node, ast.Call):
+                continue
+            target = node.func
+            if isinstance(target, ast.Name) and target.id in local:
+                # A nested function execute() defines and calls: its body
+                # runs as part of this call, with the same ``self``.
+                yield (
+                    node,
+                    (
+                        module,
+                        self_type,
+                        local[target.id],
+                        (*key, target.id),
+                    ),
+                )
+            else:
+                yield node, self._resolve(module, self_type, target)
 
     def _resolve(
-        self, module: str, cls: str | None, func: ast.expr
-    ) -> _Callee | None:
-        """Name the in-package definition *func* calls, or ``None``."""
+        self, module: str, self_type: _SelfType | None, func: ast.expr
+    ) -> _Step | None:
+        """Name the indexed definition *func* calls, or ``None``."""
         index = self._modules[module]
         if isinstance(func, ast.Name):
             if func.id in index.functions:
-                return (module, None, func.id)
+                return self._function_step(module, func.id)
             if func.id in index.imported_names:
-                target_module, name = index.imported_names[func.id]
-                return self._in_package(target_module, name)
+                return self._in_package(*index.imported_names[func.id])
             return None
-        if isinstance(func, ast.Attribute) and isinstance(
-            func.value, ast.Name
+        if not (
+            isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
         ):
-            return self._resolve_attribute(
-                module, cls, index, func.value.id, func.attr
-            )
-        return None
+            return None
+        return self._resolve_attribute(
+            module, self_type, func.value.id, func.attr
+        )
 
     def _resolve_attribute(
         self,
         module: str,
-        cls: str | None,
-        index: _ModuleIndex,
+        self_type: _SelfType | None,
         owner: str,
         attr: str,
-    ) -> _Callee | None:
+    ) -> _Step | None:
         """Resolve ``owner.attr(...)``: a ``self`` method or a module's function."""
         if owner == "self":
-            if cls is not None and attr in index.methods.get(cls, {}):
-                return (module, cls, attr)
-            return None
+            return self._resolve_self(self_type, attr)
+        index = self._modules[module]
         if owner in index.imported_modules:
             return self._in_package(index.imported_modules[owner], attr)
         if owner in index.imported_names:
@@ -379,22 +403,104 @@ class _UseCaseCorpus:
                 return self._in_package(submodule, attr)
         return None
 
-    def _in_package(self, module: str, name: str) -> _Callee | None:
+    def _resolve_self(
+        self, self_type: _SelfType | None, attr: str
+    ) -> _Step | None:
+        """``self.attr(...)``: dispatched on ``self``'s concrete class."""
+        if self_type is None:
+            return None
+        found = self._lookup_method(self_type, attr)
+        if found is None:
+            return None
+        def_module, def_cls, target = found
+        return (
+            def_module,
+            self_type,
+            target,
+            (def_module, def_cls, attr, self_type),
+        )
+
+    def _function_step(self, module: str, name: str) -> _Step:
+        func = self._modules[module].functions[name]
+        return (module, None, func, (module, None, name))
+
+    def _in_package(self, module: str, name: str) -> _Step | None:
         """A module-level function *name* in *module*, if we index it."""
         index = self._modules.get(module)
         if index is None:
             return None
         if name in index.functions:
-            return (module, None, name)
+            return self._function_step(module, name)
         # A package ``__init__`` that re-exports the name: follow the
         # re-export to its definition.
         if name in index.imported_names:
-            target_module, original = index.imported_names[name]
-            return self._in_package(target_module, original)
+            return self._in_package(*index.imported_names[name])
+        return None
+
+    # -- classes --------------------------------------------------------------
+
+    def _lookup_method(
+        self, self_type: _SelfType, name: str
+    ) -> tuple[str, str, _FunctionDef] | None:
+        """Find method *name* on *self_type*, then its indexed bases (MRO order)."""
+        for module, cls in self._mro(self_type):
+            func = self._modules[module].methods[cls].get(name)
+            if func is not None:
+                return module, cls, func
+        return None
+
+    def _mro(self, self_type: _SelfType) -> list[_SelfType]:
+        """*self_type* and its indexed bases, depth-first, each once."""
+        order: list[_SelfType] = []
+        pending = [self_type]
+        while pending:
+            current = pending.pop(0)
+            if current in order:
+                continue
+            order.append(current)
+            module, cls = current
+            bases = [
+                base
+                for expr in self._modules[module].bases.get(cls, [])
+                if (base := self._resolve_class(module, expr)) is not None
+            ]
+            pending = bases + pending
+        return order
+
+    def _resolve_class(self, module: str, expr: ast.expr) -> _SelfType | None:
+        """The indexed class a base-class expression names, or ``None``."""
+        if isinstance(expr, ast.Subscript):  # ``Base[T]``
+            expr = expr.value
+        index = self._modules[module]
+        if isinstance(expr, ast.Name):
+            if expr.id in index.methods:
+                return (module, expr.id)
+            if expr.id in index.imported_names:
+                return self._class_in_package(*index.imported_names[expr.id])
+            return None
+        if (
+            isinstance(expr, ast.Attribute)
+            and isinstance(expr.value, ast.Name)
+            and expr.value.id in index.imported_modules
+        ):
+            return self._class_in_package(
+                index.imported_modules[expr.value.id], expr.attr
+            )
+        return None
+
+    def _class_in_package(self, module: str, name: str) -> _SelfType | None:
+        """A class *name* defined in (or re-exported by) *module*, if indexed."""
+        index = self._modules.get(module)
+        if index is None:
+            return None
+        if name in index.methods:
+            return (module, name)
+        if name in index.imported_names:
+            return self._class_in_package(*index.imported_names[name])
         return None
 
 
-def build_use_case_corpus() -> "_UseCaseCorpus":
+def build_use_case_corpus() -> _UseCaseCorpus:
     """Index every module of the real use-case and core-services packages.
 
     ``vultron/core/services/`` is indexed because it holds the helpers a use

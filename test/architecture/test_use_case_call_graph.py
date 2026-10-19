@@ -153,6 +153,48 @@ def test_transitive_rule_flags_self_method_helper(tmp_path: Path) -> None:
     assert found == frozenset({_RECEIVED})
 
 
+def test_transitive_rule_flags_a_subclass_override(tmp_path: Path) -> None:
+    """An inherited execute() → self._hook() walks the subclass's override."""
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/_frame.py": (
+                "class Frame:\n"
+                "    def execute(self):\n"
+                "        self._hook()\n"
+                "    def _hook(self):\n"
+                "        pass\n"
+            ),
+            "received/uc.py": (
+                "from vultron.core.use_cases.received._frame import Frame\n"
+                "class UC(Frame):\n"
+                "    def _hook(self):\n"
+                "        self._dl.save(self._obj)\n"
+            ),
+        },
+    )
+    assert found == frozenset({_RECEIVED})
+
+
+def test_transitive_rule_flags_a_called_nested_function(
+    tmp_path: Path,
+) -> None:
+    """A nested function execute() defines and calls is part of execute()."""
+    found = _synthetic_violations(
+        tmp_path,
+        {
+            "received/uc.py": (
+                "class UC:\n"
+                "    def execute(self):\n"
+                "        def _store():\n"
+                "            self._dl.save(self._obj)\n"
+                "        _store()\n"
+            ),
+        },
+    )
+    assert found == frozenset({_RECEIVED})
+
+
 def test_transitive_rule_follows_relative_imports(tmp_path: Path) -> None:
     """``from ._helpers import store`` resolves like its absolute form."""
     found = _synthetic_violations(

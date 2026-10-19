@@ -14,8 +14,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Architecture invariants: one BT execution per inbox delivery (CLP-10-005).
 
-Two complementary tests enforce the single-BT-execution contract for all
-``execute()`` methods under ``vultron/core/use_cases/``.
+Four tests enforce the single-BT-execution contract for the ``execute()``
+methods under ``vultron/core/use_cases/``.
 
 **Proxy ratchet** (``test_received_use_cases_do_not_dispatch_guarded_commit_directly``)
   Detects direct imports of ``create_guarded_commit_case_ledger_entry_tree``
@@ -36,12 +36,20 @@ Two complementary tests enforce the single-BT-execution contract for all
   a tree of its own, counts as two.  Resolution stops at the package
   boundary: a nested ``BTBridge`` hop inside a BT node the tree runs is the
   tree's business.  Asserts **≤ 1** for every ``execute()`` with **no**
-  exemption set.  Trigger-side ``execute()`` bodies, which may run
-  ``send_case_actor_activity`` beside their own tree, are governed by
-  BT-15-001 and are out of scope.  The walk is shared with
-  ``test_no_dl_mutations_in_execute.py`` and lives in
-  ``_use_case_call_graph.py``, whose docstring lists the call shapes it does
-  not follow.
+  exemption set.  The walk is shared with ``test_no_dl_mutations_in_execute.py``
+  and lives in ``_use_case_call_graph.py``, whose docstring lists the call
+  shapes it does and does not follow.
+
+**Lower bound** (``test_every_received_execute_runs_a_tree``)
+  The other half of "exactly one": a received ``execute()`` that reaches no
+  tree run is listed in the exact ``RUNS_NO_TREE`` set (ARCH-18-001).  It also
+  keeps the hard invariant from passing vacuously if the count stops seeing
+  calls at all.
+
+**Trigger side** (``test_no_trigger_execute_body_calls_execute_with_setup_twice``)
+  Trigger-side ``execute()`` bodies are governed by BT-15-001, which lets a
+  trigger run ``send_case_actor_activity`` beside its own tree, so helpers are
+  not followed there; only the calls written in the body itself count.
 
 A received-side use case's ``execute()`` method MUST do exactly three
 things: build one BT via a tree-factory function in
@@ -52,6 +60,7 @@ Spec: CLP-10-005, CLP-10-008. Decision records: ADR-0022, ADR-0135.
 """
 
 import ast
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -136,16 +145,19 @@ def test_received_use_cases_do_not_dispatch_guarded_commit_directly():
 # ---------------------------------------------------------------------------
 
 
-def _tree_runs_over_one(
+def _received_tree_runs(
     corpus: _UseCaseCorpus, received_root: Path
 ) -> dict[str, int]:
-    """``module.Class`` → tree runs, for each received ``execute()`` over one."""
+    """``module.Class`` → tree runs, for every received ``execute()``."""
     return {
         f"{module}.{cls}": runs
         for module, _ in corpus.modules_under(received_root)
         for cls, runs in corpus.tree_runs_per_execute(module).items()
-        if runs > 1
     }
+
+
+def _over_one(runs: Mapping[str, int]) -> dict[str, int]:
+    return {name: n for name, n in runs.items() if n > 1}
 
 
 @pytest.mark.spec("CLP-10-005")
@@ -156,12 +168,9 @@ def test_no_execute_method_calls_execute_with_setup_more_than_once() -> None:
     reached through a use-case or core-services helper counts, and calls on
     alternative branches are summed.
     """
-    corpus = build_use_case_corpus()
-    assert any(
-        corpus.tree_runs_per_execute(module)
-        for module, _ in corpus.modules_under(RECEIVED_ROOT)
-    ), "no received execute() found — corpus drifted?"
-    violations = _tree_runs_over_one(corpus, RECEIVED_ROOT)
+    violations = _over_one(
+        _received_tree_runs(build_use_case_corpus(), RECEIVED_ROOT)
+    )
 
     assert not violations, (
         "received execute() methods reaching execute_with_setup() more than"
@@ -175,19 +184,79 @@ def test_no_execute_method_calls_execute_with_setup_more_than_once() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Lower bound: a received execute() that runs no tree is named here.
+# Exact set (ARCH-18-001): add an entry only for a use case that answers
+# without a tree by design; remove one in the commit that gives it a tree.
+# ---------------------------------------------------------------------------
+RUNS_NO_TREE: frozenset[str] = frozenset(
+    {
+        # Unrecognized semantics: refused before any case is known (HP-01).
+        "vultron.core.use_cases.received.unknown.UnknownUseCase",
+    }
+)
+
+
+@pytest.mark.spec("CLP-10-005")
+def test_every_received_execute_runs_a_tree() -> None:
+    """Every received execute() outside ``RUNS_NO_TREE`` reaches a tree run."""
+    runs = _received_tree_runs(build_use_case_corpus(), RECEIVED_ROOT)
+    assert len(runs) > len(RUNS_NO_TREE), "corpus drifted: no handlers found"
+    no_tree = frozenset(name for name, n in runs.items() if n == 0)
+    assert no_tree == RUNS_NO_TREE, (
+        f"added: {sorted(no_tree - RUNS_NO_TREE)}; "
+        f"resolved (remove from RUNS_NO_TREE): {sorted(RUNS_NO_TREE - no_tree)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Trigger side: body-only count (BT-15-001 governs what a trigger's helpers do)
+# ---------------------------------------------------------------------------
+
+
+def test_no_trigger_execute_body_calls_execute_with_setup_twice() -> None:
+    """No non-received execute() body calls execute_with_setup() twice itself."""
+    corpus = build_use_case_corpus()
+    checked = 0
+    violations: dict[str, int] = {}
+    for module, path in corpus.modules_under(USE_CASES_ROOT):
+        if path.is_relative_to(RECEIVED_ROOT):
+            continue
+        for cls, n in corpus.tree_runs_per_execute(
+            module, transitive=False
+        ).items():
+            checked += 1
+            if n > 1:
+                violations[f"{module}.{cls}"] = n
+    assert checked, "corpus drifted: no trigger execute() found"
+    assert not violations, violations
+
+
+# ---------------------------------------------------------------------------
 # Detector self-tests on synthetic sources
 # ---------------------------------------------------------------------------
 
+_CORE = _corpus.REPO_ROOT / "vultron" / "core"
 _SYNTHETIC_MODULE = "vultron.core.use_cases.received.synthetic"
 
 
-def _synthetic_runs(source: str) -> dict[str, int]:
-    """Tree runs per ``execute()`` in one synthetic received module."""
-    path = RECEIVED_ROOT / "synthetic.py"
-    corpus = _UseCaseCorpus(
-        {path: _corpus.parse_inline(source)}, roots=INDEXED_ROOTS
+def _synthetic_corpus(files: Mapping[str, str]) -> _UseCaseCorpus:
+    """A corpus of *files*: paths relative to ``vultron/core/`` → source."""
+    return _UseCaseCorpus(
+        {_CORE / rel: _corpus.parse_inline(src) for rel, src in files.items()},
+        roots=INDEXED_ROOTS,
     )
-    return corpus.tree_runs_per_execute(_SYNTHETIC_MODULE)
+
+
+def _synthetic_runs(
+    source: str, others: Mapping[str, str] | None = None
+) -> dict[str, int]:
+    """Tree runs per ``execute()`` in a synthetic received module.
+
+    *others* adds modules beside it, keyed by path relative to
+    ``vultron/core/``.
+    """
+    files = {"use_cases/received/synthetic.py": source, **(others or {})}
+    return _synthetic_corpus(files).tree_runs_per_execute(_SYNTHETIC_MODULE)
 
 
 @pytest.mark.parametrize(
@@ -242,13 +311,27 @@ def _synthetic_runs(source: str) -> dict[str, int]:
             id="alternative-branches",
         ),
         pytest.param(
+            "def _helper(b):\n"
+            "    return _helper(b)\n"
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        _helper(self._b)\n"
+            "        return self._b.execute_with_setup(tree=t)\n",
+            1,
+            id="recursive-helper",
+        ),
+        pytest.param(
+            # The factory is followed; the node's update() is not, because a
+            # BT node is an instance the tree runs, never a call execute()
+            # makes.
             "class _Hop(Behaviour):\n"
             "    def update(self):\n"
             "        self._b.execute_with_setup(tree=nested)\n"
+            "def _tree(b):\n"
+            "    return Sequence(children=[_Hop(b)])\n"
             "class UC:\n"
             "    def execute(self):\n"
-            "        tree = Sequence(children=[_Hop()])\n"
-            "        return self._b.execute_with_setup(tree=tree)\n",
+            "        return self._b.execute_with_setup(tree=_tree(self._b))\n",
             1,
             id="bt-node-call-not-counted",
         ),
@@ -261,6 +344,16 @@ def _synthetic_runs(source: str) -> dict[str, int]:
             1,
             id="uncalled-nested-function",
         ),
+        pytest.param(
+            "class UC:\n"
+            "    def execute(self):\n"
+            "        def _door():\n"
+            "            self._b.execute_with_setup(tree=d)\n"
+            "        _door()\n"
+            "        return self._b.execute_with_setup(tree=t)\n",
+            2,
+            id="called-nested-function",
+        ),
     ],
 )
 def test_the_count_follows_helpers_and_sums_branches(
@@ -269,8 +362,86 @@ def test_the_count_follows_helpers_and_sums_branches(
     assert _synthetic_runs(source) == {"UC": runs}
 
 
+def test_the_count_follows_a_services_helper_through_a_reexport() -> None:
+    """A ``services/`` helper reached through a package re-export counts."""
+    runs = _synthetic_runs(
+        "from vultron.core.services import door\n"
+        "class UC:\n"
+        "    def execute(self):\n"
+        "        door(self._b)\n"
+        "        return self._b.execute_with_setup(tree=t)\n",
+        {
+            "services/__init__.py": (
+                "from vultron.core.services.doors import door\n"
+            ),
+            "services/doors.py": (
+                "def door(b):\n    return b.execute_with_setup(tree=d)\n"
+            ),
+        },
+    )
+    assert runs == {"UC": 2}
+
+
+def test_the_count_follows_a_relative_import() -> None:
+    runs = _synthetic_runs(
+        "from ._helpers import door\n"
+        "class UC:\n"
+        "    def execute(self):\n"
+        "        door(self._b)\n"
+        "        return self._b.execute_with_setup(tree=t)\n",
+        {
+            "use_cases/received/_helpers.py": (
+                "def door(b):\n    return b.execute_with_setup(tree=d)\n"
+            ),
+        },
+    )
+    assert runs == {"UC": 2}
+
+
+_FRAME = {
+    "use_cases/received/_frame.py": (
+        "class Frame:\n"
+        "    def _build_tree(self):\n"
+        "        return t\n"
+        "    def execute(self):\n"
+        "        return self._b.execute_with_setup(tree=self._build_tree())\n"
+    ),
+}
+
+
+def test_an_inherited_execute_counts_the_subclass_override() -> None:
+    """``self._hook()`` dispatches on the subclass, across modules."""
+    runs = _synthetic_runs(
+        "from vultron.core.use_cases.received._frame import Frame\n"
+        "class Plain(Frame):\n"
+        "    pass\n"
+        "class Sneaky(Frame):\n"
+        "    def _build_tree(self):\n"
+        "        self._b.execute_with_setup(tree=refusal)\n"
+        "        return t\n",
+        _FRAME,
+    )
+    assert runs == {"Plain": 1, "Sneaky": 2}
+
+
+def test_a_generic_base_is_resolved() -> None:
+    runs = _synthetic_runs(
+        "from ._frame import Frame\nclass UC(Frame[int]):\n    pass\n",
+        _FRAME,
+    )
+    assert runs == {"UC": 1}
+
+
 def test_the_count_stops_at_the_package_boundary() -> None:
-    """A helper outside the indexed packages (a BT factory) is not followed."""
+    """``vultron/core/behaviors/`` is never indexed, so a BT factory there
+    (which may build nodes that run nested trees) is not followed."""
+    behaviors = _CORE / "behaviors"
+    assert not any(
+        behaviors.is_relative_to(root) or root.is_relative_to(behaviors)
+        for root in INDEXED_ROOTS
+    )
+    with pytest.raises(ValueError, match="lies under none of"):
+        _synthetic_corpus({"behaviors/synthetic.py": "def f():\n    pass\n"})
     source = (
         "from vultron.core.behaviors.synthetic import build_and_run\n"
         "class UC:\n"
@@ -285,12 +456,28 @@ def test_a_module_without_execute_counts_nothing() -> None:
     assert _synthetic_runs("def helper():\n    pass\n") == {}
 
 
-def test_the_violation_report_names_each_offender() -> None:
-    """The hard invariant's report lists every execute() over one run."""
-    path = RECEIVED_ROOT / "synthetic.py"
-    corpus = _UseCaseCorpus(
+def test_a_body_only_count_ignores_helpers() -> None:
+    corpus = _synthetic_corpus(
         {
-            path: _corpus.parse_inline(
+            "use_cases/triggers/synthetic.py": (
+                "def _send(b):\n"
+                "    return b.execute_with_setup(tree=s)\n"
+                "class Svc:\n"
+                "    def execute(self):\n"
+                "        self._b.execute_with_setup(tree=t)\n"
+                "        return _send(self._b)\n"
+            )
+        }
+    )
+    module = "vultron.core.use_cases.triggers.synthetic"
+    assert corpus.tree_runs_per_execute(module, transitive=False) == {"Svc": 1}
+    assert corpus.tree_runs_per_execute(module) == {"Svc": 2}
+
+
+def test_the_received_report_names_each_handler() -> None:
+    corpus = _synthetic_corpus(
+        {
+            "use_cases/received/synthetic.py": (
                 "class Ok:\n"
                 "    def execute(self):\n"
                 "        return self._b.execute_with_setup(tree=t)\n"
@@ -299,10 +486,16 @@ def test_the_violation_report_names_each_offender() -> None:
                 "        if x:\n"
                 "            return self._b.execute_with_setup(tree=a)\n"
                 "        return self._b.execute_with_setup(tree=b)\n"
+                "class Idle:\n"
+                "    def execute(self):\n"
+                "        return refused\n"
             )
-        },
-        roots=INDEXED_ROOTS,
+        }
     )
-    assert _tree_runs_over_one(corpus, RECEIVED_ROOT) == {
-        f"{_SYNTHETIC_MODULE}.Bad": 2
+    runs = _received_tree_runs(corpus, RECEIVED_ROOT)
+    assert runs == {
+        f"{_SYNTHETIC_MODULE}.Ok": 1,
+        f"{_SYNTHETIC_MODULE}.Bad": 2,
+        f"{_SYNTHETIC_MODULE}.Idle": 0,
     }
+    assert _over_one(runs) == {f"{_SYNTHETIC_MODULE}.Bad": 2}

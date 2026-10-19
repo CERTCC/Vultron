@@ -1161,12 +1161,15 @@ groups:
       `vultron/core/use_cases/received/` reaches, directly or through functions and
       methods under `vultron/core/use_cases/` or `vultron/core/services/` resolved
       transitively (the walk shared with `test_no_dl_mutations_in_execute.py`),
-      sums calls on alternative branches, and asserts at most one, with no exemption
-      set; trigger-side `execute()` bodies are out of scope (BT-15-001). Detector
-      self-tests on synthetic sources assert that a helper call, a helper two calls
-      deep, and two calls on alternative branches are each counted, and that a call
-      inside a BT node the tree runs is not. A reviewer MUST still confirm no other
-      domain-significant code remains
+      with a `self` method dispatched on the concrete class, sums calls on
+      alternative branches, and asserts at most one, with no exemption set; a
+      received `execute()` that reaches none is named in the exact `RUNS_NO_TREE`
+      set. Trigger-side `execute()` bodies are counted body-only, since their helpers
+      are governed by BT-15-001. Detector self-tests on synthetic sources assert that
+      a helper call, a helper two calls deep, two calls on alternative branches and
+      a subclass override are each counted, and that a call inside a BT node the
+      tree runs is not. A reviewer MUST still confirm no other domain-significant
+      code remains
       in `execute()` when closing each migration.'
     adr:
     - ADR-0021
