@@ -76,6 +76,7 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     "accept_case_participant_role": "#4703",
     "announce_embargo_event_to_case": NotACaseEvent.SENT_BY_CASE_MANAGER,
     "create_processing_fault": NotACaseEvent.PROCESSING_FAULT,
+    "refusal_notice": NotACaseEvent.LEDGER_MECHANICS,
     "reject_case_participant_role": "#4703",
 }
 

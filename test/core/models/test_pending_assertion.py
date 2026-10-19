@@ -436,3 +436,35 @@ def test_record_pending_assertion_records_in_the_actors_store():
         store.pending_for_subject(CASE_ID, EVENT_TYPE, SUBJECT_ID) is not None
     )
     assert len(get_pending_assertion_store(ACTOR_B)) == 0
+
+
+class TestClearActivity:
+    """A refusal notice names the activity, not its event type (CLP-06-006)."""
+
+    @pytest.mark.spec("CLP-06-006")
+    def test_clears_the_pending_entry_for_the_activity(self):
+        store = PendingAssertionStore()
+        store.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
+
+        cleared = store.clear_activity(CASE_ID, OBJECT_ID)
+
+        assert [e.object_id for e in cleared] == [OBJECT_ID]
+        assert not store.is_suppressed(CASE_ID, EVENT_TYPE, OBJECT_ID)
+
+    def test_leaves_other_activities_and_cases_pending(self):
+        store = PendingAssertionStore()
+        other = "https://example.org/activities/act-002"
+        other_case = "https://example.org/cases/case-002"
+        store.add(CASE_ID, EVENT_TYPE, other)
+        store.add(other_case, EVENT_TYPE, OBJECT_ID)
+
+        assert store.clear_activity(CASE_ID, OBJECT_ID) == []
+        assert store.is_suppressed(CASE_ID, EVENT_TYPE, other)
+        assert store.is_suppressed(other_case, EVENT_TYPE, OBJECT_ID)
+
+    def test_an_already_cleared_entry_is_not_cleared_again(self):
+        store = PendingAssertionStore()
+        store.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
+        store.clear_activity(CASE_ID, OBJECT_ID)
+
+        assert store.clear_activity(CASE_ID, OBJECT_ID) == []

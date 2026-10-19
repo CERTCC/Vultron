@@ -13,7 +13,10 @@ from vultron.wire.as2.enums import (
     as_ObjectType as AOtype,
     as_TransitiveActivityType as TAtype,
 )
-from vultron.wire.as2.extractor._pattern import ActivityPattern
+from vultron.wire.as2.extractor._pattern import (
+    ActivityPattern,
+    InlineActivityObjectPattern,
+)
 
 # ---------------------------------------------------------------------------
 # Embargo patterns
@@ -387,6 +390,16 @@ RejectLogEntryPattern = ActivityPattern(
     ),
     activity_=TAtype.REJECT,
     object_=VOtype.CASE_LEDGER_ENTRY,
+)
+RefusalNoticePattern = InlineActivityObjectPattern(
+    description=(
+        "The CASE_MANAGER's refusal notice: a Reject whose object is the "
+        "refused activity, inline (CLP-05-001, ADR-0141).  Any verb but "
+        "Invite and Offer: a Reject of either has the shape of a decline "
+        "and is read by the use case that reads the decline."
+    ),
+    activity_=TAtype.REJECT,
+    excluded_object_verbs=frozenset({TAtype.INVITE, TAtype.OFFER}),
 )
 
 # ---------------------------------------------------------------------------

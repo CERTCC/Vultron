@@ -112,6 +112,11 @@ class EmbargoAnswerNotRecordedNode(DataLayerConditionWithPorts):
             return None
         return resolved[1].consent_for(self.embargo_id)
 
+    @property
+    def failed_as_repeat(self) -> bool:
+        """Whether the last run failed as a repeat (``ReportsIdempotentRepeat``)."""
+        return self.is_repeat and self.status == Status.FAILURE
+
     def update(self) -> Status:
         self.is_repeat = False
         if (f := self._require_datalayer()) is not None:

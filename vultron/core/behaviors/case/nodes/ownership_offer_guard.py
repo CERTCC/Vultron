@@ -87,6 +87,11 @@ class NoOpenOwnershipOfferNode(DataLayerConditionWithPorts):
         """``True`` when the last run found this Offer already ledgered: a
         benign no-op, not a refusal."""
 
+    @property
+    def failed_as_repeat(self) -> bool:
+        """Whether the last run failed as a repeat (``ReportsIdempotentRepeat``)."""
+        return self.is_redelivery and self.status == Status.FAILURE
+
     def update(self) -> Status:
         self.is_redelivery = False
         if (f := self._require_datalayer()) is not None:
@@ -253,6 +258,11 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
         return recorded_ownership_offer(
             self.datalayer, self._case_id, self._offer_id, manager_id
         )
+
+    @property
+    def failed_as_repeat(self) -> bool:
+        """Whether the last run failed as a repeat (``ReportsIdempotentRepeat``)."""
+        return self.is_redelivery and self.status == Status.FAILURE
 
     def update(self) -> Status:
         """Check the Offer is open; see the class docstring.

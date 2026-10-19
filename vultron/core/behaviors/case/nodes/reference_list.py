@@ -127,6 +127,11 @@ class CaseReferenceEditPendingNode(DataLayerConditionWithPorts):
         #: datalayer or case also fails the node but is not a duplicate.
         self.is_duplicate = False
 
+    @property
+    def failed_as_repeat(self) -> bool:
+        """Whether the last run failed as a repeat (``ReportsIdempotentRepeat``)."""
+        return self.is_duplicate and self.status == Status.FAILURE
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f

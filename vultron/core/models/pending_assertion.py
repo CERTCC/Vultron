@@ -262,6 +262,33 @@ class PendingAssertionStore:
             object_id,
         )
 
+    def clear_activity(
+        self, case_id: str, activity_id: str
+    ) -> list[PendingAssertion]:
+        """Clear every pending entry for the asserted activity *activity_id*.
+
+        The CASE_MANAGER's refusal notice names the refused activity, not the
+        event type it would have been ledgered under, so this matches on the
+        case and the activity alone (CLP-06-006, CLP-05-001).
+
+        Args:
+            case_id: URI of the parent :class:`VulnerabilityCase`.
+            activity_id: The refused activity's id.
+
+        Returns:
+            The entries this call cleared; empty when none was pending.
+        """
+        cleared = [
+            entry
+            for entry in self._store.values()
+            if entry.case_id == case_id
+            and entry.object_id == activity_id
+            and entry.status == "pending"
+        ]
+        for entry in cleared:
+            self.clear(entry.case_id, entry.event_type, entry.object_id)
+        return cleared
+
     def expire_timed_out(self) -> int:
         """Sweep the store and expire all overdue pending entries.
 

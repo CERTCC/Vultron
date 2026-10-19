@@ -935,11 +935,14 @@ def create_receive_activity_tree(
     itself.
 
     ``refusal_effects`` answer a refusal in the moment — the RSH-06-004
-    clarification note for a refused backward RM declaration is the case in
+    clarification note for a refused backward RM declaration, or the refusal
+    notice (``refusal_notice(case_id)``, CLP-05-001), are the cases in
     point.  They run only when a precondition guard refuses, never on an
     accepted delivery, so no effect precedes the commit (CLP-10-006).  They
     do not run when the sender guard refuses: a sender not entitled to send
-    the message is owed no answer about its content (HP-01-006).  The factory
+    the message is owed no answer about its content (HP-01-006), nor when a
+    guard's failure is an idempotent repeat the handler reports ``SKIPPED``
+    (``ReportsIdempotentRepeat``).  The factory
     gates them on the CASE_MANAGER of ``case_id`` (when it is ``None`` the
     gate resolves the case from the blackboard and skips without one), skips
     them on a redelivery that intake

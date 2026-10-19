@@ -89,6 +89,7 @@ class MessageSemantics(StrEnum):
     REJECT_CASE_PROPOSAL = auto()
 
     CREATE_PROCESSING_FAULT = auto()
+    REFUSAL_NOTICE = auto()
 
 
 class VultronEvent(ValidatedAssignmentMixin, BaseModel):
