@@ -768,26 +768,6 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
-    def accept_actor_recommendation(
-        self,
-        recommended_id: str,
-        recommender_id: str,
-        recommendation_id: str,
-        case_id: str,
-        actor: str,
-        to: list[str] | None = None,
-        id_: str | None = None,
-    ) -> tuple[str, str]:
-        """Create and persist an ``Accept(Offer)`` actor-recommendation activity.
-
-        The recommendation offer is reconstructed ephemerally from
-        ``recommended_id``, ``recommender_id``, ``recommendation_id``, and
-        ``case_id``; it does not need to already exist in the DataLayer.
-        ``id_`` allows callers to supply a deterministic ID for idempotency.
-        Returns ``(activity_id, activity_dict)``.
-        """
-        ...
-
     def add_participant_to_case(
         self,
         participant_id: str,

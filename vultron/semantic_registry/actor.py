@@ -19,6 +19,7 @@ invite/accept/reject to case, and vulnerability case announcements.
 
 from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.actor import (
+    AcceptActorRecommendationReceivedEvent,
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptCaseParticipantRoleReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
@@ -31,6 +32,7 @@ from vultron.core.models.events.actor import (
     OfferCaseOwnershipTransferReceivedEvent,
     OfferCaseParticipantReceivedEvent,
     OfferCaseParticipantRoleReceivedEvent,
+    RejectActorRecommendationReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectCaseParticipantRoleReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
@@ -41,6 +43,7 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.use_cases.received.actor import (
+    AcceptActorRecommendationReceivedUseCase,
     AcceptCaseOwnershipTransferReceivedUseCase,
     AcceptCaseParticipantRoleReceivedUseCase,
     AcceptInviteActorToCaseReceivedUseCase,
@@ -53,6 +56,7 @@ from vultron.core.use_cases.received.actor import (
     OfferCaseOwnershipTransferReceivedUseCase,
     OfferCaseParticipantReceivedUseCase,
     OfferCaseParticipantRoleReceivedUseCase,
+    RejectActorRecommendationReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
     RejectCaseParticipantRoleReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
@@ -89,11 +93,17 @@ from vultron.wire.as2.extractor import (
     TentativeRejectInviteActorToFullCasePattern,
     UndoCaseOwnershipTransferActivityPattern,
 )
-from vultron.wire.as2.extractor._instances import SuggestActorToCasePattern
+from vultron.wire.as2.extractor._instances import (
+    AcceptSuggestActorToCasePattern,
+    RejectSuggestActorToCasePattern,
+    SuggestActorToCasePattern,
+)
 from vultron.wire.as2.vocab.activities.actor import (
+    _AcceptActorRecommendationActivity,
     _AcceptCaseParticipantOfferActivity,
     _OfferCaseParticipantActivity,
     _RecommendActorActivity,
+    _RejectActorRecommendationActivity,
     _RejectCaseParticipantOfferActivity,
 )
 from vultron.wire.as2.vocab.activities.case import (
@@ -242,6 +252,65 @@ ENTRIES: list[SemanticEntry] = [
                     " tells the recommender."
                 ),
                 example="reject_case_participant_offer",
+                howto=HowToGuide.SUGGEST_ACTOR,
+                shorthand=ProtocolShorthand.GI,
+            ),
+        ),
+        page=MessagePage.GENERAL,
+    ),
+    # Recommender inbox: the CASE_MANAGER's answer to its Offer(Actor, Case)
+    SemanticEntry(
+        semantics=MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION,
+        pattern=AcceptSuggestActorToCasePattern,
+        event_class=AcceptActorRecommendationReceivedEvent,
+        use_case_class=AcceptActorRecommendationReceivedUseCase,
+        phrase="{actor} accepted recommendation {object} for the case",
+        wire_activity_class=_AcceptActorRecommendationActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager tells a recommender that the actor it "
+                    "suggested will be invited"
+                ),
+                anchor="accept-actor-recommendation",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Accept actor recommendation",
+                description=(
+                    "Accepts the recommender's suggestion, with `inReplyTo` "
+                    "naming it. The Case Manager sends it once the Case Owner"
+                    " approves, or at once when the suggested actor is "
+                    "already invited or has joined."
+                ),
+                example="accept_actor_recommendation",
+                howto=HowToGuide.SUGGEST_ACTOR,
+                shorthand=ProtocolShorthand.GI,
+            ),
+        ),
+        page=MessagePage.GENERAL,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.REJECT_ACTOR_RECOMMENDATION,
+        pattern=RejectSuggestActorToCasePattern,
+        event_class=RejectActorRecommendationReceivedEvent,
+        use_case_class=RejectActorRecommendationReceivedUseCase,
+        phrase="{actor} declined recommendation {object} for the case",
+        wire_activity_class=_RejectActorRecommendationActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager tells a recommender that the Case "
+                    "Owner declined the actor it suggested"
+                ),
+                anchor="reject-actor-recommendation",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Reject actor recommendation",
+                description=(
+                    "Declines the recommender's suggestion, with `inReplyTo`"
+                    " naming it. The suggested actor is not invited."
+                ),
+                example="reject_actor_recommendation",
                 howto=HowToGuide.SUGGEST_ACTOR,
                 shorthand=ProtocolShorthand.GI,
             ),

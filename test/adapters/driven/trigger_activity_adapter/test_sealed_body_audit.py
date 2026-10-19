@@ -517,16 +517,6 @@ RECIPES: dict[str, Recipe] = {
             to=[_PEER],
         )
     ),
-    "accept_actor_recommendation": lambda w: (
-        w.adapter.accept_actor_recommendation(
-            recommended_id=_PEER,
-            recommender_id=_PEER,
-            recommendation_id=w.recommendation_id(),
-            case_id=w.case_id,
-            actor=_ACTOR,
-            to=[_PEER],
-        )
-    ),
     "add_participant_to_case": lambda w: w.adapter.add_participant_to_case(
         participant_id=str(w.participant.id_),
         case_id=w.case_id,

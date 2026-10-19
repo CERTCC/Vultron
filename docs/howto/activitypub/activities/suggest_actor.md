@@ -74,7 +74,17 @@ The formal message set does not name this exchange: all three activities fall un
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/offer-case-participant.md" %}
 
-3. Read the outcome from the CASE_MANAGER's reply — `Accept(Offer(CaseParticipant))` or `Reject(Offer(CaseParticipant))`.
+3. Read the outcome from the CASE_MANAGER's answer to your `Offer(Actor)`.
+   Its `inReplyTo` names your recommendation.
+   An `Accept(Offer(Actor))` means the suggested actor is invited, or was already invited or a participant.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/accept-actor-recommendation.md" %}
+
+    A `Reject(Offer(Actor))` means the Case Owner declined the suggestion.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/reject-actor-recommendation.md" %}
+
+   You accept either answer only from the CASE_MANAGER, and you change nothing on receipt: the CASE_MANAGER ledgered it, and your replica takes it from the ledger.
 
 The forwarded offer carries the original recommendation's ID in its `origin` field, so the Case Owner can trace the request back to you.
 
@@ -113,8 +123,8 @@ It also refuses a reply that names an `Offer(CaseParticipant)` it never forwarde
 | What you sent | What to confirm |
 |---|---|
 | `Offer(Actor)` | The recommendation appears as a ledger entry. |
-| `Accept(Offer(CaseParticipant))` | The recommender holds an `Accept(Offer(CaseParticipant))`, and the suggested actor holds an `Invite`. |
-| `Reject(Offer(CaseParticipant))` | The recommender holds a `Reject(Offer(CaseParticipant))`, and no `Invite` was sent. |
+| `Accept(Offer(CaseParticipant))` | The recommender holds an `Accept(Offer(Actor))`, and the suggested actor holds an `Invite`. |
+| `Reject(Offer(CaseParticipant))` | The recommender holds a `Reject(Offer(Actor))`, and no `Invite` was sent. |
 
 ---
 

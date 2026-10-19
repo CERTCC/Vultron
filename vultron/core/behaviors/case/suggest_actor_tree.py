@@ -591,6 +591,51 @@ def create_reject_actor_recommendation_received_tree(
     )
 
 
+def create_recommendation_answer_received_tree(
+    name: str,
+    case_id: str,
+    sender_id: str,
+    *,
+    sender_rule: SenderRule,
+) -> py_trees.composites.Sequence:
+    """Received-side BT for the CASE_MANAGER's answer on a recommender's inbox.
+
+    The answer is ``Accept`` or ``Reject`` of the recommender's own
+    ``Offer(Actor, Case)`` (CM-16-006, CM-16-007, CM-16-009).  The
+    CASE_MANAGER ledgered it when it sent it (CM-16-010), and the recommender
+    takes that entry from the ledger; a participant never commits
+    (CLP-09-001), so this receipt records no entry on the CLP-02-013 ground of
+    an activity only the CASE_MANAGER sends, received by a participant.
+
+    Tree structure::
+
+        <name> (Sequence, memory=False)
+        ├── IntakeReceivedActivityNode     — archive what arrived (CLP-10-018)
+        ├── CaseOpenToExternalWrites       — post-close boundary (CM-23-013)
+        ├── ActivityAddressedToReceiver    — addressee door guard (HP-01-005)
+        └── sender guard                   — only the CASE_MANAGER (PCR-03-001)
+
+    Args:
+        name: Name for the root ``Sequence``; the handler's own tree name.
+        case_id: ID of the VulnerabilityCase the answer names.
+        sender_id: Actor ID of the answer's sender.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
+
+    Returns:
+        Root Sequence node named *name*.
+    """
+    return create_receive_activity_tree(
+        name=name,
+        case_id=None,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, case_id=case_id
+        ),
+        precondition_guards=[],
+    )
+
+
 __all__ = [
     # node classes live in nodes.suggest_actor; re-exported here for backward compat
     "ActorAlreadyParticipantNode",
@@ -603,5 +648,6 @@ __all__ = [
     "create_accept_actor_recommendation_received_tree",
     "create_receive_offer_case_participant_tree",
     "create_recommend_actor_to_case_received_tree",
+    "create_recommendation_answer_received_tree",
     "create_reject_actor_recommendation_received_tree",
 ]

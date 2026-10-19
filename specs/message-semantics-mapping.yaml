@@ -574,12 +574,13 @@ groups:
     kind: project
     statement: Protocol shorthand `GI` MUST additionally cover the actor-suggestion exchange, dispatching as
       `MessageSemantics.OFFER_ACTOR_TO_CASE`, `MessageSemantics.OFFER_CASE_PARTICIPANT`,
-      `MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT`, or `MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT`.
+      `MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT`, `MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT`,
+      `MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION`, or `MessageSemantics.REJECT_ACTOR_RECOMMENDATION`.
     rationale: '`messages.md` lists "suggesting a potential Participant to be added to a case" among its `GI` examples, so
       actor suggestion is a `GI` expansion and MUST NOT be classified as case management. What the formal set models as one
       inquiry the implementation realizes as a multi-hop negotiation with its own accept and reject responses.'
     verification: >-
-      Inspection of `vultron/semantic_registry/actor.py` confirms the four
+      Inspection of `vultron/semantic_registry/actor.py` confirms the
       actor-suggestion entries are registered, and `docs/reference/formal_protocol/messages.md`
       lists participant suggestion as a `GI` example.
     relationships:

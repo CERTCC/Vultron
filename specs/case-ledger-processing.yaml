@@ -220,8 +220,10 @@ groups:
       deliberately leaves unledgered, namely a replica's receipt of
       `Announce(VulnerabilityCase)` (ADR-0111); an activity only the CASE_MANAGER
       sends, received by a participant (the bootstrap `Create(VulnerabilityCase)`,
-      its `Announce(EmbargoEvent)` notice): a participant never commits (CLP-09-001), so such an activity is
-      ledgered, if it is a case event, where the CASE_MANAGER sends it
+      its `Announce(EmbargoEvent)` notice, its `Accept` or `Reject` answering a
+      recommender's `Offer(Actor)`): a participant never commits (CLP-09-001), so
+      such an activity is ledgered, if it is a case event, where the CASE_MANAGER
+      sends it
       (CLP-09-003); a `Create(ProcessingFault)` NACK (ADR-0080), which reports on
       message handling rather than changing the case; and a message no pattern
       matches or whose object cannot be resolved. The list is closed: a new kind

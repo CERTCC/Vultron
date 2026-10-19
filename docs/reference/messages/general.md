@@ -39,6 +39,12 @@ The Case Owner's decision goes back to the CASE_MANAGER, which relays the outcom
 
 {% include-markdown "./_occasions/sections/reject-case-participant-offer.md" heading-offset=1 %}
 
+{% include-markdown "./_occasions/sections/accept-actor-recommendation.md" heading-offset=1 %}
+
+{% include-markdown "./_occasions/sections/reject-actor-recommendation.md" heading-offset=1 %}
+
+The recommender archives either answer and changes nothing on receipt: the CASE_MANAGER ledgered the answer when it sent it, and the recommender's replica takes it from the ledger.
+
 This handshake is a `GI` inquiry rather than a role offer.
 For the `CVDRole` delegation that uses a dedicated object type, see [Offer case participant role](case_management.md#offer-case-participant-role).
 

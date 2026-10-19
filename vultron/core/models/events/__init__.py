@@ -14,6 +14,7 @@ Public surface:
 """
 
 from vultron.core.models.events.actor import (
+    AcceptActorRecommendationReceivedEvent,
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptCaseParticipantRoleReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
@@ -26,6 +27,7 @@ from vultron.core.models.events.actor import (
     OfferCaseOwnershipTransferReceivedEvent,
     OfferCaseParticipantReceivedEvent,
     OfferCaseParticipantRoleReceivedEvent,
+    RejectActorRecommendationReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectCaseParticipantRoleReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
@@ -118,6 +120,8 @@ AnyReceivedEvent = (
     | OfferCaseParticipantReceivedEvent
     | AcceptOfferCaseParticipantReceivedEvent
     | RejectOfferCaseParticipantReceivedEvent
+    | AcceptActorRecommendationReceivedEvent
+    | RejectActorRecommendationReceivedEvent
     | OfferCaseParticipantRoleReceivedEvent
     | AcceptCaseParticipantRoleReceivedEvent
     | RejectCaseParticipantRoleReceivedEvent
@@ -199,6 +203,8 @@ __all__ = [
     "OfferCaseParticipantReceivedEvent",
     "AcceptOfferCaseParticipantReceivedEvent",
     "RejectOfferCaseParticipantReceivedEvent",
+    "AcceptActorRecommendationReceivedEvent",
+    "RejectActorRecommendationReceivedEvent",
     "OfferCaseParticipantRoleReceivedEvent",
     "AcceptCaseParticipantRoleReceivedEvent",
     "RejectCaseParticipantRoleReceivedEvent",
