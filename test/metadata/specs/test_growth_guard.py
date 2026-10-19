@@ -8,6 +8,7 @@ base, edits the working tree, and runs a real guard extractor through
 """
 
 import logging
+import os
 import subprocess
 from pathlib import Path
 
@@ -790,3 +791,31 @@ def test_a_change_outside_the_paths_does_not_read_the_base(suppression_repo):
 
     compare_with_base(extract, repo_root=suppression_repo, paths=("specs",))
     assert reads == [suppression_repo]
+
+
+def test_changed_files_against_an_unknown_commit_is_an_unavailable_base(
+    files_repo,
+):
+    with pytest.raises(BaseUnavailableError, match="could not list"):
+        changed_files(files_repo, "0" * 40, ("d",))
+
+
+def test_changed_files_keeps_a_non_utf8_name(files_repo):
+    base = _git(files_repo, "rev-parse", "HEAD").strip()
+    name = os.fsdecode(b"bad\xff")
+    (files_repo / "d" / name).write_text("new")
+    changed = changed_files(files_repo, base, ("d",))
+    assert changed.at_head == (f"d/{name}",)
+
+
+def test_compare_changed_skips_a_listed_path_that_is_not_a_file(files_repo):
+    """An untracked nested repository is listed as a directory, ``d/sub/``."""
+    nested = files_repo / "d" / "sub"
+    nested.mkdir()
+    _git(nested, "init", "-q")
+    (nested / "inner").write_text("inner")
+    (files_repo / "d" / "edited").write_text("edited again")
+    seen = compare_changed_with_base(
+        _file_names, repo_root=files_repo, paths=("d",)
+    )
+    assert seen.head_value == {"d/edited"}

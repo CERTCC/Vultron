@@ -274,7 +274,7 @@ def changed_files(
                 f"git could not list the files changed since {commit[:12]}"
                 f"{_stderr(proc)}"
             )
-    fields = diff.stdout.decode().split("\0")
+    fields = diff.stdout.decode("utf-8", "surrogateescape").split("\0")
     at_base: list[str] = []
     at_head: list[str] = []
     for status, path in zip(fields[0::2], fields[1::2], strict=False):
@@ -282,8 +282,27 @@ def changed_files(
             at_base.append(path)
         if status != "D":
             at_head.append(path)
-    at_head.extend(p for p in untracked.stdout.decode().split("\0") if p)
+    listed = untracked.stdout.decode("utf-8", "surrogateescape")
+    at_head.extend(p for p in listed.split("\0") if p)
     return ChangedFiles(tuple(at_base), tuple(at_head))
+
+
+def _base_settings(
+    base_ref: str | None, require_base: bool | None
+) -> tuple[str, bool]:
+    """The base ref to compare with, and whether a missing base must raise."""
+    if require_base is None:
+        require_base = running_in_ci()
+    return base_ref or base_ref_name(), require_base
+
+
+def _skip_reason(exc: BaseUnavailableError, require_base: bool) -> str:
+    """Why the guard skips its base, logged; re-raises *exc* when required."""
+    if require_base:
+        raise exc
+    reason = f"growth guard skipped: {exc}"
+    logger.warning(reason)
+    return reason
 
 
 def compare_changed_with_base[T](
@@ -306,9 +325,7 @@ def compare_changed_with_base[T](
     the whole working tree. Arguments and errors are as
     :func:`added_since_base` documents.
     """
-    if require_base is None:
-        require_base = running_in_ci()
-    ref = base_ref or base_ref_name()
+    ref, require_base = _base_settings(base_ref, require_base)
     with tempfile.TemporaryDirectory(prefix="growth-guard-") as tmp:
         base_root, head_root = Path(tmp, "base"), Path(tmp, "head")
         try:
@@ -316,10 +333,7 @@ def compare_changed_with_base[T](
             changed = changed_files(repo_root, base, paths)
             _extract_archive(repo_root, base, changed.at_base, base_root)
         except BaseUnavailableError as exc:
-            if require_base:
-                raise
-            reason = f"growth guard skipped: {exc}"
-            logger.warning(reason)
+            reason = _skip_reason(exc, require_base)
             return BaseComparison(None, None, read(repo_root), skipped=reason)
         for rel in changed.at_head:
             if not (repo_root / rel).is_file():
@@ -373,9 +387,7 @@ def compare_with_base[T](
     """
     if head is None:
         head = read(repo_root)
-    if require_base is None:
-        require_base = running_in_ci()
-    ref = base_ref or base_ref_name()
+    ref, require_base = _base_settings(base_ref, require_base)
     with tempfile.TemporaryDirectory(prefix="growth-guard-") as tmp:
         try:
             base = resolve_merge_base(repo_root, ref)
@@ -384,10 +396,7 @@ def compare_with_base[T](
                 return BaseComparison(base, head, head)
             materialize_tree(repo_root, base, paths, Path(tmp))
         except BaseUnavailableError as exc:
-            if require_base:
-                raise
-            reason = f"growth guard skipped: {exc}"
-            logger.warning(reason)
+            reason = _skip_reason(exc, require_base)
             return BaseComparison(None, None, head, skipped=reason)
         base_value = _read_base(read, Path(tmp), base, ref)
     return BaseComparison(base, base_value, head)

@@ -102,12 +102,13 @@ wrapping every line it reports.
 
 The guard runs `W505` itself (`ruff check --isolated --select W505`, at
 `LINE_LIMIT`), so it and ruff agree on what a doc line is; do not reimplement the
-doc-line rule in Python, which costs seconds per tree (#4904). It narrows ruff's
-findings in three ways, all deliberate. A line whose overflow is one unbreakable
-token passes, as markdownlint's `MD013` lets it. The license notice is skipped,
-and `noqa` is ignored. And a line a rename or module split only moved is not new:
-the guard counts line text across the changed files, so splitting a god module
-costs nothing.
+doc-line rule in Python, which costs seconds per tree (#4904). It differs from
+ruff in four ways, all deliberate. A line whose overflow is one unbreakable token
+passes, as markdownlint's `MD013` lets it, and the license notice is skipped.
+The guard has no exemptions: `noqa` is ignored, and a comment `W505` measures
+only up to an early pragma (`# short  # noqa: … long prose`) is measured whole.
+And a line a rename or module split only moved is not new: the guard counts line
+text across the changed files, so splitting a god module costs nothing.
 
 There is deliberately **no `lint.exclude`**: lint covers the whole tracked Python
 surface, including `scripts/` and `.agents/` (ADR-0094). Do not add a directory

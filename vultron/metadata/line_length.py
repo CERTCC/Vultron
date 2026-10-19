@@ -38,6 +38,7 @@ import json
 import re
 import subprocess  # nosec B404 - runs a fixed ruff command only
 import sys
+import tokenize
 from collections import Counter
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
@@ -186,7 +187,9 @@ def _ruff_doc_rows(
     The rule runs alone and with ``--isolated``, so the limit is
     :data:`LINE_LIMIT` whatever the tree's own ruff configuration says, and the
     base tree is read under the same settings as the working tree. ``noqa``
-    comments are ignored: the guard has no exemptions.
+    comments are ignored: the guard has no exemptions. Only ``*.py`` files are
+    read, and ruff's default excludes (``dist/``, ``venv/``, ``_build/`` …) are
+    cleared, so every module under *roots* is read, as the guard documents.
 
     Raises:
         SyntaxError: ruff cannot parse a file, so its doc lines are unknown.
@@ -206,6 +209,10 @@ def _ruff_doc_rows(
             _RUFF_DOC_RULE,
             "--config",
             f"lint.pycodestyle.max-doc-length={LINE_LIMIT}",
+            "--config",
+            'include=["*.py"]',
+            "--config",
+            "exclude=[]",
             "--output-format",
             "json",
             *roots,
@@ -228,16 +235,56 @@ def _ruff_doc_rows(
     return rows
 
 
+#: A comment alone on its line with a second ``#``, where a pragma may start.
+_PRAGMA_CANDIDATE_RE = re.compile(r"^\s*#.*#")
+
+
+def _pragma_comment_rows(rel: str, text: str, lines: list[str]) -> set[int]:
+    """Rows of overlong comments alone on their line that ``W505`` passes.
+
+    ``W505`` drops a trailing pragma (``# noqa``, ``# type:``, ``# nosec`` …)
+    and everything after it before it measures a line, so a comment whose
+    pragma comes early passes ruff at any length. The guard has no exemptions,
+    so such a comment is measured whole. A file is tokenized only when it has
+    a candidate line, and a candidate counts only when the tokenizer finds a
+    comment starting it, so a string that merely looks like one stays data.
+
+    Raises:
+        SyntaxError: the tokenizer cannot read the file.
+    """
+    candidates = {
+        row
+        for row, line in enumerate(lines, start=1)
+        if _PRAGMA_CANDIDATE_RE.match(line) and is_overlong(line)
+    }
+    if not candidates:
+        return set()
+    readline = iter(text.splitlines(keepends=True)).__next__
+    try:
+        return {
+            tok.start[0]
+            for tok in tokenize.generate_tokens(readline)
+            if tok.type == tokenize.COMMENT
+            and tok.start[0] in candidates
+            and not tok.line[: tok.start[1]].strip()
+        }
+    except (tokenize.TokenError, SyntaxError) as exc:
+        raise SyntaxError(f"{rel}: {exc}") from exc
+
+
 def overlong_python_doc_lines(repo_root: Path) -> frozenset[str]:
     """Every overlong doc line of every ``*.py`` under :data:`PYTHON_ROOTS`.
 
     A doc line is a comment alone on its line, or a line of a string that is a
     statement by itself, as docstrings are: the lines ruff's ``W505`` reads,
-    found by ruff itself (:func:`_ruff_doc_rows`). Of those, a line counts when
-    :func:`is_overlong` holds, so a line whose overflow is one unbreakable
-    token passes here as it does in spec YAML. The license notice every module
-    opens with is skipped (:func:`_license_header_end`). Gitignored files are
-    not read, as ruff does not read them.
+    found by ruff itself (:func:`_ruff_doc_rows`), plus the comments ``W505``
+    measures short because of a pragma (:func:`_pragma_comment_rows`). Of
+    those, a line counts when :func:`is_overlong` holds, so a line whose
+    overflow is one unbreakable token passes here as it does in spec YAML. The
+    license notice every module opens with is skipped
+    (:func:`_license_header_end`). Ruff skips gitignored files; the pragma
+    check reads every module, which matters only for a whole-tree call, since
+    the guard's trees hold only files git tracks or would track.
 
     Raises:
         SyntaxError: A file under the roots does not parse.
@@ -245,9 +292,12 @@ def overlong_python_doc_lines(repo_root: Path) -> frozenset[str]:
     roots = [r for r in PYTHON_ROOTS if (repo_root / r).is_dir()]
     if not roots:
         return frozenset()
+    ruff_rows = _ruff_doc_rows(repo_root, roots)
     items: set[str] = set()
-    for rel, rows in _ruff_doc_rows(repo_root, roots).items():
-        lines = (repo_root / rel).read_text(encoding="utf-8").splitlines()
+    for rel, text in iter_tree_texts(repo_root, roots, "*.py"):
+        lines = text.splitlines()
+        rows = set(ruff_rows.get(rel, ()))
+        rows |= _pragma_comment_rows(rel, text, lines)
         skip = _license_header_end(lines)
         overlong = (
             lines[row - 1]

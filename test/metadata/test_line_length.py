@@ -17,6 +17,7 @@ Specs: PD-10-001, PD-10-002, PD-10-003.
 
 from __future__ import annotations
 
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -24,6 +25,7 @@ import pytest
 import yaml
 
 from test.metadata._git_repo import commit_all, commit_base, git
+from vultron.metadata import line_length
 from vultron.metadata.line_length import (
     LINE_LIMIT,
     added_overlong_lines,
@@ -156,6 +158,42 @@ class TestPythonDocLines:
     def test_a_noqa_comment_does_not_exempt_a_line(self, tmp_path):
         line = f"# {_LONG}  # noqa: W505"
         assert self._doc_lines(tmp_path, f"{line}\n") == {line}
+
+    @pytest.mark.parametrize("pragma", ["# noqa: E501", "# type: ignore"])
+    def test_an_early_pragma_does_not_shorten_a_comment(
+        self, tmp_path, pragma
+    ):
+        """``W505`` measures a comment only up to its pragma; the guard does not."""
+        line = f"# short  {pragma} {_LONG}"
+        assert self._doc_lines(tmp_path, f"{line}\n") == {line}
+
+    def test_a_pragma_lookalike_in_a_data_string_is_data(self, tmp_path):
+        source = f'QUERY = """\n# short  # noqa: E501 {_LONG}\n"""\n'
+        assert self._doc_lines(tmp_path, source) == set()
+
+    def test_stub_and_notebook_files_are_not_read(self, tmp_path):
+        _write(tmp_path, "vultron/m.pyi", f"# {_LONG}\n")
+        _write(tmp_path, "vultron/n.ipynb", '{"cells": [], "metadata": {}}\n')
+        assert overlong_python_doc_lines(tmp_path) == frozenset()
+
+    def test_a_directory_ruff_excludes_by_default_is_read(self, tmp_path):
+        _write(tmp_path, "vultron/dist/m.py", f"# {_LONG}\n")
+        assert overlong_python_doc_lines(tmp_path) == {
+            f"vultron/dist/m.py: # {_LONG}"
+        }
+
+    def test_a_tree_without_the_roots_has_no_doc_lines(self, tmp_path):
+        assert overlong_python_doc_lines(tmp_path) == frozenset()
+
+    def test_a_failing_ruff_raises(self, tmp_path, monkeypatch):
+        """A guard that cannot run ruff must not read as a pass."""
+        _write(tmp_path, "vultron/m.py", f"# {_LONG}\n")
+        failed = subprocess.CompletedProcess([], 2, stdout="", stderr="boom")
+        monkeypatch.setattr(
+            line_length.subprocess, "run", lambda *a, **k: failed
+        )
+        with pytest.raises(RuntimeError, match="boom"):
+            overlong_python_doc_lines(tmp_path)
 
     def test_the_tree_ruff_config_does_not_change_the_limit(self, tmp_path):
         _write(
