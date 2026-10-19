@@ -8,7 +8,7 @@ dispatch entries. This is the primitive building block imported by both
 
 from typing import Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
@@ -55,8 +55,13 @@ class ActivityPattern(BaseModel):
         # context_ and to_ are always permissive: string URIs (e.g. case
         # context URIs) are intentional and accepted as valid matches.
         # target_ follows self.strict (permissive by default).
+        return _match_activity_field(
+            self.object_, getattr(activity, "object_", None), self.strict
+        ) and self._match_qualifiers(activity)
+
+    def _match_qualifiers(self, activity: as_Activity) -> bool:
+        """Match ``target_``, ``context_`` and ``to_`` against *activity*."""
         field_pairs = (
-            (self.object_, getattr(activity, "object_", None), self.strict),
             (self.target_, getattr(activity, "target", None), self.strict),
             (self.context_, getattr(activity, "context", None), False),
             (self.to_, getattr(activity, "to", None), False),
@@ -65,6 +70,45 @@ class ActivityPattern(BaseModel):
             _match_activity_field(pattern_field, activity_field, strict)
             for pattern_field, activity_field, strict in field_pairs
         )
+
+
+#: Every activity verb an ``as_Activity`` ``type`` may name.
+ACTIVITY_VERBS: frozenset[str] = frozenset(
+    str(verb) for verb in (*TAtype, *IAtype)
+)
+
+
+class InlineActivityObjectPattern(ActivityPattern):
+    """A pattern whose object is an inline activity of any verb but a few.
+
+    ``ActivityPattern`` nests one verb per pattern; this matches an activity
+    whose ``object_`` is an inline activity of *any* verb outside
+    ``excluded_object_verbs``.  ``object_`` is fixed to ``Activity`` so the
+    pattern renders as ``Verb(Activity)``.  A bare URI, a non-activity
+    object, or an activity of an excluded verb does not match.  ``target_``,
+    ``context_`` and ``to_`` match as on the base class.
+
+    It is the most general pattern for its verb, so its registry entry comes
+    after every pattern that nests a specific activity (SE-03-002).
+    """
+
+    object_: Union[AOtype, VOtype, "ActivityPattern"] | None = AOtype.ACTIVITY
+    excluded_object_verbs: frozenset[TAtype | IAtype] = Field(
+        default_factory=frozenset
+    )
+
+    def match(self, activity: as_Activity) -> bool:
+        """True if *activity* carries an inline activity of an included verb."""
+        if self.activity_ != activity.type_:
+            return False
+        obj = getattr(activity, "object_", None)
+        if not isinstance(obj, as_Activity):
+            return False
+        verb = str(obj.type_)
+        excluded = {str(v) for v in self.excluded_object_verbs}
+        if verb not in ACTIVITY_VERBS or verb in excluded:
+            return False
+        return self._match_qualifiers(activity)
 
 
 def _match_activity_field(

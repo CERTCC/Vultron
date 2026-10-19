@@ -350,8 +350,9 @@ class OfferCaseParticipantReceivedEvent(VultronEvent):
 class AcceptOfferCaseParticipantReceivedEvent(VultronEvent):
     """CaseActor received Accept(Offer(CaseParticipant)) from the Case Owner.
 
-    Supersedes the earlier ACCEPT_ACTOR_RECOMMENDATION semantic with a name
-    anchored to the wire activity being accepted (CM-16-006, ADR-0026).
+    The Case Owner's decision on a suggested actor (CM-16-006, ADR-0026).
+    The CASE_MANAGER's answer to the recommender is
+    :class:`AcceptActorRecommendationReceivedEvent`.
     """
 
     semantic_type: Literal[MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT] = (
@@ -363,11 +364,39 @@ class AcceptOfferCaseParticipantReceivedEvent(VultronEvent):
 class RejectOfferCaseParticipantReceivedEvent(VultronEvent):
     """CaseActor received Reject(Offer(CaseParticipant)) from the Case Owner.
 
-    Supersedes the earlier REJECT_ACTOR_RECOMMENDATION semantic with a name
-    anchored to the wire activity being rejected (CM-16-007, ADR-0026).
+    The Case Owner's decision on a suggested actor (CM-16-007, ADR-0026).
+    The CASE_MANAGER's answer to the recommender is
+    :class:`RejectActorRecommendationReceivedEvent`.
     """
 
     semantic_type: Literal[MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT] = (
         MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT
+    )
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+
+
+class AcceptActorRecommendationReceivedEvent(VultronEvent):
+    """A recommender received the CASE_MANAGER's Accept(Offer(Actor, Case)).
+
+    The CASE_MANAGER's answer to a suggestion, sent once the Case Owner has
+    accepted it (CM-16-006) or when the suggested actor is already invited or
+    joined (CM-16-009).  ``in_reply_to`` is the recommender's Offer.
+    """
+
+    semantic_type: Literal[MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION] = (
+        MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION
+    )
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+
+
+class RejectActorRecommendationReceivedEvent(VultronEvent):
+    """A recommender received the CASE_MANAGER's Reject(Offer(Actor, Case)).
+
+    The CASE_MANAGER's answer to a suggestion the Case Owner declined
+    (CM-16-007).  ``in_reply_to`` is the recommender's Offer.
+    """
+
+    semantic_type: Literal[MessageSemantics.REJECT_ACTOR_RECOMMENDATION] = (
+        MessageSemantics.REJECT_ACTOR_RECOMMENDATION
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]

@@ -136,7 +136,7 @@ def _provision_receivers_case_actor(client: DataLayerClient) -> as_Actor:
 
 def _run_negotiated_submission(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     *,
     reporter_days: int,
@@ -146,7 +146,7 @@ def _run_negotiated_submission(
 
     Args:
         client: The single-container client (bound to the Receiver's replica).
-        finder: The Reporter.
+        reporter: The Reporter.
         vendor: The Receiver.
         reporter_days: Days from now the Reporter proposes the embargo end.
         receiver_default_days: The Receiver's published default, or ``None``
@@ -177,7 +177,7 @@ def _run_negotiated_submission(
     ):
         report, offer = reporter_submits_report(
             client,
-            finder,
+            reporter,
             vendor,
             reporter_client=client,
             proposed_embargo_end_time=proposed_end,
@@ -211,7 +211,7 @@ def _run_negotiated_submission(
             # The Receiver introduces the case to the Reporter, which takes
             # it on the trusted route (CBT-01-005, #4675).
             verify_reporter_trusts_introduction(
-                client, finder, vendor, report, case_id=case.id_
+                client, reporter, vendor, report, case_id=case.id_
             )
 
             if receiver_default_days is None:
@@ -278,7 +278,7 @@ def _run_negotiated_submission(
 
 def demo_reporter_proposes_shorter(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ) -> None:
@@ -292,7 +292,7 @@ def demo_reporter_proposes_shorter(
     logger.info("=" * 80)
     _run_negotiated_submission(
         client,
-        finder,
+        reporter,
         vendor,
         reporter_days=REPORTER_SHORTER_DAYS,
         receiver_default_days=RECEIVER_DEFAULT_DAYS,
@@ -307,7 +307,7 @@ def demo_reporter_proposes_shorter(
 
 def demo_reporter_proposes_longer(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ) -> None:
@@ -321,7 +321,7 @@ def demo_reporter_proposes_longer(
     logger.info("=" * 80)
     _run_negotiated_submission(
         client,
-        finder,
+        reporter,
         vendor,
         reporter_days=REPORTER_LONGER_DAYS,
         receiver_default_days=RECEIVER_DEFAULT_DAYS,
@@ -337,7 +337,7 @@ def demo_reporter_proposes_longer(
 
 def demo_receiver_has_no_default(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ) -> None:
@@ -351,7 +351,7 @@ def demo_receiver_has_no_default(
     logger.info("=" * 80)
     _run_negotiated_submission(
         client,
-        finder,
+        reporter,
         vendor,
         reporter_days=REPORTER_SHORTER_DAYS,
         receiver_default_days=None,

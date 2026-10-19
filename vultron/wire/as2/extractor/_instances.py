@@ -13,7 +13,10 @@ from vultron.wire.as2.enums import (
     as_ObjectType as AOtype,
     as_TransitiveActivityType as TAtype,
 )
-from vultron.wire.as2.extractor._pattern import ActivityPattern
+from vultron.wire.as2.extractor._pattern import (
+    ActivityPattern,
+    InlineActivityObjectPattern,
+)
 
 # ---------------------------------------------------------------------------
 # Embargo patterns
@@ -210,10 +213,22 @@ SuggestActorToCasePattern = ActivityPattern(
     target_=VOtype.VULNERABILITY_CASE,
 )
 AcceptSuggestActorToCasePattern = ActivityPattern(
-    activity_=TAtype.ACCEPT, object_=SuggestActorToCasePattern
+    description=(
+        "CASE_MANAGER Accept(Offer(Actor, Case)) answering a recommender, "
+        "received on the recommender's inbox (ACCEPT_ACTOR_RECOMMENDATION; "
+        "CM-16-006, CM-16-009)."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=SuggestActorToCasePattern,
 )
 RejectSuggestActorToCasePattern = ActivityPattern(
-    activity_=TAtype.REJECT, object_=SuggestActorToCasePattern
+    description=(
+        "CASE_MANAGER Reject(Offer(Actor, Case)) answering a recommender, "
+        "received on the recommender's inbox (REJECT_ACTOR_RECOMMENDATION; "
+        "CM-16-007)."
+    ),
+    activity_=TAtype.REJECT,
+    object_=SuggestActorToCasePattern,
 )
 
 # CaseActor-routed ADR-0026 patterns (CM-16)
@@ -232,7 +247,9 @@ OfferActorToCasePattern = ActivityPattern(
 AcceptActorRecommendationPattern = ActivityPattern(
     description=(
         "Case Owner Accept(Offer(CaseParticipant)) routed to CaseActor "
-        "inbox per ADR-0026/CM-16-006."
+        "inbox per ADR-0026/CM-16-006. Routes ACCEPT_OFFER_CASE_PARTICIPANT; "
+        "the CASE_MANAGER's answer to the recommender "
+        "(ACCEPT_ACTOR_RECOMMENDATION) is AcceptSuggestActorToCasePattern."
     ),
     activity_=TAtype.ACCEPT,
     object_=OfferActorToCasePattern,
@@ -240,7 +257,9 @@ AcceptActorRecommendationPattern = ActivityPattern(
 RejectActorRecommendationPattern = ActivityPattern(
     description=(
         "Case Owner Reject(Offer(CaseParticipant)) routed to CaseActor "
-        "inbox per ADR-0026/CM-16-007."
+        "inbox per ADR-0026/CM-16-007. Routes REJECT_OFFER_CASE_PARTICIPANT; "
+        "the CASE_MANAGER's answer to the recommender "
+        "(REJECT_ACTOR_RECOMMENDATION) is RejectSuggestActorToCasePattern."
     ),
     activity_=TAtype.REJECT,
     object_=OfferActorToCasePattern,
@@ -387,6 +406,16 @@ RejectLogEntryPattern = ActivityPattern(
     ),
     activity_=TAtype.REJECT,
     object_=VOtype.CASE_LEDGER_ENTRY,
+)
+RefusalNoticePattern = InlineActivityObjectPattern(
+    description=(
+        "The CASE_MANAGER's refusal notice: a Reject whose object is the "
+        "refused activity, inline (CLP-05-001, ADR-0141).  Any verb but "
+        "Invite and Offer: a Reject of either has the shape of a decline "
+        "and is read by the use case that reads the decline."
+    ),
+    activity_=TAtype.REJECT,
+    excluded_object_verbs=frozenset({TAtype.INVITE, TAtype.OFFER}),
 )
 
 # ---------------------------------------------------------------------------

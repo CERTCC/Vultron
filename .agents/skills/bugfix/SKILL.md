@@ -153,7 +153,7 @@ from a different path?"
 Search for the same structural pattern in:
 
 - Peer files in the same directory or module
-- Sibling demo scenarios (same naming convention, e.g., `fvcv_*`, `fccv_*`)
+- Sibling demo scenarios (same naming convention, e.g., `rvcv_*`, `rccv_*`)
 - Other actors or handlers that implement the same protocol step
 
 Document each hit with file:line and whether it exhibits the same bug. Do

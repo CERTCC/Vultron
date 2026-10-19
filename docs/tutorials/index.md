@@ -12,10 +12,10 @@ contents: generated
 
 - [Submit a Report to a Vultron Actor](submit-a-report.md) — Start the reference implementation, construct a `Create(VulnerabilityReport)` message by hand, post it to an actor's inbox, and confirm the actor received it.
 - [Run the Receive-Report Demo](receive_report_demo.md) — Start the Vultron demo environment with Docker Compose and run three vulnerability-report workflows end to end.
-- [Run the FV Demo](fv-demo.md) — Step through a complete Coordinated Vulnerability Disclosure (CVD) case with the Finder + Vendor (FV) scenario, from report submission through fix readiness, public disclosure, embargo teardown, and case closure.
-- [Running the Multi-Actor Container Demos](container_demos.md) — Run any of the multi-actor demo scenarios, from the two-party Finder + Vendor (FV) baseline to the five-party coordination cases, across isolated participant containers with Docker Compose.
+- [Run the rv Demo](rv-demo.md) — Step through a complete Coordinated Vulnerability Disclosure (CVD) case with the Reporter + Vendor (rv) scenario, from report submission through fix readiness, public disclosure, embargo teardown, and case closure.
+- [Running the Multi-Actor Container Demos](container_demos.md) — Run any of the multi-actor demo scenarios, from the two-party Reporter + Vendor (rv) baseline to the five-party coordination cases, across isolated participant containers with Docker Compose.
 - [Running the Other Demos](other_demos.md) — Explore case initialization, actor management, embargo negotiation, acknowledgment, status updates, trigger endpoints, and the full Report Management (RM) case lifecycle using the remaining `vultron-demo` sub-commands.
-- [Run the FVV Demo](../howto/demos/fvv-demo.md) — Run the three-actor Finder, Vendor, Vendor (FVV) demo, in which two vendors each advance an independent fix path with no coordinator.
+- [Run the RVV Demo](../howto/demos/rvv-demo.md) — Run the three-actor Reporter, Vendor, Vendor (RVV) demo, in which two vendors each advance an independent fix path with no coordinator.
 
 <!-- END GENERATED SECTION CONTENTS -->
 

@@ -25,7 +25,14 @@ backward RM declaration owes the RSH-06-004 clarification note.
 builds when a tree passes ``refusal_effects``.  It runs the guards; only when
 they refuse does it run the refusal effects, and it then fails with the
 guards' refusal, so the root Sequence still stops before the commit and the
-handler still reports ``REFUSED`` for the guard's reason.
+handler still reports ``REFUSED`` for the guard's reason.  A guard failure
+that is an idempotent repeat the handler reports ``SKIPPED``
+(:class:`~vultron.core.behaviors.idempotency.ReportsIdempotentRepeat`) is not
+a refusal, so it runs no refusal effect either.
+
+While the refusal effects run, the stage holds the guards' reason in
+:attr:`PreconditionGuardStage.refusal_reason`; an effect reads it through
+:func:`enclosing_refusal_reason`.
 
 The factory owns this structure; a tree supplies only the effect nodes.
 """
@@ -36,13 +43,19 @@ from collections.abc import Iterator
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.idempotency import ReportsIdempotentRepeat
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["PreconditionGuardStage", "RefusalEffectsBestEffort"]
+__all__ = [
+    "PreconditionGuardStage",
+    "RefusalEffectsBestEffort",
+    "enclosing_refusal_reason",
+]
 
 
 class RefusalEffectsBestEffort(py_trees.decorators.Decorator):
@@ -81,15 +94,17 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         accepted delivery reaches the commit having run no effect
         (CLP-10-006).
 
-        FAILURE when a guard refuses, after running the refusal effects once.
-        On a redelivery — intake found the activity already archived — the
-        refusal effects are skipped, so a refused activity is answered at
-        most once.  The skip keys on the archive, not on a record that the
-        effects ran: a refusal effect writes no state (CLP-10-022), so no
-        such record exists.  A redelivery whose first delivery never reached
-        the refusal effects (its sender guard refused, this actor was not
-        the CASE_MANAGER yet, or the effect failed) is therefore not
-        answered either.
+        FAILURE when a guard refuses, after running the refusal effects once. A
+        guard whose failure is an idempotent repeat (``failed_as_repeat``) was
+        not refused, so the refusal effects are skipped (CLP-10-022,
+        CLP-05-001).  On a redelivery — intake found the activity already
+        archived — the refusal effects are skipped, so a refused activity is
+        answered at most once.  The skip keys on the archive, not on a record
+        that the effects ran: a refusal effect writes no state (CLP-10-022), so
+        no such record exists.  A redelivery whose first delivery never reached
+        the refusal effects (its sender guard refused, this actor was not the
+        CASE_MANAGER yet, or the effect failed) is therefore not answered
+        either.
 
         RUNNING while the guards or the refusal effects are running.
     """
@@ -104,6 +119,9 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         super().__init__(name=name, children=[guards, refusal])
         self._intake = intake
         self.skipped_as_redelivery = False
+        self.skipped_as_repeat = False
+        self.refusal_reason = ""
+        """The guards' reason, set when they refuse; empty otherwise."""
 
     @property
     def guards(self) -> py_trees.behaviour.Behaviour:
@@ -127,6 +145,8 @@ class PreconditionGuardStage(py_trees.composites.Composite):
                 if child.status != Status.INVALID:
                     child.stop(Status.INVALID)
             self.skipped_as_redelivery = False
+            self.skipped_as_repeat = False
+            self.refusal_reason = ""
             self.initialise()
         elif self.refusal.status == Status.RUNNING:
             yield from self._tick_refusal()
@@ -145,6 +165,16 @@ class PreconditionGuardStage(py_trees.composites.Composite):
             yield self
             return
 
+        if self._failed_as_repeat():
+            self.skipped_as_repeat = True
+            logger.debug(
+                "%s: guard failure is an idempotent repeat — refusal effects"
+                " skipped (CLP-10-022)",
+                self.name,
+            )
+            self._fail()
+            yield self
+            return
         if self._intake.found_ids:
             self.skipped_as_redelivery = True
             logger.debug(
@@ -155,6 +185,7 @@ class PreconditionGuardStage(py_trees.composites.Composite):
             self._fail()
             yield self
             return
+        self.refusal_reason = BTBridge.get_failure_reason(self.guards)
         yield from self._tick_refusal()
 
     def _tick_refusal(self) -> Iterator[py_trees.behaviour.Behaviour]:
@@ -168,7 +199,47 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         self._fail()
         yield self
 
+    def _failed_as_repeat(self) -> bool:
+        """True when a guard on the failure chain reports a repeat.
+
+        Follows the chain ``BTBridge.get_failure_reason`` follows: the last
+        failed child at each composite, down to the leaf that ended the
+        run.  A guard that failed off that chain (an alternative a
+        ``Selector`` tried first) did not decide the refusal, so its repeat
+        flag does not skip the effects.
+        """
+        node: py_trees.behaviour.Behaviour = self.guards
+        while node.status == Status.FAILURE:
+            if (
+                isinstance(node, ReportsIdempotentRepeat)
+                and node.failed_as_repeat
+            ):
+                return True
+            failed = [c for c in node.children if c.status == Status.FAILURE]
+            if not failed:
+                return False
+            node = failed[-1]
+        return False
+
     def _fail(self) -> None:
         """End FAILURE, pointing at the guards so their reason is reported."""
         self.current_child = self.guards
         self.stop(Status.FAILURE)
+
+
+def enclosing_refusal_reason(node: py_trees.behaviour.Behaviour) -> str | None:
+    """The refusal reason of the stage whose refusal effects hold *node*.
+
+    ``None`` when *node* is not inside a :class:`PreconditionGuardStage`'s
+    refusal effects, or the stage holds no reason: a refusal effect placed
+    anywhere else is a composition fault its caller reports.
+    """
+    child: py_trees.behaviour.Behaviour = node
+    parent = node.parent
+    while parent is not None:
+        if isinstance(parent, PreconditionGuardStage):
+            if child is parent.refusal and parent.refusal_reason:
+                return parent.refusal_reason
+            return None
+        child, parent = parent, parent.parent
+    return None

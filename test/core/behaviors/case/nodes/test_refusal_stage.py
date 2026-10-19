@@ -28,6 +28,11 @@ from vultron.core.behaviors.case.nodes.intake import (
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
     RefusalEffectsBestEffort,
+    enclosing_refusal_reason,
+)
+from vultron.core.behaviors.idempotency import (
+    ReportsIdempotentRepeat,
+    SilentIdempotencyGuardMixin,
 )
 
 
@@ -161,3 +166,167 @@ def test_a_second_run_resets_the_stage() -> None:
     assert guard.ticks == 2
     assert effect.ticks == 2
     assert stage.status == Status.FAILURE
+
+
+class _RepeatGuard(SilentIdempotencyGuardMixin, py_trees.behaviour.Behaviour):
+    """Fails as an idempotent repeat, or as a plain refusal."""
+
+    def __init__(self, repeat: bool) -> None:
+        super().__init__(name="RepeatGuard")
+        self._repeat = repeat
+
+    def update(self) -> Status:
+        self.feedback_message = "already recorded"
+        if self._repeat:
+            return self._idempotent_failure(
+                logging.getLogger(__name__), "%s: repeat", self.name
+            )
+        return Status.FAILURE
+
+
+def _stage_with(guard: py_trees.behaviour.Behaviour, effect: _Counting):
+    return PreconditionGuardStage(
+        name="Stage",
+        guards=py_trees.composites.Sequence(
+            name="PreconditionGuards", memory=False, children=[guard]
+        ),
+        refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=effect),
+        intake=IntakeReceivedActivityNode(),
+    )
+
+
+@pytest.mark.spec("CLP-10-022")
+@pytest.mark.spec("CLP-05-001")
+def test_a_skipped_repeat_runs_no_refusal_effect() -> None:
+    """A guard's failure that is an idempotent repeat is not a refusal.
+
+    The repeat's effect is already in place, so a ``Reject`` of it would
+    contradict that effect (CLP-10-022, CLP-05-001).
+    """
+    guard = _RepeatGuard(repeat=True)
+    effect = _Counting("Effect")
+    stage = _stage_with(guard, effect)
+
+    stage.tick_once()
+
+    assert isinstance(guard, ReportsIdempotentRepeat)
+    assert guard.failed_as_repeat
+    assert stage.status == Status.FAILURE
+    assert stage.skipped_as_repeat
+    assert effect.ticks == 0
+    assert stage.refusal_reason == ""
+    assert BTBridge.get_failure_reason(stage) == "already recorded"
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_a_plain_refusal_by_a_repeat_aware_guard_runs_the_effects() -> None:
+    guard = _RepeatGuard(repeat=False)
+    effect = _Counting("Effect")
+    stage = _stage_with(guard, effect)
+
+    stage.tick_once()
+
+    assert not guard.failed_as_repeat
+    assert not stage.skipped_as_repeat
+    assert effect.ticks == 1
+
+
+class _ReadsReason(_Counting):
+    """Records the refusal reason it can see while it runs."""
+
+    seen: str | None = None
+
+    def update(self) -> Status:
+        self.seen = enclosing_refusal_reason(self)
+        return super().update()
+
+
+@pytest.mark.spec("CLP-05-001")
+def test_a_refusal_effect_reads_the_guards_reason() -> None:
+    guard = _Counting("Guard", Status.FAILURE)
+    effect = _ReadsReason("Effect")
+    stage = _stage_with(guard, effect)
+
+    stage.tick_once()
+
+    assert stage.refusal_reason == "Guard said FAILURE"
+    assert effect.seen == "Guard said FAILURE"
+
+
+def test_a_node_outside_the_refusal_effects_has_no_refusal_reason() -> None:
+    guard = _Counting("Guard", Status.FAILURE)
+    effect = _Counting("Effect")
+    stage = _stage_with(guard, effect)
+    stage.tick_once()
+
+    assert enclosing_refusal_reason(guard) is None
+    assert enclosing_refusal_reason(_Counting("Loose")) is None
+
+
+class _RepeatThenRefusal(_RepeatGuard):
+    """A repeat on its first run, a plain refusal after."""
+
+    def update(self) -> Status:
+        status = super().update()
+        self._repeat = False
+        return status
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_the_repeat_flag_is_reset_on_the_next_run() -> None:
+    """``SilentIdempotencyGuardMixin.initialise`` clears the last run's repeat."""
+    guard = _RepeatThenRefusal(repeat=True)
+    effect = _Counting("Effect")
+    stage = _stage_with(guard, effect)
+
+    stage.tick_once()
+    assert guard.failed_as_repeat
+    assert stage.skipped_as_repeat
+    assert effect.ticks == 0
+
+    stage.tick_once()
+
+    assert not guard.failed_as_repeat
+    assert not stage.skipped_as_repeat
+    assert stage.refusal_reason == "already recorded"
+    assert effect.ticks == 1
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_a_repeat_off_the_failure_chain_does_not_skip_the_effects() -> None:
+    """A Selector's first alternative failing as a repeat did not decide."""
+    selector = py_trees.composites.Selector(
+        name="Alternatives",
+        memory=False,
+        children=[
+            _RepeatGuard(repeat=True),
+            _Counting("Guard", Status.FAILURE),
+        ],
+    )
+    effect = _Counting("Effect")
+    stage = _stage_with(selector, effect)
+
+    stage.tick_once()
+
+    assert not stage.skipped_as_repeat
+    assert effect.ticks == 1
+    assert stage.refusal_reason == "Guard said FAILURE"
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_a_repeat_on_the_failure_chain_skips_the_effects() -> None:
+    selector = py_trees.composites.Selector(
+        name="Alternatives",
+        memory=False,
+        children=[
+            _Counting("Guard", Status.FAILURE),
+            _RepeatGuard(repeat=True),
+        ],
+    )
+    effect = _Counting("Effect")
+    stage = _stage_with(selector, effect)
+
+    stage.tick_once()
+
+    assert stage.skipped_as_repeat
+    assert effect.ticks == 0

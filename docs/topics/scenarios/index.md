@@ -29,8 +29,8 @@ print(render_page("narratives"))
 ## How to use these pages
 
 - **To run a scenario**, follow [Running the Multi-Actor Container Demos](../../tutorials/container_demos.md), which selects any scenario by name.
-  [Run the FV Demo](../../tutorials/fv-demo.md) walks the baseline scenario milestone by milestone.
-- **To see the messages behind a step**, read the [FV Demo Protocol Reference](../../reference/fv-demo-protocol.md), which lists every activity the baseline scenario exchanges and the ledger entries it produces.
+  [Run the `rv` Demo](../../tutorials/rv-demo.md) walks the baseline scenario milestone by milestone.
+- **To see the messages behind a step**, read the [`rv` Demo Protocol Reference](../../reference/rv-demo-protocol.md), which lists every activity the baseline scenario exchanges and the ledger entries it produces.
 - **To understand the ledger entries each step names**, read [The CASE_MANAGER and the Case Ledger](../case_lifecycle/case_manager_and_ledger.md).
   Every narrative step names the entry it produces, and only the Case Actor writes them.
 

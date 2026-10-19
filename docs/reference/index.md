@@ -32,7 +32,7 @@ protocol with other related standards and protocols, including:
 - [Standards Crosswalks](iso_crosswalks/index.md) — Crosswalks of the Vultron Protocol against the ISO/IEC standards on vulnerability handling and disclosure and against SSVC, each clause routed to the explanation that covers it and to the specification section that governs it.
 - [Concept Taxonomy](vultron-taxonomy.md) — Reference definitions for the distinct concepts that together constitute Vultron. Use this document to understand what each named concept covers, what it excludes, and how the concepts relate to each other.
 - [Vultron AS Objects](activitypub/objects.md) — The Vultron ActivityStreams objects that extend the ActivityStreams vocabulary.
-- [FV Demo Protocol](fv-demo-protocol.md) — The message-level protocol trace of the Finder + Vendor (FV) demo: every ActivityStreams activity exchanged, the trigger that causes it, and the case ledger entries it produces.
+- [rv Demo Protocol](rv-demo-protocol.md) — The message-level protocol trace of the Reporter + Vendor (rv) demo: every ActivityStreams activity exchanged, the trigger that causes it, and the case ledger entries it produces.
 - [Protocol Specification](vultron-spec/index.md) — The Vultron Protocol specification: its semantic and syntactic layers and the state machines participants use to track a shared case.
 - [Protocol Quick Reference](quick_reference.md) — A single-page summary of the protocol's state machines, message types, and how they interact.
 - [Conformance Matrix](conformance_matrix.md) — Which capability sets each Vultron role requires, which transitions each role may drive, and the named configurations a conformance claim can use, as tables checked against the specification.

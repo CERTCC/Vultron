@@ -920,6 +920,37 @@ groups:
     - path: howto/activitypub/activities/suggest_actor.md
       title: How to Suggest an Actor for a Case
     example: reject_case_participant_offer
+  - anchor: accept-actor-recommendation
+    heading: Accept actor recommendation
+    when: the Case Manager tells a recommender that the actor it suggested will be invited
+    send: Accept(Offer(Actor)[target=VulnerabilityCase])
+    send_to: a participant
+    sent_by: the case manager
+    semantics: accept_actor_recommendation
+    shorthand: GI
+    status: expansion
+    description: Accepts the recommender's suggestion, with `inReplyTo` naming it. The Case
+      Manager sends it once the Case Owner approves, or at once when the suggested actor is
+      already invited or has joined.
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
+      title: How to Suggest an Actor for a Case
+    example: accept_actor_recommendation
+  - anchor: reject-actor-recommendation
+    heading: Reject actor recommendation
+    when: the Case Manager tells a recommender that the Case Owner declined the actor it suggested
+    send: Reject(Offer(Actor)[target=VulnerabilityCase])
+    send_to: a participant
+    sent_by: the case manager
+    semantics: reject_actor_recommendation
+    shorthand: GI
+    status: expansion
+    description: Declines the recommender's suggestion, with `inReplyTo` naming it. The suggested
+      actor is not invited.
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
+      title: How to Suggest an Actor for a Case
+    example: reject_actor_recommendation
   - anchor: add-note-to-case
     heading: Add note to case
     when: a Participant posts a note to the case
@@ -970,6 +1001,21 @@ groups:
     - path: howto/activitypub/activities/error.md
       title: How to Report a Protocol Fault
     example: create_processing_fault
+  - anchor: refusal-notice
+    heading: Refusal notice
+    when: the Case Manager has refused a participant's assertion because a precondition did
+      not hold
+    send: Reject(Activity)
+    send_to: a participant
+    sent_by: the case manager
+    semantics: refusal_notice
+    status: evolved
+    description: Tells the participant that its assertion was received and understood but
+      refused, so it had no effect. It carries the refused activity inline and names the refusing
+      guard's reason. This notice serves the declined purpose of the formal RE, EE, CE and
+      GE messages.
+    seen_in: []
+    example: refusal_notice
 - page: ledger_replication
   title: Ledger replication
   mechanics: true

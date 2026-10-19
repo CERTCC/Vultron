@@ -14,7 +14,7 @@
 """Open a coordinator-owned case and bring a Vendor into it.
 
 The two steps every Reporter + Coordinator + Vendor scenario starts with
-(``fcv``, ``rcv-embargo``), extracted so neither copies the other
+(``rcv``, ``rcv-embargo``), extracted so neither copies the other
 (DEMOMA-17-001):
 
 1. :func:`open_coordinated_case` — the Reporter submits a report to the
@@ -248,7 +248,7 @@ def vendor_joins_coordinated_case(
             invited_actor=vendor_in_vendor,
             offer=opened.offer,
             report=opened.report,
-            finder=reporter,
+            reporter=reporter,
             auth_client=case_actor_client,
             case=case,
             invited_obj=vendor,
@@ -307,8 +307,8 @@ def open_case_with_vendor(
         auth_client=coordinator_client,
         auth_label="Coordinator",
         auth_actor_id=coordinator.id_,
-        finder_client=reporter_client,
-        finder_actor_id=reporter.id_,
+        reporter_client=reporter_client,
+        reporter_actor_id=reporter.id_,
         replicas=[(reporter_client, "Reporter"), (vendor_client, "Vendor")],
         case_id=opened.case.id_,
         expected_participant_ids={reporter.id_, coordinator.id_, vendor.id_},
@@ -402,11 +402,11 @@ def everyone_reports_published(
     """Each participant reports public disclosure, the Coordinator first.
 
     Per DEMOMA-07-003(4) the Coordinator (as CASE_OWNER) triggers CS.P.  The
-    embargo is ended by then in ``rcv-embargo`` and still active in ``fcv``;
+    embargo is ended by then in ``rcv-embargo`` and still active in ``rcv``;
     either way it reads ``EM.EXITED`` once the Coordinator has reported.
     In ``rcv-embargo`` the two ``EM.EXITED`` checks below only confirm what the
     termination phase already established (the canonical case is asserted by
-    the scenario); in ``fcv`` they check the embargo ending at publication.
+    the scenario); in ``rcv`` they check the embargo ending at publication.
     """
     with demo_step(
         f"Actor {ref_id(coordinator_in_coordinator)} reports vulnerability"
@@ -530,7 +530,7 @@ def dump_coordinated_case_ledgers(
     Args:
         demo_name: The scenario's name; the devlogs subdirectory.
         reporter_name: What the scenario calls the Reporter's replica
-            (``finder`` for ``fcv``, ``reporter`` for ``rcv-embargo``) —
+            (``reporter`` for ``rcv``, ``reporter`` for ``rcv-embargo``) —
             the invariant harness loads devlogs by this name.
         later_vendors: ``(name, client)`` of each vendor beyond the first
             (``vendor2`` for ``rcvv-embargo``), dumped under *name*.

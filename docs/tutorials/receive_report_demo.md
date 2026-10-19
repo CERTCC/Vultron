@@ -18,7 +18,7 @@ using Docker Compose. By the end of this tutorial, we will have:
 
 !!! info "What we will learn"
 
-    This tutorial focuses on the *receive-report* workflow: a finder submits a vulnerability report to a vendor, and the vendor decides what to do with it.
+    This tutorial focuses on the *receive-report* workflow: a reporter submits a vulnerability report to a vendor, and the vendor decides what to do with it.
     We will run all three outcomes — accept (validate), hold (invalidate), and reject-and-close — and read the structured log output to understand what happened at each step.
     The vendor's decision is a move in the [Report Management (RM)](../topics/process_models/rm/index.md) state machine, and each move has a formal message name and an ActivityStreams wire form.
     The demo log prints the wire form; this page names both.
@@ -92,7 +92,7 @@ Verification checks are marked with `📋` (start) and `✅` (pass) or `❌` (fa
 Each workflow ends with its own completion line, for example:
 
 ```text
-✅ DEMO 1 COMPLETE: Report validated, case created, and introduced to the finder.
+✅ DEMO 1 COMPLETE: Report validated, case created, and introduced to the reporter.
 ```
 
 If any step or check failed, the demo prints a failure summary after the last workflow.
@@ -109,29 +109,29 @@ Let's look at what happened in each workflow.
 DEMO 1: Validate Report and Create Case
 ```
 
-1. **Step 1** — The *finder* actor submits a `VulnerabilityReport` through its own `submit-report` trigger, which sends a Report Submission (RS), `Offer(VulnerabilityReport)`, to the *vendor*.
-   The trigger also records which actor the finder sent the report to, so the finder can later check who introduces the case.
+1. **Step 1** — The *reporter* actor submits a `VulnerabilityReport` through its own `submit-report` trigger, which sends a Report Submission (RS), `Offer(VulnerabilityReport)`, to the *vendor*.
+   The trigger also records which actor the reporter sent the report to, so the reporter can later check who introduces the case.
    Notice the log lines showing that the offer and the report are both stored in the vendor's DataLayer.
    When the vendor receives the report, it asks its CaseActor to open a case for it.
 
 2. **Step 2** — The *vendor* posts a Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, to its own inbox, which runs the validation behavior tree and moves the report to `RM.VALID`.
    Notice the log line confirming the activity was stored.
 
-3. **Step 3** — The vendor finds the case that was opened for the report, and introduces it to the finder with its own Create Case, `Create(VulnerabilityCase)`.
-   The finder accepts the introduction because it comes from the actor the finder sent the report to.
-   Notice the final ✅ confirming that the finder's record of the report now names the vendor and points at the case.
+3. **Step 3** — The vendor finds the case that was opened for the report, and introduces it to the reporter with its own Create Case, `Create(VulnerabilityCase)`.
+   The reporter accepts the introduction because it comes from the actor the reporter sent the report to.
+   Notice the final ✅ confirming that the reporter's record of the report now names the vendor and points at the case.
 
 ```mermaid
 ---
 title: Demo 1 — validate the report
 ---
 sequenceDiagram
-    participant F as Finder
+    participant R as Reporter
     participant V as Vendor
 
-    F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
+    R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
     Note over V: Stores offer and report<br/>case opened
-    V->>F: Create Case<br/>Create(VulnerabilityCase)
+    V->>R: Create Case<br/>Create(VulnerabilityCase)
     V->>V: Report Valid (RV)<br/>Accept(Offer(VulnerabilityReport))
     Note over V: Validation BT runs<br/>RM.VALID
 ```
@@ -142,23 +142,23 @@ sequenceDiagram
 DEMO 2: Invalidate Report (Hold for Reconsideration)
 ```
 
-The finder submits a second, separate report.
+The reporter submits a second, separate report.
 The vendor responds with a Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, meaning the report is held open for further investigation rather than closed outright.
-The report sits at `RM.INVALID`, and the vendor sends the same activity to the finder so the finder learns the decision.
-The vendor still opened a case when the report arrived, so the demo ends by checking that the finder accepted the vendor's introduction of it.
+The report sits at `RM.INVALID`, and the vendor sends the same activity to the reporter so the reporter learns the decision.
+The vendor still opened a case when the report arrived, so the demo ends by checking that the reporter accepted the vendor's introduction of it.
 
 ```mermaid
 ---
 title: Demo 2 — hold the report as invalid
 ---
 sequenceDiagram
-    participant F as Finder
+    participant R as Reporter
     participant V as Vendor
 
-    F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
+    R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
     V->>V: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
     Note over V: Report held at RM.INVALID<br/>case opened on receipt
-    V->>F: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
+    V->>R: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
 ```
 
 ### Demo 3: Invalidate and Close Report
@@ -166,21 +166,21 @@ sequenceDiagram
 A third report is submitted.
 The vendor first invalidates it with a Report Invalid (RI) and then closes the case it opened for the report with `Leave(VulnerabilityCase)`.
 Once a case holds a report, its Case Owner closes the case this way, never with a Report Closed (RC), `Reject(Offer(VulnerabilityReport))`, which the case manager refuses from every sender.
-Notice that the invalidation notice appears in the finder's inbox at the end, and that the finder again accepted the vendor's introduction of the case.
+Notice that the invalidation notice appears in the reporter's inbox at the end, and that the reporter again accepted the vendor's introduction of the case.
 
 ```mermaid
 ---
 title: Demo 3 — invalidate the report and close its case
 ---
 sequenceDiagram
-    participant F as Finder
+    participant R as Reporter
     participant V as Vendor
 
-    F->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
+    R->>V: Report Submission (RS)<br/>Offer(VulnerabilityReport)
     V->>V: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
     V->>V: Close Case<br/>Leave(VulnerabilityCase)
-    V->>F: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
-    Note over F: Invalidation notice in finder's inbox
+    V->>R: Report Invalid (RI)<br/>TentativeReject(Offer(VulnerabilityReport))
+    Note over R: Invalidation notice in reporter's inbox
 ```
 
 ---

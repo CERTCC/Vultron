@@ -283,8 +283,8 @@ groups:
         verification_debt: '#2573'
         statement: >-
           The demo workflow MUST build the Docker images using
-          docker/docker-compose-multi-actor.yml and run the FV demo
-          scenario (DEMO=fv) as the initial CI scenario.
+          docker/docker-compose-multi-actor.yml and run the rv demo
+          scenario (DEMO=rv) as the initial CI scenario.
 
       - id: DEMOCI-02-006
         priority: MUST
@@ -329,7 +329,7 @@ groups:
           The demo workflow job MUST have a timeout of 15 minutes
           (timeout-minutes: 15).
         rationale: >-
-          The FV demo currently takes 3–5 minutes; a 15-minute cap
+          The rv demo currently takes 3–5 minutes; a 15-minute cap
           prevents an indefinite CI hang if a container gets stuck, while
           providing sufficient headroom for slow runners.
 
@@ -460,7 +460,7 @@ groups:
           scenarios (e.g., three-actor, multi-vendor) as each scenario
           reaches a stable, reproducible state.
         rationale: >-
-          Starting with the FV scenario lets CI run reliably while
+          Starting with the rv scenario lets CI run reliably while
           more complex scenarios are still being developed. Additional
           scenarios add coverage without blocking CI on unstable demos.
 
@@ -486,12 +486,12 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          Each demo scenario (including FVV and any future scenario) MUST be
+          Each demo scenario (including RVV and any future scenario) MUST be
           added to demo-integration.yml as a separate parallel job in the same
           PR that introduces the scenario script; the job MUST use
           `--abort-on-container-exit --exit-code-from demo-runner`,
           `timeout-minutes: 15`, and the same teardown and log-upload steps
-          as the FV job (DEMOCI-02-006, DEMOCI-02-009, DEMOCI-02-010)
+          as the rv job (DEMOCI-02-006, DEMOCI-02-009, DEMOCI-02-010)
         rationale: >-
           Running scenarios in series would make CI proportionally slower with
           each scenario added. Parallel jobs keep wall-clock time bounded and
@@ -511,7 +511,7 @@ groups:
         statement: >-
           Each matrix entry in the demo CI workflow MUST declare an explicit
           `test_file` field naming the scenario-specific invariant test file
-          (e.g. `test/ci/invariants/test_fv_invariants.py`). The case-ledger
+          (e.g. `test/ci/invariants/test_rv_invariants.py`). The case-ledger
           invariant step MUST invoke pytest with that file path directly rather
           than using the `-m case_ledger_invariants` marker alone.
         rationale: >-
@@ -590,7 +590,7 @@ groups:
         verification_debt: '#2573'
         statement: >-
           Each demo scenario's invariant test file (e.g.
-          `test/ci/invariants/test_fv_invariants.py`) MUST include a
+          `test/ci/invariants/test_rv_invariants.py`) MUST include a
           per-scenario expected-event-types list that is comprehensive for that
           scenario: it MUST cover all protocol phases that the scenario is
           designed to exercise, not only the universal phases (DEMOMA-16-001)
@@ -813,8 +813,8 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          The minimum PR validation scenario set is `fv`, `fvcv-handoff`,
-          `fcvcv`, `fcv-reject`, `rcv-embargo`, and `rcvv-embargo`. Together
+          The minimum PR validation scenario set is `rv`, `rvcv-handoff`,
+          `rcvcv`, `rcv-reject`, `rcv-embargo`, and `rcvv-embargo`. Together
           these scenarios cover all distinct protocol event types exercised by
           the full scenario suite: the universal types (DEMOMA-16-001) plus
           `invite_actor_to_case`, `offer_case_participant`,
@@ -828,11 +828,11 @@ groups:
         rationale: >-
           Running all scenarios on every PR commit incurs a fan-in barrier
           proportional to the slowest scenario. The minimum set preserves full
-          protocol-phase coverage while reducing PR wall-clock cost. FV covers
-          the 2-actor baseline; FVCV-handoff adds invite + accept +
-          ownership-transfer; FCVCV adds offer_case_participant,
+          protocol-phase coverage while reducing PR wall-clock cost. rv covers
+          the 2-actor baseline; RVCV-handoff adds invite + accept +
+          ownership-transfer; RCVCV adds offer_case_participant,
           accept_actor_recommendation, and ≥3-actor invite/accept chains;
-          FCV-reject adds reject_invite_actor_to_case (the only scenario that
+          RCV-reject adds reject_invite_actor_to_case (the only scenario that
           exercises a vendor rejecting an invitation after entering RM.RECEIVED).
           RCV-embargo and RCVV-embargo are the only sources of the embargo
           event types, by different paths. Rationale recorded in
@@ -850,9 +850,9 @@ groups:
           of which subset runs for PR validation, so that all scenario variants
           continue to generate case-log invariant signals on the default branch.
           The `demo-integration.yml` workflow MUST include a `push: branches:
-          ["main"]` trigger that runs all scenarios (`fv`, `fvv`,
-          `fvcv-extension`, `fvcv-handoff`, `fccv-extension`, `fccv-handoff`,
-          `fcvcv`, `fcv`, `fcv-reject`, `rcv-embargo`, `rcvv-embargo`).
+          ["main"]` trigger that runs all scenarios (`rv`, `rvv`,
+          `rvcv-extension`, `rvcv-handoff`, `rccv-extension`, `rccv-handoff`,
+          `rcvcv`, `rcv`, `rcv-reject`, `rcv-embargo`, `rcvv-embargo`).
         rationale: >-
           The post-merge run is the safety net for cross-PR regressions; it
           must cover all scenarios to ensure no scenario silently degrades after
@@ -967,14 +967,14 @@ groups:
           The `rcv-embargo` scenario MUST be registered with
           `in_pr_set=True` (DEMOCI-11-001), so that its generated entry in
           `.github/demo-scenarios.json` (DEMOCI-11-004) carries
-          `"full_suite_only": false`. The scenario runs on the `finder`
+          `"full_suite_only": false`. The scenario runs on the `reporter`
           (reporter role), `coordinator`, `vendor`, and `case-actor` services.
         rationale: >-
           Registering both embargo scenarios in the PR set places them in PR
           validation immediately, per the add-now/remove-later policy from
           issue #1222 planning. The registry is the authority; the JSON file is
           its generated copy. CI log directories use scenario-role names
-          (`reporter` for the `finder` service) so invariant harnesses can load
+          (`reporter` for the `reporter` service) so invariant harnesses can load
           devlogs by role rather than docker service name.
         relationships:
           - rel_type: refines
@@ -1023,7 +1023,7 @@ groups:
           The `rcvv-embargo` scenario MUST be registered with
           `in_pr_set=True` (DEMOCI-11-001), so that its generated entry in
           `.github/demo-scenarios.json` (DEMOCI-11-004) carries
-          `"full_suite_only": false`. The scenario runs on the `finder`
+          `"full_suite_only": false`. The scenario runs on the `reporter`
           (reporter role), `coordinator`, `vendor`, `actor5` (seeded as
           `vendor2`), and `case-actor` services.
         rationale: >-
@@ -1031,7 +1031,7 @@ groups:
           by rcv-embargo; Vendor2 runs in the `actor5` slot of the multi-actor
           compose file, which CI starts as a whole. Scenario-role names in
           devlogs (`vendor2`, not `actor5`) match scenario code, making log
-          archaeology easier and consistent with the FCVCV pattern
+          archaeology easier and consistent with the RCVCV pattern
           (DEMOMA-19-007).
         relationships:
           - rel_type: refines
@@ -1070,7 +1070,7 @@ groups:
           `case-actor`.
         rationale: >-
           Scenario-role names in devlogs match scenario code and make log
-          archaeology easier and consistent with the FCVCV pattern
+          archaeology easier and consistent with the RCVCV pattern
           (DEMOMA-19-007).
 
       - id: DEMOCI-07-003
@@ -1120,7 +1120,7 @@ groups:
           - demo
         statement: >-
           If the embargo scenarios introduce protocol event types not covered
-          by `fv`, `fvcv-handoff`, or `fcvcv`, the minimum PR set defined in
+          by `rv`, `rvcv-handoff`, or `rcvcv`, the minimum PR set defined in
           DEMOCI-06-002 MUST be expanded.
         rationale: >-
           No scenario other than `rcv-embargo` and `rcvv-embargo` commits an
@@ -1826,7 +1826,7 @@ groups:
           it generates the ADR index but only checks the nav, whose labels are
           hand-written. The per-scenario DEMOMA-16 requirements are not a
           contiguous ID range and MUST NOT be selected as one: DEMOMA-16-008 is
-          the spec-to-test sync rule, DEMOMA-16-012 and DEMOMA-16-013 are FCVCV
+          the spec-to-test sync rule, DEMOMA-16-012 and DEMOMA-16-013 are RCVCV
           event-count requirements, and DEMOMA-16-014 and DEMOMA-16-015 are
           per-scenario requirements for scenarios that are specified but not yet
           built.
@@ -2067,7 +2067,7 @@ groups:
           scenario's path is a strict prefix of another's, so that every
           registered scenario is exactly one ending of the tree.
         rationale: >-
-          Sibling scenarios (`fv` and `fvv`) are neither a prefix of the other,
+          Sibling scenarios (`rv` and `rvv`) are neither a prefix of the other,
           so a parent-scenario pointer is lopsided; a full path treats siblings
           evenly, and the tree is the merge of the paths. Tree nodes are path
           prefixes, not branch-point identities, because a decision can recur
@@ -2104,7 +2104,7 @@ groups:
           naming convention kept in review, not a registry check: some joins
           happen in scripted steps no choice records, so checking a name needs
           the recording, and planning of #4726 judged that machinery not worth
-          its upkeep for demo names. The Finder letter `f` is retired with the
+          its upkeep for demo names. The Reporter letter `f` is retired with the
           role (ADR-0078).
         adr:
           - ADR-0098

@@ -27,6 +27,7 @@ from typing import ClassVar
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -42,7 +43,9 @@ from vultron.core.predicates.addressing import (
 from vultron.enums.roles import CVDRole
 
 
-class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
+class RoleOfferAdmissibleNode(
+    FlaggedRepeatGuardMixin, DataLayerConditionWithPorts
+):
     """Guard: the role Offer names a role the target may be offered.
 
     Refuses, so nothing is committed or forwarded (CM-33-003):
@@ -75,6 +78,8 @@ class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
     Read-only.  It runs on every store the Offer reaches: the target holds
     the case too, and refuses the same malformed Offer (CM-33-004).
     """
+
+    _REPEAT_FLAG = "is_redelivery"
 
     #: The roles no Offer may carry: they are held through case creation and
     #: ownership transfer, never through a role Offer (CM-33-003).

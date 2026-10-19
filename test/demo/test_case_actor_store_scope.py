@@ -19,7 +19,7 @@ participant's RM transition, and it emits no
 ``add_participant_status_to_participant`` ledger entry when it does — so the
 host actor's replica of that participant never advances past the state it was
 created in.  A check that reads the host's replica and calls the result "what
-the CaseActor sees" therefore reports ``RM.START`` forever, which is how fcvcv
+the CaseActor sees" therefore reports ``RM.START`` forever, which is how rcvcv
 failed both its "CaseActor reflects … at RM.VALID" and "… at RM.ACCEPTED"
 checks on a run whose invited vendor had in fact committed RM.VALID locally
 within milliseconds.

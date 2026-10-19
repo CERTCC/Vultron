@@ -16,7 +16,7 @@ Three different things need checking and they fail for different reasons, so
 they are separate tests rather than one "the CLI is right" assertion:
 
 * **No hand-wiring.** A factory-built command and a hand-declared one are
-  indistinguishable at click runtime — ``main.commands["fv"]`` is a
+  indistinguishable at click runtime — ``main.commands["rv"]`` is a
   ``click.Command`` either way — so the absence of hand-wiring can only be
   checked at the source level, over the AST.
 * **Faithful generation.** Every generated option must be exactly what the
@@ -67,10 +67,10 @@ _OptionTuple = tuple[
 #: A well-formed role, used to build the malformed module declarations in
 #: ``TestFactoryRejectsABadModule`` by changing one field at a time.
 _ROLE = ActorRole(
-    name="finder",
-    url_env="VULTRON_FINDER_BASE_URL",
+    name="reporter",
+    url_env="VULTRON_REPORTER_BASE_URL",
     default_url="http://localhost:7901/api/v2",
-    url_help="Base URL of the Finder container API.",
+    url_help="Base URL of the Reporter container API.",
 )
 
 #: Sub-commands on ``vultron-demo`` that are deliberately not scenarios: the
@@ -82,45 +82,43 @@ _NON_SCENARIO_COMMANDS = frozenset(
 )
 
 #: A role whose ``url_env`` does not name its own role — the asymmetry that makes
-#: the bindings undeclarable from the registry. ``fccv-handoff`` puts C1 in the
+#: the bindings undeclarable from the registry. ``rccv-handoff`` puts C1 in the
 #: Vendor container slot and the Vendor in the Vendor2 slot, because compose
 #: service names are routing labels (DEMOMA, ISSUE-1786).
 _SLOT_NOT_ROLE_BINDINGS = {
-    ("fccv-handoff", "c1"): "VULTRON_VENDOR_BASE_URL",
-    ("fccv-handoff", "c2"): "VULTRON_COORDINATOR_BASE_URL",
-    ("fccv-handoff", "vendor"): "VULTRON_VENDOR2_BASE_URL",
-    ("fccv-extension", "c1"): "VULTRON_COORDINATOR_BASE_URL",
-    ("fccv-extension", "c2"): "VULTRON_VENDOR2_BASE_URL",
-    ("fcvcv", "c1"): "VULTRON_COORDINATOR_BASE_URL",
-    ("fcvcv", "c2"): "VULTRON_VENDOR2_BASE_URL",
-    ("fcvcv", "v1"): "VULTRON_VENDOR_BASE_URL",
-    ("fcvcv", "v2"): "VULTRON_VENDOR_DEPLOYER_BASE_URL",
-    ("rcv-embargo", "reporter"): "VULTRON_FINDER_BASE_URL",
-    ("rcvv-embargo", "reporter"): "VULTRON_FINDER_BASE_URL",
+    ("rccv-handoff", "c1"): "VULTRON_VENDOR_BASE_URL",
+    ("rccv-handoff", "c2"): "VULTRON_COORDINATOR_BASE_URL",
+    ("rccv-handoff", "vendor"): "VULTRON_VENDOR2_BASE_URL",
+    ("rccv-extension", "c1"): "VULTRON_COORDINATOR_BASE_URL",
+    ("rccv-extension", "c2"): "VULTRON_VENDOR2_BASE_URL",
+    ("rcvcv", "c1"): "VULTRON_COORDINATOR_BASE_URL",
+    ("rcvcv", "c2"): "VULTRON_VENDOR2_BASE_URL",
+    ("rcvcv", "v1"): "VULTRON_VENDOR_BASE_URL",
+    ("rcvcv", "v2"): "VULTRON_VENDOR_DEPLOYER_BASE_URL",
 }
 
 #: Scenarios that hand a deterministic ``--case-actor-id`` to the CaseActor.
 #: Only the two ownership-handoff scenarios do: they assert on the CaseActor's
 #: own replica after the transfer, so its id has to be predictable.
-_CASE_ACTOR_ID_SCENARIOS = frozenset({"fvcv-handoff", "fccv-handoff"})
+_CASE_ACTOR_ID_SCENARIOS = frozenset({"rvcv-handoff", "rccv-handoff"})
 
 #: The only scenario whose ``--*-id`` options are env-bound. Its five actor ids
 #: come from the compose environment rather than being left to the demo.
-_ID_ENVVAR_SCENARIO = "fcvcv"
+_ID_ENVVAR_SCENARIO = "rcvcv"
 
 #: Every scenario names the dedicated CaseActor container (#1876).  Its local
-#: default is 7905, except where that port is already another role's: ``fv``
-#: has only three containers and keeps 7903, and ``fcvcv`` gives 7905 to V2.
+#: default is 7905, except where that port is already another role's: ``rv``
+#: has only three containers and keeps 7903, and ``rcvcv`` gives 7905 to V2.
 _CASE_ACTOR_PORTS = {
-    "fv": "http://localhost:7903/api/v2",
-    "fvv": "http://localhost:7905/api/v2",
-    "fcv": "http://localhost:7905/api/v2",
-    "fcv-reject": "http://localhost:7905/api/v2",
-    "fcvcv": "http://localhost:7906/api/v2",
-    "fvcv-extension": "http://localhost:7905/api/v2",
-    "fvcv-handoff": "http://localhost:7905/api/v2",
-    "fccv-extension": "http://localhost:7905/api/v2",
-    "fccv-handoff": "http://localhost:7905/api/v2",
+    "rv": "http://localhost:7903/api/v2",
+    "rvv": "http://localhost:7905/api/v2",
+    "rcv": "http://localhost:7905/api/v2",
+    "rcv-reject": "http://localhost:7905/api/v2",
+    "rcvcv": "http://localhost:7906/api/v2",
+    "rvcv-extension": "http://localhost:7905/api/v2",
+    "rvcv-handoff": "http://localhost:7905/api/v2",
+    "rccv-extension": "http://localhost:7905/api/v2",
+    "rccv-handoff": "http://localhost:7905/api/v2",
     "rcv-embargo": "http://localhost:7905/api/v2",
     "rcvv-embargo": "http://localhost:7905/api/v2",
 }
@@ -160,11 +158,11 @@ def _command_decorator_names(tree: ast.Module) -> set[str]:
     as this function and three of them name a command without a ``name=``
     keyword anywhere in the source:
 
-    * ``@main.command(name="fv")`` — the keyword form;
-    * ``@main.command("fv")`` — the same string, positionally;
+    * ``@main.command(name="rv")`` — the keyword form;
+    * ``@main.command("rv")`` — the same string, positionally;
     * ``@main.command()`` and bare ``@main.command`` — click derives the name
-      from ``__name__``, lowercased with ``_`` → ``-``, so ``def fcv_reject``
-      declares ``fcv-reject`` and even a hyphenated scenario name is reachable.
+      from ``__name__``, lowercased with ``_`` → ``-``, so ``def rcv_reject``
+      declares ``rcv-reject`` and even a hyphenated scenario name is reachable.
 
     Missing any of the last three would let a hand-wired block shadow a
     generated command with every other check in this file still green, which is
@@ -220,12 +218,12 @@ def test_no_scenario_subcommand_is_hand_declared() -> None:
 @pytest.mark.parametrize(
     ("source", "expected"),
     [
-        ('@main.command(name="fv")\ndef _x() -> None: ...', "fv"),
-        ('@main.command("fv")\ndef _x() -> None: ...', "fv"),
-        ("@main.command()\ndef fv() -> None: ...", "fv"),
-        ("@main.command\ndef fv() -> None: ...", "fv"),
-        ("@main.command()\ndef fcv_reject() -> None: ...", "fcv-reject"),
-        ("@main.group\ndef fvcv_extension() -> None: ...", "fvcv-extension"),
+        ('@main.command(name="rv")\ndef _x() -> None: ...', "rv"),
+        ('@main.command("rv")\ndef _x() -> None: ...', "rv"),
+        ("@main.command()\ndef rv() -> None: ...", "rv"),
+        ("@main.command\ndef rv() -> None: ...", "rv"),
+        ("@main.command()\ndef rcv_reject() -> None: ...", "rcv-reject"),
+        ("@main.group\ndef rvcv_extension() -> None: ...", "rvcv-extension"),
     ],
     ids=[
         "name-keyword",
@@ -511,7 +509,7 @@ class TestFactoryRejectsABadModule:
         only because every scenario module happens to call ``role_map`` to derive
         its ``*_BASE_URL`` constants, and nothing requires a module to do that.
         The failure is quiet: ``_role_option_decorators`` keys its map by
-        parameter name, so two roles named ``finder`` collapse into one option
+        parameter name, so two roles named ``reporter`` collapse into one option
         carrying the *second* role's env var and default — the first binding is
         dropped with no error and the scenario runs against the wrong container.
         """
@@ -563,8 +561,8 @@ class TestDeclaredDivergences:
         }
         assert with_id == _CASE_ACTOR_ID_SCENARIOS
 
-    def test_id_options_are_env_bound_only_for_fcvcv(self) -> None:
-        """Only ``fcvcv`` binds its ``--*-id`` options to env vars."""
+    def test_id_options_are_env_bound_only_for_rcvcv(self) -> None:
+        """Only ``rcvcv`` binds its ``--*-id`` options to env vars."""
         with_env = {
             spec.name
             for spec in discover_scenarios()

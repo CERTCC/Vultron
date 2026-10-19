@@ -1,6 +1,6 @@
 # Multi-Actor Vultron Demo — Docker Compose Configuration
 #
-# Defines six isolated actor services (finder, vendor, coordinator,
+# Defines six isolated actor services (reporter, vendor, coordinator,
 # actor5, actor6, case-actor), each
 # with its own DataLayer volume, health check, and network membership.
 #
@@ -19,10 +19,10 @@
 # vultron-network and is unaffected by host port assignment.
 #
 # To inspect the assigned host port after startup:
-#   docker compose -f docker-compose-multi-actor.yml port finder 7999
+#   docker compose -f docker-compose-multi-actor.yml port reporter 7999
 #
 # To pin a specific host port (e.g. for scripted host-side probing):
-#   FINDER_HOST_PORT=17901 ./integration_tests/demo/run_multi_actor_integration_test.sh
+#   REPORTER_HOST_PORT=17901 ./integration_tests/demo/run_multi_actor_integration_test.sh
 #
 # ─── Required environment variables ───────────────────────────────────────
 #   PROJECT_NAME          Docker resource name prefix (default: vultron)
@@ -33,7 +33,7 @@
 #                       Full base URL for this container's API server.
 #                       Must use the Docker service name as hostname so that
 #                       peer containers can route to it (e.g.,
-#                       http://finder:7999/api/v2/).
+#                       http://reporter:7999/api/v2/).
 #                       Corresponds to ServerConfig.base_url in vultron/config.py.
 #                       Uses pydantic-settings env_nested_delimiter='__'
 #                       (for example: VULTRON_SERVER__BASE_URL).
@@ -59,7 +59,7 @@
 #   vultron-network   Shared bridge network connecting all services.
 #
 # ─── Startup and seeding ──────────────────────────────────────────────────
-# The API server containers (finder, vendor, coordinator, actor5,
+# The API server containers (reporter, vendor, coordinator, actor5,
 # case-actor) do NOT auto-seed actor records on startup. The `demo-runner`
 # service resets the relevant containers and seeds actors automatically,
 # producing a deterministic acceptance run with a single `docker compose up
@@ -71,7 +71,7 @@
 # Example (after `docker compose -f docker-compose-multi-actor.yml up -d`):
 #
 #   docker compose -f docker-compose-multi-actor.yml run --rm \
-#     -e VULTRON_API_BASE_URL=http://finder:7999/api/v2 demo-runner \
+#     -e VULTRON_API_BASE_URL=http://reporter:7999/api/v2 demo-runner \
 #     vultron-demo seed
 #
 # See docker/README.md for full usage instructions.
@@ -110,21 +110,21 @@ x-actor-service: &actor-service
 
 services:
 
-  # ── Finder actor ──────────────────────────────────────────────────────────
-  finder:
+  # ── Reporter actor ──────────────────────────────────────────────────────────
+  reporter:
     <<: *actor-service
     environment:
       - PYTHONPATH=/app
       # Identity: each container gets a unique base URL so peer actors can
       # derive inbox URLs using the Docker service name as hostname.
-      - VULTRON_SERVER__BASE_URL=http://finder:7999/api/v2/
+      - VULTRON_SERVER__BASE_URL=http://reporter:7999/api/v2/
       # DataLayer: persist the SQLite file under the named volume.
       - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
       # Deterministic actor ID (D5-1-G3): fixed URI used by vultron-demo seed
       # so peer containers can pre-register this actor without discovery.
-      - VULTRON_ACTOR_ID=http://finder:7999/api/v2/actors/finder
+      - VULTRON_ACTOR_ID=http://reporter:7999/api/v2/actors/reporter
       # Seed config: registers local actor + peers on first seed run.
-      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-finder.yaml
+      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-reporter.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
       # CP-08-003, CP-08-008: proposals go to the dedicated case-actor container.
       - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
@@ -132,13 +132,13 @@ services:
       # Bind-mount application source so code changes take effect without
       # rebuilding the image.  uvicorn --reload picks them up automatically.
       - "../vultron:/app/vultron"
-      - finder-data:/app/data
+      - reporter-data:/app/data
     ports:
       # Ephemeral host port (auto-assigned by Docker) → container 7999.
-      # Inter-container traffic uses http://finder:7999 on vultron-network
-      # and is unaffected by this mapping.  Set FINDER_HOST_PORT to pin a
+      # Inter-container traffic uses http://reporter:7999 on vultron-network
+      # and is unaffected by this mapping.  Set REPORTER_HOST_PORT to pin a
       # specific host port for host-side access.
-      - "${FINDER_HOST_PORT:-0}:7999"
+      - "${REPORTER_HOST_PORT:-0}:7999"
 
   # ── Vendor actor ──────────────────────────────────────────────────────────
   vendor:
@@ -218,8 +218,8 @@ services:
   # ── Actor5 (neutral fifth actor slot) ────────────────────────────────────
   # Fifth actor container with a scenario-neutral name.  Different scenarios
   # seed this container with different actor identities:
-  #   - fvv, fvcv-extension, fvcv-handoff: seeded as Vendor2
-  #   - fccv-extension: seeded as Coordinator2
+  #   - rvv, rvcv-extension, rvcv-handoff: seeded as Vendor2
+  #   - rccv-extension: seeded as Coordinator2
   # The neutral service name avoids hard-coding a specific CVD role.
   actor5:
     <<: *actor-service
@@ -227,13 +227,13 @@ services:
       - PYTHONPATH=/app
       - VULTRON_SERVER__BASE_URL=http://actor5:7999/api/v2/
       - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
-      # VULTRON_ACTOR_ID: default identity for fvv/fvcv-* scenarios.
+      # VULTRON_ACTOR_ID: default identity for rvv/rvcv-* scenarios.
       # Override by passing a different VULTRON_SEED_CONFIG at runtime
-      # (e.g. seed-coordinator2.yaml for fccv-extension).
+      # (e.g. seed-coordinator2.yaml for rccv-extension).
       - VULTRON_ACTOR_ID=http://actor5:7999/api/v2/actors/vendor2
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-actor5.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
-      # DEMOMA-15-001: actor5 defaults to Vendor2 in fvv/fvcv-* scenarios;
+      # DEMOMA-15-001: actor5 defaults to Vendor2 in rvv/rvcv-* scenarios;
       # seed with CVDRole.VENDOR so fix-lifecycle helpers can validate it.
       - VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor"]
       # CP-08-003, CP-08-008: proposals go to the dedicated case-actor container.
@@ -245,8 +245,8 @@ services:
       # Ephemeral host port → container 7999.  Set ACTOR5_HOST_PORT to pin.
       - "${ACTOR5_HOST_PORT:-0}:7999"
 
-  # ── Actor6 (VendorDeployer — FCVCV sixth actor slot) ─────────────────────
-  # Sixth actor container for the FCVCV scenario (DEMOMA-19-001).  Hosts V2
+  # ── Actor6 (VendorDeployer — RCVCV sixth actor slot) ─────────────────────
+  # Sixth actor container for the RCVCV scenario (DEMOMA-19-001).  Hosts V2
   # (VendorDeployer), which holds both CVDRole.VENDOR and CVDRole.DEPLOYER and
   # follows the full VFD fix path.  The neutral service name (actor6) avoids
   # hard-coding a specific CVD role, consistent with the actor5 naming pattern.
@@ -286,7 +286,7 @@ services:
       target: demo
     image: ${PROJECT_NAME:-vultron}-demo:latest
     depends_on:
-      finder:
+      reporter:
         condition: service_healthy
       vendor:
         condition: service_healthy
@@ -301,7 +301,7 @@ services:
     environment:
       - PYTHONPATH=/app
       # Base URLs for each actor service, accessible via Docker network.
-      - VULTRON_FINDER_BASE_URL=http://finder:7999/api/v2
+      - VULTRON_REPORTER_BASE_URL=http://reporter:7999/api/v2
       - VULTRON_VENDOR_BASE_URL=http://vendor:7999/api/v2
       - VULTRON_COORDINATOR_BASE_URL=http://coordinator:7999/api/v2
       - VULTRON_CASE_ACTOR_BASE_URL=http://case-actor:7999/api/v2
@@ -311,8 +311,8 @@ services:
       # that ask "which CaseActor does a report go to?" answer as they do.
       - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
       # Run the selected multi-actor demo non-interactively. Override DEMO
-      # at runtime (for example, DEMO=fvv) to switch scenarios.
-      - DEMO=${DEMO:-fv}
+      # at runtime (for example, DEMO=rvv) to switch scenarios.
+      - DEMO=${DEMO:-rv}
       - DEVLOGS_DIR=/app/devlogs
     volumes:
       - "../vultron:/app/vultron"
@@ -332,7 +332,7 @@ networks:
 # To reset all actor state between demo runs:
 #   docker compose -f docker-compose-multi-actor.yml down -v
 volumes:
-  finder-data:
+  reporter-data:
   vendor-data:
   coordinator-data:
   case-actor-data:

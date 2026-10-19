@@ -37,6 +37,7 @@ from vultron.wire.as2.vocab.examples._base import (
     _CASE_ACTOR,
     _COORDINATOR,
     case,
+    case_actor,
     finder,
     vendor,
 )
@@ -100,18 +101,23 @@ class TestRequestInviteActorToCase(unittest.TestCase):
 class TestAcceptActorRecommendation(unittest.TestCase):
     def setUp(self):
         self.activity = accept_actor_recommendation()
-        self.vendor = vendor()
+        self.case_actor = case_actor()
         self.finder = finder()
         self.case = case()
 
     def test_return_type(self):
         self.assertIsInstance(self.activity, as_Accept)
 
-    def test_actor_is_vendor(self):
-        self.assertEqual(self.activity.actor, self.vendor.id_)
+    def test_actor_is_case_manager(self):
+        """Only the CASE_MANAGER answers a recommendation (CM-16-006/007)."""
+        self.assertEqual(self.activity.actor, self.case_actor.id_)
 
     def test_to_is_finder(self):
         self.assertEqual(self.activity.to, self.finder.id_)
+
+    def test_in_reply_to_is_the_recommendation(self):
+        recommendation = cast(_RecommendActorActivity, self.activity.object_)
+        self.assertEqual(self.activity.in_reply_to, recommendation.id_)
 
     def test_object_is_recommendation_offer(self):
         self.assertIsInstance(self.activity.object_, _RecommendActorActivity)
@@ -123,18 +129,23 @@ class TestAcceptActorRecommendation(unittest.TestCase):
 class TestRejectActorRecommendation(unittest.TestCase):
     def setUp(self):
         self.activity = reject_actor_recommendation()
-        self.vendor = vendor()
+        self.case_actor = case_actor()
         self.finder = finder()
         self.case = case()
 
     def test_return_type(self):
         self.assertIsInstance(self.activity, as_Reject)
 
-    def test_actor_is_vendor(self):
-        self.assertEqual(self.activity.actor, self.vendor.id_)
+    def test_actor_is_case_manager(self):
+        """Only the CASE_MANAGER answers a recommendation (CM-16-006/007)."""
+        self.assertEqual(self.activity.actor, self.case_actor.id_)
 
     def test_to_is_finder(self):
         self.assertEqual(self.activity.to, self.finder.id_)
+
+    def test_in_reply_to_is_the_recommendation(self):
+        recommendation = cast(_RecommendActorActivity, self.activity.object_)
+        self.assertEqual(self.activity.in_reply_to, recommendation.id_)
 
     def test_object_is_recommendation_offer(self):
         self.assertIsInstance(self.activity.object_, _RecommendActorActivity)

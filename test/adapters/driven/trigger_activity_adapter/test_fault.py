@@ -13,11 +13,23 @@
 
 """Unit tests for _FaultMixin.emit_processing_fault() in TriggerActivityAdapter."""
 
+import json
+from typing import Any, cast
+
 import pytest
 
-from vultron.adapters.outbox_sealed_body import is_sealed, sealed_body_id
+from vultron.adapters.outbox_sealed_body import (
+    dump_outbound_body,
+    is_sealed,
+    sealed_body_id,
+)
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+)
+from vultron.errors import VultronActivityConstructionError
+from vultron.wire.as2.vocab.examples.status import (
+    add_fix_readiness_to_participant,
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
@@ -139,3 +151,50 @@ class TestEmitProcessingFault:
 
         assert len(ids) == 2
         assert set(dl.outbox_list()) == ids
+
+
+class TestRefusalNotice:
+    """The CASE_MANAGER's refusal notice (CLP-05-001)."""
+
+    @staticmethod
+    def _refused() -> dict[str, Any]:
+        return cast(
+            dict[str, Any],
+            json.loads(dump_outbound_body(add_fix_readiness_to_participant())),
+        )
+
+    @pytest.mark.spec("CLP-05-001")
+    @pytest.mark.spec("ID-04-004")
+    def test_id_is_derived_from_the_case_manager_and_the_refused_activity(
+        self, adapter, dl
+    ):
+        refused = self._refused()
+        kwargs = dict(
+            case_id="https://example.org/cases/case-001",
+            actor=_ACTOR,
+            refused_activity=refused,
+            asserter=_SENDER,
+            reason="refused",
+        )
+
+        first, _ = adapter.refusal_notice(**kwargs)
+        second, _ = adapter.refusal_notice(**kwargs)
+
+        assert (
+            first
+            == second
+            == derived_activity_id("refusal-notice", _ACTOR, refused["id"])
+        )
+        assert is_sealed(dl, first)
+
+    def test_a_refused_activity_with_no_id_is_refused(self, adapter):
+        refused = {k: v for k, v in self._refused().items() if k != "id"}
+
+        with pytest.raises(VultronActivityConstructionError):
+            adapter.refusal_notice(
+                case_id=None,
+                actor=_ACTOR,
+                refused_activity=refused,
+                asserter=_SENDER,
+                reason="refused",
+            )

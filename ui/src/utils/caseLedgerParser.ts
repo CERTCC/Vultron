@@ -173,7 +173,7 @@ export type LaneId = 'finder' | `vendor-${number}` | 'coordinator' | 'caseactor'
 /**
  * Map an actor URL to a demo lane id.
  *
- * The container demo gives each actor service a distinct hostname: `finder:`,
+ * The container demo gives each actor service a distinct hostname: `reporter:`,
  * `vendor:` (the first/primary vendor), `vendor2:`, `vendor3:`, `coordinator:`
  * (a dedicated coordinator container, 2026-07 scenarios), `actor5:` (the second
  * vendor in the coordinator scenarios — seeded as "vendor2", so it reuses the
@@ -194,7 +194,9 @@ export type LaneId = 'finder' | `vendor-${number}` | 'coordinator' | 'caseactor'
 export function actorUrlToLaneId(url?: string | null): LaneId {
   if (!url) return 'unknown'
   if (url.includes('case-actor')) return 'caseactor'
-  if (url.includes('//finder:')) return 'finder'
+  // Recorded demos name the reporter host `reporter:`; the committed sample
+  // logs still carry its earlier name, `finder:`.
+  if (url.includes('//reporter:') || url.includes('//finder:')) return 'finder'
   if (url.includes('//coordinator:')) return 'coordinator'
   // `actor5:` hosts Vendor2 in the coordinator scenarios → reuse the vendor-2 lane.
   if (url.includes('//actor5:')) return 'vendor-2'

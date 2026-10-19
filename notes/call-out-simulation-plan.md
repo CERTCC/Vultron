@@ -70,7 +70,7 @@ outbox and calls B's dispatcher with the activity object: no network, no
 serialisation round-trip, but the full trigger→BT→outbox→peer-inbox cascade.
 
 **Finder + Coordinator + Vendor (3 actors)** is the minimum meaningful
-configuration; FV omits coordinator interactions.
+configuration; `rv` omits coordinator interactions.
 
 **Fresh in-memory DataLayer per iteration**, so each iteration is an
 independent probabilistic sample.

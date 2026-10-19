@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Ratchet: every example activity must be dispatchable by exactly one pattern.
+"""Ratchet: every example activity must dispatch to exactly one registry entry.
 
 The ``vocab_examples`` functions are the wire examples rendered on
 ``docs/reference/messages/*.md`` and written to ``docs/reference/examples/*.json``.
@@ -21,7 +21,16 @@ asks the question that matters: ``test_vocab_utils.py`` asserts each one execute
 and serializes, and ``test_vocab_examples_current.py`` asserts the committed
 artifact file list is current.  An example can therefore be well-formed,
 committed, rendered on a reference page — and undispatchable, because no
-registered ``ActivityPattern`` matches it.
+``SEMANTIC_REGISTRY`` entry's pattern matches it.
+
+The match is counted against the registry's entries, not against every
+``ActivityPattern`` in ``extractor/_instances.py``.  A pattern no entry uses
+routes nothing, so an example matching only that pattern dispatches to
+``UNKNOWN`` while a count over the module reads it as dispatchable:
+``accept_actor_recommendation`` and ``reject_actor_recommendation`` passed
+that way, matching the orphan ``Accept``/``RejectSuggestActorToCasePattern``,
+until #4527 routed them.  ``test_every_pattern_instance_is_used_by_an_entry``
+keeps the module free of such orphans.
 
 Three defects found when this was first measured:
 
@@ -63,6 +72,7 @@ Source: ISSUE-3003.
 import pytest
 
 from test.architecture._vocab_example_corpus import activity_examples
+from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.extractor import _instances
 from vultron.wire.as2.extractor._pattern import ActivityPattern
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -91,8 +101,21 @@ _KNOWN_UNDISPATCHABLE: dict[str, str] = {
 }
 
 
-def _patterns() -> list[tuple[str, ActivityPattern]]:
-    """Every registered ``ActivityPattern``, by attribute name.
+def _entry_patterns() -> list[tuple[str, ActivityPattern]]:
+    """Every ``SEMANTIC_REGISTRY`` entry's pattern, by its semantics name.
+
+    The dispatcher fallbacks carry no pattern and are skipped: an example that
+    reaches one is undispatchable, which is what this gate exists to catch.
+    """
+    return [
+        (entry.semantics.name, entry.pattern)
+        for entry in SEMANTIC_REGISTRY
+        if entry.pattern is not None
+    ]
+
+
+def _pattern_instances() -> list[tuple[str, ActivityPattern]]:
+    """Every ``ActivityPattern`` in ``extractor/_instances.py``, by name.
 
     Read from the private module: ``extractor/__init__`` re-exports only a subset,
     so the public surface would leave the unexported patterns invisible here.
@@ -104,19 +127,62 @@ def _patterns() -> list[tuple[str, ActivityPattern]]:
     ]
 
 
+def _patterns_within(pattern: ActivityPattern) -> list[ActivityPattern]:
+    """*pattern* and every pattern nested in its discriminator fields."""
+    nested = [
+        value
+        for value in (
+            pattern.to_,
+            pattern.object_,
+            pattern.target_,
+            pattern.context_,
+        )
+        if isinstance(value, ActivityPattern)
+    ]
+    return [pattern, *(p for n in nested for p in _patterns_within(n))]
+
+
 _ACTIVITY_EXAMPLES = activity_examples()
 
 
 def _matching_pattern_names(activity: as_Activity) -> list[str]:
-    return sorted(name for name, p in _patterns() if p.match(activity))
+    return sorted(name for name, p in _entry_patterns() if p.match(activity))
 
 
 def test_pattern_registry_is_not_empty():
     """A gate that resolves no patterns would pass vacuously (DF-09-009)."""
-    assert len(_patterns()) > 40, (
-        f"Only {len(_patterns())} ActivityPattern instances found in "
-        "vultron/wire/as2/extractor/_instances.py. Either the registry shrank "
-        "drastically or this test is no longer reading it."
+    assert len(_entry_patterns()) > 40, (
+        f"Only {len(_entry_patterns())} SEMANTIC_REGISTRY entries carry a "
+        "pattern. Either the registry shrank drastically or this test is no "
+        "longer reading it."
+    )
+    assert len(_pattern_instances()) > 40, (
+        f"Only {len(_pattern_instances())} ActivityPattern instances found in "
+        "vultron/wire/as2/extractor/_instances.py; the orphan check below is "
+        "no longer reading the module."
+    )
+
+
+def test_every_pattern_instance_is_used_by_an_entry():
+    """A pattern no registry entry uses routes nothing.
+
+    An activity matching only an orphan pattern dispatches to ``UNKNOWN``, so
+    the orphan documents a wire form no receiver handles.  A pattern counts as
+    used when an entry's pattern is it or nests it, as
+    ``OfferActorToCasePattern`` is nested in the Accept and Reject entries.
+    """
+    used = {
+        id(p)
+        for _, entry_pattern in _entry_patterns()
+        for p in _patterns_within(entry_pattern)
+    }
+    orphans = sorted(
+        name for name, p in _pattern_instances() if id(p) not in used
+    )
+    assert not orphans, (
+        f"{orphans} in vultron/wire/as2/extractor/_instances.py are used by "
+        "no SEMANTIC_REGISTRY entry, so an activity matching one dispatches "
+        "to UNKNOWN. Route it with an entry or delete it."
     )
 
 
@@ -157,14 +223,15 @@ def test_known_undispatchable_names_are_collected():
         if name not in _KNOWN_UNDISPATCHABLE
     ),
 )
-def test_example_activity_matches_exactly_one_pattern(example_name: str):
+def test_example_activity_dispatches_to_one_registry_entry(example_name: str):
     """A rendered wire example must be dispatchable, and unambiguously so."""
     activity = _ACTIVITY_EXAMPLES[example_name]
     matches = _matching_pattern_names(activity)
 
     assert len(matches) == 1, (
         f"{example_name}() built a {type(activity).__name__} matching "
-        f"{len(matches)} registered ActivityPattern(s): {matches or 'none'}.\n"
+        f"{len(matches)} SEMANTIC_REGISTRY entry pattern(s): "
+        f"{matches or 'none'}.\n"
         "An example matching none is undispatchable — a receiver drops it — and "
         "the reference page rendering it documents a wire form that does not "
         "work. An example matching several makes dispatch depend on registry "

@@ -88,7 +88,7 @@ _SYNC_HOOK_ID = "demo-scenarios-sync"
 #: Inputs the artifacts are derived from, standing in for "any change that makes
 #: them stale": a scenario module (the registry) and a renderer (the projection).
 _ARTIFACT_INPUTS = (
-    "vultron/demo/scenario/fv_demo.py",
+    "vultron/demo/scenario/rv_demo.py",
     "vultron/metadata/demo_scenarios/render.py",
 )
 
@@ -97,7 +97,7 @@ _ARTIFACT_INPUTS = (
 _EXTRA_SPEC = ScenarioSpec(
     name="zz-fake",
     label="ZZ-fake",
-    participants="Finder + Vendor",
+    participants="Reporter + Vendor",
     feature="Fixture scenario; never registered",
     in_pr_set=True,
 )
@@ -153,7 +153,7 @@ def test_check_detects_a_stale_matrix_json(artifact_root: Path) -> None:
 @pytest.mark.parametrize(
     ("path", "cell"),
     [
-        (HARNESS_README, "`test/ci/invariants/test_fv_invariants.py`"),
+        (HARNESS_README, "`test/ci/invariants/test_rv_invariants.py`"),
         (SCENARIO_README, "Baseline two-actor CVD"),
     ],
     ids=["harnesses", "subcommands"],
@@ -337,7 +337,7 @@ def test_per_scenario_demoma_16_names_every_harness_event_type() -> None:
     catches is the same: both embargo harnesses gained
     ``activate_embargo_on_case`` while DEMOMA-16-016 and -017 still listed five
     types.  One-directional on purpose — some statements name a type in order
-    to exclude it (DEMOMA-16-002: FV "does not include an
+    to exclude it (DEMOMA-16-002: rv "does not include an
     ``invite_actor_to_case`` phase"), so an extra name is not drift.
     """
     registry = load_registry(_REPO_ROOT / "specs")
@@ -582,7 +582,7 @@ def test_narrative_links_are_built_site_urls() -> None:
 def test_mkdocs_keeps_directory_urls() -> None:
     """``use_directory_urls`` is not disabled, which the link form assumes.
 
-    With it off, pages build as ``fv.html`` and every link the narratives table
+    With it off, pages build as ``rv.html`` and every link the narratives table
     renders would break — silently, since nothing validates those links. Pinned
     here because the assumption lives in a renderer, far from ``mkdocs.yml``.
     """

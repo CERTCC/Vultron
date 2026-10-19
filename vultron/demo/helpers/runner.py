@@ -47,7 +47,7 @@ def run_exchange_demos(
     context for each demo, accumulates errors, and logs a summary.
 
     Each demo callable must accept
-    ``(client, finder, vendor, coordinator)`` as positional arguments.
+    ``(client, reporter, vendor, coordinator)`` as positional arguments.
 
     Args:
         all_demos: Sequence of ``(name, callable)`` pairs — the module-level
@@ -85,8 +85,8 @@ def run_exchange_demos(
     for demo_name, demo_fn in selected:
         reset_demo_failures()
         try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor, coordinator)
+            with demo_environment(client) as (reporter, vendor, coordinator):
+                demo_fn(client, reporter, vendor, coordinator)
             assert_demo_success()
         except Exception as e:
             _note_accumulated_failures(e)

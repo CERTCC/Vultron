@@ -108,11 +108,17 @@ CASE_MANAGER admitted (CLP-04-007). Refusals from any path — failed guards,
 bad payloads, out-of-order entries — are surfaced through Python logging, not
 ledger entries. A participant's `Reject` answering an `Invite` or an `Offer` is
 not a refusal: it is a case event, admitted and ledgered like its `Accept`
-(CLP-02-012).
+(CLP-02-012). A precondition refusal at the CASE_MANAGER is answered with the
+refusal notice, `refusal_notice(case_id)` passed as `refusal_effects`
+(CLP-05-001); it is never ledgered.
 
 **`SilentIdempotencyGuardMixin`** (`vultron/core/behaviors/idempotency.py`)
 implements this correctly and satisfies CLP-13-002. Use it for all idempotency
-guards.
+guards. A guard that records a repeat in a flag of its own (`is_repeat`,
+`is_redelivery`, `is_duplicate`) inherits `FlaggedRepeatGuardMixin` instead.
+Either way the guard implements `ReportsIdempotentRepeat`, so the refusal stage
+sends no refusal notice for a repeat the handler reports `SKIPPED`
+(CLP-10-022); `test_idempotent_repeat_guards.py` ratchets it.
 
 ---
 

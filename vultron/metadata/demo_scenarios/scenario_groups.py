@@ -86,14 +86,14 @@ SPEC_ID_RE = re.compile(r"\b([A-Z][A-Z0-9]*(?:-\d+)+)\b")
 
 #: The phrase that marks a DEMOMA-16 requirement as being about *one
 #: scenario's* required event types, as opposed to the universal list
-#: (DEMOMA-16-001), the spec-to-test sync rule (DEMOMA-16-008), or the FCVCV
+#: (DEMOMA-16-001), the spec-to-test sync rule (DEMOMA-16-008), or the RCVCV
 #: event-*count* requirements (DEMOMA-16-012, -013).  Selecting by what the
 #: statement says is required rather than convenient: DEMOCI-11-007 warns that
 #: the per-scenario requirements are not a contiguous ID range, and they are
 #: not — -008 sits inside the span and -014/-015 sit outside it.
 _EXPECTED_LIST_PHRASE = "expected-event-types list"
 
-#: ``the FVCV-handoff scenario`` — how every per-scenario DEMOMA-16 requirement
+#: ``the RVCV-handoff scenario`` — how every per-scenario DEMOMA-16 requirement
 #: names its subject.  Case-insensitive against the registry's ``name``, which
 #: is what both registers spell, so no ``label`` column is needed anywhere to
 #: resolve the mapping.
@@ -149,7 +149,7 @@ def scenario_spec_groups(
                 f"{group_id} carries a scenario_start trigger whose value "
                 f"{name!r} is not a valid scenario name (SR-02-018). Expected "
                 "the registry's grammar: lowercase alphanumerics separated by "
-                "single hyphens, e.g. 'fvcv-handoff'."
+                "single hyphens, e.g. 'rvcv-handoff'."
             )
         if name in groups:
             raise ValueError(
@@ -173,7 +173,7 @@ def per_scenario_event_type_requirements(
 
     - DEMOMA-16-001 enumerates the universal types and names no scenario;
     - DEMOMA-16-008 is the spec-to-test sync rule and names no scenario;
-    - DEMOMA-16-012 and -013 name FCVCV but are about *event counts* in the
+    - DEMOMA-16-012 and -013 name RCVCV but are about *event counts* in the
       case-actor log, not about an expected-event-types list.
 
     Names are returned as spelled by the registry (lowercase), so the result
@@ -259,7 +259,7 @@ def partition_problems(
     """Return every way the two registers fail to partition the spec'd scenarios.
 
     Checked in **both** directions, which is the whole point. Registry-to-prose
-    alone reports agreement while ignoring DEMOMA-16-014 (``fcvd``) and
+    alone reports agreement while ignoring DEMOMA-16-014 (``rcvd``) and
     DEMOMA-16-015 (``vc``) — scenarios *correctly* absent from the registry.
     That is the same blind spot that let a ``vc`` row sit in a table of
     available demos with a spec group, a tracking issue and no implementation

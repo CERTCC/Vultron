@@ -45,7 +45,7 @@ class TestWritePrerunSentinel:
       the only artifact present (manifest-without-ledgers path, DEMOCI-10-003).
     """
 
-    DEMO_NAME = "fv"
+    DEMO_NAME = "rv"
 
     def test_creates_manifest_file(self, tmp_path):
         manifest_path = write_prerun_sentinel(

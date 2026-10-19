@@ -95,17 +95,16 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 logger = logging.getLogger(__name__)
 
-# Default container base URLs — override via environment variables.  The
-# Reporter runs in the ``finder`` container slot and Vendor2 in ``actor5``:
-# compose service names are routing labels, not CVD roles
-# (vultron/demo/AGENTS.md).
+# Default container base URLs — override via environment variables.  Vendor2
+# runs in the ``actor5`` container slot: compose service names are routing
+# labels, not CVD roles (vultron/demo/AGENTS.md).
 ROLES: list[ActorRole] = [
     ActorRole(
         name="reporter",
-        url_env="VULTRON_FINDER_BASE_URL",
+        url_env="VULTRON_REPORTER_BASE_URL",
         default_url="http://localhost:7901/api/v2",
         url_help="Base URL of the Reporter container API "
-        "(env: VULTRON_FINDER_BASE_URL).",
+        "(env: VULTRON_REPORTER_BASE_URL).",
         has_id=True,
         id_help="Deterministic full URI for the Reporter actor (optional).",
     ),

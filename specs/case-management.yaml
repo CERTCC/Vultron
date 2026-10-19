@@ -2535,7 +2535,7 @@ groups:
       the newly active participant would otherwise reach it ahead of its case. The late
       joiner received a ledger entry before its case
       (SYNC-15 pre-genesis `Reject`, then a from-genesis replay that interleaved with
-      the backfill): in the fcvcv scenario vendor2 received entry 19 one second before
+      the backfill): in the rcvcv scenario vendor2 received entry 19 one second before
       the case, and vendor-deployer received entries 26 and 0 before it (#2898).
       Committed last, the entry reaches the invitee as the next entry in chain order.
     verification: >-
@@ -2865,8 +2865,9 @@ groups:
     rationale: 'Because `AGREE` is valid directly from `UNINVITED` (CM-18-003, ADR-0048), an
       initialization participant reaches its consent in a single transition, so a placeholder is
       unnecessary. Emitting two entries per participant would also shift every downstream
-      `log_index`; PR #1746 was reverted for exactly that, having broken `fvcv-extension` VFD
-      replication timing. Holding initialization to one entry per participant keeps `log_index` order
+      `log_index`; PR #1746 was reverted for exactly that, having broken
+      `rvcv-extension` VFD replication timing. Holding initialization to one entry per
+      participant keeps `log_index` order
       stable and preserves the ADR-0079 property that `log_index` order is causal order
       (CLP-14-001).'
     verification: Integration tests in `test/demo/` confirm that the default embargo is
@@ -2903,8 +2904,9 @@ groups:
       placeholder entry for a participant followed by a corrective entry for the same participant.
     rationale: >-
       Emitting two entries per participant shifts every downstream `log_index`; PR #1746
-      was reverted for exactly that, having broken `fvcv-extension` VFD replication timing.
-      Holding initialization to one entry per participant keeps `log_index` order stable.
+      was reverted for exactly that, having broken `rvcv-extension` VFD replication
+      timing. Holding initialization to one entry per participant keeps `log_index`
+      order stable.
       Because `AGREE` is valid directly from `UNINVITED` (CM-18-003, ADR-0048), an initialization
       participant reaches its consent in a single transition, so a placeholder is unnecessary.
     verification: Integration tests in `test/demo/` confirm that case initialization commits
@@ -3126,7 +3128,7 @@ groups:
       `attributed_to` without also updating the participant record leaves the
       new owner unable to trigger embargo teardown, case closure, and other
       CASE_OWNER-gated operations.  Both fields MUST be kept in sync.
-      Root cause of the FCCV-handoff CI failure (2026-07-23):
+      Root cause of the RCCV-handoff CI failure (2026-07-23):
       `AcceptCaseOwnershipTransferNode` updated `attributed_to` but did not
       add `CVDRole.CASE_OWNER` to C2's participant record, so
       `_sender_is_case_owner()` returned False and embargo teardown was
@@ -4303,8 +4305,8 @@ groups:
       (`vultron/demo/helpers/closure.py`), which sends the owner's Leave only
       once the CASE_MANAGER has recorded each other departure.
     verification: >-
-      `test/demo/test_fv_demo.py::TestFvMilestoneAssertions::test_phase_case_closure_closes_the_case_owner_last`
-      asserts the FV closure phase closes the Finder before the Vendor, the Case Owner;
+      `test/demo/test_rv_demo.py::TestRvMilestoneAssertions::test_phase_case_closure_closes_the_case_owner_last`
+      asserts the rv closure phase closes the Reporter before the Vendor, the Case Owner;
       `test/demo/test_case_closure.py` asserts the shared closure phase gates the
       owner's Leave on every other departure and that the closure milestone reports
       a departure recorded after `case_fully_closed`.

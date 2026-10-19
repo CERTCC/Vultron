@@ -1458,7 +1458,7 @@ class TestOwnerRolesComeFromTheProposal:
     fix-readiness report was refused (#1876).
 
     Regression guard, too: the node once hard-coded ``[CASE_OWNER, VENDOR]``,
-    which mislabelled a coordinator as a vendor (fccv-extension M6/M7).
+    which mislabelled a coordinator as a vendor (rccv-extension M6/M7).
     """
 
     @staticmethod
@@ -4202,9 +4202,9 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
     ``Announce(CaseLedgerEntry)`` for a case it does not hold yet, enters the
     pre-genesis path (SYNC-15), sends a ``Reject``, and the CASE_MANAGER
     replays the whole ledger — while ``Create(VulnerabilityCase)`` waits at
-    the back of the queue.  That queue position is what timed out the fv and
-    fcv-reject replica gates (#3033) and congested the CaseActor outbox in
-    fcvcv (#2898).  CM-14-011's rationale states the rule: the reporter's
+    the back of the queue.  That queue position is what timed out the rv and
+    rcv-reject replica gates (#3033) and congested the CaseActor outbox in
+    rcvcv (#2898).  CM-14-011's rationale states the rule: the reporter's
     system must hold the case object before any fan-out that references it.
     """
     from vultron.adapters.driven.sync_activity_adapter import (

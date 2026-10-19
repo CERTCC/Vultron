@@ -24,13 +24,13 @@ handler pipeline and are essential for demonstrating the full Vultron Protocol
 
 Two demo workflows are shown:
 
-1. **Validate and Engage**: Finder submits a report through its own
+1. **Validate and Engage**: Reporter submits a report through its own
    ``submit-report`` trigger;
    vendor then proactively validates the report and engages the resulting case
    using ``POST /actors/{actor_id}/trigger/validate-report`` and
    ``POST /actors/{actor_id}/trigger/engage-case``.
 
-2. **Invalidate and Close**: Finder submits a second report the same way; vendor
+2. **Invalidate and Close**: Reporter submits a second report the same way; vendor
    proactively invalidates it via ``POST .../trigger/invalidate-report`` and
    then closes the case it opened for the report via
    ``POST .../trigger/leave-case``, which sends ``Leave(VulnerabilityCase)``:
@@ -79,14 +79,14 @@ logger = logging.getLogger(__name__)
 
 def demo_validate_and_engage(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ) -> None:
     """Demonstrate proactive validation and case engagement via trigger endpoints.
 
     Workflow:
-    1. Finder submits a vulnerability report to the vendor (``submit-report``).
+    1. Reporter submits a vulnerability report to the vendor (``submit-report``).
     2. Vendor calls ``POST .../trigger/validate-report`` to validate the report.
     3. Vendor calls ``POST .../trigger/engage-case`` to engage the created case.
     """
@@ -95,10 +95,10 @@ def demo_validate_and_engage(
     logger.info("=" * 80)
 
     report = offer = None
-    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
+    with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         report, offer = reporter_submits_report(
             client,
-            finder,
+            reporter,
             vendor,
             reporter_client=client,
             report_name="Remote Code Execution in Network Stack",
@@ -154,7 +154,7 @@ def demo_validate_and_engage(
             )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
         "✅ TRIGGER DEMO 1 COMPLETE: Report validated and case engaged "
@@ -169,14 +169,14 @@ def demo_validate_and_engage(
 
 def demo_invalidate_and_close(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ) -> None:
     """Demonstrate proactive invalidation and report closure via trigger endpoints.
 
     Workflow:
-    1. Finder submits a report that the vendor deems invalid.
+    1. Reporter submits a report that the vendor deems invalid.
     2. Vendor calls ``POST .../trigger/invalidate-report`` to mark it invalid.
     3. Vendor ends the case's embargo, which would decline its close
        (CM-23-011), then calls ``POST .../trigger/leave-case`` to close the case it
@@ -188,10 +188,10 @@ def demo_invalidate_and_close(
     logger.info("=" * 80)
 
     report = offer = None
-    with demo_step("Step 1: Finder submits a low-quality report to vendor"):
+    with demo_step("Step 1: Reporter submits a low-quality report to vendor"):
         report, offer = reporter_submits_report(
             client,
-            finder,
+            reporter,
             vendor,
             reporter_client=client,
             report_name="Alleged Vulnerability in Demo Component",
@@ -251,8 +251,8 @@ def demo_invalidate_and_close(
                 )
 
     # The case was created on receipt, so the vendor still introduces it to
-    # the finder (CBT-01-001).
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    # the reporter (CBT-01-001).
+    verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
         "✅ TRIGGER DEMO 2 COMPLETE: Report invalidated and its case "

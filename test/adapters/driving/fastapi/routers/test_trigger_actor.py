@@ -296,7 +296,7 @@ def test_trigger_suggest_actor_to_case_undeliverable_suggested_actor_is_422(
     one: the whole point of a recommendation is to name an actor the case does
     not have, and under per-actor storage a peer's record lives in the store of
     whichever actor knows it (ADR-0073#peer-records-in-knowers-store). Refusing therefore refused
-    every genuinely remote candidate (#2548, fcvcv).
+    every genuinely remote candidate (#2548, rcvcv).
 
     A ``urn:uuid:`` id is still refused — just for the real reason. That id is
     the address delivery POSTs to, so it must be an absolute http(s) URI; saying

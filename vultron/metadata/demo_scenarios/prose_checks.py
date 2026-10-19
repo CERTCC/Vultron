@@ -82,8 +82,8 @@ def missing_narrative_nav_entries(
 ) -> list[str]:
     """Return registered scenarios whose narrative page is absent from the nav.
 
-    Completeness only: the nav's labels are hand-written short forms (``FV``,
-    ``FCCV-handoff``) that the registry's ``label`` does not always match, so
+    Completeness only: the nav's labels are hand-written short forms (``rv``,
+    ``RCCV-handoff``) that the registry's ``label`` does not always match, so
     the nav is checked for omission rather than regenerated (DEMOCI-11-007).
     """
     base = root or repo_root()

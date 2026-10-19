@@ -32,12 +32,12 @@ owns the order the whole demo suite needs (DEMOMA-23-001):
 
 Usage from a scenario module::
 
-    def run_fvv_demo(...) -> None:
-        with scenario_harness("fvv") as harness:
-            finder, vendor, ..., case = _phase_report_submission(...)
+    def run_rvv_demo(...) -> None:
+        with scenario_harness("rvv") as harness:
+            reporter, vendor, ..., case = _phase_report_submission(...)
             harness.dump_with(
                 lambda: _phase_dump_case_ledgers(
-                    finder_client=finder_client, ..., case=case
+                    reporter_client=reporter_client, ..., case=case
                 )
             )
             _phase_sync_verification(...)
@@ -182,7 +182,7 @@ def scenario_harness(
     """Run a scenario body with an always-executed case-ledger dump.
 
     Args:
-        demo_name: Scenario name, e.g. ``"fvv"``. Becomes the devlogs
+        demo_name: Scenario name, e.g. ``"rvv"``. Becomes the devlogs
             sub-directory the dump and manifest are written to.
 
     Yields:

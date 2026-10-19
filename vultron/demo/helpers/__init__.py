@@ -36,8 +36,8 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
   ``check_all_containers``.
 - :mod:`~vultron.demo.helpers.seeding` — ``_dl_key``, ``get_actor_by_id``,
-  ``seed_containers``, ``seed_containers_fvv``, ``seed_containers_fccv``,
-  ``seed_containers_fcv``, ``seed_containers_fcvcv``, and
+  ``seed_containers``, ``seed_containers_rvv``, ``seed_containers_rccv``,
+  ``seed_containers_rcv``, ``seed_containers_rcvcv``, and
   ``reset_containers``.
 - :mod:`~vultron.demo.helpers.ledger_commit` — ``trigger_log_commit``.
 - :mod:`~vultron.demo.helpers.sync` — ``verify_replica_state`` and the shared
@@ -136,8 +136,6 @@ from vultron.demo.helpers.polling import (
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
-    wait_for_finder_case,
-    wait_for_finder_log_entry,
     wait_for_ledger_event,
     wait_for_note_in_case,
     wait_for_object_stored,
@@ -147,7 +145,9 @@ from vultron.demo.helpers.polling import (
     wait_for_participants_on_replicas,
     wait_for_pending_inbox_quiescent,
     wait_for_report_submission_stored,
+    wait_for_reporter_case,
     wait_for_reporter_introduction,
+    wait_for_reporter_log_entry,
 )
 from vultron.demo.helpers.runner import (
     check_all_containers,
@@ -158,10 +158,10 @@ from vultron.demo.helpers.seeding import (
     get_actor_by_id,
     reset_containers,
     seed_containers,
-    seed_containers_fccv,
-    seed_containers_fcv,
-    seed_containers_fcvcv,
-    seed_containers_fvv,
+    seed_containers_rccv,
+    seed_containers_rcv,
+    seed_containers_rcvcv,
+    seed_containers_rvv,
 )
 from vultron.demo.helpers.sync import (
     _extract_ref_id,

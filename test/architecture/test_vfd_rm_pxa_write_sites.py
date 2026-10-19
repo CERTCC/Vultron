@@ -37,6 +37,8 @@ Closes #2081 AC-7, #1903.
 import ast
 from collections import Counter
 
+import pytest
+
 from test.architecture import _corpus
 
 # ---------------------------------------------------------------------------
@@ -134,6 +136,7 @@ def _collect_sites() -> list[tuple[str, str]]:
     return sorted(found)
 
 
+@pytest.mark.spec("RSH-04-002")
 def test_audited_write_sites_unchanged() -> None:
     """All VfDimension/DDimension/RmDimension/PxaDimension sites match the audited set.
 
