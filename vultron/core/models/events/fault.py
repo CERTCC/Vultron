@@ -19,6 +19,8 @@ defined in ADR-0080, ASK-07-001.
 
 from typing import Literal
 
+from pydantic import model_validator
+
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
@@ -57,10 +59,24 @@ class RefusalNoticeReceivedEvent(VultronEvent):
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
+    @model_validator(mode="after")
+    def _names_the_refused_activity(self) -> "RefusalNoticeReceivedEvent":
+        if self.in_reply_to is None and self.object_id is None:
+            raise ValueError(
+                f"refusal notice '{self.activity_id}' names no refused"
+                " activity: no inReplyTo and no object id (CLP-05-001)"
+            )
+        return self
+
     @property
-    def refused_activity_id(self) -> str | None:
-        """The refused activity: the one ``inReplyTo`` names, else the object."""
-        return self.in_reply_to or self.object_id
+    def refused_activity_id(self) -> str:
+        """The refused activity: the one ``inReplyTo`` names, else the object.
+
+        Never ``None``: an event naming neither is refused at construction.
+        """
+        refused = self.in_reply_to or self.object_id
+        assert refused is not None
+        return refused
 
     @property
     def case_id(self) -> str | None:

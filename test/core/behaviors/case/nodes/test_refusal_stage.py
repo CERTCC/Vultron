@@ -261,3 +261,72 @@ def test_a_node_outside_the_refusal_effects_has_no_refusal_reason() -> None:
 
     assert enclosing_refusal_reason(guard) is None
     assert enclosing_refusal_reason(_Counting("Loose")) is None
+
+
+class _RepeatThenRefusal(_RepeatGuard):
+    """A repeat on its first run, a plain refusal after."""
+
+    def update(self) -> Status:
+        status = super().update()
+        self._repeat = False
+        return status
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_the_repeat_flag_is_reset_on_the_next_run() -> None:
+    """``SilentIdempotencyGuardMixin.initialise`` clears the last run's repeat."""
+    guard = _RepeatThenRefusal(repeat=True)
+    effect = _Counting("Effect")
+    stage = _stage_with(guard, effect)
+
+    stage.tick_once()
+    assert guard.failed_as_repeat
+    assert stage.skipped_as_repeat
+    assert effect.ticks == 0
+
+    stage.tick_once()
+
+    assert not guard.failed_as_repeat
+    assert not stage.skipped_as_repeat
+    assert stage.refusal_reason == "already recorded"
+    assert effect.ticks == 1
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_a_repeat_off_the_failure_chain_does_not_skip_the_effects() -> None:
+    """A Selector's first alternative failing as a repeat did not decide."""
+    selector = py_trees.composites.Selector(
+        name="Alternatives",
+        memory=False,
+        children=[
+            _RepeatGuard(repeat=True),
+            _Counting("Guard", Status.FAILURE),
+        ],
+    )
+    effect = _Counting("Effect")
+    stage = _stage_with(selector, effect)
+
+    stage.tick_once()
+
+    assert not stage.skipped_as_repeat
+    assert effect.ticks == 1
+    assert stage.refusal_reason == "Guard said FAILURE"
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_a_repeat_on_the_failure_chain_skips_the_effects() -> None:
+    selector = py_trees.composites.Selector(
+        name="Alternatives",
+        memory=False,
+        children=[
+            _Counting("Guard", Status.FAILURE),
+            _RepeatGuard(repeat=True),
+        ],
+    )
+    effect = _Counting("Effect")
+    stage = _stage_with(selector, effect)
+
+    stage.tick_once()
+
+    assert stage.skipped_as_repeat
+    assert effect.ticks == 0

@@ -28,7 +28,7 @@ from pydantic import ValidationError
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.parser import parse_activity
-from vultron.wire.as2.vocab.activities.sync import _RefusalNoticeActivity
+from vultron.wire.as2.vocab.activities.fault import _RefusalNoticeActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Reject,

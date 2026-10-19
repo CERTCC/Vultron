@@ -275,14 +275,19 @@ class PendingAssertionStore:
             case_id: URI of the parent :class:`VulnerabilityCase`.
             activity_id: The refused activity's id.
 
+        An entry past its timeout is marked ``timed_out`` here, as
+        :meth:`is_suppressed` marks it, and is not cleared: it was no longer
+        pending.
+
         Returns:
             The entries this call cleared; empty when none was pending.
         """
         cleared = [
             entry
-            for entry in self._store.values()
+            for entry in list(self._store.values())
             if entry.case_id == case_id
             and entry.object_id == activity_id
+            and not self._check_expired(entry)
             and entry.status == "pending"
         ]
         for entry in cleared:

@@ -95,6 +95,7 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
         self._case_id = case_id
         self._event: object | None = None
         self._asserter: str | None = None
+        self._refused_id: str | None = None
         self._reason: str | None = None
 
     def initialise(self) -> None:
@@ -117,6 +118,7 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         self._asserter = event.actor_id
+        self._refused_id = event.activity_id
         self._reason = reason
         return self.trigger_activity_factory.refusal_notice(
             case_id=self._case_id,
@@ -129,14 +131,13 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
-        event = self._event
         self.logger.info(
             "CASE_MANAGER '%s' sent refusal notice '%s' to '%s' for activity"
             " '%s' on case '%s': %s (CLP-05-001)",
             self.actor_id,
             activity_id,
             self._asserter,
-            event.activity_id if isinstance(event, VultronEvent) else "?",
+            self._refused_id,
             self._case_id,
             self._reason,
         )

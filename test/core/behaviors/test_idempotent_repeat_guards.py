@@ -22,9 +22,16 @@ so each guard the handlers read as a repeat must implement it, and report a
 repeat only when it failed as one.
 """
 
+import importlib
+import inspect
+import pkgutil
+import re
+
+import py_trees
 import pytest
 from py_trees.common import Status
 
+import vultron.core.behaviors as behaviors_pkg
 from vultron.core.behaviors.case.nodes.invite_participant import (
     CheckInviteeNotAlreadyParticipantNode,
 )
@@ -103,3 +110,51 @@ def test_a_silent_idempotency_guard_reports_its_repeat():
 
     assert isinstance(node, ReportsIdempotentRepeat)
     assert node.failed_as_repeat
+
+
+_REPEAT_FLAG_WRITE = re.compile(
+    r"self\.(is_repeat|is_redelivery|is_duplicate)\s*="
+)
+
+
+def _behavior_classes() -> list[type]:
+    found: list[type] = []
+    for info in pkgutil.walk_packages(
+        behaviors_pkg.__path__, behaviors_pkg.__name__ + "."
+    ):
+        module = importlib.import_module(info.name)
+        for _, cls in inspect.getmembers(module, inspect.isclass):
+            if cls.__module__ == module.__name__ and issubclass(
+                cls, py_trees.behaviour.Behaviour
+            ):
+                found.append(cls)
+    return found
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_every_guard_that_flags_a_repeat_reports_it():
+    """Ratchet: a guard a handler reads as ``SKIPPED`` tells the refusal stage.
+
+    A guard that sets a repeat flag but does not implement
+    ``ReportsIdempotentRepeat`` would have its repeat answered with a refusal
+    notice, contradicting the effect already in place (CLP-05-001).
+    """
+    classes = _behavior_classes()
+    flagged = [
+        cls
+        for cls in classes
+        if _REPEAT_FLAG_WRITE.search(inspect.getsource(cls))
+    ]
+    assert len(classes) > 100, "the scan found too few behavior classes"
+    assert {cls for cls, _ in _FLAGGED} <= set(flagged), (
+        "the scan missed a known repeat guard"
+    )
+    missing = sorted(
+        cls.__qualname__
+        for cls in flagged
+        if not isinstance(getattr(cls, "failed_as_repeat", None), property)
+    )
+    assert missing == [], (
+        f"{missing} set a repeat flag but do not report it: inherit"
+        " FlaggedRepeatGuardMixin and name the flag in _REPEAT_FLAG"
+    )

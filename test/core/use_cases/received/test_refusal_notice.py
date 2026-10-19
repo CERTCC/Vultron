@@ -412,3 +412,48 @@ def test_a_notice_naming_no_case_is_refused():
     ).execute()
 
     assert verdict.disposition is HandlerDisposition.REFUSED
+
+
+@pytest.mark.spec("HP-01-006")
+def test_a_notice_reaching_the_case_manager_is_refused():
+    """The rule states no CASE_MANAGER side: only a participant reads one."""
+    net, _, invite_id = _network("to-manager")
+    event = _accept_event(net, invite_id)
+    _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
+    notice_id = _notices(net, MANAGER, BYSTANDER)[0].id_
+    body = cast(
+        dict[str, Any], read_sealed_body_dict(net.stores[MANAGER], notice_id)
+    )
+    to_manager = {
+        **body,
+        "actor": OWNER,
+        "to": [MANAGER],
+        "id": f"{OWNER}/notice-to-manager",
+    }
+
+    verdict = net.receive(MANAGER, to_manager)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+
+
+@pytest.mark.spec("CLP-05-001")
+@pytest.mark.spec("CLP-06-006")
+def test_a_declined_leave_closes_the_owners_pending_leave():
+    """CM-23-011's ``Reject(Leave(VulnerabilityCase))`` is read here now."""
+    net, _, _ = _network("declined-leave")
+    leave_id = f"{OWNER}/leaves/1"
+    record_pending_assertion(OWNER, net.case_id, "close_case", leave_id)
+    _, blob = TriggerActivityAdapter(net.stores[MANAGER]).reject_close_case(
+        case_id=net.case_id,
+        actor=MANAGER,
+        close_sender=OWNER,
+        in_reply_to=leave_id,
+    )
+    body = json.loads(blob)
+
+    verdict = net.receive(OWNER, body)
+
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
+    assert not get_pending_assertion_store(OWNER).is_suppressed(
+        net.case_id, "close_case", leave_id
+    )

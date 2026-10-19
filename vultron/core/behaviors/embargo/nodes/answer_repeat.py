@@ -38,6 +38,7 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle.pec import (
     find_actor_participant,
@@ -54,7 +55,9 @@ ANSWER_STATES = frozenset(
 )
 
 
-class EmbargoAnswerNotRecordedNode(DataLayerConditionWithPorts):
+class EmbargoAnswerNotRecordedNode(
+    FlaggedRepeatGuardMixin, DataLayerConditionWithPorts
+):
     """Guard: the sender's consent row does not already hold this answer.
 
     SUCCESS when *answering_actor_id*'s row for *embargo_id* is in any state
@@ -75,6 +78,8 @@ class EmbargoAnswerNotRecordedNode(DataLayerConditionWithPorts):
     Read-only, so it runs in ``precondition_guards`` ahead of the guarded
     commit (CLP-10-006, CLP-10-009).
     """
+
+    _REPEAT_FLAG = "is_repeat"
 
     def __init__(
         self,
@@ -111,11 +116,6 @@ class EmbargoAnswerNotRecordedNode(DataLayerConditionWithPorts):
         if resolved is None or resolved[1].missing_rows([self.embargo_id]):
             return None
         return resolved[1].consent_for(self.embargo_id)
-
-    @property
-    def failed_as_repeat(self) -> bool:
-        """Whether the last run failed as a repeat (``ReportsIdempotentRepeat``)."""
-        return self.is_repeat and self.status == Status.FAILURE
 
     def update(self) -> Status:
         self.is_repeat = False

@@ -48,7 +48,7 @@ from vultron.core.behaviors.sender_entitlement import SenderRule
 def refusal_notice_received_tree(
     *,
     case_id: str | None,
-    refused_activity_id: str | None,
+    refused_activity_id: str,
     reason: str | None,
     sender_id: str,
     sender_rule: SenderRule,
@@ -71,7 +71,7 @@ def refusal_notice_received_tree(
                 sender_id=sender_id,
             )
         ]
-        if case_id is not None and refused_activity_id is not None
+        if case_id is not None
         else []
     )
     return create_receive_activity_tree(

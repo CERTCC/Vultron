@@ -21,6 +21,7 @@ from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import MessagePage, Occasion
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
+from vultron.wire.as2.extractor._pattern import InlineActivityObjectPattern
 
 
 @pytest.mark.spec("SE-03-001")
@@ -231,6 +232,48 @@ def test_validate_registry_order_reversed_pair_raises():
     # general first — wrong order
     with pytest.raises(RegistryOrderError):
         _validate_registry_order([general, specific])
+
+
+def _inline_activity_reject_entry() -> SemanticEntry:
+    return _make_entry(
+        MessageSemantics.REFUSAL_NOTICE,
+        InlineActivityObjectPattern(
+            activity_=TAtype.REJECT,
+            excluded_object_verbs=frozenset({TAtype.INVITE}),
+        ),
+    )
+
+
+def _reject_of(verb: TAtype) -> SemanticEntry:
+    return _make_entry(
+        MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
+        ActivityPattern(
+            activity_=TAtype.REJECT,
+            object_=ActivityPattern(activity_=verb),
+        ),
+    )
+
+
+@pytest.mark.spec("SE-03-002")
+def test_an_entry_after_an_inline_activity_catch_all_it_shadows_raises():
+    with pytest.raises(RegistryOrderError, match="never reached"):
+        _validate_registry_order(
+            [_inline_activity_reject_entry(), _reject_of(TAtype.OFFER)]
+        )
+
+
+@pytest.mark.spec("SE-03-002")
+def test_an_inline_activity_catch_all_last_passes():
+    _validate_registry_order(
+        [_reject_of(TAtype.OFFER), _inline_activity_reject_entry()]
+    )
+
+
+@pytest.mark.spec("SE-03-002")
+def test_an_excluded_verb_after_the_catch_all_passes():
+    _validate_registry_order(
+        [_inline_activity_reject_entry(), _reject_of(TAtype.INVITE)]
+    )
 
 
 @pytest.mark.spec("SE-03-002")

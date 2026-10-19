@@ -40,6 +40,7 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -52,7 +53,9 @@ from vultron.core.participants.ownership_offer import (
 from vultron.errors import VultronBTInternalError, VultronNotFoundError
 
 
-class NoOpenOwnershipOfferNode(DataLayerConditionWithPorts):
+class NoOpenOwnershipOfferNode(
+    FlaggedRepeatGuardMixin, DataLayerConditionWithPorts
+):
     """Guard: the case has no earlier ownership-transfer Offer still open.
 
     The CASE_MANAGER refuses a new ownership-transfer Offer while an earlier
@@ -77,6 +80,8 @@ class NoOpenOwnershipOfferNode(DataLayerConditionWithPorts):
     judged against the Offer it stands for.
     """
 
+    _REPEAT_FLAG = "is_redelivery"
+
     def __init__(
         self, case_id: str, offer_id: str, name: str | None = None
     ) -> None:
@@ -86,11 +91,6 @@ class NoOpenOwnershipOfferNode(DataLayerConditionWithPorts):
         self.is_redelivery = False
         """``True`` when the last run found this Offer already ledgered: a
         benign no-op, not a refusal."""
-
-    @property
-    def failed_as_repeat(self) -> bool:
-        """Whether the last run failed as a repeat (``ReportsIdempotentRepeat``)."""
-        return self.is_redelivery and self.status == Status.FAILURE
 
     def update(self) -> Status:
         self.is_redelivery = False
@@ -155,7 +155,9 @@ _LATE_SPEC: dict[OfferParty, str] = {
 }
 
 
-class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
+class OwnershipOfferOpenNode(
+    FlaggedRepeatGuardMixin, DataLayerConditionWithPorts
+):
     """Guard: the ownership-transfer Offer a reply names is still open.
 
     Runs right after the reply's sender check, which has established that
@@ -185,6 +187,8 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
 
     Spec: CM-21-011, CM-21-013, CM-21-014, CM-21-015, CM-21-016, HP-01-003.
     """
+
+    _REPEAT_FLAG = "is_redelivery"
 
     def __init__(
         self,
@@ -258,11 +262,6 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
         return recorded_ownership_offer(
             self.datalayer, self._case_id, self._offer_id, manager_id
         )
-
-    @property
-    def failed_as_repeat(self) -> bool:
-        """Whether the last run failed as a repeat (``ReportsIdempotentRepeat``)."""
-        return self.is_redelivery and self.status == Status.FAILURE
 
     def update(self) -> Status:
         """Check the Offer is open; see the class docstring.

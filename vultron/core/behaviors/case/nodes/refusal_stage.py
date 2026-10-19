@@ -200,13 +200,26 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         yield self
 
     def _failed_as_repeat(self) -> bool:
-        """True when a failed guard reports the failure as a repeat."""
-        return any(
-            isinstance(node, ReportsIdempotentRepeat)
-            and node.status == Status.FAILURE
-            and node.failed_as_repeat
-            for node in self.guards.iterate()
-        )
+        """True when a guard on the failure chain reports a repeat.
+
+        Follows the chain ``BTBridge.get_failure_reason`` follows: the last
+        failed child at each composite, down to the leaf that ended the
+        run.  A guard that failed off that chain (an alternative a
+        ``Selector`` tried first) did not decide the refusal, so its repeat
+        flag does not skip the effects.
+        """
+        node: py_trees.behaviour.Behaviour = self.guards
+        while node.status == Status.FAILURE:
+            if (
+                isinstance(node, ReportsIdempotentRepeat)
+                and node.failed_as_repeat
+            ):
+                return True
+            failed = [c for c in node.children if c.status == Status.FAILURE]
+            if not failed:
+                return False
+            node = failed[-1]
+        return False
 
     def _fail(self) -> None:
         """End FAILURE, pointing at the guards so their reason is reported."""

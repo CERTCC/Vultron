@@ -468,3 +468,18 @@ class TestClearActivity:
         store.clear_activity(CASE_ID, OBJECT_ID)
 
         assert store.clear_activity(CASE_ID, OBJECT_ID) == []
+
+    def test_a_timed_out_entry_is_not_cleared(self):
+        store = PendingAssertionStore(timeout_seconds=10)
+        store.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
+        later = datetime.now(UTC) + timedelta(seconds=11)
+
+        with patch(
+            "vultron.core.models.pending_assertion.datetime"
+        ) as mock_dt:
+            mock_dt.now.return_value = later
+            cleared = store.clear_activity(CASE_ID, OBJECT_ID)
+
+        assert cleared == []
+        entry = next(iter(store._store.values()))
+        assert entry.status == "timed_out"

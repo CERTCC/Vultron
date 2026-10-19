@@ -25,7 +25,7 @@ CLP-10-022.
 """
 
 import logging
-from typing import Protocol, runtime_checkable
+from typing import ClassVar, Protocol, runtime_checkable
 
 from py_trees.common import Status
 
@@ -46,6 +46,26 @@ class ReportsIdempotentRepeat(Protocol):
     def failed_as_repeat(self) -> bool:
         """Whether the last run failed as an idempotent repeat."""
         ...
+
+
+class FlaggedRepeatGuardMixin:
+    """:class:`ReportsIdempotentRepeat` for a guard that sets a repeat flag.
+
+    A guard that records a repeat in an attribute of its own (``is_repeat``,
+    ``is_redelivery``, ``is_duplicate``) names it in ``_REPEAT_FLAG``; the
+    guard resets the flag at the start of every run.
+    """
+
+    _REPEAT_FLAG: ClassVar[str]
+    status: Status
+
+    @property
+    def failed_as_repeat(self) -> bool:
+        """Whether the last run failed with the repeat flag set."""
+        return (
+            bool(getattr(self, self._REPEAT_FLAG))
+            and self.status == Status.FAILURE
+        )
 
 
 class SilentIdempotencyGuardMixin:
@@ -120,4 +140,8 @@ class SilentIdempotencyGuardMixin:
         return Status.FAILURE
 
 
-__all__ = ["ReportsIdempotentRepeat", "SilentIdempotencyGuardMixin"]
+__all__ = [
+    "FlaggedRepeatGuardMixin",
+    "ReportsIdempotentRepeat",
+    "SilentIdempotencyGuardMixin",
+]
