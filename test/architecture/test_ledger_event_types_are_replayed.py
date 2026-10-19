@@ -62,6 +62,10 @@ from test.architecture._ledger_commit_inventory import (
     explicit_event_types,
     received_commit_semantics,
 )
+from vultron.core.models.embargo_consent_event_types import (
+    CREATE_EMBARGO_CONSENT_EVENT_TYPE,
+    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+)
 from vultron.core.models.events.base import MessageSemantics as MS
 from vultron.core.models.participant_event_types import (
     CREATE_CASE_PARTICIPANT_EVENT_TYPE,
@@ -79,46 +83,65 @@ from vultron.core.models.rsvp_deadline import (
 )
 
 _EMBARGO = {"type": "EmbargoEvent", "id": "urn:uuid:embargo"}
+_CONSENT_ROW = {
+    "type": "EmbargoConsent",
+    "id": "urn:uuid:consent",
+    "embargoId": "urn:uuid:embargo",
+    "attributedTo": PROPOSER,
+    "state": "UNINVITED",
+}
 _ABANDONED = f"{MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value}_abandoned"
 
 #: Replayed event types and an entry snapshot that identifies each.  Only the
 #: proposal-versus-relay split of ``invite_to_embargo_on_case`` depends on the
 #: snapshot; ``test_embargo_relay_entries_are_replayed.py`` covers its shapes.
-REPLAYED: dict[str, dict[str, Any]] = {
-    event_type: {"actor": MANAGER, "object": _EMBARGO}
-    for event_type in (
-        "accept_case_participant_role",
-        CREATE_CASE_PARTICIPANT_EVENT_TYPE,
-        UPDATE_CASE_OWNER_EVENT_TYPE,
-        UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
-        MS.ACCEPT_INVITE_ACTOR_TO_CASE.value,
-        MS.REJECT_INVITE_ACTOR_TO_CASE.value,
-        MS.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
-        MS.ACTIVATE_EMBARGO_ON_CASE.value,
-        MS.ADD_CASE_PARTICIPANT_TO_CASE.value,
-        MS.ADD_CASE_STATUS_TO_CASE.value,
-        MS.ADD_NOTE_TO_CASE.value,
-        MS.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
-        MS.ADD_REPORT_TO_CASE.value,
-        MS.OFFER_CASE_OWNERSHIP_TRANSFER.value,
-        MS.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
-        MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
-        MS.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
-        MS.REMOVE_CASE_PARTICIPANT_FROM_CASE.value,
-        MS.REMOVE_NOTE_FROM_CASE.value,
-        MS.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
-        EMBARGO_REINVITE_EVENT_TYPE,
-        HONOUR_LATE_ACCEPT_EVENT_TYPE,
-        INVITE_EXPIRED_EVENT_TYPE,
-        INVITE_EXPIRED_NOOP_EVENT_TYPE,
-        _ABANDONED,
-    )
-} | {
-    MS.INVITE_TO_EMBARGO_ON_CASE.value: {
-        "actor": PROPOSER,
-        "object": _EMBARGO,
-    },
-}
+REPLAYED: dict[str, dict[str, Any]] = (
+    {
+        event_type: {"actor": MANAGER, "object": _EMBARGO}
+        for event_type in (
+            "accept_case_participant_role",
+            CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+            UPDATE_CASE_OWNER_EVENT_TYPE,
+            UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+            MS.ACCEPT_INVITE_ACTOR_TO_CASE.value,
+            MS.REJECT_INVITE_ACTOR_TO_CASE.value,
+            MS.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
+            MS.ACTIVATE_EMBARGO_ON_CASE.value,
+            MS.ADD_CASE_PARTICIPANT_TO_CASE.value,
+            MS.ADD_CASE_STATUS_TO_CASE.value,
+            MS.ADD_NOTE_TO_CASE.value,
+            MS.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
+            MS.ADD_REPORT_TO_CASE.value,
+            MS.OFFER_CASE_OWNERSHIP_TRANSFER.value,
+            MS.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
+            MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
+            MS.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
+            MS.REMOVE_CASE_PARTICIPANT_FROM_CASE.value,
+            MS.REMOVE_NOTE_FROM_CASE.value,
+            MS.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
+            EMBARGO_REINVITE_EVENT_TYPE,
+            HONOUR_LATE_ACCEPT_EVENT_TYPE,
+            INVITE_EXPIRED_EVENT_TYPE,
+            INVITE_EXPIRED_NOOP_EVENT_TYPE,
+            _ABANDONED,
+        )
+    }
+    | {
+        MS.INVITE_TO_EMBARGO_ON_CASE.value: {
+            "actor": PROPOSER,
+            "object": _EMBARGO,
+        },
+    }
+    | {
+        # The CASE_MANAGER's own consent-row entries (ADR-0122), copied by the
+        # consent slot.
+        event_type: {"actor": MANAGER, "object": _CONSENT_ROW}
+        for event_type in (
+            CREATE_EMBARGO_CONSENT_EVENT_TYPE,
+            UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        )
+    }
+)
 
 _RM_VERDICT = (
     "an act declaring its sender's RM state: the entry records the act, and"

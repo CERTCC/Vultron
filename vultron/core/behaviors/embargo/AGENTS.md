@@ -138,6 +138,16 @@ policy), then hands the result to `commit_and_apply_embargo_entries()`
    already committed it (a received act).
 2. One `consent_row_entry()` per consent row the act changes.
 
+When the act commits entries after its own, the helper stores them as a
+`PendingEmbargoEntries` plan before the first commit, and
+`FinishOwedEmbargoEntriesNode` (the first case-wide clock decision) commits
+what a failed run left owed (CLP-07-015, ADR-0146). So every entry after the
+act's own needs a record activity (`consent_row_entry()` or
+`recorded_entry()`); an opaque `commit` there is refused before anything
+commits. Name the act's entry: `entry_id` (and `event_type` when its object
+is shared, as an expiry's Invite is) on the first entry, or
+`committed_act=` when intake or an earlier run committed it.
+
 For a received act, also run `trial_apply()` among the tree's guards, before
 the guarded commit, so a refused step refuses the act. The helper
 trial-applies every planned entry through `apply_embargo_change()` before

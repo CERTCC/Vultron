@@ -32,7 +32,11 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.ledger import committed_event_types, fail_commits
+from test.support.ledger import (
+    committed_event_types,
+    fail_commits,
+    ledger_entries,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -40,6 +44,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.embargo.copy_commit import open_embargo_plans
 from vultron.core.behaviors.embargo.expiry_tree import (
     create_commit_and_record_expiry_tree,
 )
@@ -330,6 +335,41 @@ class TestReceivedActivation:
         assert _state(net, MANAGER, OWNER, revision_id) is _S.AGREED
         assert len(_carried_over(net, revision_id)) == 1
 
+    @pytest.mark.spec("CLP-07-015")
+    @pytest.mark.spec("CM-23-016")
+    def test_the_next_embargo_tree_commits_the_carry_over_left_owed(
+        self, monkeypatch
+    ):
+        """The received Accept committed with one of its carry-overs: the
+        next received embargo tree commits the other first (ADR-0146)."""
+        net = LedgerNetwork("https://example.org/cases/ac-received-finish")
+        revision_id = _propose(net, "short", 30)
+        failing = [True]
+        fail_commits(
+            monkeypatch,
+            commit_tree,
+            allowed=1,
+            when=lambda kw: (
+                failing[0]
+                and kw["event_type"] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+            ),
+        )
+        with pytest.raises(VultronBTInternalError, match="ledger commit"):
+            _owner_activates(net, revision_id)
+        failing[0] = False
+        (plan,) = open_embargo_plans(net.stores[MANAGER], net.case_id)
+        since = _count(net)
+
+        _propose(net, "next", 60)
+
+        assert _embargo_entries(net, since)[0] == (
+            UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+        )
+        assert open_embargo_plans(net.stores[MANAGER], net.case_id) == []
+        assert len(_carried_over(net, revision_id)) == 2
+        assert plan.act_event_type is None  # intake's Accept, by its id
+        _assert_replicas_match(net, (OWNER, BYSTANDER))
+
 
 # -- the received owner's rejection -----------------------------------------
 
@@ -510,6 +550,49 @@ class TestTriggerActivation:
         _manager_activates(net)
         assert net.case(MANAGER).active_embargo_id == revision_id
 
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_failed_carry_over_is_finished_by_the_next_trigger(
+        self, monkeypatch
+    ):
+        """The plan names the Accept the trigger built before its commit, so
+        the owed carry-over keeps its cause; the next embargo trigger
+        commits it first (ADR-0146)."""
+        net = _managing_owner("https://example.org/cases/ac-trigger-finish")
+        revision_id = _manager_revises(net, 30)
+        failing = [True]
+        fail_commits(
+            monkeypatch,
+            commit_tree,
+            allowed=1,
+            when=lambda kw: (
+                failing[0]
+                and kw["event_type"] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+            ),
+        )
+        with pytest.raises(VultronBTInternalError, match="ledger commit"):
+            _manager_activates(net)
+        failing[0] = False
+        dl = net.stores[MANAGER]
+        (plan,) = open_embargo_plans(dl, net.case_id)
+        accepts = [
+            e.log_object_id
+            for e in ledger_entries(dl, net.case_id)
+            if e.event_type == EMBARGO_ACTIVATION_EVENT_TYPE
+        ]
+        assert plan.act_id == accepts[-1]
+        assert plan.act_event_type == EMBARGO_ACTIVATION_EVENT_TYPE
+        since = _count(net)
+
+        _manager_revises(net, 60)
+
+        assert _embargo_entries(net, since)[0] == (
+            UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+        )
+        assert open_embargo_plans(dl, net.case_id) == []
+        assert _carried_over(
+            net, revision_id, excluding=frozenset({MANAGER})
+        ) == {PROPOSER, BYSTANDER}
+
 
 # -- an RSVP time-out -------------------------------------------------------
 
@@ -585,6 +668,40 @@ class TestInviteTimeOut:
 
         assert len(failed) == 1
         assert _state(net, MANAGER, BYSTANDER, revision_id) is _S.INVITED
+
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_failed_row_after_the_expiry_ends_the_tree_and_is_finished(
+        self, monkeypatch
+    ):
+        """The expiry committed and its row did not: the decision raises
+        rather than lets a later node read the row, and the next embargo
+        tree commits the ``TIMED_OUT`` row from the plan (ADR-0146)."""
+        net, revision_id = _invited_bystander("ac-timeout-finish")
+        failing = [True]
+        fail_commits(
+            monkeypatch,
+            commit_tree,
+            when=lambda kw: (
+                failing[0]
+                and kw["event_type"] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+            ),
+        )
+
+        assert _expire(net, revision_id).internal_error
+
+        failing[0] = False
+        (plan,) = open_embargo_plans(net.stores[MANAGER], net.case_id)
+        assert plan.act_event_type == INVITE_EXPIRED_EVENT_TYPE
+        assert _state(net, MANAGER, BYSTANDER, revision_id) is _S.INVITED
+        since = _count(net)
+
+        _propose(net, "next", 60)
+
+        assert _embargo_entries(net, since)[0] == (
+            UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+        )
+        assert _state(net, MANAGER, BYSTANDER, revision_id) is _S.TIMED_OUT
+        assert open_embargo_plans(net.stores[MANAGER], net.case_id) == []
 
     @pytest.mark.spec("CM-28-009")
     def test_a_row_no_longer_invited_commits_nothing(self):

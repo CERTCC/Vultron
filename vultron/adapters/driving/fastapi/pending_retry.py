@@ -97,6 +97,9 @@ from vultron.core.behaviors.case.nodes.proposal_ledger import (
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.embargo.nodes.finish_owed import (
+    FinishOwedEmbargoEntriesNode,
+)
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
@@ -380,7 +383,12 @@ def _relay_pending_revision(
     tree = create_case_manager_gated_tree(
         name="RetryCreationTimeRevisionRelay",
         case_id=marker.case_id,
-        children=[RelayCreationTimeRevisionNode(case_id=marker.case_id)],
+        children=[
+            # An embargo act an earlier run left part-way is finished before
+            # the relay reads a consent row (CLP-07-015).
+            FinishOwedEmbargoEntriesNode(case_id=marker.case_id),
+            RelayCreationTimeRevisionNode(case_id=marker.case_id),
+        ],
     )
     bridge = BTBridge(
         datalayer=cast(CasePersistence, dl),

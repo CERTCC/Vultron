@@ -475,8 +475,10 @@ def change_is_in_place(
     step's other moves were saved with it); a consent row is in place when
     the participant holds exactly the carried row.  Reads only *case_file*.
 
-    The CASE_MANAGER does not use this: its trial apply refuses an entry
-    that would change nothing, so it never commits one.
+    The CASE_MANAGER's trial apply refuses an entry that would change
+    nothing, so it never commits one.  It asks this only when it finishes
+    an act a failed commit left open, to skip a change already saved
+    (CLP-07-015).
     """
     case = case_file.case
     if isinstance(change, RegisterStep):

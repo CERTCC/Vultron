@@ -416,9 +416,9 @@ class TestActivationCommitFaults:
 
         assert result.internal_error
         assert "VultronWiringError" in (result.feedback_message or "")
-        # Intake committed the Accept, so its step stands; the row whose
-        # entry never committed is not written (CLP-07-013).
-        assert _case(dl, case.id_).active_embargo_id == revision_id
+        # The miswiring is found before the first write: neither the step
+        # nor the row whose entry never committed is written (CLP-07-013).
+        assert _case(dl, case.id_).active_embargo_id != revision_id
         owner_p = cast(CaseParticipant, dl.read(_owner_pid))
         assert (
             owner_p.consent_for(revision_id) is EmbargoConsentState.UNINVITED

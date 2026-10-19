@@ -40,6 +40,9 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     ungated_emitters,
     ungated_nodes,
 )
+from vultron.core.behaviors.embargo.nodes.finish_owed import (
+    FINISH_OWED_EMBARGO_ENTRIES_NAME,
+)
 from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.replica_emit_exemptions import (
     OFFER_ROLE,
@@ -65,6 +68,7 @@ ADDRESSEE = "ActivityAddressedToReceiverNode"
 CLOCK_GATE = "ClockDecisionsIfCaseManager"
 #: The case-wide clock decision every case tree with a sender guard takes.
 END_TIME = "EmbargoEndTimeDecision"
+FINISH = FINISH_OWED_EMBARGO_ENTRIES_NAME
 
 
 class _Emitter(EmitCapable, py_trees.behaviour.Behaviour):
@@ -761,9 +765,10 @@ class TestClockDecisionStage:
         stage = gate.gated_branch
         assert isinstance(stage, ClockDecisionStage)
         assert all(isinstance(c, ClockDecision) for c in stage.children)
-        # The case-wide end-time decision first, then the tree's own.
-        assert [d.name for d in stage.decisions[:1]] == [END_TIME]
-        assert stage.decisions[1:] == [first, second]
+        # The case-wide decisions first (finishing an open embargo act,
+        # then the end-time check), then the tree's own.
+        assert [d.name for d in stage.decisions[:2]] == [FINISH, END_TIME]
+        assert stage.decisions[2:] == [first, second]
         checks = [
             n
             for n in gate.children[0].iterate()
@@ -846,7 +851,7 @@ class TestClockDecisionStage:
         (stage,) = [
             n for n in tree.iterate() if isinstance(n, ClockDecisionStage)
         ]
-        assert [d.name for d in stage.decisions] == [END_TIME]
+        assert [d.name for d in stage.decisions] == [FINISH, END_TIME]
 
     @pytest.mark.spec("CLP-10-025")
     @pytest.mark.spec("HP-01-006")

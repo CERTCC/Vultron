@@ -27,9 +27,12 @@ the clock or from its policy (CLP-07-013, ADR-0124):
 
 Each decides the row first, trial-applies it, commits the act's entry and
 then the row's, and only then writes the row through the one apply function.
-A commit the ledger refuses leaves the row as it was, and the node fails (it
-does not raise), as the in-tree commit it replaces did; an internal error,
-including a missing consent row, raises (CLP-10-025, ADR-0095).  A replica
+A commit the ledger refuses for the act leaves the row as it was, and the
+node fails (it does not raise), as the in-tree commit it replaces did.  A
+refused row commit after the act's raises: the row is owed, and the next
+CASE_MANAGER embargo run commits it from the stored plan (CLP-07-015).  An
+internal error, including a missing consent row, raises (CLP-10-025,
+ADR-0095).  A replica
 copies the row from its ``Update`` entry through the consent slot; the act's
 entry changes nothing there (``ApplyInviteExpiryFromLedgerNode``,
 ``ApplyHonourLateAcceptFromLedgerNode``).  The trees place both nodes behind
@@ -103,6 +106,7 @@ class _CommitActThenConsentRowNode(
         self._embargo_id = embargo_id
         self._act_object_id = act_object_id
         self._act_snapshot = act_snapshot
+        self._act_committed = False
 
     def _commit_act(self) -> None:
         commit_emitted_activity(
@@ -113,6 +117,7 @@ class _CommitActThenConsentRowNode(
             activity_blob=json.dumps(self._act_snapshot),
             event_type=self._ACT_EVENT_TYPE,
         )
+        self._act_committed = True
 
     def _fail(self, message: str) -> Status:
         self.feedback_message = message
@@ -148,35 +153,44 @@ class _CommitActThenConsentRowNode(
             )
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
-        commit_row = consent_row_entry(
-            datalayer=dl,
-            trigger_activity=self._require_trigger_activity_port(),
-            actor_id=cast(str, self.actor_id),
-            case_id=self._case_id,
-            change=change,
-            cause_id=f"{self._ACT_EVENT_TYPE}:{self._act_object_id}",
-        ).commit
-        assert commit_row is not None  # a consent-row entry always commits
-
-        def _commit() -> None:
-            # One decision, two entries: the act, then the row it changes.
-            self._commit_act()
-            commit_row()
-
+        # One decision, two entries: the act, then the row it changes.  The
+        # row is stored as owed before the act commits, so a failed row
+        # commit is finished by the next CASE_MANAGER embargo run
+        # (CLP-07-015).  The act's object may be the Invite answered, which
+        # other entries name too, so its event type names it as well.
+        entries = [
+            PlannedEmbargoEntry(
+                change=None,
+                commit=self._commit_act,
+                entry_id=self._act_object_id,
+                event_type=self._ACT_EVENT_TYPE,
+            ),
+            consent_row_entry(
+                datalayer=dl,
+                trigger_activity=self._require_trigger_activity_port(),
+                actor_id=cast(str, self.actor_id),
+                case_id=self._case_id,
+                change=change,
+                cause_id=f"{self._ACT_EVENT_TYPE}:{self._act_object_id}",
+            ),
+        ]
+        self._act_committed = False
         try:
-            commit_and_apply_embargo_entries(
-                dl,
-                self._case_id,
-                [PlannedEmbargoEntry(change=change, commit=_commit)],
-            )
+            commit_and_apply_embargo_entries(dl, self._case_id, entries)
         except VultronEntryRefusedError as exc:
             return self._fail(str(exc))
         except NotImplementedError:
             raise  # a stub port is a composition fault, not a refusal
         except RuntimeError as exc:
-            # The ledger refused an entry (commit_emitted_activity): the row
-            # is unwritten, and the decision fails as a guard would, so a
-            # clock-decision stage logs it and goes on (CLP-10-025).
+            if self._act_committed:
+                # The act is recorded and its row is not: the act is left
+                # part-way, so no later node may read the row before the
+                # next run finishes it from the stored plan (CLP-07-015).
+                raise
+            # The ledger refused the act's entry (commit_emitted_activity):
+            # nothing is recorded, the row is unwritten, and the decision
+            # fails as a guard would, so a clock-decision stage logs it and
+            # goes on (CLP-10-025).
             return self._fail(f"the entries did not commit: {exc}")
         self.feedback_message = (
             f"committed '{self._ACT_EVENT_TYPE}' and the {change.row.state}"

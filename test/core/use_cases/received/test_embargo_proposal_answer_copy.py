@@ -29,7 +29,11 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.ledger import committed_event_types, fail_commits
+from test.support.ledger import (
+    committed_event_types,
+    fail_commits,
+    ledger_entries,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -349,8 +353,9 @@ def test_a_row_commit_that_fails_saves_only_what_committed():
 
     The managing owner's proposal commits (its ``PROPOSE`` step is saved,
     and the embargo it names stays stored); the first
-    ``Create(EmbargoConsent)`` fails, so no row is written.  The
-    recovery of the rows is #4764.
+    ``Create(EmbargoConsent)`` fails, so no row is written.  The next
+    CASE_MANAGER embargo tree commits the rows from the stored plan
+    (CLP-07-015, ``test_embargo_consent_copy.py``).
     """
     net = _net("fail-row", owner=MANAGER, em_state=EM.NONE)
 
@@ -723,29 +728,21 @@ def _is_invitee_row_update(kwargs: dict[str, Any]) -> bool:
 
 
 @pytest.mark.spec("CM-11-016")
-@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("CLP-07-015")
 @pytest.mark.parametrize(
-    ("declined_first", "revising"),
-    [(False, False), (True, False), (False, True)],
-    ids=["owed", "answered-meanwhile", "owed-during-revision"],
+    "declined_first", [False, True], ids=["owed", "answered-meanwhile"]
 )
-def test_a_replacement_whose_row_did_not_commit_is_completed_next_run(
-    declined_first, revising
+def test_a_replacement_whose_row_did_not_commit_is_finished_next_run(
+    declined_first,
 ):
     """The replacement committed and its invitee's row did not: the next
-    run of the re-issue commits the row it owes, once, unless the invitee
-    has answered in between.
+    CASE_MANAGER embargo tree commits the row the plan stored, once, before
+    its own act (ADR-0146).
 
-    A revision opened before the next run leaves the embargo the replacement
-    invited to in force (EP-05-002), so the row is still owed (CM-17-002).
+    An invitee answering in between is that next tree: its answer is judged
+    against the row the replacement invited it with.
     """
-    from vultron.adapters.driven.sync_activity_adapter import (
-        SyncActivityAdapter as _Sync,
-    )
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.case.nodes.stub_reissue import (
-        ReissueStubInvitesNode,
-    )
+    from vultron.core.behaviors.embargo.copy_commit import open_embargo_plans
 
     net = _stub_network("reissue-row-retry")
     original_id = _send_stub(net)
@@ -760,61 +757,54 @@ def test_a_replacement_whose_row_did_not_commit_is_completed_next_run(
     replacement = _replacement(net, original_id)
     stale = _invitee_row(net, MANAGER, revision_id)
     assert stale.rsvp_deadline != replacement.end_time
-
     dl = net.stores[MANAGER]
-
-    def _rerun() -> list[str]:
-        return _new_entries(
-            net,
-            lambda: BTBridge(
-                datalayer=dl,
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=_Sync(dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute_with_setup(
-                tree=ReissueStubInvitesNode(case_id=net.case_id),
-                actor_id=MANAGER,
-            ),
-        )
+    (plan,) = open_embargo_plans(dl, net.case_id)
+    assert plan.act_id == replacement.id_
 
     if declined_first:
-        # The invitee answers the relayed embargo Invite first: a row it
-        # answered owes no invitation (ADR-0122).
+        # The invitee answers the relayed embargo Invite: its tree finishes
+        # the replacement's row first, then records the answer (ADR-0122).
         (relayed,) = [
             invite
             for invite in net.queued(MANAGER, to=INVITEE, type_="Invite")
             if getattr(invite.object_, "id_", invite.object_) == revision_id
         ]
-        verdict = net.receive(
-            MANAGER,
-            json.loads(
-                dump_outbound_body(
-                    em_reject_embargo_activity(
-                        cast(as_Invite, dl.read(relayed.id_)),
-                        context=net.case_id,
-                        actor=INVITEE,
-                        to=[MANAGER],
-                    )
+        entries = _new_entries(
+            net,
+            lambda: _assert_applied(
+                net.receive(
+                    MANAGER,
+                    json.loads(
+                        dump_outbound_body(
+                            em_reject_embargo_activity(
+                                cast(as_Invite, dl.read(relayed.id_)),
+                                context=net.case_id,
+                                actor=INVITEE,
+                                to=[MANAGER],
+                            )
+                        )
+                    ),
                 )
             ),
         )
-        assert verdict.disposition is HandlerDisposition.APPLIED, (
-            verdict.reason
-        )
-        assert _rerun() == []
+        assert entries[0] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
         assert _invitee_row(net, MANAGER, revision_id).state is _S.DECLINED
-        return
-
-    if revising:
-        _propose(net, days=60)
-        assert net.case(MANAGER).em_state is EM.REVISE
+    else:
+        entries = _new_entries(net, lambda: _propose(net, days=60))
+        assert entries[0] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
         assert net.case(MANAGER).active_embargo_id == revision_id
+        row = _invitee_row(net, MANAGER, revision_id)
+        assert row.state is _S.INVITED
+        assert row.rsvp_deadline == replacement.end_time
+    (owed,) = plan.entries
+    committed = [e.log_object_id for e in ledger_entries(dl, net.case_id)]
+    assert owed.activity_id is not None
+    assert committed.count(owed.activity_id) == 1, "committed once"
+    assert open_embargo_plans(dl, net.case_id) == []
 
-    assert _rerun() == [UPDATE_EMBARGO_CONSENT_EVENT_TYPE]
-    row = _invitee_row(net, MANAGER, revision_id)
-    assert row.state is _S.INVITED
-    assert row.rsvp_deadline == replacement.end_time
-    assert _rerun() == [], "a completed row is not committed twice"
+
+def _assert_applied(verdict: Any) -> None:
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
 
 
 # ---------------------------------------------------------------------------
@@ -936,7 +926,7 @@ def test_a_received_withdrawal_is_copied_by_every_replica(replica):
 @pytest.mark.spec("CLP-07-013")
 def test_a_received_withdrawal_whose_row_commit_fails_writes_no_row():
     """The Leave is committed at intake; a row commit that fails saves no
-    row it did not commit (#4764 owns the recovery)."""
+    row it did not commit (the next embargo run finishes it, CLP-07-015)."""
     net, revision_id = _bystander_agreed_to_a_revision("withdraw-row-fails")
 
     with pytest.MonkeyPatch.context() as patch:

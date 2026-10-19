@@ -320,6 +320,7 @@ def commit_and_apply_decision(
     actor_id: str,
     cause_id: str,
     act_commit: Callable[[], Any] | None = None,
+    cause_is_act: bool = True,
 ) -> EmbargoCaseFile:
     """Commit the act's entry, then each consent-row entry; apply by copying.
 
@@ -330,6 +331,14 @@ def commit_and_apply_decision(
     derived from it and the row (ID-04-004).  *actor_id* is the executing
     CASE_MANAGER, who authors every consent-row entry.
 
+    *cause_is_act* says *cause_id* is the act's own entry: the one
+    *act_commit* commits, or, with no *act_commit*, one already in the
+    ledger.  The rows are then owed once that entry is committed, and a
+    failed row commit is finished by the next CASE_MANAGER embargo run
+    (CLP-07-015).  ``False`` when the act has no entry but its rows and
+    *cause_id* names what it answers (the CASE_MANAGER's policy consent
+    names the proposal): its first row is then the act's own entry.
+
     Raises:
         VultronEntryRefusedError: the case changed since the decision, and
             the trial refused an entry; nothing was committed or saved.
@@ -339,7 +348,11 @@ def commit_and_apply_decision(
     entries: list[PlannedEmbargoEntry] = []
     if decision.act is not None or act_commit is not None:
         entries.append(
-            PlannedEmbargoEntry(change=decision.act, commit=act_commit)
+            PlannedEmbargoEntry(
+                change=decision.act,
+                commit=act_commit,
+                entry_id=cause_id if cause_is_act else None,
+            )
         )
     entries.extend(
         consent_row_entry(
@@ -353,7 +366,12 @@ def commit_and_apply_decision(
         for row in decision.rows
     )
     return commit_and_apply_embargo_entries(
-        datalayer, decision.case_id, entries
+        datalayer,
+        decision.case_id,
+        entries,
+        committed_act=(
+            cause_id if cause_is_act and act_commit is None else None
+        ),
     )
 
 
@@ -368,13 +386,14 @@ def decide_commit_and_apply(
     step: RegisterStep | None = None,
     answer: ConsentRowChange | None = None,
     act_commit: Callable[[], Any] | None = None,
+    cause_is_act: bool = True,
 ) -> EmbargoDecision:
     """Decide on a staged copy, then commit and apply; return the decision.
 
     :func:`decide_embargo_act` followed by
-    :func:`commit_and_apply_decision`, for a node whose decision and record
-    happen in one tick.  Whatever *decide* raises propagates, and nothing is
-    committed or written.
+    :func:`commit_and_apply_decision` (which documents *cause_is_act*), for
+    a node whose decision and record happen in one tick.  Whatever
+    *decide* raises propagates, and nothing is committed or written.
     """
     decision = decide_embargo_act(datalayer, case_id, decide, step, answer)
     commit_and_apply_decision(
@@ -384,6 +403,7 @@ def decide_commit_and_apply(
         actor_id=actor_id,
         cause_id=cause_id,
         act_commit=act_commit,
+        cause_is_act=cause_is_act,
     )
     return decision
 

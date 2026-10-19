@@ -196,6 +196,9 @@ class RecordManagerEmbargoConsentNode(
             trigger_activity=self._require_trigger_activity_port(),
             actor_id=actor_id,
             cause_id=self._cause_id,
+            # The consent is its row's entry alone; the proposal it answers
+            # is no entry of this act (CLP-07-015).
+            cause_is_act=False,
         )
         self.feedback_message = (
             f"Recorded the manager's own {trigger.name} of embargo"

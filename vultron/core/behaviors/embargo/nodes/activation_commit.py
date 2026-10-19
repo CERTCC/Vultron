@@ -38,10 +38,13 @@ follows the copy model (ADR-0124, #4294):
 
 A commit that fails leaves every change whose entry did not commit unwritten
 (CLP-07-013): with the ``Accept`` unrecorded, the register, EM and the consent
-rows are as they were.
+rows are as they were.  With the ``Accept`` recorded and a carry-over not,
+the carry-overs it owes stay stored, and the next CASE_MANAGER embargo run
+commits them (CLP-07-015).  On the trigger path the ``Accept`` is built
+before the first commit, so the stored carry-overs name it as their cause.
 """
 
-from functools import partial
+from collections.abc import Callable
 from typing import cast
 
 from py_trees.common import Status
@@ -69,7 +72,6 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models.embargo_apply import ConsentRowChange
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import (
@@ -134,38 +136,19 @@ class CommitAndApplyEmbargoActivationNode(
         self._result_out = result_out
         self._builder = builder
         self._event: object | None = None
-        self._accept_id: str | None = None
+        self._decision: ActivationDecision | None = None
 
     def initialise(self) -> None:
         super().initialise()
         self._event = self._try_get_input("activity")
-        self._accept_id = None
+        self._decision = None
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         assert self._builder is not None  # only the trigger path commits
-        activity_id, blob = self._builder(to)
-        self._accept_id = activity_id
-        return activity_id, blob
+        return self._builder(to)
 
-    def _commit_accept(self) -> None:
-        """Queue and commit the ``Accept``: the base frame's ``update()``.
-
-        Raises:
-            BtNodePreconditionError: the frame returned FAILURE (the case
-                vanished after the decision), so the entry did not commit.
-        """
-        if super().update() != Status.SUCCESS:
-            raise BtNodePreconditionError(
-                f"{self.name}: the Accept of embargo '{self._embargo_id}' on"
-                f" case '{self._case_id}' did not commit:"
-                f" {self.feedback_message}"
-            )
-
-    def _cause_id(self) -> str:
-        """The ``Accept`` the carry-over entries follow."""
-        if self._builder is not None:
-            assert self._accept_id is not None  # committed first
-            return self._accept_id
+    def _received_accept_id(self) -> str:
+        """The received ``Accept`` intake committed: the act's own entry."""
         event = self._event
         if not isinstance(event, VultronEvent):
             raise VultronWiringError(
@@ -174,36 +157,68 @@ class CommitAndApplyEmbargoActivationNode(
             )
         return event.activity_id
 
-    def _commit_row(self, change: ConsentRowChange) -> None:
-        commit = consent_row_entry(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer),
-            trigger_activity=self._require_trigger_activity_port(),
-            actor_id=cast(str, self.actor_id),
-            case_id=self._case_id,
-            change=change,
-            cause_id=self._cause_id(),
-        ).commit
-        assert commit is not None  # a consent-row entry always commits
-        commit()
-
     def _planned(
-        self, decision: ActivationDecision
+        self,
+        decision: ActivationDecision,
+        accept_id: str | None,
+        accept: Callable[[], None] | None,
     ) -> list[PlannedEmbargoEntry]:
-        accept = self._commit_accept if self._builder is not None else None
+        """The ``Accept``, the owner's row it states, then each carry-over.
+
+        *accept* queues and commits the ``Accept`` *accept_id*; ``None`` on
+        the received path, where intake committed it.  *accept_id* is
+        ``None`` only for a received ``Accept`` with no carry-over, which
+        names nothing.
+        """
+        dl = cast(CaseOutboxPersistence, self.datalayer)
         return [
-            PlannedEmbargoEntry(change=decision.step, commit=accept),
+            PlannedEmbargoEntry(
+                change=decision.step,
+                commit=accept,
+                entry_id=accept_id,
+                event_type=EMBARGO_ACTIVATION_EVENT_TYPE,
+            ),
             *(
                 [PlannedEmbargoEntry(change=decision.owner_agreement)]
                 if decision.owner_agreement is not None
                 else []
             ),
             *(
-                PlannedEmbargoEntry(
-                    change=row, commit=partial(self._commit_row, row)
+                consent_row_entry(
+                    datalayer=dl,
+                    trigger_activity=self._require_trigger_activity_port(),
+                    actor_id=cast(str, self.actor_id),
+                    case_id=self._case_id,
+                    change=row,
+                    cause_id=cast(str, accept_id),
                 )
                 for row in decision.carry_overs
             ),
         ]
+
+    def _commit_and_apply(
+        self,
+        decision: ActivationDecision,
+        accept_id: str | None,
+        accept: Callable[[], None] | None,
+    ) -> None:
+        # The helper trial-applies every entry before the first commit, so
+        # a refused step commits nothing, and stores the carry-overs it owes
+        # before the first commit (CLP-07-015).  A commit that fails raises
+        # past this: it is not a refusal (BT-14-001).
+        commit_and_apply_embargo_entries(
+            cast(CaseOutboxPersistence, self.datalayer),
+            self._case_id,
+            self._planned(decision, accept_id, accept),
+            committed_act=accept_id if accept is None else None,
+        )
+
+    def _record(
+        self, activity_id: str, send_and_commit: Callable[[], None]
+    ) -> None:
+        """Commit the built ``Accept``, then its carry-overs; apply them."""
+        assert self._decision is not None  # set by update() before the frame
+        self._commit_and_apply(self._decision, activity_id, send_and_commit)
 
     def _refuse(self, exc: VultronError) -> Status:
         self._result_out["error"] = exc
@@ -220,12 +235,25 @@ class CommitAndApplyEmbargoActivationNode(
             decision = EmbargoLifecycle(persistence=dl).decide_activation(
                 before, self._embargo_id
             )
-            # The helper trial-applies every entry before the first commit,
-            # so a refused step commits nothing.  A commit that fails raises
-            # past this: it is not a refusal (BT-14-001).
-            commit_and_apply_embargo_entries(
-                dl, self._case_id, self._planned(decision)
-            )
+            if self._builder is None:
+                # The carry-overs follow the received Accept, so they need
+                # its id; with none, the act names nothing.
+                received_id = (
+                    self._received_accept_id()
+                    if decision.carry_overs
+                    else None
+                )
+                self._commit_and_apply(decision, received_id, None)
+            else:
+                # The base frame builds the Accept, so its id is known
+                # before the first commit, then hands it to ``_record``.
+                self._decision = decision
+                if super().update() != Status.SUCCESS:
+                    raise BtNodePreconditionError(
+                        f"{self.name}: the Accept of embargo"
+                        f" '{self._embargo_id}' on case '{self._case_id}'"
+                        f" did not commit: {self.feedback_message}"
+                    )
         except VultronWiringError:
             raise  # a composition fault, never a refusal (ARCH-15-001)
         except VultronError as exc:

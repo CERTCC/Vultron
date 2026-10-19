@@ -77,6 +77,18 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "report_id": f"{_URI}/report",
         "case_actor_id": f"{_URI}/manager",
     },
+    "PendingEmbargoEntries": {
+        "case_id": f"{_URI}/case",
+        "act_id": f"{_URI}/act",
+        "author_id": f"{_URI}/manager",
+        "entries": [
+            {
+                "activity_id": f"{_URI}/row-entry",
+                "event_type": "update_embargo_consent",
+                "activity_json": "{}",
+            }
+        ],
+    },
     "PendingInlineObjects": {"activity_id": _URI, "rows_json": "[]"},
     "ReceivedActivityRecord": {
         "activity_id": f"{_URI}/a-1",

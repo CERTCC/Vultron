@@ -54,6 +54,9 @@ from vultron.core.behaviors.case.nodes.clock_decision_stage import (
 from vultron.core.behaviors.embargo.embargo_clock_decisions import (
     embargo_clock_decisions,
 )
+from vultron.core.behaviors.embargo.nodes.finish_owed import (
+    FinishOwedEmbargoEntriesNode,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.pending_assertion import (
     ASSERTED_ACTIVITY_KEY,
@@ -421,9 +424,14 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
         case-wide decisions, as terminate-embargo does: the sweep never
         pre-empts what the trigger answers for.  The stage runs only on the
         actor holding ``CVDRole.CASE_MANAGER``; elsewhere it is skipped.
+
+        Every embargo trigger finishes an act a failed commit left part-way
+        first (CLP-07-015): the case-wide decisions start with that step, and
+        a trigger that opts out of them takes it alone.
         """
+        case_wide = super()._clock_decisions(case_id)
         return [
-            *super()._clock_decisions(case_id),
+            *(case_wide or [FinishOwedEmbargoEntriesNode(case_id=case_id)]),
             *embargo_clock_decisions(case_id),
         ]
 

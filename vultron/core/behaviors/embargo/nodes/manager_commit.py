@@ -207,8 +207,9 @@ class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
             super()._record(activity_id, _commit_act)
         finally:
             # Once the proposal's own entry is committed, the embargo it
-            # names is case data: a later row commit that fails (#4764)
-            # leaves it stored.
+            # names is case data: a later row commit that fails leaves it
+            # stored, and the next embargo run commits the rows owed
+            # (CLP-07-015).
             if not committed:
                 self._discard_stored()
 

@@ -166,6 +166,9 @@ from vultron.core.behaviors.case.offer_provenance import (
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.embargo.nodes.finish_owed import (
+    FinishOwedEmbargoEntriesNode,
+)
 from vultron.core.behaviors.replica_emit_exemptions import CASE_PROPOSAL
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.behaviors.sender_guard import (
@@ -516,6 +519,9 @@ def create_case_proposal_received_tree(
                 offer_id=offer_id,
                 offer_actor_id=offer_actor_id,
             ),
+            # A redelivery first finishes an embargo act an earlier run left
+            # part-way, before the relay reads a consent row (CLP-07-015).
+            FinishOwedEmbargoEntriesNode(),
             # EP-04-011: relay the shortest-wins loser that step 6 recorded,
             # only now that initialization is complete (CM-14-007).
             RelayCreationTimeRevisionNode(actor_config=actor_config),

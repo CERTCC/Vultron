@@ -318,7 +318,9 @@ guards, commit, effects.
    and reads only the clock, policy and the case's ledger and file. The
    end-time check is about the case, so the factory adds it to every tree with
    a case and both door guards (`case_clock_decisions`), and a case-scoped
-   trigger runs the same gated stage first in its own tree (BT-15-003). A
+   trigger runs the same gated stage first in its own tree (BT-15-003). The
+   step that finishes a part-way embargo act runs before it there, and raises
+   rather than fails (CLP-07-015). A
    commit the ledger refuses logs a warning and does not end the tree; an
    internal error does. A decision built from CASE_MANAGER commit nodes, which
    raise on a failed commit, must judge the ledger's refusal (a gapped prefix,

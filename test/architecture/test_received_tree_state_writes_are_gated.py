@@ -220,6 +220,9 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "AddOwnerParticipantNode",
             "AddReporterParticipantNode",
             "CreateCaseFromProposalNode",
+            # Finishes an embargo act a failed relay left part-way, before
+            # the relay reads a row (CLP-07-015).
+            "FinishOwedEmbargoEntriesNode",
             "InitializeCreationEmbargoNode",
             "RelayCreationTimeRevisionNode",
             "SeedReporterSignatoryNode",

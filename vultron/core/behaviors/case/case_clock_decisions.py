@@ -32,6 +32,9 @@ import py_trees
 from vultron.core.behaviors.embargo.end_time_tree import (
     end_time_clock_decision,
 )
+from vultron.core.behaviors.embargo.nodes.finish_owed import (
+    FinishOwedEmbargoEntriesNode,
+)
 from vultron.core.models._helpers import now_utc
 
 __all__ = ["case_clock_decisions"]
@@ -46,6 +49,14 @@ def case_clock_decisions(
     from its own clock, never from the received activity (CLP-10-025).
     Ungated: the caller composes them into the gated stage
     (:func:`~vultron.core.behaviors.case.nodes.clock_decision_stage.create_clock_decision_gate`).
+
+    The first finishes any embargo act a failed commit left part-way
+    (CLP-07-015, ADR-0146).  It precedes the end-time check because that
+    check is itself an embargo act: a termination it commits would freeze
+    the consent rows the open act still owes.
     """
     at = now if now is not None else now_utc()
-    return [end_time_clock_decision(case_id=case_id, now=at)]
+    return [
+        FinishOwedEmbargoEntriesNode(case_id=case_id),
+        end_time_clock_decision(case_id=case_id, now=at),
+    ]

@@ -5,6 +5,9 @@ from unittest.mock import MagicMock
 import py_trees.behaviour
 import pytest
 
+from vultron.core.behaviors.embargo.nodes.finish_owed import (
+    FINISH_OWED_EMBARGO_ENTRIES_NAME,
+)
 from vultron.core.models.use_case_result import ActivityResult, OfferResult
 from vultron.core.use_cases.triggers._base import (
     SvcActivityTriggerBase,
@@ -408,7 +411,10 @@ def test_a_case_scoped_trigger_leads_with_the_gated_clock_decisions():
     assert gate.name == CLOCK_DECISION_GATE_NAME
     assert own.name == "own-tree"
     (stage,) = [n for n in gate.iterate() if isinstance(n, ClockDecisionStage)]
-    assert [d.name for d in stage.decisions] == ["EmbargoEndTimeDecision"]
+    assert [d.name for d in stage.decisions] == [
+        FINISH_OWED_EMBARGO_ENTRIES_NAME,
+        "EmbargoEndTimeDecision",
+    ]
 
 
 def _stage_decisions(tree: py_trees.behaviour.Behaviour) -> list[str]:
@@ -439,6 +445,7 @@ def test_an_embargo_trigger_adds_the_overdue_invite_sweep():
     )
 
     assert _stage_decisions(_built_tree(uc)) == [
+        FINISH_OWED_EMBARGO_ENTRIES_NAME,
         "EmbargoEndTimeDecision",
         OVERDUE_INVITES_SWEEP_NAME,
     ]
@@ -448,7 +455,8 @@ def test_an_embargo_trigger_adds_the_overdue_invite_sweep():
 @pytest.mark.spec("BT-15-003")
 def test_terminate_embargo_takes_the_sweep_alone():
     """Terminate-embargo answers for the end-time path itself, so it takes
-    no case-wide decision, but it still sweeps overdue invitations."""
+    no case-wide decision, but it still finishes an open embargo act first
+    (CLP-07-015) and sweeps overdue invitations."""
     from vultron.core.behaviors.embargo.embargo_clock_decisions import (
         OVERDUE_INVITES_SWEEP_NAME,
     )
@@ -460,7 +468,10 @@ def test_terminate_embargo_takes_the_sweep_alone():
         dl=_store_with_case(), request=object()
     )._clock_decisions(_CASE_ID)
 
-    assert [d.name for d in decisions] == [OVERDUE_INVITES_SWEEP_NAME]
+    assert [d.name for d in decisions] == [
+        FINISH_OWED_EMBARGO_ENTRIES_NAME,
+        OVERDUE_INVITES_SWEEP_NAME,
+    ]
 
 
 @pytest.mark.spec("BT-15-003")
