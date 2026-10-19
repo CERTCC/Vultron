@@ -28,9 +28,6 @@ import logging
 from typing import TYPE_CHECKING, ClassVar
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_incomplete_activity_received_tree,
-)
 from vultron.core.behaviors.case.suggest_actor_tree import (
     create_recommendation_answer_received_tree,
 )
@@ -100,17 +97,12 @@ class _RecommendationAnswerReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.target_id
-        if case_id is None:
-            tree = create_incomplete_activity_received_tree(
-                self._TREE_NAME, "the answer names no case"
-            )
-        else:
-            tree = create_recommendation_answer_received_tree(
-                name=self._TREE_NAME,
-                case_id=case_id,
-                sender_id=request.actor_id,
-                sender_rule=self.sender_entitlement,
-            )
+        tree = create_recommendation_answer_received_tree(
+            name=self._TREE_NAME,
+            case_id=case_id,
+            sender_id=request.actor_id,
+            sender_rule=self.sender_entitlement,
+        )
         result = BTBridge(
             datalayer=self._dl,
             wire_render_port=self._wire_render_port,

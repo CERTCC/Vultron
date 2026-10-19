@@ -131,7 +131,12 @@ def _patterns_within(pattern: ActivityPattern) -> list[ActivityPattern]:
     """*pattern* and every pattern nested in its discriminator fields."""
     nested = [
         value
-        for value in (pattern.object_, pattern.target_, pattern.context_)
+        for value in (
+            pattern.to_,
+            pattern.object_,
+            pattern.target_,
+            pattern.context_,
+        )
         if isinstance(value, ActivityPattern)
     ]
     return [pattern, *(p for n in nested for p in _patterns_within(n))]

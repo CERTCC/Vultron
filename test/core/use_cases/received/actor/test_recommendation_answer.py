@@ -90,7 +90,11 @@ _SEMANTICS = {
 }
 
 
-def _answer(verb: Verb, sender_id: str = CASE_ACTOR_ID) -> as_Activity:
+def _answer(
+    verb: Verb,
+    sender_id: str = CASE_ACTOR_ID,
+    to: list[str] | None = None,
+) -> as_Activity:
     """The answer as the CASE_MANAGER's adapter builds it (CM-16-006/007)."""
     builder = TriggerActivityAdapter(
         SqliteDataLayer("sqlite:///:memory:", actor_id=sender_id)
@@ -106,12 +110,17 @@ def _answer(verb: Verb, sender_id: str = CASE_ACTOR_ID) -> as_Activity:
         recommended_id=RECOMMENDED_ID,
         case_id=CASE_ID,
         actor=sender_id,
+        to=to,
     )
     return parse_activity(json.loads(body))
 
 
-def _event(verb: Verb, sender_id: str = CASE_ACTOR_ID) -> AnswerEvent:
-    event = extract_event(_answer(verb, sender_id))
+def _event(
+    verb: Verb,
+    sender_id: str = CASE_ACTOR_ID,
+    to: list[str] | None = None,
+) -> AnswerEvent:
+    event = extract_event(_answer(verb, sender_id, to))
     assert event.semantic_type is _SEMANTICS[verb]
     return cast(AnswerEvent, event)
 
@@ -219,3 +228,25 @@ def test_answer_naming_no_case_is_archived_and_refused(verb: Verb):
     assert result.disposition is HandlerDisposition.REFUSED
     assert "names no case" in (result.reason or "")
     assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
+
+
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.parametrize("verb", ["accept", "reject"])
+def test_case_manager_refuses_an_answer_addressed_to_itself(verb: Verb):
+    """The rule names no sender at the CASE_MANAGER, so it refuses its own."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
+    case = as_VulnerabilityCase(
+        id_=CASE_ID,
+        name="RecommendationAnswerTest",
+        attributed_to=CASE_OWNER_ID,
+    )
+    seed_case_manager_participant(dl, case, CASE_ACTOR_ID)
+    dl.create(as_Actor(id_=CASE_ACTOR_ID))  # type: ignore[arg-type]
+    dl.create(case)
+
+    result = _run(dl, verb, _event(verb, to=[CASE_ACTOR_ID]))
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "No sender is entitled" in (result.reason or "")
+    assert dl.list_objects("CaseLedgerEntry") == []
+    assert dl.outbox_list() == []
