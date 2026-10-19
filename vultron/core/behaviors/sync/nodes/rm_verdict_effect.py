@@ -25,7 +25,7 @@ to.  The CASE_MANAGER records the move on the *sender's* participant
 participant replica, so the replica's view of the sender converges without the
 act reaching it directly (PCR-03-001).
 
-:data:`RM_VERDICT_TARGETS` names the RM state each event type records.
+:data:`RM_VERDICT_TARGETS` names the RM state each semantic type records.
 :class:`IsRmVerdictEventNode` matches any of them and
 :class:`ApplyRmVerdictFromLedgerNode` applies the one the entry names, in one
 ``RmVerdict`` slot of ``AnnounceLogEntryReceivedBT``.
@@ -96,7 +96,7 @@ RM_VERDICT_TARGETS: Final = MappingProxyType(
 class IsRmVerdictEventNode(_ActivityEventNode):
     """Precondition: this entry records an activity-typed RM move.
 
-    SUCCESS when the entry's ``event_type`` is a key of
+    SUCCESS when the entry's ``semantic_type`` is a key of
     :data:`RM_VERDICT_TARGETS`.  Used in the ``RmVerdict`` slot of
     ``AnnounceLogEntryReceivedBT``.
 
@@ -105,7 +105,7 @@ class IsRmVerdictEventNode(_ActivityEventNode):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type in RM_VERDICT_TARGETS:
+        if entry.semantic_type in RM_VERDICT_TARGETS:
             return Status.SUCCESS
         return Status.FAILURE
 
@@ -150,8 +150,10 @@ class ApplyRmVerdictFromLedgerNode(_LedgerEffectNode):
             if states is None:
                 return Status.FAILURE
             (local_rm,) = states
-        target = RM_VERDICT_TARGETS[entry.event_type]
-        if not self._advances(entry.event_type, subject_id, local_rm, target):
+        target = RM_VERDICT_TARGETS[entry.semantic_type]
+        if not self._advances(
+            entry.semantic_type, subject_id, local_rm, target
+        ):
             return Status.SUCCESS
         status = self._next_status(entry, subject_id, current, target)
         if status is None:
@@ -164,7 +166,7 @@ class ApplyRmVerdictFromLedgerNode(_LedgerEffectNode):
             "%s: replayed '%s' — participant '%s' rm %s → %s in case '%s'"
             " (RSH-08-004)",
             self.name,
-            entry.event_type,
+            entry.semantic_type,
             subject_id,
             local_rm,
             target,
@@ -200,7 +202,11 @@ class ApplyRmVerdictFromLedgerNode(_LedgerEffectNode):
         return None
 
     def _advances(
-        self, event_type: str, subject_id: str, local_rm: RM | None, target: RM
+        self,
+        semantic_type: str,
+        subject_id: str,
+        local_rm: RM | None,
+        target: RM,
     ) -> bool:
         """False for a same-state re-delivery or a backward move (RSH-05-007)."""
         if local_rm == target:
@@ -216,7 +222,7 @@ class ApplyRmVerdictFromLedgerNode(_LedgerEffectNode):
                 "%s: '%s' entry would regress participant '%s' from rm=%s to"
                 " rm=%s — carrying the local value forward (RSH-05-007)",
                 self.name,
-                event_type,
+                semantic_type,
                 subject_id,
                 local_rm,
                 target,
@@ -248,7 +254,7 @@ class ApplyRmVerdictFromLedgerNode(_LedgerEffectNode):
                 "%s: '%s' entry would give participant '%s' an impossible"
                 " composite state: %s — refusing to apply (CSB-18-001)",
                 self.name,
-                entry.event_type,
+                entry.semantic_type,
                 subject_id,
                 self.feedback_message,
             )

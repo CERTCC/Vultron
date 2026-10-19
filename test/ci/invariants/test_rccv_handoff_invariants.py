@@ -32,16 +32,16 @@ from __future__ import annotations
 import pytest
 
 from test.ci.invariants.common import (
-    check_event_type_count,
     check_late_joiner_has_full_history,
+    check_semantic_type_count,
     load_devlogs,
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 
 _DEMO_NAME = "rccv-handoff"
 
-#: Expected protocol eventTypes in a complete RCCV-handoff run.
-_RCCV_HANDOFF_EXPECTED_EVENT_TYPES = [
+#: Expected protocol semanticTypes in a complete RCCV-handoff run.
+_RCCV_HANDOFF_EXPECTED_SEMANTIC_TYPES = [
     pytest.param("validate_report", id="validate_report"),
     pytest.param(
         "add_participant_status_to_participant",
@@ -96,7 +96,7 @@ globals().update(
     make_universal_invariant_tests(
         replicas_fixture="rccv_handoff_replicas",
         chain_actors=_CHAIN_ACTORS,
-        expected_event_types=_RCCV_HANDOFF_EXPECTED_EVENT_TYPES,
+        expected_semantic_types=_RCCV_HANDOFF_EXPECTED_SEMANTIC_TYPES,
         narrative_path="docs/topics/scenarios/rccv-handoff.md",
         joined_invitees=2,
     )
@@ -117,7 +117,7 @@ def test_rccv_handoff_invite_actor_to_case_at_least_twice(
     C1 invites C2; then C2 (the new CASE_OWNER after the ownership handoff)
     invites Vendor.
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rccv_handoff_replicas, "invite_actor_to_case", min_count=2
     )
     assert not violations, violations[0] if violations else ""
@@ -132,7 +132,7 @@ def test_rccv_handoff_accept_invite_at_least_twice(
     C2 accepts C1's invitation and Vendor accepts C2's invitation — both
     mid-case joins land in the canonical ledger (PCR-08-008).
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rccv_handoff_replicas, "accept_invite_actor_to_case", min_count=2
     )
     assert not violations, violations[0] if violations else ""
@@ -155,12 +155,12 @@ def test_rccv_handoff_accept_ownership_transfer_hash_agreement(
         actor: [
             e
             for e in entries
-            if e.get("eventType", e.get("event_type", ""))
+            if e.get("semanticType", e.get("semantic_type", ""))
             == "accept_case_ownership_transfer"
         ]
         for actor, entries in rccv_handoff_replicas.items()
     }
-    # Only check actors that have at least one entry for this event type.
+    # Only check actors that have at least one entry for this semantic type.
     actors_with_entry = {
         actor: entries
         for actor, entries in transfer_entries.items()

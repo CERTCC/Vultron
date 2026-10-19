@@ -222,7 +222,7 @@ def _receipt_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
     return [
         e
         for e in _ledger_entries(dl)
-        if e.event_type == "add_participant_status_to_participant"
+        if e.semantic_type == "add_participant_status_to_participant"
     ]
 
 
@@ -741,7 +741,7 @@ def _status_snapshot_entry(rm_state: str, vf_state: str) -> CaseLedgerEntry:
             case_id=CASE_ID,
             log_index=0,
             object_id="https://example.org/activities/add-status-2235",
-            event_type="add_participant_status_to_participant",
+            semantic_type="add_participant_status_to_participant",
             payload_snapshot={
                 "object": {
                     "id": ASSERTED_STATUS_ID,

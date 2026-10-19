@@ -201,7 +201,7 @@ class AnnounceLedgerEntryReceivedUseCase:
 
     When *pending_assertions* is provided (or resolved from the per-actor
     registry), clears the matching pending assertion on receipt so that
-    future emits for the same ``(case_id, event_type, log_object_id)``
+    future emits for the same ``(case_id, semantic_type, log_object_id)``
     triple are no longer suppressed (SYNC-11-003).
 
     Out-of-order delivery is tolerated: a received entry whose predecessor has
@@ -318,7 +318,7 @@ class AnnounceLedgerEntryReceivedUseCase:
         if store is not None:
             store.clear(
                 entry.case_id,
-                entry.event_type,
+                entry.semantic_type,
                 entry.log_object_id,
             )
         return verdict

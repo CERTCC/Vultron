@@ -16,7 +16,7 @@
 Covers, against a real in-memory store (``notes/triggers-test-coverage.md``):
 
 - the state mutation: a canonical ``CaseLedgerEntry`` is minted at index 0
-  with the caller's ``event_type`` verbatim, and the typed result carries its
+  with the caller's ``semantic_type`` verbatim, and the typed result carries its
   id, hash and index;
 - the outbox effect: the entry is fanned out to the case's other participant
   through the injected ``sync_port`` (SYNC-02-002);
@@ -126,7 +126,7 @@ def test_commits_a_canonical_entry_and_returns_its_identity(actor_and_dl):
             actor_id=actor.id_,
             case_id=case.id_,
             object_id=case.id_,
-            event_type="sync_test_event",
+            semantic_type="sync_test_event",
         ),
     )
 
@@ -136,7 +136,7 @@ def test_commits_a_canonical_entry_and_returns_its_identity(actor_and_dl):
     entry = dl.read(result.log_entry_id)
     assert isinstance(entry, CaseLedgerEntry)
     assert entry.case_id == case.id_
-    assert entry.event_type == "sync_test_event"
+    assert entry.semantic_type == "sync_test_event"
     assert entry.entry_hash == result.entry_hash
     assert entry.log_object_id == case.id_
 
@@ -154,7 +154,7 @@ def test_fans_the_entry_out_to_the_peer_participant(actor_and_dl):
             actor_id=actor.id_,
             case_id=case.id_,
             object_id=case.id_,
-            event_type="sync_fanout",
+            semantic_type="sync_fanout",
         ),
     )
 
@@ -186,7 +186,7 @@ def test_the_entry_is_the_case_managers_factory_built_announce(actor_and_dl):
             actor_id=actor.id_,
             case_id=case.id_,
             object_id=case.id_,
-            event_type="sync_shape",
+            semantic_type="sync_shape",
         ),
     )
 
@@ -208,7 +208,7 @@ def test_a_repeated_request_commits_one_entry(actor_and_dl):
         actor_id=actor.id_,
         case_id=case.id_,
         object_id=case.id_,
-        event_type="sync_twice",
+        semantic_type="sync_twice",
     )
 
     first = _run(dl, request)
@@ -227,7 +227,7 @@ def test_unknown_requester_is_not_found(actor_and_dl):
                 actor_id="https://example.org/actors/nobody",
                 case_id=case.id_,
                 object_id=case.id_,
-                event_type="x",
+                semantic_type="x",
             ),
         )
 
@@ -268,7 +268,7 @@ def test_single_container_commit_lands_in_the_case_managers_store(
                 actor_id=requester.id_,
                 case_id=case.id_,
                 object_id=case.id_,
-                event_type="single_container",
+                semantic_type="single_container",
             ),
         )
 
@@ -301,7 +301,7 @@ def test_store_without_the_canonical_log_refuses_before_any_tree(
                 actor_id=actor.id_,
                 case_id=case.id_,
                 object_id=case.id_,
-                event_type="foreign",
+                semantic_type="foreign",
             ),
         )
     assert not any(

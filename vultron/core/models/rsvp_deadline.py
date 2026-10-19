@@ -41,8 +41,8 @@ DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
 DEFAULT_RSVP_WINDOW = timedelta(days=7)
 """Default policy RSVP window when an invite names no deadline (EP-07-001)."""
 
-INVITE_EXPIRED_EVENT_TYPE = "invite_to_embargo_on_case_expired"
-"""Ledger ``event_type`` of the CASE_MANAGER's invite-expiry entry (CM-28-009).
+INVITE_EXPIRED_SEMANTIC_TYPE = "invite_to_embargo_on_case_expired"
+"""Ledger ``semantic_type`` of the CASE_MANAGER's invite-expiry entry (CM-28-009).
 
 The entry records ``PEC_Trigger.TIME_OUT`` (``INVITED → TIMED_OUT``) on the
 invitee's row for that invitation's embargo, distinct from
@@ -60,8 +60,8 @@ expiry (CM-28-009), an ``Offer`` for the ownership-transfer Offer expiry
 INVITE_EXPIRED_SNAPSHOT_TYPE = EXPIRE_SNAPSHOT_TYPE
 """``payloadSnapshot.type`` of the invite-expiry entry; its object is the Invite."""
 
-INVITE_EXPIRED_NOOP_EVENT_TYPE = "invite_to_embargo_on_case_expired_noop"
-"""Ledger ``event_type`` for the CASE_MANAGER's no-op acknowledgement of a late Accept.
+INVITE_EXPIRED_NOOP_SEMANTIC_TYPE = "invite_to_embargo_on_case_expired_noop"
+"""Ledger ``semantic_type`` for the CASE_MANAGER's no-op acknowledgement of a late Accept.
 
 Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives after the embargo
 has EXITED or when no embargo has started (EM NONE).  Its snapshot is the
@@ -71,8 +71,10 @@ transition is applied (EMB-17-004, ADR-0118); replicas replay the entry via
 which recognises it and returns SUCCESS without touching any participant record.
 """
 
-HONOUR_LATE_ACCEPT_EVENT_TYPE = "honour_late_accept_invite_to_embargo_on_case"
-"""Ledger ``event_type`` for the CASE_MANAGER's honouring of a late Accept.
+HONOUR_LATE_ACCEPT_SEMANTIC_TYPE = (
+    "honour_late_accept_invite_to_embargo_on_case"
+)
+"""Ledger ``semantic_type`` for the CASE_MANAGER's honouring of a late Accept.
 
 Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives and the
 embargo is still active and matching (EMB-17-001, ADR-0118).  The CASE_MANAGER
@@ -85,15 +87,15 @@ advancement via
 HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE = "HonourLateAccept"
 """``payloadSnapshot.type`` of the honour-late-accept entry (EMB-17-001)."""
 
-EMBARGO_REINVITE_EVENT_TYPE = "invite_to_embargo_on_case_reinvite"
-"""Ledger ``event_type`` of the CASE_MANAGER's EMB-17-003 re-invite.
+EMBARGO_REINVITE_SEMANTIC_TYPE = "invite_to_embargo_on_case_reinvite"
+"""Ledger ``semantic_type`` of the CASE_MANAGER's EMB-17-003 re-invite.
 
 Committed when a late ``Accept`` names an embargo that is no longer the case's
 current one and the manager asks the accepter again, with a fresh RSVP deadline
 (ASK-03-004, CM-28-012).  The snapshot is the ``Invite(EmbargoEvent)`` the wire
 carries, but it has no proposer: its ``attributedTo`` is absent, so the
 relayed-Invite classifier would read it as a *proposal* and a replica would move
-EM state for an embargo that is already current.  An event type of its own gets a
+EM state for an embargo that is already current.  A semantic type of its own gets a
 replay slot that records only the invitee's PEC ``INVITE`` and deadline
 (CM-28-013, EP-09-007, RSH-08-004), as the manager's abandonment entry does.
 """
@@ -190,11 +192,11 @@ def resolve_rsvp_deadline(
 __all__ = [
     "DEFAULT_MIN_RSVP_WINDOW",
     "DEFAULT_RSVP_WINDOW",
-    "HONOUR_LATE_ACCEPT_EVENT_TYPE",
+    "HONOUR_LATE_ACCEPT_SEMANTIC_TYPE",
     "HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE",
     "EXPIRE_SNAPSHOT_TYPE",
-    "INVITE_EXPIRED_EVENT_TYPE",
-    "INVITE_EXPIRED_NOOP_EVENT_TYPE",
+    "INVITE_EXPIRED_SEMANTIC_TYPE",
+    "INVITE_EXPIRED_NOOP_SEMANTIC_TYPE",
     "INVITE_EXPIRED_SNAPSHOT_TYPE",
     "RsvpDeadline",
     "RsvpDeadlineClamp",

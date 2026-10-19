@@ -5,7 +5,7 @@ negotiation: the proposal it received, each ``Invite(EmbargoEvent)`` it relays
 to a participant, and each participant's ``Accept`` or ``Reject`` of its
 Invite — the case owner's included, which is the owner's consent (ADR-0122).
 The re-invite of a late accepter whose embargo went stale (EMB-17-003) has an
-event type of its own, and so has the owner's decision on a proposal
+semantic type of its own, and so has the owner's decision on a proposal
 (``activation_effect.py``).  A participant replica writes none
 of that state when the activity reaches it directly (EP-09-003, RSH-08-003); it
 copies the state from the ``Announce(CaseLedgerEntry)`` broadcast through
@@ -101,7 +101,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         embargo_id = _extract_id_from_field(embargo_data)
         if not embargo_id:
             self.feedback_message = (
-                f"'{entry.event_type}' entry on case '{entry.case_id}' names"
+                f"'{entry.semantic_type}' entry on case '{entry.case_id}' names"
                 " no embargo"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
@@ -182,7 +182,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         case, embargo_id = resolved
         entry = self._get_entry()
         self.feedback_message = (
-            f"'{entry.event_type}' entry '{entry.id_}' of embargo"
+            f"'{entry.semantic_type}' entry '{entry.id_}' of embargo"
             f" '{embargo_id}' on case '{case.id_}': each consent row it"
             " changes follows as its own entry"
         )

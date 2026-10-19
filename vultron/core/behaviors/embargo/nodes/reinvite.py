@@ -18,7 +18,7 @@
 A late ``Accept`` names an embargo that is no longer the case's current one,
 so the manager asks the accepter again about the current embargo.  The frame is
 the relay's (:class:`~vultron.core.behaviors.embargo.nodes.relay.RelayEmbargoInviteToEachNode`),
-narrowed to one fixed recipient and committed under an event type of its own.
+narrowed to one fixed recipient and committed under a semantic type of its own.
 """
 
 from typing import TYPE_CHECKING
@@ -35,7 +35,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_EVENT_TYPE
+from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_SEMANTIC_TYPE
 from vultron.core.participants.recipients import invitation_recipients
 from vultron.errors import VultronNotFoundError
 
@@ -53,7 +53,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     ``INVITE`` and record the deadline (CM-18-003, CM-28-013) — with two
     differences: the Invite is the manager's own ask, so it has no
     ``attributedTo``, and it is committed under
-    :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_EVENT_TYPE`, so
+    :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_SEMANTIC_TYPE`, so
     a replica replays the invitee's record and never re-adjudicates a proposal
     (EP-09-007, RSH-08-004).  The recipient and embargo are fixed at
     construction; the collect node and the recipients key are not used.
@@ -68,7 +68,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
     node succeeds without an Invite (CM-31-013, ADR-0116).
     """
 
-    _EVENT_TYPE = EMBARGO_REINVITE_EVENT_TYPE
+    _SEMANTIC_TYPE = EMBARGO_REINVITE_SEMANTIC_TYPE
 
     def __init__(
         self,
@@ -201,7 +201,7 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
     accepted stays inert, so the CASE_MANAGER asks it (CM-31-013, ADR-0116):
     the same one-recipient Invite as the EMB-17-003 re-invite, the manager's
     own ask about the embargo in force, committed under
-    :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_EVENT_TYPE`.
+    :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_SEMANTIC_TYPE`.
     Its CM-10-006 backfill waits for its consent: the honored ``Accept``
     admits it, and that tree backfills it.
 

@@ -43,12 +43,6 @@ from vultron.demo.scenario.registry import (
     is_scenario_name,
 )
 from vultron.metadata.base import mkdocs_config, nav_paths
-from vultron.metadata.demo_scenarios.event_types import (
-    UNIVERSAL_EVENT_TYPES,
-    HarnessEventTypeError,
-    additional_event_types,
-    harness_event_types,
-)
 from vultron.metadata.demo_scenarios.narrative_pages import (
     NARRATIVE_DIR,
     NARRATIVE_INDEX,
@@ -57,8 +51,8 @@ from vultron.metadata.demo_scenarios.prose_checks import (
     SCENARIO_TABLE_CONSUMERS,
     SCENARIO_TABLES,
     consistency_problems,
-    missing_event_type_requirements,
     missing_narrative_nav_entries,
+    missing_semantic_type_requirements,
     narrative_status_claims,
     restated_counts,
     scenario_set_statement_problems,
@@ -69,9 +63,15 @@ from vultron.metadata.demo_scenarios.prose_checks import (
 from vultron.metadata.demo_scenarios.scenario_groups import (
     PLANNED_REGISTER,
     partition_problems,
-    per_scenario_event_type_requirements,
+    per_scenario_semantic_type_requirements,
     planned_scenarios,
     scenario_spec_groups,
+)
+from vultron.metadata.demo_scenarios.semantic_types import (
+    UNIVERSAL_SEMANTIC_TYPES,
+    HarnessSemanticTypeError,
+    additional_semantic_types,
+    harness_semantic_types,
 )
 from vultron.metadata.markdown_tables import (
     iter_sections,
@@ -118,7 +118,7 @@ def prose_root(tmp_path: Path) -> Path:
     paths.add("mkdocs.yml")
     # Each scenario's invariant harness, because the tick matrix and the
     # ``Additional required`` column are ratcheted against its
-    # ``_XXX_EXPECTED_EVENT_TYPES`` constant. Without them ``harness_event_types``
+    # ``_XXX_EXPECTED_SEMANTIC_TYPES`` constant. Without them ``harness_semantic_types``
     # finds no file, returns ``None``, and both checks skip every row — so a
     # fixture missing them would make those mutations look unreported.
     paths.update(spec.harness_path for spec in discover_scenarios())
@@ -359,9 +359,9 @@ def test_scenario_spec_groups_rejects_a_duplicated_scenario(
 # ---------------------------------------------------------------------------
 
 
-def test_every_registered_scenario_has_an_event_type_requirement() -> None:
+def test_every_registered_scenario_has_an_semantic_type_requirement() -> None:
     """Each registered scenario has its own DEMOMA-16 requirement."""
-    missing = missing_event_type_requirements()
+    missing = missing_semantic_type_requirements()
     assert not missing, (
         f"registered scenarios with no per-scenario DEMOMA-16 requirement: "
         f"{missing} (DEMOCI-11-007)"
@@ -379,11 +379,11 @@ def test_non_per_scenario_requirements_are_not_selected(spec_id: str) -> None:
     (DEMOMA-16-008 sits inside the apparent span, -012 and -013 immediately
     after it) and DEMOCI-11-007 warns specifically against that. -001 states the
     universal types; -008 is the spec-to-test sync rule; -012 and -013 are RCVCV
-    event *counts*, not an expected-event-types list.
+    event *counts*, not an expected-semantic-types list.
     """
     selected = {
         requirement
-        for requirements in per_scenario_event_type_requirements().values()
+        for requirements in per_scenario_semantic_type_requirements().values()
         for requirement in requirements
     }
     assert spec_id not in selected
@@ -396,7 +396,7 @@ def test_per_scenario_requirements_cover_the_unbuilt_scenarios() -> None:
     which is the blind spot that let a ``vc`` row sit in a table of available
     demos with a spec group, a tracking issue and no implementation.
     """
-    mapping = per_scenario_event_type_requirements()
+    mapping = per_scenario_semantic_type_requirements()
     assert mapping["rcvd"] == ("DEMOMA-16-014",)
     assert mapping["vc"] == ("DEMOMA-16-015",)
 
@@ -769,7 +769,7 @@ def test_scenario_table_check_reports_a_wrong_pr_set_mark(
         "the RCVCV 5-Party Scenario involves five actors",
         "a two-actor baseline",
         "one scenario per matrix entry",
-        "the DEMOMA-16 scenario event types are per-scenario",
+        "the DEMOMA-16 scenario semantic types are per-scenario",
         "see ADR-0098 scenarios for the rationale",
     ],
 )
@@ -1055,17 +1055,17 @@ def test_column_raises_key_error_naming_the_columns_it_found() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_event_type_requirement_check_reports_an_unspecified_scenario() -> (
+def test_semantic_type_requirement_check_reports_an_unspecified_scenario() -> (
     None
 ):
-    """``missing_event_type_requirements`` can be made to fire.
+    """``missing_semantic_type_requirements`` can be made to fire.
 
     Without this the check was inert-by-construction: stubbing the function to
     return nothing left the whole suite green, so the DEMOCI-11-007 requirement
     that every registered scenario has a per-scenario DEMOMA-16 entry was
     enforced by a function nothing could falsify.
     """
-    missing = missing_event_type_requirements(specs=(_FAKE,))
+    missing = missing_semantic_type_requirements(specs=(_FAKE,))
     assert missing == [_FAKE.name]
 
 
@@ -1219,7 +1219,7 @@ def _mutate_planned_register(root: Path) -> str:
 
 
 def _mutate_tick(root: Path) -> str:
-    """Tick an event type the scenario's harness constant does not require."""
+    """Tick a semantic type the scenario's harness constant does not require."""
     target = root / "notes/demo-ci-scenario-coverage.md"
     text = target.read_text()
     old = "| rv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |"
@@ -1432,63 +1432,66 @@ def test_is_scenario_name_rejects_everything_else(name: str) -> None:
     assert not is_scenario_name(name)
 
 
-def test_harness_event_types_reads_the_pytest_param_form() -> None:
+def test_harness_semantic_types_reads_the_pytest_param_form() -> None:
     """The constant is read by AST, including the ``pytest.param`` wrapper.
 
     Read without importing so ``demo-scenarios --check`` — a pre-commit hook —
     does not execute nine test modules to answer a documentation question.
     """
     spec = next(s for s in discover_scenarios() if s.name == "rv")
-    types = harness_event_types(spec, _REPO_ROOT)
+    types = harness_semantic_types(spec, _REPO_ROOT)
     assert types is not None
-    assert tuple(types[: len(UNIVERSAL_EVENT_TYPES)]) == UNIVERSAL_EVENT_TYPES
+    assert (
+        tuple(types[: len(UNIVERSAL_SEMANTIC_TYPES)])
+        == UNIVERSAL_SEMANTIC_TYPES
+    )
 
 
-def test_harness_event_types_is_none_when_there_is_no_harness(
+def test_harness_semantic_types_is_none_when_there_is_no_harness(
     tmp_path: Path,
 ) -> None:
     """An absent harness is ``None``, which DEMOCI-11-003 reports separately."""
     spec = next(s for s in discover_scenarios() if s.name == "rv")
-    assert harness_event_types(spec, tmp_path) is None
+    assert harness_semantic_types(spec, tmp_path) is None
 
 
-def test_harness_event_types_rejects_an_unreadable_constant(
+def test_harness_semantic_types_rejects_an_unreadable_constant(
     tmp_path: Path,
 ) -> None:
     """A constant built by a call is refused rather than read as empty.
 
-    "This scenario exercises no event types" is never the true answer, so
+    "This scenario exercises no semantic types" is never the true answer, so
     returning an empty tuple would silently satisfy an all-blank matrix row.
     """
     spec = next(s for s in discover_scenarios() if s.name == "rv")
     target = tmp_path / spec.harness_path
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("_RV_EXPECTED_EVENT_TYPES = list(SOMETHING)\n")
-    with pytest.raises(HarnessEventTypeError, match="not a list or tuple"):
-        harness_event_types(spec, tmp_path)
+    target.write_text("_RV_EXPECTED_SEMANTIC_TYPES = list(SOMETHING)\n")
+    with pytest.raises(HarnessSemanticTypeError, match="not a list or tuple"):
+        harness_semantic_types(spec, tmp_path)
 
 
-def test_additional_event_types_is_the_non_universal_remainder() -> None:
+def test_additional_semantic_types_is_the_non_universal_remainder() -> None:
     """The complement, which is what the ``Additional required`` column holds."""
-    harness = (*UNIVERSAL_EVENT_TYPES, "invite_actor_to_case")
-    assert additional_event_types(harness) == frozenset(
+    harness = (*UNIVERSAL_SEMANTIC_TYPES, "invite_actor_to_case")
+    assert additional_semantic_types(harness) == frozenset(
         {"invite_actor_to_case"}
     )
 
 
-def test_universal_event_types_match_the_harness_ratchets_copy() -> None:
+def test_universal_semantic_types_match_the_harness_ratchets_copy() -> None:
     """The metadata reader's universal block equals the test ratchet's.
 
-    ``event_types.py`` deliberately does not import
-    ``test_universal_event_types._UNIVERSAL_EVENT_TYPES`` — production tooling
+    ``semantic_types.py`` deliberately does not import
+    ``test_universal_semantic_types._UNIVERSAL_SEMANTIC_TYPES`` — production tooling
     importing a test module is the coupling it exists to avoid — so the two
     spellings are held together here instead of by an import.
     """
-    from test.ci.invariants.test_universal_event_types import (
-        _UNIVERSAL_EVENT_TYPES,
+    from test.ci.invariants.test_universal_semantic_types import (
+        _UNIVERSAL_SEMANTIC_TYPES,
     )
 
-    assert UNIVERSAL_EVENT_TYPES == _UNIVERSAL_EVENT_TYPES
+    assert UNIVERSAL_SEMANTIC_TYPES == _UNIVERSAL_SEMANTIC_TYPES
 
 
 def test_scenario_set_statement_check_reports_a_stale_enumeration(

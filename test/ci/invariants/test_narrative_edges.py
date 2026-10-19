@@ -59,12 +59,12 @@ def _rel(page: Path) -> str:
     return str(page.relative_to(_REPO_ROOT))
 
 
-def _ledger(*event_types: str) -> dict[str, list[dict]]:
-    """A synthetic authoritative log with the given event types in order."""
+def _ledger(*semantic_types: str) -> dict[str, list[dict]]:
+    """A synthetic authoritative log with the given semantic types in order."""
     return {
         "case-actor": [
-            {"log_index": i, "eventType": evt}
-            for i, evt in enumerate(event_types)
+            {"log_index": i, "semanticType": evt}
+            for i, evt in enumerate(semantic_types)
         ]
     }
 
@@ -363,7 +363,7 @@ def _closures(*actors: str) -> dict[str, list[dict]]:
         "case-actor": [
             {
                 "log_index": i,
-                "eventType": _CLOSE,
+                "semanticType": _CLOSE,
                 "payloadSnapshot": {"actor": f"http://host/actors/{actor}"},
             }
             for i, actor in enumerate(actors)

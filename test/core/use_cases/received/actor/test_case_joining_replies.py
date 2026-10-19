@@ -235,14 +235,14 @@ def joining_case() -> Any:
         id_=f"{case.id_}/invitations/stub-1",
     )
     dl.create(stub_invite)
-    for index, event_type in enumerate(
+    for index, semantic_type in enumerate(
         ("submit_report", "add_participant_status")
     ):
         _seed_ledger_entry(
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/{index}",
-            event_type=event_type,
+            semantic_type=semantic_type,
             actor_id=case_actor_id,
             payload_snapshot={"index": index},
         )

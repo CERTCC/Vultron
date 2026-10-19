@@ -60,7 +60,7 @@ def _camel_entry(**overrides):
         "logIndex": 0,
         "disposition": "recorded",
         "logObjectId": "urn:uuid:act0",
-        "eventType": "validate_report",
+        "semanticType": "validate_report",
         "payloadSnapshot": {
             "type": "Accept",
             "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -81,7 +81,7 @@ def _snake_entry(**overrides):
         "case_id": "urn:case:1",
         "log_index": 1,
         "disposition": "recorded",
-        "event_type": "add_participant_status_to_participant",
+        "semantic_type": "add_participant_status_to_participant",
         "payload_snapshot": {
             "type": "Add",
             "actor": "http://reporter:7999/api/v2/actors/reporter",
@@ -123,7 +123,7 @@ class TestCaseTimelineEventParsing:
     def test_camelcase_field_extraction(self):
         event = CaseTimelineEvent.from_raw(_camel_entry())
         assert event.log_index == 0
-        assert event.event_type == "validate_report"
+        assert event.semantic_type == "validate_report"
         assert event.actor_uri == "http://vendor:7999/api/v2/actors/vendor"
         assert event.target_ref == "urn:uuid:rep1"
         assert event.target_type == "VulnerabilityReport"
@@ -133,7 +133,7 @@ class TestCaseTimelineEventParsing:
     def test_snakecase_field_extraction(self):
         event = CaseTimelineEvent.from_raw(_snake_entry())
         assert event.log_index == 1
-        assert event.event_type == "add_participant_status_to_participant"
+        assert event.semantic_type == "add_participant_status_to_participant"
         assert event.actor_uri == "http://reporter:7999/api/v2/actors/reporter"
 
     def test_dimension_states_from_nested_object(self):
@@ -147,7 +147,7 @@ class TestCaseTimelineEventParsing:
     def test_dimension_states_from_flat_wire_shape(self):
         """Legacy flat ``rmState``/``vfState`` spellings are tolerated."""
         raw = _camel_entry(
-            eventType="add_participant_status_to_participant",
+            semanticType="add_participant_status_to_participant",
             payloadSnapshot={
                 "type": "Add",
                 "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -172,7 +172,7 @@ class TestCaseTimelineEventParsing:
 
     def test_em_state_from_case_status(self):
         raw = _camel_entry(
-            eventType="add_case_status_to_case",
+            semanticType="add_case_status_to_case",
             payloadSnapshot={
                 "type": "Add",
                 "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -190,7 +190,7 @@ class TestCaseTimelineEventParsing:
     def test_em_state_from_case_statuses_array(self):
         """EM/CS state extracted from caseStatuses array on VulnerabilityCase."""
         raw = _camel_entry(
-            eventType="offer_case_manager_role",
+            semanticType="offer_case_manager_role",
             payloadSnapshot={
                 "type": "Offer",
                 "actor": "http://vendor:7999/api/v2/actors/case-actor",
@@ -210,7 +210,7 @@ class TestCaseTimelineEventParsing:
     def test_em_state_from_case_statuses_snake_key(self):
         """case_statuses (snake_case) is also traversed."""
         raw = _camel_entry(
-            eventType="offer_case_manager_role",
+            semanticType="offer_case_manager_role",
             payloadSnapshot={
                 "type": "Offer",
                 "actor": "http://vendor:7999/api/v2/actors/case-actor",
@@ -301,7 +301,7 @@ class TestCaseTimelineEventParsing:
     def test_invite_wrapper_surfaces_inner_target(self):
         """Accept(Invite(object=Org, target=Case)) → org → case arrow label."""
         raw = _camel_entry(
-            eventType="accept_invite_actor_to_case",
+            semanticType="accept_invite_actor_to_case",
             payloadSnapshot={
                 "type": "Accept",
                 "actor": "http://coordinator/actors/coordinator",
@@ -327,7 +327,7 @@ class TestCaseTimelineEventParsing:
     def test_offer_with_as_target_populates_activity_target(self):
         """Offer(object=VulnerabilityCase, target=CaseParticipant) → arrow label."""
         raw = _camel_entry(
-            eventType="offer_case_manager_role",
+            semanticType="offer_case_manager_role",
             payloadSnapshot={
                 "type": "Offer",
                 "actor": "http://vendor/actors/case-actor",
@@ -411,9 +411,9 @@ class TestFriendlyNaming:
     def test_event_phrase_fallback_humanizes(self):
         assert event_phrase("some_novel_event") == "some novel event"
 
-    def test_summary_unknown_event_type_humanizes(self):
-        """DRPT-03-002: unknown event_type falls back to humanized phrase, capitalised."""
-        raw = _camel_entry(eventType="some_novel_event")
+    def test_summary_unknown_semantic_type_humanizes(self):
+        """DRPT-03-002: unknown semantic_type falls back to humanized phrase, capitalised."""
+        raw = _camel_entry(semanticType="some_novel_event")
         event = CaseTimelineEvent.from_raw(raw)
         assert event.summary == "Some novel event"
 
@@ -444,7 +444,7 @@ class TestFriendlyNaming:
         complete sentence with no trailing/dangling ``"—"``.
         """
         raw = _camel_entry(
-            eventType="create_case_proposal",
+            semanticType="create_case_proposal",
             payloadSnapshot={
                 "type": "Create",
                 "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -461,7 +461,7 @@ class TestFriendlyNaming:
 #
 # The defaultdict-based SE-07-004 test fills every slot, masking phrases that
 # reference slots the runtime never populates.  These tests call event_phrase()
-# and CaseTimelineEvent.summary with real event-type values and assert:
+# and CaseTimelineEvent.summary with real semantic-type values and assert:
 #   1. No trailing "—" in the rendered output.
 #   2. No un-substituted {slot} markers remain.
 # One representative semantic per distinct slot shape is sufficient.
@@ -527,9 +527,9 @@ class TestEventPhraseBehavioural:
 class TestSummarySlotsFilledBehavioural:
     """SE-07-006: CaseTimelineEvent.summary must not leave dangling em-dashes."""
 
-    def _event_with_actor(self, event_type: str) -> CaseTimelineEvent:
+    def _event_with_actor(self, semantic_type: str) -> CaseTimelineEvent:
         raw = _camel_entry(
-            eventType=event_type,
+            semanticType=semantic_type,
             payloadSnapshot={
                 "type": "Accept",
                 "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -538,10 +538,10 @@ class TestSummarySlotsFilledBehavioural:
         return CaseTimelineEvent.from_raw(raw)
 
     def _event_with_actor_and_object(
-        self, event_type: str
+        self, semantic_type: str
     ) -> CaseTimelineEvent:
         raw = _camel_entry(
-            eventType=event_type,
+            semanticType=semantic_type,
             payloadSnapshot={
                 "type": "Offer",
                 "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -696,8 +696,8 @@ class TestBuildTimeline:
 
     def test_hashless_entries_not_collapsed(self):
         """Degenerate entries without entry_hash are not merged together."""
-        a = _camel_entry(entryHash="", logIndex=0, eventType="create_case")
-        b = _camel_entry(entryHash="", logIndex=1, eventType="close_case")
+        a = _camel_entry(entryHash="", logIndex=0, semanticType="create_case")
+        b = _camel_entry(entryHash="", logIndex=1, semanticType="close_case")
         events = build_timeline({"vendor": [a, b]})
         assert len(events) == 2
 
@@ -1645,7 +1645,7 @@ class TestActorNameResolution:
     def test_build_timeline_populates_activity_target_display_name(self):
         """activity_target_display_name is set when activity_target_ref is a known actor."""
         entry = _camel_entry(
-            eventType="accept_invite_actor_to_case",
+            semanticType="accept_invite_actor_to_case",
             payloadSnapshot={
                 "type": "Accept",
                 "actor": "http://vendor:7999/api/v2/actors/case-actor",
@@ -1676,7 +1676,7 @@ class TestActorNameResolution:
     ):
         """activity_target_display_name set when activity_target is a UUID actor."""
         entry = _camel_entry(
-            eventType="offer_case_manager_role",
+            semanticType="offer_case_manager_role",
             payloadSnapshot={
                 "type": "Offer",
                 "actor": "http://vendor:7999/api/v2/actors/case-actor",

@@ -26,7 +26,7 @@ from collections.abc import Mapping, Sequence
 from typing import cast
 
 from vultron.core.predicates.case_closure import (
-    CASE_FULLY_CLOSED_EVENT_TYPE,
+    CASE_FULLY_CLOSED_SEMANTIC_TYPE,
 )
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.em import is_em_embargo_active
@@ -465,7 +465,7 @@ def verify_case_closed(
 
 #: The CASE_MANAGER's owner-close write boundary (ADR-0085, CM-23-002); the
 #: same constant the core post-close guard reads (CM-23-013).
-CASE_FULLY_CLOSED = CASE_FULLY_CLOSED_EVENT_TYPE
+CASE_FULLY_CLOSED = CASE_FULLY_CLOSED_SEMANTIC_TYPE
 
 #: The receipt entry of a ``Leave(VulnerabilityCase)`` (ADR-0050, CM-23-001).
 _CLOSE_CASE = "close_case"
@@ -492,7 +492,7 @@ def _rm_on_ledger(entry: Mapping[str, object]) -> tuple[str, str] | None:
     snapshot = entry.get("payload_snapshot")
     if not isinstance(snapshot, Mapping):
         return None
-    if entry.get("event_type") == _PARTICIPANT_STATUS:
+    if entry.get("semantic_type") == _PARTICIPANT_STATUS:
         status = snapshot.get("object")
         if not isinstance(status, Mapping):
             return None
@@ -511,7 +511,7 @@ def case_closure_violations(
     """Return every way *entries* fail to record the case's closure.
 
     *entries* is one case's ledger as the CASE_MANAGER holds it (DataLayer
-    shape: ``log_index``, ``event_type``, ``payload_snapshot``).  The ledger
+    shape: ``log_index``, ``semantic_type``, ``payload_snapshot``).  The ledger
     records a closure when all of these hold:
 
     - It has exactly one ``case_fully_closed`` entry (CM-23-002).
@@ -546,7 +546,7 @@ def case_closure_violations(
     boundaries = [
         index
         for index, entry in indexed
-        if entry.get("event_type") == CASE_FULLY_CLOSED
+        if entry.get("semantic_type") == CASE_FULLY_CLOSED
     ]
     if len(boundaries) != 1:
         return [
@@ -577,7 +577,7 @@ def _departure_violations(
     rm_states: dict[str, str] = {}
     left: set[str] = set()
     for entry in before:
-        if entry.get("event_type") == _CLOSE_CASE:
+        if entry.get("semantic_type") == _CLOSE_CASE:
             snapshot = entry.get("payload_snapshot")
             if isinstance(snapshot, Mapping) and (
                 leaver := _ref(snapshot.get("actor"))
@@ -626,7 +626,7 @@ def _post_boundary_violations(
         )
         if actor_id != case_manager_id:
             violations.append(
-                f"logIndex={index} {entry.get('event_type')!r} records"
+                f"logIndex={index} {entry.get('semantic_type')!r} records"
                 f" {actor_id!r}'s act after {CASE_FULLY_CLOSED!r}"
                 f" (logIndex={boundary})"
             )
@@ -642,7 +642,7 @@ def case_manager_ledger(
     CASE_MANAGER's own store (the closure milestone binds it once, through
     :func:`~vultron.demo.helpers.polling.case_manager_store`), so no second
     store lookup is made here.  DataLayer shape (``log_index``,
-    ``event_type``, ``payload_snapshot``), in no particular order.
+    ``semantic_type``, ``payload_snapshot``), in no particular order.
     """
     raw = client.get(client.dl_path("CaseLedgerEntrys/"))
     if not isinstance(raw, dict):
@@ -673,7 +673,7 @@ def own_closure_tail_index(
     ):
         index = cast(int, entry["log_index"])
         snapshot = entry.get("payload_snapshot")
-        if entry.get("event_type") == _CLOSE_CASE:
+        if entry.get("semantic_type") == _CLOSE_CASE:
             if isinstance(snapshot, Mapping) and (
                 _ref(snapshot.get("actor")) == actor_id
             ):
@@ -719,7 +719,7 @@ def verify_case_closure_recorded(
     Spec: CM-23-015, CM-23-013, CM-23-002, DEMOMA-06-002.
     """
     wait_for_case_actor_ledger_event(
-        client=client, case_id=case_id, event_type=CASE_FULLY_CLOSED
+        client=client, case_id=case_id, semantic_type=CASE_FULLY_CLOSED
     )
     entries = case_manager_ledger(client, case_id)
     violations = case_closure_violations(

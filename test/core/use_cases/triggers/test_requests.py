@@ -176,7 +176,7 @@ def test_static_binding_resolves_each_verbs_result_without_a_cast() -> None:
 
     synced = _trigger(
         SyncLogEntryTriggerRequest(
-            actor_id=_ACTOR, case_id=_CASE, object_id=_CASE, event_type="e"
+            actor_id=_ACTOR, case_id=_CASE, object_id=_CASE, semantic_type="e"
         )
     )
     assert_type(synced, SyncLogEntryResult)

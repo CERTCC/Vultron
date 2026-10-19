@@ -141,9 +141,9 @@ def _run(dl: SqliteDataLayer, event: AckReportReceivedEvent) -> HandlerResult:
     ).execute()
 
 
-def _ledger_event_types(dl: SqliteDataLayer) -> list[str]:
+def _ledger_semantic_types(dl: SqliteDataLayer) -> list[str]:
     return [
-        getattr(e, "event_type", "")
+        getattr(e, "semantic_type", "")
         for e in dl.list_objects("CaseLedgerEntry")
     ]
 
@@ -221,7 +221,7 @@ class TestAckReportIsNotSentToTheCaseManager:
 
         assert result.disposition is HandlerDisposition.APPLIED
         assert dl.outbox_list() == []
-        assert _ledger_event_types(dl) == []
+        assert _ledger_semantic_types(dl) == []
 
     @pytest.mark.spec("RMB-08-003")
     def test_case_manager_commits_no_ledger_entry(self):
@@ -231,7 +231,7 @@ class TestAckReportIsNotSentToTheCaseManager:
         result = _run(dl, _make_ack_event(VENDOR_ID, CASE_ACTOR_ID))
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert _ledger_event_types(dl) == []
+        assert _ledger_semantic_types(dl) == []
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("RMB-08-003")
@@ -240,4 +240,4 @@ class TestAckReportIsNotSentToTheCaseManager:
 
         _run(dl, _make_ack_event(VENDOR_ID, FINDER_ID))
 
-        assert _ledger_event_types(dl) == []
+        assert _ledger_semantic_types(dl) == []

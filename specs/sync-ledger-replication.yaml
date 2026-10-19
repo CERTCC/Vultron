@@ -687,7 +687,7 @@ groups:
     kind: protocol
     statement: >-
       After a participant successfully enqueues an assertion activity toward the CASE_MANAGER,
-      the participant SHOULD record the (case_id, event_type, activity_id) triple in its
+      the participant SHOULD record the (case_id, semantic_type, activity_id) triple in its
       pending-assertion store so that duplicate near-term re-emits of the same assertion are
       suppressed while the round-trip is pending
   - id: SYNC-11-003

@@ -184,7 +184,7 @@ def test_wait_for_case_participants_raises_on_timeout():
 _LEDGER_ENTRY = {
     "type": "CaseLedgerEntry",
     "case_id": CASE_ID,
-    "event_type": "close_case",
+    "semantic_type": "close_case",
     "log_object_id": CASE_ID,
     "log_index": 5,
 }
@@ -202,7 +202,7 @@ def test_wait_for_ledger_event_match_any():
     wait_for_ledger_event(
         client=client,
         case_id=CASE_ID,
-        event_type="close_case",
+        semantic_type="close_case",
         timeout_seconds=1.0,
     )
 
@@ -212,7 +212,7 @@ def test_wait_for_ledger_event_keyed_by_object_id():
     wait_for_ledger_event(
         client=client,
         case_id=CASE_ID,
-        event_type="close_case",
+        semantic_type="close_case",
         log_object_id=CASE_ID,
         timeout_seconds=1.0,
     )
@@ -223,7 +223,7 @@ def test_wait_for_ledger_event_keyed_by_min_log_index():
     wait_for_ledger_event(
         client=client,
         case_id=CASE_ID,
-        event_type="close_case",
+        semantic_type="close_case",
         min_log_index=5,
         timeout_seconds=1.0,
     )
@@ -238,7 +238,7 @@ def test_wait_for_ledger_event_object_id_mismatch_then_timeout():
         wait_for_ledger_event(
             client=client,
             case_id=CASE_ID,
-            event_type="close_case",
+            semantic_type="close_case",
             log_object_id="http://example.com/cases/other-case",
             timeout_seconds=0,
             poll_interval=0.01,
@@ -254,14 +254,14 @@ def test_wait_for_ledger_event_min_log_index_too_high_then_timeout():
         wait_for_ledger_event(
             client=client,
             case_id=CASE_ID,
-            event_type="close_case",
+            semantic_type="close_case",
             min_log_index=6,
             timeout_seconds=0,
             poll_interval=0.01,
         )
 
 
-def test_wait_for_ledger_event_wrong_event_type_then_timeout():
+def test_wait_for_ledger_event_wrong_semantic_type_then_timeout():
     client = _make_ledger_client([_LEDGER_ENTRY])
     with pytest.raises(
         AssertionError, match="Timed out waiting for ledger event"
@@ -269,7 +269,7 @@ def test_wait_for_ledger_event_wrong_event_type_then_timeout():
         wait_for_ledger_event(
             client=client,
             case_id=CASE_ID,
-            event_type="open_case",
+            semantic_type="open_case",
             timeout_seconds=0,
             poll_interval=0.01,
         )
@@ -281,7 +281,7 @@ def test_wait_for_ledger_event_empty_ledger_then_timeout():
         wait_for_ledger_event(
             client=client,
             case_id=CASE_ID,
-            event_type="close_case",
+            semantic_type="close_case",
             timeout_seconds=0,
             poll_interval=0.01,
         )
@@ -561,20 +561,20 @@ def test_wait_for_case_actor_ledger_event_reads_the_case_actor_store(
     )
     monkeypatch.setattr(
         polling,
-        "wait_for_event_type_in_ledger",
+        "wait_for_semantic_type_in_ledger",
         lambda **kwargs: seen.update(kwargs),
     )
 
     polling.wait_for_case_actor_ledger_event(
         client=client,
         case_id="urn:test:case",
-        event_type="accept_case_ownership_transfer",
+        semantic_type="accept_case_ownership_transfer",
         timeout_seconds=7.0,
     )
 
     assert seen["client"] is client
     assert seen["dl_actor_id"] == "urn:test:case-actor"
-    assert seen["event_type"] == "accept_case_ownership_transfer"
+    assert seen["semantic_type"] == "accept_case_ownership_transfer"
     assert seen["timeout_seconds"] == 7.0
 
 

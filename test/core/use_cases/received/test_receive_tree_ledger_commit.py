@@ -145,7 +145,7 @@ def _store(
 
 def _committed(dl: SqliteDataLayer) -> list[str]:
     return [
-        getattr(e, "event_type", "")
+        getattr(e, "semantic_type", "")
         for e in dl.list_objects("CaseLedgerEntry")
     ]
 

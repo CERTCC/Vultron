@@ -37,21 +37,21 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_consent_event_types import (
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+from vultron.core.models.embargo_consent_semantic_types import (
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
-from vultron.core.models.participant_event_types import (
-    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
-    UPDATE_CASE_OWNER_EVENT_TYPE,
-    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    UPDATE_CASE_OWNER_SEMANTIC_TYPE,
+    UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.rsvp_deadline import (
-    INVITE_EXPIRED_EVENT_TYPE,
+    INVITE_EXPIRED_SEMANTIC_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -129,7 +129,7 @@ def _make_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
-            event_type="test_event",
+            semantic_type="test_event",
             payload_snapshot={"log_index": log_index},
             prev_log_hash=prev_hash,
         )
@@ -420,7 +420,7 @@ def _make_remove_embargo_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
-            event_type="remove_embargo_event_from_case",
+            semantic_type="remove_embargo_event_from_case",
             payload_snapshot={
                 "log_index": log_index,
                 "object": {"id": ACTIVE_EMBARGO_ID, "type": "EmbargoEvent"},
@@ -557,7 +557,7 @@ def _make_relayed_invite_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/invite-{log_index}",
-            event_type="invite_to_embargo_on_case",
+            semantic_type="invite_to_embargo_on_case",
             payload_snapshot={
                 "type": "Invite",
                 "id": f"https://example.org/activities/invite-{log_index}",
@@ -589,7 +589,7 @@ def _make_invite_expired_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=invite_id,
-            event_type=INVITE_EXPIRED_EVENT_TYPE,
+            semantic_type=INVITE_EXPIRED_SEMANTIC_TYPE,
             payload_snapshot={
                 "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
                 "actor": PARTICIPANT_ACTOR_ID,
@@ -622,7 +622,7 @@ def _make_consent_row_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=activity_id,
-            event_type=UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+            semantic_type=UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
             payload_snapshot={
                 "type": "Update",
                 "id": activity_id,
@@ -760,7 +760,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
                     case_id=CASE_ID,
                     log_index=1,
                     object_id=json.loads(blob)["id"],
-                    event_type=UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+                    semantic_type=UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
                     payload_snapshot=json.loads(blob),
                     prev_log_hash=entry.entry_hash,
                 )
@@ -772,13 +772,13 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
 def _make_add_note_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
 ) -> CaseLedgerEntry:
-    """Create a ledger entry with event_type='add_note_to_case'."""
+    """Create a ledger entry with semantic_type='add_note_to_case'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/add-note-{log_index}",
-            event_type="add_note_to_case",
+            semantic_type="add_note_to_case",
             payload_snapshot={"object": NOTE_ID},
             prev_log_hash=prev_hash,
         )
@@ -845,10 +845,10 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
     def test_note_not_attached_for_non_note_entry(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """NoteEffects Selector short-circuits for unrelated event types."""
+        """NoteEffects Selector short-circuits for unrelated semantic types."""
         entry = _make_entry(
             0, case_obj.genesis_hash
-        )  # event_type="test_event"
+        )  # semantic_type="test_event"
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
@@ -881,7 +881,7 @@ class TestAnnounceLogEntryAppliesNoteRemoval:
                 case_id=CASE_ID,
                 log_index=0,
                 object_id="https://example.org/activities/remove-note-0",
-                event_type="remove_note_from_case",
+                semantic_type="remove_note_from_case",
                 payload_snapshot={"object": NOTE_ID},
                 prev_log_hash=case_obj.genesis_hash,
             )
@@ -918,7 +918,7 @@ class TestAnnounceLogEntryAppliesReportAddition:
                 case_id=CASE_ID,
                 log_index=0,
                 object_id="https://example.org/activities/add-report-0",
-                event_type="add_report_to_case",
+                semantic_type="add_report_to_case",
                 payload_snapshot={"object": report_id},
                 prev_log_hash=case_obj.genesis_hash,
             )
@@ -947,13 +947,13 @@ PARTICIPANT_ID = "https://example.org/participants/reporter-participant"
 def _make_participant_status_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
 ) -> CaseLedgerEntry:
-    """Create a ledger entry with event_type='add_participant_status_to_participant'."""
+    """Create a ledger entry with semantic_type='add_participant_status_to_participant'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/status-{log_index}",
-            event_type="add_participant_status_to_participant",
+            semantic_type="add_participant_status_to_participant",
             payload_snapshot={
                 "object": {
                     "id": PARTICIPANT_STATUS_ID,
@@ -1006,13 +1006,13 @@ class TestAnnounceLogEntryAppliesParticipantStatus:
         ]
         assert PARTICIPANT_STATUS_ID in status_ids
 
-    def test_participant_status_not_applied_for_other_event_types(
+    def test_participant_status_not_applied_for_other_semantic_types(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """ParticipantStatusEffects Selector short-circuits for unrelated event types."""
+        """ParticipantStatusEffects Selector short-circuits for unrelated semantic types."""
         entry = _make_entry(
             0, case_obj.genesis_hash
-        )  # event_type="test_event"
+        )  # semantic_type="test_event"
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
@@ -1082,7 +1082,7 @@ def _create_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=record.id_,
-            event_type=CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+            semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
             payload_snapshot=snapshot,
             prev_log_hash=prev_hash,
         )
@@ -1090,7 +1090,7 @@ def _create_entry(
 
 
 def _reply_entry(
-    event_type: str,
+    semantic_type: str,
     activity_type: str,
     log_index: int,
     prev_hash: str,
@@ -1117,7 +1117,7 @@ def _reply_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"urn:uuid:reply-{log_index}",
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=snapshot,
             prev_log_hash=prev_hash,
         )
@@ -1373,12 +1373,12 @@ class TestAnnounceLogEntryAppliesStubPath:
 
         assert self._held(datalayer).model_dump(mode="json") == before
 
-    def test_the_stub_path_slots_do_not_apply_to_other_event_types(
+    def test_the_stub_path_slots_do_not_apply_to_other_semantic_types(
         self, bridge, datalayer, case_actor, case_obj
     ):
         entry = _make_entry(
             0, case_obj.genesis_hash
-        )  # event_type="test_event"
+        )  # semantic_type="test_event"
 
         assert (
             self._announce(bridge, case_actor, entry).status == Status.SUCCESS
@@ -1529,7 +1529,7 @@ def _make_close_case_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/leave-{log_index}",
-            event_type="close_case",
+            semantic_type="close_case",
             payload_snapshot={"actor": DEPARTING_ACTOR_ID},
             prev_log_hash=prev_hash,
         )
@@ -1653,7 +1653,7 @@ def _make_ownership_transfer_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/ownership-{log_index}",
-            event_type=UPDATE_CASE_OWNER_EVENT_TYPE,
+            semantic_type=UPDATE_CASE_OWNER_SEMANTIC_TYPE,
             payload_snapshot={
                 "type": "Update",
                 "actor": OWNER_ACTOR_ID,
@@ -1721,10 +1721,10 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
     def test_ownership_transfer_not_applied_for_unrelated_event(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """OwnershipTransferEffects Selector short-circuits for unrelated event types."""
+        """OwnershipTransferEffects Selector short-circuits for unrelated semantic types."""
         entry = _make_entry(
             0, case_obj.genesis_hash
-        )  # event_type="test_event"
+        )  # semantic_type="test_event"
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
@@ -1804,7 +1804,7 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
                 case_id=CASE_ID,
                 log_index=0,
                 object_id="https://example.org/activities/participant-update",
-                event_type=UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+                semantic_type=UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
                 payload_snapshot={
                     "type": "Update",
                     "actor": OWNER_ACTOR_ID,
@@ -1884,7 +1884,7 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
                 case_id=CASE_ID,
                 log_index=0,
                 object_id="https://example.org/activities/accept",
-                event_type="accept_case_ownership_transfer",
+                semantic_type="accept_case_ownership_transfer",
                 payload_snapshot={"type": "Accept", "actor": NEW_OWNER_ID},
                 prev_log_hash=case_obj.genesis_hash,
             )
@@ -1929,7 +1929,7 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
                 case_id=CASE_ID,
                 log_index=0,
                 object_id="https://example.org/activities/reject-ownership",
-                event_type="reject_case_ownership_transfer",
+                semantic_type="reject_case_ownership_transfer",
                 payload_snapshot={"type": "Reject", "actor": NEW_OWNER_ID},
                 prev_log_hash=case.genesis_hash,
             )
@@ -1947,7 +1947,7 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
 
         assert result.status == Status.SUCCESS
         assert [
-            e.event_type
+            e.semantic_type
             for e in datalayer.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
         ] == ["reject_case_ownership_transfer"]
@@ -1982,7 +1982,7 @@ def _make_participant_status_entry_with_states(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/status-{log_index}",
-            event_type="add_participant_status_to_participant",
+            semantic_type="add_participant_status_to_participant",
             payload_snapshot={
                 "object": {
                     "id": status_id,

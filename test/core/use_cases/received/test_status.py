@@ -764,7 +764,7 @@ class TestParticipantStatusLogEntryCascade:
             and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(CaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).semantic_type == (
             "add_participant_status_to_participant"
         )
 
@@ -1180,7 +1180,7 @@ class TestParticipantStatusLogEntryCascade:
             "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
             " and commit an add_participant_status_to_participant ledger entry"
         )
-        assert cast(CaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).semantic_type == (
             "add_participant_status_to_participant"
         )
 

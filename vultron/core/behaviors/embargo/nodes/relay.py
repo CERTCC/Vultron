@@ -84,10 +84,10 @@ if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
     from vultron.core.ports.sync_activity import SyncActivityPort
 
-#: Ledger ``event_type`` of a relayed ``Invite(EmbargoEvent)`` emission — the
+#: Ledger ``semantic_type`` of a relayed ``Invite(EmbargoEvent)`` emission — the
 #: same value the guarded commit derives for the received proposal, so the
-#: replica apply node (EP-09-007, #3915) dispatches on one event type.
-EMBARGO_INVITE_EVENT_TYPE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
+#: replica apply node (EP-09-007, #3915) dispatches on one semantic type.
+EMBARGO_INVITE_SEMANTIC_TYPE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
 
 _RECIPIENTS_KEY = "embargo_invite_recipients"
 
@@ -262,7 +262,7 @@ class RelayEmbargoInviteToEachNode(
             return None
         assert self.actor_id is not None
         return derived_activity_id(
-            self._EVENT_TYPE,
+            self._SEMANTIC_TYPE,
             self.actor_id,
             self._case_id,
             self._answers,
@@ -270,8 +270,8 @@ class RelayEmbargoInviteToEachNode(
             recipient_id,
         )
 
-    #: Ledger ``event_type`` the emission is committed under.
-    _EVENT_TYPE = EMBARGO_INVITE_EVENT_TYPE
+    #: Ledger ``semantic_type`` the emission is committed under.
+    _SEMANTIC_TYPE = EMBARGO_INVITE_SEMANTIC_TYPE
 
     def _attributed_to(self) -> str | None:
         """Whose terms the Invite carries; ``None`` when it is the manager's own ask."""
@@ -415,7 +415,7 @@ class RelayEmbargoInviteToEachNode(
             case_id=self._case_id,
             activity_id=activity_id,
             activity_blob=blob,
-            event_type=self._EVENT_TYPE,
+            semantic_type=self._SEMANTIC_TYPE,
             sync_port=self._sync_port,
         )
 
@@ -477,7 +477,7 @@ class RelayEmbargoInviteToEachNode(
 
 
 __all__ = [
-    "EMBARGO_INVITE_EVENT_TYPE",
+    "EMBARGO_INVITE_SEMANTIC_TYPE",
     "CollectEmbargoInviteRecipientsNode",
     "EmStateAdmitsProposalNode",
     "EmbargoProposalNotYetRecordedNode",

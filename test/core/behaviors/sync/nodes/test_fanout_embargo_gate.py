@@ -482,7 +482,7 @@ def _closure_status_entry(datalayer, actor_id: str, log_index: int, prev):
             case_id=CASE_ID,
             log_index=log_index,
             object_id=status_id,
-            event_type="add_participant_status_to_participant",
+            semantic_type="add_participant_status_to_participant",
             payload_snapshot={"type": "Add", "actor": MANAGER_ID},
             prev_log_hash=prev.entry_hash,
         )

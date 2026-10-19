@@ -33,24 +33,18 @@ Public API, in the two halves ADR-0098 splits the consumers into.
   (:mod:`.prose_counts`).
 - :func:`scenario_spec_groups` / :func:`partition_problems` — the spec-side
   selector and the two-register partition (:mod:`.scenario_groups`).
-- :func:`harness_event_types` — a scenario's expected event types, the source the
-  tick matrix is ratcheted against (:mod:`.event_types`).
+- :func:`harness_semantic_types` — a scenario's expected semantic types, the source the
+  tick matrix is ratcheted against (:mod:`.semantic_types`).
 
 The registry itself lives in :mod:`vultron.demo.scenario.registry`, because only
 a demo module can know that a demo exists. This package reads it; nothing here
 is imported by demo or protocol code.
 """
 
-from vultron.metadata.demo_scenarios.event_types import (
-    UNIVERSAL_EVENT_TYPES,
-    HarnessEventTypeError,
-    additional_event_types,
-    harness_event_types,
-)
 from vultron.metadata.demo_scenarios.prose_checks import (
     consistency_problems,
-    missing_event_type_requirements,
     missing_narrative_nav_entries,
+    missing_semantic_type_requirements,
     scenario_set_statement_problems,
 )
 from vultron.metadata.demo_scenarios.prose_counts import (
@@ -79,9 +73,15 @@ from vultron.metadata.demo_scenarios.scenario_groups import (
     SPEC_ID_RE,
     PlannedScenario,
     partition_problems,
-    per_scenario_event_type_requirements,
+    per_scenario_semantic_type_requirements,
     planned_scenarios,
     scenario_spec_groups,
+)
+from vultron.metadata.demo_scenarios.semantic_types import (
+    UNIVERSAL_SEMANTIC_TYPES,
+    HarnessSemanticTypeError,
+    additional_semantic_types,
+    harness_semantic_types,
 )
 from vultron.metadata.demo_scenarios.sync import (
     ARTIFACTS,
@@ -112,22 +112,22 @@ __all__ = [
     "SCENARIO_TABLES",
     "SCENARIO_TABLE_CONSUMERS",
     "SPEC_ID_RE",
-    "UNIVERSAL_EVENT_TYPES",
+    "UNIVERSAL_SEMANTIC_TYPES",
     "WRITE_COMMAND",
-    "HarnessEventTypeError",
+    "HarnessSemanticTypeError",
     "PlannedScenario",
     "ScenarioTable",
-    "additional_event_types",
+    "additional_semantic_types",
     "consistency_problems",
     "desired_contents",
-    "harness_event_types",
+    "harness_semantic_types",
     "matrix_entries",
     "missing_derived_paths",
-    "missing_event_type_requirements",
+    "missing_semantic_type_requirements",
     "missing_narrative_nav_entries",
     "narrative_link",
     "partition_problems",
-    "per_scenario_event_type_requirements",
+    "per_scenario_semantic_type_requirements",
     "planned_scenarios",
     "render_page",
     "restated_counts",

@@ -57,7 +57,7 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
     The payload snapshot is the case authority's factory-built
     ``Announce(VulnerabilityCase)``, committed from its sealed blob
     (VM-08-003), so the entry passes canonical validation (CLP-07); the
-    caller-supplied ``event_type`` and ``object_id`` are recorded verbatim.
+    caller-supplied ``semantic_type`` and ``object_id`` are recorded verbatim.
     The fan-out rides on the ``sync_port`` the dispatcher injects
     (SYNC-02-002).
     """
@@ -67,7 +67,7 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
         requester = resolve_actor(request.actor_id, self._dl)
         self._case_id: str = request.case_id
         self._object_id: str = request.object_id
-        self._event_type: str = request.event_type
+        self._semantic_type: str = request.semantic_type
         # The tree runs as the case's authority (CLP-09); a case whose
         # authority cannot be resolved is committed by the requester itself,
         # which is the demo's single-actor shape.
@@ -80,7 +80,7 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
         if not hosts_actor(self._dl, self._actor_id):
             raise VultronCanonicalEntryError(
                 "sync-log-entry: no canonical entry can be recorded for case"
-                f" '{self._case_id}' (event_type={self._event_type!r}) here;"
+                f" '{self._case_id}' (semantic_type={self._semantic_type!r}) here;"
                 f" its CASE_MANAGER '{self._actor_id}' is not hosted on this"
                 " container, so this store does not hold its canonical log"
             )
@@ -89,7 +89,7 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
         self._node = CommitDemoLogEntryNode(
             case_id=self._case_id,
             object_id=self._object_id,
-            event_type=self._event_type,
+            semantic_type=self._semantic_type,
         )
         return self._node
 
@@ -109,7 +109,7 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
                     )
                 )
                 if e.log_object_id == self._object_id
-                and e.event_type == self._event_type
+                and e.semantic_type == self._semantic_type
                 and e.payload_snapshot.get("id") in activity_ids
             ),
             None,
@@ -123,7 +123,7 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
             # would wait in the CASE_MANAGER's outbox for its next drain.
             raise VultronCanonicalEntryError(
                 "sync-log-entry: no canonical entry was recorded for case"
-                f" '{self._case_id}' (event_type={self._event_type!r});"
+                f" '{self._case_id}' (semantic_type={self._semantic_type!r});"
                 f" actor '{self._actor_id}' does not hold its canonical log"
             )
         self._entry: CaseLedgerEntry = entry
@@ -131,7 +131,7 @@ class SvcSyncLogEntryUseCase(SvcBTTriggerBase[SyncLogEntryResult]):
             "Actor '%s' committed ledger entry %d (%s) for case '%s'",
             self._actor_id,
             entry.log_index,
-            self._event_type,
+            self._semantic_type,
             self._case_id,
         )
 

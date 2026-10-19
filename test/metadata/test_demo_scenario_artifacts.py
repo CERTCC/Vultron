@@ -51,10 +51,6 @@ from vultron.demo.scenario.registry import (
     is_scenario_name,
 )
 from vultron.metadata.base import MkDocsYamlLoader
-from vultron.metadata.demo_scenarios.event_types import (
-    additional_event_types,
-    harness_event_types,
-)
 from vultron.metadata.demo_scenarios.render import (
     MATRIX_KEYS,
     PAGE_SLUGS,
@@ -63,7 +59,11 @@ from vultron.metadata.demo_scenarios.render import (
     scenario_matrix_json,
 )
 from vultron.metadata.demo_scenarios.scenario_groups import (
-    per_scenario_event_type_requirements,
+    per_scenario_semantic_type_requirements,
+)
+from vultron.metadata.demo_scenarios.semantic_types import (
+    additional_semantic_types,
+    harness_semantic_types,
 )
 from vultron.metadata.demo_scenarios.sync import (
     ARTIFACTS,
@@ -263,7 +263,7 @@ def test_democi_06_002_names_exactly_the_pr_set_scenarios() -> None:
 
     Scenario names are picked out of the statement by the registry's own name
     grammar (:func:`vultron.demo.scenario.registry.is_scenario_name`), which is what
-    makes this robust: the statement also backticks event types
+    makes this robust: the statement also backticks semantic types
     (``invite_actor_to_case``) and a filename (``demo-integration.yml``), and
     neither can satisfy a grammar that forbids underscores and dots.
 
@@ -290,17 +290,17 @@ def test_democi_06_002_names_exactly_the_pr_set_scenarios() -> None:
     )
 
 
-def test_democi_06_002_names_exactly_the_pr_set_event_types() -> None:
+def test_democi_06_002_names_exactly_the_pr_set_semantic_types() -> None:
     """DEMOCI-06-002 names exactly the PR-set harnesses' non-universal types.
 
     The statement's coverage claim is "the universal types plus these", and that
     list is what justifies the PR set being this small.  When a harness gains an
-    event type (as both embargo harnesses did with ``activate_embargo_on_case``)
+    semantic type (as both embargo harnesses did with ``activate_embargo_on_case``)
     and the spec is not amended, the authority silently understates what the PR
     set must cover; when a PR-set scenario is dropped, the spec keeps claiming
     coverage of types nothing in the set still exercises.
 
-    Event types are told apart from the statement's other backticked spans
+    Semantic types are told apart from the statement's other backticked spans
     (``pull_request``, ``demo-integration.yml``) by membership in some
     registered harness's expected list — the same AST read the coverage matrix
     is ratcheted against.  A misspelled type is therefore not recognised, but
@@ -308,7 +308,8 @@ def test_democi_06_002_names_exactly_the_pr_set_event_types() -> None:
     """
     scenarios = discover_scenarios()
     harnesses = {
-        spec.name: harness_event_types(spec, _REPO_ROOT) for spec in scenarios
+        spec.name: harness_semantic_types(spec, _REPO_ROOT)
+        for spec in scenarios
     }
     known = {t for types in harnesses.values() if types for t in types}
     statement = (
@@ -317,20 +318,20 @@ def test_democi_06_002_names_exactly_the_pr_set_event_types() -> None:
     named = set(re.findall(r"`([^`]+)`", statement)) & known
     covered = set().union(
         *(
-            additional_event_types(harnesses[spec.name] or ())
+            additional_semantic_types(harnesses[spec.name] or ())
             for spec in scenarios
             if spec.in_pr_set
         )
     )
     assert named == covered, (
-        "DEMOCI-06-002 must name exactly the non-universal event types the "
+        "DEMOCI-06-002 must name exactly the non-universal semantic types the "
         "PR-set invariant harnesses expect. Missing from the spec: "
         f"{sorted(covered - named)}; named but not covered by the PR set: "
         f"{sorted(named - covered)}."
     )
 
 
-def test_per_scenario_demoma_16_names_every_harness_event_type() -> None:
+def test_per_scenario_demoma_16_names_every_harness_semantic_type() -> None:
     """Each scenario's DEMOMA-16 requirement names every type its harness adds.
 
     The per-scenario sibling of the DEMOCI-06-002 check above, and the drift it
@@ -341,10 +342,10 @@ def test_per_scenario_demoma_16_names_every_harness_event_type() -> None:
     ``invite_actor_to_case`` phase"), so an extra name is not drift.
     """
     registry = load_registry(_REPO_ROOT / "specs")
-    requirements = per_scenario_event_type_requirements(registry)
+    requirements = per_scenario_semantic_type_requirements(registry)
     unstated: dict[str, list[str]] = {}
     for spec in discover_scenarios():
-        harness = harness_event_types(spec, _REPO_ROOT)
+        harness = harness_semantic_types(spec, _REPO_ROOT)
         if harness is None:
             continue  # DEMOCI-11-003 reports a missing harness separately
         named = {
@@ -354,11 +355,11 @@ def test_per_scenario_demoma_16_names_every_harness_event_type() -> None:
                 r"`([^`]+)`", registry.get(spec_id).statement
             )
         }
-        missing = sorted(additional_event_types(harness) - named)
+        missing = sorted(additional_semantic_types(harness) - named)
         if missing:
             unstated[spec.name] = missing
     assert not unstated, (
-        "These scenarios' harnesses expect event types their DEMOMA-16 "
+        "These scenarios' harnesses expect semantic types their DEMOMA-16 "
         f"requirement does not name: {unstated}. Amend the requirement in the "
         "same PR as the harness."
     )

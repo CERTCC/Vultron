@@ -159,7 +159,7 @@ class TestRcvRejectInviteChainSkipsDependents:
             patch.object(demo, "get_actor_by_id", return_value=vendor),
             # set_stub_summary is seeding infrastructure not under test here.
             patch.object(ActorSession, "set_stub_summary"),
-            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_semantic_type_in_ledger"),
             patch.object(demo, "wait_for_case_participants"),
         ):
             # Must not raise: every failure is accumulated, never escaped.
@@ -218,7 +218,7 @@ class TestRcvRejectReadsTheCaseManagersStore:
         with (
             patch.object(demo, "run_case_invite_chain") as chain,
             patch.object(demo, "get_actor_by_id", return_value=vendor),
-            patch.object(demo, "wait_for_event_type_in_ledger") as ledger,
+            patch.object(demo, "wait_for_semantic_type_in_ledger") as ledger,
             patch.object(demo, "wait_for_case_participants") as roster,
             patch.object(demo, "wait_for_participant_rm_state") as rm_wait,
             patch.object(demo, "_check_participant_rm_state_in") as rm_check,

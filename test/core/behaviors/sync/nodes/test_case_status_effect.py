@@ -99,7 +99,7 @@ def _apply(bridge, status_object: Any):
             case_id=CASE_ID,
             log_index=0,
             object_id="https://example.org/activities/add-case-status",
-            event_type="add_case_status_to_case",
+            semantic_type="add_case_status_to_case",
             payload_snapshot={
                 "type": "Add",
                 "actor": MANAGER,

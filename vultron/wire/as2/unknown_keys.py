@@ -76,9 +76,10 @@ _VFD_RETIRED = (
 
 #: Names the protocol once read and no longer does, mapped to the replacement
 #: a sender should use (MV-11-002, MV-11-004).  Matched by name, not by
-#: normalisation, and consulted only here: core types carry no per-class
-#: retired-key guard (SDO-03-005) — ``extra="forbid"`` refuses these on
-#: in-process and stored data.
+#: normalisation, and the only place a received key is judged: core types
+#: carry no per-class guard for a wire key (SDO-03-005) — ``extra="forbid"``
+#: refuses these on in-process and stored data, and a renamed stored field
+#: names its rename through ``RetiredFieldsRecord``.
 _CONSENT_RETIRED = (
     "the scalar participant embargo consent is retired (ADR-0122); consent is"
     " per embargo and travels as the participant's embargoConsents rows"
@@ -89,10 +90,16 @@ _EMBARGO_FIELDS_RETIRED = (
     " (ADR-0122); a case carries its embargoes as embargoRegister entries"
 )
 
+_LEDGER_EVENT_TYPE_RETIRED = (
+    "a ledger entry's eventType was renamed semanticType (CLP-02-014);"
+    " send the entry's semantic type as semanticType"
+)
+
 RETIRED_NAMES: Mapping[str, str] = MappingProxyType(
     {
         "vfd_state": _VFD_RETIRED,
         "vfdState": _VFD_RETIRED,
+        "eventType": _LEDGER_EVENT_TYPE_RETIRED,
         **dict.fromkeys(
             (
                 "emConsentState",

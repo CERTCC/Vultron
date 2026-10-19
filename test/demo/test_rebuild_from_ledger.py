@@ -49,15 +49,15 @@ def test_an_embargo_demo_case_is_rebuilt_from_its_ledger(demo_env):
 
     rebuilt = dict(helpers.REBUILT_CASES)
     negotiated = [
-        event_types
-        for event_types in rebuilt.values()
-        if "activate_embargo_on_case" in event_types
+        semantic_types
+        for semantic_types in rebuilt.values()
+        if "activate_embargo_on_case" in semantic_types
     ]
     assert negotiated, f"no negotiated case was rebuilt: {rebuilt}"
-    (event_types,) = negotiated
-    assert event_types[0] == "create_case"
-    assert "create_embargo_consent" in event_types
-    assert "update_embargo_consent" in event_types
+    (semantic_types,) = negotiated
+    assert semantic_types[0] == "create_case"
+    assert "create_embargo_consent" in semantic_types
+    assert "update_embargo_consent" in semantic_types
     assert helpers.REBUILD_FAILURES == []
 
 

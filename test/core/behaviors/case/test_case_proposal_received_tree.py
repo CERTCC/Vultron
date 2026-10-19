@@ -36,7 +36,7 @@ import py_trees
 import pytest
 
 from test.support.embargo_register import register
-from test.support.ledger import committed_event_types, fail_commits
+from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -2023,7 +2023,7 @@ class TestCM14005ReporterSignatory:
         reporter_status_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None)
+            if getattr(e, "semantic_type", None)
             == "add_participant_status_to_participant"
             and getattr(e, "case_id", None) == case.id_
         ]
@@ -2107,7 +2107,8 @@ class TestADR0041LedgerEntries:
         entries = ledger_entries(dl, case.id_)
 
         assert [
-            (e.event_type, e.log_object_id) for e in entries[: len(expected)]
+            (e.semantic_type, e.log_object_id)
+            for e in entries[: len(expected)]
         ] == expected
 
     def test_create_case_ledger_entry_present(self, make_payload):
@@ -2127,8 +2128,8 @@ class TestADR0041LedgerEntries:
         case_id = case.id_
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
-        event_types = {getattr(e, "event_type", None) for e in entries}
-        assert "create_case" in event_types, (
+        semantic_types = {getattr(e, "semantic_type", None) for e in entries}
+        assert "create_case" in semantic_types, (
             "create_case ledger entry must be committed natively (AC-4)"
         )
 
@@ -2136,7 +2137,7 @@ class TestADR0041LedgerEntries:
         create_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None) == "create_case"
+            if getattr(e, "semantic_type", None) == "create_case"
             and getattr(e, "case_id", None) == case_id
         ]
         assert create_entries, "create_case entry must reference the case_id"
@@ -2163,7 +2164,7 @@ class TestADR0041LedgerEntries:
         report_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None) == "add_report_to_case"
+            if getattr(e, "semantic_type", None) == "add_report_to_case"
             and getattr(e, "case_id", None) == case_id
         ]
         assert report_entries, (
@@ -2184,8 +2185,8 @@ class TestADR0041LedgerEntries:
         _run_full_bt(make_payload, dl)
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
-        event_types = [getattr(e, "event_type", None) for e in entries]
-        assert "add_participant_status_to_participant" in event_types, (
+        semantic_types = [getattr(e, "semantic_type", None) for e in entries]
+        assert "add_participant_status_to_participant" in semantic_types, (
             "add_participant_status_to_participant entries must be present (AC-4)"
         )
 
@@ -2202,7 +2203,7 @@ class TestADR0041LedgerEntries:
         cs_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None) == "add_case_status_to_case"
+            if getattr(e, "semantic_type", None) == "add_case_status_to_case"
         ]
         assert cs_entries, "add_case_status_to_case entry must be present"
         for entry in cs_entries:
@@ -2250,7 +2251,7 @@ class TestCM18007InitLedgerEntries:
         ps_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None)
+            if getattr(e, "semantic_type", None)
             == "add_participant_status_to_participant"
         ]
         # CaseActor contributes 3 bootstrap RM entries (CM-23-007/ADR-0051);
@@ -2278,7 +2279,7 @@ class TestCM18007InitLedgerEntries:
         vendor_ps_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None)
+            if getattr(e, "semantic_type", None)
             == "add_participant_status_to_participant"
             and _VENDOR_URI
             in str(
@@ -2720,7 +2721,7 @@ class TestADR0041GenesisCommitFailure:
         assert result.disposition is not HandlerDisposition.APPLIED
         assert "creation entries stop there" in (result.reason or "")
         case = next(iter(dl.list_objects("VulnerabilityCase")))
-        assert committed_event_types(dl, case.id_) == ["create_case"]
+        assert committed_semantic_types(dl, case.id_) == ["create_case"]
         assert len(attempted) == 2, "nothing is tried after the failed entry"
 
     @pytest.mark.spec("CLP-07-013")
@@ -2749,7 +2750,7 @@ class TestADR0041GenesisCommitFailure:
         assert first.disposition is not HandlerDisposition.APPLIED
         (case,) = dl.list_objects("VulnerabilityCase")
         assert isinstance(case, VulnerabilityCase)
-        assert committed_event_types(dl, case.id_) == ["create_case"]
+        assert committed_semantic_types(dl, case.id_) == ["create_case"]
 
         result = _run_full_bt(make_payload, dl)
 
@@ -2758,7 +2759,8 @@ class TestADR0041GenesisCommitFailure:
         assert len(expected) > 1, expected
         entries = ledger_entries(dl, case.id_)
         assert [
-            (e.event_type, e.log_object_id) for e in entries[: len(expected)]
+            (e.semantic_type, e.log_object_id)
+            for e in entries[: len(expected)]
         ] == expected
 
     def test_case_not_found_is_best_effort_success(self, make_payload):
@@ -2874,7 +2876,7 @@ class TestCaseActorRMLifecycleBootstrap:
         entries = list(dl.list_objects("CaseLedgerEntry"))
         case_actor_rm_states = set()
         for entry in entries:
-            et = getattr(entry, "event_type", None)
+            et = getattr(entry, "semantic_type", None)
             if et != "add_participant_status_to_participant":
                 continue
             snap = getattr(entry, "payload_snapshot", {}) or {}

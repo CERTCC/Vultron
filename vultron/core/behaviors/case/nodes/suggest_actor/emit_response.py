@@ -58,8 +58,8 @@ class _AnswerRecommenderNode(_EmitSingleActivityBase):
     construction, or read from the recorded Offer the Case Owner answered.
     """
 
-    #: Ledger ``event_type`` of the answer, and the kind label of its id.
-    _EVENT_TYPE: ClassVar[str]
+    #: Ledger ``semantic_type`` of the answer, and the kind label of its id.
+    _SEMANTIC_TYPE: ClassVar[str]
     #: Activity name for the log line.
     _LABEL: ClassVar[str]
     #: Whether the answer accepts (``True``) or rejects the recommendation.
@@ -76,7 +76,7 @@ class _AnswerRecommenderNode(_EmitSingleActivityBase):
     def _answer_id(self) -> str:
         assert self.actor_id is not None
         return derived_activity_id(
-            self._EVENT_TYPE,
+            self._SEMANTIC_TYPE,
             self.actor_id,
             self.case_id,
             self._subject().recommendation_id,
@@ -110,7 +110,7 @@ class _AnswerRecommenderNode(_EmitSingleActivityBase):
             case_id=self.case_id,
             activity_id=activity_id,
             activity_blob=activity_blob,
-            event_type=self._EVENT_TYPE,
+            semantic_type=self._SEMANTIC_TYPE,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
@@ -160,7 +160,7 @@ class EmitAcceptActorRecommendationNode(_AnswerRecommenderNode):
     so the recommender can correlate the response.
     """
 
-    _EVENT_TYPE = "accept_actor_recommendation"
+    _SEMANTIC_TYPE = "accept_actor_recommendation"
     _LABEL = "AcceptActorRecommendation"
     _ACCEPTS = True
 
@@ -193,7 +193,7 @@ class EmitAcceptRecordedRecommendationNode(_AnswerOnRecordNode):
     ID, carried as the recorded Offer's ``origin``.
     """
 
-    _EVENT_TYPE = EmitAcceptActorRecommendationNode._EVENT_TYPE
+    _SEMANTIC_TYPE = EmitAcceptActorRecommendationNode._SEMANTIC_TYPE
     _LABEL = EmitAcceptActorRecommendationNode._LABEL
     _ACCEPTS = True
 
@@ -205,7 +205,7 @@ class EmitRejectActorRecommendationNode(_AnswerOnRecordNode):
     recorded Offer's.
     """
 
-    _EVENT_TYPE = "reject_actor_recommendation"
+    _SEMANTIC_TYPE = "reject_actor_recommendation"
     _LABEL = "RejectActorRecommendation"
     _ACCEPTS = False
 

@@ -12,10 +12,10 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Event-type matcher condition nodes for SYNC log-replication.
+"""Semantic-type matcher condition nodes for SYNC log-replication.
 
-Each ``Is*EventNode`` matches the ``event_type`` of one kind of entry on
-the blackboard ``activity.log_entry``.  Usually that is one event type; the
+Each ``Is*EventNode`` matches the ``semantic_type`` of one kind of entry on
+the blackboard ``activity.log_entry``.  Usually that is one semantic type; the
 note-attachment node matches the two entries that attach a note.  They are
 used as preconditions in the ``AnnounceLogEntryReceivedBT`` Selector branches
 (BTND-08-001/002).
@@ -32,15 +32,15 @@ from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.participant_event_types import (
-    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
-    UPDATE_CASE_OWNER_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    UPDATE_CASE_OWNER_SEMANTIC_TYPE,
 )
 from vultron.core.models.rsvp_deadline import (
-    EMBARGO_REINVITE_EVENT_TYPE,
-    HONOUR_LATE_ACCEPT_EVENT_TYPE,
-    INVITE_EXPIRED_EVENT_TYPE,
-    INVITE_EXPIRED_NOOP_EVENT_TYPE,
+    EMBARGO_REINVITE_SEMANTIC_TYPE,
+    HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
+    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
+    INVITE_EXPIRED_SEMANTIC_TYPE,
 )
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -55,8 +55,8 @@ _REJECT_INVITE_ACTOR_TO_CASE_EVENT = "reject_invite_actor_to_case"
 _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 _REMOVE_NOTE_FROM_CASE_EVENT = "remove_note_from_case"
 _ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
-# The revision relay's event types (EP-09-007, ADR-0113).  The proposal and
-# each relayed Invite share one event type and are told apart by authorship:
+# The revision relay's semantic types (EP-09-007, ADR-0113).  The proposal and
+# each relayed Invite share one semantic type and are told apart by authorship:
 # see :func:`is_relayed_embargo_invite`.
 _ATTRIBUTED_TO = wire_key("attributed_to")
 _EMBARGO_INVITE_EVENT = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
@@ -66,13 +66,13 @@ _ACCEPT_EMBARGO_INVITE_EVENT = (
 _REJECT_EMBARGO_INVITE_EVENT = (
     MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
 )
-#: Ledger ``event_type`` of the CASE_MANAGER's abandonment of an open embargo
+#: Ledger ``semantic_type`` of the CASE_MANAGER's abandonment of an open embargo
 #: proposal once P/X/A is set (EMB-16-001).  The snapshot is the ER the wire
 #: carries, ``Reject(Invite(EmbargoEvent))`` (MSM-02-006), but it is the
-#: manager's decision rather than its consent answer, so it has an event type
+#: manager's decision rather than its consent answer, so it has a semantic type
 #: of its own: replayed as a reject, a manager that is not the case owner
 #: would decide nothing (#4131).
-EMBARGO_ABANDONMENT_EVENT_TYPE = (
+EMBARGO_ABANDONMENT_SEMANTIC_TYPE = (
     f"{MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value}_abandoned"
 )
 
@@ -97,38 +97,38 @@ class _ActivityEventNode(DataLayerConditionWithPorts):
             self.activity = None
 
 
-class _EventTypeSetNode(_ActivityEventNode):
-    """Base for an ``Is*EventNode`` that matches a set of ``event_type`` values.
+class _SemanticTypeSetNode(_ActivityEventNode):
+    """Base for an ``Is*EventNode`` that matches a set of ``semantic_type`` values.
 
-    A subclass sets :attr:`matched_event_types`; the node returns SUCCESS iff
-    the entry's ``event_type`` is a member (BTND-08-001, SYNC-12-001).
+    A subclass sets :attr:`matched_semantic_types`; the node returns SUCCESS iff
+    the entry's ``semantic_type`` is a member (BTND-08-001, SYNC-12-001).
     """
 
-    matched_event_types: ClassVar[frozenset[str]]
+    matched_semantic_types: ClassVar[frozenset[str]]
 
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type in self.matched_event_types:
+        if entry.semantic_type in self.matched_semantic_types:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class _SingleEventTypeNode(_EventTypeSetNode):
-    """Base for an ``Is*EventNode`` that matches exactly one ``event_type``.
+class _SingleSemanticTypeNode(_SemanticTypeSetNode):
+    """Base for an ``Is*EventNode`` that matches exactly one ``semantic_type``.
 
-    A subclass sets :attr:`matched_event_type`; the node returns SUCCESS iff
-    the entry's ``event_type`` equals it (BTND-08-001, SYNC-12-001).
+    A subclass sets :attr:`matched_semantic_type`; the node returns SUCCESS iff
+    the entry's ``semantic_type`` equals it (BTND-08-001, SYNC-12-001).
     """
 
-    matched_event_type: ClassVar[str]
+    matched_semantic_type: ClassVar[str]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        if "matched_event_type" in cls.__dict__:
-            cls.matched_event_types = frozenset({cls.matched_event_type})
+        if "matched_semantic_type" in cls.__dict__:
+            cls.matched_semantic_types = frozenset({cls.matched_semantic_type})
 
 
-class IsRemoveEmbargoEventNode(_SingleEventTypeNode):
+class IsRemoveEmbargoEventNode(_SingleSemanticTypeNode):
     """Precondition: return SUCCESS when this log entry IS a remove-embargo event.
 
     Used as the precondition in the ``EmbargoTeardownEffects`` slot of
@@ -136,25 +136,25 @@ class IsRemoveEmbargoEventNode(_SingleEventTypeNode):
 
         Selector(EmbargoTeardownEffects)
           Sequence
-            IsRemoveEmbargoEventNode   ← SUCCESS iff event_type matches
+            IsRemoveEmbargoEventNode   ← SUCCESS iff semantic_type matches
             ApplyEmbargoTeardownNode
-          Inverter(IsRemoveEmbargoEventNode)  ← SUCCESS iff wrong event type
+          Inverter(IsRemoveEmbargoEventNode)  ← SUCCESS iff wrong semantic type
 
     The relay slots beside it (proposal, relayed Invite, Accept and Reject
     of an Invite, and the abandonment of a proposal) follow the same shape.
 
     The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
+    no-op for the wrong semantic type).  When the condition matches but
     ApplyEmbargoTeardownNode fails, both branches of the Selector fail and
     the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
 
     Per BTND-08-001, BTND-08-002, BT-06-001, SYNC-12-001.
     """
 
-    matched_event_type = _REMOVE_EMBARGO_EVENT
+    matched_semantic_type = _REMOVE_EMBARGO_EVENT
 
 
-class IsParticipantStatusEventNode(_SingleEventTypeNode):
+class IsParticipantStatusEventNode(_SingleSemanticTypeNode):
     """Precondition: return SUCCESS when this log entry IS a participant-status event.
 
     Used as the precondition in the ``ParticipantStatusEffects`` Selector's
@@ -162,22 +162,22 @@ class IsParticipantStatusEventNode(_SingleEventTypeNode):
 
         Selector(ParticipantStatusEffects)
           Sequence
-            IsParticipantStatusEventNode   ← SUCCESS iff event_type matches
+            IsParticipantStatusEventNode   ← SUCCESS iff semantic_type matches
             ApplyParticipantStatusFromLedgerNode
-          Inverter(IsParticipantStatusEventNode)  ← SUCCESS iff wrong event type
+          Inverter(IsParticipantStatusEventNode)  ← SUCCESS iff wrong semantic type
 
     The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
+    no-op for the wrong semantic type).  When the condition matches but
     ApplyParticipantStatusFromLedgerNode fails, both branches of the Selector
     fail and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
 
     Per BTND-08-001, BTND-08-002, DEMOMA-07-003 step 3, SYNC-12-001.
     """
 
-    matched_event_type = _ADD_PARTICIPANT_STATUS_EVENT
+    matched_semantic_type = _ADD_PARTICIPANT_STATUS_EVENT
 
 
-class IsAddNoteEventNode(_SingleEventTypeNode):
+class IsAddNoteEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry attaches a note to the case.
 
     One entry attaches a note: ``add_note_to_case``, a received
@@ -190,22 +190,22 @@ class IsAddNoteEventNode(_SingleEventTypeNode):
 
         Selector(NoteEffects)
           Sequence
-            IsAddNoteEventNode   ← SUCCESS iff event_type matches
+            IsAddNoteEventNode   ← SUCCESS iff semantic_type matches
             ApplyNoteFromLedgerNode
-          Inverter(IsAddNoteEventNode)  ← SUCCESS iff wrong event type
+          Inverter(IsAddNoteEventNode)  ← SUCCESS iff wrong semantic type
 
     The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
+    no-op for the wrong semantic type).  When the condition matches but
     ApplyNoteFromLedgerNode fails, both branches of the Selector fail and
     the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
 
     Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001.
     """
 
-    matched_event_type = _ADD_NOTE_TO_CASE_EVENT
+    matched_semantic_type = _ADD_NOTE_TO_CASE_EVENT
 
 
-class IsRemoveNoteEventNode(_SingleEventTypeNode):
+class IsRemoveNoteEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry IS a remove-note event.
 
     Precondition of the ``RemoveNoteEffects`` slot, in the same
@@ -214,10 +214,10 @@ class IsRemoveNoteEventNode(_SingleEventTypeNode):
     Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001, RSH-08-004.
     """
 
-    matched_event_type = _REMOVE_NOTE_FROM_CASE_EVENT
+    matched_semantic_type = _REMOVE_NOTE_FROM_CASE_EVENT
 
 
-class IsCreateCaseParticipantEventNode(_SingleEventTypeNode):
+class IsCreateCaseParticipantEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry IS a ``create_case_participant``.
 
     Precondition of the ``CreateCaseParticipant`` slot, in the same
@@ -228,10 +228,10 @@ class IsCreateCaseParticipantEventNode(_SingleEventTypeNode):
     Per BTND-08-001, BTND-08-002, CM-11-006, SYNC-12-001, RSH-08-004.
     """
 
-    matched_event_type = CREATE_CASE_PARTICIPANT_EVENT_TYPE
+    matched_semantic_type = CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE
 
 
-class IsInviteAcceptEventNode(_SingleEventTypeNode):
+class IsInviteAcceptEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry IS the invitee's stub Accept.
 
     Precondition of the ``InviteAccept`` slot: the entry is the invitee's
@@ -241,10 +241,10 @@ class IsInviteAcceptEventNode(_SingleEventTypeNode):
     Per BTND-08-001, BTND-08-002, SYNC-12-001, RSH-08-004.
     """
 
-    matched_event_type = _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT
+    matched_semantic_type = _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT
 
 
-class IsInviteRejectEventNode(_SingleEventTypeNode):
+class IsInviteRejectEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry IS the invitee's stub Reject.
 
     Precondition of the ``InviteReject`` slot: the entry is the invitee's
@@ -254,10 +254,10 @@ class IsInviteRejectEventNode(_SingleEventTypeNode):
     Per BTND-08-001, BTND-08-002, SYNC-12-001, RSH-08-004.
     """
 
-    matched_event_type = _REJECT_INVITE_ACTOR_TO_CASE_EVENT
+    matched_semantic_type = _REJECT_INVITE_ACTOR_TO_CASE_EVENT
 
 
-class IsSubmitReportEventNode(_SingleEventTypeNode):
+class IsSubmitReportEventNode(_SingleSemanticTypeNode):
     """Precondition: return SUCCESS when this log entry IS an add_report_to_case event.
 
     Used as the precondition in the ``OfferReportEffects`` Selector's inner
@@ -265,22 +265,22 @@ class IsSubmitReportEventNode(_SingleEventTypeNode):
 
         Selector(OfferReportEffects)
           Sequence
-            IsSubmitReportEventNode   ← SUCCESS iff event_type matches
+            IsSubmitReportEventNode   ← SUCCESS iff semantic_type matches
             ApplyOfferReportFromLedgerNode
-          Inverter(IsSubmitReportEventNode)  ← SUCCESS iff wrong event type
+          Inverter(IsSubmitReportEventNode)  ← SUCCESS iff wrong semantic type
 
     The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
+    no-op for the wrong semantic type).  When the condition matches but
     ApplyOfferReportFromLedgerNode fails, both branches of the Selector fail
     and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
 
     Per BTND-08-001, BTND-08-002, SYNC-02-002, ISSUE-2134.
     """
 
-    matched_event_type = _ADD_REPORT_TO_CASE_EVENT
+    matched_semantic_type = _ADD_REPORT_TO_CASE_EVENT
 
 
-class IsOwnershipTransferEventNode(_SingleEventTypeNode):
+class IsOwnershipTransferEventNode(_SingleSemanticTypeNode):
     """Precondition: return SUCCESS when this log entry names a new Case Owner.
 
     The ``update_case_owner`` entry the CASE_MANAGER commits after the
@@ -293,12 +293,12 @@ class IsOwnershipTransferEventNode(_SingleEventTypeNode):
 
         Selector(OwnershipTransferEffects)
           Sequence
-            IsOwnershipTransferEventNode   ← SUCCESS iff event_type matches
+            IsOwnershipTransferEventNode   ← SUCCESS iff semantic_type matches
             ApplyOwnershipTransferFromLedgerNode
-          Inverter(IsOwnershipTransferEventNode)  ← SUCCESS iff wrong event type
+          Inverter(IsOwnershipTransferEventNode)  ← SUCCESS iff wrong semantic type
 
     The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
+    no-op for the wrong semantic type).  When the condition matches but
     ApplyOwnershipTransferFromLedgerNode fails, both branches of the Selector
     fail and the FAILURE propagates to block PersistReceivedLogEntry
     (SYNC-12-001).
@@ -306,7 +306,7 @@ class IsOwnershipTransferEventNode(_SingleEventTypeNode):
     Per BTND-08-001, BTND-08-002, CM-21-007, SYNC-02-002, SYNC-12-001.
     """
 
-    matched_event_type = UPDATE_CASE_OWNER_EVENT_TYPE
+    matched_semantic_type = UPDATE_CASE_OWNER_SEMANTIC_TYPE
 
 
 def is_relayed_embargo_invite(
@@ -317,7 +317,7 @@ def is_relayed_embargo_invite(
     """True when an ``invite_to_embargo_on_case`` snapshot is a relayed Invite.
 
     The CASE_MANAGER commits the proposal it received and then each Invite it
-    relays under the same event type (EP-09-002).  A relay is the manager's own
+    relays under the same semantic type (EP-09-002).  A relay is the manager's own
     emission on the proposer's behalf: ``actor`` is the CASE_MANAGER and
     ``attributedTo`` names somebody else (CM-24).  Anything else is the
     proposal — including a proposal whose sender put a third party in
@@ -343,7 +343,7 @@ class _EmbargoInviteEventNode(_ActivityEventNode):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type != _EMBARGO_INVITE_EVENT:
+        if entry.semantic_type != _EMBARGO_INVITE_EVENT:
             return Status.FAILURE
         if self.datalayer is None:
             # Telling a proposal from a relayed Invite needs the store; a
@@ -390,7 +390,7 @@ class IsEmbargoInviteRelayEventNode(_EmbargoInviteEventNode):
     _match_relay = True
 
 
-class IsAcceptEmbargoInviteEventNode(_SingleEventTypeNode):
+class IsAcceptEmbargoInviteEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is an ``accept_invite_to_embargo_on_case`` event.
 
     Used in the ``EmbargoAcceptanceEffects`` slot of
@@ -399,10 +399,10 @@ class IsAcceptEmbargoInviteEventNode(_SingleEventTypeNode):
     Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    matched_event_type = _ACCEPT_EMBARGO_INVITE_EVENT
+    matched_semantic_type = _ACCEPT_EMBARGO_INVITE_EVENT
 
 
-class IsRejectEmbargoInviteEventNode(_SingleEventTypeNode):
+class IsRejectEmbargoInviteEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is a ``reject_invite_to_embargo_on_case`` event.
 
     Used in the ``EmbargoRejectionEffects`` slot of
@@ -411,10 +411,10 @@ class IsRejectEmbargoInviteEventNode(_SingleEventTypeNode):
     Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    matched_event_type = _REJECT_EMBARGO_INVITE_EVENT
+    matched_semantic_type = _REJECT_EMBARGO_INVITE_EVENT
 
 
-class IsWithdrawFromEmbargoEventNode(_SingleEventTypeNode):
+class IsWithdrawFromEmbargoEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is a ``withdraw_from_embargo_on_case`` event.
 
     A signatory's ``Leave(EmbargoEvent)`` the CASE_MANAGER committed
@@ -424,49 +424,51 @@ class IsWithdrawFromEmbargoEventNode(_SingleEventTypeNode):
     Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    matched_event_type = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
+    matched_semantic_type = (
+        MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
+    )
 
 
-class IsEmbargoAbandonmentEventNode(_SingleEventTypeNode):
+class IsEmbargoAbandonmentEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is the CASE_MANAGER's abandonment of a proposal.
 
-    Matches :data:`EMBARGO_ABANDONMENT_EVENT_TYPE`.  Used in the
+    Matches :data:`EMBARGO_ABANDONMENT_SEMANTIC_TYPE`.  Used in the
     ``EmbargoAbandonmentEffects`` slot of ``AnnounceLogEntryReceivedBT``.
 
     Per EMB-16-001, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    matched_event_type = EMBARGO_ABANDONMENT_EVENT_TYPE
+    matched_semantic_type = EMBARGO_ABANDONMENT_SEMANTIC_TYPE
 
 
-class IsEmbargoReinviteEventNode(_SingleEventTypeNode):
+class IsEmbargoReinviteEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is the CASE_MANAGER's re-invite of a stale accepter.
 
-    Matches :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_EVENT_TYPE`.
+    Matches :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_SEMANTIC_TYPE`.
     Used in the ``EmbargoReinviteEffects`` slot of ``AnnounceLogEntryReceivedBT``.
 
     Per EMB-17-003, CM-28-013, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    matched_event_type = EMBARGO_REINVITE_EVENT_TYPE
+    matched_semantic_type = EMBARGO_REINVITE_SEMANTIC_TYPE
 
 
-class IsInviteExpiryEventNode(_SingleEventTypeNode):
+class IsInviteExpiryEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is the CASE_MANAGER's expiry of an embargo Invite.
 
-    Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_EVENT_TYPE`.
+    Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_SEMANTIC_TYPE`.
     Used in the ``InviteExpiryEffects`` slot of ``AnnounceLogEntryReceivedBT``.
 
     Per CM-28-009, CM-28-014, ADR-0118, BTND-08-001, SYNC-12-001.
     """
 
-    matched_event_type = INVITE_EXPIRED_EVENT_TYPE
+    matched_semantic_type = INVITE_EXPIRED_SEMANTIC_TYPE
 
 
-class IsInviteExpiryNoopEventNode(_SingleEventTypeNode):
+class IsInviteExpiryNoopEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is the CASE_MANAGER's no-op expiry acknowledgement.
 
-    Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_NOOP_EVENT_TYPE`.
+    Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_NOOP_SEMANTIC_TYPE`.
     Committed when a late ``Accept`` arrives with no current embargo (EM EXITED
     or NONE); the CASE_MANAGER acknowledges it without changing any PEC state
     (EMB-17-004, ADR-0118).  Used in the ``InviteExpiryNoopEffects`` slot of
@@ -475,13 +477,13 @@ class IsInviteExpiryNoopEventNode(_SingleEventTypeNode):
     Per EMB-17-004, CM-28-009, ADR-0118, BTND-08-001, SYNC-12-001.
     """
 
-    matched_event_type = INVITE_EXPIRED_NOOP_EVENT_TYPE
+    matched_semantic_type = INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
 
 
-class IsHonourLateAcceptEventNode(_SingleEventTypeNode):
+class IsHonourLateAcceptEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is the CASE_MANAGER's honour-late-accept decision.
 
-    Matches :data:`~vultron.core.models.rsvp_deadline.HONOUR_LATE_ACCEPT_EVENT_TYPE`.
+    Matches :data:`~vultron.core.models.rsvp_deadline.HONOUR_LATE_ACCEPT_SEMANTIC_TYPE`.
     Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives and the
     embargo is still active and matching (EMB-17-001, ADR-0118).  Used in
     the ``InviteHonourLateAcceptEffects`` slot of
@@ -490,4 +492,4 @@ class IsHonourLateAcceptEventNode(_SingleEventTypeNode):
     Per EMB-17-001, ADR-0118, BTND-08-001, SYNC-12-001.
     """
 
-    matched_event_type = HONOUR_LATE_ACCEPT_EVENT_TYPE
+    matched_semantic_type = HONOUR_LATE_ACCEPT_SEMANTIC_TYPE

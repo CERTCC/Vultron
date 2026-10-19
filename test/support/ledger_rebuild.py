@@ -130,7 +130,7 @@ def creation_records(entries: Iterable[CaseLedgerEntry]) -> list[CoreObject]:
     """
     records: dict[str, CoreObject] = {}
     for entry in entries:
-        carried = _CREATION_RECORDS.get(str(entry.event_type))
+        carried = _CREATION_RECORDS.get(str(entry.semantic_type))
         if carried is None:
             break
         key, cls = carried
@@ -217,7 +217,7 @@ def _replay(
         verdict = receive_into(replica, body, as_actor)
         assert verdict.disposition is HandlerDisposition.APPLIED, (
             f"rebuild of '{entry.case_id}' as '{as_actor}': entry"
-            f" {entry.log_index} ({entry.event_type}) was"
+            f" {entry.log_index} ({entry.semantic_type}) was"
             f" {verdict.disposition.value}: {verdict.reason}"
         )
 

@@ -36,9 +36,9 @@ from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.participant_event_types import (
-    UPDATE_CASE_OWNER_EVENT_TYPE,
-    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    UPDATE_CASE_OWNER_SEMANTIC_TYPE,
+    UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.participants.ownership_offer import recorded_ownership_offer
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -276,7 +276,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
         cause_id = self._cause_id()
         for participant in participants:
             self._commit(
-                UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+                UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
                 trigger_activity.record_case_participant_updated(
                     participant=participant,
                     case_id=self.case_id,
@@ -285,14 +285,14 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
                 ),
             )
         self._commit(
-            UPDATE_CASE_OWNER_EVENT_TYPE,
+            UPDATE_CASE_OWNER_SEMANTIC_TYPE,
             trigger_activity.record_case_owner_updated(
                 case=case, actor=actor_id, cause_id=cause_id
             ),
         )
 
-    def _commit(self, event_type: str, built: tuple[str, str]) -> None:
-        """Commit one built ``(activity_id, sealed_blob)`` as *event_type*."""
+    def _commit(self, semantic_type: str, built: tuple[str, str]) -> None:
+        """Commit one built ``(activity_id, sealed_blob)`` as *semantic_type*."""
         activity_id, blob = built
         commit_emitted_activity(
             datalayer=cast(CaseOutboxPersistence, self.datalayer),
@@ -300,7 +300,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
             case_id=self.case_id,
             activity_id=activity_id,
             activity_blob=blob,
-            event_type=event_type,
+            semantic_type=semantic_type,
         )
 
 

@@ -101,7 +101,7 @@ def _persist_prior_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/prior-{log_index}",
-            event_type="note_added",
+            semantic_type="note_added",
             payload_snapshot=_note_snapshot(actor_id, published),
             prev_log_hash=_ZERO_HASH,
         )
@@ -114,7 +114,7 @@ def _run(bridge, snapshot: dict[str, object], tail_index: int = -1):
         tree=CreateLogEntryNode(
             case_id=CASE_ID,
             object_id=_ACT_UNDER_TEST,
-            event_type="note_added",
+            semantic_type="note_added",
             payload_snapshot=snapshot,
             name="CreateLogEntry",
         ),
@@ -444,7 +444,7 @@ def test_create_log_entry_node_reuses_a_recorded_entry_past_the_staleness_window
                 case_id=CASE_ID,
                 log_index=0,
                 object_id=_ACT_UNDER_TEST,
-                event_type="note_added",
+                semantic_type="note_added",
                 payload_snapshot=snapshot,
                 prev_log_hash=_ZERO_HASH,
             )

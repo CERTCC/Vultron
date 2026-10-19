@@ -110,7 +110,7 @@ def _make_add_report_ledger_entry():
             case_id=CASE_ID,
             log_index=2,
             object_id=REPORT_ID,
-            event_type="add_report_to_case",
+            semantic_type="add_report_to_case",
             payload_snapshot=snapshot,
             prev_log_hash=CASE_GENESIS_HASH,
         )

@@ -246,7 +246,7 @@ def _add_report_snapshot(dl: SqliteDataLayer) -> dict[str, Any]:
     entries = [
         e
         for e in dl.list_objects("CaseLedgerEntry")
-        if getattr(e, "event_type", None) == "add_report_to_case"
+        if getattr(e, "semantic_type", None) == "add_report_to_case"
     ]
     assert len(entries) == 1, "one canonical add_report_to_case entry (AC-4)"
     snapshot = getattr(entries[0], "payload_snapshot", None)

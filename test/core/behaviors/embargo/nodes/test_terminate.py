@@ -32,7 +32,7 @@ from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
-    EMBARGO_TEARDOWN_EVENT_TYPE,
+    EMBARGO_TEARDOWN_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.embargo.nodes.terminate import (
     SendTerminateEmbargoActivityNode,
@@ -124,7 +124,7 @@ def _factory() -> MagicMock:
 
 def _pending_ask(actor_id: str) -> PendingAssertion | None:
     return get_pending_assertion_store(actor_id).pending_for_subject(
-        CASE_ID, EMBARGO_TEARDOWN_EVENT_TYPE, _EMBARGO_ID
+        CASE_ID, EMBARGO_TEARDOWN_SEMANTIC_TYPE, _EMBARGO_ID
     )
 
 
@@ -132,7 +132,7 @@ def _record_earlier_ask(subject_id: str = _EMBARGO_ID) -> None:
     record_pending_assertion(
         _VENDOR_ID,
         CASE_ID,
-        EMBARGO_TEARDOWN_EVENT_TYPE,
+        EMBARGO_TEARDOWN_SEMANTIC_TYPE,
         _EARLIER_ASK_ID,
         subject_id=subject_id,
     )
@@ -366,7 +366,7 @@ class TestAskCaseManagerToTerminateOnce:
     def test_a_cleared_ask_no_longer_suppresses(self) -> None:
         _record_earlier_ask()
         get_pending_assertion_store(_VENDOR_ID).clear(
-            CASE_ID, EMBARGO_TEARDOWN_EVENT_TYPE, _EARLIER_ASK_ID
+            CASE_ID, EMBARGO_TEARDOWN_SEMANTIC_TYPE, _EARLIER_ASK_ID
         )
 
         dl, _ = _run(

@@ -279,7 +279,7 @@ def test_removed_participant_gets_no_case_content(
 
 def _entry(
     log_index: int,
-    event_type: str,
+    semantic_type: str,
     *,
     object_id: str,
     actor: str = _SENDER,
@@ -288,7 +288,7 @@ def _entry(
         case_id=_CASE_ID,
         log_index=log_index,
         log_object_id=object_id,
-        event_type=event_type,
+        semantic_type=semantic_type,
         payload_snapshot={"type": "Add", "actor": actor},
         prev_log_hash="0" * 64,
         entry_hash=f"{log_index:064d}",

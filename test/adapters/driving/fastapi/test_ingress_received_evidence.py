@@ -164,7 +164,7 @@ def test_in_place_hydration_carries_the_evidence(
         id_=f"{CASE_ID}/log/entry-1",
         case_id=CASE_ID,
         log_object_id=ACTOR,
-        event_type="accept_invite_actor_to_case",
+        semantic_type="accept_invite_actor_to_case",
         payload_snapshot={"actor": ACTOR},
         entry_hash="hash-1",
         prev_log_hash="hash-0",

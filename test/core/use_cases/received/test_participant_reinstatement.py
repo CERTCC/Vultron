@@ -81,13 +81,13 @@ from vultron.core.models.actor_recommendation_record import (
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.participant_event_types import (
-    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
-from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_EVENT_TYPE
+from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_SEMANTIC_TYPE
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.recipients import invitation_recipients
 from vultron.core.states.participant_embargo_consent import (
@@ -552,7 +552,9 @@ def test_reinstated_non_signatory_gets_the_embargo_invite_and_no_content(
     ]
     assert len(invites) == 1
     assert len(_entry_ids_announced_to(case, OTHER)) == announced
-    assert EMBARGO_REINVITE_EVENT_TYPE in {e.event_type for e in case.ledger()}
+    assert EMBARGO_REINVITE_SEMANTIC_TYPE in {
+        e.semantic_type for e in case.ledger()
+    }
     assert case.activities_to("Add", OTHER), "the notice still reaches it"
 
 
@@ -684,7 +686,7 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
         ).record_case_participant_created(
             participant=stored, case_id=CASE_ID, actor=MANAGER
         )[1],
-        event_type=CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+        semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
         sync_port=SyncActivityAdapter(case.dl),
     )
 
@@ -696,7 +698,9 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert NEWBIE in case.read_case().actor_participant_index
-    assert "add_case_participant" not in {e.event_type for e in case.ledger()}
+    assert "add_case_participant" not in {
+        e.semantic_type for e in case.ledger()
+    }
     assert [
         add
         for add in case.dl.list_objects("Add")
@@ -755,8 +759,8 @@ def test_reinstatement_into_a_case_with_no_active_embargo_sends_no_invite(
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert _participant_id(OTHER) in case.active_ids()
     assert _embargo_invites_to(case, OTHER) == []
-    assert EMBARGO_REINVITE_EVENT_TYPE not in {
-        e.event_type for e in case.ledger()
+    assert EMBARGO_REINVITE_SEMANTIC_TYPE not in {
+        e.semantic_type for e in case.ledger()
     }
 
 

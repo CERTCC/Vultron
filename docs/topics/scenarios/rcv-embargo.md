@@ -22,7 +22,7 @@ causal_edges:
     note: >
       The Reporter revises the default embargo only once the case is engaged.
       The proposal and the invitations the CASE_MANAGER relays to the other
-      participants are all recorded under this event type.
+      participants are all recorded under this semantic type.
   - antecedent: invite_to_embargo_on_case
     consequent: accept_invite_to_embargo_on_case
     note: >

@@ -369,7 +369,7 @@ class TestRccvExtensionMilestoneAssertions:
                 "case_id": case.id_,
                 "log_index": 0,
                 "entry_hash": "h0",
-                "event_type": "close_case",
+                "semantic_type": "close_case",
             }
         }
 

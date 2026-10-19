@@ -66,9 +66,9 @@ from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
-    wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
     wait_for_participant_vf_state,
+    wait_for_semantic_type_in_ledger,
 )
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
@@ -460,10 +460,10 @@ def _phase_ownership_handoff(
         "Reporter replica received the ownership-transfer ledger entry"
         " via Announce(CaseLedgerEntry) (CM-21-007, ADR-0053)"
     ):
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=reporter_client,
             case_id=case.id_,
-            event_type="accept_case_ownership_transfer",
+            semantic_type="accept_case_ownership_transfer",
             timeout_seconds=90.0,
         )
 

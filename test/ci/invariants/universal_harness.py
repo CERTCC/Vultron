@@ -6,7 +6,7 @@ Each scenario harness calls::
         make_universal_invariant_tests(
             replicas_fixture="<scenario>_replicas",
             chain_actors=_CHAIN_ACTORS,
-            expected_event_types=_XXX_EXPECTED_EVENT_TYPES,
+            expected_semantic_types=_XXX_EXPECTED_SEMANTIC_TYPES,
         )
     )
 
@@ -40,8 +40,6 @@ from test.ci.invariants.common import (
     check_cross_actor_hash_agreement,
     check_cross_actor_payload_actor_agreement,
     check_cs_state_transitions_observed,
-    check_event_type_count,
-    check_event_type_present,
     check_genesis_entry_present,
     check_hash_chain,
     check_log_starts_at_genesis,
@@ -58,6 +56,8 @@ from test.ci.invariants.common import (
     check_per_actor_replica_participant_status_schema_completeness,
     check_per_actor_replica_rm_closed_termination,
     check_rm_closed_termination,
+    check_semantic_type_count,
+    check_semantic_type_present,
     check_unique_payload_snapshot_ids,
     load_actor_names,
     load_narrative_edges,
@@ -67,7 +67,7 @@ from test.ci.invariants.common import (
 def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested test closure; each is simple
     replicas_fixture: str,
     chain_actors: list,
-    expected_event_types: list,
+    expected_semantic_types: list,
     check_fix_ready: bool = True,
     *,
     narrative_path: str | None = None,
@@ -83,8 +83,8 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
     chain_actors:
         Per-scenario ``_CHAIN_ACTORS`` list (``pytest.param`` entries or
         plain strings) passed to ``@pytest.mark.parametrize``.
-    expected_event_types:
-        Per-scenario ``_XXX_EXPECTED_EVENT_TYPES`` list passed to
+    expected_semantic_types:
+        Per-scenario ``_XXX_EXPECTED_SEMANTIC_TYPES`` list passed to
         ``@pytest.mark.parametrize``.
     check_fix_ready:
         Forwarded to ``check_cs_state_transitions_observed`` and its
@@ -157,14 +157,14 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         )
 
     @pytest.mark.case_ledger_invariants
-    @pytest.mark.parametrize("event_type_val", expected_event_types)
-    def test_invariant_5_expected_event_types_present(
-        event_type_val: str,
+    @pytest.mark.parametrize("semantic_type_val", expected_semantic_types)
+    def test_invariant_5_expected_semantic_types_present(
+        semantic_type_val: str,
         request: pytest.FixtureRequest,
     ) -> None:
-        """Each expected protocol eventType appears at least once."""
+        """Each expected protocol semanticType appears at least once."""
         replicas = request.getfixturevalue(replicas_fixture)
-        violations = check_event_type_present(replicas, event_type_val)
+        violations = check_semantic_type_present(replicas, semantic_type_val)
         assert not violations, violations[0] if violations else ""
 
     @pytest.mark.case_ledger_invariants
@@ -423,7 +423,7 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         "test_invariant_2_cross_actor_hash_agreement": test_invariant_2_cross_actor_hash_agreement,
         "test_invariant_3_cross_actor_payload_actor_agreement": test_invariant_3_cross_actor_payload_actor_agreement,
         "test_invariant_4_non_empty_payload_snapshot": test_invariant_4_non_empty_payload_snapshot,
-        "test_invariant_5_expected_event_types_present": test_invariant_5_expected_event_types_present,
+        "test_invariant_5_expected_semantic_types_present": test_invariant_5_expected_semantic_types_present,
         "test_invariant_6_no_rm_state_oscillation": test_invariant_6_no_rm_state_oscillation,
         "test_invariant_7_log_terminates_all_rm_closed": test_invariant_7_log_terminates_all_rm_closed,
         "test_invariant_18_no_participant_act_after_case_fully_closed": test_invariant_18_no_participant_act_after_case_fully_closed,
@@ -483,11 +483,11 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
 
         @pytest.mark.case_ledger_invariants
         @pytest.mark.parametrize(
-            "event_type",
+            "semantic_type",
             ["invite_actor_to_full_case", "accept_invite_actor_to_full_case"],
         )
         def test_invariant_17_every_joined_invitee_judged_the_case(
-            event_type: str,
+            semantic_type: str,
             request: pytest.FixtureRequest,
         ) -> None:
             """Each joined invitee is sent the full-case Invite and replies to it.
@@ -495,14 +495,14 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
             After an invitee accepts its stub Invite the CASE_MANAGER sends the
             full-case Invite, and the invitee judges the case by accepting it
             (CM-11-010, CM-11-011).  The scenario invites
-            ``joined_invitees`` actors, so each event type appears exactly
+            ``joined_invitees`` actors, so each semantic type appears exactly
             that many times: a floor alone is satisfied by a double commit
             for one invitee while another is never sent the Invite (#4120).
             """
             replicas = request.getfixturevalue(replicas_fixture)
-            violations = check_event_type_count(
+            violations = check_semantic_type_count(
                 replicas,
-                event_type,
+                semantic_type,
                 min_count=_joined_invitees,
                 max_count=_joined_invitees,
             )

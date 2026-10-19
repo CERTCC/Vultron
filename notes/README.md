@@ -272,7 +272,7 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   **Load when**: declaring a scenario's path, renaming a scenario, or building the
   tree index.
 - **`demo-ci-invariants.md`** · `guidance`
-  The demo CI case-ledger invariant harness and its expected event types.
+  The demo CI case-ledger invariant harness and its expected semantic types.
   **Load when**: changing the demo CI workflow or a scenario's expected events.
 - **`demo-ci-diagnostics.md`** · `guidance`
   Runbook for a red Demo Integration run: log layers, invariant map, local repro.

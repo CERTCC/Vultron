@@ -54,7 +54,7 @@ from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
 from vultron.core.models.protocol_pair import (
-    OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE,
+    OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE,
 )
 from vultron.core.predicates.addressing import snapshot_actor_id
 
@@ -67,12 +67,12 @@ class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
 
         Selector(OfferOwnershipTransferEffects)
           Sequence
-            IsOfferOwnershipTransferEventNode   <- SUCCESS iff event_type matches
+            IsOfferOwnershipTransferEventNode   <- SUCCESS iff semantic_type matches
             ApplyOfferOwnershipTransferFromLedgerNode
           Inverter(IsOfferOwnershipTransferEventNode)  <- SUCCESS iff wrong type
 
     The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
+    no-op for the wrong semantic type).  When the condition matches but
     ApplyOfferOwnershipTransferFromLedgerNode returns FAILURE — i.e. the effect
     itself could not be applied — both branches of the Selector fail and the
     FAILURE propagates to block PersistReceivedLogEntry, so the entry is not
@@ -96,7 +96,7 @@ class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE:
+        if entry.semantic_type == OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE:
             return Status.SUCCESS
         return Status.FAILURE
 

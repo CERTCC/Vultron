@@ -10,18 +10,18 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Read a scenario harness's expected event types (ISSUE-3505).
+"""Read a scenario harness's expected semantic types (ISSUE-3505).
 
 Each ``test/ci/invariants/test_XXX_invariants.py`` declares one
-``_XXX_EXPECTED_EVENT_TYPES`` constant, and Invariant 5 asserts the scenario's
+``_XXX_EXPECTED_SEMANTIC_TYPES`` constant, and Invariant 5 asserts the scenario's
 authoritative log contains every entry in it.  That constant is therefore the
-live answer to "which protocol event types does this scenario exercise", and two
+live answer to "which protocol semantic types does this scenario exercise", and two
 ``notes/`` tables mirror it: the tick matrix in
 ``notes/demo-ci-scenario-coverage.md`` and the ``Additional required`` column of
 ``notes/demo-ci-invariants.md``.  MS-16-002 requires such a mirror to be derived
 or ratcheted rather than left as prose, so this module supplies the source side.
 
-**Read by AST, not by import.**  ``test_universal_event_types.py`` reads the same
+**Read by AST, not by import.**  ``test_universal_semantic_types.py`` reads the same
 constant by importing the harness, which is right in a test — pytest is already
 loaded and the fixtures are already importable.  It would be wrong here:
 ``uv run demo-scenarios --check`` is a pre-commit hook, and importing nine test
@@ -44,13 +44,13 @@ from pathlib import Path
 from vultron.demo.scenario.registry import ScenarioSpec
 from vultron.metadata.base import repo_root
 
-#: The DEMOMA-16-001 universal event types, in the order the harnesses list
-#: them.  Duplicated from ``test_universal_event_types._UNIVERSAL_EVENT_TYPES``
+#: The DEMOMA-16-001 universal semantic types, in the order the harnesses list
+#: them.  Duplicated from ``test_universal_semantic_types._UNIVERSAL_SEMANTIC_TYPES``
 #: only in spelling: that tuple is the *test's* assertion about the harnesses,
 #: and importing a test module from production tooling is the coupling this
 #: module's docstring rejects.  The two are held together by
-#: ``test_universal_event_types_agree_with_the_metadata_reader``.
-UNIVERSAL_EVENT_TYPES: tuple[str, ...] = (
+#: ``test_universal_semantic_types_agree_with_the_metadata_reader``.
+UNIVERSAL_SEMANTIC_TYPES: tuple[str, ...] = (
     "validate_report",
     "add_participant_status_to_participant",
     "close_case",
@@ -58,18 +58,18 @@ UNIVERSAL_EVENT_TYPES: tuple[str, ...] = (
     "engage_case",
 )
 
-_EXPECTED_CONST_RE = re.compile(r"^_[A-Z0-9_]+_EXPECTED_EVENT_TYPES$")
+_EXPECTED_CONST_RE = re.compile(r"^_[A-Z0-9_]+_EXPECTED_SEMANTIC_TYPES$")
 
 
-class HarnessEventTypeError(Exception):
-    """A harness does not declare its expected event types readably."""
+class HarnessSemanticTypeError(Exception):
+    """A harness does not declare its expected semantic types readably."""
 
 
 def _string_value(node: ast.expr) -> str | None:
-    """Return the event-type string *node* carries, or ``None``.
+    """Return the semantic-type string *node* carries, or ``None``.
 
     Two accepted spellings, matching what pytest accepts as a ``parametrize``
-    argument: a bare string, or ``pytest.param("event_type", id=...)`` — the
+    argument: a bare string, or ``pytest.param("semantic_type", id=...)`` — the
     convention every harness actually uses.
     """
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -81,20 +81,20 @@ def _string_value(node: ast.expr) -> str | None:
     return None
 
 
-def harness_event_types(
+def harness_semantic_types(
     spec: ScenarioSpec, root: Path | None = None
 ) -> tuple[str, ...] | None:
-    """Return *spec*'s expected event types in declaration order.
+    """Return *spec*'s expected semantic types in declaration order.
 
     ``None`` when the harness file does not exist. A specified-but-unbuilt
     scenario has no harness, and reporting that as a table disagreement would
     make the planned register's own rows fail the tick check.
 
     Raises:
-        HarnessEventTypeError: If the harness exists but declares no readable
-            ``_XXX_EXPECTED_EVENT_TYPES``, or declares more than one. Raised
+        HarnessSemanticTypeError: If the harness exists but declares no readable
+            ``_XXX_EXPECTED_SEMANTIC_TYPES``, or declares more than one. Raised
             rather than returning empty, because "this scenario exercises no
-            event types" is never the true answer and would silently satisfy
+            semantic types" is never the true answer and would silently satisfy
             an all-blank row.
     """
     base = root or repo_root()
@@ -116,18 +116,18 @@ def harness_event_types(
         if not names:
             continue
         if not isinstance(node.value, (ast.List, ast.Tuple)):
-            raise HarnessEventTypeError(
+            raise HarnessSemanticTypeError(
                 f"{spec.harness_path}: {names[0]} is not a list or tuple "
-                "literal, so its event types cannot be read without executing "
+                "literal, so its semantic types cannot be read without executing "
                 "the module (ISSUE-3505)."
             )
         values: list[str] = []
         for element in node.value.elts:
             value = _string_value(element)
             if value is None:
-                raise HarnessEventTypeError(
+                raise HarnessSemanticTypeError(
                     f"{spec.harness_path}: {names[0]} holds an entry that is "
-                    "neither a string nor pytest.param('<event_type>', …), so "
+                    "neither a string nor pytest.param('<semantic_type>', …), so "
                     "the notes/ tables cannot be ratcheted against it "
                     "(ISSUE-3505)."
                 )
@@ -135,29 +135,29 @@ def harness_event_types(
         found.append((names[0], tuple(values)))
 
     if len(found) != 1:
-        raise HarnessEventTypeError(
+        raise HarnessSemanticTypeError(
             f"{spec.harness_path} must declare exactly one "
-            f"_XXX_EXPECTED_EVENT_TYPES constant at module level; found "
+            f"_XXX_EXPECTED_SEMANTIC_TYPES constant at module level; found "
             f"{sorted(name for name, _values in found)}."
         )
     return found[0][1]
 
 
-def additional_event_types(harness: tuple[str, ...]) -> frozenset[str]:
-    """Return the event types *harness* requires beyond the universal block.
+def additional_semantic_types(harness: tuple[str, ...]) -> frozenset[str]:
+    """Return the semantic types *harness* requires beyond the universal block.
 
     The complement is what the ``Additional required`` column holds, so the
     comparison is against the constant rather than against everything the ledger
-    records: ``notes/demo-ci-scenario-coverage.md`` documents event types that
+    records: ``notes/demo-ci-scenario-coverage.md`` documents semantic types that
     are recorded but deliberately excluded from the expected lists, and a check
     reading the ledger would report those as missing rows.
     """
-    return frozenset(harness) - frozenset(UNIVERSAL_EVENT_TYPES)
+    return frozenset(harness) - frozenset(UNIVERSAL_SEMANTIC_TYPES)
 
 
 __all__ = [
-    "UNIVERSAL_EVENT_TYPES",
-    "HarnessEventTypeError",
-    "additional_event_types",
-    "harness_event_types",
+    "UNIVERSAL_SEMANTIC_TYPES",
+    "HarnessSemanticTypeError",
+    "additional_semantic_types",
+    "harness_semantic_types",
 ]

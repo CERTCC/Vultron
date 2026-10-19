@@ -40,7 +40,7 @@ minimum validation set); all of them run on push-to-main and
 `workflow_dispatch`.
 
 The other files in `test/ci/invariants/` are not scenario harnesses and need no
-demo artifacts: `test_universal_event_types.py` and `test_diagnostic_map_sync.py`
+demo artifacts: `test_universal_semantic_types.py` and `test_diagnostic_map_sync.py`
 are structural ratchets over the harness constants, the DEMOMA-16-001 spec
 statement and the diagnostic map, while `test_common.py`, `test_late_joiner.py`
 and `test_causal_edges_negative.py` unit-test the `common.py` check helpers.
@@ -187,7 +187,7 @@ pass/fail to CI.
    would silently under-report:
 
    - **`marks=pytest.mark.xfail(...)` on a `pytest.param` entry** in a
-     harness's `_CHAIN_ACTORS` or `_XXX_EXPECTED_EVENT_TYPES` list. That xfails
+     harness's `_CHAIN_ACTORS` or `_XXX_EXPECTED_SEMANTIC_TYPES` list. That xfails
      only *some* cases of a universal invariant, and the map has one Status
      cell per invariant. Put the marker on the invariant in
      `universal_harness.py`, or make the check tolerate that actor.
@@ -214,7 +214,7 @@ pass/fail to CI.
        make_universal_invariant_tests(
            replicas_fixture="<scenario>_replicas",
            chain_actors=_CHAIN_ACTORS,
-           expected_event_types=_<SCENARIO>_EXPECTED_EVENT_TYPES,
+           expected_semantic_types=_<SCENARIO>_EXPECTED_SEMANTIC_TYPES,
            narrative_path="docs/topics/scenarios/<scenario>.md",
        )
    )

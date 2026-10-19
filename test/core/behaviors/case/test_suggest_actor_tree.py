@@ -874,30 +874,30 @@ class TestInviteInFlightNode:
     def _pending_pair(self):
         return ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
+            request_semantic_type="invite_actor_to_case",
             object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+            reply_semantic_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
             request_found=True,
         )
 
     def _fresh_pair(self):
         return ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
+            request_semantic_type="invite_actor_to_case",
             object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+            reply_semantic_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
             request_found=False,
         )
 
     def _closed_pair(self):
         return ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
+            request_semantic_type="invite_actor_to_case",
             object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+            reply_semantic_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
             request_found=True,
             reply_object_id="https://example.org/activities/accept-1",
-            reply_event_type="accept_invite_actor_to_case",
+            reply_semantic_type="accept_invite_actor_to_case",
         )
 
     def test_returns_success_when_invite_in_flight(self):
@@ -912,7 +912,7 @@ class TestInviteInFlightNode:
         node = self._node(self._closed_pair())
         assert node.update() == Status.FAILURE
 
-    def test_queries_correct_event_type(self):
+    def test_queries_correct_semantic_type(self):
         dl = MagicMock()
         dl.find_protocol_pair.return_value = self._fresh_pair()
         node = InviteInFlightNode(
@@ -922,9 +922,9 @@ class TestInviteInFlightNode:
         node.update()
         dl.find_protocol_pair.assert_called_once_with(
             case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
+            request_semantic_type="invite_actor_to_case",
             object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+            reply_semantic_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
         )
 
     def test_returns_failure_when_datalayer_not_available(self):
@@ -956,30 +956,30 @@ class TestPendingOfferCaseParticipantNode:
     def _pending_pair(self):
         return ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
             request_found=True,
         )
 
     def _fresh_pair(self):
         return ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
             request_found=False,
         )
 
     def _closed_pair(self):
         return ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
             request_found=True,
             reply_object_id="https://example.org/activities/accept-1",
-            reply_event_type="accept_offer_case_participant",
+            reply_semantic_type="accept_offer_case_participant",
         )
 
     def test_returns_success_when_offer_pending(self):
@@ -994,7 +994,7 @@ class TestPendingOfferCaseParticipantNode:
         node = self._node(self._closed_pair())
         assert node.update() == Status.FAILURE
 
-    def test_queries_correct_event_type(self):
+    def test_queries_correct_semantic_type(self):
         dl = MagicMock()
         dl.find_protocol_pair.return_value = self._fresh_pair()
         node = PendingOfferCaseParticipantNode(
@@ -1004,9 +1004,9 @@ class TestPendingOfferCaseParticipantNode:
         node.update()
         dl.find_protocol_pair.assert_called_once_with(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
     def test_returns_failure_when_datalayer_not_available(self):
@@ -1207,7 +1207,7 @@ class TestProtocolPairIsPending:
     def test_is_pending_true_when_request_found_and_no_reply(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=True,
         )
@@ -1216,7 +1216,7 @@ class TestProtocolPairIsPending:
     def test_is_pending_false_when_request_not_found(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=False,
         )
@@ -1225,11 +1225,11 @@ class TestProtocolPairIsPending:
     def test_is_pending_false_when_reply_found(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=True,
             reply_object_id="https://example.org/activities/reply",
-            reply_event_type="accept_offer_case_participant",
+            reply_semantic_type="accept_offer_case_participant",
         )
         assert pair.is_pending() is False
 
@@ -1237,7 +1237,7 @@ class TestProtocolPairIsPending:
         """is_open() returns True for fresh pair (no request found). is_pending() should not."""
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=False,
         )
@@ -1247,7 +1247,7 @@ class TestProtocolPairIsPending:
     def test_request_found_defaults_to_false(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
         )
         assert pair.request_found is False

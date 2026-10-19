@@ -55,10 +55,10 @@ class _EntryNotCommitted(VultronError):
     """A creation entry the commit tree did not commit (CLP-07-013)."""
 
 
-#: ``event_type`` of a case's genesis ledger entry, the root of the
+#: ``semantic_type`` of a case's genesis ledger entry, the root of the
 #: CASE_MANAGER's hash chain.  Its presence is what "the case's creation
 #: entries are committed" means to a later step (CM-14-007, CM-14-011).
-CREATE_CASE_EVENT_TYPE = "create_case"
+CREATE_CASE_SEMANTIC_TYPE = "create_case"
 
 
 class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
@@ -138,7 +138,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self,
         case_id: str,
         object_id: str,
-        event_type: str,
+        semantic_type: str,
         activity: tuple[str, str],
     ) -> None:
         """Commit one canonical ledger entry for a factory-built *activity*.
@@ -160,7 +160,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             _find_equivalent_recorded_entry(
                 case_id=case_id,
                 object_id=object_id,
-                event_type=event_type,
+                semantic_type=semantic_type,
                 payload_snapshot=snapshot,
                 dl=cast(CaseOutboxPersistence, self.datalayer),
             )
@@ -172,14 +172,14 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             logger.debug(
                 "%s: '%s' entry for '%s' already committed — skipping",
                 self.name,
-                event_type,
+                semantic_type,
                 object_id,
             )
             return
         tree = create_commit_log_entry_tree(
             case_id=case_id,
             object_id=object_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=snapshot,
         )
         result = BTBridge(
@@ -187,7 +187,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         ).execute_with_setup(tree=tree, actor_id=self.actor_id)
         if result.status != Status.SUCCESS:
             raise _EntryNotCommitted(
-                f"could not commit the '{event_type}' entry for"
+                f"could not commit the '{semantic_type}' entry for"
                 f" '{object_id}' on case '{case_id}':"
                 f" {result.feedback_message}"
             )
@@ -388,7 +388,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             self._commit_one(
                 case_id,
                 case_id,
-                CREATE_CASE_EVENT_TYPE,
+                CREATE_CASE_SEMANTIC_TYPE,
                 port.record_case_created(case_id=case_id, actor=self.actor_id),
             )
         except _EntryNotCommitted as exc:

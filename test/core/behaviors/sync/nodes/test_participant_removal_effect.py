@@ -25,8 +25,8 @@ from test.core.behaviors.sync.nodes.conftest import (
     _to_persistable_entry,
 )
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
-    REINSTATE_CASE_PARTICIPANT_EVENT_TYPE,
-    REMOVE_CASE_PARTICIPANT_EVENT_TYPE,
+    REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    REMOVE_CASE_PARTICIPANT_SEMANTIC_TYPE,
     ApplyReinstateCaseParticipantFromLedgerNode,
     ApplyRemoveCaseParticipantFromLedgerNode,
     IsReinstateCaseParticipantEventNode,
@@ -48,7 +48,7 @@ SNAPSHOT_PARTICIPANT_ID = f"{CASE_ID}/participants/removed"
 
 def _entry(
     *,
-    event_type: str = REMOVE_CASE_PARTICIPANT_EVENT_TYPE,
+    semantic_type: str = REMOVE_CASE_PARTICIPANT_SEMANTIC_TYPE,
     participant: dict | None = None,
 ):
     return _to_persistable_entry(
@@ -56,7 +56,7 @@ def _entry(
             case_id=CASE_ID,
             log_index=0,
             object_id=REMOVE_ID,
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot={
                 "id": REMOVE_ID,
                 "type": "Remove",
@@ -194,20 +194,20 @@ def test_skips_a_participant_the_replica_does_not_hold(
 
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.parametrize(
-    ("event_type", "expected"),
+    ("semantic_type", "expected"),
     [
-        (REMOVE_CASE_PARTICIPANT_EVENT_TYPE, Status.SUCCESS),
+        (REMOVE_CASE_PARTICIPANT_SEMANTIC_TYPE, Status.SUCCESS),
         ("remove_note_from_case", Status.FAILURE),
     ],
 )
 def test_condition_matches_only_the_removal_event(
-    bridge, case_actor, event_type: str, expected: Status
+    bridge, case_actor, semantic_type: str, expected: Status
 ) -> None:
     result = bridge.execute_with_setup(
         tree=IsRemoveCaseParticipantEventNode(name="IsRemoval"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(
-            _entry(event_type=event_type), actor_id=case_actor.id_
+            _entry(semantic_type=semantic_type), actor_id=case_actor.id_
         ),
     )
 
@@ -243,7 +243,7 @@ def test_reinstatement_clears_the_removal_fact_on_the_replicas_record(
     replica_record.removal_activity = REMOVE_ID
     datalayer.save(replica_record)
 
-    entry = _entry(event_type=REINSTATE_CASE_PARTICIPANT_EVENT_TYPE)
+    entry = _entry(semantic_type=REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE)
     assert _reinstate(bridge, case_actor, entry).status == Status.SUCCESS
 
     assert not _replica_record_state(datalayer).removed
@@ -254,7 +254,7 @@ def test_reinstatement_clears_the_removal_fact_on_the_replicas_record(
 def test_reinstatement_of_a_record_that_is_not_removed_is_a_no_op(
     bridge, datalayer, case_actor, replica_record
 ) -> None:
-    entry = _entry(event_type=REINSTATE_CASE_PARTICIPANT_EVENT_TYPE)
+    entry = _entry(semantic_type=REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE)
 
     assert _reinstate(bridge, case_actor, entry).status == Status.SUCCESS
 
@@ -274,7 +274,7 @@ def test_reinstatement_skips_a_snapshot_with_no_participant(
             case_id=CASE_ID,
             log_index=0,
             object_id=REMOVE_ID,
-            event_type=REINSTATE_CASE_PARTICIPANT_EVENT_TYPE,
+            semantic_type=REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
             payload_snapshot={
                 "id": REMOVE_ID,
                 "type": "Add",
@@ -292,20 +292,20 @@ def test_reinstatement_skips_a_snapshot_with_no_participant(
 
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.parametrize(
-    ("event_type", "expected"),
+    ("semantic_type", "expected"),
     [
-        (REINSTATE_CASE_PARTICIPANT_EVENT_TYPE, Status.SUCCESS),
-        (REMOVE_CASE_PARTICIPANT_EVENT_TYPE, Status.FAILURE),
+        (REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE, Status.SUCCESS),
+        (REMOVE_CASE_PARTICIPANT_SEMANTIC_TYPE, Status.FAILURE),
     ],
 )
 def test_condition_matches_only_the_reinstatement_event(
-    bridge, case_actor, event_type: str, expected: Status
+    bridge, case_actor, semantic_type: str, expected: Status
 ) -> None:
     result = bridge.execute_with_setup(
         tree=IsReinstateCaseParticipantEventNode(name="IsReinstatement"),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=_make_event(
-            _entry(event_type=event_type), actor_id=case_actor.id_
+            _entry(semantic_type=semantic_type), actor_id=case_actor.id_
         ),
     )
 

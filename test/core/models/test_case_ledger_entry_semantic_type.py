@@ -13,11 +13,6 @@
 """A ledger entry carries its semantic type as ``semanticType`` (CLP-02-014).
 
 Spec: CLP-02-014
-
-The tests are strict ``xfail`` until the rename lands (#4872): today the field
-is ``event_type`` / ``eventType``, so constructing with ``semantic_type`` is
-refused as an extra input, a payload carrying ``eventType`` is accepted, and
-the hash chain record hashes the value under ``event_type``.
 """
 
 import pytest
@@ -29,19 +24,14 @@ CASE_ID = "https://example.org/cases/case-1"
 OBJECT_ID = "https://example.org/activities/act-1"
 SEMANTIC_TYPE = "invite_actor_to_case"
 
-_PENDING = (
-    "CLP-02-014: eventType not yet renamed semanticType. Tracked by #4872."
-)
-
 
 @pytest.mark.spec("CLP-02-014")
-@pytest.mark.xfail(strict=True, reason=_PENDING)
 def test_entry_serializes_semantic_type_under_semantic_type_key() -> None:
     entry = CaseLedgerEntry(
         case_id=CASE_ID,
         log_index=0,
         log_object_id=OBJECT_ID,
-        semantic_type=SEMANTIC_TYPE,  # type: ignore[call-arg]
+        semantic_type=SEMANTIC_TYPE,
     )
 
     dumped = entry.model_dump(by_alias=True)
@@ -51,7 +41,6 @@ def test_entry_serializes_semantic_type_under_semantic_type_key() -> None:
 
 
 @pytest.mark.spec("CLP-02-014")
-@pytest.mark.xfail(strict=True, reason=_PENDING)
 def test_entry_carrying_retired_event_type_key_is_refused() -> None:
     # semanticType is present, so only the retired key can cause the refusal,
     # and the match requires the message to name the rename, not merely
@@ -69,12 +58,26 @@ def test_entry_carrying_retired_event_type_key_is_refused() -> None:
 
 
 @pytest.mark.spec("CLP-02-014")
-@pytest.mark.xfail(strict=True, reason=_PENDING)
+def test_stored_row_carrying_retired_event_type_field_is_refused() -> None:
+    # A row dumped by field name, not alias, spells the old key event_type.
+    with pytest.raises(ValueError, match=r"'event_type'.*renamed"):
+        CaseLedgerEntry.model_validate(
+            {
+                "case_id": CASE_ID,
+                "log_index": 0,
+                "log_object_id": OBJECT_ID,
+                "semantic_type": SEMANTIC_TYPE,
+                "event_type": SEMANTIC_TYPE,
+            }
+        )
+
+
+@pytest.mark.spec("CLP-02-014")
 def test_chain_record_hashes_semantic_type_under_field_name() -> None:
     record = HashChainLedgerRecord(
         case_id=CASE_ID,
         object_id=OBJECT_ID,
-        semantic_type=SEMANTIC_TYPE,  # type: ignore[call-arg]
+        semantic_type=SEMANTIC_TYPE,
     )
 
     hashed = record._hashable_dict()

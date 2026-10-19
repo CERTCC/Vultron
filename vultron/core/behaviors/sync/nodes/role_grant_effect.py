@@ -37,7 +37,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.sync.nodes._helpers import _LedgerEffectNode
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    _SingleEventTypeNode,
+    _SingleSemanticTypeNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -107,14 +107,14 @@ def grant_role_to_target(
     return True
 
 
-class IsAcceptCaseParticipantRoleEventNode(_SingleEventTypeNode):
+class IsAcceptCaseParticipantRoleEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry grants a delegated role.
 
-    Matches the ``accept_case_participant_role`` ``event_type`` in the
+    Matches the ``accept_case_participant_role`` ``semantic_type`` in the
     ``RoleGrant`` effect slot of ``AnnounceLogEntryReceivedBT`` (BTND-08-001).
     """
 
-    matched_event_type: ClassVar[str] = _ACCEPT_CASE_PARTICIPANT_ROLE_EVENT
+    matched_semantic_type: ClassVar[str] = _ACCEPT_CASE_PARTICIPANT_ROLE_EVENT
 
 
 class ApplyCaseParticipantRoleGrantFromLedgerNode(_LedgerEffectNode):

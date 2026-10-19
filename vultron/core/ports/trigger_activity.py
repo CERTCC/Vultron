@@ -245,7 +245,7 @@ class TriggerActivityPort(Protocol):
         for the stored object against the receive-side patterns, without
         persisting it.  The add-object trigger asks this
         before its tree runs so it can refuse an object the CASE_MANAGER
-        could not route, and the answer names the ledger ``event_type`` the
+        could not route, and the answer names the ledger ``semantic_type`` the
         CASE_MANAGER's commit of the ``Add`` will carry (TRIG-10-001,
         SYNC-11-002).
 
@@ -667,13 +667,13 @@ class TriggerActivityPort(Protocol):
         self,
         case_id: str,
         actor: str,
-        event_type: str,
+        semantic_type: str,
         object_id: str,
     ) -> tuple[str, str]:
         """``Announce(VulnerabilityCase)`` for the demo ``sync-log-entry`` verb.
 
         The stored case is carried inline.  The id is derived from the
-        CASE_MANAGER, the case, *event_type* and *object_id*, so one request
+        CASE_MANAGER, the case, *semantic_type* and *object_id*, so one request
         repeated commits one entry.
         """
         ...

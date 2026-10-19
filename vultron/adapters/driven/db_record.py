@@ -365,7 +365,7 @@ def _retype_inline_object_refs(
     Base-vocabulary reconstruction (``find_in_vocabulary(type_).model_validate``)
     validates an inline ``object_``/``target``/… against the base ``as_Object``
     union, which silently drops domain-specific fields (``case_id``,
-    ``event_type``, …) because ``as_Object`` ignores extras.  Those fields are
+    ``semantic_type``, …) because ``as_Object`` ignores extras.  Those fields are
     still present in the raw stored ``data`` dict, so this helper re-parses each
     inline reference with its specific vocabulary class and writes the typed
     object back onto *obj*.
@@ -437,7 +437,7 @@ class Record(StorableRecord):
             type_=obj_type,
             # serialize_as_any=True serializes each nested object by its runtime
             # type, preserving subtype fields (e.g. a CaseLedgerEntry inline in
-            # an Announce keeps case_id/event_type/…).  Without it, an inline
+            # an Announce keeps case_id/semantic_type/…).  Without it, an inline
             # object_ typed only as the base union on the parent model would be
             # serialized against the base schema and lose its domain fields —
             # breaking read/replay reconstruction (SYNC-13-004).

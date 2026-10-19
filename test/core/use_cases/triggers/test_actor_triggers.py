@@ -814,7 +814,7 @@ class TestInviteRetrySendsOnce:
             e
             for e in harness.manager_dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
-            and e.event_type == "invite_actor_to_case"
+            and e.semantic_type == "invite_actor_to_case"
         ]
 
     @staticmethod
@@ -846,7 +846,7 @@ class TestInviteRetrySendsOnce:
             failed = fail_commits(
                 mp,
                 commit_tree,
-                when=lambda kw: kw["event_type"] == "invite_actor_to_case",
+                when=lambda kw: kw["semantic_type"] == "invite_actor_to_case",
             )
             # The Invite is queued, so the failed commit escapes rather than
             # failing the tree into another arm (BT-14-001).

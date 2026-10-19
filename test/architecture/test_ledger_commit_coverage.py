@@ -20,7 +20,7 @@ committing set from code (``_ledger_commit_inventory``), so a handler that
 case at a time.
 
 Only the receive-side commit counts: CLP-09-003 asks for a commit *for the
-act*, and an explicit ``event_type=`` commit inside a received tree records a
+act*, and an explicit ``semantic_type=`` commit inside a received tree records a
 consequence (``CommitNativeLedgerEntriesNode``'s genesis entries) or an
 activity the actor emits, not the act received.  Crediting those would let a
 handler whose act goes unledgered pass on a side entry.

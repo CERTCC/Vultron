@@ -70,7 +70,7 @@ renders with the amber ℹ️ annotation and the tooltip explains each inferred 
 
 ## Entries and expected result
 
-| logIndex | eventType | derived trigger | shadow source | legal? |
+| logIndex | semanticType | derived trigger | shadow source | legal? |
 |---|---|---|---|---|
 | 0 | offer_case_manager_role | seeds (vendor RM=RECEIVED/VFD=Vfd, finder RM=ACCEPTED, EM=ACTIVE) | — | seed |
 | 1 | validate_report | rm `validate` | RECEIVED → VALID | ✅ legal |

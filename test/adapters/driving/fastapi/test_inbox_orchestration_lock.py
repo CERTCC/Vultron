@@ -131,7 +131,7 @@ def seeded_dl(dl):
             case_id=_CASE_ID,
             log_index=0,
             object_id=_CASE_ID,
-            event_type="test_event_0",
+            semantic_type="test_event_0",
             payload_snapshot=_snapshot,
             prev_log_hash=genesis_hash,
         )
@@ -141,7 +141,7 @@ def seeded_dl(dl):
             case_id=_CASE_ID,
             log_index=1,
             object_id=_CASE_ID,
-            event_type="test_event_1",
+            semantic_type="test_event_1",
             payload_snapshot=_snapshot,
             prev_log_hash=entry0.entry_hash,
         )

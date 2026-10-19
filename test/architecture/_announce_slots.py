@@ -92,15 +92,15 @@ def _replica_store() -> SqliteDataLayer:
     return dl
 
 
-def matching_slots(event_type: str, snapshot: dict[str, Any]) -> list[str]:
-    """Names of the slot conditions an *event_type* entry satisfies."""
+def matching_slots(semantic_type: str, snapshot: dict[str, Any]) -> list[str]:
+    """Names of the slot conditions an *semantic_type* entry satisfies."""
     dl = _replica_store()
     entry = _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
-            object_id=f"urn:{event_type}",
-            event_type=event_type,
+            object_id=f"urn:{semantic_type}",
+            semantic_type=semantic_type,
             payload_snapshot={"context": CASE_ID, **snapshot},
             prev_log_hash="0" * 64,
         )

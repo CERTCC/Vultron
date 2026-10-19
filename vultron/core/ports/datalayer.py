@@ -151,9 +151,9 @@ class DataLayer(Protocol):
     def find_protocol_pair(
         self,
         case_id: str,
-        request_event_type: str,
+        request_semantic_type: str,
         object_id: str,
-        reply_event_types: frozenset[str],
+        reply_semantic_types: frozenset[str],
     ) -> ProtocolPair: ...
 
     def clone_for_actor(self, actor_id: str) -> "DataLayer": ...

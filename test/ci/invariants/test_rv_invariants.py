@@ -23,8 +23,8 @@ from test.ci.invariants.universal_harness import make_universal_invariant_tests
 
 _DEMO_NAME = "rv"
 
-#: Expected protocol eventTypes in a complete rv run.
-_RV_EXPECTED_EVENT_TYPES = [
+#: Expected protocol semanticTypes in a complete rv run.
+_RV_EXPECTED_SEMANTIC_TYPES = [
     pytest.param("validate_report", id="validate_report"),
     pytest.param(
         "add_participant_status_to_participant",
@@ -64,7 +64,7 @@ globals().update(
     make_universal_invariant_tests(
         replicas_fixture="rv_replicas",
         chain_actors=_CHAIN_ACTORS,
-        expected_event_types=_RV_EXPECTED_EVENT_TYPES,
+        expected_semantic_types=_RV_EXPECTED_SEMANTIC_TYPES,
         narrative_path="docs/topics/scenarios/rv.md",
     )
 )

@@ -101,9 +101,9 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     return dl
 
 
-def _ledger_event_types(dl: SqliteDataLayer) -> list[str]:
+def _ledger_semantic_types(dl: SqliteDataLayer) -> list[str]:
     return [
-        getattr(e, "event_type", "")
+        getattr(e, "semantic_type", "")
         for e in dl.list_objects("CaseLedgerEntry")
     ]
 
@@ -146,10 +146,10 @@ class TestAddNoteToCaseLedgerRouting:
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
-        event_types = _ledger_event_types(dl)
-        assert "add_note_to_case" in event_types, (
-            "Expected a CaseLedgerEntry with event_type='add_note_to_case';"
-            f" found: {event_types}"
+        semantic_types = _ledger_semantic_types(dl)
+        assert "add_note_to_case" in semantic_types, (
+            "Expected a CaseLedgerEntry with semantic_type='add_note_to_case';"
+            f" found: {semantic_types}"
         )
 
     def test_non_caseactor_does_not_commit_ledger_entry(self, make_payload):
@@ -181,10 +181,10 @@ class TestAddNoteToCaseLedgerRouting:
         # without that role refuses rather than reporting a processed no-op.
         assert result.disposition == HandlerDisposition.REFUSED
 
-        event_types = _ledger_event_types(dl)
-        assert "add_note_to_case" not in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "add_note_to_case" not in semantic_types, (
             "Non-CaseActor receiving actor must NOT write an add_note_to_case"
-            f" ledger entry; found: {event_types}"
+            f" ledger entry; found: {semantic_types}"
         )
 
     def test_no_receiving_actor_id_uses_store_owner_for_commit(
@@ -219,8 +219,8 @@ class TestAddNoteToCaseLedgerRouting:
         ).execute()
         assert result.disposition == HandlerDisposition.APPLIED
 
-        event_types = _ledger_event_types(dl)
-        assert "add_note_to_case" in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "add_note_to_case" in semantic_types, (
             "Store-owner fallback (CaseActor) MUST write an add_note_to_case"
-            f" ledger entry when receiving_actor_id is absent; found: {event_types}"
+            f" ledger entry when receiving_actor_id is absent; found: {semantic_types}"
         )

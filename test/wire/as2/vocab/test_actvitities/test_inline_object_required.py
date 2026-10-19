@@ -139,7 +139,7 @@ _PARTICIPANT = as_CaseParticipant(attributed_to=_ACTOR.id_)
 _LOG_ENTRY = as_CaseLedgerEntry(
     case_id=_CASE.id_,
     log_object_id=_REPORT.id_,
-    event_type="CREATE_REPORT",
+    semantic_type="CREATE_REPORT",
 )
 
 _SUBMIT = _RmSubmitReportActivity(actor=_ACTOR, object_=_REPORT)

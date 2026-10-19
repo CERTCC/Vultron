@@ -128,7 +128,7 @@ def _snapshot_object_id(payload_snapshot: dict[str, Any]) -> str | None:
 
 
 def _assert_actor_identity(
-    event_type: str, payload_snapshot: dict[str, Any], activity: Any
+    semantic_type: str, payload_snapshot: dict[str, Any], activity: Any
 ) -> None:
     """CLP-07-003: payloadSnapshot.actor MUST name the inbound activity's actor.
 
@@ -150,7 +150,7 @@ def _assert_actor_identity(
         )
     ):
         raise VultronCanonicalEntryError(
-            f"{event_type}: CLP-07-003 — payloadSnapshot.actor"
+            f"{semantic_type}: CLP-07-003 — payloadSnapshot.actor"
             f" {snapshot_actor!r} does not match activity.actor_id"
             f" {activity_actor_id!r}; identity substitution refused"
         )
@@ -174,7 +174,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     If ``case_id`` cannot be resolved, the node returns ``FAILURE`` so the
     enclosing BT sequence propagates the error (ARCH-15-001).
 
-    ``event_type`` and ``object_id`` are derived from the ``activity``
+    ``semantic_type`` and ``object_id`` are derived from the ``activity``
     blackboard key (the inbound :class:`~vultron.core.models.events.base.VultronEvent`
     placed there by :class:`~vultron.core.behaviors.bridge.BTBridge`).
 
@@ -303,17 +303,17 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             return case_id, "case_event", {}
 
         object_id = getattr(activity, "activity_id", case_id)
-        semantic_type = getattr(activity, "semantic_type", None)
-        event_type = (
-            semantic_type.value
-            if semantic_type is not None
+        semantics = getattr(activity, "semantic_type", None)
+        semantic_type = (
+            semantics.value
+            if semantics is not None
             else getattr(activity, "activity_type", "case_event")
             or "case_event"
         )
         payload_snapshot = _extract_payload_snapshot(
             activity, self.datalayer, self._require_wire_render_port()
         )
-        return object_id, event_type, payload_snapshot
+        return object_id, semantic_type, payload_snapshot
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -338,7 +338,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        object_id, event_type, payload_snapshot = self._activity_metadata(
+        object_id, semantic_type, payload_snapshot = self._activity_metadata(
             activity, case_id
         )
 
@@ -375,12 +375,12 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
                     case_id,
                 )
 
-        _assert_actor_identity(event_type, payload_snapshot, activity)
+        _assert_actor_identity(semantic_type, payload_snapshot, activity)
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,
             object_id=object_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=payload_snapshot,
         )
         result = BTBridge(
@@ -401,7 +401,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             self.logger.info(
                 "%s: committed log entry '%s' for case '%s'",
                 self.name,
-                event_type,
+                semantic_type,
                 case_id,
             )
             return Status.SUCCESS

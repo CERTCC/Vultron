@@ -101,7 +101,7 @@ def _chain(genesis_hash: str, length: int) -> list[CaseLedgerEntry]:
             case_id=_CASE_ID,
             log_index=index,
             object_id=f"https://example.org/activities/hb-{index}",
-            event_type="test_event",
+            semantic_type="test_event",
             payload_snapshot={"index": index},
             prev_log_hash=prev,
         )

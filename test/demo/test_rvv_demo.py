@@ -43,7 +43,7 @@ from vultron.demo.cli import main
 from vultron.demo.helpers import closure, invite_chain
 from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
-    wait_for_event_type_in_ledger,
+    wait_for_semantic_type_in_ledger,
 )
 
 # ---------------------------------------------------------------------------
@@ -445,7 +445,7 @@ class TestCoverageWaitInsideDemoCheck:
                 "case_id": case_id,
                 "log_index": 0,
                 "entry_hash": "hash0000",
-                "event_type": "close_case",
+                "semantic_type": "close_case",
             }
         }
 
@@ -456,7 +456,7 @@ class TestCoverageWaitInsideDemoCheck:
             {
                 "case_id": case_id,
                 "log_index": index,
-                "event_type": "close_case",
+                "semantic_type": "close_case",
                 "payload_snapshot": {"actor": actor.id_},
             }
             for index, actor in enumerate((vendor2, reporter, vendor))
@@ -502,12 +502,12 @@ class TestCoverageWaitInsideDemoCheck:
 
 
 # ---------------------------------------------------------------------------
-# Regression tests: Bug B — wait_for_event_type_in_ledger helper
+# Regression tests: Bug B — wait_for_semantic_type_in_ledger helper
 # (issue #1772)
 # ---------------------------------------------------------------------------
 
 
-class TestWaitForEventTypeInLedger:
+class TestWaitForSemanticTypeInLedger:
     """Regression: wait for an asynchronously committed entry to appear on the
     authoritative actor before reading the tail index for replica coverage.
 
@@ -518,35 +518,35 @@ class TestWaitForEventTypeInLedger:
     closure entries, CM-23-004.)
     """
 
-    def _make_entries(self, case_id: str, event_types: list[str]) -> dict:
+    def _make_entries(self, case_id: str, semantic_types: list[str]) -> dict:
         return {
             f"e{i}": {
                 "case_id": case_id,
                 "log_index": i,
                 "entry_hash": f"hash{i:04d}",
-                "event_type": et,
+                "semantic_type": et,
             }
-            for i, et in enumerate(event_types)
+            for i, et in enumerate(semantic_types)
         }
 
-    def test_returns_when_event_type_present(self):
-        """Returns immediately when the target event_type is already in the log."""
+    def test_returns_when_semantic_type_present(self):
+        """Returns immediately when the target semantic_type is already in the log."""
         case_id = "https://example.org/cases/bug-b-present"
         client = MagicMock()
         client.get.return_value = self._make_entries(
             case_id, ["validate_report", "close_case"]
         )
 
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=client,
             case_id=case_id,
-            event_type="close_case",
+            semantic_type="close_case",
             timeout_seconds=1.0,
         )
         assert client.get.call_count >= 1
 
-    def test_raises_when_event_type_absent(self):
-        """Raises AssertionError when target event_type never appears."""
+    def test_raises_when_semantic_type_absent(self):
+        """Raises AssertionError when target semantic_type never appears."""
         case_id = "https://example.org/cases/bug-b-absent"
         client = MagicMock()
         client.get.return_value = self._make_entries(
@@ -555,10 +555,10 @@ class TestWaitForEventTypeInLedger:
         )
 
         with pytest.raises(AssertionError, match="close_case"):
-            wait_for_event_type_in_ledger(
+            wait_for_semantic_type_in_ledger(
                 client=client,
                 case_id=case_id,
-                event_type="close_case",
+                semantic_type="close_case",
                 timeout_seconds=0.1,
                 poll_interval=0.05,
             )
@@ -574,22 +574,22 @@ class TestWaitForEventTypeInLedger:
                 "case_id": other_case_id,
                 "log_index": 0,
                 "entry_hash": "hashOther",
-                "event_type": "close_case",
+                "semantic_type": "close_case",
             }
         }
         client.get.return_value = {**entries, **other_entries}
 
         with pytest.raises(AssertionError, match="close_case"):
-            wait_for_event_type_in_ledger(
+            wait_for_semantic_type_in_ledger(
                 client=client,
                 case_id=case_id,
-                event_type="close_case",
+                semantic_type="close_case",
                 timeout_seconds=0.1,
                 poll_interval=0.05,
             )
 
     def test_eventually_returns_when_event_arrives(self):
-        """Returns once the event_type appears after a few polls."""
+        """Returns once the semantic_type appears after a few polls."""
         case_id = "https://example.org/cases/bug-b-eventual"
         call_count = 0
         no_close_entries = {
@@ -597,7 +597,7 @@ class TestWaitForEventTypeInLedger:
                 "case_id": case_id,
                 "log_index": 0,
                 "entry_hash": "hash0000",
-                "event_type": "validate_report",
+                "semantic_type": "validate_report",
             }
         }
         with_close_entries = {
@@ -606,7 +606,7 @@ class TestWaitForEventTypeInLedger:
                 "case_id": case_id,
                 "log_index": 1,
                 "entry_hash": "hash0001",
-                "event_type": "close_case",
+                "semantic_type": "close_case",
             },
         }
 
@@ -620,10 +620,10 @@ class TestWaitForEventTypeInLedger:
         client = MagicMock()
         client.get.side_effect = _get_side_effect
 
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=client,
             case_id=case_id,
-            event_type="close_case",
+            semantic_type="close_case",
             timeout_seconds=5.0,
             poll_interval=0.05,
         )
@@ -884,7 +884,7 @@ class TestRvvMilestoneAssertions:
                 "case_id": case.id_,
                 "log_index": 0,
                 "entry_hash": "h0",
-                "event_type": "close_case",
+                "semantic_type": "close_case",
             }
         }
 

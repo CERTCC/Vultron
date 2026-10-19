@@ -261,7 +261,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   makes both entries carry their step (`REJECT`, then the CASE_MANAGER's
   `TERMINATE`), so the replica copies both; #4850 removes the skip:
 
-| Entry (`event_type`) | Slot | Replica effect |
+| Entry (`semantic_type`) | Slot | Replica effect |
 |---|---|---|
 | proposal (`invite_to_embargo_on_case`, not a relay) | `EmbargoProposal` | stores B, copies the `PROPOSE` step (→ `PROPOSED`/`REVISE`), index recorded; the rows follow |
 | relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | stores B, proposer's index; the invitee's `INVITED` row and RSVP deadline follow (CM-28-013) |
@@ -277,7 +277,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 | `invite_to_embargo_on_case_reinvite` (no `attributedTo`) | `EmbargoReinvite` | stores B; the invitee's `INVITED` row and deadline follow; no EM change (EMB-17-003) |
 | `remove_embargo_event_from_case` | `EmbargoTeardown` | copies the `TERMINATE` step for the embargo the entry names, with the `CANCEL` of every open proposal (EP-08-004); writes no row (MSM-07-006); an entry naming an embargo not in force here changes nothing |
 
-- A proposal and a relay share one event type; `is_relayed_embargo_invite()` reads a
+- A proposal and a relay share one semantic type; `is_relayed_embargo_invite()` reads a
   relay only when `actor` is the case's CASE_MANAGER and `attributedTo` names someone
   else, so a third party in `attributedTo` from a participant is still a proposal
   (PCR-08-010).
@@ -380,4 +380,4 @@ passes for the wrong reason.
 `Announce(CaseLedgerEntry)` is the replication envelope (SYNC-02-002). A canonical
 entry's `payloadSnapshot` is the activity that *triggered* the entry, never the
 transport that delivered it, so `announce_case_ledger_entry` MUST NOT appear in
-`EXPECTED_EVENT_TYPES` for the canonical log (CLP-10-004, ADR-0021).
+`EXPECTED_SEMANTIC_TYPES` for the canonical log (CLP-10-004, ADR-0021).

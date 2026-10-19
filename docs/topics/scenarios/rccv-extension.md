@@ -45,7 +45,7 @@ causal_edges:
     consequent_actor: vendor2
     note: >
       The Vendor accepts the CaseActor's invitation.  Because both this
-      accept and C2's earlier accept share the same event type, the ordering
+      accept and C2's earlier accept share the same semantic type, the ordering
       check verifies that the earliest accept_invite precedes the latest
       invite; the valid pair is C2's accept → CaseActor's invite to Vendor.
   - antecedent: validate_report

@@ -1536,7 +1536,7 @@ class TestRejectionValidatorBeforeCommit:
             e
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
-            and getattr(e, "event_type", None)
+            and getattr(e, "semantic_type", None)
             == "add_participant_status_to_participant"
         ]
         assert len(receipt_entries) == 1, (

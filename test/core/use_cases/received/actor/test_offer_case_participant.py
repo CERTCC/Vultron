@@ -1702,13 +1702,15 @@ def _seed_a_recommendation_at_the_case_manager() -> tuple[
 
 
 def _assert_each_send_follows_its_queueing(
-    events: list[tuple[str, str]], event_types: set[str]
+    events: list[tuple[str, str]], semantic_types: set[str]
 ) -> None:
-    """Each entry of *event_types* follows the outbox write of its activity."""
+    """Each entry of *semantic_types* follows the outbox write of its activity."""
     sent = [
-        (kind, object_id) for kind, object_id in events if kind in event_types
+        (kind, object_id)
+        for kind, object_id in events
+        if kind in semantic_types
     ]
-    assert {kind for kind, _ in sent} == event_types, events
+    assert {kind for kind, _ in sent} == semantic_types, events
     for kind, object_id in sent:
         assert events.index(("queued", object_id)) < events.index(
             (kind, object_id)
@@ -1810,24 +1812,27 @@ class TestActorSuggestionAnswersAreSentOnceOnRetry:
         ]
 
     @staticmethod
-    def _entries_of(dl: SqliteDataLayer, event_type: str) -> list[str]:
+    def _entries_of(dl: SqliteDataLayer, semantic_type: str) -> list[str]:
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
         return [
             e.log_object_id
             for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry) and e.event_type == event_type
+            if isinstance(e, CaseLedgerEntry)
+            and e.semantic_type == semantic_type
         ]
 
     def _retry_after_a_failed_commit(
-        self, use_case_class, dl, event, event_type
+        self, use_case_class, dl, event, semantic_type
     ) -> str:
         from test.support.ledger import fail_commits
         from vultron.core.behaviors.sync import commit_tree
 
         with pytest.MonkeyPatch.context() as mp:
             failed = fail_commits(
-                mp, commit_tree, when=lambda kw: kw["event_type"] == event_type
+                mp,
+                commit_tree,
+                when=lambda kw: kw["semantic_type"] == semantic_type,
             )
             # The answer is queued, so the failed commit escapes rather than
             # failing the tree into another arm (BT-14-001).
@@ -1835,13 +1840,13 @@ class TestActorSuggestionAnswersAreSentOnceOnRetry:
                 self._run(use_case_class, dl, event)
         (answer_id,) = failed
         assert dl.outbox_list().count(answer_id) == 1
-        assert self._entries_of(dl, event_type) == []
+        assert self._entries_of(dl, semantic_type) == []
 
         retry = self._run(use_case_class, dl, event)
 
         assert retry.disposition is HandlerDisposition.APPLIED, retry
         assert dl.outbox_list().count(answer_id) == 1
-        assert self._entries_of(dl, event_type) == [answer_id]
+        assert self._entries_of(dl, semantic_type) == [answer_id]
         return answer_id
 
     @pytest.mark.spec("OX-06-002")
@@ -1921,7 +1926,7 @@ class TestAFailedAnswerCommitDoesNotFallThrough:
                 mp,
                 commit_tree,
                 when=lambda kw: (
-                    kw["event_type"] == "accept_actor_recommendation"
+                    kw["semantic_type"] == "accept_actor_recommendation"
                 ),
             )
             with pytest.raises(VultronBTInternalError, match="commit failed"):

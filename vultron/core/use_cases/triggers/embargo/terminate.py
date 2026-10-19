@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 
 
 class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
-    _assertion_event_type: ClassVar[str] = (
+    _assertion_semantic_type: ClassVar[str] = (
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value
     )
     # Its own tree takes the end-time path once the end time has passed,

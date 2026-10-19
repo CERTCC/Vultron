@@ -63,7 +63,7 @@ def _to_persistable_entry(
         log_index=chain_entry.log_index,
         term=chain_entry.term,
         log_object_id=chain_entry.object_id,
-        event_type=chain_entry.event_type,
+        semantic_type=chain_entry.semantic_type,
         payload_snapshot=dict(chain_entry.payload_snapshot),
         prev_log_hash=chain_entry.prev_log_hash,
         entry_hash=chain_entry.entry_hash,
@@ -77,7 +77,7 @@ def _make_entry(
         case_id=case_id,
         log_index=log_index,
         object_id="https://example.org/activities/act1",
-        event_type="test_event",
+        semantic_type="test_event",
         payload_snapshot={"key": "value"},
         prev_log_hash=prev_hash,
     )
@@ -924,7 +924,7 @@ class TestUnaddressedAnnounceActsOnNothing:
         gap_buffer = LedgerGapBuffer()
         gap_buffer.buffer(successor)
         pending = PendingAssertionStore()
-        pending.add(CASE_URI, genesis.event_type, genesis.log_object_id)
+        pending.add(CASE_URI, genesis.semantic_type, genesis.log_object_id)
         hand_back = RecordingInboxHandBack()
         sync_port = MagicMock(spec=SyncActivityPort)
         wire_entry = WireCaseLedgerEntry.model_validate(
@@ -957,7 +957,7 @@ class TestUnaddressedAnnounceActsOnNothing:
         )
         assert gap_buffer.depth(CASE_URI) == 1
         assert pending.is_suppressed(
-            CASE_URI, genesis.event_type, genesis.log_object_id
+            CASE_URI, genesis.semantic_type, genesis.log_object_id
         )
         assert sync_port.mock_calls == []
         assert dl.list_objects("CaseLedgerEntry") == []

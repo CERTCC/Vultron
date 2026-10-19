@@ -41,7 +41,7 @@ def _entry(
         case_id=case_id,
         log_index=log_index,
         object_id=f"{case_id}/activities/act-{log_index}",
-        event_type="test_event",
+        semantic_type="test_event",
         payload_snapshot={"log_index": log_index},
         prev_log_hash=prev_hash,
     )
@@ -50,7 +50,7 @@ def _entry(
         log_index=chain.log_index,
         term=chain.term,
         log_object_id=chain.object_id,
-        event_type=chain.event_type,
+        semantic_type=chain.semantic_type,
         payload_snapshot=dict(chain.payload_snapshot),
         prev_log_hash=chain.prev_log_hash,
         entry_hash=chain.entry_hash,

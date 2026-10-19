@@ -55,7 +55,7 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
-    EMBARGO_TEARDOWN_EVENT_TYPE,
+    EMBARGO_TEARDOWN_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.status.add_case_status_tree import (
     add_case_status_tree,
@@ -1535,7 +1535,7 @@ class TestThreatTerminationBranchNode:
     def _ask_pending(self) -> PendingAssertion | None:
         return get_pending_assertion_store(ACTOR_ID).pending_for_subject(
             CASE_ID,
-            EMBARGO_TEARDOWN_EVENT_TYPE,
+            EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             f"{CASE_ID}/embargo_events/e1",
         )
 
@@ -1549,7 +1549,7 @@ class TestThreatTerminationBranchNode:
             case_id=CASE_ID,
             log_index=0,
             object_id=ask_id,
-            event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
+            semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             payload_snapshot={"id": ask_id},
             prev_log_hash="0" * 64,
         )
@@ -1558,7 +1558,7 @@ class TestThreatTerminationBranchNode:
             log_index=record.log_index,
             term=record.term,
             log_object_id=record.object_id,
-            event_type=record.event_type,
+            semantic_type=record.semantic_type,
             payload_snapshot=dict(record.payload_snapshot),
             prev_log_hash=record.prev_log_hash,
             entry_hash=record.entry_hash,

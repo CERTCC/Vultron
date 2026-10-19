@@ -36,7 +36,7 @@ Declaration — allowed:
 Prose — allowed:
   a module, class or function docstring.  Docstrings describe the wire shape to
   a reader; they are not logic.  Note that a spelling merely *embedded* in a
-  longer message (``f"{event_type}: payloadSnapshot.actor must be …"``) is not
+  longer message (``f"{semantic_type}: payloadSnapshot.actor must be …"``) is not
   flagged either, because the literal as a whole is not a spelling — only a
   literal whose entire value is one AS2 field name is.  A dict key, a
   comparison operand and a translation-table entry are always exactly that, so
@@ -241,10 +241,10 @@ def test_prose_is_not_flagged():
     """
     tree = _corpus.parse_inline(
         '"""Module docstring naming inReplyTo and payloadSnapshot."""\n'
-        "def f(event_type):\n"
+        "def f(semantic_type):\n"
         '    """Checks payloadSnapshot.published (CLP-07-011)."""\n'
         "    raise ValueError(\n"
-        "        f'{event_type}: payloadSnapshot.actor must be a non-empty URI'\n"
+        "        f'{semantic_type}: payloadSnapshot.actor must be a non-empty URI'\n"
         "    )\n"
     )
     assert _spellings_used(tree) == set()

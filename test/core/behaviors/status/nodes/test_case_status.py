@@ -301,12 +301,12 @@ class TestEmitCaseStatusUpdateNode:
         assert not [
             obj
             for obj in populated_dl.list_objects("CaseLedgerEntry")
-            if getattr(obj, "event_type", None) == "add_case_status_to_case"
+            if getattr(obj, "semantic_type", None) == "add_case_status_to_case"
         ]
 
     @pytest.mark.spec("RSH-04-004")
     def test_happy_path_commits_ledger_entry(self, populated_dl):
-        """SUCCESS: a CaseLedgerEntry with event_type='add_case_status_to_case' is committed."""
+        """SUCCESS: a CaseLedgerEntry with semantic_type='add_case_status_to_case' is committed."""
         bridge = BTBridge(
             datalayer=populated_dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -322,11 +322,12 @@ class TestEmitCaseStatusUpdateNode:
             for obj in populated_dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry)
             and getattr(obj, "case_id", None) == CASE_ID
-            and getattr(obj, "event_type", None) == "add_case_status_to_case"
+            and getattr(obj, "semantic_type", None)
+            == "add_case_status_to_case"
         ]
         assert len(entries) >= 1, (
             "EmitCaseStatusUpdateNode must commit a CaseLedgerEntry"
-            " with event_type='add_case_status_to_case'"
+            " with semantic_type='add_case_status_to_case'"
         )
 
     @pytest.mark.spec("RSH-04-004")

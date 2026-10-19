@@ -493,7 +493,8 @@ class TestEngageCaseLedgerCommit:
         engage_entries = [
             e
             for e in entries
-            if isinstance(e, CaseLedgerEntry) and e.event_type == "engage_case"
+            if isinstance(e, CaseLedgerEntry)
+            and e.semantic_type == "engage_case"
         ]
         assert len(engage_entries) == 1, (
             "Expected exactly one 'engage_case' ledger entry when "
@@ -639,7 +640,7 @@ class TestEngageCaseLedgerCommit:
         ).execute()
 
         assert [
-            e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
+            e.semantic_type for e in seeded_dl.list_objects("CaseLedgerEntry")
         ] == ["engage_case"]
 
     def test_engage_case_transitions_vendor_rm_to_accepted(self, seeded_dl):
@@ -764,7 +765,7 @@ class TestDeferCaseLedgerCommit:
         ).execute()
 
         assert [
-            e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
+            e.semantic_type for e in seeded_dl.list_objects("CaseLedgerEntry")
         ] == ["defer_case"]
 
     def test_defer_case_commits_ledger_entry_when_receiving_actor_is_case_manager(
@@ -791,7 +792,8 @@ class TestDeferCaseLedgerCommit:
         defer_entries = [
             e
             for e in entries
-            if isinstance(e, CaseLedgerEntry) and e.event_type == "defer_case"
+            if isinstance(e, CaseLedgerEntry)
+            and e.semantic_type == "defer_case"
         ]
         assert len(defer_entries) == 1, (
             "Expected exactly one 'defer_case' ledger entry when "

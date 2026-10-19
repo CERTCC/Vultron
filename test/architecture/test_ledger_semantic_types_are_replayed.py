@@ -13,10 +13,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Architecture ratchet: every committed ledger event type is replayed (RSH-08-004).
+"""Architecture ratchet: every committed ledger semantic type is replayed (RSH-08-004).
 
 A participant replica takes case state from the CASE_MANAGER's ledger
-(PCR-03-001, ADR-0108).  An ``event_type`` the CASE_MANAGER commits with no
+(PCR-03-001, ADR-0108).  An ``semantic_type`` the CASE_MANAGER commits with no
 effect slot in ``AnnounceLogEntryReceivedBT`` is stored and ignored, so the
 replica silently stops following the case — and gating a received-side effect
 behind the CASE_MANAGER role (RSH-08-003) before the slot exists blinds every
@@ -58,39 +58,39 @@ from test.architecture._announce_slots import (
     matching_slots,
 )
 from test.architecture._ledger_commit_inventory import (
-    committed_event_types,
-    explicit_event_types,
+    committed_semantic_types,
+    explicit_semantic_types,
     received_commit_semantics,
 )
 from vultron.core.models.events.base import MessageSemantics as MS
-from vultron.core.models.participant_event_types import (
-    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
-    UPDATE_CASE_OWNER_EVENT_TYPE,
-    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    UPDATE_CASE_OWNER_SEMANTIC_TYPE,
+    UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.models.protocol_pair import (
-    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
 )
 from vultron.core.models.rsvp_deadline import (
-    EMBARGO_REINVITE_EVENT_TYPE,
-    HONOUR_LATE_ACCEPT_EVENT_TYPE,
-    INVITE_EXPIRED_EVENT_TYPE,
-    INVITE_EXPIRED_NOOP_EVENT_TYPE,
+    EMBARGO_REINVITE_SEMANTIC_TYPE,
+    HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
+    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
+    INVITE_EXPIRED_SEMANTIC_TYPE,
 )
 
 _EMBARGO = {"type": "EmbargoEvent", "id": "urn:uuid:embargo"}
 _ABANDONED = f"{MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value}_abandoned"
 
-#: Replayed event types and an entry snapshot that identifies each.  Only the
+#: Replayed semantic types and an entry snapshot that identifies each.  Only the
 #: proposal-versus-relay split of ``invite_to_embargo_on_case`` depends on the
 #: snapshot; ``test_embargo_relay_entries_are_replayed.py`` covers its shapes.
 REPLAYED: dict[str, dict[str, Any]] = {
-    event_type: {"actor": MANAGER, "object": _EMBARGO}
-    for event_type in (
+    semantic_type: {"actor": MANAGER, "object": _EMBARGO}
+    for semantic_type in (
         "accept_case_participant_role",
-        CREATE_CASE_PARTICIPANT_EVENT_TYPE,
-        UPDATE_CASE_OWNER_EVENT_TYPE,
-        UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+        CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        UPDATE_CASE_OWNER_SEMANTIC_TYPE,
+        UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
         MS.ACCEPT_INVITE_ACTOR_TO_CASE.value,
         MS.REJECT_INVITE_ACTOR_TO_CASE.value,
         MS.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value,
@@ -115,10 +115,10 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.REMOVE_NOTE_FROM_CASE.value,
         MS.VALIDATE_REPORT.value,
         MS.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
-        EMBARGO_REINVITE_EVENT_TYPE,
-        HONOUR_LATE_ACCEPT_EVENT_TYPE,
-        INVITE_EXPIRED_EVENT_TYPE,
-        INVITE_EXPIRED_NOOP_EVENT_TYPE,
+        EMBARGO_REINVITE_SEMANTIC_TYPE,
+        HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
+        INVITE_EXPIRED_SEMANTIC_TYPE,
+        INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
         _ABANDONED,
     )
 } | {
@@ -140,7 +140,7 @@ _STUB_REPLY = (
     " Reject are the entries for their own effects (ADR-0114)"
 )
 
-#: Committed event types that change no state a replica holds.  A pinned
+#: Committed semantic types that change no state a replica holds.  A pinned
 #: exemption set (ARCH-18-005): each row is a decision, not awaiting a fix.
 # permanent: RSH-08-004 (the recorded no-replica-effect declarations)
 NO_REPLICA_EFFECT: dict[str, str] = {
@@ -196,7 +196,7 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " changes no owner or role; the open state is read from the ledger"
         " itself, not from replica state (CM-21-014, CM-21-015)"
     ),
-    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE: (
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE: (
         "the CASE_MANAGER's expiry record closes the ownership-transfer Offer"
         " and changes no owner or role; the open state is read from the ledger"
         " itself, so a replica learns the expiry from the entry and never"
@@ -214,7 +214,7 @@ NO_REPLICA_EFFECT: dict[str, str] = {
     ),
 }
 
-#: Classified ahead of the commit that will produce them (event type → issue).
+#: Classified ahead of the commit that will produce them (semantic type → issue).
 #: The target's answer to a role Offer goes to the CASE_MANAGER, which does
 #: not yet commit it on receipt (CM-33-006); #4703 builds that commit.
 AWAITING_COMMIT: dict[str, str] = {
@@ -236,16 +236,16 @@ def test_the_derivation_finds_both_commit_paths():
     assert {
         "create_case",
         "case_fully_closed",
-        INVITE_EXPIRED_EVENT_TYPE,
-    } <= explicit_event_types()
+        INVITE_EXPIRED_SEMANTIC_TYPE,
+    } <= explicit_semantic_types()
     # A replay slot's own constant is compared, never committed, so defining
     # it must not make its type look committed: Add(Note) is committed only
     # on the receive side.
-    assert MS.ADD_NOTE_TO_CASE.value not in explicit_event_types()
+    assert MS.ADD_NOTE_TO_CASE.value not in explicit_semantic_types()
 
 
 @pytest.mark.spec("RSH-08-004")
-def test_every_committed_event_type_is_classified_exactly_once():
+def test_every_committed_semantic_type_is_classified_exactly_once():
     """The classification equals the committed set (TB-10-002)."""
     tables = {
         "REPLAYED": set(REPLAYED) - set(AWAITING_COMMIT),
@@ -256,7 +256,7 @@ def test_every_committed_event_type_is_classified_exactly_once():
         for second in names[i + 1 :]:
             assert not tables[first] & tables[second], (first, second)
     classified = set().union(*tables.values())
-    committed = committed_event_types()
+    committed = committed_semantic_types()
     assert committed - classified == set(), (
         "committed but unclassified — add a replay slot, or declare it"
     )
@@ -269,45 +269,45 @@ def test_every_committed_event_type_is_classified_exactly_once():
 def test_types_replayed_ahead_of_their_commit_are_not_committed_yet():
     """When the commit lands, the row moves out of ``AWAITING_COMMIT``."""
     assert set(AWAITING_COMMIT) <= set(REPLAYED) | set(NO_REPLICA_EFFECT)
-    assert not set(AWAITING_COMMIT) & committed_event_types()
+    assert not set(AWAITING_COMMIT) & committed_semantic_types()
 
 
 @pytest.mark.spec("RSH-08-004")
-@pytest.mark.parametrize("event_type", sorted(REPLAYED))
-def test_each_replayed_type_has_exactly_one_slot(event_type):
-    matched = matching_slots(event_type, REPLAYED[event_type])
-    assert len(matched) == 1, f"{event_type}: {matched}"
+@pytest.mark.parametrize("semantic_type", sorted(REPLAYED))
+def test_each_replayed_type_has_exactly_one_slot(semantic_type):
+    matched = matching_slots(semantic_type, REPLAYED[semantic_type])
+    assert len(matched) == 1, f"{semantic_type}: {matched}"
 
 
 @pytest.mark.spec("RSH-08-004")
-@pytest.mark.parametrize("event_type", sorted(NO_REPLICA_EFFECT))
-def test_declared_types_have_no_slot(event_type):
+@pytest.mark.parametrize("semantic_type", sorted(NO_REPLICA_EFFECT))
+def test_declared_types_have_no_slot(semantic_type):
     """A slot here means the type is replayed: move it to ``REPLAYED``."""
-    assert matching_slots(event_type, {"actor": MANAGER}) == []
+    assert matching_slots(semantic_type, {"actor": MANAGER}) == []
 
 
-@pytest.mark.parametrize("event_type", sorted(AWAITING_COMMIT))
-def test_each_owned_gap_names_its_issue(event_type):
-    reason = AWAITING_COMMIT[event_type]
+@pytest.mark.parametrize("semantic_type", sorted(AWAITING_COMMIT))
+def test_each_owned_gap_names_its_issue(semantic_type):
+    reason = AWAITING_COMMIT[semantic_type]
     assert reason.startswith("#"), reason
 
 
 @pytest.mark.parametrize(
-    ("table", "event_type"),
+    ("table", "semantic_type"),
     [
-        (name, event_type)
+        (name, semantic_type)
         for name, rows in (
             ("NO_REPLICA_EFFECT", NO_REPLICA_EFFECT),
             ("AWAITING_COMMIT", AWAITING_COMMIT),
         )
-        for event_type in sorted(rows)
+        for semantic_type in sorted(rows)
     ],
 )
-def test_each_declared_row_carries_a_one_line_reason(table, event_type):
+def test_each_declared_row_carries_a_one_line_reason(table, semantic_type):
     """A row is a recorded decision: a reason, on one line (RSH-08-004)."""
     reason = {
         "NO_REPLICA_EFFECT": NO_REPLICA_EFFECT,
         "AWAITING_COMMIT": AWAITING_COMMIT,
-    }[table][event_type]
-    assert reason.strip(), f"{table}[{event_type!r}] has no reason"
-    assert "\n" not in reason, f"{table}[{event_type!r}] spans lines"
+    }[table][semantic_type]
+    assert reason.strip(), f"{table}[{semantic_type!r}] has no reason"
+    assert "\n" not in reason, f"{table}[{semantic_type!r}] spans lines"

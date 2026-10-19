@@ -302,8 +302,8 @@ groups:
       and that a replica missing the target participant is a non-fatal skip;
       `test/core/behaviors/case/nodes/test_delegation.py` asserts the CASE_MANAGER grants the
       role on its own copy when it commits the accept; and
-      `test/architecture/test_ledger_event_types_are_replayed.py` holds the event type in the
-      replayed set.
+      `test/architecture/test_ledger_semantic_types_are_replayed.py` holds the semantic
+      type in the replayed set.
     adr:
     - ADR-0039
     relationships:
@@ -3395,7 +3395,7 @@ groups:
     verification: >-
       A test marked `CM-21-012` confirms that
       `RejectCaseOwnershipTransferReceivedUseCase` reaches a canonical commit for the
-      `reject_case_ownership_transfer` event type.
+      `reject_case_ownership_transfer` semantic type.
     relationships:
     - rel_type: refines
       spec_id: CM-21-010
@@ -5146,8 +5146,8 @@ groups:
       single entry type for both events would conflate them. See ADR-0065, ADR-0118.
     verification: >-
       Inspection of `vultron/core/` confirms that the expired-invitation ledger entry
-      (`INVITE_EXPIRED_EVENT_TYPE`, snapshot type `Expire`) is authored as a distinct entry type
-      separate from the `Reject(Invite(EmbargoEvent))` entry.
+      (`INVITE_EXPIRED_SEMANTIC_TYPE`, snapshot type `Expire`) is authored as a distinct
+      entry type separate from the `Reject(Invite(EmbargoEvent))` entry.
     relationships:
     - rel_type: refines
       spec_id: CM-28-005
@@ -5282,8 +5282,8 @@ groups:
       learns an expiry from those entries, copying the row, and never computes one.
     rationale: >-
       The expiry commit ran unconditionally in whichever store processed a late `Accept`, so a
-      non-manager could author a ledger entry, and no replay node existed for the event type, so an
-      expiry recorded by the manager reached no replica (#3918).
+      non-manager could author a ledger entry, and no replay node existed for the semantic
+      type, so an expiry recorded by the manager reached no replica (#3918).
     verification: >-
       A test runs the late-`Accept` path as a non-manager and asserts no expiry entry is committed;
       a test replays an `invite_to_embargo_on_case_expired` entry and its

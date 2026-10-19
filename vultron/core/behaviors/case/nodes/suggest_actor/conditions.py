@@ -356,7 +356,7 @@ class InviteInFlightNode(DataLayerActionWithPorts):
     """Return SUCCESS if an Invite to the recommended actor is in-flight.
 
     Queries the case ledger via ``find_protocol_pair`` with
-    ``event_type="invite_actor_to_case"`` and ``object_id=recommended_id``.
+    ``semantic_type="invite_actor_to_case"`` and ``object_id=recommended_id``.
     Returns SUCCESS when the pair ``is_pending()`` — i.e., an Invite was
     sent and no Accept/Reject has been recorded (AC-7a, CM-16-009).
 
@@ -380,9 +380,9 @@ class InviteInFlightNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         pair = self.datalayer.find_protocol_pair(
             case_id=self.case_id,
-            request_event_type="invite_actor_to_case",
+            request_semantic_type="invite_actor_to_case",
             object_id=self.recommended_id,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+            reply_semantic_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
         )
         if pair.is_pending():
             self.logger.info(
@@ -399,7 +399,7 @@ class PendingOfferCaseParticipantNode(DataLayerActionWithPorts):
     """Return SUCCESS if an Offer(CaseParticipant) to the Case Owner is pending.
 
     Queries the case ledger via ``find_protocol_pair`` with
-    ``event_type="offer_case_participant"`` and ``object_id=recommended_id``.
+    ``semantic_type="offer_case_participant"`` and ``object_id=recommended_id``.
     Returns SUCCESS when the pair ``is_pending()`` — i.e., the CaseActor
     has already forwarded an Offer(CaseParticipant) for this actor and the
     Case Owner has not yet responded (AC-6, CM-16-008).
@@ -424,9 +424,9 @@ class PendingOfferCaseParticipantNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         pair = self.datalayer.find_protocol_pair(
             case_id=self.case_id,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=self.recommended_id,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
         if pair.is_pending():
             self.logger.info(

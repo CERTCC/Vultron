@@ -183,9 +183,9 @@ def _deliver_answer(
     ).execute()
 
 
-def _event_types(dl: SqliteDataLayer) -> list[str]:
+def _semantic_types(dl: SqliteDataLayer) -> list[str]:
     return [
-        entry.event_type
+        entry.semantic_type
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
     ]
@@ -231,7 +231,7 @@ def test_case_manager_records_and_forwards_the_offer(make_payload):
     # Case Owner's behalf.
     assert _as_id(getattr(forwards[0], "actor", None)) == _CASE_MANAGER_ID
     assert _as_id(getattr(forwards[0], "attributed_to", None)) == _OWNER_ID
-    assert "offer_case_participant_role" in _event_types(dl)
+    assert "offer_case_participant_role" in _semantic_types(dl)
     assert not _target_holds(dl, CVDRole.VENDOR)
 
 
@@ -261,13 +261,13 @@ def test_redelivered_offer_is_skipped_with_no_second_entry_or_forward(
     """Each delivery is built afresh, as a peer's retry would be."""
     dl = _store(_CASE_MANAGER_ID)
     _deliver_offer(dl, make_payload, _offer())
-    entries = _event_types(dl)
+    entries = _semantic_types(dl)
     forwards = _queued_offers(dl)
 
     result = _deliver_offer(dl, make_payload, _offer())
 
     assert result.disposition is HandlerDisposition.SKIPPED
-    assert _event_types(dl) == entries
+    assert _semantic_types(dl) == entries
     assert _queued_offers(dl) == forwards
 
 
@@ -278,12 +278,12 @@ def test_a_redelivery_after_the_forward_was_sent_sends_nothing(make_payload):
     _deliver_offer(dl, make_payload, _offer())
     while dl.outbox_pop() is not None:
         pass
-    entries = _event_types(dl)
+    entries = _semantic_types(dl)
 
     result = _deliver_offer(dl, make_payload, _offer())
 
     assert result.disposition is HandlerDisposition.SKIPPED
-    assert _event_types(dl) == entries
+    assert _semantic_types(dl) == entries
     assert dl.outbox_list() == []
 
 
@@ -303,13 +303,13 @@ def test_an_offer_reusing_a_recorded_id_for_another_offer_is_refused(
     """Only the same role and target make it a redelivery."""
     dl = _store(_CASE_MANAGER_ID)
     _deliver_offer(dl, make_payload, _offer())
-    entries = _event_types(dl)
+    entries = _semantic_types(dl)
     queued = dl.outbox_list()
 
     result = _deliver_offer(dl, make_payload, _offer(**changed))
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert _event_types(dl) == entries
+    assert _semantic_types(dl) == entries
     assert dl.outbox_list() == queued
 
 
@@ -331,13 +331,13 @@ def test_a_forward_that_fails_after_the_commit_is_sent_on_redelivery(
             trigger_activity=broken,
             **_ports(dl),
         ).execute()
-    assert _event_types(dl) == ["offer_case_participant_role"]
+    assert _semantic_types(dl) == ["offer_case_participant_role"]
     assert _forwards(dl) == []
 
     result = _deliver_offer(dl, make_payload, offer)
 
     assert result.disposition is HandlerDisposition.SKIPPED
-    assert _event_types(dl) == ["offer_case_participant_role"]
+    assert _semantic_types(dl) == ["offer_case_participant_role"]
     assert len(_forwards(dl)) == 1
 
 
@@ -349,7 +349,7 @@ def test_a_copy_not_addressed_to_the_receiver_is_refused(make_payload):
     result = _deliver_offer(dl, make_payload, _offer(to=_TARGET_ID))
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert _event_types(dl) == []
+    assert _semantic_types(dl) == []
     assert _queued(dl) == []
     assert dl.read(_OFFER_ID) is None
 
@@ -365,7 +365,7 @@ def test_offer_naming_the_case_manager_as_target_is_refused(make_payload):
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert _event_types(dl) == []
+    assert _semantic_types(dl) == []
     assert _queued(dl) == []
 
 
@@ -416,7 +416,7 @@ def test_offer_naming_no_case_or_no_target_is_refused(make_payload, dropped):
     ).execute()
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert _event_types(dl) == []
+    assert _semantic_types(dl) == []
     assert _queued(dl) == []
 
 
@@ -434,7 +434,7 @@ def test_offer_from_a_participant_that_is_not_the_owner_is_refused(
     result = _deliver_offer(dl, make_payload, _offer(sender=_BYSTANDER_ID))
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert _event_types(dl) == []
+    assert _semantic_types(dl) == []
     assert _queued(dl) == []
 
 
@@ -469,7 +469,7 @@ def test_offer_the_case_manager_must_refuse(make_payload, role, target):
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert _event_types(dl) == []
+    assert _semantic_types(dl) == []
     assert _queued(dl) == []
 
 
@@ -512,7 +512,7 @@ def test_accept_from_a_participant_that_is_not_the_target_is_refused(
     dl = _store(_CASE_MANAGER_ID)
     offer = _offer()
     _deliver_offer(dl, make_payload, offer)
-    entries_before = _event_types(dl)
+    entries_before = _semantic_types(dl)
     # The refusal must come from the sender check, not from a missing Offer.
     assert "offer_case_participant_role" in entries_before
 
@@ -521,7 +521,7 @@ def test_accept_from_a_participant_that_is_not_the_target_is_refused(
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert _event_types(dl) == entries_before
+    assert _semantic_types(dl) == entries_before
     assert not _target_holds(dl, CVDRole.VENDOR)
 
 
@@ -537,7 +537,7 @@ def test_answer_to_an_offer_that_is_not_open_is_refused(make_payload):
     offer = _offer()
     _deliver_offer(dl, make_payload, offer)
     _deliver_answer(dl, make_payload, offer, accept=True, sender=_TARGET_ID)
-    entries_before = _event_types(dl)
+    entries_before = _semantic_types(dl)
     assert _target_holds(dl, CVDRole.VENDOR)
 
     result = _deliver_answer(
@@ -545,7 +545,7 @@ def test_answer_to_an_offer_that_is_not_open_is_refused(make_payload):
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
-    assert _event_types(dl) == entries_before
+    assert _semantic_types(dl) == entries_before
     assert _target_holds(dl, CVDRole.VENDOR)
 
 
@@ -561,7 +561,7 @@ def test_redelivered_closing_answer_is_skipped(make_payload):
     dl = _store(_CASE_MANAGER_ID)
     offer = _offer()
     _deliver_offer(dl, make_payload, offer)
-    accepts_before = _event_types(dl).count("accept_case_participant_role")
+    accepts_before = _semantic_types(dl).count("accept_case_participant_role")
     answer_id = "https://example.org/activities/role-offer/accept"
     _deliver_answer(
         dl,
@@ -571,7 +571,7 @@ def test_redelivered_closing_answer_is_skipped(make_payload):
         sender=_TARGET_ID,
         answer_id=answer_id,
     )
-    entries_after_first = _event_types(dl)
+    entries_after_first = _semantic_types(dl)
     assert (
         entries_after_first.count("accept_case_participant_role")
         == accepts_before + 1
@@ -587,7 +587,7 @@ def test_redelivered_closing_answer_is_skipped(make_payload):
     )
 
     assert result.disposition is HandlerDisposition.SKIPPED
-    assert _event_types(dl) == entries_after_first
+    assert _semantic_types(dl) == entries_after_first
 
 
 @pytest.mark.xfail(
@@ -604,7 +604,7 @@ def test_answer_naming_the_forward_resolves_to_the_recorded_offer(
     _deliver_offer(dl, make_payload, _offer())
     forwards = _forwards(dl)
     assert len(forwards) == 1
-    entries_before = _event_types(dl)
+    entries_before = _semantic_types(dl)
 
     result = _deliver_answer(
         dl, make_payload, forwards[0], accept=True, sender=_TARGET_ID
@@ -612,7 +612,7 @@ def test_answer_naming_the_forward_resolves_to_the_recorded_offer(
 
     assert result.disposition is HandlerDisposition.APPLIED
     assert (
-        _event_types(dl).count("accept_case_participant_role")
+        _semantic_types(dl).count("accept_case_participant_role")
         == entries_before.count("accept_case_participant_role") + 1
     )
     assert _target_holds(dl, CVDRole.VENDOR)
@@ -635,14 +635,14 @@ class TestAdmittedAnswerIsLedgered:
         queued_before = dl.outbox_list()
         # The Offer step grants nothing and records no Accept: the change
         # below must come from the answer.
-        assert "accept_case_participant_role" not in _event_types(dl)
+        assert "accept_case_participant_role" not in _semantic_types(dl)
         assert not _target_holds(dl, CVDRole.VENDOR)
 
         _deliver_answer(
             dl, make_payload, offer, accept=True, sender=_TARGET_ID
         )
 
-        assert "accept_case_participant_role" in _event_types(dl)
+        assert "accept_case_participant_role" in _semantic_types(dl)
         assert _target_holds(dl, CVDRole.VENDOR)
         assert any(
             _type_of(dl.read(i)) == "Announce"
@@ -669,7 +669,7 @@ class TestAdmittedAnswerIsLedgered:
             dl, make_payload, offer, accept=False, sender=_TARGET_ID
         )
 
-        assert "reject_case_participant_role" in _event_types(dl)
+        assert "reject_case_participant_role" in _semantic_types(dl)
         assert not _target_holds(dl, CVDRole.VENDOR)
         assert any(
             _type_of(dl.read(i)) == "Announce"

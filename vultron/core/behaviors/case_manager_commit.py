@@ -75,13 +75,13 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
     def __init__(
         self,
         case_id: str,
-        event_type: str,
+        semantic_type: str,
         notify_participants: bool = False,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
-        self._event_type = event_type
+        self._semantic_type = semantic_type
         self._notify_participants = notify_participants
         #: The ids of the activities the last :meth:`update` committed.
         self.committed_activity_ids: list[str] = []
@@ -112,7 +112,7 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
             # owner-close arm, CM-23-002), so it raises (ARCH-15-001).
             raise VultronWiringError(
                 f"{self.name}: {TRIGGER_FACTORY_UNAVAILABLE} to build the"
-                f" '{self._event_type}' activity of case '{self._case_id}'"
+                f" '{self._semantic_type}' activity of case '{self._case_id}'"
             )
         case, failure = self._require_case(self._case_id)
         if failure is not None:
@@ -151,7 +151,7 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
                     case_id=self._case_id,
                     activity_id=self._ledger_object_id(activity_id),
                     activity_blob=blob,
-                    event_type=self._event_type,
+                    semantic_type=self._semantic_type,
                     check_freshness=self._CHECK_LEDGER_FRESHNESS,
                 )
                 committed = True
@@ -163,7 +163,7 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
         self._record(activity_id, _send_and_commit)
         self.committed_activity_ids = [activity_id]
         self.feedback_message = (
-            f"CASE_MANAGER committed '{self._event_type}' entry for"
+            f"CASE_MANAGER committed '{self._semantic_type}' entry for"
             f" {activity_id!r} on case"
             f" '{self._case_id}' ({len(to)} participant(s) addressed)"
         )
@@ -200,7 +200,7 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
                 " '%s' did not commit",
                 self.name,
                 activity_id,
-                self._event_type,
+                self._semantic_type,
                 self._case_id,
             )
             return
@@ -209,7 +209,7 @@ class _CommitCaseManagerActivityBase(_EmitSingleActivityBase):
             " case '%s' did not commit",
             self.name,
             activity_id,
-            self._event_type,
+            self._semantic_type,
             self._case_id,
         )
 

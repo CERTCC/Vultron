@@ -403,10 +403,10 @@ No participant replica is checked for every closure: a closed participant is sen
 ## The case ledger a run produces
 
 The Case Actor commits the entries below, in this order.
-Each entry's `eventType` names the protocol act; the actor column names the participant on whose behalf it was recorded.
+Each entry's `semanticType` names the protocol act; the actor column names the participant on whose behalf it was recorded.
 The exact count of `add_participant_status_to_participant` and `add_case_status_to_case` entries in the initialization block depends on how many participant and case status records the acceptance cascade writes, so the table shows the shape of one run rather than an invariant.
 
-| Index | `eventType` | Recorded for | Phase |
+| Index | `semanticType` | Recorded for | Phase |
 |------:|:------------|:-------------|:------|
 | 0 | `create_case` | Case Actor | 1 |
 | 1 | `add_report_to_case` | Case Actor | 1 |

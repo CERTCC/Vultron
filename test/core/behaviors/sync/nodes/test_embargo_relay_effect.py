@@ -32,7 +32,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoRejectionFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay import (
-    EMBARGO_INVITE_EVENT_TYPE,
+    EMBARGO_INVITE_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
@@ -126,13 +126,13 @@ def _answer_snapshot(verb: str, actor: str) -> dict[str, Any]:
     }
 
 
-def _entry(event_type: str, snapshot: dict[str, Any]) -> CaseLedgerEntry:
+def _entry(semantic_type: str, snapshot: dict[str, Any]) -> CaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
-            object_id=str(snapshot.get("id") or f"urn:{event_type}"),
-            event_type=event_type,
+            object_id=str(snapshot.get("id") or f"urn:{semantic_type}"),
+            semantic_type=semantic_type,
             payload_snapshot=snapshot,
             prev_log_hash="0" * 64,
         )
@@ -653,7 +653,7 @@ class TestApplyEmbargoInvite:
 # ApplyEmbargoAcceptanceFromLedgerNode / ApplyEmbargoRejectionFromLedgerNode
 # ---------------------------------------------------------------------------
 
-_ANSWER_EVENT_TYPE = {
+_ANSWER_SEMANTIC_TYPE = {
     "Accept": "accept_invite_to_embargo_on_case",
     "Reject": "reject_invite_to_embargo_on_case",
 }
@@ -669,7 +669,7 @@ def _replay_answer(bridge, verb: str, actor: str):
     return _run(
         bridge,
         _answer_node(verb),
-        _entry(_ANSWER_EVENT_TYPE[verb], _answer_snapshot(verb, actor)),
+        _entry(_ANSWER_SEMANTIC_TYPE[verb], _answer_snapshot(verb, actor)),
     )
 
 
@@ -740,7 +740,7 @@ class TestApplyEmbargoAnswers:
         """An answer already in place is no fault on a second delivery."""
         _replay_proposal_with_rows(bridge, datalayer)
         entry = _entry(
-            _ANSWER_EVENT_TYPE[verb],
+            _ANSWER_SEMANTIC_TYPE[verb],
             _answer_snapshot(verb, PARTICIPANT_ACTOR_ID),
         )
         for _ in range(2):
@@ -780,7 +780,7 @@ class TestApplyEmbargoAnswers:
 
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("RSH-08-004")
-def test_announce_tree_carries_a_slot_per_relay_event_type():
+def test_announce_tree_carries_a_slot_per_relay_semantic_type():
     names = {
         node.name
         for node in create_announce_log_entry_tree(
@@ -809,7 +809,7 @@ def test_classifying_an_invite_entry_without_a_store_is_a_wiring_fault(
     """FAILURE would read as "not this slot" in both Inverters (#3915)."""
     node = node_cls(name=node_cls.__name__)
     node.activity = _make_event(
-        _entry(EMBARGO_INVITE_EVENT_TYPE, _invite_snapshot()),
+        _entry(EMBARGO_INVITE_SEMANTIC_TYPE, _invite_snapshot()),
         actor_id=MANAGER_ACTOR_ID,
     )
     node.datalayer = None

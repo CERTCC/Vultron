@@ -178,8 +178,8 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
             for single-node deployments (CLP-02-007).
         object_id: Full URI of the asserted activity or the primary object
             acted upon.
-        event_type: Short machine-readable descriptor of the event kind
-            (e.g. ``"embargo_accepted"``, ``"participant_joined"``).
+        semantic_type: The entry's semantic type, hashed under that key
+            (e.g. ``"invite_actor_to_case"``; CLP-02-014).
         payload_snapshot: Normalized immutable snapshot of the asserted
             activity payload — sufficient for deterministic replay
             (CLP-02-003, SYNC-08-002).  Stored as a plain dict so that it
@@ -212,8 +212,8 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
     object_id: NonEmptyString = Field(
         ..., description="Full URI of the asserted activity or primary object"
     )
-    event_type: NonEmptyString = Field(
-        ..., description="Short machine-readable event descriptor"
+    semantic_type: NonEmptyString = Field(
+        ..., description="The entry's semantic type (CLP-02-014)"
     )
     payload_snapshot: dict[NonEmptyString, Any] = Field(
         default_factory=dict,
@@ -254,7 +254,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
             "log_index": data.get("log_index", -1),
             "term": data.get("term"),
             "object_id": data.get("object_id", ""),
-            "event_type": data.get("event_type", ""),
+            "semantic_type": data.get("semantic_type", ""),
             "payload_snapshot": data.get("payload_snapshot", {}),
             "prev_log_hash": data.get("prev_log_hash", ""),
             "received_at": received_iso,
@@ -285,7 +285,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
             "log_index": self.log_index,
             "term": self.term,
             "object_id": self.object_id,
-            "event_type": self.event_type,
+            "semantic_type": self.semantic_type,
             "payload_snapshot": self.payload_snapshot,
             "prev_log_hash": self.prev_log_hash,
             "received_at": self.received_at.isoformat(),
@@ -336,7 +336,7 @@ class CaseLedger:
         log = CaseLedger(case_id=case_id, genesis_hash=g_hash)
         entry = log.append(
             object_id="urn:uuid:report1",
-            event_type="report_received",
+            semantic_type="report_received",
             payload_snapshot={"id": "urn:uuid:report1"},
         )
         assert entry.log_index == 0
@@ -408,7 +408,7 @@ class CaseLedger:
     def append(
         self,
         object_id: str,
-        event_type: str,
+        semantic_type: str,
         payload_snapshot: dict[str, Any] | None = None,
         term: int | None = None,
     ) -> HashChainLedgerRecord:
@@ -419,7 +419,7 @@ class CaseLedger:
 
         Args:
             object_id: Full URI of the asserted activity or primary object.
-            event_type: Short machine-readable event kind descriptor.
+            semantic_type: Short machine-readable event kind descriptor.
             payload_snapshot: Normalised snapshot of the asserted activity
                 payload for deterministic replay (CLP-02-003).
             term: Raft cluster term; ``None`` for single-node deployments.
@@ -432,15 +432,15 @@ class CaseLedger:
             log_index=self.next_index,
             term=term,
             object_id=object_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=payload_snapshot or {},
             prev_log_hash=self.tail_hash,
         )
         self._entries.append(entry)
         logger.info(
-            "Committed ledger entry: case_id=%s event_type=%s log_index=%d",
+            "Committed ledger entry: case_id=%s semantic_type=%s log_index=%d",
             self._case_id,
-            event_type,
+            semantic_type,
             entry.log_index,
         )
         logger.debug(

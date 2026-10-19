@@ -127,9 +127,9 @@ def _make_close_case_event(
     )
 
 
-def _ledger_event_types(dl: SqliteDataLayer) -> list[str]:
+def _ledger_semantic_types(dl: SqliteDataLayer) -> list[str]:
     return [
-        getattr(e, "event_type", "")
+        getattr(e, "semantic_type", "")
         for e in dl.list_objects("CaseLedgerEntry")
     ]
 
@@ -158,10 +158,10 @@ class TestCloseCaseLedgerRouting:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "close_case" in event_types, (
-            "Expected a CaseLedgerEntry with event_type='close_case';"
-            f" found: {event_types}"
+        semantic_types = _ledger_semantic_types(dl)
+        assert "close_case" in semantic_types, (
+            "Expected a CaseLedgerEntry with semantic_type='close_case';"
+            f" found: {semantic_types}"
         )
 
     def test_non_caseactor_does_not_commit_ledger_entry(self):
@@ -177,10 +177,10 @@ class TestCloseCaseLedgerRouting:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "close_case" not in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "close_case" not in semantic_types, (
             "Non-CaseActor receiving actor must NOT write a close_case"
-            f" ledger entry; found: {event_types}"
+            f" ledger entry; found: {semantic_types}"
         )
 
     def test_caseactor_self_leave_commits_close_case_ledger_entry(self):
@@ -212,11 +212,11 @@ class TestCloseCaseLedgerRouting:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "close_case" in event_types, (
-            "Expected a CaseLedgerEntry with event_type='close_case'"
+        semantic_types = _ledger_semantic_types(dl)
+        assert "close_case" in semantic_types, (
+            "Expected a CaseLedgerEntry with semantic_type='close_case'"
             " when the case-actor is both sender and receiver (AutoClose path);"
-            f" found: {event_types}"
+            f" found: {semantic_types}"
         )
 
     def test_absent_stamp_uses_store_owner_for_commit(self):
@@ -236,8 +236,8 @@ class TestCloseCaseLedgerRouting:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "close_case" in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "close_case" in semantic_types, (
             "Store-owner fallback (CaseActor) MUST write a close_case"
-            f" ledger entry when receiving_actor_id is absent; found: {event_types}"
+            f" ledger entry when receiving_actor_id is absent; found: {semantic_types}"
         )

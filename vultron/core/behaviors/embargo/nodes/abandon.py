@@ -80,7 +80,7 @@ from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoChangeFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    EMBARGO_ABANDONMENT_EVENT_TYPE,
+    EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_apply import (
@@ -189,7 +189,7 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
 
     For each proposal, in record order, it commits the CASE_MANAGER's ER — one
     ``Reject(Invite(EmbargoEvent))`` (MSM-02-006) under
-    :data:`EMBARGO_ABANDONMENT_EVENT_TYPE`, addressed to nobody — and then
+    :data:`EMBARGO_ABANDONMENT_SEMANTIC_TYPE`, addressed to nobody — and then
     applies the ``CANCEL`` step that entry is (ADR-0122) by copying it
     through the one apply function (ADR-0124), which changes no consent.  EM
     reaches ``NONE`` with the last one, exactly as a replica replaying the entries does (EP-09-007).
@@ -279,14 +279,14 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
                             case_id=self._case_id_value,
                             activity_id=activity_id,
                             activity_blob=blob,
-                            event_type=EMBARGO_ABANDONMENT_EVENT_TYPE,
+                            semantic_type=EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
                         ),
                     )
                 ],
             )
         self.feedback_message = (
             f"CASE_MANAGER committed and applied {len(self._proposals)}"
-            f" '{EMBARGO_ABANDONMENT_EVENT_TYPE}' entr(y/ies) on case"
+            f" '{EMBARGO_ABANDONMENT_SEMANTIC_TYPE}' entr(y/ies) on case"
             f" '{self._case_id_value}'"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)

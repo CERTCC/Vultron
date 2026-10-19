@@ -53,12 +53,14 @@ ACTOR_ID = "https://example.org/actors/case-actor"
 _ledger_counter: dict[str, int] = {}
 
 
-def _seed_ledger_entry(dl, case_id, object_id, event_type, actor_id=ACTOR_ID):
+def _seed_ledger_entry(
+    dl, case_id, object_id, semantic_type, actor_id=ACTOR_ID
+):
     """Insert a CaseLedgerEntry directly without traversing the hash chain.
 
     Uses a simple per-test counter for log_index so entries don't collide.
     Hash fields are left as empty strings — find_protocol_pair only reads
-    event_type, case_id, and log_object_id.
+    semantic_type, case_id, and log_object_id.
     """
     from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
@@ -68,7 +70,7 @@ def _seed_ledger_entry(dl, case_id, object_id, event_type, actor_id=ACTOR_ID):
         case_id=case_id,
         log_index=index,
         log_object_id=object_id,
-        event_type=event_type,
+        semantic_type=semantic_type,
         payload_snapshot={},
         prev_log_hash="",
         entry_hash="",
@@ -106,22 +108,22 @@ class TestFindProtocolPairOpenState:
 
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert isinstance(pair, ProtocolPair)
         assert pair.is_open()
         assert pair.reply_object_id is None
-        assert pair.reply_event_type is None
+        assert pair.reply_semantic_type is None
 
     def test_returns_open_when_no_request_entry_at_all(self, dl):
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair.is_open()
@@ -140,9 +142,9 @@ class TestFindProtocolPairOpenState:
 
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair.is_open()
@@ -161,14 +163,14 @@ class TestFindProtocolPairClosedState:
 
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair.is_closed()
         assert pair.reply_object_id == REPLY_ID_A
-        assert pair.reply_event_type == "accept_offer_case_participant"
+        assert pair.reply_semantic_type == "accept_offer_case_participant"
 
     def test_returns_closed_when_reject_reply_found(self, dl):
         _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_A, REQUEST_TYPE, ACTOR_ID)
@@ -182,13 +184,13 @@ class TestFindProtocolPairClosedState:
 
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair.is_closed()
-        assert pair.reply_event_type == "reject_offer_case_participant"
+        assert pair.reply_semantic_type == "reject_offer_case_participant"
 
     def test_returned_pair_carries_correct_metadata(self, dl):
         _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_A, REQUEST_TYPE, ACTOR_ID)
@@ -202,15 +204,15 @@ class TestFindProtocolPairClosedState:
 
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair.case_id == CASE_ID
-        assert pair.request_event_type == REQUEST_TYPE
+        assert pair.request_semantic_type == REQUEST_TYPE
         assert pair.object_id == OBJECT_ID_A
-        assert pair.reply_event_types == OFFER_CASE_PARTICIPANT_REPLY_TYPES
+        assert pair.reply_semantic_types == OFFER_CASE_PARTICIPANT_REPLY_TYPES
 
 
 class TestFindProtocolPairRequestFound:
@@ -221,9 +223,9 @@ class TestFindProtocolPairRequestFound:
 
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair.request_found is True
@@ -231,9 +233,9 @@ class TestFindProtocolPairRequestFound:
     def test_request_found_false_when_no_request_entry(self, dl):
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair.request_found is False
@@ -243,9 +245,9 @@ class TestFindProtocolPairRequestFound:
 
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair.is_pending() is True
@@ -254,9 +256,9 @@ class TestFindProtocolPairRequestFound:
     def test_is_pending_false_when_no_prior_request(self, dl):
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair.is_pending() is False
@@ -270,9 +272,9 @@ class TestFindProtocolPairRequestFound:
 
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair.is_pending() is False
@@ -286,7 +288,7 @@ class TestFindProtocolPairIsolation:
         Note: CaseLedgerEntry has no structural link from a reply to the
         specific request that triggered it (in_reply_to is YAGNI per CLP-11-004).
         find_protocol_pair() is therefore most reliable when at most one open
-        offer of a given request_event_type exists per case at a time —
+        offer of a given request_semantic_type exists per case at a time —
         the expected protocol usage per ADR-0026/CM-16.
 
         This test verifies the no-reply-at-all case: when no reply entry of
@@ -298,15 +300,15 @@ class TestFindProtocolPairIsolation:
         # No reply entries at all → both pairs should be open
         pair_a = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
         pair_b = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_B,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair_a.is_open()
@@ -329,15 +331,15 @@ class TestFindProtocolPairOrdering:
 
         first = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
         second = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_B,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert first.reply_object_id == REPLY_ID_A
@@ -357,9 +359,9 @@ class TestFindProtocolPairOrdering:
 
         pair = dl.find_protocol_pair(
             case_id=CASE_ID,
-            request_event_type=REQUEST_TYPE,
+            request_semantic_type=REQUEST_TYPE,
             object_id=OBJECT_ID_A,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
         )
 
         assert pair.is_pending()

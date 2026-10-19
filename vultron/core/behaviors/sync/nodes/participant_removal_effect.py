@@ -57,14 +57,14 @@ from vultron.core.models.wire_keys import wire_key
 from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.errors import VultronNotFoundError
 
-#: Ledger ``event_type`` of the Case Owner's removal request, as the guarded
+#: Ledger ``semantic_type`` of the Case Owner's removal request, as the guarded
 #: commit derives it from the received activity's semantics.
-REMOVE_CASE_PARTICIPANT_EVENT_TYPE = (
+REMOVE_CASE_PARTICIPANT_SEMANTIC_TYPE = (
     MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE.value
 )
 
-#: Ledger ``event_type`` of the Case Owner's reinstatement request.
-REINSTATE_CASE_PARTICIPANT_EVENT_TYPE = (
+#: Ledger ``semantic_type`` of the Case Owner's reinstatement request.
+REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE = (
     MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE.value
 )
 
@@ -82,7 +82,7 @@ class IsRemoveCaseParticipantEventNode(_ActivityEventNode):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == REMOVE_CASE_PARTICIPANT_EVENT_TYPE:
+        if entry.semantic_type == REMOVE_CASE_PARTICIPANT_SEMANTIC_TYPE:
             return Status.SUCCESS
         return Status.FAILURE
 
@@ -230,7 +230,7 @@ class IsReinstateCaseParticipantEventNode(_ActivityEventNode):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == REINSTATE_CASE_PARTICIPANT_EVENT_TYPE:
+        if entry.semantic_type == REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE:
             return Status.SUCCESS
         return Status.FAILURE
 
@@ -252,8 +252,8 @@ class ApplyReinstateCaseParticipantFromLedgerNode(
 
 
 __all__ = [
-    "REINSTATE_CASE_PARTICIPANT_EVENT_TYPE",
-    "REMOVE_CASE_PARTICIPANT_EVENT_TYPE",
+    "REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE",
+    "REMOVE_CASE_PARTICIPANT_SEMANTIC_TYPE",
     "ApplyReinstateCaseParticipantFromLedgerNode",
     "ApplyRemoveCaseParticipantFromLedgerNode",
     "IsReinstateCaseParticipantEventNode",

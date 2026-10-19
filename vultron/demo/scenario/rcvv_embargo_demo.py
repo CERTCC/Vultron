@@ -39,7 +39,7 @@ Spec: DEMOMA-21, DEMOCI-07 (GitHub issue #2072).
 import logging
 from dataclasses import dataclass
 
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
@@ -70,8 +70,8 @@ from vultron.demo.helpers.notes import reporter_asks_vendor_answers
 from vultron.demo.helpers.polling import (
     wait_for_case_em_state,
     wait_for_case_em_terminated,
-    wait_for_event_type_in_ledger,
     wait_for_participant_embargo_consent,
+    wait_for_semantic_type_in_ledger,
 )
 from vultron.demo.helpers.runner import check_all_containers
 from vultron.demo.helpers.seeding import (
@@ -473,10 +473,10 @@ def _phase_accidental_collapse(
     # The teardown is the CASE_MANAGER's own commit, so it is read where it
     # commits before any replica is expected to show it (EDF-06-002).
     with demo_gate("The CASE_MANAGER commits the embargo teardown"):
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=cast.case_manager,
             case_id=case.id_,
-            event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
+            semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             timeout_seconds=COMMIT_TIMEOUT_SECONDS,
         )
     assert_canonical_em_state(

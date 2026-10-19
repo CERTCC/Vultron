@@ -118,7 +118,7 @@ from vultron.core.behaviors.sync.commit_tree import create_commit_log_entry_tree
 tree = create_commit_log_entry_tree(
     case_id="urn:uuid:case-1",
     object_id="urn:uuid:obj-1",
-    event_type="create",
+    semantic_type="create",
 )
 print("```")
 print(py_trees.display.unicode_tree(tree))

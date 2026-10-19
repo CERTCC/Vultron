@@ -202,10 +202,10 @@ def _add_participant_at_received(
     case.case_participants.append(participant.id_)
 
 
-def _ledger_event_types(dl: SqliteDataLayer) -> list[str]:
-    """Return all ``event_type`` values in the DataLayer's CaseLedgerEntry set."""
+def _ledger_semantic_types(dl: SqliteDataLayer) -> list[str]:
+    """Return all ``semantic_type`` values in the DataLayer's CaseLedgerEntry set."""
     return [
-        getattr(e, "event_type", "")
+        getattr(e, "semantic_type", "")
         for e in dl.list_objects("CaseLedgerEntry")
     ]
 
@@ -353,7 +353,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
 
     Per CLP-10-002: when receiving_actor_id == case_actor_id the guarded
     commit BT MUST execute, resulting in a persisted CaseLedgerEntry with
-    ``event_type == "validate_report"``.
+    ``semantic_type == "validate_report"``.
 
     The case-actor DataLayer is set up directly (without running the full BT
     chain) to isolate the received use-case layer.
@@ -463,10 +463,10 @@ class TestCaseActorReceivedWritesLedgerEntry:
         )
 
     def test_ledger_has_validate_report_entry(self):
-        """CaseLedgerEntry with event_type='validate_report' is persisted.
+        """CaseLedgerEntry with semantic_type='validate_report' is persisted.
 
         This is the invariant checked by the CI ratchet test
-        ``test_invariant_5_expected_event_types_present[validate_report]``.
+        ``test_invariant_5_expected_semantic_types_present[validate_report]``.
         """
         dl = self._make_case_actor_dl()
         ValidateReportReceivedUseCase(
@@ -476,10 +476,10 @@ class TestCaseActorReceivedWritesLedgerEntry:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "validate_report" in event_types, (
-            "Expected a CaseLedgerEntry with event_type='validate_report'; "
-            f"found: {event_types}"
+        semantic_types = _ledger_semantic_types(dl)
+        assert "validate_report" in semantic_types, (
+            "Expected a CaseLedgerEntry with semantic_type='validate_report'; "
+            f"found: {semantic_types}"
         )
 
     def test_ledger_entry_links_to_correct_case(self):
@@ -496,7 +496,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         vr_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", "") == "validate_report"
+            if getattr(e, "semantic_type", "") == "validate_report"
         ]
         assert vr_entries, "No validate_report ledger entry found"
         assert all(
@@ -519,10 +519,10 @@ class TestCaseActorReceivedWritesLedgerEntry:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "validate_report" not in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "validate_report" not in semantic_types, (
             "Non-CaseActor receiving actor must NOT write a validate_report "
-            f"ledger entry; found event_types={event_types}"
+            f"ledger entry; found semantic_types={semantic_types}"
         )
 
     def test_sender_rm_state_transitions_to_valid(self):
@@ -707,8 +707,8 @@ class TestFullValidateReportLedgerChain:
         ).execute()
 
         # ── Step 6: assert CaseActor ledger has the validate_report entry ─────
-        event_types = _ledger_event_types(case_actor_dl)
-        assert "validate_report" in event_types, (
+        semantic_types = _ledger_semantic_types(case_actor_dl)
+        assert "validate_report" in semantic_types, (
             "Expected CaseActor DataLayer to contain a CaseLedgerEntry with "
-            f"event_type='validate_report'; found: {event_types}"
+            f"semantic_type='validate_report'; found: {semantic_types}"
         )

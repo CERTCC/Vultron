@@ -147,7 +147,7 @@ def test_ledger_fanout_reaches_only_active_participants() -> None:
         log_entry=CaseLedgerEntry(
             case_id=case.id_,
             log_object_id=f"{case.id_}/events/status-1",
-            event_type="add_participant_status",
+            semantic_type="add_participant_status",
         ),
     )
 

@@ -278,7 +278,7 @@ def _assert_asked_case_manager(
     case_id: str,
     manager_id: str,
     activity_type: str,
-    event_type: str,
+    semantic_type: str,
 ) -> str:
     """Assert a non-manager trigger only asked the CASE_MANAGER (EP-09-008).
 
@@ -289,7 +289,7 @@ def _assert_asked_case_manager(
     """
     from typing import cast
 
-    from test.support.ledger import committed_event_types
+    from test.support.ledger import committed_semantic_types
     from vultron.core.models.activity import VultronActivity
     from vultron.core.models.pending_assertion import (
         get_pending_assertion_store,
@@ -301,11 +301,11 @@ def _assert_asked_case_manager(
     assert asks[0].to == [manager_id]
     # A case-status declaration is a ledger commit, never an outbox item, so
     # "declares nothing" is checked against the ledger (AC-3).
-    assert "add_case_status_to_case" not in committed_event_types(
+    assert "add_case_status_to_case" not in committed_semantic_types(
         dl, case_id
     ), "a non-manager must not declare an EM state it has not been given"
     store = get_pending_assertion_store(actor_id)
-    assert store.is_suppressed(case_id, event_type, asks[0].id_)
+    assert store.is_suppressed(case_id, semantic_type, asks[0].id_)
     return asks[0].id_
 
 

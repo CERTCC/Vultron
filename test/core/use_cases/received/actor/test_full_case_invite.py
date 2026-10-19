@@ -103,7 +103,7 @@ def test_stub_accept_sends_announce_then_replay_then_full_case_invite(
 
     entries = _ledger_tail(joining_case)
     invite_entry = next(
-        e for e in entries if e.event_type == "invite_actor_to_full_case"
+        e for e in entries if e.semantic_type == "invite_actor_to_full_case"
     )
     floor_entry = entries[invite_entry.log_index - 1]
     invite_kwargs = ordered[invite_at][1]
@@ -291,7 +291,7 @@ def test_a_reply_is_recorded_in_the_ledger_with_its_position(
     recorded = [
         e
         for e in _ledger_tail(joining_case)
-        if e.event_type == "accept_invite_actor_to_full_case"
+        if e.semantic_type == "accept_invite_actor_to_full_case"
     ]
     assert len(recorded) == 1
     assert (

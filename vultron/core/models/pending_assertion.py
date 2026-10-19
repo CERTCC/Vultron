@@ -17,7 +17,7 @@
 have been emitted but not yet confirmed by a canonical
 ``Announce(CaseLedgerEntry)`` or ``Reject(CaseLedgerEntry)`` round-trip.
 While an entry is *pending* and within the configurable timeout window,
-duplicate re-emits for the same ``(case_id, event_type, object_id)`` triple
+duplicate re-emits for the same ``(case_id, semantic_type, object_id)`` triple
 are suppressed.
 
 This is **not** persisted and **not** a DataLayer entity.  The store is
@@ -58,8 +58,8 @@ class PendingAssertion:
 
     Attributes:
         case_id: URI of the parent :class:`VulnerabilityCase`.
-        event_type: Machine-readable event descriptor (matches
-            ``CaseLedgerEntry.event_type``).
+        semantic_type: The assertion's semantic type (matches
+            ``CaseLedgerEntry.semantic_type``).
         object_id: Full URI of the asserted activity or primary object
             (matches ``CaseLedgerEntry.log_object_id``).
         emitted_at: UTC timestamp when the assertion was emitted.
@@ -73,7 +73,7 @@ class PendingAssertion:
     """
 
     case_id: str
-    event_type: str
+    semantic_type: str
     object_id: str
     emitted_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     status: Literal["pending", "cleared", "timed_out"] = "pending"
@@ -101,7 +101,7 @@ class PendingAssertionStore:
     Setting ``timeout_seconds=0`` disables suppression entirely.
 
     The store is keyed by :class:`~vultron.core.models.protocol_pair.ProtocolPair`
-    (replacing the raw ``(case_id, event_type, object_id)`` tuple from earlier
+    (replacing the raw ``(case_id, semantic_type, object_id)`` tuple from earlier
     versions).  The three-argument helpers (``add``, ``is_suppressed``,
     ``clear``) remain for backward compatibility and construct a ``ProtocolPair``
     internally.
@@ -123,10 +123,10 @@ class PendingAssertionStore:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _key(case_id: str, event_type: str, object_id: str) -> ProtocolPair:
+    def _key(case_id: str, semantic_type: str, object_id: str) -> ProtocolPair:
         return ProtocolPair(
             case_id=case_id,
-            request_event_type=event_type,
+            request_semantic_type=semantic_type,
             object_id=object_id,
         )
 
@@ -144,10 +144,10 @@ class PendingAssertionStore:
             entry.status = "timed_out"
             logger.error(
                 "pending_assertions: entry timed out after %.0fs "
-                "case_id=%s event_type=%s object_id=%.32s…",
+                "case_id=%s semantic_type=%s object_id=%.32s…",
                 age,
                 entry.case_id,
-                entry.event_type,
+                entry.semantic_type,
                 entry.object_id,
             )
             return True
@@ -160,7 +160,7 @@ class PendingAssertionStore:
     def add(
         self,
         case_id: str,
-        event_type: str,
+        semantic_type: str,
         object_id: str,
         subject_id: str | None = None,
     ) -> None:
@@ -171,28 +171,28 @@ class PendingAssertionStore:
 
         Args:
             case_id: URI of the parent :class:`VulnerabilityCase`.
-            event_type: Machine-readable event descriptor.
+            semantic_type: The assertion's semantic type.
             object_id: Full URI of the asserted activity or primary object.
             subject_id: What the assertion is about, when a repeat would
                 carry a new activity id (see :class:`PendingAssertion`).
         """
-        key = self._key(case_id, event_type, object_id)
+        key = self._key(case_id, semantic_type, object_id)
         self._store[key] = PendingAssertion(
             case_id=case_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             object_id=object_id,
             subject_id=subject_id,
         )
         logger.debug(
             "pending_assertions: added entry "
-            "case_id=%s event_type=%s object_id=%.32s…",
+            "case_id=%s semantic_type=%s object_id=%.32s…",
             case_id,
-            event_type,
+            semantic_type,
             object_id,
         )
 
     def is_suppressed(
-        self, case_id: str, event_type: str, object_id: str
+        self, case_id: str, semantic_type: str, object_id: str
     ) -> bool:
         """Return ``True`` iff a pending, unexpired entry exists.
 
@@ -201,12 +201,12 @@ class PendingAssertionStore:
 
         Args:
             case_id: URI of the parent :class:`VulnerabilityCase`.
-            event_type: Machine-readable event descriptor.
+            semantic_type: The assertion's semantic type.
             object_id: Full URI of the asserted activity or primary object.
         """
         if self.timeout_seconds == 0:
             return False
-        key = self._key(case_id, event_type, object_id)
+        key = self._key(case_id, semantic_type, object_id)
         entry = self._store.get(key)
         if entry is None:
             return False
@@ -215,7 +215,7 @@ class PendingAssertionStore:
         return entry.status == "pending"
 
     def pending_for_subject(
-        self, case_id: str, event_type: str, subject_id: str
+        self, case_id: str, semantic_type: str, subject_id: str
     ) -> PendingAssertion | None:
         """Return the pending, unexpired assertion about *subject_id*, if any.
 
@@ -230,7 +230,7 @@ class PendingAssertionStore:
         for entry in list(self._store.values()):
             if (
                 entry.case_id == case_id
-                and entry.event_type == event_type
+                and entry.semantic_type == semantic_type
                 and entry.subject_id == subject_id
                 and not self._check_expired(entry)
                 and entry.status == "pending"
@@ -238,7 +238,7 @@ class PendingAssertionStore:
                 return entry
         return None
 
-    def clear(self, case_id: str, event_type: str, object_id: str) -> None:
+    def clear(self, case_id: str, semantic_type: str, object_id: str) -> None:
         """Mark a pending entry as *cleared* on canonical confirmation.
 
         A no-op when no matching entry exists or when the entry is already
@@ -246,19 +246,19 @@ class PendingAssertionStore:
 
         Args:
             case_id: URI of the parent :class:`VulnerabilityCase`.
-            event_type: Machine-readable event descriptor.
+            semantic_type: The assertion's semantic type.
             object_id: Full URI of the asserted activity / primary object.
         """
-        key = self._key(case_id, event_type, object_id)
+        key = self._key(case_id, semantic_type, object_id)
         entry = self._store.get(key)
         if entry is None or entry.status != "pending":
             return
         entry.status = "cleared"
         logger.debug(
             "pending_assertions: cleared entry "
-            "case_id=%s event_type=%s object_id=%.32s…",
+            "case_id=%s semantic_type=%s object_id=%.32s…",
             case_id,
-            event_type,
+            semantic_type,
             object_id,
         )
 
@@ -268,7 +268,7 @@ class PendingAssertionStore:
         """Clear every pending entry for the asserted activity *activity_id*.
 
         The CASE_MANAGER's refusal notice names the refused activity, not the
-        event type it would have been ledgered under, so this matches on the
+        semantic type it would have been ledgered under, so this matches on the
         case and the activity alone (CLP-06-006, CLP-05-001).
 
         Args:
@@ -291,7 +291,7 @@ class PendingAssertionStore:
             and entry.status == "pending"
         ]
         for entry in cleared:
-            self.clear(entry.case_id, entry.event_type, entry.object_id)
+            self.clear(entry.case_id, entry.semantic_type, entry.object_id)
         return cleared
 
     def expire_timed_out(self) -> int:
@@ -343,7 +343,7 @@ def get_pending_assertion_store(
 def record_pending_assertion(
     actor_id: str,
     case_id: str,
-    event_type: str,
+    semantic_type: str,
     activity_id: str,
     subject_id: str | None = None,
 ) -> None:
@@ -358,13 +358,13 @@ def record_pending_assertion(
     ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-003).
     """
     get_pending_assertion_store(actor_id).add(
-        case_id, event_type, activity_id, subject_id=subject_id
+        case_id, semantic_type, activity_id, subject_id=subject_id
     )
     logger.info(
         "Actor '%s' asserted '%s' on case '%s' to the CASE_MANAGER;"
         " pending its canonical commit (activity_id=%s)",
         actor_id,
-        event_type,
+        semantic_type,
         case_id,
         activity_id,
     )
@@ -373,7 +373,7 @@ def record_pending_assertion(
 def suppressed_repeat_reason(
     actor_id: str,
     case_id: str,
-    event_type: str,
+    semantic_type: str,
     subject_id: str,
 ) -> str | None:
     """Why a repeat ask about *subject_id* is suppressed, or ``None``.
@@ -386,13 +386,13 @@ def suppressed_repeat_reason(
     commit (SYNC-11-003), or timed out (SYNC-11-005).
     """
     pending = get_pending_assertion_store(actor_id).pending_for_subject(
-        case_id, event_type, subject_id
+        case_id, semantic_type, subject_id
     )
     if pending is None:
         return None
     return (
         f"actor '{actor_id}' already asked the CASE_MANAGER for"
-        f" '{event_type}' about '{subject_id}' on case '{case_id}'"
+        f" '{semantic_type}' about '{subject_id}' on case '{case_id}'"
         f" (activity_id={pending.object_id}, pending since"
         f" {pending.emitted_at.isoformat()}) — duplicate suppressed, not"
         " re-emitted (SYNC-11-002)"

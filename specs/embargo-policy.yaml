@@ -1478,7 +1478,7 @@ groups:
     priority: MUST
     kind: architecture
     statement: >-
-      Every ledger event type the revision relay commits (the proposal, each Invite emission,
+      Every ledger semantic type the revision relay commits (the proposal, each Invite emission,
       each participant's consent answer, each consent row the CASE_MANAGER changes, and the
       owner's decision) MUST have a replica apply node reachable from
       `create_announce_log_entry_tree` (RSH-08-004) that applies what the entry carries by
@@ -1489,11 +1489,11 @@ groups:
       The replay node for a transition MUST land before the received-side effect that wrote
       it directly is gated (RSH-08-003).
     rationale: >-
-      Replicas take case state from the ledger, so an event type with no replay node is a
+      Replicas take state from the ledger, so a semantic type with no replay node is a
       state change no replica can see (ADR-0108). Before this rule the only embargo event with
       a replica effect was teardown; proposal, revision and activation entries were stored and
       ignored, which is why a replica's EM stayed `ACTIVE` through a whole revision cycle
-      (#3892). Covering every event type of the relay is what makes the participant-side
+      (#3892). Covering every semantic type of the relay is what makes the participant-side
       embargo trees gateable with no further work.
     note: >-
       The owner's decision and expiry slots copy their entry's register step or
@@ -1506,7 +1506,7 @@ groups:
       carries no row: each row it declines is the CASE_MANAGER's own
       `Update(EmbargoConsent)` entry, which the consent slot copies (#4717).
     verification: >-
-      The RSH-08-004 architecture ratchet lists every committed embargo event type as having a
+      The RSH-08-004 ratchet lists every committed embargo semantic type as having a
       replay node or a declared exemption; integration tests with per-actor stores assert a
       replica converges to `REVISE` and back to `ACTIVE` on the fan-out alone, and
       `test/core/use_cases/received/test_embargo_proposal_answer_copy.py` asserts a replica's

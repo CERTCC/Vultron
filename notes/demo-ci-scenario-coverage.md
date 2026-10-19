@@ -3,7 +3,7 @@ title: "Demo CI: Scenario Coverage Matrix and Minimum PR Validation Set"
 status: active
 kind: guidance
 description: >
-  Which protocol event types and RM paths each demo scenario exercises, why the
+  Which protocol semantic types and RM paths each demo scenario exercises, why the
   DEMOCI-06-002 minimum PR set is sufficient, and how the workflow selects it.
   The scenario tables are ratcheted against the registry and the harness
   constants (DEMOCI-11-007).
@@ -25,15 +25,15 @@ related_notes:
 
 Spec: DEMOCI-06. Every scenario table here is checked in place against the
 scenario registry (row set and name order) and against each scenario's
-`_XXX_EXPECTED_EVENT_TYPES` harness constant, which is what Invariant 5 asserts
-(DEMOCI-11-007, MS-16-002). Adding a scenario, or an event type to a harness
+`_XXX_EXPECTED_SEMANTIC_TYPES` harness constant, which is what Invariant 5 asserts
+(DEMOCI-11-007, MS-16-002). Adding a scenario, or a semantic type to a harness
 constant, fails the check until the tables follow — see
 [demo-scenario-registry.md](demo-scenario-registry.md) § "The generate-vs-check
 split".
 
 ## Coverage Matrix
 
-Columns are `CaseLedgerEntry.event_type` values, each a distinct coordination
+Columns are `CaseLedgerEntry.semantic_type` values, each a distinct coordination
 protocol phase recorded in the replicated ledger.
 
 | Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case | invite_to_embargo_on_case | accept_invite_to_embargo_on_case | activate_embargo_on_case | remove_embargo_event_from_case |
@@ -66,7 +66,7 @@ protocol phase recorded in the replicated ledger.
 
 ## What the Matrix Does Not Cover
 
-Some dimensions are not ledger event types, so Invariant 5 cannot see them:
+Some dimensions are not ledger semantic types, so Invariant 5 cannot see them:
 
 | Dimension | Covered by | How verified |
 |---|---|---|
@@ -92,14 +92,14 @@ canonical order, everywhere".
 | rcv-embargo | ✓ (member) | Adds `invite_to_embargo_on_case` + `accept_invite_to_embargo_on_case` + `activate_embargo_on_case` + `remove_embargo_event_from_case` — the only scenario that proposes, activates and terminates an embargo |
 | rcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, stub))` (declines the stub Invite) |
 | rcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
-| rcvv-embargo | ✓ (member) | Same embargo event types as `rcv-embargo`, reached by other paths: a second revision cycle, a late vendor that signs the revised embargo, and a teardown that CS.P causes instead of a deliberate termination |
-| rv | ✓ (member) | 2-actor baseline; covers all universal event types (DEMOMA-16-001) with no invitation phases |
+| rcvv-embargo | ✓ (member) | Same embargo semantic types as `rcv-embargo`, reached by other paths: a second revision cycle, a late vendor that signs the revised embargo, and a teardown that CS.P causes instead of a deliberate termination |
+| rv | ✓ (member) | 2-actor baseline; covers all universal semantic types (DEMOMA-16-001) with no invitation phases |
 | rvcv-extension | covered by rcvcv | Same offer+invite+accept coverage; no additional phases |
 | rvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
 | rvv | covered by rvcv-handoff | Same invite+accept coverage; no additional phases |
 
-**Why the set is sufficient.** Together the members cover every event-type
-column, and every non-member names a member that already covers its event types
+**Why the set is sufficient.** Together the members cover every semantic-type
+column, and every non-member names a member that already covers its semantic types
 and protocol paths. Non-members add regression depth, not breadth, so they run
 only on push to `main` (DEMOCI-06-003) and cost a PR nothing. The other
 dimensions are covered either by a member (`rcvcv` for multi-vendor), by an
@@ -107,9 +107,9 @@ invariant that needs no extra scenario (Invariant 7), or by `demo_check`
 assertions that run wherever the scenario runs.
 
 When a scenario is added, decide its membership by this test: does it produce an
-event type or protocol path no member produces?
-`test_democi_06_002_names_exactly_the_pr_set_event_types` holds DEMOCI-06-002's
-event-type list equal to the members' harness constants.
+semantic type or protocol path no member produces?
+`test_democi_06_002_names_exactly_the_pr_set_semantic_types` holds DEMOCI-06-002's
+semantic-type list equal to the members' harness constants.
 
 ## Workflow Implementation (DEMOCI-06-003)
 
@@ -125,7 +125,7 @@ event-type list equal to the members' harness constants.
 
 ## RM State-Transition Path Coverage
 
-The event-type matrix cannot tell RM paths apart: `validate_report` is emitted on
+The semantic-type matrix cannot tell RM paths apart: `validate_report` is emitted on
 both `R → V` and `I → V`, and `add_participant_status_to_participant` on both
 `A → D` and `D → A`. A non-linear RM path is therefore verified by a `demo_check`
 on the participant's RM state in the scenario script, not by the harness.

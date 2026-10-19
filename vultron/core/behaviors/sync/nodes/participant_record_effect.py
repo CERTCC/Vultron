@@ -37,13 +37,13 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.sync.nodes._helpers import _LedgerEffectNode
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    _SingleEventTypeNode,
+    _SingleSemanticTypeNode,
 )
 from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.participant_event_types import (
-    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 
 
@@ -129,7 +129,7 @@ class ApplyCreateCaseParticipantFromLedgerNode(_LedgerEffectNode):
         return Status.SUCCESS
 
 
-class IsUpdateCaseParticipantEventNode(_SingleEventTypeNode):
+class IsUpdateCaseParticipantEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry IS an ``update_case_participant``.
 
     Precondition of the ``UpdateCaseParticipant`` slot.  The CASE_MANAGER
@@ -140,7 +140,7 @@ class IsUpdateCaseParticipantEventNode(_SingleEventTypeNode):
     Per BTND-08-001, CM-23-016, SYNC-12-001, RSH-08-004.
     """
 
-    matched_event_type = UPDATE_CASE_PARTICIPANT_EVENT_TYPE
+    matched_semantic_type = UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE
 
 
 class ApplyCaseParticipantUpdateFromLedgerNode(_LedgerEffectNode):

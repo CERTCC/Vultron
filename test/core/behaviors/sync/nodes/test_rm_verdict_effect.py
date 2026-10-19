@@ -121,13 +121,13 @@ def _seed(datalayer, sender_rm: RM, **fields) -> None:
     datalayer.save(case)
 
 
-def _apply(bridge, event_type: str, actor: str = SENDER):
+def _apply(bridge, semantic_type: str, actor: str = SENDER):
     entry = _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
-            object_id=f"https://example.org/activities/{event_type}",
-            event_type=event_type,
+            object_id=f"https://example.org/activities/{semantic_type}",
+            semantic_type=semantic_type,
             payload_snapshot={
                 "type": "Accept",
                 "actor": actor,
@@ -171,18 +171,18 @@ def test_a_full_case_reply_replays_the_state_the_manager_records(use_case):
 
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("RSH-08-001")
-@pytest.mark.parametrize("event_type", sorted(RM_VERDICT_TARGETS))
+@pytest.mark.parametrize("semantic_type", sorted(RM_VERDICT_TARGETS))
 def test_the_senders_participant_reaches_the_recorded_state(
-    bridge, datalayer, event_type
+    bridge, datalayer, semantic_type
 ):
-    _seed(datalayer, _FROM[event_type])
+    _seed(datalayer, _FROM[semantic_type])
 
-    result = _apply(bridge, event_type)
+    result = _apply(bridge, semantic_type)
 
     assert result.status == Status.SUCCESS
     assert _rm_history(datalayer, SENDER_PARTICIPANT_ID) == [
-        _FROM[event_type],
-        RM_VERDICT_TARGETS[event_type],
+        _FROM[semantic_type],
+        RM_VERDICT_TARGETS[semantic_type],
     ]
     # The replica's own participant is not the subject (RSH-08-001).
     assert _rm_history(datalayer, REPLICA_PARTICIPANT_ID) == [RM.RECEIVED]

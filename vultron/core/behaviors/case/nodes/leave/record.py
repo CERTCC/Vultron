@@ -359,7 +359,7 @@ class CommitRMClosureEntriesNode(DataLayerActionWithPorts, StateWriteCapable):
             tree=create_commit_log_entry_tree(
                 case_id=self._case_id,
                 object_id=str(status_id),
-                event_type="add_participant_status_to_participant",
+                semantic_type="add_participant_status_to_participant",
                 payload_snapshot=snapshot,
                 # A gapped local prefix must not block case closure
                 # (CM-23-002, SYNC-10-001/002), as for case_fully_closed.

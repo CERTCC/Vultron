@@ -473,7 +473,7 @@ class TestNoteUseCases:
             for o in dl.list_objects("CaseLedgerEntry")
             if isinstance(o, CaseLedgerEntry) and o.case_id == case.id_
         ]
-        assert [e.event_type for e in entries] == ["remove_note_from_case"]
+        assert [e.semantic_type for e in entries] == ["remove_note_from_case"]
 
     @pytest.mark.spec("CM-30-001")
     def test_remove_note_by_its_active_author_is_applied(self, make_payload):
@@ -741,7 +741,7 @@ class TestNoteUseCases:
         ]
         assert len(entries) == 1
         entry = cast(CaseLedgerEntry, entries[0])
-        assert entry.event_type == "add_note_to_case"
+        assert entry.semantic_type == "add_note_to_case"
         assert entry.log_object_id == activity.id_
 
     @pytest.mark.spec("SYNC-02-002")

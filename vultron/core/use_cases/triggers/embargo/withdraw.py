@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 class SvcWithdrawEmbargoUseCase(SvcEmbargoTriggerBase):
-    _assertion_event_type: ClassVar[str] = (
+    _assertion_semantic_type: ClassVar[str] = (
         MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
     )
 

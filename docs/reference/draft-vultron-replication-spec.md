@@ -484,7 +484,7 @@ but not yet confirmed by a canonical `Announce(CaseLedgerEntry)` round-trip.
 The suppression window is configurable; zero disables suppression. (SYNC-11-001)
 
 After a participant successfully enqueues an assertion activity toward the Case
-Actor, the participant SHOULD record the `(case_id, event_type, activity_id)`
+Actor, the participant SHOULD record the `(case_id, semantic_type, activity_id)`
 triple in its pending-assertion store so that duplicate near-term re-emits of
 the same assertion are suppressed while the round-trip is pending. (SYNC-11-002)
 

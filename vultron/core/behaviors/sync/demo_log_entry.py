@@ -18,7 +18,7 @@
 The entry records the CASE_MANAGER's ``Announce(VulnerabilityCase)``, built
 by the factory and committed from its sealed blob like every other
 CASE_MANAGER act (VM-08-003, CLP-07-013); the caller names its
-``event_type`` and ``log_object_id``.
+``semantic_type`` and ``log_object_id``.
 """
 
 from typing import cast
@@ -40,12 +40,12 @@ class CommitDemoLogEntryNode(_CommitCaseManagerActivityBase):
         self,
         case_id: str,
         object_id: str,
-        event_type: str,
+        semantic_type: str,
         name: str | None = None,
     ) -> None:
         super().__init__(
             case_id=case_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             notify_participants=False,
             name=name,
         )
@@ -59,7 +59,7 @@ class CommitDemoLogEntryNode(_CommitCaseManagerActivityBase):
         return self.trigger_activity_factory.record_case_announced(
             case_id=self._case_id,
             actor=cast(str, self.actor_id),
-            event_type=self._event_type,
+            semantic_type=self._semantic_type,
             object_id=self._object_id,
         )
 

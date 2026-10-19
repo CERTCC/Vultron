@@ -48,7 +48,7 @@ from enum import StrEnum
 
 from vultron.primitives import require_non_empty
 
-#: Reply event types that close an ``Offer(CaseParticipant)`` protocol pair.
+#: Reply semantic types that close an ``Offer(CaseParticipant)`` protocol pair.
 OFFER_CASE_PARTICIPANT_REPLY_TYPES: frozenset[str] = frozenset(
     {
         "accept_offer_case_participant",
@@ -56,7 +56,7 @@ OFFER_CASE_PARTICIPANT_REPLY_TYPES: frozenset[str] = frozenset(
     }
 )
 
-#: Reply event types that close an ``Invite(Actor, CaseStub)`` protocol pair.
+#: Reply semantic types that close an ``Invite(Actor, CaseStub)`` protocol pair.
 INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     {
         "accept_invite_actor_to_case",
@@ -64,7 +64,7 @@ INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     }
 )
 
-#: Reply event types that close a full-case ``Invite(Actor)[target=Case]``
+#: Reply semantic types that close a full-case ``Invite(Actor)[target=Case]``
 #: protocol pair — the ask the CASE_MANAGER puts to a joined participant
 #: (CM-11-010, CM-11-011, ADR-0121).
 INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES: frozenset[str] = frozenset(
@@ -76,24 +76,28 @@ INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES: frozenset[str] = frozenset(
 )
 
 
-#: Ledger ``event_type`` of a recorded ownership-transfer
+#: Ledger ``semantic_type`` of a recorded ownership-transfer
 #: ``Offer(VulnerabilityCase)`` — the request side of the pair below.
-OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE: str = "offer_case_ownership_transfer"
+OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE: str = (
+    "offer_case_ownership_transfer"
+)
 
-#: Ledger ``event_type`` of the offerer's withdrawal of an ownership-transfer
+#: Ledger ``semantic_type`` of the offerer's withdrawal of an ownership-transfer
 #: Offer, ``Undo(Offer(VulnerabilityCase))`` (CM-21-015).
-UNDO_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE: str = "undo_case_ownership_transfer"
+UNDO_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE: str = (
+    "undo_case_ownership_transfer"
+)
 
-#: Ledger ``event_type`` of the CASE_MANAGER's record that an
+#: Ledger ``semantic_type`` of the CASE_MANAGER's record that an
 #: ownership-transfer Offer passed its ``end_time`` unanswered (CM-21-017).
 #: Distinct from the transferee's Reject (CM-21-012): nobody declined, the
 #: deadline passed.  Only the CASE_MANAGER commits it; a replica learns the
 #: expiry from the entry and never computes one.
-OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE: str = (
+OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE: str = (
     "offer_case_ownership_transfer_expired"
 )
 
-#: Event types that close an ownership-transfer ``Offer(VulnerabilityCase)``
+#: Semantic types that close an ownership-transfer ``Offer(VulnerabilityCase)``
 #: protocol pair once the CASE_MANAGER ledgers them (CM-21-014): the
 #: transferee's answer (CM-21-007, CM-21-012), the offerer's withdrawal
 #: (CM-21-015) and the CASE_MANAGER's expiry record (CM-21-017).  Every reader
@@ -103,8 +107,8 @@ OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES: frozenset[str] = frozenset(
     {
         "accept_case_ownership_transfer",
         "reject_case_ownership_transfer",
-        UNDO_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE,
-        OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+        UNDO_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE,
+        OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
     }
 )
 
@@ -153,26 +157,26 @@ class ProtocolPair:
 
     Attributes:
         case_id: URI of the parent :class:`~vultron.core.models.case.VulnerabilityCase`.
-        request_event_type: Machine-readable event descriptor for the request
+        request_semantic_type: Semantic type of the request
             (e.g. ``"offer_case_participant"``).
         object_id: Full URI of the specific thing being offered/invited.
-        reply_event_types: ``frozenset`` of event type strings that constitute
+        reply_semantic_types: ``frozenset`` of semantic type strings that constitute
             a valid reply (i.e., that close the pair).
         reply_object_id: Full URI of the reply activity; ``None`` if no reply
             has been found yet.
-        reply_event_type: Which reply type was received; ``None`` if open.
+        reply_semantic_type: Which reply type was received; ``None`` if open.
         request_found: ``True`` when the ledger contains a matching request
-            entry for ``(case_id, request_event_type, object_id)``.  ``False``
+            entry for ``(case_id, request_semantic_type, object_id)``.  ``False``
             when no prior request exists (fresh case).  Use :meth:`is_pending`
             rather than :meth:`is_open` when detecting duplicates.
     """
 
     case_id: str
-    request_event_type: str
+    request_semantic_type: str
     object_id: str
-    reply_event_types: frozenset[str] = field(default_factory=frozenset)
+    reply_semantic_types: frozenset[str] = field(default_factory=frozenset)
     reply_object_id: str | None = None
-    reply_event_type: str | None = None
+    reply_semantic_type: str | None = None
     request_found: bool = False
 
     def __post_init__(self) -> None:
@@ -210,9 +214,9 @@ __all__ = [
     "OFFER_CASE_PARTICIPANT_REPLY_TYPES",
     "INVITE_ACTOR_TO_CASE_REPLY_TYPES",
     "INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES",
-    "OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE",
-    "OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE",
+    "OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE",
+    "OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE",
     "OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRY",
     "OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES",
-    "UNDO_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE",
+    "UNDO_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE",
 ]

@@ -94,7 +94,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
         record = self.datalayer.read(held_id) if held_id else None
         if not isinstance(record, CaseParticipant):
             self.feedback_message = (
-                f"{entry.event_type} entry {entry.log_index} for '{actor_id}'"
+                f"{entry.semantic_type} entry {entry.log_index} for '{actor_id}'"
                 f" in case '{entry.case_id}' but this replica holds no"
                 " participant record: the create_case_participant entry has"
                 " not been applied, so the chain is incomplete or out of"
@@ -107,7 +107,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
             published = parse_published(snapshot.get("published"))
         except ValueError as exc:
             self.feedback_message = (
-                f"{entry.event_type} entry {entry.log_index} for '{actor_id}':"
+                f"{entry.semantic_type} entry {entry.log_index} for '{actor_id}':"
                 f" {exc} (CLP-15-006)"
             )
             self.logger.exception("%s: %s", self.name, self.feedback_message)

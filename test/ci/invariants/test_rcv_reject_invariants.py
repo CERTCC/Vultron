@@ -9,11 +9,11 @@ Vendor is intentionally absent: it rejected the invitation and was never
 added as a case participant, so it has no case ledger replica.
 
 RCV-Reject-specific invariants (issue #2047):
-- ``validate_report`` event type is present (Coordinator validates Reporter's report).
+- ``validate_report`` semantic type is present (Coordinator validates Reporter's report).
 - ``invite_actor_to_case`` appears at least once (Coordinator invites Vendor).
 - ``reject_invite_actor_to_case`` appears at least once (Vendor's rejection recorded).
 - ``accept_invite_actor_to_case`` is absent (Vendor rejected, never accepted).
-- ``close_case`` event type is present.
+- ``close_case`` semantic type is present.
 - P-transition observed in Coordinator's add_participant_status entries.
 - Vendor replica is absent from devlogs (Vendor was never a participant).
 
@@ -28,19 +28,19 @@ from __future__ import annotations
 import pytest
 
 from test.ci.invariants.common import (
-    check_event_type_present,
+    check_semantic_type_present,
     cs_observations_from_snap,
-    event_type,
     load_devlogs,
     log_index,
     payload,
+    semantic_type,
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 
 _DEMO_NAME = "rcv-reject"
 
-#: Expected protocol eventTypes in a complete RCV-Reject run.
-_RCV_REJECT_EXPECTED_EVENT_TYPES = [
+#: Expected protocol semanticTypes in a complete RCV-Reject run.
+_RCV_REJECT_EXPECTED_SEMANTIC_TYPES = [
     pytest.param("validate_report", id="validate_report"),
     pytest.param(
         "add_participant_status_to_participant",
@@ -85,7 +85,7 @@ globals().update(
     make_universal_invariant_tests(
         replicas_fixture="rcv_reject_replicas",
         chain_actors=_CHAIN_ACTORS,
-        expected_event_types=_RCV_REJECT_EXPECTED_EVENT_TYPES,
+        expected_semantic_types=_RCV_REJECT_EXPECTED_SEMANTIC_TYPES,
         check_fix_ready=False,
         narrative_path="docs/topics/scenarios/rcv-reject.md",
     )
@@ -101,11 +101,11 @@ globals().update(
 def test_rcv_reject_validate_report_present(
     rcv_reject_replicas: dict[str, list[dict]],
 ) -> None:
-    """``validate_report`` event type is present in the log.
+    """``validate_report`` semantic type is present in the log.
 
     Spec: Coordinator validates Reporter's report (Phase 1).
     """
-    violations = check_event_type_present(
+    violations = check_semantic_type_present(
         rcv_reject_replicas, "validate_report"
     )
     assert not violations, violations[0] if violations else ""
@@ -119,7 +119,7 @@ def test_rcv_reject_invite_actor_to_case_present(
 
     Spec: issue #2047 — Coordinator invites Vendor via invite-actor-to-case.
     """
-    violations = check_event_type_present(
+    violations = check_semantic_type_present(
         rcv_reject_replicas, "invite_actor_to_case"
     )
     assert not violations, violations[0] if violations else ""
@@ -134,7 +134,7 @@ def test_rcv_reject_reject_invite_actor_to_case_present(
     Spec: issue #2047 AC-1 — Vendor sends RI (RM.INVALID) then RC (RM.CLOSED);
     the CaseActor records a reject_invite_actor_to_case ledger entry.
     """
-    violations = check_event_type_present(
+    violations = check_semantic_type_present(
         rcv_reject_replicas, "reject_invite_actor_to_case"
     )
     assert not violations, violations[0] if violations else ""
@@ -155,7 +155,7 @@ def test_rcv_reject_accept_invite_absent(
     bad = [
         e
         for e in all_entries
-        if event_type(e) == "accept_invite_actor_to_case"
+        if semantic_type(e) == "accept_invite_actor_to_case"
     ]
     assert not bad, (
         f"Found {len(bad)} unexpected accept_invite_actor_to_case entries "
@@ -182,11 +182,11 @@ def test_rcv_reject_vendor_has_no_replica(
 def test_rcv_reject_close_case_present(
     rcv_reject_replicas: dict[str, list[dict]],
 ) -> None:
-    """``close_case`` event type is present in the log.
+    """``close_case`` semantic type is present in the log.
 
     Spec: issue #2047 AC-1 — case reaches terminal RM.CLOSED.
     """
-    violations = check_event_type_present(rcv_reject_replicas, "close_case")
+    violations = check_semantic_type_present(rcv_reject_replicas, "close_case")
     assert not violations, violations[0] if violations else ""
 
 
@@ -207,7 +207,7 @@ def test_rcv_reject_coordinator_p_transition_observed(
     status_entries = [
         e
         for e in coordinator_entries
-        if event_type(e) == "add_participant_status_to_participant"
+        if semantic_type(e) == "add_participant_status_to_participant"
     ]
     if not status_entries:
         pytest.skip(

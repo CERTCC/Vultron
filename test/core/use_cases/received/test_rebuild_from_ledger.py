@@ -229,13 +229,13 @@ def test_creation_records_stop_at_the_first_act():
     )
     entries = [
         CaseLedgerEntry.model_construct(
-            event_type="create_case", payload_snapshot={"object": case}
+            semantic_type="create_case", payload_snapshot={"object": case}
         ),
         CaseLedgerEntry.model_construct(
-            event_type="invite_to_embargo_on_case", payload_snapshot={}
+            semantic_type="invite_to_embargo_on_case", payload_snapshot={}
         ),
         CaseLedgerEntry.model_construct(
-            event_type="create_case",
+            semantic_type="create_case",
             payload_snapshot={"object": case.model_copy(update={"name": "X"})},
         ),
     ]

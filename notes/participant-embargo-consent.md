@@ -256,8 +256,8 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   act's own activity (`RegisterStep`: the `Accept(EmbargoEvent, target=Case)`
   is `ACTIVATE` with its supersede, the `Remove` is `TERMINATE` with its
   cancels); each changed consent row is its own CASE_MANAGER
-  `Create`/`Update(EmbargoConsent)` entry (`ConsentRowChange`, event types in
-  `embargo_consent_event_types.py`).
+  `Create`/`Update(EmbargoConsent)` entry (`ConsentRowChange`, semantic types in
+  `embargo_consent_semantic_types.py`).
 - **A row is an AS2 object.** `EmbargoConsent` has `type`, a derived `id`
   (`EmbargoConsent.build_id(embargo_id, actor_id)`) and `attributedTo`, the
   participant's actor. A participant record stamps its actor on every row it
@@ -361,8 +361,8 @@ ledger entries (`vultron/core/models/rsvp_deadline.py`, trees in
 
 | Situation | Behaviour |
 |---|---|
-| `INVITED` row past its deadline | entry `INVITE_EXPIRED_EVENT_TYPE`, then `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-014) |
-| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: entry `HONOUR_LATE_ACCEPT_EVENT_TYPE`, then `Update(EmbargoConsent)` carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED` (EMB-17-001/002) |
+| `INVITED` row past its deadline | entry `INVITE_EXPIRED_SEMANTIC_TYPE`, then `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-014) |
+| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: entry `HONOUR_LATE_ACCEPT_SEMANTIC_TYPE`, then `Update(EmbargoConsent)` carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED` (EMB-17-001/002) |
 | Accepted embargo is stale | send a fresh Invite to the current embargo with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003) |
 | No current embargo (EM `EXITED`/`NONE`) | acknowledge as a no-op; rows and case participation unchanged (EMB-17-004) |
 

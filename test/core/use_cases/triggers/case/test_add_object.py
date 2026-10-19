@@ -197,7 +197,7 @@ class TestSvcAddObjectToCaseUseCase:
     def test_add_object_to_case_records_pending_assertion(
         self, make_object, semantics
     ):
-        """The Add is pending under the event type the CASE_MANAGER commits."""
+        """The Add is pending under the semantic type the CASE_MANAGER commits."""
         obj = make_object()
         self.dl.create(obj)
 

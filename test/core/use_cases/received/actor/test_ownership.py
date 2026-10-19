@@ -36,7 +36,7 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.protocol_pair import (
-    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.ownership import (
@@ -150,7 +150,7 @@ class TestOwnershipTransferUseCases:
         assert _owner(dl, "https://example.org/cases/case_ot2") == (
             _COORDINATOR_ID
         )
-        assert "accept_case_ownership_transfer" in _event_types(dl)
+        assert "accept_case_ownership_transfer" in _semantic_types(dl)
 
     @pytest.mark.spec("HP-01-003")
     def test_accept_ownership_transfer_for_unknown_case_writes_nothing(
@@ -461,7 +461,7 @@ class TestOwnershipTransferUseCases:
             attributed_to=_VENDOR_ID,
             id_="https://example.org/activities/offer_ot7",
         )
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
 
         result = OfferCaseOwnershipTransferReceivedUseCase(
             dl,
@@ -474,7 +474,7 @@ class TestOwnershipTransferUseCases:
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None
         assert "is not the Case Owner" in result.reason
-        assert _event_types(dl) == entries_before
+        assert _semantic_types(dl) == entries_before
         trigger_activity.offer_case_ownership_transfer.assert_not_called()
         assert _owner(dl, case_id) == _VENDOR_ID
 
@@ -935,9 +935,9 @@ def _owner(dl, case_id: str) -> str | None:
     return cast(str | None, case.attributed_to)
 
 
-def _event_types(dl) -> list[str]:
+def _semantic_types(dl) -> list[str]:
     return [
-        entry.event_type
+        entry.semantic_type
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
     ]
@@ -954,7 +954,7 @@ def test_second_offer_while_first_is_unanswered_is_refused(make_payload):
         _COORDINATOR_ID,
         "https://example.org/activities/offer_one_open_1",
     )
-    entries_after_first = _event_types(dl)
+    entries_after_first = _semantic_types(dl)
     second, _ = deliver(
         "https://example.org/users/vendor2",
         "https://example.org/activities/offer_one_open_2",
@@ -964,7 +964,7 @@ def test_second_offer_while_first_is_unanswered_is_refused(make_payload):
     assert second is HandlerDisposition.REFUSED
     trigger_activity.offer_case_ownership_transfer.assert_called_once()
     # Refused before the commit: no entry, so no replica learns of it.
-    assert _event_types(dl) == entries_after_first
+    assert _semantic_types(dl) == entries_after_first
 
 
 @pytest.mark.spec("CM-21-014")
@@ -1015,13 +1015,13 @@ def test_redelivered_open_offer_is_skipped_and_not_forwarded_again(
     first, offer = deliver(
         _COORDINATOR_ID, "https://example.org/activities/offer_again_1"
     )
-    entries_after_first = _event_types(dl)
+    entries_after_first = _semantic_types(dl)
 
     again = _redeliver_offer(dl, make_payload, offer, trigger_activity)
 
     assert first is HandlerDisposition.APPLIED
     assert again.disposition is HandlerDisposition.SKIPPED
-    assert _event_types(dl) == entries_after_first
+    assert _semantic_types(dl) == entries_after_first
     # The forward already went out; a duplicate does not send it twice.
     trigger_activity.offer_case_ownership_transfer.assert_called_once()
 
@@ -1049,12 +1049,12 @@ def test_redelivered_answered_offer_is_skipped_while_a_newer_one_is_open(
         offerer=_COORDINATOR_ID,
     )
     assert newer is HandlerDisposition.APPLIED
-    entries_before = _event_types(dl)
+    entries_before = _semantic_types(dl)
 
     late = _redeliver_offer(dl, make_payload, first, trigger_activity)
 
     assert late.disposition is HandlerDisposition.SKIPPED
-    assert _event_types(dl) == entries_before
+    assert _semantic_types(dl) == entries_before
     assert trigger_activity.offer_case_ownership_transfer.call_count == 2
 
 
@@ -1087,12 +1087,12 @@ def test_a_forward_that_fails_after_the_commit_is_sent_on_redelivery(
 
     with pytest.raises(VultronBTInternalError):
         _redeliver_offer(dl, make_payload, offer, trigger_activity)
-    entries_after_first = _event_types(dl)
+    entries_after_first = _semantic_types(dl)
 
     again = _redeliver_offer(dl, make_payload, offer, trigger_activity)
 
     assert again.disposition is HandlerDisposition.SKIPPED
-    assert _event_types(dl) == entries_after_first
+    assert _semantic_types(dl) == entries_after_first
     calls = trigger_activity.offer_case_ownership_transfer.call_args_list
     assert len(calls) == 2
     assert calls[0].kwargs["id_"] == calls[1].kwargs["id_"]
@@ -1142,13 +1142,13 @@ def test_new_offer_after_an_expired_one_ledgers_the_expiry(make_payload):
     )
 
     assert second is HandlerDisposition.APPLIED
-    event_types = [
-        entry.event_type
+    semantic_types = [
+        entry.semantic_type
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
     ]
-    assert any("expir" in event_type for event_type in event_types), (
-        event_types
+    assert any("expir" in semantic_type for semantic_type in semantic_types), (
+        semantic_types
     )
 
 
@@ -1176,7 +1176,7 @@ def _owner_roles(dl, case_id: str) -> dict[str, bool]:
 def _assert_nothing_changed(dl, case_id: str, roles_before, entries_before):
     assert _owner(dl, case_id) == _VENDOR_ID
     assert _owner_roles(dl, case_id) == roles_before
-    assert _event_types(dl) == entries_before
+    assert _semantic_types(dl) == entries_before
 
 
 def _forward_harness(make_payload, case_id: str):
@@ -1244,7 +1244,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             _COORDINATOR_ID, "https://example.org/activities/offer_impostor"
         )
         roles_before = _owner_roles(dl, case_id)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
         outbox_before = dl.outbox_list()
 
         result = _accept(dl, make_payload, offer, sender=_VENDOR_ID)
@@ -1319,13 +1319,13 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             _accept(dl, make_payload, offer).disposition
             is HandlerDisposition.APPLIED
         )
-        entries_after_first = _event_types(dl)
+        entries_after_first = _semantic_types(dl)
 
         again = _accept(dl, make_payload, offer)
 
         assert again.disposition is HandlerDisposition.REFUSED
         assert again.reason is not None and "already closed" in again.reason
-        assert _event_types(dl) == entries_after_first
+        assert _semantic_types(dl) == entries_after_first
 
     @pytest.mark.spec("HP-01-003")
     def test_redelivered_accept_is_skipped(self, make_payload):
@@ -1339,13 +1339,13 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
         )
         first = _accept(dl, make_payload, offer, accept=accept)
-        entries_after_first = _event_types(dl)
+        entries_after_first = _semantic_types(dl)
 
         again = _accept(dl, make_payload, offer, accept=accept)
 
         assert first.disposition is HandlerDisposition.APPLIED
         assert again.disposition is HandlerDisposition.SKIPPED
-        assert _event_types(dl) == entries_after_first
+        assert _semantic_types(dl) == entries_after_first
         assert _owner(dl, case_id) == _COORDINATOR_ID
 
     @pytest.mark.spec("CM-21-011")
@@ -1383,7 +1383,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             is HandlerDisposition.APPLIED
         )
         roles_before = _owner_roles(dl, case_id)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
         outbox_before = dl.outbox_list()
 
         replay = _accept(dl, make_payload, first, accept=old_accept)
@@ -1407,7 +1407,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             "https://example.org/activities/offer_fs",
         )
         roles_before = _owner_roles(dl, case_id)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
         outbox_before = dl.outbox_list()
 
         result = _accept(dl, make_payload, forged, sender=impostor)
@@ -1434,7 +1434,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
             "https://example.org/activities/offer_fo",
         )
         roles_before = _owner_roles(dl, case_id)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
         outbox_before = dl.outbox_list()
 
         result = _accept(dl, make_payload, forged, sender=impostor)
@@ -1513,7 +1513,11 @@ class TestOfferIsAdmittedOnlyFromTheCaseOwner:
 
     @staticmethod
     def _before(dl, case_id):
-        return (_owner_roles(dl, case_id), _event_types(dl), dl.outbox_list())
+        return (
+            _owner_roles(dl, case_id),
+            _semantic_types(dl),
+            dl.outbox_list(),
+        )
 
     @pytest.mark.spec("CM-21-019")
     @pytest.mark.spec("HP-01-006")
@@ -1600,7 +1604,7 @@ class TestOfferIsAdmittedOnlyFromTheCaseOwner:
         )
         assert first is HandlerDisposition.APPLIED
         _wait_past(deadline)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
 
         refused, _ = deliver(
             _MALLORY_ID,
@@ -1609,7 +1613,7 @@ class TestOfferIsAdmittedOnlyFromTheCaseOwner:
         )
 
         assert refused is HandlerDisposition.REFUSED
-        assert _event_types(dl) == entries_before
+        assert _semantic_types(dl) == entries_before
 
     @pytest.mark.spec("CM-21-019")
     @pytest.mark.spec("HP-01-003")
@@ -1624,12 +1628,12 @@ class TestOfferIsAdmittedOnlyFromTheCaseOwner:
         offer_id = "https://example.org/activities/offer_reused_id"
         first, _ = deliver(_COORDINATOR_ID, offer_id)
         assert first is HandlerDisposition.APPLIED
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
 
         again, _ = deliver(_MALLORY_ID, offer_id, offerer=_MALLORY_ID)
 
         assert again is HandlerDisposition.REFUSED
-        assert _event_types(dl) == entries_before
+        assert _semantic_types(dl) == entries_before
         trigger_activity.offer_case_ownership_transfer.assert_called_once()
 
 
@@ -1790,7 +1794,7 @@ class TestAcceptAtAReplica:
 
         assert result.disposition is not HandlerDisposition.REFUSED
         assert _owner(dl, case_id) == _VENDOR_ID
-        assert _event_types(dl) == []
+        assert _semantic_types(dl) == []
 
 
 # ---------------------------------------------------------------------------
@@ -1844,7 +1848,7 @@ class TestRejectOfOwnershipTransfer:
         result = _reject(dl, make_payload, offer)
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert _event_types(dl).count("reject_case_ownership_transfer") == 1
+        assert _semantic_types(dl).count("reject_case_ownership_transfer") == 1
         assert _announces(dl, outbox_before), (
             "the Reject's entry must be broadcast as Announce(CaseLedgerEntry)"
         )
@@ -1867,7 +1871,7 @@ class TestRejectOfOwnershipTransfer:
         result = _reject(dl, make_payload, forwarded)
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert "reject_case_ownership_transfer" in _event_types(dl)
+        assert "reject_case_ownership_transfer" in _semantic_types(dl)
         assert _owner(dl, case_id) == _VENDOR_ID
 
     @pytest.mark.spec("CM-21-013")
@@ -1880,7 +1884,7 @@ class TestRejectOfOwnershipTransfer:
             _COORDINATOR_ID, "https://example.org/activities/offer_rj_imp"
         )
         roles_before = _owner_roles(dl, case_id)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
         outbox_before = dl.outbox_list()
 
         result = _reject(dl, make_payload, offer, sender=_VENDOR_ID)
@@ -1908,14 +1912,14 @@ class TestRejectOfOwnershipTransfer:
             offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
         )
         first = _reject(dl, make_payload, offer, reject=reject)
-        entries_after_first = _event_types(dl)
+        entries_after_first = _semantic_types(dl)
         outbox_after_first = dl.outbox_list()
 
         again = _reject(dl, make_payload, offer, reject=reject)
 
         assert first.disposition is HandlerDisposition.APPLIED
         assert again.disposition is HandlerDisposition.SKIPPED
-        assert _event_types(dl) == entries_after_first
+        assert _semantic_types(dl) == entries_after_first
         assert dl.outbox_list() == outbox_after_first
 
     @pytest.mark.spec("CM-21-011")
@@ -1932,7 +1936,7 @@ class TestRejectOfOwnershipTransfer:
             is HandlerDisposition.APPLIED
         )
         roles_before = _owner_roles(dl, case_id)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
 
         late = _accept(dl, make_payload, offer)
 
@@ -1953,13 +1957,13 @@ class TestRejectOfOwnershipTransfer:
             _accept(dl, make_payload, offer).disposition
             is HandlerDisposition.APPLIED
         )
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
 
         late = _reject(dl, make_payload, offer)
 
         assert late.disposition is HandlerDisposition.REFUSED
         assert late.reason is not None and "already closed" in late.reason
-        assert _event_types(dl) == entries_before
+        assert _semantic_types(dl) == entries_before
         assert _owner(dl, case_id) == _COORDINATOR_ID
 
     @pytest.mark.spec("CM-21-014")
@@ -2013,7 +2017,7 @@ class TestRejectOfOwnershipTransfer:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "names no case" in result.reason
-        assert _event_types(dl) == []
+        assert _semantic_types(dl) == []
 
 
 class TestRejectAtAReplica:
@@ -2081,7 +2085,7 @@ def test_transferee_takes_the_forward_of_an_open_offer(make_payload):
     transferee.create(case)
     for entry in cm.list_objects("CaseLedgerEntry"):
         transferee.create(entry)
-    assert "offer_case_ownership_transfer" in _event_types(transferee)
+    assert "offer_case_ownership_transfer" in _semantic_types(transferee)
     forward = offer_case_ownership_transfer_activity(
         case,
         target=_COORDINATOR_ID,
@@ -2139,7 +2143,7 @@ class TestWithdrawalOfOwnershipTransfer:
         result = _undo(dl, make_payload, offer)
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert _event_types(dl).count("undo_case_ownership_transfer") == 1
+        assert _semantic_types(dl).count("undo_case_ownership_transfer") == 1
         assert _announces(dl, outbox_before), (
             "the Undo's entry must be broadcast as Announce(CaseLedgerEntry)"
         )
@@ -2165,7 +2169,7 @@ class TestWithdrawalOfOwnershipTransfer:
             attributed_to="https://example.org/actors/someone_else",
         )
         assert disposition is HandlerDisposition.APPLIED
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
         roles_before = _owner_roles(dl, case_id)
 
         claimed = _undo(
@@ -2183,7 +2187,7 @@ class TestWithdrawalOfOwnershipTransfer:
         result = _undo(dl, make_payload, offer)
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert "undo_case_ownership_transfer" in _event_types(dl)
+        assert "undo_case_ownership_transfer" in _semantic_types(dl)
 
     @pytest.mark.spec("CM-21-015")
     @pytest.mark.spec("HP-01-006")
@@ -2195,7 +2199,7 @@ class TestWithdrawalOfOwnershipTransfer:
             _COORDINATOR_ID, "https://example.org/activities/offer_undo_imp"
         )
         roles_before = _owner_roles(dl, case_id)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
         outbox_before = dl.outbox_list()
 
         result = _undo(dl, make_payload, offer, sender=_COORDINATOR_ID)
@@ -2233,14 +2237,14 @@ class TestWithdrawalOfOwnershipTransfer:
         assert isinstance(record, CaseParticipant)
         record.remove_role(CVDRole.CASE_OWNER)
         dl.save(record)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
 
         result = _undo(dl, make_payload, offer, sender=_VENDOR_ID)
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None
         assert "does not hold CASE_OWNER" in result.reason
-        assert _event_types(dl) == entries_before
+        assert _semantic_types(dl) == entries_before
 
     @pytest.mark.spec("CM-21-015")
     def test_withdrawal_of_an_offer_never_recorded_is_refused(
@@ -2262,7 +2266,7 @@ class TestWithdrawalOfOwnershipTransfer:
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None
         assert "never recorded" in result.reason
-        assert _event_types(dl) == []
+        assert _semantic_types(dl) == []
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("CM-21-015")
@@ -2277,14 +2281,14 @@ class TestWithdrawalOfOwnershipTransfer:
             offer, actor=_VENDOR_ID, to=[_CASE_ACTOR_ID]
         )
         first = _undo(dl, make_payload, offer, undo=undo)
-        entries_after_first = _event_types(dl)
+        entries_after_first = _semantic_types(dl)
         outbox_after_first = dl.outbox_list()
 
         again = _undo(dl, make_payload, offer, undo=undo)
 
         assert first.disposition is HandlerDisposition.APPLIED
         assert again.disposition is HandlerDisposition.SKIPPED
-        assert _event_types(dl) == entries_after_first
+        assert _semantic_types(dl) == entries_after_first
         assert dl.outbox_list() == outbox_after_first
 
     @pytest.mark.spec("HP-01-003")
@@ -2311,13 +2315,13 @@ class TestWithdrawalOfOwnershipTransfer:
             is HandlerDisposition.APPLIED
         )
         assert _owner(dl, case_id) == _COORDINATOR_ID
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
         outbox_before = dl.outbox_list()
 
         again = _undo(dl, make_payload, first_offer, undo=undo)
 
         assert again.disposition is HandlerDisposition.SKIPPED
-        assert _event_types(dl) == entries_before
+        assert _semantic_types(dl) == entries_before
         assert dl.outbox_list() == outbox_before
         assert _owner(dl, case_id) == _COORDINATOR_ID
 
@@ -2338,7 +2342,7 @@ class TestWithdrawalOfOwnershipTransfer:
             reply(dl, make_payload, offer).disposition
             is HandlerDisposition.APPLIED
         )
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
         outbox_before = dl.outbox_list()
 
         late = _undo(dl, make_payload, offer)
@@ -2354,7 +2358,7 @@ class TestWithdrawalOfOwnershipTransfer:
             else "already closed"
         )
         assert late.reason is not None and expected in late.reason
-        assert _event_types(dl) == entries_before
+        assert _semantic_types(dl) == entries_before
         assert dl.outbox_list() == outbox_before
 
     @pytest.mark.spec("CM-21-015")
@@ -2371,14 +2375,14 @@ class TestWithdrawalOfOwnershipTransfer:
             _undo(dl, make_payload, offer).disposition
             is HandlerDisposition.APPLIED
         )
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
 
         second = _undo(dl, make_payload, offer)
 
         assert second.disposition is HandlerDisposition.REFUSED
         assert second.reason is not None
         assert "already closed" in second.reason
-        assert _event_types(dl) == entries_before
+        assert _semantic_types(dl) == entries_before
 
     @pytest.mark.spec("CM-21-014")
     @pytest.mark.spec("CM-21-015")
@@ -2396,7 +2400,7 @@ class TestWithdrawalOfOwnershipTransfer:
             is HandlerDisposition.APPLIED
         )
         roles_before = _owner_roles(dl, case_id)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
 
         reply = _accept if answer == "accept" else _reject
         late = reply(dl, make_payload, offer)
@@ -2459,7 +2463,7 @@ class TestWithdrawalOfOwnershipTransfer:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "names no case" in result.reason
-        assert _event_types(dl) == []
+        assert _semantic_types(dl) == []
 
 
 class TestWithdrawalAtAReplica:
@@ -2548,7 +2552,7 @@ class TestStandingIsCheckedBeforeTheOfferState:
         send, _party, no_standing = _REPLIES[reply]
         case_id = f"https://example.org/cases/case_ot_stranger_closed_{reply}"
         dl, offer = _closed_offer(make_payload, case_id)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
 
         result = send(dl, make_payload, offer, sender=_STRANGER_ID)
 
@@ -2556,7 +2560,7 @@ class TestStandingIsCheckedBeforeTheOfferState:
         assert result.reason is not None
         assert no_standing in result.reason
         assert "already closed" not in result.reason
-        assert _event_types(dl) == entries_before
+        assert _semantic_types(dl) == entries_before
 
     @pytest.mark.spec("CM-21-013")
     @pytest.mark.spec("HP-01-006")
@@ -2576,8 +2580,8 @@ class TestStandingIsCheckedBeforeTheOfferState:
         assert "too late" not in result.reason
         # A sender with no standing never makes the CASE_MANAGER ledger the
         # expiry (HP-01-006).
-        assert OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE not in (
-            _event_types(dl)
+        assert OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE not in (
+            _semantic_types(dl)
         )
         assert _owner(dl, case_id) == _VENDOR_ID
 
@@ -2647,7 +2651,7 @@ def test_a_closed_transferees_answer_is_refused(make_payload, answer):
     disposition, offer = deliver(_COORDINATOR_ID, f"{case_id}/offer")
     assert disposition is HandlerDisposition.APPLIED
     _close_coordinator(dl, case_id)
-    entries_before = _event_types(dl)
+    entries_before = _semantic_types(dl)
     outbox_before = list(dl.outbox_list())
 
     result = {"accept": _accept, "reject": _reject}[answer](
@@ -2657,7 +2661,7 @@ def test_a_closed_transferees_answer_is_refused(make_payload, answer):
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
     assert "CM-23-018" in (result.reason or "")
     assert _owner(dl, case_id) == _VENDOR_ID
-    assert _event_types(dl) == entries_before
+    assert _semantic_types(dl) == entries_before
     assert list(dl.outbox_list()) == outbox_before
 
 

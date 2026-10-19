@@ -522,7 +522,7 @@ class TestEarlyCommitDetector:
         return create_commit_log_entry_tree(
             case_id="https://example.org/cases/c",
             object_id="https://example.org/objects/o",
-            event_type="expired",
+            semantic_type="expired",
         )
 
     def test_a_commit_among_the_guards_is_flagged(self) -> None:

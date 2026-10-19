@@ -34,7 +34,7 @@ from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     read_sealed_body_dict,
 )
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -214,7 +214,7 @@ def test_a_participants_rejection_is_fanned_out_and_replayed():
         for activity in net.queued(MANAGER, to=OWNER, type_="Announce")
         if (read_sealed_body_dict(net.stores[MANAGER], activity.id_) or {})
         .get("object", {})
-        .get("eventType")
+        .get("semanticType")
         == "reject_invite_to_embargo_on_case"
     ]
     assert len(rejections) == 1, "the Reject commit was not fanned out"
@@ -796,7 +796,7 @@ def test_a_replica_follows_the_managing_owners_termination_by_trigger():
         obj
         for obj in net.stores[MANAGER].list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
-        and str(obj.event_type) == EMBARGO_TEARDOWN_EVENT_TYPE
+        and str(obj.semantic_type) == EMBARGO_TEARDOWN_SEMANTIC_TYPE
     ]
     assert entry.payload_snapshot == sealed
 

@@ -529,7 +529,7 @@ groups:
       The predicate is `is_rm_replay_acceptable(local_rm, recorded_rm)` in
       `vultron/core/states/rm.py`. Two replay nodes apply it, so they cannot
       ratchet differently: `ApplyParticipantStatusFromLedgerNode` on this
-      event type, and `ApplyRmVerdictFromLedgerNode` on the activity-typed RM
+      semantic type, and `ApplyRmVerdictFromLedgerNode` on the activity-typed RM
       moves (report verdicts, engage/defer, full-case Invite replies;
       RSH-08-004).
     verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm applying an
@@ -1399,21 +1399,21 @@ groups:
     priority: MUST
     kind: project
     statement: >
-      Every ledger `event_type` the CASE_MANAGER commits MUST have a replica
+      Every ledger `semantic_type` the CASE_MANAGER commits MUST have a replica
       apply node reachable from `create_announce_log_entry_tree`, or a recorded
       declaration that the event has no replica-side effect. Gating a
       received-side effect under RSH-08-003 MUST NOT land before the replay
       node for the transition it wrote exists.
     rationale: >
-      Replicas replayed only a fixed subset of event types; the case-status entry
+      Replicas replayed only a fixed subset of semantic types; the case-status entry
       committed on every embargo or public-state change, the embargo activation,
       and the report valid/invalid/closed and engage/defer entries had none
       until #3814. Removing the direct-receipt effects before the ledger carries
       those transitions would leave replicas blind (ADR-0108).
     verification: >
-      `test/architecture/test_ledger_event_types_are_replayed.py` derives the
-      committed `event_type` set from code (`_ledger_commit_inventory.py`: the
-      receive-side commit path, plus every explicit `event_type=` commit under
+      `test/architecture/test_ledger_semantic_types_are_replayed.py` derives the
+      committed `semantic_type` set from code (`_ledger_commit_inventory.py`: the
+      receive-side commit path, plus every explicit `semantic_type=` commit under
       `vultron/core`) and asserts each member is matched by exactly one
       effect-slot condition of `create_announce_log_entry_tree`, found by tree
       position rather than by class or module, or is listed in the

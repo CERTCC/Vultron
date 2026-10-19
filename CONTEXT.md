@@ -119,7 +119,7 @@ activity is sent, received, or written to a case ledger. Vultron's vocabulary is
 complete set of semantic types. Not a Message Type: the two are many-to-many.
 Recognizing a semantic type does not imply that a handler for it exists.
 *Avoid*: meaning (use *occasion* for the sender's situation); event type (the ledger
-field `eventType` holds a semantic type)
+field `semanticType` holds a semantic type)
 
 **Occasion**:
 A situation in a case that a sender conveys with a particular wire activity, sometimes

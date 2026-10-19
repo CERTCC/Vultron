@@ -134,4 +134,4 @@ Display code maps a `MessageSemantics` value to a phrase with
 `lookup_entry(semantics).phrase` (`vultron/semantic_registry/`). A local
 parallel dict drifts silently as the enum grows, whereas a missing
 `SemanticEntry.phrase` fails at registry construction (SE-07-003). Fall back to
-`event_type.replace("_", " ")` only for event types absent from the registry.
+`semantic_type.replace("_", " ")` only for semantic types absent from the registry.

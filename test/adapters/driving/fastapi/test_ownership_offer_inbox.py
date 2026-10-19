@@ -134,13 +134,13 @@ def _ownership_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
         entry
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
-        and entry.event_type == _OWNERSHIP_EVENT
+        and entry.semantic_type == _OWNERSHIP_EVENT
     ]
 
 
 def _assert_committed_with_inline_transferee(dl: SqliteDataLayer) -> None:
     entries = _ownership_entries(dl)
-    assert len(entries) == 1, [e.event_type for e in entries]
+    assert len(entries) == 1, [e.semantic_type for e in entries]
     target = entries[0].payload_snapshot.get("target")
     assert isinstance(target, dict), (
         f"transferee is not inline in the snapshot: {target!r}"

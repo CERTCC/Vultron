@@ -29,8 +29,8 @@ stored and ignored, so the replica's state silently stops following the case
 * each entry outside the relay is matched by none, so the issue that adds its
   replay is told to move it here.
 
-The full committed-versus-replayed inventory for every event type is
-``test_ledger_event_types_are_replayed.py``.
+The full committed-versus-replayed inventory for every semantic type is
+``test_ledger_semantic_types_are_replayed.py``.
 """
 
 from typing import Any
@@ -45,15 +45,15 @@ from test.architecture._announce_slots import (
     matching_slots,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    EMBARGO_ABANDONMENT_EVENT_TYPE,
+    EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.rsvp_deadline import (
-    EMBARGO_REINVITE_EVENT_TYPE,
-    HONOUR_LATE_ACCEPT_EVENT_TYPE,
+    EMBARGO_REINVITE_SEMANTIC_TYPE,
+    HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
     HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
-    INVITE_EXPIRED_EVENT_TYPE,
-    INVITE_EXPIRED_NOOP_EVENT_TYPE,
+    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
+    INVITE_EXPIRED_SEMANTIC_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 
@@ -67,7 +67,7 @@ _INVITE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
 
 #: Entry shapes the CASE_MANAGER commits during the revision relay, each with
 #: the snapshot that identifies it (EP-09-007).  The proposal and a relayed
-#: Invite share one event type and differ by authorship.
+#: Invite share one semantic type and differ by authorship.
 REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
     "proposal": (
         _INVITE,
@@ -98,7 +98,7 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         },
     ),
     "the manager's re-invite of a stale accepter": (
-        EMBARGO_REINVITE_EVENT_TYPE,
+        EMBARGO_REINVITE_SEMANTIC_TYPE,
         {
             "type": "Invite",
             "actor": MANAGER,
@@ -119,7 +119,7 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         {"type": "Leave", "actor": REPLICA, "object": EMBARGO},
     ),
     "the manager's abandonment of an Invite": (
-        EMBARGO_ABANDONMENT_EVENT_TYPE,
+        EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
         {"type": "Reject", "actor": MANAGER, "object": {"object": EMBARGO}},
     ),
     "teardown": (
@@ -135,7 +135,7 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         {"type": "Reject", "actor": PROPOSER, "object": EMBARGO},
     ),
     "invite expiry": (
-        INVITE_EXPIRED_EVENT_TYPE,
+        INVITE_EXPIRED_SEMANTIC_TYPE,
         {
             "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
             "actor": REPLICA,
@@ -143,7 +143,7 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         },
     ),
     "honour late accept": (
-        HONOUR_LATE_ACCEPT_EVENT_TYPE,
+        HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
         {
             "type": HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
             "actor": REPLICA,
@@ -151,7 +151,7 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         },
     ),
     "noop late accept": (
-        INVITE_EXPIRED_NOOP_EVENT_TYPE,
+        INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
         {
             "type": "Ignore",
             "actor": MANAGER,
@@ -164,7 +164,7 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
     ),
 }
 
-#: Embargo event types outside the revision relay, and who owns them.
+#: Embargo semantic types outside the revision relay, and who owns them.
 OUTSIDE_THE_RELAY: dict[str, str] = {
     MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE.value: (
         "no receiver-side state change; commits nothing"
@@ -174,13 +174,13 @@ OUTSIDE_THE_RELAY: dict[str, str] = {
 
 @pytest.mark.spec("RSH-08-004")
 def test_every_embargo_semantic_is_classified():
-    replayed = {event_type for event_type, _ in REPLAYED.values()}
+    replayed = {semantic_type for semantic_type, _ in REPLAYED.values()}
     embargo_semantics = {
         member.value for member in MessageSemantics if "EMBARGO" in member.name
     }
     unclassified = embargo_semantics - replayed - set(OUTSIDE_THE_RELAY)
     assert not unclassified, (
-        f"embargo event types neither replayed nor classified: {unclassified}"
+        f"embargo semantic types neither replayed nor classified: {unclassified}"
     )
     assert not replayed & set(OUTSIDE_THE_RELAY)
 
@@ -189,13 +189,13 @@ def test_every_embargo_semantic_is_classified():
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.parametrize("shape", sorted(REPLAYED))
 def test_each_relay_entry_has_exactly_one_replay_slot(shape):
-    event_type, snapshot = REPLAYED[shape]
-    matched = matching_slots(event_type, snapshot)
+    semantic_type, snapshot = REPLAYED[shape]
+    matched = matching_slots(semantic_type, snapshot)
     assert len(matched) == 1, f"{shape}: {matched}"
 
 
 @pytest.mark.spec("RSH-08-004")
-@pytest.mark.parametrize("event_type", sorted(OUTSIDE_THE_RELAY))
-def test_entries_outside_the_relay_have_no_slot_yet(event_type):
+@pytest.mark.parametrize("semantic_type", sorted(OUTSIDE_THE_RELAY))
+def test_entries_outside_the_relay_have_no_slot_yet(semantic_type):
     """A slot here means the type is replayed: move it to ``REPLAYED``."""
-    assert matching_slots(event_type, {"actor": MANAGER}) == []
+    assert matching_slots(semantic_type, {"actor": MANAGER}) == []

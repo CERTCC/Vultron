@@ -55,8 +55,8 @@ from vultron.core.behaviors.case_status_snapshot import (
     EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.embargo.nodes import (
-    EMBARGO_INVITE_EVENT_TYPE,
-    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
+    EMBARGO_INVITE_SEMANTIC_TYPE,
+    EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
     AbandonEmbargoProposalsLifecycleNode,
     AcceptEmbargoLifecycleNode,
     CollectEmbargoInviteRecipientsNode,
@@ -101,9 +101,9 @@ from vultron.core.models.pending_assertion import (
     ASSERTED_ACTIVITY_KEY,
 )
 
-_ACCEPT_EVENT_TYPE = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
-_REJECT_EVENT_TYPE = MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
-_WITHDRAW_EVENT_TYPE = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
+_ACCEPT_SEMANTIC_TYPE = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
+_REJECT_SEMANTIC_TYPE = MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
+_WITHDRAW_SEMANTIC_TYPE = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
 
 
 def _make_emit_node(case_id: str) -> py_trees.behaviour.Behaviour:
@@ -164,7 +164,7 @@ def _answer_arms(
     name: str,
     case_id: str,
     lifecycle_node: _EmbargoLifecycleNode,
-    event_type: str,
+    semantic_type: str,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
     actor_config: ActorConfig | None = None,
@@ -191,7 +191,7 @@ def _answer_arms(
             lifecycle_node.deciding(),
             CommitEmbargoDecisionNode(
                 case_id=case_id,
-                event_type=event_type,
+                semantic_type=semantic_type,
                 builder=activity_builder,
                 decision_from=result_out,
             ),
@@ -284,7 +284,7 @@ def _propose_arms(
             ).deciding(),
             CommitEmbargoProposalNode(
                 case_id=case_id,
-                event_type=EMBARGO_INVITE_EVENT_TYPE,
+                semantic_type=EMBARGO_INVITE_SEMANTIC_TYPE,
                 builder=activity_builder,
                 embargo=embargo,
                 result_out=result_out,
@@ -408,7 +408,7 @@ def accept_embargo_trigger_bt(
                 embargo_id=embargo_id,
                 result_out=result_out,
             ),
-            _ACCEPT_EVENT_TYPE,
+            _ACCEPT_SEMANTIC_TYPE,
             result_out,
             activity_builder,
         ),
@@ -438,7 +438,7 @@ def reject_embargo_trigger_bt(
                 embargo_id=embargo_id,
                 result_out=result_out,
             ),
-            _REJECT_EVENT_TYPE,
+            _REJECT_SEMANTIC_TYPE,
             result_out,
             activity_builder,
         ),
@@ -471,7 +471,7 @@ def withdraw_embargo_trigger_bt(
                 embargo_id=embargo_id,
                 result_out=result_out,
             ),
-            _WITHDRAW_EVENT_TYPE,
+            _WITHDRAW_SEMANTIC_TYPE,
             result_out,
             activity_builder,
         ),
@@ -540,7 +540,7 @@ def reject_embargo_proposal_trigger_bt(
                 embargo_id=embargo_id,
                 result_out=result_out,
             ),
-            EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
+            EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
             result_out,
             activity_builder,
         ),
@@ -565,7 +565,7 @@ def reject_proposed_embargo_bt(
        maps each open proposal to the readable Invite its ER answers
        (FAILURE before anything moves when one has none),
        ``AbandonEmbargoProposalsLifecycleNode`` then, per proposal, commits
-       one ER as an ``EMBARGO_ABANDONMENT_EVENT_TYPE`` entry the
+       one ER as an ``EMBARGO_ABANDONMENT_SEMANTIC_TYPE`` entry the
        ``EmbargoAbandonment`` slot replays (EP-09-007), addressed to nobody
        (CLP-10-001), and only then cancels that proposal, so EM reaches
        ``NONE`` with the last one and a proposal whose entry does not commit

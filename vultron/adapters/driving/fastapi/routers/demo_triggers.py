@@ -299,7 +299,7 @@ def demo_sync_log_entry(
     through the trigger dispatcher: the commit tree executes as the case's
     CASE_MANAGER with a canonical ``Announce(VulnerabilityCase)`` payload so the
     entry passes canonical validation (CLP-07), and the caller-supplied
-    ``event_type`` is stored verbatim.
+    ``semantic_type`` is stored verbatim.
 
     Implements:
         TRIG-09-001, TRIG-09-004, TRIG-02-006, TRIG-10-004, TRIG-06-001,
@@ -311,7 +311,7 @@ def demo_sync_log_entry(
                 actor_id=actor_id,
                 case_id=body.case_id,
                 object_id=body.object_id,
-                event_type=body.event_type,
+                semantic_type=body.semantic_type,
             ),
             dispatcher=dispatcher,
             dl=actor_dl,

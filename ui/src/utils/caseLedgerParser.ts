@@ -12,7 +12,7 @@
  * three perspectives. `normalizeLedger` dedups by `entryHash` so uploading all
  * three folders is safe.
  *
- * Each line is a `CaseLedgerEntry` carrying an explicit `eventType` verb plus an
+ * Each line is a `CaseLedgerEntry` carrying an explicit `semanticType` verb plus an
  * ActivityStreams 2.0 `payloadSnapshot`. The mapper (`caseLedgerMapper.ts`) reads
  * these and validates them against the protocol source of truth (`../protocol`).
  */
@@ -51,7 +51,7 @@
  * for backward-compatible replay of older uploaded logs, but current fixtures no
  * longer contain them.
  */
-export type LedgerEventType =
+export type LedgerSemanticType =
   | 'offer_case_manager_role'
   | 'create_case'
   | 'validate_report'
@@ -155,7 +155,7 @@ export interface CaseLedgerEntry {
   logIndex: number
   disposition: string
   logObjectId: string
-  eventType: LedgerEventType
+  semanticType: LedgerSemanticType
   payloadSnapshot: As2Activity
   prevLogHash: string
   entryHash: string

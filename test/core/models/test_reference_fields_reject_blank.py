@@ -132,19 +132,19 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
     (
         "CaseLedgerEntry.case_id",
         lambda v: CaseLedgerEntry(
-            case_id=v, log_object_id=URI, event_type="note_added"
+            case_id=v, log_object_id=URI, semantic_type="note_added"
         ),
     ),
     (
         "CaseLedgerEntry.log_object_id",
         lambda v: CaseLedgerEntry(
-            case_id=CASE, log_object_id=v, event_type="note_added"
+            case_id=CASE, log_object_id=v, semantic_type="note_added"
         ),
     ),
     (
         "HashChainLedgerRecord.object_id",
         lambda v: HashChainLedgerRecord(
-            case_id=CASE, object_id=v, event_type="note_added"
+            case_id=CASE, object_id=v, semantic_type="note_added"
         ),
     ),
     (
@@ -178,31 +178,35 @@ DATACLASS_CASES: list[tuple[str, Callable[[Any], Any]]] = [
     (
         "ProtocolPair.case_id",
         lambda v: ProtocolPair(
-            case_id=v, request_event_type="offer", object_id=URI
+            case_id=v, request_semantic_type="offer", object_id=URI
         ),
     ),
     (
         "ProtocolPair.object_id",
         lambda v: ProtocolPair(
-            case_id=CASE, request_event_type="offer", object_id=v
+            case_id=CASE, request_semantic_type="offer", object_id=v
         ),
     ),
     (
         "ProtocolPair.reply_object_id",
         lambda v: ProtocolPair(
             case_id=CASE,
-            request_event_type="offer",
+            request_semantic_type="offer",
             object_id=URI,
             reply_object_id=v,
         ),
     ),
     (
         "PendingAssertion.case_id",
-        lambda v: PendingAssertion(case_id=v, event_type="e", object_id=URI),
+        lambda v: PendingAssertion(
+            case_id=v, semantic_type="e", object_id=URI
+        ),
     ),
     (
         "PendingAssertion.object_id",
-        lambda v: PendingAssertion(case_id=CASE, event_type="e", object_id=v),
+        lambda v: PendingAssertion(
+            case_id=CASE, semantic_type="e", object_id=v
+        ),
     ),
 ]
 
@@ -223,7 +227,7 @@ def test_blank_reference_is_refused_by_core_dataclasses(
 def test_protocol_pair_reply_object_id_stays_optional() -> None:
     """Absence is still allowed — the rule is "if present, then non-empty"."""
     pair = ProtocolPair(
-        case_id=CASE, request_event_type="offer", object_id=URI
+        case_id=CASE, request_semantic_type="offer", object_id=URI
     )
     assert pair.reply_object_id is None and pair.is_open()
 

@@ -7,7 +7,7 @@ either returns a list of violation strings (empty = pass) or raises
 
 Scenario test files import and call these helpers rather than duplicating the
 invariant logic inline.  All universal invariants (hash-chain consistency,
-cross-actor agreement, RM-closed termination, CS transitions, event-type
+cross-actor agreement, RM-closed termination, CS transitions, semantic-type
 completeness) live here.  Scenario-specific checks (e.g., RCV requires
 ``invite_actor_to_case`` at least twice) belong in the per-scenario file.
 
@@ -92,16 +92,16 @@ def log_index(entry: dict) -> int:
         raw = entry.get("logIndex")
     if raw is None:
         raise ValueError(
-            f"Ledger entry eventType={event_type(entry)!r} has no logIndex"
+            f"Ledger entry semanticType={semantic_type(entry)!r} has no logIndex"
         )
     if not isinstance(raw, int) or isinstance(raw, bool):
         raise ValueError(  # noqa: TRY004  # ruff-baseline #3353
-            f"Ledger entry eventType={event_type(entry)!r} has non-integer "
+            f"Ledger entry semanticType={semantic_type(entry)!r} has non-integer "
             f"logIndex={raw!r}"
         )
     if raw < 0:
         raise ValueError(
-            f"Ledger entry eventType={event_type(entry)!r} has negative "
+            f"Ledger entry semanticType={semantic_type(entry)!r} has negative "
             f"logIndex={raw}"
         )
     return raw
@@ -126,9 +126,9 @@ def prev_log_hash(entry: dict) -> str:
     return str(entry.get("prevLogHash", entry.get("prev_log_hash", "")))
 
 
-def event_type(entry: dict) -> str:
-    """Return the ``eventType`` from an entry dict."""
-    return str(entry.get("eventType", entry.get("event_type", "")))
+def semantic_type(entry: dict) -> str:
+    """Return the ``semanticType`` from an entry dict."""
+    return str(entry.get("semanticType", entry.get("semantic_type", "")))
 
 
 def case_id(entry: dict) -> str:
@@ -527,39 +527,39 @@ def check_non_empty_payload_snapshots(
 ) -> list[str]:
     """Every recorded canonical entry has a non-empty payloadSnapshot (Invariant 4)."""
     return [
-        f"Actor {actor!r} logIndex={log_index(e)} eventType={event_type(e)!r}"
+        f"Actor {actor!r} logIndex={log_index(e)} semanticType={semantic_type(e)!r}"
         for actor, entries in replicas.items()
         for e in entries
         if e.get("disposition", "recorded") == "recorded" and not payload(e)
     ]
 
 
-def check_event_type_present(
+def check_semantic_type_present(
     replicas: dict[str, list[dict]],
-    expected_event_type: str,
+    expected_semantic_type: str,
 ) -> list[str]:
-    """Assert that an expected eventType appears at least once in the authoritative log.
+    """Assert that an expected semanticType appears at least once in the authoritative log.
 
-    Returns a non-empty list when the event type is absent.
+    Returns a non-empty list when the semantic type is absent.
     """
     auth = auth_entries(replicas)
-    found = {event_type(e) for e in auth}
-    if expected_event_type not in found:
+    found = {semantic_type(e) for e in auth}
+    if expected_semantic_type not in found:
         return [
-            f"Expected eventType {expected_event_type!r} not found in case-actor log.\n"
+            f"Expected semanticType {expected_semantic_type!r} not found in case-actor log.\n"
             f"Found: {sorted(found)}"
         ]
     return []
 
 
-def check_event_type_count(
+def check_semantic_type_count(
     replicas: dict[str, list[dict]],
-    expected_event_type: str,
+    expected_semantic_type: str,
     min_count: int,
     *,
     max_count: int | None = None,
 ) -> list[str]:
-    """Assert that an expected eventType appears between ``min_count`` and ``max_count`` times.
+    """Assert an expected semanticType appears ``min_count``–``max_count`` times.
 
     Useful for scenarios where a given event must repeat (e.g., two
     invitations), or must occur an exact number of times.  ``max_count``
@@ -575,15 +575,17 @@ def check_event_type_count(
             f"max_count ({max_count}) must not be below min_count ({min_count})"
         )
     auth = auth_entries(replicas)
-    actual_count = sum(1 for e in auth if event_type(e) == expected_event_type)
+    actual_count = sum(
+        1 for e in auth if semantic_type(e) == expected_semantic_type
+    )
     if actual_count < min_count:
         return [
-            f"Expected eventType {expected_event_type!r} at least {min_count} "
+            f"Expected semanticType {expected_semantic_type!r} at least {min_count} "
             f"time(s) in case-actor log; found {actual_count}."
         ]
     if max_count is not None and actual_count > max_count:
         return [
-            f"Expected eventType {expected_event_type!r} at most {max_count} "
+            f"Expected semanticType {expected_semantic_type!r} at most {max_count} "
             f"time(s) in case-actor log; found {actual_count}."
         ]
     return []
@@ -597,7 +599,7 @@ def check_no_rm_state_oscillation(
     status_entries = [
         e
         for e in auth
-        if event_type(e) == "add_participant_status_to_participant"
+        if semantic_type(e) == "add_participant_status_to_participant"
     ]
 
     rm_history: dict[str, list[str]] = {}
@@ -629,7 +631,7 @@ def check_rm_closed_termination(
     auth = auth_entries(replicas)
     latest_rm: dict[str, str] = {}
     for e in auth:
-        et = event_type(e)
+        et = semantic_type(e)
         snap = payload(e)
         if et == "add_participant_status_to_participant":
             p_id, rm_state = participant_status_identity_and_rm(snap)
@@ -774,7 +776,7 @@ def check_participant_status_schema_completeness(
     status_entries = [
         e
         for e in auth
-        if event_type(e) == "add_participant_status_to_participant"
+        if semantic_type(e) == "add_participant_status_to_participant"
     ]
     if not status_entries:
         return [
@@ -809,7 +811,7 @@ def check_nested_objects_inlined(
     auth = auth_entries(replicas)
     return [
         (
-            f"logIndex={log_index(e)} eventType={event_type(e)!r}: "
+            f"logIndex={log_index(e)} semanticType={semantic_type(e)!r}: "
             f"object={str(payload(e).get('object', ''))[:60]!r}"
         )
         for e in auth
@@ -835,7 +837,7 @@ def check_payload_context_uses_case_uri(
             continue
         if isinstance(context, str) and context != cid:
             mismatches.append(
-                f"logIndex={log_index(e)} eventType={event_type(e)!r}: "
+                f"logIndex={log_index(e)} semanticType={semantic_type(e)!r}: "
                 f"context={context[:60]!r} != case_id={cid[:60]!r}"
             )
     return mismatches
@@ -947,7 +949,7 @@ def check_cs_state_transitions_observed(
     status_entries = [
         e
         for e in auth
-        if event_type(e) == "add_participant_status_to_participant"
+        if semantic_type(e) == "add_participant_status_to_participant"
     ]
     if not status_entries:
         return [
@@ -986,7 +988,10 @@ def check_no_rejected_invite_entries(
     violations: list[str] = []
     for actor, entries in replicas.items():
         for e in entries:
-            if event_type(e) == "invite_actor_to_case" and "disposition" in e:
+            if (
+                semantic_type(e) == "invite_actor_to_case"
+                and "disposition" in e
+            ):
                 violations.append(
                     f"Actor {actor!r} logIndex={log_index(e)}: stale"
                     f" 'disposition' field present on invite_actor_to_case entry"
@@ -1062,7 +1067,7 @@ def for_each_replica(
         if actor == "case-actor":
             continue
         if requires_status_entries and not any(
-            event_type(e) == "add_participant_status_to_participant"
+            semantic_type(e) == "add_participant_status_to_participant"
             for e in entries
         ):
             continue
@@ -1089,7 +1094,7 @@ def _milestone_shape(entries: list[dict]) -> list[dict]:
     return [
         {
             "log_index": log_index(e),
-            "event_type": event_type(e),
+            "semantic_type": semantic_type(e),
             "payload_snapshot": payload(e),
         }
         for e in entries
@@ -1102,7 +1107,7 @@ def _leaver_ids(
     """``{actorName: actor id}`` for every actor a ``close_case`` entry records."""
     leavers: dict[str, str] = {}
     for e in auth:
-        if event_type(e) != "close_case":
+        if semantic_type(e) != "close_case":
             continue
         name, _recorded = recorded_actor_name(e, actor_names)
         raw = payload(e).get("actor")
@@ -1165,7 +1170,7 @@ def check_per_actor_replica_rm_closed_termination(
             )
         own_rm: str | None = None
         for e in sorted(entries, key=log_index):
-            if event_type(e) != "add_participant_status_to_participant":
+            if semantic_type(e) != "add_participant_status_to_participant":
                 continue
             p_id, rm_state = participant_status_identity_and_rm(payload(e))
             if p_id == actor_id:
@@ -1341,7 +1346,7 @@ def check_causal_edges(
     """Assert that each declared observable causal edge appears in log-index order.
 
     For each edge with ``observable`` not ``False``, finds all log entries
-    whose ``eventType`` matches the ``antecedent`` and ``consequent`` fields
+    whose ``semanticType`` matches the ``antecedent`` and ``consequent`` fields
     and verifies that at least one antecedent entry appears before at least
     one consequent entry (i.e. ``min(antecedent_indices) < max(consequent_indices)``).
 
@@ -1380,9 +1385,9 @@ def check_causal_edges(
         consequent_actor = edge.get("consequent_actor", "")
 
         ant_indices = [
-            log_index(e) for e in auth if event_type(e) == antecedent
+            log_index(e) for e in auth if semantic_type(e) == antecedent
         ]
-        con_entries = [e for e in auth if event_type(e) == consequent]
+        con_entries = [e for e in auth if semantic_type(e) == consequent]
         con_indices = [log_index(e) for e in con_entries]
 
         if actor_names is not None and consequent_actor and con_entries:
@@ -1480,7 +1485,7 @@ def _clp14_002_build_ts_entries(
         if raw is None:
             violations.append(
                 f"CLP-14-002: logIndex={idx} "
-                f"eventType={event_type(entry)!r} has null published"
+                f"semanticType={semantic_type(entry)!r} has null published"
             )
             continue
         dt = _parse_ts(raw)
@@ -1513,7 +1518,7 @@ def _clp14_006_no_predate_case(
 ) -> list[str]:
     case_ts: datetime | None = None
     for entry in sorted_entries:
-        if event_type(entry) == "create_case":
+        if semantic_type(entry) == "create_case":
             raw = entry.get("published")
             if raw is not None:
                 case_ts = _parse_ts(raw)
@@ -1544,7 +1549,7 @@ def check_clp14_timestamp_invariants(
                 ``logIndex``.
     CLP-14-005: ``logIndex`` values must be unique within the ledger.
     CLP-14-006: no entry may predate the case-creation entry
-                (``eventType == "create_case"``).
+                (``semanticType == "create_case"``).
     CLP-14-010: ``logIndex`` values must run gaplessly from 0 (genesis).
 
     Entries without a ``published`` field are flagged for CLP-14-002 and

@@ -45,7 +45,7 @@ def _example_ledger_entry() -> as_CaseLedgerEntry:
         id_=_ENTRY_URI,
         case_id=_CASE_URI,
         log_object_id=_ACTIVITY_URI,
-        event_type="create_case",
+        semantic_type="create_case",
         log_index=0,
         prev_log_hash=_GENESIS_HASH,
         entry_hash=_ENTRY_HASH,

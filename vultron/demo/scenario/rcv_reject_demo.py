@@ -59,8 +59,8 @@ from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
     wait_for_case_participants,
-    wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
+    wait_for_semantic_type_in_ledger,
 )
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
@@ -347,10 +347,10 @@ def _phase_invite_vendor_reject(
     with demo_gate(
         "reject_invite_actor_to_case committed (causal gate before participant state check)"
     ):
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=case_actor_client,
             case_id=case.id_,
-            event_type="reject_invite_actor_to_case",
+            semantic_type="reject_invite_actor_to_case",
         )
         # DEMOMA-27-002, CM-11-006: Vendor IS in actor_participant_index from the
         # Invite-send moment (inert record created by CreateInertInviteeParticipantNode).

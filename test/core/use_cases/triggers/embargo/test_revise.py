@@ -9,14 +9,14 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
-from test.support.ledger import committed_event_types
+from test.support.ledger import committed_semantic_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_SEMANTIC_TYPE
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
@@ -97,7 +97,9 @@ def test_manager_revision_relays_an_invite_to_each_other_participant(
     invites = [a for a in queued if a.type_ == "Invite"]
     assert [a.to for a in invites] == [[other_id]]
     assert not any(actor.id_ in (a.to or []) for a in queued)
-    assert EMBARGO_INVITE_EVENT_TYPE in committed_event_types(dl, case.id_)
+    assert EMBARGO_INVITE_SEMANTIC_TYPE in committed_semantic_types(
+        dl, case.id_
+    )
 
 
 def test_propose_embargo_revision_invalid_em_state_raises_error(

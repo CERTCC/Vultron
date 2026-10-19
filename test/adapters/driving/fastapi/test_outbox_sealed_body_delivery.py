@@ -145,7 +145,7 @@ def test_the_sync_adapter_seals_the_announce_it_queues(dl):
             case_id="https://example.org/cases/c-sync",
             log_index=0,
             object_id="https://example.org/activities/logged",
-            event_type="log_entry_committed",
+            semantic_type="log_entry_committed",
             payload_snapshot={"state": "replicated"},
             prev_log_hash=_ZERO_HASH,
         )
@@ -231,7 +231,7 @@ def test_ledger_snapshot_equals_delivered_body_end_to_end(dl):
         e
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
-        and e.event_type == "invite_actor_to_case"
+        and e.semantic_type == "invite_actor_to_case"
     ]
     _, delivered_body, recipients = _deliver(dl, entry.log_object_id)
 

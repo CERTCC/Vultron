@@ -614,7 +614,7 @@ def test_a_replacement_whose_commit_failed_is_recorded_once_by_the_next_run(
         failed = fail_commits(
             mp,
             commit_tree,
-            when=lambda kw: kw["event_type"] == "invite_actor_to_case",
+            when=lambda kw: kw["semantic_type"] == "invite_actor_to_case",
         )
         with pytest.raises(VultronBTInternalError, match="commit failed"):
             _terminate(dl, owner.id_, case.id_)
@@ -880,7 +880,7 @@ def test_a_replacement_left_unrecorded_is_recorded_during_a_later_revision(
         failed = fail_commits(
             mp,
             commit_tree,
-            when=lambda kw: kw["event_type"] == "invite_actor_to_case",
+            when=lambda kw: kw["semantic_type"] == "invite_actor_to_case",
         )
         result = _run_reissue(dl, case.id_, owner.id_)
     assert result.internal_error, result

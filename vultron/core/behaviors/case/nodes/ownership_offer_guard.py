@@ -301,7 +301,7 @@ class OwnershipOfferOpenNode(
             return self._refuse(
                 f"Ownership-transfer Offer '{offer.offer_id}' for case"
                 f" '{self._case_id}' was already closed by"
-                f" '{offer.answer_id}' ({offer.closed_by_event_type})",
+                f" '{offer.answer_id}' ({offer.closed_by_semantic_type})",
                 f"{_CLOSED_SPEC[self._party]}, CM-21-014",
             )
         if offer.is_past_deadline(self._now or now_utc()):

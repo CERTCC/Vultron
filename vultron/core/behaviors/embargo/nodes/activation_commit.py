@@ -57,7 +57,7 @@ from vultron.core.behaviors.embargo.copy_commit import (
     trial_apply,
 )
 from vultron.core.behaviors.embargo.nodes.activation_effect import (
-    EMBARGO_ACTIVATION_EVENT_TYPE,
+    EMBARGO_ACTIVATION_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EmbargoActivityBuilder,
@@ -126,7 +126,7 @@ class CommitAndApplyEmbargoActivationNode(
     ) -> None:
         super().__init__(
             case_id=case_id,
-            event_type=EMBARGO_ACTIVATION_EVENT_TYPE,
+            semantic_type=EMBARGO_ACTIVATION_SEMANTIC_TYPE,
             notify_participants=False,
             name=name,
         )

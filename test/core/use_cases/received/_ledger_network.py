@@ -244,9 +244,9 @@ class LedgerNetwork:
 
         Each ``Announce(CaseLedgerEntry)`` the CASE_MANAGER queued for
         *replica* is delivered in chain order and must be applied.  Returns
-        the event types delivered, in that order.
+        the semantic types delivered, in that order.
         """
-        event_types = []
+        semantic_types = []
         for activity in self.queued(MANAGER, to=replica, type_="Announce"):
             body = read_sealed_body_dict(self.stores[MANAGER], activity.id_)
             entry = (body or {}).get("object") or {}
@@ -254,11 +254,11 @@ class LedgerNetwork:
                 continue
             verdict = self.receive(replica, cast(dict[str, Any], body))
             assert verdict.disposition is HandlerDisposition.APPLIED, (
-                entry.get("eventType"),
+                entry.get("semanticType"),
                 verdict.reason,
             )
-            event_types.append(entry["eventType"])
-        return event_types
+            semantic_types.append(entry["semanticType"])
+        return semantic_types
 
     def case(self, actor_id: str) -> VulnerabilityCase:
         return cast(

@@ -822,7 +822,7 @@ class TestRccvHandoffMilestoneAssertions:
                 "case_id": case.id_,
                 "log_index": 0,
                 "entry_hash": "h0",
-                "event_type": "close_case",
+                "semantic_type": "close_case",
             }
         }
 
@@ -876,7 +876,7 @@ class TestRccvHandoffMilestoneAssertions:
                 "case_id": case.id_,
                 "log_index": 0,
                 "entry_hash": "h0",
-                "event_type": "close_case",
+                "semantic_type": "close_case",
             }
         }
 
@@ -1119,7 +1119,7 @@ class TestRccvHandoffCausalGates:
             patch.object(demo, "wait_for_case_participants"),
             patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_attributed_to"),
-            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_semantic_type_in_ledger"),
             patch.object(
                 ActorSession, "invite_actor_to_case", **invite_trigger
             ),
@@ -1436,7 +1436,7 @@ class TestRccvHandoffDedicatedCaseActor:
                 "wait_for_case_participants",
                 "find_ownership_transfer_offer_for_actor",
                 "wait_for_case_attributed_to",
-                "wait_for_event_type_in_ledger",
+                "wait_for_semantic_type_in_ledger",
                 "as_VulnerabilityCase",
             ):
                 stack.enter_context(patch.object(demo, name))

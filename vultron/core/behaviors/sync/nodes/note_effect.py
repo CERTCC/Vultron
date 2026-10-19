@@ -45,7 +45,7 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
     """Apply a note-attachment ledger entry to the local case replica.
 
     When a non-CaseActor participant receives ``Announce(CaseLedgerEntry)``
-    and the entry's ``event_type`` is ``add_note_to_case``, this node
+    and the entry's ``semantic_type`` is ``add_note_to_case``, this node
     extracts the note ID from ``payload_snapshot["object"]`` and appends it
     to the local case replica's ``notes`` list (idempotent).
 

@@ -95,7 +95,7 @@ groups:
     verification_debt: '#2573'
     statement: >-
       Each distilled event MUST surface, where available in the source entries:
-      the acting actor, the event type (or extracted message semantics), the
+      the acting actor, the semantic type (or extracted message semantics), the
       target object reference, the timestamp (`receivedAt`), the resulting
       RM/EM/CS state transition(s) from the payload snapshot, the `log_index`,
       and a short (truncated) `entry_hash` for chain traceability.
@@ -264,7 +264,7 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      Event summaries MUST map the event type to a concise active-voice phrase
+      Event summaries MUST map the semantic type to a concise active-voice phrase
       (subject verb object) by looking up the matching `SemanticEntry` in
       `SEMANTIC_REGISTRY` and rendering `entry.phrase` via `str.format_map()`.
     rationale: >-
@@ -312,11 +312,11 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      When no `SEMANTIC_REGISTRY` entry exists for an event type (e.g. data
+      When no `SEMANTIC_REGISTRY` entry exists for a semantic type (e.g. data
       from a future protocol version), the tool MUST fall back to a humanized
-      form of the raw event-type string.
+      form of the raw semantic-type string.
     rationale: >-
-      Graceful fallback prevents rendering failures when new event types are
+      Graceful fallback prevents rendering failures when new semantic types are
       introduced before the registry is updated.
     testable: true
 
