@@ -32,6 +32,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
 from vultron.core.behaviors.sync.nodes.replay import require_rejected_entry
+from vultron.core.behaviors.sync.nodes.replay_guard import should_replay
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.errors import VultronError, VultronValidationError
@@ -50,7 +51,8 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
 
     Returns SUCCESS when it queues the announce or has nothing to seed (a
     missing trigger port is only a WARNING, so the replay still runs in
-    environments without one).  Returns FAILURE when the embargo gate is
+    environments without one).  It seeds nothing while the replay guard
+    rate-limits the genesis replay it precedes (SYNC-15-003).  Returns FAILURE when the embargo gate is
     undecidable, which fails the tree before the replay (BTND-07-005).
 
     Authored as the executing actor; runs only inside the reject tree's
@@ -116,6 +118,24 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
             self.logger.info(
                 "%s: peer '%s' is not an active participant of case"
                 " '%s'; not pre-seeding the case (CM-10-004)",
+                self.name,
+                peer_id,
+                entry.case_id,
+            )
+            return Status.SUCCESS
+        # SYNC-15-003: the pre-seed anchors the replay that follows it, so it
+        # goes out only when that replay will (SYNC-15-014).  A rate-limited genesis Reject
+        # finds the case already sent with the last replay, and announcing it
+        # again per Reject kept the loop the guard bounds alive (#4882).
+        if not should_replay(
+            cast(CasePersistence, self.datalayer),
+            case_id=entry.case_id,
+            peer_id=peer_id,
+            from_hash="",
+        ):
+            self.logger.debug(
+                "%s: genesis replay to peer '%s' is rate-limited; not"
+                " re-announcing case '%s' (SYNC-15-003)",
                 self.name,
                 peer_id,
                 entry.case_id,

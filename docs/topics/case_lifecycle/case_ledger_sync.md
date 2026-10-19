@@ -245,7 +245,9 @@ It acts on a `Reject(CaseLedgerEntry)` only from an active participant in the ca
 The CASE_MANAGER does not replay on demand without limit. If a peer keeps
 rejecting from the same position, the CASE_MANAGER waits out a short cooldown
 before replaying to it again
-([SYNC-15-003](../../reference/specs/protocol.md#sync-15-003)). Without that bound, a
+([SYNC-15-003](../../reference/specs/protocol.md#sync-15-003)).
+Each further replay from that same position doubles the wait, up to a ceiling, so a peer that never catches up is retried less and less often ([SYNC-15-013](../../reference/specs/protocol.md#sync-15-013)).
+Without that bound, a
 peer that cannot anchor its chain rejects every entry it is sent, each reject
 triggers another full replay, and the two feed each other into a storm. A
 reject from a position that *has* advanced always triggers a replay, so a peer
