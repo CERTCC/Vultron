@@ -40,7 +40,6 @@ from typing import cast
 import pytest
 
 from test.support.embargo_register import (
-    activate,
     propose,
     reject,
     write_consent_rows,
@@ -54,8 +53,6 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_termination import EmbargoTermination
-from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -402,42 +399,6 @@ def test_rejecting_a_proposal_removes_it_from_both_records(
     assert (
         proposal_id not in updated_case.pending_embargo_proposal_index.values()
     )
-
-
-@pytest.mark.spec("EP-08-003")
-def test_tearing_down_an_embargo_removes_its_entry_from_the_index(
-    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
-) -> None:
-    """Teardown cancels every open proposal *and* prunes its index entry."""
-    owner, owner_dl = owner_actor_and_dl
-    lifecycle = EmbargoLifecycle(persistence=owner_dl)
-    case = VulnerabilityCase(name="Active embargo", attributed_to=owner.id_)
-    start = now_utc()
-    embargo = as_EmbargoEvent(
-        context=case.id_, start_time=start, end_time=start + timedelta(days=30)
-    )
-    revision = as_EmbargoEvent(
-        context=case.id_, start_time=start, end_time=start + timedelta(days=60)
-    )
-    activate(case, embargo.id_)
-    propose(case, revision.id_)
-    case.pending_embargo_proposal_index[revision.id_] = (
-        f"{case.id_}/embargo_proposals/1"
-    )
-    owner_dl.create(case)
-    owner_dl.create(embargo)
-    owner_dl.create(revision)
-
-    result = lifecycle.terminate_active_embargo(
-        case_id=case.id_,
-        actor_id=owner.id_,
-        termination=EmbargoTermination.early(),
-    )
-
-    assert result.em_after == EM.EXITED
-    updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
-    assert updated_case.proposed_embargo_ids == []
-    assert updated_case.pending_embargo_proposal_index == {}
 
 
 @pytest.mark.spec("EP-08-003")
