@@ -52,6 +52,7 @@ from vultron.core.behaviors.embargo.nodes.withdrawal import (
     IsWithdrawableEmbargoNode,
 )
 from vultron.core.behaviors.idempotency import (
+    FlaggedRepeatGuardMixin,
     ReportsIdempotentRepeat,
     SilentIdempotencyGuardMixin,
 )
@@ -157,4 +158,24 @@ def test_every_guard_that_flags_a_repeat_reports_it():
     assert missing == [], (
         f"{missing} set a repeat flag but do not report it: inherit"
         " FlaggedRepeatGuardMixin and name the flag in _REPEAT_FLAG"
+    )
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_every_flagged_repeat_guard_names_the_flag_it_sets():
+    """Ratchet: ``FlaggedRepeatGuardMixin`` reads the flag ``_REPEAT_FLAG`` names.
+
+    A subclass that omits it inherits ``failed_as_repeat`` and so passes the
+    ratchet above, then raises ``AttributeError`` on its first refusal.
+    """
+    wrong = sorted(
+        cls.__qualname__
+        for cls in _behavior_classes()
+        if issubclass(cls, FlaggedRepeatGuardMixin)
+        and getattr(cls, "_REPEAT_FLAG", None)
+        not in set(_REPEAT_FLAG_WRITE.findall(inspect.getsource(cls)))
+    )
+    assert wrong == [], (
+        f"{wrong} inherit FlaggedRepeatGuardMixin but _REPEAT_FLAG does not"
+        " name a repeat flag the guard sets"
     )

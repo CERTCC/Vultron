@@ -277,7 +277,7 @@ class PendingAssertionStore:
 
         An entry past its timeout is marked ``timed_out`` here, as
         :meth:`is_suppressed` marks it, and is not cleared: it was no longer
-        pending.
+        pending.  Zero ``timeout_seconds`` disables expiry here too.
 
         Returns:
             The entries this call cleared; empty when none was pending.
@@ -287,7 +287,7 @@ class PendingAssertionStore:
             for entry in list(self._store.values())
             if entry.case_id == case_id
             and entry.object_id == activity_id
-            and not self._check_expired(entry)
+            and (self.timeout_seconds == 0 or not self._check_expired(entry))
             and entry.status == "pending"
         ]
         for entry in cleared:

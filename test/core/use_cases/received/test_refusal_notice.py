@@ -29,6 +29,7 @@ from typing import Any, cast
 
 import pytest
 from py_trees.common import Status
+from pydantic import ValidationError
 
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -457,3 +458,18 @@ def test_a_declined_leave_closes_the_owners_pending_leave():
     assert not get_pending_assertion_store(OWNER).is_suppressed(
         net.case_id, "close_case", leave_id
     )
+
+
+@pytest.mark.spec("CLP-05-001")
+def test_an_event_naming_no_refused_activity_is_refused_at_construction():
+    net, _, invite_id = _network("unnamed")
+    event = _accept_event(net, invite_id)
+    _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
+    notice_id = _notices(net, MANAGER, BYSTANDER)[0].id_
+    body = read_sealed_body_dict(net.stores[MANAGER], notice_id)
+    routed = extract_event(parse_activity(cast(dict[str, Any], body)))
+
+    with pytest.raises(ValidationError, match="names no refused activity"):
+        RefusalNoticeReceivedEvent(
+            **{**dict(routed), "in_reply_to": None, "object_": None}
+        )

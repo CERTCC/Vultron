@@ -483,3 +483,11 @@ class TestClearActivity:
         assert cleared == []
         entry = next(iter(store._store.values()))
         assert entry.status == "timed_out"
+
+    def test_a_zero_timeout_store_clears_its_entry(self, store_zero):
+        store_zero.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
+
+        cleared = store_zero.clear_activity(CASE_ID, OBJECT_ID)
+
+        assert [e.object_id for e in cleared] == [OBJECT_ID]
+        assert cleared[0].status == "cleared"
