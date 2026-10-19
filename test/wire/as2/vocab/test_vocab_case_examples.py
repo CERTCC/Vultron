@@ -255,6 +255,8 @@ class TestVocabCaseNoteExamples(unittest.TestCase):
         self.assertEqual(add_note.context, case.id_)
         self.assertEqual(add_note.content, note.content)
 
+
+class TestVocabCaseOwnershipExamples(unittest.TestCase):
     def test_offer_case_ownership_transfer(self):
         activity = examples.offer_case_ownership_transfer()
         self.assertIsInstance(activity, as_Activity)

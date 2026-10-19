@@ -64,6 +64,19 @@ def test_validate_canonical_entry_rejects_empty_snapshot():
         )
 
 
+@pytest.mark.spec("VAM-01-011", "RSH-08-004")
+def test_validate_canonical_entry_refuses_a_create_note_snapshot():
+    """``Add(Note)`` is a note's one entry; a ``Create(Note)`` is not canonical."""
+    snapshot = {**_note_snapshot_with_actor(OWNER_ACTOR_ID), "type": "Create"}
+
+    with pytest.raises(VultronCanonicalEntryError, match="not canonical"):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            payload_snapshot=snapshot,
+            event_type="create_note",
+        )
+
+
 # ---------------------------------------------------------------------------
 # CLP-14 timestamp invariant tests
 # ---------------------------------------------------------------------------
