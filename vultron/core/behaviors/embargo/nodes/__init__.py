@@ -140,12 +140,14 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
     ClearActiveEmbargoNode,
     HasEmbargoActiveNode,
     SendAnnounceEmbargoEventNode,
-    TerminationCauseIsAdmissibleNode,
     TerminationIsTimelyNode,
 )
 from vultron.core.behaviors.embargo.nodes.terminate import (
     TeardownAskPendingNode,
     ask_case_manager_to_terminate_once,
+)
+from vultron.core.behaviors.embargo.nodes.termination_cause_guard import (
+    TerminationCauseIsAdmissibleNode,
 )
 from vultron.core.behaviors.embargo.nodes.termination_commit import (
     CommitAndApplyEmbargoTerminationNode,

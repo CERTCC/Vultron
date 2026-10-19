@@ -37,6 +37,8 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
     ClearActiveEmbargoNode,
     HasEmbargoActiveNode,
     SendAnnounceEmbargoEventNode,
+)
+from vultron.core.behaviors.embargo.nodes.termination_cause_guard import (
     TerminationCauseIsAdmissibleNode,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
