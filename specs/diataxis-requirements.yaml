@@ -839,3 +839,107 @@ groups:
       The generator's `--check` mode runs as a pre-commit hook and in CI, failing when the
       committed fragment differs from what the schema implies. Per DF-09-009 the check fails
       rather than passes when it resolves no targets.
+- id: DF-12
+  title: Protocol Specification normative text rendered from the requirement tiers
+  description: >-
+    The Protocol Specification presents the `protocol` and `foundation` requirement
+    tiers of `specs/*.yaml` as rendered content, never as restated prose, so the
+    specification cannot state a requirement differently from the YAML and presents
+    every one of them (ADR-0136, ADR-0147).
+  specs:
+  - id: DF-12-001
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The Protocol Specification MUST contain a Requirements Catalog body section,
+      placed after the Conformance section and before the back matter, that renders
+      every requirement of kind `protocol` or `foundation` exactly once. A catalog
+      subsection MUST be one requirement file, and `foundation` requirements MUST be
+      rendered on a catalog page of their own.
+    rationale: >-
+      The specification is the complete normative text only if every rule a
+      conformant implementation must obey renders in it, and normative content
+      belongs in the body rather than in an annex, which the specification declares
+      informative. Keeping the inherited `foundation` rules apart keeps visible what
+      Vultron adds and what it takes unchanged from the standards beneath it.
+    verification: >-
+      A test loads the requirement registry and the catalog's placement table and
+      fails when any `protocol` or `foundation` requirement renders in the catalog
+      zero times or more than once, or when a `foundation` requirement renders on a
+      page other than the inherited-requirements page.
+  - id: DF-12-002
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The anchor of a `protocol` or `foundation` requirement MUST be defined only by
+      its Requirements Catalog row. Every other page that shows or links the
+      requirement, including the inline callouts of DF-12-003 and the requirement
+      pages for the other kinds, MUST link to that row.
+    rationale: >-
+      A requirement with two published anchors gives two answers to where it lives,
+      and links written against either can disagree. One home also lets the
+      retired per-kind pages for the two tiers redirect to a single place.
+    verification: >-
+      The strict site build fails on a duplicate or dead anchor (DOCBW-03-011), and a
+      test fails when a rendered page other than the catalog defines a requirement
+      anchor.
+  - id: DF-12-003
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      Outside the Requirements Catalog, the Protocol Specification MUST present a
+      normative requirement only as a callout rendered by ID from its YAML entry, in
+      the catalog's row format. Rendering a callout MUST fail the documentation build
+      when an ID names no requirement of kind `protocol` or `foundation`.
+    rationale: >-
+      A callout shows the YAML's own words, so the narrative cannot paraphrase a rule
+      into something different. Failing on a non-normative ID stops the
+      specification from presenting a Project or Architecture rule as protocol.
+    verification: >-
+      A test renders a callout for a `protocol` ID and checks its text equals the
+      YAML statement and links the catalog row, and renders one for a `project` ID
+      and checks that it raises.
+  - id: DF-12-004
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      A fragment of the Protocol Specification MUST NOT contain an RFC 2119 keyword
+      outside a rendered requirement block, except in the Terminology paragraph that
+      states the keyword convention. A check MUST enforce this, and MUST report an
+      empty target set as a failure (DF-09-009).
+    rationale: >-
+      Every hand-written normative sentence is a restatement that can drift from the
+      YAML, and an unlabeled one may have no YAML counterpart at all. Banning the
+      keywords in prose makes the YAML the only place a normative sentence can be
+      written.
+    verification: >-
+      The check runs in the test suite over the specification's fragments and fails
+      on a keyword in prose, passes on the same keyword inside a rendered block or
+      the convention paragraph, and fails when it resolves no fragments.
+  - id: DF-12-005
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The placement of requirement files on Requirements Catalog pages MUST be
+      declared once, on the documentation side, without a field in the requirement
+      files. A check MUST fail when a requirement file that holds `protocol` or
+      `foundation` requirements is placed on no catalog page, or on more than one
+      catalog page for the same tier.
+    rationale: >-
+      A new requirement file would otherwise be silently missing from the catalog.
+      Declaring the placement where it is rendered keeps the requirement file format
+      unchanged, and one declaration lets callouts and the other kinds' pages find
+      the catalog page that holds a requirement.
+    verification: >-
+      A test fails when a requirement file holding either tier is absent from the
+      placement table, or appears in it twice for one tier.

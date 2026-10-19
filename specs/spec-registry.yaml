@@ -834,9 +834,11 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      The `render_for_kind(kind, registry)` function MUST route each spec item to the docs page
-      matching its `kind` field. There is no inheritance from group or file; each item's `kind`
-      is always explicit.
+      The `render_for_kind(kind, registry)` function MUST route each spec item of kind
+      `architecture`, `project`, or `process` to the docs page matching its `kind` field, and
+      each item of kind `protocol` or `foundation` MUST render in the Protocol Specification's
+      Requirements Catalog instead (DF-12-001). There is no inheritance from group or file; each
+      item's `kind` is always explicit.
     rationale: >-
       Explicit per-item kind eliminates the ambiguity that caused group- and item-level kind
       overrides to be silently ignored under the old inheritance model.
@@ -850,7 +852,8 @@ groups:
     statement: >-
       When a group contains items of mixed kinds, the group MUST appear on each docs page for which
       it has at least one item whose `kind` matches that page. Items whose `kind` does not match the
-      current page MUST be suppressed (not rendered) on that page.
+      current page MUST be suppressed (not rendered) on that page. The Requirements Catalog's
+      `protocol` and `foundation` pages count as pages for this rule (DF-12-001).
     rationale: >-
       Showing items on every page where their group appears would duplicate content and mislead
       readers about a spec's portability tier. Suppressing non-matching items keeps each page

@@ -11,6 +11,7 @@ related_specs:
   - specs/docs-build-workflow.yaml
   - specs/diataxis-requirements.yaml
   - specs/received-status-handling.yaml
+  - specs/spec-registry.yaml
 related_notes:
   - notes/case-ledger-authority.md
   - notes/case-state-model.md
@@ -148,9 +149,13 @@ Cross-check against codebase enums, `notes/case-ledger-authority.md`,
   held for every sender. `Add(CaseStatus)` is the CASE_MANAGER's activity;
   participants send `Add(ParticipantStatus)` (RSH-04-001). A mapping table needs a
   sender column.
-- `[J]` Every normative MUST / MUST NOT traces to a spec ID or ADR. Invented
-  normative content is harder to spot than a wrong citation, because there is
-  nothing to check it against.
+- `[M]` Every normative statement is a rendered callout or catalog row, never
+  prose: an RFC 2119 keyword outside a rendered block fails DF-12-004 (only the
+  §2 Terminology convention paragraph is exempt). Invented normative content is
+  harder to spot than a wrong citation, because there is nothing to check it
+  against; rendering from the YAML leaves nowhere to invent it.
+- `[J]` The prose around a callout agrees with the callout. Narrative may
+  explain a rule; it must not narrow, widen or reword it.
 
 ---
 
