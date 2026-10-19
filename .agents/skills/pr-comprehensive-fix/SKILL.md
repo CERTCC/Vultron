@@ -71,7 +71,7 @@ If proceeding, invoke sub-skills in order:
 Based on Step 1 decision point:
 
 <!-- markdownlint-disable-next-line MD013 -->
-- **Unit only**: `uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)`
+- **Unit only**: `timeout -k 30 1800 uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)`
 - **Full (unit + integration)**: Run both unit and integration test suites
 
 If tests fail:

@@ -29,9 +29,9 @@ pre-existing failure; `bugfix` or `build` removes it when the issue closes.
 ## Before Adding a Row
 
 - **No summary line means the run was killed, not that a test failed or
-  passed.** A `timeout_method = "thread"` trip or an OOM kill (exit 137) ends the
-  whole session, so counting `FAILED` lines scores an aborted run as clean. Check
-  for the summary line and the `+++ Timeout +++` marker first. See
+  passed.** The gate's `timeout` ceiling (exit 124) or an OOM kill (exit 137)
+  ends the whole session, so counting `FAILED` lines scores an aborted run as
+  clean. Check for the summary line first. See
   [testing-pitfalls.md](testing-pitfalls.md) § "Reading Test Output".
 - **Ask whether the test is nondeterministic or the ceiling is wrong.** A test
   near its timeout tier is not flaky; fix the tier (#2270). The opposite error,

@@ -70,10 +70,9 @@ TEST_ACTOR_ID = "https://test.example/api/v2/actors/test-actor"
 #: The global ``timeout = 30`` in ``pyproject.toml`` is sized for the unit
 #: suite, where the slowest honest test runs at ~3.1s. It is still too tight
 #: for integration tests: several run at 3.5-4.3s of honest work against a
-#: much wider load-dependent spread, and because ``timeout_method = "thread"``
-#: kills the *whole pytest process* rather than the one slow test, a single
-#: spurious trip aborted the session with no summary line — turning a red
-#: integration run into no signal at all. See issue #2270.
+#: much wider load-dependent spread. A trip fails that one test (the
+#: ``signal`` method, #3603), but a spurious trip is still a red run with
+#: nothing wrong in it. See issue #2270.
 #:
 #: 60s is still a bounded hang detector (2x the unit ceiling) while leaving
 #: ample headroom over the slowest honest integration test. Tests needing more
@@ -136,6 +135,10 @@ def apply_integration_timeout(items):
 _REGISTRY_LOAD_ERRORS = (ValueError, OSError)
 
 
+# ``trylast``: the integration tier reads the ``integration`` marker that
+# directory hooks such as ``test/demo/conftest.py`` add, so it must run after
+# them whatever order the conftests register in (#3604).
+@pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):
     """Apply the integration timeout, then warn for unknown spec IDs.
 

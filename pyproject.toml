@@ -297,31 +297,33 @@ pythonpath = ["."]
 # every test sharing an `xdist_group` mark runs on one worker, in order.  Order-
 # dependent modules (`test/test_process_global_isolation.py`) need that; without
 # `-n` the option is inert.
-addopts = "-ra -q -m 'not integration' --dist loadgroup"
+#
+# `--max-worker-restart=0` fails the run when a worker dies (OOM kill, segfault,
+# `os._exit`) instead of starting a replacement.  Under `loadgroup` a replacement
+# can only hang the run: xdist re-queues the dead worker's finished work units
+# too, hands one to the replacement, and waits forever for a report on a unit
+# with nothing left to run (#4809, `test/test_xdist_worker_crash.py`).
+addopts = "-ra -q -m 'not integration' --dist loadgroup --max-worker-restart=0"
 # Unit-tier per-test timeout.  Raised 5 -> 30 in #2270.
 #
-# `timeout_method = "thread"` cannot cancel one test — it kills the whole pytest
-# process, so a trip yields no summary line at all.  That makes a too-tight
-# ceiling actively harmful: it converts a slow test into an uninformative
-# aborted session.  At 5s the margin was thin enough that AST-walking
-# architecture ratchets (~3.4s in isolation) tripped it nondeterministically
-# under full-suite load, and four separate sessions re-diagnosed it as flakiness
-# (ISSUE-1925, ISSUE-1988, ISSUE-2086, ISSUE-2237).
+# `timeout_method = "signal"` makes a trip fail that one test: the rest of the
+# session runs and its summary names every failure (#3603).  The `thread` method
+# ends the whole process instead, so a trip printed no summary line, and under
+# `-n` the process it ended was an xdist worker (#4809).  `signal` is POSIX-only
+# (`SIGALRM`, main thread); CI and the devcontainer are Linux.  A hang a signal
+# cannot reach, such as a C call holding the GIL, is bounded by the CI job's
+# `timeout-minutes` and the local gate's `timeout` wrapper instead.
 #
 # Sized from measurement, not taste: the slowest unit test on an idle machine is
-# ~3.1s (`test_real_specs_load` setup), so this is ~10x headroom.  An
-# intermediate value of 20s was tried and still tripped once while a background
-# graphify rebuild competed for CPU — contention on a loaded dev box or CI
-# runner inflates these well beyond their idle cost.
-#
-# A generous ceiling costs nothing on a genuine hang: that test was never going
-# to finish, and 30s is still far below the CI job timeout.  The suite stays fast
-# because total runtime (~120s) is bounded by the tests, not by this ceiling.
+# ~3.1s (`test_real_specs_load` setup), so this is ~10x headroom.  Contention on
+# a loaded dev box or CI runner inflates honest tests well beyond their idle
+# cost, and 5s and 20s both tripped on honest work under load.  A generous
+# ceiling costs nothing on a genuine hang: that test was never going to finish.
 #
 # Integration tests get a wider tier; see `INTEGRATION_TIMEOUT_SECONDS` in
 # `test/conftest.py`.
 timeout = 30
-timeout_method = "thread"
+timeout_method = "signal"
 testpaths = [
     "test",
 ]

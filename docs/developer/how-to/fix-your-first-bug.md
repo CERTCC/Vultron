@@ -277,6 +277,7 @@ Read the tail output. All tests should pass.
 
 - Ensure all `async` functions are awaited in tests
 - Check for `pytest-asyncio` markers if using async fixtures
+- A hanging test fails at its per-test timeout with `Failed: Timeout`, which names it; read its stack trace in the log
 - Use `pytest` `-v` flag to see which test is hanging, then inspect it
 
 ### Test fails with "blackboard key not found" or random failures
