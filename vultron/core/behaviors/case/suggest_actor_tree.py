@@ -13,23 +13,31 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Received-side BT factories for the suggest-actor workflow (CASE_MANAGER inbox).
+"""Received-side BT factories for the suggest-actor workflow (ADR-0026, CM-16).
 
-Three factories correspond to the three received-side protocol events defined
-in ADR-0026/CM-16:
+Three factories run on the CASE_MANAGER's inbox:
 
 - :func:`create_recommend_actor_to_case_received_tree`  — the CASE_MANAGER
   handles ``Offer(Actor, Case)`` from a recommending participant
   (CM-16-001..004).
 - :func:`create_accept_actor_recommendation_received_tree` — the CASE_MANAGER
   handles ``Accept(Offer(CaseParticipant))`` from the Case Owner (CM-16-006).
+  Despite its name, it routes ``ACCEPT_OFFER_CASE_PARTICIPANT``, the Case
+  Owner's decision, not ``ACCEPT_ACTOR_RECOMMENDATION``.
 - :func:`create_reject_actor_recommendation_received_tree` — the CASE_MANAGER
   handles ``Reject(Offer(CaseParticipant))`` from the Case Owner (CM-16-007).
+  Likewise, it routes ``REJECT_OFFER_CASE_PARTICIPANT``.
 
-All three trees route through the CASE_MANAGER's inbox per ADR-0021/ADR-0026
+These three route through the CASE_MANAGER's inbox per ADR-0021/ADR-0026
 and use
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
 to enforce CLP-10-006 ordering (ledger commit before effect nodes).
+
+A fourth, :func:`create_recommendation_answer_received_tree`, runs on the
+recommender's inbox: it handles the CASE_MANAGER's ``Accept`` or
+``Reject(Offer(Actor, Case))`` answer (``ACCEPT_ACTOR_RECOMMENDATION``,
+``REJECT_ACTOR_RECOMMENDATION``; CM-16-006, CM-16-007, CM-16-009), and
+records no entry and runs no effect.
 
 Every effect in this workflow is the CASE_MANAGER's, so each tree's effect
 section is passed as ``manager_effects``, which the factory wraps in the
@@ -48,6 +56,9 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
@@ -439,6 +450,11 @@ def create_accept_actor_recommendation_received_tree(
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Accept(Offer(CaseParticipant)) on the CASE_MANAGER's inbox.
 
+    This is the Case Owner's decision (``ACCEPT_OFFER_CASE_PARTICIPANT``).
+    The recommender's receipt of the CASE_MANAGER's answer
+    (``ACCEPT_ACTOR_RECOMMENDATION``) is
+    :func:`create_recommendation_answer_received_tree`.
+
     Commits a canonical ``CaseLedgerEntry`` (CM-16-006 step 1), then fans
     out: sends ``AcceptActorRecommendation`` to the original recommender
     (CM-16-006 step 3) and ``Invite(CaseStub+embargo+roles)`` to the
@@ -532,6 +548,11 @@ def create_reject_actor_recommendation_received_tree(
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Reject(Offer(CaseParticipant)) on the CASE_MANAGER's inbox.
 
+    This is the Case Owner's decision (``REJECT_OFFER_CASE_PARTICIPANT``).
+    The recommender's receipt of the CASE_MANAGER's answer
+    (``REJECT_ACTOR_RECOMMENDATION``) is
+    :func:`create_recommendation_answer_received_tree`.
+
     Commits a canonical ``CaseLedgerEntry`` (CM-16-007 step 1), then sends
     ``RejectActorRecommendation`` to the original recommender
     (CM-16-007 step 3).
@@ -591,6 +612,58 @@ def create_reject_actor_recommendation_received_tree(
     )
 
 
+def create_recommendation_answer_received_tree(
+    name: str,
+    case_id: str | None,
+    sender_id: str,
+    *,
+    sender_rule: SenderRule,
+) -> py_trees.composites.Sequence:
+    """Received-side BT for the CASE_MANAGER's answer on a recommender's inbox.
+
+    The answer is ``Accept`` or ``Reject`` of the recommender's own
+    ``Offer(Actor, Case)`` (CM-16-006, CM-16-007, CM-16-009).  The
+    CASE_MANAGER ledgered it when it sent it (CM-16-010), and the recommender
+    takes that entry from the ledger; a participant never commits
+    (CLP-09-001), so this receipt records no entry on the CLP-02-013 ground of
+    an activity only the CASE_MANAGER sends, received by a participant.
+
+    Tree structure::
+
+        <name> (Sequence, memory=False)
+        ├── IntakeReceivedActivityNode     — archive what arrived (CLP-10-018)
+        ├── CaseOpenToExternalWrites       — post-close boundary (CM-23-013)
+        ├── ActivityAddressedToReceiver    — addressee door guard (HP-01-005)
+        └── sender guard                   — only the CASE_MANAGER (PCR-03-001)
+
+    Args:
+        name: Name for the root ``Sequence``; the handler's own tree name.
+        case_id: ID of the VulnerabilityCase the answer names; ``None`` for
+            an answer that names no case, which intake archives and the
+            tree refuses, since there is no case to check the sender
+            against (CLP-10-018).
+        sender_id: Actor ID of the answer's sender.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
+
+    Returns:
+        Root Sequence node named *name*.
+    """
+    if case_id is None:
+        return create_incomplete_activity_received_tree(
+            name, "the answer names no case"
+        )
+    return create_receive_activity_tree(
+        name=name,
+        case_id=None,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, case_id=case_id
+        ),
+        precondition_guards=[],
+    )
+
+
 __all__ = [
     # node classes live in nodes.suggest_actor; re-exported here for backward compat
     "ActorAlreadyParticipantNode",
@@ -603,5 +676,6 @@ __all__ = [
     "create_accept_actor_recommendation_received_tree",
     "create_receive_offer_case_participant_tree",
     "create_recommend_actor_to_case_received_tree",
+    "create_recommendation_answer_received_tree",
     "create_reject_actor_recommendation_received_tree",
 ]

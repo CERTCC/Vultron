@@ -210,10 +210,22 @@ SuggestActorToCasePattern = ActivityPattern(
     target_=VOtype.VULNERABILITY_CASE,
 )
 AcceptSuggestActorToCasePattern = ActivityPattern(
-    activity_=TAtype.ACCEPT, object_=SuggestActorToCasePattern
+    description=(
+        "CASE_MANAGER Accept(Offer(Actor, Case)) answering a recommender, "
+        "received on the recommender's inbox (ACCEPT_ACTOR_RECOMMENDATION; "
+        "CM-16-006, CM-16-009)."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=SuggestActorToCasePattern,
 )
 RejectSuggestActorToCasePattern = ActivityPattern(
-    activity_=TAtype.REJECT, object_=SuggestActorToCasePattern
+    description=(
+        "CASE_MANAGER Reject(Offer(Actor, Case)) answering a recommender, "
+        "received on the recommender's inbox (REJECT_ACTOR_RECOMMENDATION; "
+        "CM-16-007)."
+    ),
+    activity_=TAtype.REJECT,
+    object_=SuggestActorToCasePattern,
 )
 
 # CaseActor-routed ADR-0026 patterns (CM-16)
@@ -232,7 +244,9 @@ OfferActorToCasePattern = ActivityPattern(
 AcceptActorRecommendationPattern = ActivityPattern(
     description=(
         "Case Owner Accept(Offer(CaseParticipant)) routed to CaseActor "
-        "inbox per ADR-0026/CM-16-006."
+        "inbox per ADR-0026/CM-16-006. Routes ACCEPT_OFFER_CASE_PARTICIPANT; "
+        "the CASE_MANAGER's answer to the recommender "
+        "(ACCEPT_ACTOR_RECOMMENDATION) is AcceptSuggestActorToCasePattern."
     ),
     activity_=TAtype.ACCEPT,
     object_=OfferActorToCasePattern,
@@ -240,7 +254,9 @@ AcceptActorRecommendationPattern = ActivityPattern(
 RejectActorRecommendationPattern = ActivityPattern(
     description=(
         "Case Owner Reject(Offer(CaseParticipant)) routed to CaseActor "
-        "inbox per ADR-0026/CM-16-007."
+        "inbox per ADR-0026/CM-16-007. Routes REJECT_OFFER_CASE_PARTICIPANT; "
+        "the CASE_MANAGER's answer to the recommender "
+        "(REJECT_ACTOR_RECOMMENDATION) is RejectSuggestActorToCasePattern."
     ),
     activity_=TAtype.REJECT,
     object_=OfferActorToCasePattern,
