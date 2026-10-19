@@ -389,6 +389,12 @@ def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
     from vultron.core.behaviors.case.nodes.lifecycle import (
         CommitCaseLedgerEntryNode,
     )
+    from vultron.core.behaviors.case.nodes.refusal_stage import (
+        RefusalEffectsBestEffort,
+    )
+    from vultron.core.behaviors.note.case_manager_note import (
+        _CommitCaseManagerNoteBase,
+    )
 
     names = [child.name for child in root.children]
     if GUARDED_COMMIT_NAME not in names:
@@ -397,18 +403,29 @@ def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
     commits = _commit_node_types()
     found: list[str] = []
 
-    def walk(node: py_trees.behaviour.Behaviour, in_stage: bool) -> None:
+    def walk(
+        node: py_trees.behaviour.Behaviour, in_stage: bool, in_refusal: bool
+    ) -> None:
         in_stage = in_stage or _commits_own_entry(node)
-        if isinstance(node, commits) and (
-            not in_stage or isinstance(node, CommitCaseLedgerEntryNode)
+        in_refusal = in_refusal or isinstance(node, RefusalEffectsBestEffort)
+        # A refusal effect runs only when the guards refuse, so the guarded
+        # commit never follows it; the CASE_MANAGER's own note is the one
+        # commit it may make (CLP-10-022, RSH-06-004).
+        refusal_note = in_refusal and isinstance(
+            node, _CommitCaseManagerNoteBase
+        )
+        if (
+            isinstance(node, commits)
+            and not refusal_note
+            and (not in_stage or isinstance(node, CommitCaseLedgerEntryNode))
         ):
             where = "in an own-entry stage" if in_stage else "outside"
             found.append(f"{type(node).__name__} ({where})")
         for child in node.children:
-            walk(child, in_stage)
+            walk(child, in_stage, in_refusal)
 
     for child in ahead:
-        walk(child, in_stage=False)
+        walk(child, in_stage=False, in_refusal=False)
     return found
 
 

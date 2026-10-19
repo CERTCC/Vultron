@@ -338,10 +338,12 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure()
         ),
     )
 
-    # P first, then the reject entry, then the termination it forced
-    # (EMB-04-002).
-    assert _replay(net, BYSTANDER)[:3] == [
+    # P first, with the CSB-18 note the CASE_MANAGER records while the
+    # embargo is still in force (#4829), then the reject entry, then the
+    # termination it forced (EMB-04-002).
+    assert _replay(net, BYSTANDER)[:4] == [
         "add_case_status_to_case",
+        "add_note_to_case",
         "reject_embargo_proposal_on_case",
         "remove_embargo_event_from_case",
     ]

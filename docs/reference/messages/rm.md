@@ -24,6 +24,8 @@ The CASE_MANAGER applies one rule to an RM state whichever of these expressions 
 The state is recorded for the sender, never for the receiver (RSH-08-001), and only when the sender is a participant of the case.
 A forward move is recorded even when it skips states, and the CASE_MANAGER then asks the sender in a note which path it took (RSH-06-001, RSH-06-004).
 A backward move is refused and the recorded state stands (RSH-06-002), and the CASE_MANAGER tells the sender in a note that it refused the move (RSH-06-004).
+Either note is recorded on the case as a [case ledger entry](../glossary.md#sync-authority-replication).
+The sender receives it from the ledger, as every [active participant](../glossary.md#cvd-roles-and-participants) does, not as a message addressed to it alone (RSH-06-004).
 An activity and an `Add(ParticipantStatus)` that report the same move record it once (RSH-08-002).
 
 ## Occasions

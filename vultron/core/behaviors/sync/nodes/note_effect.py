@@ -28,6 +28,7 @@ import logging
 from py_trees.common import Status
 from pydantic import ValidationError
 
+from vultron.core.behaviors.note.attach import attach_note, note_attached
 from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
     _LedgerEffectNode,
@@ -93,8 +94,7 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
-        existing_ids = [_as_id(n) for n in case.notes]
-        if note_id in existing_ids:
+        if note_attached(case, note_id):
             self.logger.debug(
                 "%s: note '%s' already in case '%s' — idempotent no-op",
                 self.name,
@@ -105,8 +105,7 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
 
         self._materialise_note(note_data, note_id)
 
-        case.notes.append(note_id)
-        self.datalayer.save(case)
+        attach_note(self.datalayer, case, note_id)
         self.logger.info(
             "%s: applied ledger note attachment '%s' to case '%s' (SYNC-02-002)",
             self.name,
@@ -193,7 +192,7 @@ class ApplyRemoveNoteFromLedgerNode(_LedgerEffectNode):
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
-        if note_id not in [_as_id(n) for n in case.notes]:
+        if not note_attached(case, note_id):
             self.logger.debug(
                 "%s: note '%s' not in case '%s' — idempotent no-op",
                 self.name,

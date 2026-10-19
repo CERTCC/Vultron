@@ -118,6 +118,9 @@ from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
+from vultron.core.behaviors.note.case_manager_note import (
+    _CommitCaseManagerNoteBase,
+)
 from vultron.core.behaviors.replica_emit_exemptions import (
     REPLICA_EMIT_EXEMPTIONS,
     ReplicaEmitExemption,
@@ -330,9 +333,12 @@ def _refusal_stage(
 
     Raises:
         VultronWiringError: a refusal effect is not emit-capable, or
-            contains a state writer.  A refusal commits nothing, so a refusal
-            effect may only speak to the sender; a state write here would
-            change state the ledger never records (CLP-10-022).
+            contains a state writer.  A refusal commits nothing for the
+            refused assertion, so a refusal effect may only speak to the
+            sender; a state write here would change state the ledger never
+            records (CLP-10-022).  The one writer admitted is the
+            CASE_MANAGER's own note (RSH-06-004), which commits its own
+            ``add_note_to_case`` entry before it attaches the note.
     """
     not_emitters = [
         type(n).__name__
@@ -345,6 +351,7 @@ def _refusal_stage(
             for root in refusal_effects
             for n in root.iterate()
             if isinstance(n, StateWriteCapable)
+            and not isinstance(n, _CommitCaseManagerNoteBase)
         }
     )
     if not_emitters or writers:

@@ -21,6 +21,7 @@ related_specs:
   - specs/case-proposal.yaml
   - specs/sync-ledger-replication.yaml
   - specs/vultron-as2-mapping.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/bt-canonical-reference.md
   - notes/call-out-configuration.md
@@ -345,9 +346,12 @@ guards, commit, effects.
    (not the sender guard) fails, inside a CASE_MANAGER gate, and skips them on a
    redelivery whose intake was already archived and on a failed guard whose
    `failed_as_repeat` is set (`ReportsIdempotentRepeat`, the repeat a handler
-   reports `SKIPPED`). The stage then fails with the
-   guard's reason, so nothing commits and the handler reads `REFUSED`. A refusal
-   effect must be `EmitCapable` and hold no `StateWriteCapable` node. Do not
+   reports `SKIPPED`). The stage then fails with the guard's reason, so nothing
+   of the assertion commits and the handler reads `REFUSED`. A refusal effect
+   must be `EmitCapable` and hold no `StateWriteCapable` node, except the
+   CASE_MANAGER's own note (`_CommitCaseManagerNoteBase`, RSH-06-004), which
+   commits itself as its own `add_note_to_case` entry: a participant refuses a
+   direct `Add(Note)`, so a note reaches it only through the ledger (#4829). Do not
    hand-build a `Selector[guard, emit]`: the emit would run ahead of the commit
    on an admitted delivery.
 5. **Commit** — the CASE_MANAGER ledgers the received activity as received, a

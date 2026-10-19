@@ -162,8 +162,9 @@ def create_recommend_actor_to_case_received_tree(
        (CM-11-015, ADR-0085).
     1. **AC-7b** — already participant: auto-accept to recommender (CM-16-009).
     2. **AC-7a** — invite in-flight: auto-accept to recommender (CM-16-009).
-    3. **AC-6** — pending Case Owner decision: send Note DM, no second Offer
-       (CM-16-008).
+    3. **AC-6** — pending Case Owner decision: record the reinforcing note
+       as the CASE_MANAGER's own ``add_note_to_case`` entry, no second Offer
+       (CM-16-008, CM-16-016).
     4. **Owner-direct** — the recommender holds ``CVDRole.CASE_OWNER``: the
        recommender is also the decider, so evaluate roles (the offered ones
        when the Offer carries any) and emit the ``Invite`` directly, committed

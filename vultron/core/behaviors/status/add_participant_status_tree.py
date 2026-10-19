@@ -48,7 +48,7 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
             │   └─ TeardownEffects (Sequence)
             │       ├─ EmbargoTeardownAuthorizationGate  # Call-out gate (RSH-02-001)
             │       └─ ThreatTerminationBranchNode       # Embargo teardown on P/X/A (RSH-03-001)
-            └─ EmitRMGapNoteNode               # Emit Add(Note,Case) on RM anomaly (RSH-06-004)
+            └─ EmitRMGapNoteNode               # Commit add_note_to_case on RM anomaly (RSH-06-004)
 
     A replica holding a copy of the ``Add(ParticipantStatus)`` writes nothing: the whole
     adoption body runs only at the CASE_MANAGER, and the replica takes the move

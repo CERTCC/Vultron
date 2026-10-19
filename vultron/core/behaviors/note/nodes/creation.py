@@ -21,8 +21,8 @@ from typing import Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.note.attach import attach_note
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import _as_id
 
 
 class CreateNoteNode(DataLayerActionWithPorts):
@@ -107,8 +107,7 @@ class AttachNoteFromResultNode(DataLayerActionWithPorts, StateWriteCapable):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        existing_ids = [_as_id(n) for n in case.notes]
-        if note_id in existing_ids:
+        if not attach_note(self.datalayer, case, note_id):  # type: ignore[arg-type]
             self.logger.info(
                 "%s: note '%s' already in case '%s' — skipping (idempotent)",
                 self.name,
@@ -117,8 +116,6 @@ class AttachNoteFromResultNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             return Status.SUCCESS
 
-        case.notes.append(note_id)
-        self.datalayer.save(case)  # type: ignore[union-attr]
         self.logger.info(
             "%s: Attached note '%s' to case '%s'",
             self.name,

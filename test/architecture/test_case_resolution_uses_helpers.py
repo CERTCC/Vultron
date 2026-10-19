@@ -223,7 +223,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # LEN — lenient guards / diagnostics; never fail the tree on absence.
         (
             "vultron/core/behaviors/status/nodes/cs_invariant_diagnostic.py",
-            "PxaEmInvariantDiagnosticNode.update",
+            "PxaEmInvariantDiagnosticNode._compose",
         ),
         (
             "vultron/core/behaviors/status/nodes/threat_termination.py",

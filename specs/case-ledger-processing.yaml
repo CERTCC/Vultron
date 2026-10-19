@@ -1705,10 +1705,13 @@ groups:
       them only at the
       case's CASE_MANAGER; MUST NOT run them again for a redelivery that intake
       found already archived; and MUST leave the tree failing with the guard's
-      refusal, so nothing is committed and the handler reports `REFUSED` for
-      the guard's reason. Every refusal effect MUST be emit-capable and MUST
-      contain no state-write node: a refusal commits nothing, so it changes no
-      state.
+      refusal, so nothing of the refused assertion is committed and the handler
+      reports `REFUSED` for the guard's reason. Every refusal effect MUST be
+      emit-capable and MUST contain no state-write node: a refusal commits
+      nothing of the assertion, so it changes no state the ledger does not
+      record. The one exception is the CASE_MANAGER's own note
+      (`_CommitCaseManagerNoteBase`, RSH-06-004), which commits itself as its
+      own `add_note_to_case` entry before it attaches the note to the case.
     rationale: >-
       A refusal the receiver can answer in the moment should be answered, such
       as a backward RM declaration (RSH-06-004). An emit beside the guard would
@@ -1720,7 +1723,10 @@ groups:
     note: >-
       The redelivery skip keys on intake finding the activity already
       archived, not on a record that the refusal effects ran: a refusal
-      effect writes no state, so no such record exists. A redelivery whose
+      effect writes no state of the assertion, so no such record exists. The
+      note exception exists because a note reaches the sender only as a
+      ledger entry: a participant refuses a direct `Add(Note)` (HP-01-005,
+      #4829). A redelivery whose
       first delivery never reached the refusal effects (the sender guard
       refused it, the receiver was not yet the CASE_MANAGER, or the effect
       failed) is therefore not answered either.
