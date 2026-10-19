@@ -68,6 +68,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_termination import (
+    FixReadyCause,
     ThreatSignal,
     ThreatSignalTermination,
 )
@@ -308,6 +309,33 @@ def test_owner_termination_sends_et_to_each_unreached_signatory() -> None:
         assert notice.id_ in manager.dl.outbox_list()
     # The termination itself is the one new entry.
     assert len(manager.ledger_object_ids() - before) == 1
+
+
+@pytest.mark.spec("CM-31-009")
+@pytest.mark.spec("EMB-13-005")
+def test_the_ending_notice_carries_the_cause_the_manager_records() -> None:
+    """Every ``Remove`` the CASE_MANAGER sends carries the cause it records,
+    the direct notice to an unreached signatory included (#4857)."""
+    manager = _Manager()
+    cause = FixReadyCause(vendors=[ACTIVE])
+
+    result = manager.route(
+        remove_embargo_from_case_activity(
+            _embargo(manager.dl),
+            origin=CASE_ID,
+            actor=OWNER,
+            to=[MANAGER],
+            reason=TerminationReason.EARLY,
+            cause=cause,
+        )
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    notices = manager.notices("Remove", EMBARGO_ID)
+    assert set(notices) == _unreached_signatories()
+    for recipient in _unreached_signatories():
+        (notice,) = notices[recipient]
+        assert notice.termination_cause == cause
 
 
 @pytest.mark.spec("CM-31-009")

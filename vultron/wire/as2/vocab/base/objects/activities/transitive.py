@@ -16,7 +16,9 @@
 
 from pydantic import Field, field_validator, model_validator
 
+from vultron.core.models.embargo_termination import TerminationCause
 from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
+from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
 from vultron.wire.as2.vocab.base.objects.activities.base import (
     as_Activity as Activity,
 )
@@ -192,6 +194,20 @@ class as_Remove(as_TransitiveActivity):
         default=TA_type.REMOVE,
         validation_alias="type",
         serialization_alias="type",
+    )
+    # EMB-13-005: a termination Remove(EmbargoEvent) carries the termination's
+    # why as the Vultron property ``terminationCause``.  Declared on the base
+    # for the reason ``as_Offer`` declares ``proposed_embargo``: an inbound
+    # Remove is reconstructed as a bare as_Remove, so without the field here
+    # the parse edge would set the cause aside (MV-11-003).  The core cause
+    # models validate it, so an unknown ``kind`` or a malformed detail is
+    # refused at the edge; the extractor checks it against ``content``.  The
+    # marker gives it a term in the generated JSON-LD context.
+    termination_cause: TerminationCause | None = Field(
+        default=None,
+        validation_alias="terminationCause",
+        serialization_alias="terminationCause",
+        json_schema_extra=VULTRON_PROPERTY_EXTRA,
     )
 
 

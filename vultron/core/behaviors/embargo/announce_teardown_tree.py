@@ -34,6 +34,8 @@ force, and only the CASE_MANAGER announces (BT-17-008):
     RemoveEmbargoFromCaseBT (Sequence)
     ├─ ClockDecisionsIfCaseManager        # end time, overdue invites (CM-28-015)
     ├─ ValidateCaseExistsNode             # case must exist as VulnerabilityCase
+    ├─ TerminationCauseIsAdmissibleNode   # THREAT_SIGNAL: the CASE_MANAGER's only
+    ├─ TerminationIsTimelyNode            # no END_TIME_REACHED before the end time
     ├─ GuardedCommitCaseLedgerEntryBT     # record receipt before effects (CLP-10-006)
     ├─ TeardownOnReplica (Selector)       # participant replica: paused only
     │  ├─ SkipIfCaseManager
@@ -111,6 +113,7 @@ from vultron.core.behaviors.embargo.nodes import (
     SendAnnounceEmbargoEventNode,
     SendEmbargoInviteAnswerNode,
     SendOwnerEmbargoDecisionNode,
+    TerminationCauseIsAdmissibleNode,
     TerminationIsTimelyNode,
     ValidateCaseExistsNode,
     case_manager_admits_proposal_guard,
@@ -132,7 +135,10 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 from vultron.core.behaviors.sender_guard import embargo_sender_context
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    TerminationCause,
+)
 from vultron.core.states.embargo_register import TerminationReason
 
 logger = logging.getLogger(__name__)
@@ -200,6 +206,7 @@ def remove_embargo_from_case_tree(
     actor_config: ActorConfig | None = None,
     *,
     sender_rule: SenderRule,
+    termination_cause: TerminationCause | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo removal (protocol ET).
 
@@ -236,6 +243,11 @@ def remove_embargo_from_case_tree(
             (ADR-0115, EP-09-005, PCR-03-001).
         termination_reason: The what the ``Remove`` carries in ``content``,
             recorded on the ``TERMINATED`` entry (ADR-0122).
+        termination_cause: The why the ``Remove`` carries as
+            ``terminationCause``, or ``None`` when it names none; recorded on
+            the ``TERMINATED`` entry as given (EMB-13-005).  A
+            ``THREAT_SIGNAL`` cause from anyone but the CASE_MANAGER is
+            refused before the commit (``TerminationCauseIsAdmissibleNode``).
         terminated_at: The ``Remove``'s ``published`` time.  An
             ``END_TIME_REACHED`` claimed before the embargo's end time is
             refused before the commit (``TerminationIsTimelyNode``).
@@ -254,8 +266,11 @@ def remove_embargo_from_case_tree(
     capture, notices = embargo_ending_notice_nodes(
         case_id, requested_by=sender_actor_id
     )
-    # The Remove carries only the what; its sender keeps the why (ADR-0122).
-    termination = EmbargoTermination.from_reason(termination_reason)
+    # The Remove carries the what and, when its sender names one, the why
+    # (EMB-13-005); the TERMINATED entry records both as given.
+    termination = EmbargoTermination.from_reason(
+        termination_reason, termination_cause
+    )
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
         case_id=case_id,
@@ -265,6 +280,13 @@ def remove_embargo_from_case_tree(
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
             ValidateCaseExistsNode(case_id=case_id),
+            # A threat signal arrives as a case status update, never on a
+            # case owner's Remove (EMB-13-005).
+            TerminationCauseIsAdmissibleNode(
+                case_id=case_id,
+                sender_actor_id=sender_actor_id,
+                termination=termination,
+            ),
             TerminationIsTimelyNode(
                 case_id=case_id,
                 termination=termination,

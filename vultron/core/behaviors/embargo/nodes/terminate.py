@@ -33,6 +33,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.pending_assertion import (
     record_pending_assertion,
     suppressed_repeat_reason,
@@ -129,9 +130,12 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         case_id: str,
         reason: TerminationReason,
         name: str | None = None,
+        *,
+        cause: TerminationCause | None = None,
     ) -> None:
         super().__init__(case_id=case_id, name=name)
         self._reason = reason
+        self._cause = cause
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_SendEmbargoActivityBase.INPUT_PORTS,
@@ -177,6 +181,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
             case_id=self._case_id,
             actor=actor_id,
             reason=self._reason,
+            cause=self._cause,
             to=[case_manager_id],
         )
 
@@ -202,7 +207,9 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
 
 
 def ask_case_manager_to_terminate_once(
-    case_id: str, reason: TerminationReason
+    case_id: str,
+    reason: TerminationReason,
+    cause: TerminationCause | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """The cascades' ask: queue ``Remove(EmbargoEvent)`` unless already asked.
 
@@ -212,13 +219,16 @@ def ask_case_manager_to_terminate_once(
     or suppress a repeat, so this subtree does both (EP-09-008, SYNC-11-002):
     SUCCESS without sending when the ask is still pending, else the send
     node's result, whose FAILURE still fails the tree (BT-14-001).  The ask
-    carries *reason*, the termination's what (ADR-0122).
+    carries *reason*, the termination's what (ADR-0122), and *cause*, its
+    why, when given (EMB-13-005).
     """
     return py_trees.composites.Selector(
         name="AskCaseManagerToTerminateOnce",
         memory=False,
         children=[
             TeardownAskPendingNode(case_id=case_id),
-            SendTerminateEmbargoActivityNode(case_id=case_id, reason=reason),
+            SendTerminateEmbargoActivityNode(
+                case_id=case_id, reason=reason, cause=cause
+            ),
         ],
     )

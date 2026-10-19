@@ -21,6 +21,7 @@ from typing import Any, cast
 
 from vultron.adapters.outbox_sealed_body import requeue_if_sealed
 from vultron.core.models.activity_ids import derived_activity_id
+from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.received_activity import read_held_activity
 from vultron.core.states.embargo_register import TerminationReason
@@ -291,6 +292,7 @@ class _EmbargoMixin:
         actor: str,
         *,
         reason: TerminationReason,
+        cause: TerminationCause | None = None,
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
@@ -305,6 +307,7 @@ class _EmbargoMixin:
             embargo=embargo,
             origin=case_id,
             reason=reason,
+            cause=cause,
             context=case_id,
             actor=actor,
             to=to,

@@ -286,9 +286,9 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
     apply function, it terminates the embargo the ``Remove`` names (its
     ``object``), never whatever is in force locally, and cancels every open
     proposal in the same step (EP-08-004).  The ``TERMINATED`` entry records
-    the what the ``Remove`` carries in ``content``; the why (the
-    termination's cause) does not travel on the wire, so a replica records
-    the what alone (ADR-0122, #4748).
+    the what the ``Remove`` carries in ``content``.  The entry also carries
+    the why as ``terminationCause`` (EMB-13-005), but this slot does not copy
+    it yet, so a replica records the what alone until #4748.
 
     As on the CASE_MANAGER, where such a ``Remove`` is ledgered with no
     effect (CLP-02-013), an entry naming an embargo that is not the one in
