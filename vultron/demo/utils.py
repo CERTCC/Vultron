@@ -571,6 +571,28 @@ def verify_object_stored(
     return as_Object(**obj)
 
 
+def read_stored_of_types(
+    client: DataLayerClient,
+    types: Sequence[str],
+    actor_id: str | None = None,
+) -> dict:
+    """The actor's stored objects of *types*, keyed by id, as the store serves them.
+
+    One read of the type-filtered store route: a poll never dumps the whole
+    store, whose rehydration slowed the container being polled as it grew
+    (#4600).  A reply that is not a mapping reads as holding nothing.
+
+    Args:
+        client: DataLayerClient for the actor's container.
+        types: The stored types to read.
+        actor_id: Whose store to read.  Defaults to *client*'s own actor.
+    """
+    objects = client.get(
+        client.dl_path(actor_id=actor_id), params={"type": list(types)}
+    )
+    return objects if isinstance(objects, dict) else {}
+
+
 #: The stored type a received activity is read from: intake's archive record,
 #: kept under a key the receiver derives (CLP-10-017, ADR-0111).  A row of an
 #: activity type under its own id is one the actor authored, never one it
@@ -593,17 +615,25 @@ def received_activity_in(record: dict) -> dict:
     return activity
 
 
+def _received_activity_records(
+    client: DataLayerClient, actor_id: str | None
+) -> dict:
+    """The actor's ``ReceivedActivityRecord`` rows, keyed by record id."""
+    return read_stored_of_types(
+        client, [RECEIVED_ACTIVITY_RECORD_TYPE], actor_id=actor_id
+    )
+
+
 def read_received_activity(
     client: DataLayerClient, activity_id: str, actor_id: str | None = None
 ) -> dict | None:
     """The activity *activity_id* as the receiving actor archived it, or ``None``.
 
-    Reads the actor's ``ReceivedActivityRecord`` rows only — through the
-    type-filtered store route, so the read never dumps the whole store
-    (#4600) — and looks the record up by the key the receiver derives from
-    the sender's id (:meth:`ReceivedActivityRecord.build_id`).  A row stored
-    under the sender's id is never read: ingress writes one today, but a
-    receiver holds no received activity under the sender's id (DL-06-006).
+    Reads the actor's ``ReceivedActivityRecord`` rows only and looks the record
+    up by the key the receiver derives from the sender's id
+    (:meth:`ReceivedActivityRecord.build_id`).  A row stored under the sender's
+    id is never read: ingress writes one today, but a receiver holds no
+    received activity under the sender's id (DL-06-006).
 
     Args:
         client: DataLayerClient for the receiving actor's container.
@@ -619,6 +649,44 @@ def read_received_activity(
     if not isinstance(record, dict):
         return None
     return received_activity_in(record)
+
+
+def not_received_error(
+    client: DataLayerClient,
+    activity_id: str,
+    actor_id: str | None = None,
+    what: str = "activity",
+) -> AssertionError:
+    """The failure for an actor that holds no received *what* *activity_id*."""
+    return AssertionError(
+        f"{actor_id or client.actor_id!r} at {client.base_url} holds no"
+        f" received {what} {activity_id!r}"
+    )
+
+
+def require_received_activity(
+    client: DataLayerClient,
+    activity_id: str,
+    actor_id: str | None = None,
+    what: str = "activity",
+) -> dict:
+    """The activity *activity_id* the actor received, as archived.
+
+    :func:`read_received_activity`, failing when nothing is archived.
+
+    Args:
+        client: DataLayerClient for the receiving actor's container.
+        activity_id: The sender's id for the activity.
+        actor_id: Whose store to read.  Defaults to *client*'s own actor.
+        what: What the activity is, for the failure message.
+
+    Raises:
+        AssertionError: If the actor holds no received activity *activity_id*.
+    """
+    activity = read_received_activity(client, activity_id, actor_id)
+    if activity is None:
+        raise not_received_error(client, activity_id, actor_id, what)
+    return activity
 
 
 def read_received_activities(
@@ -646,17 +714,6 @@ def read_received_activities(
     return [a for a in activities if a.get("type") == activity_type]
 
 
-def _received_activity_records(
-    client: DataLayerClient, actor_id: str | None
-) -> dict:
-    """The actor's ``ReceivedActivityRecord`` rows, keyed by record id."""
-    records = client.get(
-        client.dl_path(actor_id=actor_id),
-        params={"type": [RECEIVED_ACTIVITY_RECORD_TYPE]},
-    )
-    return records if isinstance(records, dict) else {}
-
-
 def verify_received_activity_stored(
     client: DataLayerClient, activity_id: str, actor_id: str | None = None
 ) -> dict:
@@ -664,8 +721,7 @@ def verify_received_activity_stored(
 
     The received-activity counterpart of :func:`verify_object_stored`: an
     activity delivered to an actor's inbox is held in its archive record,
-    never under the sender's id (DL-06-006), so it is read with
-    :func:`read_received_activity`.
+    never under the sender's id (DL-06-006).
 
     Args:
         client: DataLayerClient for the receiving actor's container.
@@ -678,12 +734,7 @@ def verify_received_activity_stored(
     Raises:
         AssertionError: If the actor holds no received activity *activity_id*.
     """
-    activity = read_received_activity(client, activity_id, actor_id)
-    if activity is None:
-        raise AssertionError(
-            f"{actor_id or client.actor_id!r} at {client.base_url} holds no"
-            f" received activity {activity_id!r}"
-        )
+    activity = require_received_activity(client, activity_id, actor_id)
     logger.info(
         "Received activity archived: %s",
         json.dumps(activity, indent=2, default=str),
@@ -697,8 +748,8 @@ def get_offer_from_datalayer(
     """Retrieve an Offer the vendor received, from its DataLayer store.
 
     The Offer is read from the vendor's archive record for it
-    (:func:`read_received_activity`), so the read does not depend on the row
-    inbox ingress keeps under the sender's id (DL-06-006).
+    (:func:`require_received_activity`), so the read does not depend on the
+    row inbox ingress keeps under the sender's id (DL-06-006).
 
     Args:
         client: DataLayerClient instance.
@@ -713,13 +764,11 @@ def get_offer_from_datalayer(
     Raises:
         AssertionError: If the vendor holds no received Offer *offer_id*.
     """
-    offer_data = read_received_activity(client, offer_id, actor_id=vendor_id)
-    if offer_data is None:
-        raise AssertionError(
-            f"{vendor_id!r} at {client.base_url} holds no received Offer"
-            f" {offer_id!r}"
+    raw = as_Offer.model_validate(
+        require_received_activity(
+            client, offer_id, actor_id=vendor_id, what="Offer"
         )
-    raw = as_Offer.model_validate(offer_data)
+    )
     logger.info("Retrieved Offer: %s", logfmt(raw))
     return raw
 

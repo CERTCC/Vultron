@@ -44,7 +44,9 @@ from vultron.demo.utils import (
     case_references_report,
     demo_check,
     logfmt,
+    not_received_error,
     read_received_activity,
+    read_stored_of_types,
     received_activity_in,
 )
 from vultron.enums.object_types import VultronObjectType
@@ -814,26 +816,24 @@ def _poll_datalayer_for(
         timeout_seconds,
         progress_ceiling if progress_fn is not None else timeout_seconds,
     )
-    params = {"type": list(object_types)}
     while not deadline.expired():
         try:
-            objects = client.get(client.dl_path(), params=params)
-            if isinstance(objects, dict):
-                for raw_id, obj_data in objects.items():
-                    if not isinstance(obj_data, dict):
-                        continue
-                    if discriminator_fn(obj_data):
-                        obj_id = (
-                            id_fn(str(raw_id), obj_data)
-                            if id_fn is not None
-                            else str(raw_id)
-                        )
-                        logger.info(log_msg, obj_id)
-                        return obj_id
-                # Read progress only after the match, so a reading that raises
-                # can never hide an object that has already arrived.
-                if progress_fn is not None:
-                    deadline.observe(progress_fn())
+            objects = read_stored_of_types(client, object_types)
+            for raw_id, obj_data in objects.items():
+                if not isinstance(obj_data, dict):
+                    continue
+                if discriminator_fn(obj_data):
+                    obj_id = (
+                        id_fn(str(raw_id), obj_data)
+                        if id_fn is not None
+                        else str(raw_id)
+                    )
+                    logger.info(log_msg, obj_id)
+                    return obj_id
+            # Read progress only after the match, so a reading that raises
+            # can never hide an object that has already arrived.
+            if progress_fn is not None:
+                deadline.observe(progress_fn())
         except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         time.sleep(poll_interval)
@@ -951,13 +951,9 @@ def _read_deferred_activity(
 ) -> dict | None:
     """The *deferred_type* activity *activity_id* the inbox holds for replay.
 
-    Read through the type-filtered store route (#4600); ``None`` when the
-    inbox holds no such activity.
+    ``None`` when the inbox holds no such activity.
     """
-    rows = client.get(client.dl_path(), params={"type": [deferred_type]})
-    if not isinstance(rows, dict):
-        return None
-    row = rows.get(activity_id)
+    row = read_stored_of_types(client, [deferred_type]).get(activity_id)
     return row if isinstance(row, dict) else None
 
 
@@ -981,9 +977,7 @@ def read_received_activity_for(
     if activity is None and deferred_type is not None:
         activity = _read_deferred_activity(client, activity_id, deferred_type)
     if activity is None:
-        raise AssertionError(
-            f"{client.base_url} holds no received activity {activity_id!r}"
-        )
+        raise not_received_error(client, activity_id)
     return activity
 
 

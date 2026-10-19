@@ -28,15 +28,17 @@ from vultron.adapters.driving.fastapi.deps import (
     get_hosted_actor_dls,
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
-from vultron.adapters.utils import id_lookup_candidates
-from vultron.core.models.activity import VultronActivity
+from vultron.adapters.utils import full_object_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
+from vultron.core.use_cases._helpers import read_received_activity
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -72,40 +74,29 @@ admin_router = APIRouter(prefix="/admin/datalayer", tags=["datalayer"])
 _OFFER_TYPE = "Offer"
 
 
-def _received_offer(
-    datalayer: DataLayer, offer_id: str
-) -> VultronActivity | None:
-    """The Offer *offer_id* this actor received, from its archive record.
-
-    Intake archives a received activity under a key the receiver derives from
-    the sender's id (CLP-10-017, ADR-0111), and a receiver holds no received
-    activity under the sender's id (DL-06-006), so the record is where a
-    received Offer is read.  *offer_id* may be a bare UUID, as the store's own
-    lookup allows.
-    """
-    for candidate in id_lookup_candidates(offer_id):
-        record = datalayer.read(ReceivedActivityRecord.build_id(candidate))
-        if (
-            isinstance(record, ReceivedActivityRecord)
-            and record.activity.type_ == _OFFER_TYPE
-        ):
-            return record.activity
-    return None
-
-
 def _read_offer(
     datalayer: DataLayer, offer_id: str
 ) -> PersistableModel | None:
     """The Offer *offer_id* as this actor holds it, or ``None``.
 
-    A received Offer is read from its archive record (:func:`_received_offer`).
-    Otherwise the row stored under *offer_id* is read: an Offer the actor
-    authored is stored under its own id.
+    Read as :func:`~vultron.core.use_cases._helpers.read_received_activity`
+    reads any activity a receiver holds: a received Offer from its archive
+    record, kept under a key the receiver derives from the sender's id
+    (CLP-10-017, ADR-0111), since a receiver holds no received activity under
+    the sender's id (DL-06-006); otherwise the row under *offer_id*, where an
+    Offer the actor authored is stored.  *offer_id* may be a bare UUID, as
+    the store's own lookup allows.  Whatever is held under the id must be an
+    Offer: a received Invite is not served as one.
     """
-    received = _received_offer(datalayer, offer_id)
-    if received is not None:
-        return received
-    return datalayer.read(offer_id)
+    try:
+        held = read_received_activity(
+            cast(CasePersistence, datalayer),
+            full_object_id(offer_id),
+            _OFFER_TYPE,
+        )
+    except VultronNotFoundError:
+        return None
+    return held if getattr(held, "type_", None) == _OFFER_TYPE else None
 
 
 def _received_offers(datalayer: DataLayer) -> dict[str, dict[str, Any]]:
@@ -120,13 +111,28 @@ def _received_offers(datalayer: DataLayer) -> dict[str, dict[str, Any]]:
     }
 
 
+def _concerns_actor(offer: as_Offer, actor_uri: str) -> bool:
+    """Whether *offer* is addressed to, or was sent by, *actor_uri*.
+
+    Ids are compared whole: a recipient whose id merely ends with the actor's
+    is a different actor.
+    """
+    recipients = offer.to if isinstance(offer.to, list) else [offer.to]
+    addressed = {getattr(r, "id_", r) for r in recipients if r is not None}
+    sender = getattr(offer.actor, "id_", offer.actor)
+    return actor_uri in addressed or sender == actor_uri
+
+
 # Declared ahead of ``/{object_type}/{object_id}``: routes match in
 # declaration order, and that pattern would otherwise answer every
-# ``/Offers/{offer_id}`` request without the addressee check.
+# ``/Offers/{offer_id}`` request, so this route was never reached.
 @router.get(
     "/Offers/{offer_id}",
     response_model=as_Offer,
-    description="Returns a specific object by actor id and offer id.",
+    description=(
+        "Returns an Offer the actor received or sent, by actor id and offer"
+        " id."
+    ),
     operation_id="datalayer_get_actor_offer",
 )
 def get_actor_offer(
@@ -141,14 +147,9 @@ def get_actor_offer(
         obj.model_dump(by_alias=True, serialize_as_any=True)
     )
 
-    # Verify that the offer was targeted to the given actor
-    found = False
-    for _id in offer.to or []:
-        if _id.endswith(actor_id):
-            found = True
-            break
-
-    if not found:
+    # ``actor_id`` is the raw path segment; compare the canonical URI the
+    # store was opened for (ADR-0073), as ``get_actor_outbox`` does.
+    if not _concerns_actor(offer, actor_hosts.canonical_actor_uri(actor_id)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     return AS2JSONResponse(offer)

@@ -38,16 +38,21 @@ _UUID_RE = re.compile(
 _URN_UUID_PREFIX = "urn:uuid:"
 
 
+def full_object_id(object_id: str) -> str:
+    """*object_id* as stored: a bare UUID in its ``urn:uuid:`` form."""
+    if _UUID_RE.match(object_id):
+        return f"{_URN_UUID_PREFIX}{object_id}"
+    return object_id
+
+
 def id_lookup_candidates(object_id: str) -> list[str]:
     """The ids a lookup of *object_id* tries, in order.
 
-    *object_id* itself, then — for a bare UUID — its ``urn:uuid:`` form, so a
-    caller may name an object by the UUID alone.
+    *object_id* itself, then — for a bare UUID — its ``urn:uuid:`` form
+    (:func:`full_object_id`), so a caller may name an object by the UUID alone.
     """
-    candidates = [object_id]
-    if _UUID_RE.match(object_id):
-        candidates.append(f"{_URN_UUID_PREFIX}{object_id}")
-    return candidates
+    full = full_object_id(object_id)
+    return [object_id] if full == object_id else [object_id, full]
 
 
 class ParsedObjectId(TypedDict):

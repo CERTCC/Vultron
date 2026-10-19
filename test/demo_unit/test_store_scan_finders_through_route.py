@@ -50,6 +50,7 @@ from vultron.demo.helpers.polling import (
 from vultron.demo.helpers.verification import verify_activity_in_inbox
 from vultron.demo.utils import (
     get_offer_from_datalayer,
+    read_received_activities,
     read_received_activity,
     verify_received_activity_stored,
 )
@@ -328,3 +329,27 @@ def test_find_case_for_offer_finds_nothing_from_a_row_under_the_senders_id():
         assert workflow.find_case_for_offer(client, offer.id_) is None
 
     by_report.assert_not_called()
+
+
+@WITH_AND_WITHOUT_INGRESS_ROW
+def test_read_received_activities_lists_one_type_from_the_records(ingress_row):
+    offer, invite = _report_offer(), _stub_invite()
+    dl = _receive(offer, ingress_row=ingress_row)
+    if ingress_row:
+        assert _store_inbox_activity(dl, invite)
+    archive_received(dl, invite)
+    client = _route_client(dl)
+
+    assert [a["id"] for a in read_received_activities(client, "Offer")] == [
+        offer.id_
+    ]
+    assert [a["id"] for a in read_received_activities(client, "Invite")] == [
+        invite.id_
+    ]
+    assert read_received_activities(client, "Accept") == []
+
+
+def test_read_received_activities_ignores_rows_under_the_senders_id():
+    client = _route_client(_ingress_only(_report_offer()))
+
+    assert read_received_activities(client, "Offer") == []

@@ -136,8 +136,11 @@ def test_get_offers_lists_received_and_authored_offers(
     assert set(data) == {OFFER_ID, offer.id_}
 
 
+@pytest.mark.parametrize(
+    "ingress_row", [True, False], ids=["with-ingress-row", "record-only"]
+)
 def test_a_received_activity_of_another_type_is_not_an_offer(
-    client_datalayer, datalayer, dl_route_key, dl_actor_id
+    client_datalayer, datalayer, dl_route_key, dl_actor_id, ingress_row
 ):
     invite = rm_invite_to_case_activity(
         as_Service(id_=dl_actor_id),
@@ -147,23 +150,56 @@ def test_a_received_activity_of_another_type_is_not_an_offer(
         actor=FINDER,
         id_=OFFER_ID,
     )
+    if ingress_row:
+        assert _store_inbox_activity(datalayer, invite)
     archive_received(datalayer, invite)
     prefix = f"/actors/{dl_route_key}/datalayer"
 
     assert client_datalayer.get(f"{prefix}/Offers/").json() == {}
-    assert (
-        client_datalayer.get(f"{prefix}/Offers/{OFFER_UUID}").status_code
-        == status.HTTP_404_NOT_FOUND
-    )
+    for path, params in [
+        (f"{prefix}/Offers/{OFFER_UUID}", {}),
+        (f"{prefix}/Offer/", {"object_id": OFFER_ID}),
+    ]:
+        response = client_datalayer.get(path, params=params)
+        assert response.status_code == status.HTTP_404_NOT_FOUND, path
 
 
+@pytest.mark.parametrize(
+    "addressee",
+    [
+        "https://x.example/actors/o",
+        # Ends with the route's segment but names another actor.
+        "http://localhost:7999/api/v2/actors/other-test-actor",
+    ],
+    ids=["another-actor", "suffix-collision"],
+)
 def test_an_offer_addressed_to_another_actor_is_not_found(
-    client_datalayer, datalayer, dl_route_key
+    client_datalayer, datalayer, dl_route_key, addressee
 ):
-    archive_received(datalayer, _received_offer("https://x.example/actors/o"))
+    archive_received(datalayer, _received_offer(addressee))
 
     response = client_datalayer.get(
         f"/actors/{dl_route_key}/datalayer/Offers/{OFFER_UUID}"
     )
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_an_offer_the_actor_sent_is_served_by_id(
+    client_datalayer, datalayer, dl_route_key, dl_actor_id
+):
+    """An authored Offer is stored under its own id and names its recipient."""
+    sent = rm_submit_report_activity(
+        as_VulnerabilityReport(id_=REPORT_ID, name="r", content="c"),
+        to="https://vendor.example/actors/vendor",
+        actor=dl_actor_id,
+        id_=OFFER_ID,
+    )
+    datalayer.create(sent)
+
+    response = client_datalayer.get(
+        f"/actors/{dl_route_key}/datalayer/Offers/{OFFER_UUID}"
+    )
+
+    assert response.status_code == status.HTTP_200_OK, response.text
+    assert response.json()["id"] == OFFER_ID

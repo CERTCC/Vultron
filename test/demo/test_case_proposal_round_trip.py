@@ -645,3 +645,26 @@ class TestCaseProposalDemo:
             "Expected CaseProposal demo to succeed, but got errors:\n"
             + caplog.text
         )
+
+    def test_a_failed_check_is_reported(self, demo_env, caplog, monkeypatch):
+        """A failed demo_check fails the run, not just its log line (#4884).
+
+        With no Accept(CaseProposal) received, the Accept check fails; the
+        run must report it in the error summary, which is what the success
+        test above asserts is absent.
+        """
+        import logging
+
+        from vultron.demo.exchange import case_proposal_demo as demo
+
+        monkeypatch.setattr(
+            demo, "read_received_activities", lambda *_a, **_kw: []
+        )
+        with caplog.at_level(logging.WARNING):
+            demo.main(
+                skip_health_check=True,
+                demos=[demo.demo_case_proposal_round_trip],
+            )
+
+        assert "ERROR SUMMARY" in caplog.text
+        assert "Accept(as_CaseProposal) exists" in caplog.text
