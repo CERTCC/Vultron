@@ -1198,8 +1198,8 @@ groups:
     verification: '`test/architecture/test_single_bt_execution_received_side.py` confirms
       that no received-side `execute()` method reaches `BTBridge.execute_with_setup()`
       more than once, directly or through use-case or core-services helpers,
-      enforcing that the guarded-commit subtree is composed into the single tree rather than invoked
-      separately.'
+      enforcing that the guarded-commit subtree is composed into the single tree
+      rather than invoked separately.'
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005
