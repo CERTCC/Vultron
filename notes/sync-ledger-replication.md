@@ -312,6 +312,11 @@ peer. Three properties are load-bearing; tests are in
 
 - **Rate limit, not suppression** (30 s at an unchanged position). A permanent
   block would strand a peer whose replayed entry was lost.
+- **The cooldown doubles per no-progress replay, capped at 600 s** (SYNC-15-013).
+  A fixed one stops the loop only when a round trip beats it, so a slow host
+  livelocks; `replays_at_position` resets on progress (#4882).
+- **The genesis case pre-seed follows the replay decision** (SYNC-15-014): an
+  unguarded pre-seed sends one case per Reject inside a suppressed window.
 - **Ask and record are separate.** Record only after at least one entry went
   out; recording a zero-entry decision suppresses the peer's next, genuinely
   stale Reject once the ledger grows.

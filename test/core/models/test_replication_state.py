@@ -38,6 +38,7 @@ _VALUES: dict[str, Any] = {
     "join_backfill_last_sent_index": 4,
     "last_replayed_from_hash": "def456",
     "last_replayed_at": _WHEN,
+    "replays_at_position": 3,
     "join_backfill_complete": False,
     "embargo_paused_from_index": 7,
 }
