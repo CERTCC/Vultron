@@ -17,8 +17,9 @@
 The default ``HttpDeliveryAdapter`` makes real HTTP POST requests with 3
 retries and exponential backoff (≈ 3.5 s per unreachable recipient), which
 once made the integration suite take 17+ minutes in CI.  The ``client``
-fixture in ``test/demo/conftest.py`` replaces both emitter resolution paths
-with a ``_TestClientRouter``, the sanctioned in-process transport (OX-12-003).
+fixture in ``test/demo/conftest.py`` replaces the default emitter, the only
+emitter path the routes reach, with a ``_TestClientRouter``, the sanctioned
+in-process transport (OX-12-003).
 
 This test checks that property directly: the router carries the demo's
 deliveries and the HTTP adapter never attempts one.  It used to assert an
@@ -51,15 +52,16 @@ def demo_env(client: TestClient):
 
 
 def test_demo_routes_every_delivery_through_the_test_router(
-    demo_env: None, caplog: pytest.LogCaptureFixture
+    demo_env: None, client: TestClient, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Every delivery in a demo workflow goes through the test router (#527).
 
     The ``demo_validate_report`` flow creates actors, submits a report, and
     validates it — exercising several inbox → outbox → delivery cycles.  If
-    either emitter path fell back to ``HttpDeliveryAdapter``, its retry loop
+    the default emitter fell back to ``HttpDeliveryAdapter``, its retry loop
     would run; a single attempt fails this test, where the old stopwatch
-    budget only noticed several.
+    budget only noticed several.  Every routed recipient must also be hosted
+    on the test server, since the router silently drops any other.
     """
     import logging
 
@@ -96,9 +98,20 @@ def test_demo_routes_every_delivery_through_the_test_router(
 
     assert http_attempts == [], (
         f"HttpDeliveryAdapter attempted delivery to {http_attempts}; the"
-        " conftest _TestClientRouter is not installed on every emitter path."
+        " conftest _TestClientRouter is not installed as the default emitter."
     )
     assert "ERROR SUMMARY" not in caplog.text, (
         f"Demo failed with errors:\n{caplog.text}"
     )
     assert routed, "The demo delivered nothing through the _TestClientRouter."
+    test_server = str(client.base_url).rstrip("/") + "/"
+    unhosted = [
+        recipient
+        for recipients in routed
+        for recipient in recipients
+        if not recipient.startswith(test_server)
+    ]
+    assert unhosted == [], (
+        f"The _TestClientRouter dropped deliveries to {unhosted}, which the"
+        f" test server at {test_server} does not host."
+    )
