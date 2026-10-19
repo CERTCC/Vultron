@@ -41,7 +41,6 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
     RecordedOfferAnswerInputMixin,
     RequireRecordedOfferAnswerNode,
-    recorded_offer_answer_key,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import (
     awaiting_stub_reply,
@@ -214,7 +213,7 @@ class AcceptedInviteeIsNotRemovedNode(
         self, answer_id: str, case_id: str, name: str | None = None
     ) -> None:
         super().__init__(case_id=case_id, name=name)
-        self._answer_key = recorded_offer_answer_key(answer_id)
+        self._read_answer_of(answer_id)
 
     def _suggested_actor(self) -> str:
         return self._recorded_answer().invitee_id
@@ -251,7 +250,7 @@ class SuggestedActorIsInvitableNode(
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
-        self._answer_key = recorded_offer_answer_key(answer_id)
+        self._read_answer_of(answer_id)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

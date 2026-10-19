@@ -33,6 +33,11 @@ import pytest
 from py_trees.common import Status
 
 from test.support.clock_decisions import clock_decision_node_ids
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
@@ -91,7 +96,6 @@ from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import BtNodePreconditionError
 
 _REC_ID = "https://example.org/recommendations/rec-1"
 _RECOMMENDER = "https://example.org/actors/recommender"
@@ -672,11 +676,27 @@ class TestAcceptActorRecommendationReceivedTree:
         EmitRejectActorRecommendationNode,
     ],
 )
-def test_an_answer_node_without_the_published_offer_raises(node_class):
-    """A tree that omits the lookup guard is a composition error, not a refusal."""
-    node = node_class(answer_id=_ANSWER_ID, case_id=_CASE_ID)
-    with pytest.raises(BtNodePreconditionError, match="must run first"):
-        node._recorded_answer()
+def test_an_answer_node_without_the_published_offer_is_an_internal_error(
+    node_class,
+):
+    """A tree that omits the lookup guard is a composition error, not a refusal.
+
+    The emit nodes catch what their build raises, so the check runs ahead of
+    the node's own work and the bridge reports an internal error (#2255).
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
+    try:
+        result = BTBridge(
+            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute_with_setup(
+            node_class(answer_id=_ANSWER_ID, case_id=_CASE_ID),
+            actor_id=_MANAGER,
+        )
+    finally:
+        dl.close()
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "must run first" in result.feedback_message
 
 
 @pytest.mark.spec("CM-11-019")

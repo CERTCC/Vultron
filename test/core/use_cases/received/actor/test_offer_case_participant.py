@@ -21,7 +21,7 @@ Covers:
 """
 
 import logging
-from typing import Any, cast
+from typing import Any, Literal, cast
 from unittest.mock import MagicMock
 
 import py_trees
@@ -37,6 +37,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
+    RequireRecordedOfferAnswerNode,
+    recorded_offer_answer_key,
+)
 from vultron.core.models.actor_recommendation_record import (
     ActorRecommendationRecord,
 )
@@ -1065,6 +1070,93 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             f"No outbox activity addressed to recommender '{RECOMMENDER_ID}'; "
             "recommender lookup must read the CASE_MANAGER's ActorRecommendationRecord"
         )
+
+
+# ---------------------------------------------------------------------------
+# The recorded-Offer lookup guard (#4863, CLP-10-005, CM-16-019)
+# ---------------------------------------------------------------------------
+
+
+def _answer_to_an_unrecorded_offer(verb: str) -> Any:
+    """An Accept or Reject of an Offer the CASE_MANAGER never recorded."""
+    build = (
+        accept_case_participant_offer_activity
+        if verb == "Accept"
+        else reject_case_participant_offer_activity
+    )
+    return build(
+        _build_offer_activity(offer_id=_NEVER_RECORDED_OFFER_ID),
+        target=_case_ref(CASE_ID),
+        actor=CASE_OWNER_ID,
+        to=[CASE_ACTOR_ID],
+    )
+
+
+_ANSWER_USE_CASES = {
+    "Accept": AcceptOfferCaseParticipantReceivedUseCase,
+    "Reject": RejectOfferCaseParticipantReceivedUseCase,
+}
+
+
+@pytest.mark.spec("CM-16-019")
+@pytest.mark.parametrize(
+    ("verb", "named"),
+    [
+        (
+            "Accept",
+            "an Offer(CaseParticipant) this CASE_MANAGER never recorded",
+        ),
+        ("Reject", "a recommendation this CASE_MANAGER never recorded"),
+    ],
+)
+def test_with_both_unrecorded_each_answer_reports_its_first_lookup(
+    verb: str, named: str
+) -> None:
+    """An Accept checks the Offer first and a Reject the recommendation first.
+
+    Each keeps the reason it gave before the lookup moved into the tree.
+    """
+    dl, _ = _seed_dl_for_case_actor()
+    _forget_recommendation(dl)
+    activity = _answer_to_an_unrecorded_offer(verb)
+    result = _ANSWER_USE_CASES[verb](
+        dl,
+        extract_event(activity),  # type: ignore[arg-type]
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert f"{verb}(Offer(CaseParticipant)) names {named}" in (
+        result.reason or ""
+    )
+    assert dl.list_objects("CaseLedgerEntry") == []
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.parametrize("verb", ["Accept", "Reject"])
+def test_the_lookup_fails_for_a_case_this_store_does_not_hold(
+    verb: Literal["Accept", "Reject"],
+) -> None:
+    """The guard resolves its case first (Regime 1) and publishes nothing."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_ACTOR_ID)
+    activity = _answer_to_an_unrecorded_offer(verb)
+    answer_id = f"{activity.id_}-no-case"
+    try:
+        result = BTBridge(datalayer=dl).execute_with_setup(
+            RequireRecordedOfferAnswerNode(
+                verb=verb, answer_id=answer_id, case_id=CASE_ID
+            ),
+            actor_id=CASE_ACTOR_ID,
+            activity=extract_event(activity),
+        )
+    finally:
+        dl.close()
+    assert result.status == py_trees.common.Status.FAILURE
+    assert result.internal_error is False
+    assert CASE_ID in result.feedback_message
+    key = f"/{recorded_offer_answer_key(answer_id)}"
+    assert key not in py_trees.blackboard.Blackboard.storage
 
 
 # ---------------------------------------------------------------------------

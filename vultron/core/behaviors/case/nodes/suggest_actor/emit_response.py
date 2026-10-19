@@ -30,7 +30,6 @@ from typing import ClassVar, NamedTuple, cast
 
 from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
     RecordedOfferAnswerInputMixin,
-    recorded_offer_answer_key,
 )
 from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
@@ -139,7 +138,7 @@ class _AnswerOnRecordNode(
         self, answer_id: str, case_id: str, name: str | None = None
     ) -> None:
         super().__init__(case_id=case_id, name=name)
-        self._answer_key = recorded_offer_answer_key(answer_id)
+        self._read_answer_of(answer_id)
 
     def _subject(self) -> RecommendationAnswerSubject:
         answer = self._recorded_answer()

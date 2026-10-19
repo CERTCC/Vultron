@@ -45,7 +45,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import serialize_roles
-from vultron.errors import BtNodePreconditionError, VultronError
+from vultron.errors import VultronError, VultronWiringError
 
 #: The Case Owner's two answers to an ``Offer(CaseParticipant)``.
 OfferAnswerVerb = Literal["Accept", "Reject"]
@@ -285,12 +285,14 @@ class RequireRecordedOfferAnswerNode(DataLayerActionWithPorts):
 class RecordedOfferAnswerInputMixin:
     """Read the :class:`RecordedOfferAnswer` the guard published.
 
-    A node that mixes this in sets ``self._answer_key`` (from
-    :func:`recorded_offer_answer_key`) before ``setup()`` and reads the
-    answer through :meth:`_recorded_answer`.  The port is optional so a
-    missing publisher surfaces as a raised
-    :class:`~vultron.errors.BtNodePreconditionError` naming it, never as a
-    port-wiring error at setup.
+    A node that mixes this in calls :meth:`_read_answer_of` with the
+    answer's id in its constructor and reads the answer through
+    :meth:`_recorded_answer`.  The port is optional so a missing publisher
+    is reported by :meth:`update`, never as a port-wiring error at setup:
+    with nothing published under the node's key it raises
+    :class:`~vultron.errors.VultronWiringError` before the node does
+    anything, and the bridge reports that as an internal error, never a
+    refusal (#2255).
     """
 
     # Annotation only: binding a value here would make every class that mixes
@@ -312,6 +314,10 @@ class RecordedOfferAnswerInputMixin:
         }
         super().__init_subclass__(**kwargs)
 
+    def _read_answer_of(self, answer_id: str) -> None:
+        """Read the recorded Offer published for the answer *answer_id*."""
+        self._answer_key = recorded_offer_answer_key(answer_id)
+
     def _instance_port_remappings(self) -> dict[str, str]:
         remappings = dict(super()._instance_port_remappings())  # type: ignore[misc]
         remappings["recorded_offer_answer"] = f"/{self._answer_key}"
@@ -324,17 +330,28 @@ class RecordedOfferAnswerInputMixin:
             value if isinstance(value, RecordedOfferAnswer) else None
         )
 
+    def update(self) -> Status:
+        """Refuse to run without the published answer, then run the node.
+
+        Checked here, ahead of the node's own ``update()``, because an emit
+        node catches what its build raises and would report the composition
+        error as an ordinary FAILURE (#2255).
+        """
+        self._recorded_answer()
+        status: Status = super().update()  # type: ignore[misc]
+        return status
+
     def _recorded_answer(self) -> RecordedOfferAnswer:
         """The published answer.
 
         Raises:
-            BtNodePreconditionError: no answer is published under this
-                node's key, so :class:`RequireRecordedOfferAnswerNode` did not
-                run first — a tree composition error.
+            VultronWiringError: no answer is published under this node's
+                key, so :class:`RequireRecordedOfferAnswerNode` did not run
+                first — a tree composition error.
         """
         answer = self._recorded
         if answer is None:
-            raise BtNodePreconditionError(
+            raise VultronWiringError(
                 f"{getattr(self, 'name', type(self).__name__)}: no recorded"
                 f" Offer answer at '/{self._answer_key}';"
                 " RequireRecordedOfferAnswerNode must run first"

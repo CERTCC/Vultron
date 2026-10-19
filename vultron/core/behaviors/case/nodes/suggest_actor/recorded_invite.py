@@ -34,7 +34,6 @@ from vultron.core.behaviors.case.nodes.invite_inert_participant import (
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
     RecordedOfferAnswerInputMixin,
-    recorded_offer_answer_key,
 )
 from vultron.enums.roles import CVDRole
 
@@ -53,7 +52,7 @@ class EmitRecordedInviteNode(
         self, answer_id: str, case_id: str, name: str | None = None
     ) -> None:
         super().__init__(case_id=case_id, name=name)
-        self._answer_key = recorded_offer_answer_key(answer_id)
+        self._read_answer_of(answer_id)
 
     def _invitee(self) -> str:
         return self._recorded_answer().invitee_id
@@ -78,7 +77,7 @@ class SeatRecordedInviteeNode(
         self, answer_id: str, case_id: str, name: str | None = None
     ) -> None:
         super().__init__(case_id=case_id, name=name)
-        self._answer_key = recorded_offer_answer_key(answer_id)
+        self._read_answer_of(answer_id)
 
     def _invitee(self) -> str:
         return self._recorded_answer().invitee_id
