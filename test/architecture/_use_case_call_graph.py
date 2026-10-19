@@ -22,22 +22,30 @@ a BT node (BT-22-005), so moving a helper there hides neither its writes nor
 its tree runs — and follow a call from an ``execute()`` body to the function
 or method it names, until the search leaves the indexed packages.  Followed:
 a module-level helper; a name imported absolutely, relatively, or through a
-package ``__init__`` re-export; a nested function ``execute()`` defines and
-calls; and a ``self._method()``, looked up on the concrete class first, then
-its indexed bases, so a subclass override is the one walked and an inherited
-``execute()`` is walked once per class that inherits it.  The test modules own
-the rules and their exact sets; this module owns the walk.  No ``ast.parse``
-or ``rglob`` here (TB-13-003): trees come from ``_corpus`` or from the test's
-``parse_inline`` calls.
+package ``__init__`` re-export (top-level or deferred into a function body);
+a function of a module imported whole (``import m as h; h.f()``) or bound by
+``from pkg import submodule``; a nested function ``execute()`` defines and
+calls; a ``self._method()``, looked up in ``self``'s concrete class's C3
+method resolution order over its indexed bases, so a subclass override is the
+one walked and an inherited ``execute()`` is walked once per class that
+inherits it; and a ``super()._method()``, looked up in the same order after
+the class that makes the call.  The test modules own the rules and their exact
+sets; this module owns the walk.  No ``ast.parse`` or ``rglob`` here
+(TB-13-003): trees come from ``_corpus`` or from the test's ``parse_inline``
+calls.
 
-Not resolved, by design: a call on an instance built inline
-(``Helper().store(...)``) — which is also how a BT node's ``update()`` stays
-out of the walk — a base class outside the indexed packages, a lambda or
-nested function passed to a helper, and a write whose receiver is not spelled
-``dl``/``_dl``/``datalayer``/``_datalayer`` (a helper parameter named
-``persistence``, say — ``_is_dl_mutation_call`` matches the receiver by name,
-so the write is invisible whatever the parameter's type).  None occurs in the
-use-case package today.
+Every call shape not listed above is not followed.  In particular, not
+resolved: a call on an instance built inline (``Helper().store(...)``) —
+which is also how a BT node's ``update()`` stays out of the walk — or held on
+an attribute (``self._h.store(...)``); a ``ClassName.method()`` call; a call
+through a local alias (``_d = door; _d()``) or a lambda; a nested function
+called by another nested function or passed to a helper; a helper that takes
+``self`` and calls a method on it; a base class outside the indexed packages;
+and a write whose receiver is not spelled ``dl``/``_dl``/``datalayer``/
+``_datalayer`` (a helper parameter named ``persistence``, say —
+``_is_dl_mutation_call`` matches the receiver by name, so the write is
+invisible whatever the parameter's type).  None of these shapes reaches a
+tree run or a DataLayer write from a use case today.
 """
 
 import ast
@@ -166,10 +174,13 @@ _Step = tuple[str, _SelfType | None, _FunctionDef, tuple[object, ...]]
 class _ModuleIndex:
     """What one use-case module defines and imports, by name."""
 
-    def __init__(self, module: str, tree: ast.AST) -> None:
+    def __init__(
+        self, module: str, tree: ast.AST, *, is_package: bool = False
+    ) -> None:
+        self._is_package = is_package
         self.functions: dict[str, _FunctionDef] = {}
         self.methods: dict[str, dict[str, _FunctionDef]] = {}
-        #: class name → its base-class expressions, in MRO order.
+        #: class name → its base-class expressions, in declaration order.
         self.bases: dict[str, list[ast.expr]] = {}
         #: local name → (defining module, name there) for ``from m import n``.
         self.imported_names: dict[str, tuple[str, str]] = {}
@@ -179,12 +190,16 @@ class _ModuleIndex:
             return
         for node in tree.body:
             self._index_top_level(module, node)
-        # ``from x import y`` inside a function body (deferred import) binds a
-        # name the same way; index those too so a lazily imported helper is
-        # still followed.
+        # An import inside a function body (deferred import) binds a name the
+        # same way; index those too so a lazily imported helper is still
+        # followed.
         for nested in ast.walk(tree):
-            if isinstance(nested, ast.ImportFrom) and nested not in tree.body:
+            if nested in tree.body:
+                continue
+            if isinstance(nested, ast.ImportFrom):
                 self._index_import_from(module, nested)
+            elif isinstance(nested, ast.Import):
+                self._index_import(nested)
 
     def _index_top_level(self, module: str, node: ast.stmt) -> None:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -199,11 +214,14 @@ class _ModuleIndex:
         elif isinstance(node, ast.ImportFrom):
             self._index_import_from(module, node)
         elif isinstance(node, ast.Import):
-            for alias in node.names:
-                self.imported_modules[alias.asname or alias.name] = alias.name
+            self._index_import(node)
+
+    def _index_import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            self.imported_modules[alias.asname or alias.name] = alias.name
 
     def _index_import_from(self, module: str, node: ast.ImportFrom) -> None:
-        target = _absolute_module(module, node)
+        target = _absolute_module(module, node, is_package=self._is_package)
         if target is None:
             return
         for alias in node.names:
@@ -213,14 +231,18 @@ class _ModuleIndex:
             )
 
 
-def _absolute_module(module: str, node: ast.ImportFrom) -> str | None:
+def _absolute_module(
+    module: str, node: ast.ImportFrom, *, is_package: bool
+) -> str | None:
     """Resolve the module a ``from … import`` statement names, absolutely."""
     if node.level == 0:
         return node.module
-    # Relative import: ``module`` is the importing module's dotted name; a
-    # package's ``__init__`` is indexed under the package name itself, so one
-    # level up from ``pkg.mod`` is ``pkg``.
-    base = module.rsplit(".", node.level)[0]
+    # Relative import: ``module`` is the importing module's dotted name.  One
+    # level up from module ``pkg.mod`` is ``pkg``; a package ``__init__`` is
+    # indexed under the package name itself, so its one level up is the
+    # package (``from .doors`` in ``pkg/__init__.py`` names ``pkg.doors``).
+    levels = node.level - 1 if is_package else node.level
+    base = module.rsplit(".", levels)[0] if levels else module
     if node.module:
         return f"{base}.{node.module}"
     return base
@@ -253,7 +275,9 @@ class _UseCaseCorpus:
         self._paths: dict[str, Path] = {}
         for path, tree in trees.items():
             name = self._module_name(path)
-            self._modules[name] = _ModuleIndex(name, tree)
+            self._modules[name] = _ModuleIndex(
+                name, tree, is_package=path.name == "__init__.py"
+            )
             self._paths[name] = path
 
     def _module_name(self, path: Path) -> str:
@@ -292,7 +316,8 @@ class _UseCaseCorpus:
         from an indexed base.  Calls are summed along every path through the
         indexed packages, so a helper called twice counts twice and two
         calls on alternative branches count as two (CLP-10-005).  A cycle is
-        not followed a second time.  With ``transitive=False`` only the calls
+        not followed a second time: a definition already on the current path,
+        itself included, is not entered again.  With ``transitive=False`` only the calls
         written in ``execute()``'s own body count.
         """
         return {
@@ -314,13 +339,12 @@ class _UseCaseCorpus:
         self, step: _Step, stack: tuple[object, ...], *, transitive: bool
     ) -> int:
         total = 0
+        path = (*stack, step[3])
         for call, callee in self._calls(step):
             if _is_execute_with_setup_call(call):
                 total += 1
-            elif transitive and callee is not None and callee[3] not in stack:
-                total += self._count_tree_runs(
-                    callee, (*stack, step[3]), transitive=True
-                )
+            elif transitive and callee is not None and callee[3] not in path:
+                total += self._count_tree_runs(callee, path, transitive=True)
         return total
 
     def _reaches_mutation(self, step: _Step, seen: set[object]) -> bool:
@@ -358,6 +382,8 @@ class _UseCaseCorpus:
                         (*key, target.id),
                     ),
                 )
+            elif isinstance(target, ast.Attribute) and _is_super_call(target):
+                yield node, self._resolve_super(step, target.attr)
             else:
                 yield node, self._resolve(module, self_type, target)
 
@@ -412,6 +438,30 @@ class _UseCaseCorpus:
         found = self._lookup_method(self_type, attr)
         if found is None:
             return None
+        return self._method_step(self_type, attr, found)
+
+    def _resolve_super(self, step: _Step, attr: str) -> _Step | None:
+        """``super().attr(...)``: the MRO entry after the calling class."""
+        _, self_type, _, key = step
+        if self_type is None:
+            return None
+        # A method step's key starts with its defining (module, class).
+        def_module, def_cls = key[0], key[1]
+        if not (isinstance(def_module, str) and isinstance(def_cls, str)):
+            return None
+        caller = (def_module, def_cls)
+        mro = self._mro(self_type)
+        if caller not in mro:
+            return None
+        found = self._lookup_method_in(mro[mro.index(caller) + 1 :], attr)
+        if found is None:
+            return None
+        return self._method_step(self_type, attr, found)
+
+    @staticmethod
+    def _method_step(
+        self_type: _SelfType, attr: str, found: tuple[str, str, _FunctionDef]
+    ) -> _Step:
         def_module, def_cls, target = found
         return (
             def_module,
@@ -443,29 +493,39 @@ class _UseCaseCorpus:
         self, self_type: _SelfType, name: str
     ) -> tuple[str, str, _FunctionDef] | None:
         """Find method *name* on *self_type*, then its indexed bases (MRO order)."""
-        for module, cls in self._mro(self_type):
+        return self._lookup_method_in(self._mro(self_type), name)
+
+    def _lookup_method_in(
+        self, classes: list[_SelfType], name: str
+    ) -> tuple[str, str, _FunctionDef] | None:
+        for module, cls in classes:
             func = self._modules[module].methods[cls].get(name)
             if func is not None:
                 return module, cls, func
         return None
 
-    def _mro(self, self_type: _SelfType) -> list[_SelfType]:
-        """*self_type* and its indexed bases, depth-first, each once."""
-        order: list[_SelfType] = []
-        pending = [self_type]
-        while pending:
-            current = pending.pop(0)
-            if current in order:
-                continue
-            order.append(current)
-            module, cls = current
-            bases = [
-                base
-                for expr in self._modules[module].bases.get(cls, [])
-                if (base := self._resolve_class(module, expr)) is not None
-            ]
-            pending = bases + pending
-        return order
+    def _mro(
+        self, self_type: _SelfType, _active: frozenset[_SelfType] = frozenset()
+    ) -> list[_SelfType]:
+        """*self_type* and its indexed bases in C3 order, as Python computes.
+
+        A base outside the indexed packages is left out; it defines nothing
+        the walk could follow.  A class that names itself as its own
+        ancestor contributes nothing further.
+        """
+        if self_type in _active:
+            return []
+        active = _active | {self_type}
+        module, cls = self_type
+        bases = [
+            base
+            for expr in self._modules[module].bases.get(cls, [])
+            if (base := self._resolve_class(module, expr)) is not None
+        ]
+        return [
+            self_type,
+            *_c3_merge([*(self._mro(b, active) for b in bases), bases]),
+        ]
 
     def _resolve_class(self, module: str, expr: ast.expr) -> _SelfType | None:
         """The indexed class a base-class expression names, or ``None``."""
@@ -478,14 +538,22 @@ class _UseCaseCorpus:
             if expr.id in index.imported_names:
                 return self._class_in_package(*index.imported_names[expr.id])
             return None
-        if (
+        if not (
             isinstance(expr, ast.Attribute)
             and isinstance(expr.value, ast.Name)
-            and expr.value.id in index.imported_modules
         ):
+            return None
+        owner = expr.value.id
+        if owner in index.imported_modules:
             return self._class_in_package(
-                index.imported_modules[expr.value.id], expr.attr
+                index.imported_modules[owner], expr.attr
             )
+        if owner in index.imported_names:
+            # ``from pkg import _frame; class UC(_frame.Frame)``: the name
+            # binds a *module* when ``pkg._frame`` is one we index.
+            submodule = ".".join(index.imported_names[owner])
+            if submodule in self._modules:
+                return self._class_in_package(submodule, expr.attr)
         return None
 
     def _class_in_package(self, module: str, name: str) -> _SelfType | None:
@@ -498,6 +566,43 @@ class _UseCaseCorpus:
         if name in index.imported_names:
             return self._class_in_package(*index.imported_names[name])
         return None
+
+
+def _is_super_call(func: ast.Attribute) -> bool:
+    """True for ``super().attr`` (with or without ``super``'s arguments)."""
+    return (
+        isinstance(func.value, ast.Call)
+        and isinstance(func.value.func, ast.Name)
+        and func.value.func.id == "super"
+    )
+
+
+def _c3_merge(sequences: list[list[_SelfType]]) -> list[_SelfType]:
+    """Merge base linearizations by C3 (the order Python's MRO uses).
+
+    Raises ``ValueError`` when no consistent order exists — Python refuses
+    to create such a class, so the source could not import.
+    """
+    pending = [list(seq) for seq in sequences if seq]
+    merged: list[_SelfType] = []
+    while pending:
+        head = next(
+            (
+                seq[0]
+                for seq in pending
+                if not any(seq[0] in other[1:] for other in pending)
+            ),
+            None,
+        )
+        if head is None:
+            raise ValueError(
+                f"no consistent method resolution order: {pending}"
+            )
+        merged.append(head)
+        pending = [
+            rest for seq in pending if (rest := [c for c in seq if c != head])
+        ]
+    return merged
 
 
 def build_use_case_corpus() -> _UseCaseCorpus:

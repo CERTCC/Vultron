@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Architecture invariants: one BT execution per inbox delivery (CLP-10-005).
 
-Four tests enforce the single-BT-execution contract for the ``execute()``
+Five tests enforce the single-BT-execution contract for the ``execute()``
 methods under ``vultron/core/use_cases/``.
 
 **Proxy ratchet** (``test_received_use_cases_do_not_dispatch_guarded_commit_directly``)
@@ -46,6 +46,11 @@ methods under ``vultron/core/use_cases/``.
   keeps the hard invariant from passing vacuously if the count stops seeing
   calls at all.
 
+**Coverage** (``test_every_routed_received_use_case_is_counted``)
+  Every class ``use_case_map()`` routes to appears in the count, so a use case
+  whose inherited ``execute()`` the walk failed to resolve cannot drop out of
+  both bounds unseen.
+
 **Trigger side** (``test_no_trigger_execute_body_calls_execute_with_setup_twice``)
   Trigger-side ``execute()`` bodies are governed by BT-15-001, which lets a
   trigger run ``send_case_actor_activity`` beside its own tree, so helpers are
@@ -73,6 +78,7 @@ from test.architecture._use_case_call_graph import (
     _UseCaseCorpus,
     build_use_case_corpus,
 )
+from vultron.semantic_registry import use_case_map
 
 _GUARDED_COMMIT_FACTORY = "create_guarded_commit_case_ledger_entry_tree"
 
@@ -196,6 +202,21 @@ RUNS_NO_TREE: frozenset[str] = frozenset(
 )
 
 
+def test_every_routed_received_use_case_is_counted() -> None:
+    """Every class ``use_case_map()`` routes to appears in the count.
+
+    A received use case the walk failed to resolve (an inherited
+    ``execute()`` behind a base spelled some way the walk does not follow)
+    would drop out of both bounds silently; this pins that it cannot.
+    """
+    counted = _received_tree_runs(build_use_case_corpus(), RECEIVED_ROOT)
+    routed = {
+        f"{uc.__module__}.{uc.__qualname__}" for uc in use_case_map().values()
+    }
+    assert routed, "use_case_map() routed nothing"
+    assert not routed - counted.keys(), sorted(routed - counted.keys())
+
+
 @pytest.mark.spec("CLP-10-005")
 def test_every_received_execute_runs_a_tree() -> None:
     """Every received execute() outside ``RUNS_NO_TREE`` reaches a tree run."""
@@ -311,13 +332,16 @@ def _synthetic_runs(
             id="alternative-branches",
         ),
         pytest.param(
+            # The helper's own run counts once; its call to itself is a
+            # cycle and is not entered again.
             "def _helper(b):\n"
+            "    b.execute_with_setup(tree=d)\n"
             "    return _helper(b)\n"
             "class UC:\n"
             "    def execute(self):\n"
             "        _helper(self._b)\n"
             "        return self._b.execute_with_setup(tree=t)\n",
-            1,
+            2,
             id="recursive-helper",
         ),
         pytest.param(
@@ -382,18 +406,68 @@ def test_the_count_follows_a_services_helper_through_a_reexport() -> None:
     assert runs == {"UC": 2}
 
 
-def test_the_count_follows_a_relative_import() -> None:
+def test_the_count_follows_a_relative_reexport_in_a_package_init() -> None:
+    """``from .doors import door`` in ``services/__init__.py`` names
+    ``services.doors``, not a sibling of ``services``."""
     runs = _synthetic_runs(
-        "from ._helpers import door\n"
+        "from vultron.core.services import door\n"
         "class UC:\n"
         "    def execute(self):\n"
         "        door(self._b)\n"
         "        return self._b.execute_with_setup(tree=t)\n",
         {
-            "use_cases/received/_helpers.py": (
+            "services/__init__.py": "from .doors import door\n",
+            "services/doors.py": (
                 "def door(b):\n    return b.execute_with_setup(tree=d)\n"
             ),
         },
+    )
+    assert runs == {"UC": 2}
+
+
+_HELPERS = {
+    "use_cases/received/_helpers.py": (
+        "def door(b):\n    return b.execute_with_setup(tree=d)\n"
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    ("imports", "call"),
+    [
+        pytest.param("from ._helpers import door\n", "door", id="relative"),
+        pytest.param(
+            "import vultron.core.use_cases.received._helpers as h\n",
+            "h.door",
+            id="module-import",
+        ),
+        pytest.param(
+            "from vultron.core.use_cases.received import _helpers\n",
+            "_helpers.door",
+            id="submodule-from-import",
+        ),
+    ],
+)
+def test_the_count_follows_an_imported_helper(imports: str, call: str) -> None:
+    runs = _synthetic_runs(
+        f"{imports}"
+        "class UC:\n"
+        "    def execute(self):\n"
+        f"        {call}(self._b)\n"
+        "        return self._b.execute_with_setup(tree=t)\n",
+        _HELPERS,
+    )
+    assert runs == {"UC": 2}
+
+
+def test_the_count_follows_a_deferred_module_import() -> None:
+    runs = _synthetic_runs(
+        "class UC:\n"
+        "    def execute(self):\n"
+        "        import vultron.core.use_cases.received._helpers as h\n"
+        "        h.door(self._b)\n"
+        "        return self._b.execute_with_setup(tree=t)\n",
+        _HELPERS,
     )
     assert runs == {"UC": 2}
 
@@ -424,12 +498,69 @@ def test_an_inherited_execute_counts_the_subclass_override() -> None:
     assert runs == {"Plain": 1, "Sneaky": 2}
 
 
-def test_a_generic_base_is_resolved() -> None:
+@pytest.mark.parametrize(
+    ("imports", "base"),
+    [
+        pytest.param(
+            "from ._frame import Frame\n", "Frame[int]", id="generic"
+        ),
+        pytest.param(
+            "import vultron.core.use_cases.received._frame as f\n",
+            "f.Frame",
+            id="module-import",
+        ),
+        pytest.param(
+            "from vultron.core.use_cases.received import _frame\n",
+            "_frame.Frame",
+            id="submodule-from-import",
+        ),
+        pytest.param(
+            "from vultron.core.use_cases.received import Frame\n",
+            "Frame",
+            id="package-reexport",
+        ),
+    ],
+)
+def test_an_indexed_base_is_resolved(imports: str, base: str) -> None:
+    """However the base is spelled, the subclass is counted, not dropped."""
     runs = _synthetic_runs(
-        "from ._frame import Frame\nclass UC(Frame[int]):\n    pass\n",
-        _FRAME,
+        f"{imports}class UC({base}):\n    pass\n",
+        {
+            **_FRAME,
+            "use_cases/received/__init__.py": "from ._frame import Frame\n",
+        },
     )
     assert runs == {"UC": 1}
+
+
+def test_super_calls_the_next_class_in_the_mro() -> None:
+    runs = _synthetic_runs(
+        "from ._frame import Frame\n"
+        "class UC(Frame):\n"
+        "    def execute(self):\n"
+        "        super().execute()\n"
+        "        return self._b.execute_with_setup(tree=t)\n",
+        _FRAME,
+    )
+    assert runs == {"UC": 2}
+
+
+def test_self_dispatch_follows_the_c3_order() -> None:
+    """In ``UC(B, C)`` with ``B(Base)`` and ``C(Base)``, Python looks in
+    ``C`` before ``Base``; a depth-first walk would look in ``Base``."""
+    runs = _synthetic_runs(
+        "from ._frame import Frame\n"
+        "class B(Frame):\n"
+        "    pass\n"
+        "class C(Frame):\n"
+        "    def _build_tree(self):\n"
+        "        self._b.execute_with_setup(tree=refusal)\n"
+        "        return t\n"
+        "class UC(B, C):\n"
+        "    pass\n",
+        _FRAME,
+    )
+    assert runs == {"B": 1, "C": 2, "UC": 2}
 
 
 def test_the_count_stops_at_the_package_boundary() -> None:
