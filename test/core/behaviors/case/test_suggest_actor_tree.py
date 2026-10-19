@@ -57,10 +57,12 @@ from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteNotToClosedParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
+    AcceptedInviteeIsNotRemovedNode,
     EmitAcceptRecordedRecommendationNode,
     EmitRecordedInviteNode,
     RecordedOfferAnswer,
     RequireRecordedOfferAnswerNode,
+    SeatRecordedInviteeNode,
     SuggestedActorIsInvitableNode,
 )
 from vultron.core.behaviors.case.suggest_actor_tree import (
@@ -671,9 +673,12 @@ class TestAcceptActorRecommendationReceivedTree:
 @pytest.mark.parametrize(
     "node_class",
     [
+        AcceptedInviteeIsNotRemovedNode,
         EmitAcceptRecordedRecommendationNode,
         EmitRecordedInviteNode,
         EmitRejectActorRecommendationNode,
+        SeatRecordedInviteeNode,
+        SuggestedActorIsInvitableNode,
     ],
 )
 def test_an_answer_node_without_the_published_offer_is_an_internal_error(
@@ -681,8 +686,10 @@ def test_an_answer_node_without_the_published_offer_is_an_internal_error(
 ):
     """A tree that omits the lookup guard is a composition error, not a refusal.
 
-    The emit nodes catch what their build raises, so the check runs ahead of
-    the node's own work and the bridge reports an internal error (#2255).
+    Every node that reads the published answer checks for it before its own
+    work, so the bridge reports an internal error (#2255).  The store holds
+    no case, so a node that ran its case read first would report an ordinary
+    refusal instead and fail this test.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
     try:

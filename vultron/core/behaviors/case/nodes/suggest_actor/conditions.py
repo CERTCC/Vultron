@@ -253,13 +253,16 @@ class SuggestedActorIsInvitableNode(
         self._read_answer_of(answer_id)
 
     def update(self) -> Status:
+        # This node replaces the mixin's update(), so it reads the published
+        # answer first itself: a tree built without the lookup guard is a
+        # wiring error, never a refusal, even when the case is missing.
+        invitee_id = self._recorded_answer().invitee_id
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: the CASE_MANAGER holds its case
-        invitee_id = self._recorded_answer().invitee_id
         record = invitee_record(self.datalayer, case, invitee_id)
         if record is None or awaiting_stub_reply(record):
             return Status.SUCCESS

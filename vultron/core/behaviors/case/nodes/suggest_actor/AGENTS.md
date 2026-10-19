@@ -21,6 +21,10 @@ guard, `RequireRecordedOfferAnswerNode`, looks up the recorded
   CLP-10-018, HP-01-005; #4863).
 - **A new answer-path node mixes in `RecordedOfferAnswerInputMixin`.** Taking
   the ids at construction needs them before the tree runs.
+- **An override of `update()` reads the answer first.** The mixin's
+  `update()` checks for the published answer before the node runs, so a tree
+  without the lookup guard is an internal error, not a refusal. A node that
+  replaces `update()` without `super()` must call `_recorded_answer()` first.
 - **Roles come from the recorded Offer, never the Accept** (CM-16-019). An
   Offer that carries none seats no participant (CM-11-019).
 
