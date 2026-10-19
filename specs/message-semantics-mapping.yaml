@@ -418,10 +418,11 @@ groups:
       two wire forms. Each form dispatches to its own entry, which declares the
       message as one of its occasions (MSM-08-001, #4569).
     verification: >-
-      `test/test_semantic_registry_occasions.py` asserts that each occasion
-      carrying `CP` dispatches only to its own entry and that its example
-      carries its `pxaState` value, directly in the `CaseStatus` or within the
-      `ParticipantStatus.caseStatus`.
+      `test/test_message_semantics_mapping.py` asserts that `CP` rides both
+      the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
+      embedded `caseStatus`. `test/test_semantic_registry_occasions.py` asserts
+      that each occasion carrying `CP` dispatches only to its own entry and
+      that its example carries its `pxaState` value.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002
@@ -448,10 +449,11 @@ groups:
       two wire forms. Each form dispatches to its own entry, which declares the
       message as one of its occasions (MSM-08-001, #4569).
     verification: >-
-      `test/test_semantic_registry_occasions.py` asserts that each occasion
-      carrying `CX` dispatches only to its own entry and that its example
-      carries its `pxaState` value, directly in the `CaseStatus` or within the
-      `ParticipantStatus.caseStatus`.
+      `test/test_message_semantics_mapping.py` asserts that `CX` rides both
+      the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
+      embedded `caseStatus`. `test/test_semantic_registry_occasions.py` asserts
+      that each occasion carrying `CX` dispatches only to its own entry and
+      that its example carries its `pxaState` value.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002
@@ -478,10 +480,11 @@ groups:
       two wire forms. Each form dispatches to its own entry, which declares the
       message as one of its occasions (MSM-08-001, #4569).
     verification: >-
-      `test/test_semantic_registry_occasions.py` asserts that each occasion
-      carrying `CA` dispatches only to its own entry and that its example
-      carries its `pxaState` value, directly in the `CaseStatus` or within the
-      `ParticipantStatus.caseStatus`.
+      `test/test_message_semantics_mapping.py` asserts that `CA` rides both
+      the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
+      embedded `caseStatus`. `test/test_semantic_registry_occasions.py` asserts
+      that each occasion carrying `CA` dispatches only to its own entry and
+      that its example carries its `pxaState` value.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-002

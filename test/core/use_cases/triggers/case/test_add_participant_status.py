@@ -373,6 +373,9 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         )
         from vultron.semantic_registry import SEMANTIC_REGISTRY
         from vultron.semantic_registry._occasion import FieldValue
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_TransitiveActivity,
+        )
 
         occasion = next(
             o
@@ -395,7 +398,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         ).execute()
         (activity_id,) = set(self.dl.outbox_list()) - before
         activity = self.dl.read(activity_id)
-        assert activity is not None
+        assert isinstance(activity, as_TransitiveActivity)
         status = activity.object_
         if isinstance(status, str):
             status = self.dl.read(status)
