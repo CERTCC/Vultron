@@ -90,7 +90,7 @@ The Coordinator reviews the report and accepts it.  `validate_report` then
 
 ### 3. Participant status records are created
 
-The Case Actor records `add_participant_status_to_participant` for each initial participant.
+Each record seated at case creation is ledgered as a `create_case_participant` entry, and each later status the Case Actor writes, the engagement included, as an `add_participant_status_to_participant` entry.
 The Finder is one of them: as the reporter, it joins the case as a signatory when the case is created, so the Coordinator never invites it.
 
 *Antecedent:* `engage_case` is in the ledger.

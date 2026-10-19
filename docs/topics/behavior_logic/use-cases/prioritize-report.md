@@ -24,14 +24,15 @@ Engaging moves the Participant to `RM.ACCEPTED`; deferring moves it to `RM.DEFER
 Neither is terminal: a deferred case can be engaged later when circumstances change, which is the whole reason `RM.DEFERRED` exists as a state rather than as a synonym for closed.
 
 A Participant also runs this behavior **about another actor**, when an inbound `Join(VulnerabilityCase)` — the Report/Case Accepted (RA) message — or `Ignore(VulnerabilityCase)` — Report/Case Deferred (RD) — tells it that a peer engaged or deferred.
-There the actor updates its record of the sender's RM state; its own state does not move (RMB-05-001, RMB-04-001).
+There the case manager records the sender's RM state, and every other replica copies that record from the case ledger; the receiver's own state does not move (RMB-05-001, RMB-04-001, [RSH-08-003](../../../reference/specs/project.md#rsh-08-003)).
 
 ---
 
 ## The mechanical path
 
 On the deciding side, the mechanics are thin.
-The actor transitions its own RM state and sends the corresponding message to the case manager.
+The actor checks that its RM state may make the move and sends the corresponding message to the case manager.
+It does not write the move into its own replica: the case manager records it, and the actor's replica copies that record from the ledger like every other replica ([RSH-08-006](../../../reference/specs/protocol.md#rsh-08-006)).
 There is nothing to compute, because the decision has already been made by the time this path runs.
 
 On the receiving side the mechanics carry more weight, and their ordering is fixed.
@@ -41,6 +42,7 @@ On the receiving side the mechanics carry more weight, and their ordering is fix
 | The sending actor has a participant record in this case | An RM state with no participant to hold it is not a state the case can record |
 | Commit the canonical ledger entry | The arrival is recorded before anything acts on it (CLP-10-006) |
 | Transition that participant's RM state | Idempotent — a repeated message finds the state already set and succeeds |
+| Commit the new status as its own ledger entry | Replicas copy the status the case manager wrote, its id and time included, rather than building their own ([CLP-07-013](../../../reference/specs/protocol.md#clp-07-013)) |
 | Resolve who may receive the case update | Embargo consent decides who is eligible |
 | Broadcast the updated case | Participants learn the new roster state |
 
@@ -75,7 +77,7 @@ The reference implementation decides once.
 
 Engaging emits `Join(VulnerabilityCase)`, the wire form of RA.
 Deferring emits `Ignore(VulnerabilityCase)`, the wire form of RD.
-Both are addressed to the actor holding `CVDRole.CASE_MANAGER`, which commits the canonical ledger entry and replicates it onward (PCR-08-001, CLP-10-001).
+Both are addressed to the actor holding `CVDRole.CASE_MANAGER`, which commits the canonical ledger entry, then the status it recorded as an entry of its own, and replicates both onward (PCR-08-001, CLP-10-001).
 
 Deferral is announced, and this is the design decision worth pausing on.
 Telling the other Participants that you have parked a case is unhelpful to you and useful to them.

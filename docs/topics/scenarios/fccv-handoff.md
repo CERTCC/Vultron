@@ -111,7 +111,7 @@ entries appear in the ledger.
 
 ### 3. Participant status records are created
 
-The Case Actor records initial `add_participant_status_to_participant` entries.
+The Case Actor records the engagement's status as an `add_participant_status_to_participant` entry; each record seated at case creation was ledgered as a `create_case_participant` entry.
 
 *Antecedent:* `engage_case` is in the ledger.
 

@@ -129,3 +129,32 @@ def test_a_repeated_verdict_writes_and_commits_no_second_status():
     assert [e.event_type for e in ledger_entries(dl, CASE_ID)].count(
         _STATUS_ENTRY
     ) == 1
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_a_redelivered_verdict_records_the_withdrawn_status(monkeypatch):
+    """The act's entry stays; a redelivery writes and commits the status."""
+    dl = _store(MANAGER_ID)
+    event = cast(
+        InvalidateReportReceivedEvent,
+        extract_event(
+            rm_invalidate_report_activity(
+                _offer(), actor=FINDER_ID, to=[MANAGER_ID]
+            )
+        ).model_copy(update={"receiving_actor_id": MANAGER_ID}),
+    )
+    with monkeypatch.context() as patched:
+        fail_commits(
+            patched,
+            status_entries,
+            when=lambda kwargs: kwargs["event_type"] == _STATUS_ENTRY,
+        )
+        InvalidateReportReceivedUseCase(dl, event, **_ports(dl)).execute()
+
+    InvalidateReportReceivedUseCase(dl, event, **_ports(dl)).execute()
+
+    assert [e.event_type for e in ledger_entries(dl, CASE_ID)] == [
+        MessageSemantics.INVALIDATE_REPORT.value,
+        _STATUS_ENTRY,
+    ]
+    assert _finder(dl).participant_statuses[-1].rm.state == RM.INVALID
