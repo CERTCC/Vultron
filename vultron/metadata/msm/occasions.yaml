@@ -1001,6 +1001,21 @@ groups:
     - path: howto/activitypub/activities/error.md
       title: How to Report a Protocol Fault
     example: create_processing_fault
+  - anchor: refusal-notice
+    heading: Refusal notice
+    when: the Case Manager has refused a participant's assertion because a precondition did
+      not hold
+    send: Reject(Activity)
+    send_to: a participant
+    sent_by: the case manager
+    semantics: refusal_notice
+    status: evolved
+    description: Tells the participant that its assertion was received and understood but
+      refused, so it had no effect. It carries the refused activity inline and names the refusing
+      guard's reason. This notice serves the declined purpose of the formal RE, EE, CE and
+      GE messages.
+    seen_in: []
+    example: refusal_notice
 - page: ledger_replication
   title: Ledger replication
   mechanics: true

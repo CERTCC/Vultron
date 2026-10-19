@@ -406,7 +406,16 @@ groups:
   - id: CLP-05-001
     priority: MUST
     kind: protocol
-    verification_debt: '#3612'
+    verification: >-
+      `test/core/use_cases/received/test_refusal_notice.py` asserts the
+      factory queues one notice of the specified shape and derived id on a
+      precondition refusal at the CASE_MANAGER, and none on a sender-guard
+      refusal, a `SKIPPED` repeat, a redelivery or at a replica, and that the
+      participant that receives it closes its pending assertion, writes no
+      case state, sends nothing, and refuses a notice from anyone else;
+      `test/wire/as2/test_refusal_notice_wire.py` asserts the notice's pattern
+      takes no `Reject` of an `Invite` or an `Offer` and changes no existing
+      example's semantics.
     statement: >-
       The refusal notice CLP-02-005 requires MUST be a `Reject` whose object is
       the refused activity, inline, with `inReplyTo` naming that activity's id,
@@ -1691,7 +1700,9 @@ groups:
       guard refuses its assertion MUST pass that feedback to
       `create_receive_activity_tree` as `refusal_effects`. The factory MUST run
       the refusal effects only when a precondition guard refuses, never when
-      the sender guard refuses or the guards pass; MUST run them only at the
+      the sender guard refuses or the guards pass, and never when a guard's
+      failure is an idempotent repeat the handler reports `SKIPPED`; MUST run
+      them only at the
       case's CASE_MANAGER; MUST NOT run them again for a redelivery that intake
       found already archived; and MUST leave the tree failing with the guard's
       refusal, so nothing is committed and the handler reports `REFUSED` for
@@ -1699,13 +1710,13 @@ groups:
       contain no state-write node: a refusal commits nothing, so it changes no
       state.
     rationale: >-
-      A receiver should not silently drop an assertion it can answer in the
-      moment, such as a refused backward RM declaration (RSH-06-004). An emit
-      beside the guard would precede the commit on an admitted delivery
-      (CLP-10-006), and per-tree scaffolding would repeat the structure
-      (CS-22-001). The CASE_MANAGER adjudicates, so only it answers
-      (BT-17-008); an unentitled sender is owed no answer (HP-01-006); a
-      redelivery changes nothing, so a second answer is noise.
+      A refusal the receiver can answer in the moment should be answered, such
+      as a backward RM declaration (RSH-06-004). An emit beside the guard would
+      precede the commit on an admitted delivery (CLP-10-006); per-tree copies
+      would repeat the structure (CS-22-001). Only the CASE_MANAGER adjudicates
+      and answers (BT-17-008); an unentitled sender is owed no answer
+      (HP-01-006), nor is a redelivery; a repeat whose effect is in place was
+      not refused, so a `Reject` of it would contradict that effect.
     note: >-
       The redelivery skip keys on intake finding the activity already
       archived, not on a record that the refusal effects ran: a refusal
@@ -1719,8 +1730,12 @@ groups:
       the refusal effects on the CASE_MANAGER, and refuses a refusal effect
       that is not emit-capable; `test/core/behaviors/case/nodes/test_refusal_stage.py`
       asserts the effects never run on an admitted delivery, run once on a
-      refusal, are skipped on a redelivery, and leave the guard's failure
-      reason; `TestRefusedRegressionIsNoted` in
+      refusal, are skipped on a redelivery and on a guard's idempotent repeat,
+      and leave the guard's failure reason;
+      `test_a_skipped_repeat_answer_under_a_new_id_queues_no_notice` in
+      `test/core/use_cases/received/test_refusal_notice.py` asserts a repeat
+      embargo answer under a new activity id is answered by no refusal notice;
+      `TestRefusedRegressionIsNoted` in
       `test/core/behaviors/report/test_rm_declaration_adjudication.py`
       asserts the end-to-end behaviour for the RSH-06-004 note.
     relationships:

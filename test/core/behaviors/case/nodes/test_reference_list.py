@@ -122,6 +122,21 @@ def test_pending_guard_for_unknown_case_is_not_a_duplicate(dl):
     assert node.is_duplicate is False
 
 
+def test_pending_guard_resets_its_duplicate_flag_each_run(dl):
+    case = _case(dl)
+    case.notes.append(REF)
+    dl.save(case)
+    node = CaseReferenceEditPendingNode(REF, CASE_ID, "notes", True)
+    assert _run(dl, node).status == Status.FAILURE
+    assert node.failed_as_repeat
+
+    node.case_id = "https://example.org/cases/none"
+
+    assert _run(dl, node).status == Status.FAILURE
+    assert node.is_duplicate is False
+    assert node.failed_as_repeat is False
+
+
 @pytest.mark.spec("CM-30-001")
 @pytest.mark.parametrize(
     "note_author,sender,participant,passes",

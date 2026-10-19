@@ -1158,6 +1158,29 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def refusal_notice(
+        self,
+        case_id: str | None,
+        actor: str,
+        refused_activity: dict[str, Any],
+        asserter: str,
+        reason: str,
+    ) -> tuple[str, str]:
+        """Create and persist the CASE_MANAGER's refusal notice.
+
+        The ``Reject`` a precondition guard's refusal owes the asserting
+        participant (CLP-02-005, CLP-05-001, ADR-0141): ``refused_activity``
+        is the refused activity in its AS2 JSON form, as recorded when
+        received, carried inline; ``inReplyTo`` names its id; ``asserter``
+        is the sole ``to`` recipient; ``reason`` is the refusing guard's
+        reason, carried in ``summary``; ``case_id``, when given, is the
+        notice's ``context``.  ``actor`` is the CASE_MANAGER.  The id is
+        derived from the CASE_MANAGER and the refused activity, so one
+        refused activity is answered by one notice (ID-04-004).
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
     def announce_vulnerability_case(
         self,
         case_id: str,

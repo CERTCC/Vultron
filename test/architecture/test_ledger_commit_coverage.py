@@ -80,6 +80,7 @@ EXEMPT: dict[str, NotACaseEvent | str] = {
     "accept_actor_recommendation": NotACaseEvent.SENT_BY_CASE_MANAGER,
     "reject_actor_recommendation": NotACaseEvent.SENT_BY_CASE_MANAGER,
     "create_processing_fault": NotACaseEvent.PROCESSING_FAULT,
+    "refusal_notice": NotACaseEvent.LEDGER_MECHANICS,
     "reject_case_participant_role": "#4703",
 }
 

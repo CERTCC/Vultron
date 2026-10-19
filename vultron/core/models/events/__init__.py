@@ -73,6 +73,7 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.models.events.fault import (
     CreateProcessingFaultReceivedEvent,
+    RefusalNoticeReceivedEvent,
 )
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
@@ -171,6 +172,7 @@ AnyReceivedEvent = (
     |
     # fault
     CreateProcessingFaultReceivedEvent
+    | RefusalNoticeReceivedEvent
     |
     # unknown
     UnknownReceivedEvent
@@ -250,4 +252,5 @@ __all__ = [
     "RejectLogEntryReceivedEvent",
     # fault
     "CreateProcessingFaultReceivedEvent",
+    "RefusalNoticeReceivedEvent",
 ]
