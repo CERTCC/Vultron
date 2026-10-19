@@ -27,6 +27,12 @@ import sys
 import pytest
 
 
+# Integration tier: a cold interpreter import can take tens of seconds on a
+# loaded machine (#4802), past the unit tier's 30s ceiling; the CI full suite
+# (`-m ""`) runs it.  The subprocess timeout stays below the 60s integration
+# ceiling so an overrun fails this test by name as ``TimeoutExpired`` instead
+# of tripping the ``thread``-method ceiling, which kills the whole session.
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "module",
     [
@@ -39,7 +45,7 @@ def test_module_imports_first_in_a_fresh_interpreter(module: str) -> None:
         [sys.executable, "-c", f"import {module}"],
         capture_output=True,
         text=True,
-        timeout=20,
+        timeout=45,
         check=False,
     )
 
