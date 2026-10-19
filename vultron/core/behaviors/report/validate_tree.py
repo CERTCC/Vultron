@@ -116,6 +116,7 @@ def create_validate_report_subtree(
     name: str = "ValidateReportBT",
     rm_rule: RMRule = RMRule.TRANSITION,
     written_ids: list[str] | None = None,
+    record_participant: bool = True,
 ) -> py_trees.behaviour.Behaviour:
     """Build the canonical validate-report subtree.
 
@@ -150,6 +151,9 @@ def create_validate_report_subtree(
             id of the status it writes.  The received side passes it so the
             CASE_MANAGER can commit that status as its own entry
             (CLP-07-013).
+        record_participant: ``False`` latches only the report link and
+            leaves the sender's participant to the CASE_MANAGER.  The
+            trigger side passes it (RSH-08-003, CM-23-016).
 
     Returns:
         Root node of the validation subtree (a Selector).
@@ -184,6 +188,7 @@ def create_validate_report_subtree(
             sender_actor_id=sender_actor_id,
             rm_rule=rm_rule,
             written_ids=written_ids,
+            record_participant=record_participant,
         )
     )
 
@@ -243,9 +248,12 @@ def create_validate_report_tree(
     sent to the Case Actor (CASE_MANAGER participant) whose inbox executes the
     guarded commit (ADR-0021 CLP-10-001, CLP-10-002, CLP-10-003).
 
-    Advances RM state to VALID only.  The engage/defer decision is a separate,
-    explicit protocol step the operator must trigger via ``engage-case`` or
-    ``defer-case``.
+    Latches RM ``VALID`` on the report link only.  The actor's participant is
+    case-file state: the CASE_MANAGER records the move when it accepts the
+    validation and commits that status as its own entry, and the actor's
+    replica copies it from the ledger (RSH-08-003, CLP-07-013, CM-23-016).
+    The engage/defer decision is a separate, explicit protocol step the
+    operator must trigger via ``engage-case`` or ``defer-case``.
 
     Args:
         report_id: ID of VulnerabilityReport to validate.
@@ -279,6 +287,7 @@ def create_validate_report_tree(
         captured=captured,
         emit=True,
         sender_actor_id=sender_actor_id,
+        record_participant=False,
     )
     logger.info(
         "Created ValidateReportBT for report=%s, offer=%s", report_id, offer_id

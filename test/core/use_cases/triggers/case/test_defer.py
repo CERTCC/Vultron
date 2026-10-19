@@ -123,7 +123,13 @@ class TestDeferCaseRMTransitionViaBT:
         reset_datalayer(self.finder.id_)
         reset_datalayer(self.case_actor.id_)
 
-    def test_defer_case_updates_rm_to_deferred_via_bt(self):
+    @pytest.mark.spec("RSH-08-006")
+    def test_defer_case_sends_and_leaves_rm_to_the_case_manager(self):
+        """The decision is sent; the actor writes no status (RSH-08-003).
+
+        The CASE_MANAGER records RM DEFERRED and the replica copies the status
+        it commits (CLP-07-013, CM-23-016).
+        """
         request = DeferCaseTriggerRequest(
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
@@ -137,7 +143,7 @@ class TestDeferCaseRMTransitionViaBT:
         assert updated is not None
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
-        assert updated.participant_statuses[-1].rm.state == RM.DEFERRED
+        assert updated.participant_statuses[-1].rm.state == RM.VALID
 
         after = set(self.dl.outbox_list())
         new_ids = after - before

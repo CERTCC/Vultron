@@ -42,6 +42,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers.case import (
@@ -167,6 +168,21 @@ def _last_status(dl: SqliteDataLayer, case_id: str, actor_id: str):
     return participant, participant.participant_statuses[-1]
 
 
+def _queued_status(
+    dl: SqliteDataLayer, status_id: str | None
+) -> ParticipantStatus:
+    """The stored status the queued Add(ParticipantStatus) carries.
+
+    The trigger stores the status but leaves the target's record alone: the
+    record changes only when the CASE_MANAGER's ledger entry for the status is
+    copied, on this replica as on every other (RSH-08-003, CM-23-016).
+    """
+    assert status_id is not None, "the trigger must report its status id"
+    status = dl.read(status_id)
+    assert isinstance(status, ParticipantStatus)
+    return status
+
+
 class TestAddOnBehalfStatusVtoV:
     """PRM-06-003: Case Manager asserts v→V for an existing vendor participant."""
 
@@ -202,8 +218,12 @@ class TestAddOnBehalfStatusVtoV:
 
     @pytest.mark.spec("PRM-06-003")
     def test_changes_only_vf_of_an_inert_vendor_invitee(self):
-        """v→V moves VF only; the invitee's RM stays at RECEIVED."""
-        _add_participant(
+        """v→V moves VF only; the invitee's RM stays at RECEIVED.
+
+        The status is stored and queued for the CASE_MANAGER; the invitee's
+        record is unchanged until that entry is copied (RSH-08-003, CM-23-016).
+        """
+        participant_before = _add_participant(
             self.dl,
             self.case,
             self.vendor_actor.id_,
@@ -215,13 +235,17 @@ class TestAddOnBehalfStatusVtoV:
 
         result = _run(self.dl, self._request())
 
+        status = _queued_status(self.dl, result.status_id)
+        assert status.vf is not None and status.vf.state == CS_vf.Vf
+        assert status.rm is not None and status.rm.state == RM.RECEIVED
+        assert status.d is None
         participant, last = _last_status(
             self.dl, self.case.id_, self.vendor_actor.id_
         )
-        assert last.id_ == result.status_id
-        assert last.vf is not None and last.vf.state == CS_vf.Vf
-        assert last.rm is not None and last.rm.state == RM.RECEIVED
-        assert last.d is None
+        assert [s.id_ for s in participant.participant_statuses] == [
+            s.id_ for s in participant_before.participant_statuses
+        ]
+        assert last.vf is not None and last.vf.state == CS_vf.vf
         assert participant.roles == [CVDRole.VENDOR]
         after = _store_state(self.dl, self.case.id_)
         assert (after.roster, after.participants) == (
@@ -361,16 +385,27 @@ class TestAddOnBehalfStatusDtoD:
     def test_succeeds_for_deployer_at_rm_consistent_with_deployment(
         self, rm: RM
     ):
-        _add_participant(
+        """The stored, queued status carries D at the deployer's RM.
+
+        The deployer's record is unchanged until the CASE_MANAGER's entry for
+        the status is copied (RSH-08-003, CM-23-016).
+        """
+        seeded = _add_participant(
             self.dl, self.case, self.deployer_actor.id_, [CVDRole.DEPLOYER], rm
         )
 
         result = _run(self.dl, self._request())
 
-        _, last = _last_status(self.dl, self.case.id_, self.deployer_actor.id_)
-        assert last.id_ == result.status_id
-        assert last.d is not None and last.d.state == CS_d.D
-        assert last.rm is not None and last.rm.state == rm
+        status = _queued_status(self.dl, result.status_id)
+        assert status.d is not None and status.d.state == CS_d.D
+        assert status.rm is not None and status.rm.state == rm
+        participant, last = _last_status(
+            self.dl, self.case.id_, self.deployer_actor.id_
+        )
+        assert [s.id_ for s in participant.participant_statuses] == [
+            s.id_ for s in seeded.participant_statuses
+        ]
+        assert last.d is None or last.d.state == CS_d.d
 
     @pytest.mark.spec("PRM-06-004")
     @pytest.mark.spec("BTND-10-002")

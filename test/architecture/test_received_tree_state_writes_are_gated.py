@@ -155,10 +155,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "create_engage_case_tree",
             cls,
         ): _CARRIED_SNAPSHOT
-        for cls in (
-            "HoldCarriedEmbargoNode",
-            "StoreEmbeddedParticipantsNode",
-        )
+        for cls in ("HoldCarriedEmbargoNode",)
     },
     **{
         (f"{_Y}/announce_tree.py", "create_announce_log_entry_tree", cls): (

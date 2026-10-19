@@ -51,6 +51,7 @@ import logging
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.participant.common import (
+    context_after_followed,
     resolve_transition_context_or_report,
     validate_participant_status_write,
 )
@@ -110,8 +111,25 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         pxa_state: "CS_pxa | None",
         result_out: dict,
         name: str | None = None,
+        require_participant: bool = False,
+        follows: list[str] | None = None,
     ) -> None:
+        """Create the node.
+
+        *require_participant* fails the check when the case or the actor's
+        participant record is missing.  A tree with no
+        ``CreateParticipantStatusNode`` after this node to report that
+        absence passes it, so a decision the actor has no standing to make
+        is refused before it is sent.
+
+        *follows* names statuses already stored for the actor but not
+        appended to its record; the move is checked as the step after the
+        last of them (:func:`~vultron.core.behaviors.case.nodes.participant\
+.common.context_after_followed`).
+        """
         super().__init__(name=name or self.__class__.__name__)
+        self._require_participant = require_participant
+        self._follows = follows
         self._case_id = case_id
         self._actor_id = actor_id
         self._rm_state = rm_state
@@ -131,20 +149,26 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         # missing case/participant. Passing through as SUCCESS here avoids a
         # duplicate failure and lets the canonical reporter own it (allowlist).
         case = dl.read_case(self._case_id)
-        if case is None:
-            # CreateParticipantStatusNode will report this; pass through.
-            return Status.SUCCESS
-
-        participant_id = case.actor_participant_index.get(self._actor_id)
-        if participant_id is None:
-            # CreateParticipantStatusNode will report this; pass through.
-            return Status.SUCCESS
+        participant_id = (
+            case.actor_participant_index.get(self._actor_id) if case else None
+        )
+        if case is None or participant_id is None:
+            if not self._require_participant:
+                # CreateParticipantStatusNode will report this; pass through.
+                return Status.SUCCESS
+            self.feedback_message = (
+                f"No participant record for actor '{self._actor_id}'"
+                f" in case '{self._case_id}'"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         context = resolve_transition_context_or_report(
             self, dl, case, participant_id
         )
         if isinstance(context, Status):
             return context
+        context = context_after_followed(dl, context, self._follows)
 
         failure = validate_participant_status_write(
             self,

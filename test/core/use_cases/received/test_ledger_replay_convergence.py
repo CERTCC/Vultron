@@ -25,9 +25,10 @@ nothing before the fan-out — lands with the gating change (RSH-08-003, #3814)
 and is exercised below by ``test_*_writes_nothing_at_a_replica``: the activity
 is delivered straight to a replica's store, which must change no state because
 the state-writing effect now runs only inside the CASE_MANAGER gate.  Every
-activity-typed RM move replays through one slot, keyed by ``RM_VERDICT_TARGETS``;
-engage and defer exercise it end to end, and ``test_rm_verdict_effect.py`` pins
-each other type's target state against its use case.
+activity-typed RM move reaches a replica as the status the CASE_MANAGER wrote,
+committed as its own entry after the act (CLP-07-013) and copied by the
+participant-status slot; engage and defer exercise it end to end, and
+``test_rm_verdict_status_entry.py`` pins the status entry itself.
 """
 
 import json

@@ -49,6 +49,7 @@ from vultron.core.behaviors.sync.commit_tree import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     participant_status_rm_state,
@@ -58,7 +59,9 @@ from vultron.core.predicates.roles import has_case_manager_role
 from vultron.errors import VultronBTInternalError, VultronWiringError
 
 #: ``event_type`` of the entry recording one participant status.
-ADD_PARTICIPANT_STATUS_EVENT_TYPE = "add_participant_status_to_participant"
+ADD_PARTICIPANT_STATUS_EVENT_TYPE = (
+    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value
+)
 
 
 class CommitParticipantStatusEntriesNode(

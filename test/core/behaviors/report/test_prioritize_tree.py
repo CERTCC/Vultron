@@ -935,7 +935,7 @@ def test_create_prioritize_subtree_returns_selector(
     engage_trigger_bt = engage_path.children[1]
     assert engage_trigger_bt.name == "EngageCaseTriggerBT"
     assert len(engage_trigger_bt.children) == 2
-    assert engage_trigger_bt.children[0].name == "TransitionRMtoAccepted"
+    assert engage_trigger_bt.children[0].name == "ValidateRMtoAccepted"
     engage_sender = engage_trigger_bt.children[1]
     assert engage_sender.name == "SenderSideBT"
     assert len(engage_sender.children) == 3
@@ -951,7 +951,7 @@ def test_create_prioritize_subtree_returns_selector(
     defer_trigger_bt = defer_path.children[0]
     assert defer_trigger_bt.name == "DeferCaseTriggerBT"
     assert len(defer_trigger_bt.children) == 2
-    assert defer_trigger_bt.children[0].name == "TransitionRMtoDeferred"
+    assert defer_trigger_bt.children[0].name == "ValidateRMtoDeferred"
     defer_sender = defer_trigger_bt.children[1]
     assert defer_sender.name == "SenderSideBT"
     assert len(defer_sender.children) == 3
@@ -971,7 +971,8 @@ def test_prioritize_subtree_engages_by_default(
 
     Verifies:
     - Tree returns SUCCESS
-    - Participant RM state transitions to ACCEPTED
+    - The actor's participant is left to the CASE_MANAGER: it records the
+      move and the replica copies it from the ledger (RSH-08-003, CM-23-016)
     - An RmEngageCaseActivity (Join type) is created in the datalayer
       addressed to the Case Manager (PCR-08-001)
     - The activity appears in the actor's outbox (D5-7-BTFIX-1)
@@ -987,10 +988,10 @@ def test_prioritize_subtree_engages_by_default(
 
     assert result.status == Status.SUCCESS
 
-    # Participant RM state must be ACCEPTED
+    # The actor writes no status of its own (RSH-08-003, CM-23-016)
     participant_id = "https://example.org/participants/vendor-cp-002"
     updated_participant = datalayer.read(participant_id)
-    assert updated_participant.participant_statuses[-1].rm.state == RM.ACCEPTED
+    assert updated_participant.participant_statuses[-1].rm.state == RM.VALID
 
     # An engage activity must have been created and added to outbox
     outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
@@ -1100,9 +1101,10 @@ def test_prioritize_subtree_defers_when_engage_path_fails(
 
     assert result.status == Status.SUCCESS
 
+    # The actor writes no status of its own (RSH-08-003, CM-23-016)
     participant_id = "https://example.org/participants/vendor-cp-002"
     updated_participant = datalayer.read(participant_id)
-    assert updated_participant.participant_statuses[-1].rm.state == RM.DEFERRED
+    assert updated_participant.participant_statuses[-1].rm.state == RM.VALID
 
     outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
     assert len(outbox_items) == 1

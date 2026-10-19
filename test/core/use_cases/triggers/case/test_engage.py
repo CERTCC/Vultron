@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from typing import cast
+
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -13,6 +15,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     RmDimension,
 )
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers.case import (
     EngageCaseTriggerRequest,
@@ -124,7 +127,13 @@ class TestEngageCaseRMTransitionViaBT:
         reset_datalayer(self.finder.id_)
         reset_datalayer(self.case_actor.id_)
 
-    def test_engage_case_updates_rm_to_accepted_via_bt(self):
+    @pytest.mark.spec("RSH-08-006")
+    def test_engage_case_sends_and_leaves_rm_to_the_case_manager(self):
+        """The decision is sent; the actor writes no status (RSH-08-003).
+
+        The CASE_MANAGER records RM ACCEPTED and the replica copies the status
+        it commits (CLP-07-013, CM-23-016).
+        """
         request = EngageCaseTriggerRequest(
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
@@ -138,7 +147,7 @@ class TestEngageCaseRMTransitionViaBT:
         assert updated is not None
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
-        assert updated.participant_statuses[-1].rm.state == RM.ACCEPTED
+        assert updated.participant_statuses[-1].rm.state == RM.VALID
 
         after = set(self.dl.outbox_list())
         new_ids = after - before
@@ -189,10 +198,9 @@ class TestEngageCaseRMTransitionViaBT:
     def test_repeat_engage_emits_no_engagement_line(self, caplog):
         """Re-engaging an already-engaged case did not engage it.
 
-        ``update_participant_rm_state`` takes its idempotent branch and returns
-        ``True``, so the BT succeeds and ``_handle_result`` still runs. The
-        after-state is read back from storage, so before == after and the line
-        is suppressed rather than claiming ``RM ACCEPTED → ACCEPTED``.
+        The actor's replica already holds the ACCEPTED the CASE_MANAGER
+        recorded, so the engagement sent is a confirmation and the line is
+        suppressed rather than claiming ``RM ACCEPTED → ACCEPTED``.
         """
         import logging
 
@@ -200,9 +208,17 @@ class TestEngageCaseRMTransitionViaBT:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
-        SvcEngageCaseUseCase(
-            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
-        ).execute()
+        participant = cast(
+            CaseParticipant, self.dl.read(self.vendor_participant.id_)
+        )
+        participant.add_participant_status(
+            ParticipantStatus(
+                context=self.case.id_,
+                attributed_to=self.vendor.id_,
+                rm=RmDimension(state=RM.ACCEPTED),
+            )
+        )
+        self.dl.save(participant)
 
         caplog.clear()
         with caplog.at_level(logging.INFO):

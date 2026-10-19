@@ -44,11 +44,13 @@ logger = logging.getLogger(__name__)
 class SvcAddParticipantStatusUseCase(SvcBTTriggerBase[StatusResult]):
     """Self-report actor RM/VF/D/PXA state to the Case Manager.
 
-    Delegates ParticipantStatus record creation to
+    Delegates validating and storing the ParticipantStatus snapshot to
     :class:`~vultron.core.behaviors.case.nodes.participant\
 .CreateParticipantStatusNode` via BTBridge (BT-15-001), then emits an
     ``Add(ParticipantStatus, target=CaseParticipant)`` activity addressed
-    to the Case Manager (DEMOMA-07-001).
+    to the Case Manager (DEMOMA-07-001).  The snapshot is not appended to the
+    actor's record: the CASE_MANAGER appends it, and the actor's replica
+    copies that from the ledger (RSH-08-003, CM-23-016).
 
     BT-15-001 audit: ``ParticipantStatus`` writes with explicit
     ``rm_state``/``vf_state``/``d_state`` are protocol-significant behavior
@@ -64,6 +66,9 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase[StatusResult]):
         self._vf_state = request.vf_state
         self._d_state = request.d_state
         self._pxa_state = request.pxa_state
+        self._follows = (
+            [request.follows_status_id] if request.follows_status_id else None
+        )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
@@ -94,6 +99,7 @@ class SvcAddParticipantStatusUseCase(SvcBTTriggerBase[StatusResult]):
             pxa_state=self._pxa_state,
             result_out=self._result_out,
             activity_builder=_build_activities,
+            follows=self._follows,
         )
 
     def _extra_execute_kwargs(self) -> dict[str, Any]:

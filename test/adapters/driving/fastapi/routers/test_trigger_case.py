@@ -251,38 +251,33 @@ def test_trigger_engage_case_adds_activity_to_outbox(
     assert len(outbox_after - outbox_before) >= 1
 
 
-def test_trigger_engage_case_updates_participant_rm_state(
+def _actor_status_ids(dl, case_id: str, actor_id: str) -> list[str]:
+    """The ids of *actor_id*'s participant statuses in *case_id*."""
+    case = dl.read(case_id)
+    participant = dl.read(case.actor_participant_index[actor_id])
+    return [s.id_ for s in participant.participant_statuses]
+
+
+def test_trigger_engage_case_leaves_the_participant_to_the_case_manager(
     client_triggers, dl, actor, case_with_participant
 ):
-    """engage-case transitions actor's as_CaseParticipant RM state to ACCEPTED."""
+    """engage-case sends the decision and writes no status of its own.
+
+    The CASE_MANAGER records RM ACCEPTED when it accepts the decision and
+    commits that status as its own entry, which the actor's replica copies
+    (RSH-08-003, CLP-07-013, CM-23-016).
+    """
+    before = _actor_status_ids(dl, case_with_participant.id_, actor.id_)
+
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/engage-case",
         json={"case_id": case_with_participant.id_},
     )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    updated_case = dl.read(case_with_participant.id_)
-    participant_ids = [
-        (p if isinstance(p, str) else p.id_)
-        for p in updated_case.case_participants
-    ]
-    found_accepted = False
-    for p_id in participant_ids:
-        p_obj = dl.read(p_id)
-        if p_obj is None:
-            continue
-        actor_ref = p_obj.attributed_to
-        p_actor_id = (
-            actor_ref
-            if isinstance(actor_ref, str)
-            else getattr(actor_ref, "id_", str(actor_ref))
-        )
-        if p_actor_id == actor.id_ and p_obj.participant_statuses:
-            latest = p_obj.participant_statuses[-1]
-            if latest.rm.state == RM.ACCEPTED:
-                found_accepted = True
-                break
-    assert found_accepted, "Participant RM state was not updated to ACCEPTED"
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert (
+        _actor_status_ids(dl, case_with_participant.id_, actor.id_) == before
+    )
 
 
 def test_trigger_engage_case_no_participant_returns_422(
@@ -404,38 +399,26 @@ def test_trigger_defer_case_adds_activity_to_outbox(
     assert len(outbox_after - outbox_before) >= 1
 
 
-def test_trigger_defer_case_updates_participant_rm_state(
+def test_trigger_defer_case_leaves_the_participant_to_the_case_manager(
     client_triggers, dl, actor, case_with_participant
 ):
-    """defer-case transitions actor's as_CaseParticipant RM state to DEFERRED."""
+    """defer-case sends the decision and writes no status of its own.
+
+    The CASE_MANAGER records RM DEFERRED when it accepts the decision and
+    commits that status as its own entry, which the actor's replica copies
+    (RSH-08-003, CLP-07-013, CM-23-016).
+    """
+    before = _actor_status_ids(dl, case_with_participant.id_, actor.id_)
+
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/defer-case",
         json={"case_id": case_with_participant.id_},
     )
-    assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    updated_case = dl.read(case_with_participant.id_)
-    participant_ids = [
-        (p if isinstance(p, str) else p.id_)
-        for p in updated_case.case_participants
-    ]
-    found_deferred = False
-    for p_id in participant_ids:
-        p_obj = dl.read(p_id)
-        if p_obj is None:
-            continue
-        actor_ref = p_obj.attributed_to
-        p_actor_id = (
-            actor_ref
-            if isinstance(actor_ref, str)
-            else getattr(actor_ref, "id_", str(actor_ref))
-        )
-        if p_actor_id == actor.id_ and p_obj.participant_statuses:
-            latest = p_obj.participant_statuses[-1]
-            if latest.rm.state == RM.DEFERRED:
-                found_deferred = True
-                break
-    assert found_deferred, "Participant RM state was not updated to DEFERRED"
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert (
+        _actor_status_ids(dl, case_with_participant.id_, actor.id_) == before
+    )
 
 
 # ===========================================================================

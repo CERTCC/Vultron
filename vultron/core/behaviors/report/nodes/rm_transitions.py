@@ -216,6 +216,7 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
         name: str | None = None,
         rm_rule: RMRule = RMRule.TRANSITION,
         written_ids: list[str] | None = None,
+        record_participant: bool = True,
     ) -> None:
         """Initialize the combined RM.VALID transition node.
 
@@ -234,11 +235,17 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
                 report-phase record, not the sender's participant.
             written_ids: Passed to :class:`CreateParticipantStatusNode`, which
                 reports in it the id of the status it writes.
+            record_participant: ``False`` latches only the report link.  The
+                trigger side passes it: the sender's participant is case-file
+                state the CASE_MANAGER records when it accepts the
+                validation, and the sender's replica copies that status from
+                the ledger (RSH-08-003, CLP-07-013).
         """
         super().__init__(name=name or "TransitionRMtoValid")
         self.report_id = report_id
         self.offer_id = offer_id  # unused; kept for call-site compatibility
         self.sender_actor_id = sender_actor_id
+        self._record_participant = record_participant
         # Pre-built once and executed via BTBridge.execute_with_setup, never
         # constructed inside update() (BTND-10-004, ADR-0089).  Its own stop()
         # resets the latched actor id after each tick (issue #3268).
@@ -336,6 +343,40 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
 
         # 2. Case-scoped write FIRST (ID-04-005), through the sole
         #    ParticipantStatus writer.
+        failure = (
+            self._advance_participant() if self._record_participant else None
+        )
+        if failure is not None:
+            return failure
+
+        # 3. Latch RM.VALID on the link only after the participant advanced,
+        #    and only when the link already existed.  Latching an *absent*
+        #    (transient) link would persist a report-scoped VALID record that
+        #    short-circuits sibling participants in a shared CaseActor store
+        #    (issue #3283); leaving it absent matches the pre-#3267 behavior.
+        if not link_existed:
+            self.logger.info(
+                "RM → VALID for participant on report '%s' (report link left"
+                " unlatched: it was absent — issue #3283)",
+                self.report_id,
+            )
+            return Status.SUCCESS
+        try:
+            link.rm_state = RM.VALID
+            self.datalayer.save(link)
+            self.logger.info("RM → VALID for report '%s'", self.report_id)
+            return Status.SUCCESS
+        except Exception as e:  # noqa: BLE001 — transient save failure retries
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
+                "%s: Error latching RM.VALID on the report link: %s",
+                self.name,
+                e,
+            )
+            return Status.FAILURE
+
+    def _advance_participant(self) -> Status | None:
+        """Advance the sender's participant to VALID; ``None`` on success."""
+        assert self.datalayer is not None
         case_id = self._case_id_bb
         if not isinstance(case_id, str):
             self.feedback_message = "case_id not found in blackboard"
@@ -369,30 +410,7 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
                 self.logger.error("%s: %s", self.name, self.feedback_message)
                 return Status.FAILURE
 
-        # 3. Latch RM.VALID on the link only after the participant advanced,
-        #    and only when the link already existed.  Latching an *absent*
-        #    (transient) link would persist a report-scoped VALID record that
-        #    short-circuits sibling participants in a shared CaseActor store
-        #    (issue #3283); leaving it absent matches the pre-#3267 behavior.
-        if not link_existed:
-            self.logger.info(
-                "RM → VALID for participant on report '%s' (report link left"
-                " unlatched: it was absent — issue #3283)",
-                self.report_id,
-            )
-            return Status.SUCCESS
-        try:
-            link.rm_state = RM.VALID
-            self.datalayer.save(link)
-            self.logger.info("RM → VALID for report '%s'", self.report_id)
-            return Status.SUCCESS
-        except Exception as e:  # noqa: BLE001 — transient save failure retries
-            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                "%s: Error latching RM.VALID on the report link: %s",
-                self.name,
-                e,
-            )
-            return Status.FAILURE
+        return None
 
 
 class TransitionRMtoInvalid(_ReportPhaseRMTransition):

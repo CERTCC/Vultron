@@ -1,8 +1,9 @@
 """Chain-level integration test: SubmitReport → ValidateReport → EngageCase.
 
-Verifies that the three-step handoff produces the correct RM state sequence
-(START → RECEIVED → VALID → ACCEPTED) against a single in-memory DataLayer.
-No demo infrastructure or CI devlogs required.
+Verifies the vendor's side of the handoff against a single in-memory
+DataLayer: each step sends its decision and leaves the vendor's participant to
+the CASE_MANAGER, whose recorded statuses the replica copies (RSH-08-003,
+CM-23-016).  No demo infrastructure or CI devlogs required.
 
 The fixture pre-seeds the case+offer+report in the vendor's DataLayer, mirroring
 the setup used in test_report_triggers.py (the vendor's inbox already has the
@@ -32,6 +33,7 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers.case import (
@@ -45,6 +47,7 @@ from vultron.core.use_cases.triggers.requests import (
     ValidateReportTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -202,31 +205,16 @@ def chain_context():
 
 
 class TestValidateEngageChain:
-    """ValidateReport → EngageCase produces RM.ACCEPTED from RM.RECEIVED."""
+    """ValidateReport → EngageCase as the vendor's replica sees it.
 
-    def test_validate_report_advances_rm_to_valid(self, chain_context):
-        """ValidateReport transitions the vendor's RM from RECEIVED to VALID."""
-        vendor, _, _, dl, _, offer, case = chain_context
+    The vendor sends each decision and writes no status of its own: the
+    CASE_MANAGER records each move and the replica copies the status it
+    commits (RSH-08-003, CLP-07-013, CM-23-016).  So the vendor engages only
+    once its replica holds the VALID the CASE_MANAGER recorded.
+    """
 
-        SvcValidateReportUseCase(
-            dl,
-            ValidateReportTriggerRequest(
-                actor_id=vendor.id_,
-                offer_id=offer.id_,
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
-
-        vendor_p_id = case.actor_participant_index[vendor.id_]
-        updated = cast(CaseParticipant, dl.read(vendor_p_id))
-        assert updated is not None
-        assert updated.participant_statuses
-        assert updated.participant_statuses[-1].rm.state == RM.VALID
-
-    def test_engage_case_advances_rm_to_accepted(self, chain_context):
-        """After Validate, EngageCase transitions RM to ACCEPTED."""
-        vendor, _, _, dl, _, offer, case = chain_context
-
+    @staticmethod
+    def _validate(dl, vendor, offer) -> None:
         SvcValidateReportUseCase(
             dl,
             ValidateReportTriggerRequest(
@@ -235,53 +223,70 @@ class TestValidateEngageChain:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
+    @staticmethod
+    def _engage(dl, vendor, case) -> None:
         SvcEngageCaseUseCase(
             dl,
             EngageCaseTriggerRequest(actor_id=vendor.id_, case_id=case.id_),
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
-        vendor_p_id = case.actor_participant_index[vendor.id_]
-        updated = cast(CaseParticipant, dl.read(vendor_p_id))
-        assert updated is not None
-        assert updated.participant_statuses
-        assert updated.participant_statuses[-1].rm.state == RM.ACCEPTED
+    @staticmethod
+    def _rm_history(dl, vendor, case) -> list[RM]:
+        participant = cast(
+            CaseParticipant,
+            dl.read(case.actor_participant_index[vendor.id_]),
+        )
+        return [s.rm.state for s in participant.participant_statuses]
 
-    def test_full_chain_rm_sequence(self, chain_context):
-        """RM state history includes RECEIVED → VALID → ACCEPTED in order."""
+    def test_validate_report_latches_the_link_and_writes_no_status(
+        self, chain_context
+    ):
+        """The report link reads VALID; the participant is the manager's."""
+        vendor, _, _, dl, report, offer, case = chain_context
+        before = self._rm_history(dl, vendor, case)
+
+        self._validate(dl, vendor, offer)
+
+        assert self._rm_history(dl, vendor, case) == before
+        link = dl.read(VultronReportCaseLink.build_id(report.id_))
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.rm_state == RM.VALID
+
+    def test_engage_before_the_recorded_validation_is_refused(
+        self, chain_context
+    ):
+        """RECEIVED → ACCEPTED is not a move the vendor may declare."""
         vendor, _, _, dl, _, offer, case = chain_context
+        self._validate(dl, vendor, offer)
 
-        SvcValidateReportUseCase(
-            dl,
-            ValidateReportTriggerRequest(
-                actor_id=vendor.id_, offer_id=offer.id_
-            ),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
+        with pytest.raises(VultronValidationError):
+            self._engage(dl, vendor, case)
 
-        SvcEngageCaseUseCase(
-            dl,
-            EngageCaseTriggerRequest(actor_id=vendor.id_, case_id=case.id_),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
-
-        vendor_p_id = case.actor_participant_index[vendor.id_]
-        participant = cast(CaseParticipant, dl.read(vendor_p_id))
-        assert participant is not None
-        rm_history = [s.rm.state for s in participant.participant_statuses]
-
-        assert RM.RECEIVED in rm_history, "RM.RECEIVED must appear in history"
-        assert RM.VALID in rm_history, "RM.VALID must appear in history"
-        assert RM.ACCEPTED in rm_history, "RM.ACCEPTED must appear in history"
-
-        # ACCEPTED must come after VALID
-        valid_idx = next(i for i, s in enumerate(rm_history) if s == RM.VALID)
-        accepted_idx = next(
-            i for i, s in enumerate(rm_history) if s == RM.ACCEPTED
+    def test_engage_after_the_recorded_validation_is_sent(self, chain_context):
+        """With the CASE_MANAGER's VALID copied, the engagement is sent."""
+        vendor, _, _, dl, _, offer, case = chain_context
+        self._validate(dl, vendor, offer)
+        # The status the CASE_MANAGER committed for the validation, as the
+        # replica copies it from the ledger.
+        participant = cast(
+            CaseParticipant,
+            dl.read(case.actor_participant_index[vendor.id_]),
         )
-        assert accepted_idx > valid_idx, (
-            "RM.ACCEPTED must come after RM.VALID in the participant status history"
+        participant.add_participant_status(
+            ParticipantStatus(
+                context=case.id_,
+                attributed_to=vendor.id_,
+                rm=RmDimension(state=RM.VALID),
+            )
         )
+        dl.save(participant)
+        before = set(dl.outbox_list())
+
+        self._engage(dl, vendor, case)
+
+        assert len(set(dl.outbox_list()) - before) == 1
+        assert self._rm_history(dl, vendor, case)[-1] == RM.VALID
 
     def test_validate_report_queues_activity_addressed_to_case_actor(
         self, chain_context

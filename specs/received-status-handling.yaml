@@ -509,34 +509,6 @@ groups:
     stories:
     - story_2022_088
     - story_2022_107
-  - id: RSH-05-007
-    priority: MUST
-    kind: protocol
-    statement: >
-      A participant applying an `Announce(CaseLedgerEntry)` for an
-      `add_participant_status_to_participant` event MUST NOT let it move a
-      replica's RM state backwards on the RM progress scale. The local value
-      MUST be carried forward for that dimension; all other dimensions are
-      applied as the entry describes them.
-    rationale: >
-      Monotonic visibility (see notes/sync-ledger-replication.md). The Case
-      Actor is authoritative for which transition happened, but a replayed,
-      reordered, or divergent entry would otherwise un-see progress the replica
-      has already observed. Lateral moves at the same rank
-      (`VALID` <-> `INVALID`) are re-adjudication, not regression, and are
-      applied unchanged.
-    note: >
-      The predicate is `is_rm_replay_acceptable(local_rm, recorded_rm)` in
-      `vultron/core/states/rm.py`. Two replay nodes apply it, so they cannot
-      ratchet differently: `ApplyParticipantStatusFromLedgerNode` on this
-      event type, and `ApplyRmVerdictFromLedgerNode` on the activity-typed RM
-      moves (report verdicts, engage/defer, full-case Invite replies;
-      RSH-08-004).
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm applying an
-      `Announce(CaseLedgerEntry)` never moves a replica's RM state backward on the RM progress scale.
-    stories:
-    - story_2022_045
-    - story_2022_088
   - id: RSH-05-008
     priority: SHOULD
     kind: protocol
@@ -894,9 +866,9 @@ groups:
       peer that advances through acceptance and reports fix readiness in one
       message (CSB-16-001). ISSUE-3015 records the analysis.
 
-      The replica-apply path (`ApplyParticipantStatusFromLedgerNode`) is
-      governed by RSH-05-007 (RM ratchet) and RSH-05-021 (composite-state
-      fault on impossible content).
+      The replica-apply path (`ApplyParticipantStatusFromLedgerNode`) copies
+      the entry's status (CM-23-016) and faults on impossible content
+      (RSH-05-021).
     relationships:
     - rel_type: refines
       spec_id: RSH-05-001
@@ -950,14 +922,11 @@ groups:
       `VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE` lives in
       `vultron/core/models/fault_classes.py` alongside
       `VULTRON_FAILURE_STATUS_ASSERTION_REFUSED`.
-      The existing RM ratchet (RSH-05-007) is unchanged: a ratcheted entry is
-      still valid (regression prevention is a replica-visibility invariant, not
-      a content-validity check) and does not trigger the fault path.
+      The check reads the entry's status as carried; a replica carries none of
+      its own values over it (CM-23-016).
     relationships:
     - rel_type: refines
       spec_id: RSH-05-001
-    - rel_type: depends_on
-      spec_id: RSH-05-007
     lint_suppress:
     - missing_story_reference
   - id: RSH-05-024
@@ -1425,3 +1394,36 @@ groups:
       empties without being deleted.
     adr:
     - ADR-0108
+  - id: RSH-08-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      A participant that declares its own RM, VF or D state, or a case owner
+      that asserts one on another participant's behalf, MUST NOT append the
+      status to a participant record in its own case replica. It sends the
+      declaration to the CASE_MANAGER, and its replica copies the status the
+      CASE_MANAGER commits for it, as every other replica does. It MAY check
+      the move before sending, and MAY store the status object the activity
+      carries.
+    rationale: >
+      A status the sender writes for itself has its own id and times, or a
+      value the CASE_MANAGER then filters, so the sender's replica held a
+      status no entry records and differed from every replica at the same
+      ledger position (#4295). PCR-03-002 and PCR-03-005 already keep the
+      case owner from writing its own copy; this extends that to every
+      sender of a status declaration (CLP-07-013, CM-23-016).
+    verification: >
+      `test/core/use_cases/triggers/case/test_engage.py`,
+      `test/core/use_cases/triggers/case/test_add_participant_status.py` and
+      `test/adapters/driving/fastapi/routers/test_demo_triggers.py` assert
+      the engage, defer, validate, self-report, on-behalf, develop-fix and
+      deploy-fix triggers leave the actor's participant record unchanged and
+      queue the declaration; refusals are still raised before anything is
+      sent.
+    relationships:
+    - rel_type: extends
+      spec_id: PCR-03-002
+    - rel_type: refines
+      spec_id: RSH-08-003
+    adr:
+    - ADR-0124

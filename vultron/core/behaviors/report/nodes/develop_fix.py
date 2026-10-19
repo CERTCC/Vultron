@@ -61,11 +61,16 @@ logger = logging.getLogger(__name__)
 
 
 class TransitionCStoFixReady(DataLayerActionWithPorts, StateWriteCapable):
-    """Persist a VF=VF ParticipantStatus snapshot for the actor in this case.
+    """Store the VF=VF ParticipantStatus snapshot the actor reports.
 
-    Advances the actor's VF dimension to ``CS_vf.VF`` (fix ready) and
-    persists the new ``ParticipantStatus`` record via the DataLayer, appending
-    it to the ``CaseParticipant.participant_statuses`` list.
+    Validates the move of the actor's VF dimension to ``CS_vf.VF`` (fix
+    ready) and stores the ``ParticipantStatus`` the emitted activity carries.
+    An actor not yet vendor-aware (``vf``) first gets a ``Vf`` step, and the
+    ``VF`` step is validated as following it (CSB-16-001).  Neither is
+    appended to the participant record: the CASE_MANAGER appends each when it
+    accepts it, and the actor's replica copies them from the ledger
+    (RSH-08-003, CLP-07-013, CM-23-016).  ``result_out["status_ids"]`` lists
+    the stored steps in order, for :class:`EmitCFActivity` to send each.
 
     Per AC-7 (issue #1812); follows the ``CreateParticipantStatusNode``
     pattern (``vultron/core/behaviors/case/nodes/participant/status.py``).
@@ -85,6 +90,8 @@ class TransitionCStoFixReady(DataLayerActionWithPorts, StateWriteCapable):
         self._result_out = result_out if result_out is not None else {}
         # Pre-build status nodes (BTND-10-004: no construction in update()).
         # BTBridge seeds case_id on the blackboard so CaseIdInputPortMixin reads it.
+        self._vendor_aware_ids: list[str] = []
+        self._fix_ready_ids: list[str] = []
         self._vendor_aware_node = CreateParticipantStatusNode(
             actor_id=actor_id,
             rm_state=None,
@@ -93,6 +100,8 @@ class TransitionCStoFixReady(DataLayerActionWithPorts, StateWriteCapable):
             pxa_state=None,
             result_out=self._result_out,
             name=f"{_name}._VendorAware",
+            written_ids=self._vendor_aware_ids,
+            attach=False,
         )
         self._fix_ready_node = CreateParticipantStatusNode(
             actor_id=actor_id,
@@ -102,6 +111,9 @@ class TransitionCStoFixReady(DataLayerActionWithPorts, StateWriteCapable):
             pxa_state=None,
             result_out=self._result_out,
             name=f"{_name}._Create",
+            written_ids=self._fix_ready_ids,
+            attach=False,
+            follows=self._vendor_aware_ids,
         )
 
     def _ensure_vendor_aware(self) -> Status:
@@ -138,6 +150,7 @@ class TransitionCStoFixReady(DataLayerActionWithPorts, StateWriteCapable):
             return f
         assert self.datalayer is not None
 
+        self._vendor_aware_ids.clear()
         if self._ensure_vendor_aware() != Status.SUCCESS:
             return Status.FAILURE
 
@@ -148,6 +161,10 @@ class TransitionCStoFixReady(DataLayerActionWithPorts, StateWriteCapable):
                 case_id=self._case_id,
             )
             if result.status == Status.SUCCESS:
+                self._result_out["status_ids"] = [
+                    *self._vendor_aware_ids,
+                    *self._fix_ready_ids,
+                ]
                 self.logger.debug(
                     "%s: VF → VF for actor '%s' in case '%s'",
                     self.name,
@@ -167,9 +184,9 @@ class _EmitParticipantStatusActivityBase(_EmitSingleActivityBase):
     ``Add(ParticipantStatus)`` trigger activities (BTND-07-005).
 
     Calls ``trigger_activity_factory.add_participant_status_to_participant``
-    with the status and participant IDs written to *result_out* by
-    :class:`TransitionCStoFixReady` and queues the resulting activity ID
-    via ``outbox_append``.
+    for each status the preceding ``TransitionCStoFix*`` node stored
+    (``result_out["status_ids"]``, in order, or its one ``status_id``) and
+    queues each resulting activity ID via ``outbox_append``.
 
     Subclasses provide only a constructor docstring; all protocol logic
     lives here.  The ``result_out`` dict must be populated by the preceding
@@ -229,21 +246,25 @@ class _EmitParticipantStatusActivityBase(_EmitSingleActivityBase):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        # When actor IS the case manager (single-actor scenario) to=None means
-        # the activity is self-addressed; no external delivery needed.
-        to = [case_manager_id] if case_manager_id != self._actor_id else None
-
+        # Addressed to the CASE_MANAGER even when that is this actor: the
+        # status is appended only when the CASE_MANAGER accepts it and
+        # commits its entry, so a self-addressed copy is delivered too
+        # (RSH-08-003, CLP-07-013).
+        status_ids: list[str] = self._result_out.get("status_ids") or [
+            status_id
+        ]
         try:
-            activity_id = self.trigger_activity_factory.add_participant_status_to_participant(
-                status_id=status_id,
-                participant_id=participant_id,
-                actor=self._actor_id,
-                to=to,
-            )
-            # Route through the shared emit seam (OX-14-001, ASK-04-008).
-            # factory.add_participant_status_to_participant returns str only;
-            # pass an empty blob since no captured dict is present.
-            self._emit_through_seam(activity_id, "")
+            for step_id in status_ids:
+                activity_id = self.trigger_activity_factory.add_participant_status_to_participant(
+                    status_id=step_id,
+                    participant_id=participant_id,
+                    actor=self._actor_id,
+                    to=[case_manager_id],
+                )
+                # Route through the shared emit seam (OX-14-001, ASK-04-008).
+                # factory.add_participant_status_to_participant returns str
+                # only; pass an empty blob since no captured dict is present.
+                self._emit_through_seam(activity_id, "")
             self.logger.info(
                 "Actor '%s' emitted %s for case '%s'",
                 self._actor_id,

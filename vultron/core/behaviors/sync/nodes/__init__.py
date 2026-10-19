@@ -212,7 +212,6 @@ __all__ = [
     "IsRemoveCaseParticipantEventNode",
     "ApplyCaseStatusFromLedgerNode",
     "IsAddCaseStatusEventNode",
-    "RM_VERDICT_TARGETS",
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",

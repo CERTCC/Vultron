@@ -49,6 +49,7 @@ from test.support.rm_declaration import (
     CASE_ID,
     CASE_MANAGER_ID,
     PARTICIPANT_ID,
+    STRANGER_ID,
     RMAnomalyProbe,
     RMDeclarationCase,
     assert_note_owed,
@@ -773,7 +774,7 @@ class TestLedgerApplyCopiesTheStatus:
     """A replicated entry's status is copied as carried (CM-23-016, ADR-0124)."""
 
     @staticmethod
-    def _apply(dl: Any) -> Status:
+    def _apply(dl: Any, actor_id: str = ACTOR_ID) -> Status:
         entry = _status_snapshot_entry(rm_state="VALID", vf_state="Vf")
         bridge = BTBridge(
             datalayer=dl,
@@ -784,7 +785,7 @@ class TestLedgerApplyCopiesTheStatus:
             tree=ApplyParticipantStatusFromLedgerNode(
                 name="ApplyParticipantStatusFromLedger"
             ),
-            actor_id=ACTOR_ID,
+            actor_id=actor_id,
             activity=_announce_event(entry),
         ).status
 
@@ -809,6 +810,29 @@ class TestLedgerApplyCopiesTheStatus:
         assert latest.id_ == ASSERTED_STATUS_ID
         assert _rm_of(latest) == RM.VALID.name
         assert _vf_of(latest) == CS_vf.Vf.name
+
+    @pytest.mark.spec("CM-23-016")
+    def test_two_fresh_replicas_write_identical_records(self, store_for):
+        """One entry applied to two replicas: the same record, ids and times.
+
+        A minted id or a clock read in the apply would make them differ.
+        """
+        current = _current_status(RM.RECEIVED, CS_vf.Vf, CS_pxa.pxa)
+        replicas = [store_for(ACTOR_ID), store_for(STRANGER_ID)]
+        for dl in replicas:
+            _seed_case(dl, current.model_copy(deep=True), None)
+
+        for dl, owner in zip(replicas, (ACTOR_ID, STRANGER_ID), strict=True):
+            assert self._apply(dl, owner) == Status.SUCCESS
+
+        # The seed gives each record its own birth status; what the entry
+        # wrote is the status appended last.
+        first, second = (
+            _latest_status(dl, PARTICIPANT_ID).model_dump(mode="json")
+            for dl in replicas
+        )
+        assert first == second
+        assert first["id_"] == ASSERTED_STATUS_ID
 
     @pytest.mark.spec("CM-23-016")
     def test_a_status_already_stored_locally_is_appended_as_carried(

@@ -604,10 +604,10 @@ groups:
     verification: >-
       A rebuild-from-ledger check replays the CASE_MANAGER's ledger into an empty
       store and asserts that the roster, every participant record (consent rows
-      included) and the embargo register equal the CASE_MANAGER's. It leaves out
-      only the termination cause a `Remove` does not carry (#4748) and the ids and
-      times of statuses an RM verdict replay builds (#4295). It runs after every
-      in-process exchange demo and every per-actor-store scenario; the
+      and every participant status included, ids and times too), the case
+      statuses and the embargo register equal the CASE_MANAGER's. It leaves out
+      only the termination cause a `Remove` does not carry (#4748). It runs
+      after every in-process exchange demo and every per-actor-store scenario; the
       multi-container scenario demos are covered by those in-process equivalents.
       `test/core/use_cases/received/test_rebuild_from_ledger.py` and
       `test/demo/test_rebuild_from_ledger.py` pin it. A test per
@@ -1382,8 +1382,8 @@ groups:
       it the Case Owner''s reinstatement request: its commit landed together with
       its replica apply node (`ApplyReinstateCaseParticipantFromLedgerNode`,
       RSH-08-004), so it now commits. The `Reject(Offer)` and `TentativeReject(Offer)` trees
-      carry canonical signatures their CASE_MANAGER receivers ledger and replicas
-      replay (`ApplyRmVerdictFromLedgerNode`), so they commit. `Offer(CaseParticipantRole)`
+      carry canonical signatures their CASE_MANAGER receivers ledger, followed by
+      the status each verdict writes as its own entry (CLP-07-013), so they commit. `Offer(CaseParticipantRole)`
       (ADR-0039) was missing from `_CANONICAL_PAYLOAD_SIGNATURES`, so the role-offer
       received tree — which passes `case_id` and gates a commit on the CASE_MANAGER —
       had every commit refused as non-canonical and the handler reported `rejected`

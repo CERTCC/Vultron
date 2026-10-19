@@ -24,7 +24,7 @@ Covers:
 - ``SvcAddParticipantStatusUseCase.execute()`` full integration path.
 """
 
-from typing import cast
+from typing import NamedTuple, cast
 
 import pytest
 from py_trees.common import Status
@@ -103,6 +103,83 @@ def _make_use_case(dl: "_FakeDL"):
         case_id="https://example.org/case",
     )
     return SvcAddParticipantStatusUseCase(_as_persistence(dl), request)
+
+
+# ---------------------------------------------------------------------------
+# Store helpers for the end-to-end trigger tests
+#
+# The trigger stores the ParticipantStatus it sends but does not append it to
+# the sender's participant record: the record changes only when the
+# CASE_MANAGER's ledger entry for the status is copied, on the sender's
+# replica as on every other (RSH-08-003, CM-23-016).
+# ---------------------------------------------------------------------------
+
+
+class _StatusSnapshot(NamedTuple):
+    """Stored-status count and the participant record's status ids."""
+
+    stored: int
+    record_ids: list[str]
+
+
+def _status_snapshot(dl, participant_id: str) -> _StatusSnapshot:
+    """What a trigger write may change: stored statuses, never the record."""
+    from vultron.core.models.case_participant import CaseParticipant
+
+    participant = dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    return _StatusSnapshot(
+        stored=dl.count_all().get("ParticipantStatus", 0),
+        record_ids=[
+            s if isinstance(s, str) else s.id_
+            for s in participant.participant_statuses
+        ],
+    )
+
+
+def _one_more_stored(before: _StatusSnapshot) -> _StatusSnapshot:
+    """``before`` plus one stored status, with the record left as it was."""
+    return before._replace(stored=before.stored + 1)
+
+
+def _seed_copied_status(
+    dl,
+    participant_id: str,
+    *,
+    rm: RM = RM.START,
+    vf: CS_vf | None = None,
+    d: CS_d | None = None,
+    pxa: CS_pxa | None = None,
+) -> None:
+    """Append a status to the record as a replica's copy of the entry would.
+
+    The baseline a later trigger validates against: a trigger's own write no
+    longer moves the record (RSH-08-003, CM-23-016).
+    """
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.dimensions import PxaDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+
+    participant = dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    case_id = participant.context
+    assert isinstance(case_id, str)
+    status = ParticipantStatus(
+        context=case_id,
+        attributed_to=participant.attributed_to,
+        rm=RmDimension(state=rm),
+        vf=VfDimension(state=vf) if vf is not None else None,
+        d=DDimension(state=d) if d is not None else None,
+        case_status=(
+            CaseStatus(context=case_id, pxa=PxaDimension(state=pxa))
+            if pxa is not None
+            else None
+        ),
+    )
+    dl.create(status)
+    participant.participant_statuses.append(status)
+    dl.save(participant)
 
 
 # ---------------------------------------------------------------------------
@@ -238,11 +315,12 @@ def test_resolve_participant_state_raises_when_invalid_vf_type():
 
 
 class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
-    """SvcAddParticipantStatusUseCase.execute() appends to sender's own record.
+    """SvcAddParticipantStatusUseCase.execute() and the sender's own record.
 
-    Without this, ``_resolve_current_participant_state`` always reads the
-    bootstrap seed (RM.START), never the actual latest state the sender
-    has reported.  See issue #624.
+    ``execute()`` stores the status and queues it for the CASE_MANAGER; the
+    sender's record gains it only when the CASE_MANAGER's ledger entry is
+    copied (RSH-08-003, CM-23-016).  ``_resolve_current_participant_state``
+    then reads the copied status, not the bootstrap seed (#624).
     """
 
     @pytest.fixture(autouse=True)
@@ -405,13 +483,16 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         assert isinstance(status, ParticipantStatus)
         assert distinguisher.read(status) is distinguisher.value
 
-    def test_execute_appends_status_to_sender_participant(self):
-        """After execute(), sender's participant_statuses contains the new status.
+    @pytest.mark.spec("RSH-08-003")
+    @pytest.mark.spec("RSH-08-006")
+    def test_execute_stores_status_without_appending_to_sender_record(self):
+        """execute() stores the status and queues it, leaving the record alone.
 
-        Without this, _resolve_current_participant_state would always read the
-        initial seed (RM.START), causing subsequent calls to report
-        stale RM.START — the root cause of #624.
+        The CASE_MANAGER appends the status when it accepts the activity, and
+        the sender's record changes only by copying that entry (RSH-08-003,
+        CM-23-016).
         """
+        from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.rm import RM
         from vultron.core.use_cases.triggers.case import (
             SvcAddParticipantStatusUseCase,
@@ -425,6 +506,8 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             case_id=self.case.id_,
             rm_state=RM.RECEIVED,
         )
+        before = _status_snapshot(self.dl, self.actor_participant.id_)
+        outbox_before = set(self.dl.outbox_list())
         result = SvcAddParticipantStatusUseCase(
             self.dl,
             request,
@@ -434,24 +517,35 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         status_id = result.status_id
         assert status_id is not None, "execute() must return a status_id"
 
-        # The sender's own participant record must now contain the status.
-        participant = self.dl.read(self.actor_participant.id_)
-        assert participant is not None
-        statuses = getattr(participant, "participant_statuses", [])
-        status_ids = [getattr(s, "id_", s) for s in statuses]
-        assert status_id in status_ids, (
-            "Sender's participant_statuses must include the newly created "
-            f"status '{status_id}' after execute() (#624). Got: {status_ids}"
+        stored = self.dl.read(status_id)
+        assert isinstance(stored, ParticipantStatus)
+        assert stored.rm.state == RM.RECEIVED
+
+        (activity_id,) = set(self.dl.outbox_list()) - outbox_before
+        activity = self.dl.read(activity_id)
+        assert activity is not None
+        carried = getattr(activity, "object_", None)
+        assert getattr(carried, "id_", carried) == status_id
+
+        assert _status_snapshot(
+            self.dl, self.actor_participant.id_
+        ) == _one_more_stored(before), (
+            "the sender's record must change only by copying the "
+            "CASE_MANAGER's entry (RSH-08-003)"
         )
 
-    def test_resolve_current_state_returns_emitted_rm_after_execute(self):
-        """_resolve_current_participant_state returns the emitted RM after execute.
+    @pytest.mark.spec("CM-23-016")
+    def test_resolve_current_state_returns_emitted_rm_once_copied(self):
+        """_resolve_current_participant_state reads the copied emitted status.
 
-        This is the proxy check for the M6 bug: if execute() does NOT update the
-        sender's record, _resolve_current_participant_state will still return
-        RM.START on the next call, causing the next outbound status to carry
-        RM.START and be rejected as a backwards transition by the vendor.
+        The M6 bug (#624): a sender whose record never gains its emitted
+        status reports RM.START on the next call, which the vendor rejects
+        as a backwards transition.  The record gains it by copying the
+        CASE_MANAGER's entry (CM-23-016), not by the trigger's own write
+        (RSH-08-003), so until that copy lands the record still reads START.
         """
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.rm import RM
         from vultron.core.use_cases.triggers.case import (
             SvcAddParticipantStatusUseCase,
@@ -470,17 +564,31 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             request,
             trigger_activity=self.trigger_activity,
         )
-        use_case.execute()
+        result = use_case.execute()
 
-        # On a second call, _resolve_current_participant_state must return
-        # RM.RECEIVED (the state we just emitted), not RM.START.
+        rm, *_ = use_case._resolve_current_participant_state(
+            self.dl, self.actor_participant.id_
+        )
+        assert rm == RM.START, (
+            "the trigger's own write must not move the record"
+        )
+
+        # The replica copies the CASE_MANAGER's entry for the emitted status.
+        assert result.status_id is not None
+        stored = self.dl.read(result.status_id)
+        participant = self.dl.read(self.actor_participant.id_)
+        assert isinstance(stored, ParticipantStatus)
+        assert isinstance(participant, CaseParticipant)
+        participant.participant_statuses.append(stored)
+        self.dl.save(participant)
+
         rm, *_ = use_case._resolve_current_participant_state(
             self.dl, self.actor_participant.id_
         )
         assert rm == RM.RECEIVED, (
             f"After execute() with rm_state=RM.RECEIVED, "
             f"_resolve_current_participant_state must return RM.RECEIVED; "
-            f"got {rm!r} (#624)"
+            f"got {rm!r} once the entry is copied (#624)"
         )
 
 
@@ -1385,68 +1493,73 @@ class TestValidateTriggerTransitions:
             self.dl, request, trigger_activity=self.trigger_activity
         ).execute()
 
-    def _status_count(self):
-        participant = self.dl.read(self.actor_participant.id_)
-        return len(getattr(participant, "participant_statuses", []))
+    def _status_snapshot(self) -> _StatusSnapshot:
+        return _status_snapshot(self.dl, self.actor_participant.id_)
+
+    def _seed(self, **dimensions) -> None:
+        _seed_copied_status(self.dl, self.actor_participant.id_, **dimensions)
 
     @pytest.mark.spec("CM-04-005")
     def test_ac1_invalid_vf_jump_raises_and_persists_nothing(self):
         """AC-1: vf → VF (skips Vf) raises VultronValidationError; no record written.
 
-        First write is RM-only; the VENDOR validator auto-seeds vf=CS_vf.vf on
-        the status, establishing current_vf so the VF adjacency check fires.
+        The record is seeded at vf=CS_vf.vf, as a copy of the CASE_MANAGER's
+        entry would leave it, so the VF adjacency check fires (CM-23-016).
         """
         from vultron.errors import VultronValidationError
 
-        # Establish current_vf=CS_vf.vf via the VENDOR auto-seed.
-        self._execute(rm_state=RM.START)
-        before = self._status_count()
+        self._seed(rm=RM.START, vf=CS_vf.vf)
+        before = self._status_snapshot()
         with pytest.raises(VultronValidationError):
             self._execute(vf_state=CS_vf.VF)
-        assert self._status_count() == before
+        assert self._status_snapshot() == before
 
     def test_ac2_invalid_rm_transition_raises_and_persists_nothing(self):
         """AC-2: START → CLOSED (non-adjacent) raises VultronValidationError; no record written."""
         from vultron.errors import VultronValidationError
 
-        before = self._status_count()
+        before = self._status_snapshot()
         with pytest.raises(VultronValidationError):
             self._execute(rm_state=RM.CLOSED)
-        assert self._status_count() == before
+        assert self._status_snapshot() == before
 
     @pytest.mark.spec("CM-04-005")
     def test_ac3_backward_pxa_raises_and_persists_nothing(self):
         """AC-3: Pxa → pxa (backward) raises VultronValidationError; no record written.
 
-        First advances to Pxa via a valid write, then attempts a backward
-        move to pxa to confirm the guard rejects it.
+        Seeds the record at Pxa (as a copied entry would leave it; a trigger's
+        own write no longer moves the record, RSH-08-003), then attempts a
+        backward move to pxa to confirm the guard rejects it.
         """
         from vultron.core.states.cs import CS_pxa
         from vultron.errors import VultronValidationError
 
-        # Valid forward step: pxa → Pxa.
-        self._execute(pxa_state=CS_pxa.Pxa)
-        before = self._status_count()
+        self._seed(pxa=CS_pxa.Pxa)
+        before = self._status_snapshot()
 
         # Backward step: Pxa → pxa must be rejected.
         with pytest.raises(VultronValidationError):
             self._execute(pxa_state=CS_pxa.pxa)
-        assert self._status_count() == before
+        assert self._status_snapshot() == before
 
     def test_ac4_same_state_write_succeeds(self):
-        """AC-4: Same-state write (target == current) is a valid confirmation; record persisted."""
-        before = self._status_count()
+        """AC-4: Same-state write (target == current) is a valid confirmation.
+
+        The status is stored; the record is left to the CASE_MANAGER's entry
+        (RSH-08-003).
+        """
+        before = self._status_snapshot()
         # START → START is a same-state write (initial RM state).
         self._execute(rm_state=RM.START)
-        assert self._status_count() == before + 1
+        assert self._status_snapshot() == _one_more_stored(before)
 
     def test_ac5_none_target_skips_validation_and_succeeds(self):
-        """AC-5: All-None request skips all validation and persists a snapshot."""
-        before = self._status_count()
+        """AC-5: All-None request skips all validation and stores a snapshot."""
+        before = self._status_snapshot()
         self._execute(
             rm_state=None, vf_state=None, d_state=None, pxa_state=None
         )
-        assert self._status_count() == before + 1
+        assert self._status_snapshot() == _one_more_stored(before)
 
     def test_ac6_trigger_path_rejects_invalid_vf_end_to_end(self):
         """AC-6: The add-participant-status trigger path rejects invalid VF via use case.
@@ -1456,23 +1569,23 @@ class TestValidateTriggerTransitions:
         """
         from vultron.errors import VultronValidationError
 
-        # Establish current_vf via first write so the adjacency check can fire.
-        self._execute(rm_state=RM.START)
+        # Seed current_vf so the adjacency check can fire (CM-23-016).
+        self._seed(rm=RM.START, vf=CS_vf.vf)
         # vf → VF skips Vf — invalid.
         with pytest.raises(VultronValidationError, match="VF"):
             self._execute(vf_state=CS_vf.VF)
 
     def test_valid_adjacent_vf_step_succeeds(self):
-        """Valid adjacent VF step (vf → Vf) is accepted and record persisted."""
-        before = self._status_count()
+        """Valid adjacent VF step (vf → Vf) is accepted and the status stored."""
+        before = self._status_snapshot()
         self._execute(vf_state=CS_vf.Vf)
-        assert self._status_count() == before + 1
+        assert self._status_snapshot() == _one_more_stored(before)
 
     def test_valid_adjacent_rm_step_succeeds(self):
-        """Valid adjacent RM step (START → RECEIVED) is accepted and record persisted."""
-        before = self._status_count()
+        """Valid adjacent RM step (START → RECEIVED) is accepted; status stored."""
+        before = self._status_snapshot()
         self._execute(rm_state=RM.RECEIVED)
-        assert self._status_count() == before + 1
+        assert self._status_snapshot() == _one_more_stored(before)
 
     # ------------------------------------------------------------------
     # #3050 — report every violation, reject the batch (ADR-0086)
@@ -1486,7 +1599,7 @@ class TestValidateTriggerTransitions:
         the rejection is atomic nothing partial landed either, so the round trip
         bought no progress (EH-07-001).
         """
-        before = self._status_count()
+        before = self._status_snapshot()
 
         with pytest.raises(VultronValidationError) as exc_info:
             self._execute(rm_state=RM.CLOSED, pxa_state=CS_pxa.PXA)
@@ -1494,7 +1607,7 @@ class TestValidateTriggerTransitions:
         rendered = str(exc_info.value)
         assert "Invalid RM transition" in rendered, rendered
         assert "Invalid PXA transition" in rendered, rendered
-        assert self._status_count() == before, "the batch must be rejected"
+        assert self._status_snapshot() == before, "the batch must be rejected"
 
     def test_trigger_path_error_carries_structured_violations(self):
         """AC-6/AC-7: the aggregate error reaches the caller as data.
@@ -1523,8 +1636,8 @@ class TestValidateTriggerTransitions:
         ``vf``, so one fix clears both and only the VF step is a root cause
         (EH-07-002).
         """
-        # Establish current_vf=CS_vf.vf via the VENDOR auto-seed.
-        self._execute(rm_state=RM.START)
+        # Seed current_vf=CS_vf.vf, as a copied entry would (CM-23-016).
+        self._seed(rm=RM.START, vf=CS_vf.vf)
 
         with pytest.raises(VultronValidationError) as exc_info:
             self._execute(vf_state=CS_vf.VF)
@@ -1635,27 +1748,26 @@ class TestSoleObserverVfdGuard:
             self.dl, request, trigger_activity=self.trigger_activity
         ).execute()
 
-    def _status_count(self):
-        participant = self.dl.read(self.actor_participant.id_)
-        return len(getattr(participant, "participant_statuses", []))
+    def _status_snapshot(self) -> _StatusSnapshot:
+        return _status_snapshot(self.dl, self.actor_participant.id_)
 
     @pytest.mark.spec("CM-25-005")
     def test_sole_observer_vf_transition_blocked_end_to_end(self):
         """CM-25-005: sole-OBSERVER actor attempting v→V raises VultronValidationError."""
         from vultron.errors import VultronValidationError
 
-        before = self._status_count()
+        before = self._status_snapshot()
         with pytest.raises(VultronValidationError):
             self._execute(vf_state=CS_vf.Vf)
-        assert self._status_count() == before
+        assert self._status_snapshot() == before
 
     def test_sole_observer_none_vf_request_succeeds(self):
-        """Sole-OBSERVER actor with no VF override bypasses guard; record persisted."""
-        before = self._status_count()
+        """Sole-OBSERVER actor with no VF override bypasses guard; status stored."""
+        before = self._status_snapshot()
         self._execute(
             rm_state=None, vf_state=None, d_state=None, pxa_state=None
         )
-        assert self._status_count() == before + 1
+        assert self._status_snapshot() == _one_more_stored(before)
 
 
 # ---------------------------------------------------------------------------
@@ -1769,24 +1881,25 @@ class TestVendorVfdRoleGuard:
             self.dl, request, trigger_activity=self.trigger_activity
         ).execute()
 
-    def _status_count(self, participant_id):
-        participant = self.dl.read(participant_id)
-        return len(getattr(participant, "participant_statuses", []))
+    def _status_snapshot(self, participant_id: str) -> _StatusSnapshot:
+        return _status_snapshot(self.dl, participant_id)
 
     def test_vendor_actor_can_emit_vendor_aware_vf(self):
         """VENDOR actor submitting vf_state=Vf (v→V) succeeds (ADR-0075)."""
-        before = self._status_count(self.vendor_participant.id_)
+        before = self._status_snapshot(self.vendor_participant.id_)
         self._execute_as(self.vendor_actor, vf_state=CS_vf.Vf)
-        assert self._status_count(self.vendor_participant.id_) == before + 1
+        assert self._status_snapshot(
+            self.vendor_participant.id_
+        ) == _one_more_stored(before)
 
     def test_non_vendor_coordinator_blocked_for_vendor_aware_vf(self):
         """COORDINATOR (non-VENDOR) submitting vf_state=Vf is blocked (ADR-0075, #2862)."""
         from vultron.errors import VultronValidationError
 
-        before = self._status_count(self.coord_participant.id_)
+        before = self._status_snapshot(self.coord_participant.id_)
         with pytest.raises(VultronValidationError):
             self._execute_as(self.coord_actor, vf_state=CS_vf.Vf)
-        assert self._status_count(self.coord_participant.id_) == before
+        assert self._status_snapshot(self.coord_participant.id_) == before
 
 
 # ---------------------------------------------------------------------------
@@ -1889,15 +2002,11 @@ class TestCrossMachineEntailments:
             self.dl, request, trigger_activity=self.trigger_activity
         ).execute()
 
-    def _status_count(self):
-        participant = self.dl.read(self.actor_participant.id_)
-        return len(getattr(participant, "participant_statuses", []))
+    def _status_snapshot(self) -> _StatusSnapshot:
+        return _status_snapshot(self.dl, self.actor_participant.id_)
 
-    def _advance_rm_to_accepted(self):
-        """Step the actor through RM.START → RECEIVED → VALID → ACCEPTED."""
-        self._execute(rm_state=RM.RECEIVED)
-        self._execute(rm_state=RM.VALID)
-        self._execute(rm_state=RM.ACCEPTED)
+    def _seed(self, **dimensions) -> None:
+        _seed_copied_status(self.dl, self.actor_participant.id_, **dimensions)
 
     # --- CSB-18-001: RM ↔ VF entailment ---
 
@@ -1910,13 +2019,13 @@ class TestCrossMachineEntailments:
         """
         from vultron.errors import VultronValidationError
 
-        # Valid combined step: vendor becomes aware while reporting received.
-        self._execute(rm_state=RM.RECEIVED, vf_state=CS_vf.Vf)
-        before = self._status_count()
+        # Copied baseline: vendor aware while reporting received.
+        self._seed(rm=RM.RECEIVED, vf=CS_vf.Vf)
+        before = self._status_snapshot()
         # Cross-machine violation: VF requires RM ≥ ACCEPTED; current is RECEIVED.
         with pytest.raises(VultronValidationError, match="Cross-machine"):
             self._execute(vf_state=CS_vf.VF)
-        assert self._status_count() == before
+        assert self._status_snapshot() == before
 
     def test_csb18_001_vf_fix_ready_with_current_rm_valid_raises(self):
         """CSB-18-001: Vf → VF when actor is at RM.VALID raises.
@@ -1926,21 +2035,18 @@ class TestCrossMachineEntailments:
         """
         from vultron.errors import VultronValidationError
 
-        self._execute(rm_state=RM.RECEIVED)
-        self._execute(rm_state=RM.VALID)
-        self._execute(vf_state=CS_vf.Vf)
-        before = self._status_count()
+        self._seed(rm=RM.VALID, vf=CS_vf.Vf)
+        before = self._status_snapshot()
         with pytest.raises(VultronValidationError, match="Cross-machine"):
             self._execute(vf_state=CS_vf.VF)
-        assert self._status_count() == before
+        assert self._status_snapshot() == before
 
     def test_csb18_001_vf_fix_ready_with_rm_accepted_succeeds(self):
         """CSB-18-001: Vf → VF when actor is at RM.ACCEPTED is valid."""
-        self._advance_rm_to_accepted()
-        self._execute(vf_state=CS_vf.Vf)
-        before = self._status_count()
+        self._seed(rm=RM.ACCEPTED, vf=CS_vf.Vf)
+        before = self._status_snapshot()
         self._execute(vf_state=CS_vf.VF)
-        assert self._status_count() == before + 1
+        assert self._status_snapshot() == _one_more_stored(before)
 
     def test_csb18_001_vf_fix_deployed_with_rm_accepted_succeeds(self):
         """CSB-18-001: VF + d→D when actor is at RM.ACCEPTED is valid.
@@ -1962,29 +2068,27 @@ class TestCrossMachineEntailments:
         )
         self.dl.save(deployer_participant)
 
-        self._advance_rm_to_accepted()
-        self._execute(vf_state=CS_vf.Vf)
-        self._execute(vf_state=CS_vf.VF)
-        before = self._status_count()
+        self._seed(rm=RM.ACCEPTED, vf=CS_vf.VF, d=CS_d.d)
+        before = self._status_snapshot()
         self._execute(d_state=CS_d.D)
-        assert self._status_count() == before + 1
+        assert self._status_snapshot() == _one_more_stored(before)
 
     def test_csb18_001_vf_vendor_aware_with_rm_received_succeeds(self):
         """CSB-18-001: vf → Vf when actor is at RM.RECEIVED is valid.
 
         The V bit (vendor aware) has no RM constraint; only F/D bits do.
         """
-        before = self._status_count()
+        before = self._status_snapshot()
         self._execute(rm_state=RM.RECEIVED, vf_state=CS_vf.Vf)
-        assert self._status_count() == before + 1
+        assert self._status_snapshot() == _one_more_stored(before)
 
     def test_pxa_public_aware_succeeds(self):
         """Asserting Pxa (P bit) is valid — PXA is an actor-level attribute."""
         from vultron.core.states.cs import CS_pxa
 
-        before = self._status_count()
+        before = self._status_snapshot()
         self._execute(pxa_state=CS_pxa.Pxa)
-        assert self._status_count() == before + 1
+        assert self._status_snapshot() == _one_more_stored(before)
 
     def test_csb17_001_vf_not_ready_and_d_deployed_rejected(self):
         """CSB-17-001: vf != VF with d=D is structurally impossible — trigger rejects it.
@@ -2008,16 +2112,15 @@ class TestCrossMachineEntailments:
         )
         self.dl.save(deployer_participant)
 
-        # Advance to RM.ACCEPTED so the RM↔D entailment is satisfied.
-        self._advance_rm_to_accepted()
-        # Move VF to Vf (vendor aware, fix NOT ready).
-        self._execute(vf_state=CS_vf.Vf)
+        # Seed RM.ACCEPTED (RM↔D entailment satisfied) and Vf (vendor aware,
+        # fix NOT ready), as a copied entry would leave the record.
+        self._seed(rm=RM.ACCEPTED, vf=CS_vf.Vf, d=CS_d.d)
         # Now try to assert d=D without vf=VF — must be refused.
         # CSB-15-004 causal gate fires before the cross-machine check.
-        before = self._status_count()
+        before = self._status_snapshot()
         with pytest.raises(VultronValidationError, match=r"CSB-15-004"):
             self._execute(d_state=CS_d.D)
-        assert self._status_count() == before, (
+        assert self._status_snapshot() == before, (
             "Status count must not increase when vf≠VF + d=D (CSB-17-001)"
         )
 

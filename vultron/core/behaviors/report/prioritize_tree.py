@@ -33,7 +33,6 @@ Structure:
     ├─ Intake
     ├─ SenderIsParticipantNode                       # Sender guard, before any write
     ├─ HoldCarriedEmbargoNode                        # Only when the Engage carried a case snapshot
-    ├─ StoreEmbeddedParticipantsNode                 # Only when the Engage carried a case snapshot
     ├─ AdjudicateRMDeclarationNode(ACCEPTED)         # RM acceptance rule (RSH-06-006)
     ├─ GuardedCommitCaseLedgerEntryBT                # Record receipt before effects (CLP-10-006)
     └─ EngageEffectsIfCaseManager                    # CASE_MANAGER only (RSH-08-003, #3814)
@@ -79,7 +78,6 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
 )
 from vultron.core.behaviors.case.nodes.carried_snapshot import (
     HoldCarriedEmbargoNode,
-    StoreEmbeddedParticipantsNode,
 )
 from vultron.core.behaviors.case.nodes.update import (
     BroadcastCaseUpdateNode,
@@ -131,8 +129,10 @@ def create_engage_case_tree(
         actor_id: The sender, whose declared RM state (ACCEPTED) is recorded
             (RSH-08-001)
         case_obj: The case snapshot the Engage carried, if any.  Its embargo
-            is held and its inline participants are stored after the sender
-            guard admits the sender (CBT-05-005, EMB-18-003, HP-01-006).
+            is held after the sender guard admits the sender (EMB-18-003,
+            HP-01-006); its inline participants are not stored, because the
+            CASE_MANAGER already holds every record they name and replicas
+            take records only from the ledger (CLP-07-013, CM-23-016).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
 
@@ -143,8 +143,11 @@ def create_engage_case_tree(
         []
         if case_obj is None
         else [
+            # The snapshot's participant records are not stored: the
+            # CASE_MANAGER already holds every record it names, and a
+            # participant's view of them is never an entry a replica can copy
+            # (CLP-07-013, CM-23-016).
             HoldCarriedEmbargoNode(case_obj, case_id),
-            StoreEmbeddedParticipantsNode(case_obj, case_id),
         ]
     )
     root = create_receive_activity_tree(

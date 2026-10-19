@@ -23,6 +23,7 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     engage_case_trigger_bt,
 )
 from vultron.core.behaviors.narrative_log import log_case_engagement
+from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import current_participant_rm_state
 from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -37,8 +38,9 @@ logger = logging.getLogger(__name__)
 class SvcEngageCaseUseCase(SvcActivityTriggerBase):
     """Engage a case (RM → ACCEPTED).
 
-    Updates the actor's RM state to ACCEPTED and sends an Engage(Case)
-    activity to the Case Actor via SenderSideBT (PCR-08-001).
+    Checks that the actor may move to ACCEPTED, then sends an Engage(Case)
+    activity to the CASE_MANAGER via SenderSideBT (PCR-08-001).  The actor's
+    replica takes the recorded move from the ledger (RSH-08-003, CLP-07-013).
     """
 
     def _prepare(self) -> None:
@@ -67,21 +69,20 @@ class SvcEngageCaseUseCase(SvcActivityTriggerBase):
             case_id=self._case_id,
             actor_id=self._actor_id,
             activity_builder=_build_activities,
+            result_out=self._result_out,
         )
 
     def _extra_execute_kwargs(self) -> dict:
         return {"case_id": self._case_id}
 
     def _handle_result(self) -> None:
-        # Read the after-state back from storage rather than assuming
-        # RM.ACCEPTED: the BT can succeed via an idempotent no-op path, and
-        # the narrative line must not claim a transition that did not occur
-        # (SL-04-006).
-        case = resolve_case(self._case_id, self._dl)
+        # The engagement the actor sent; an actor already at ACCEPTED sends a
+        # confirmation, and the narrative line claims no transition for it
+        # (SL-04-006, SL-04-007).
         log_case_engagement(
             logger,
             self._actor_id,
             self._case_id,
             self._rm_before,
-            current_participant_rm_state(case, self._actor_id, self._dl),
+            RM.ACCEPTED,
         )
