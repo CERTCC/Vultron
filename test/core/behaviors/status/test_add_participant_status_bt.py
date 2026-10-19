@@ -37,7 +37,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.support.note_wire import assert_add_note_carries_note_inline
+from test.support.note_wire import assert_case_manager_note_recorded
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -1637,12 +1637,12 @@ class TestRejectionValidatorBeforeCommit:
 
 @pytest.mark.executes_as(CASE_MANAGER_ID)
 class TestEmitRMGapNoteNode:
-    """EmitRMGapNoteNode emits Add(Note,Case) on RM anomaly (RSH-06-004).
+    """EmitRMGapNoteNode records the RSH-06-004 note on RM anomaly (#4829).
 
     Every test here runs the node as the case manager, so ``dl`` — and the
     ``populated_dl`` built on it — must be the *case manager's* store: a BT's
     store follows its executing actor (BT-05-005, ADR-0073), and the node
-    enqueues to whichever store it was handed.
+    commits to whichever store it was handed.
     """
 
     def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
@@ -1677,8 +1677,9 @@ class TestEmitRMGapNoteNode:
 
     @pytest.mark.spec("RSH-06-004")
     @pytest.mark.spec("VAM-01-010")
-    def test_gap_anomaly_emits_note(self, populated_dl):
-        """BB_RM_ANOMALY=gap → SUCCESS + one inline Add(Note) (RSH-06-004)."""
+    @pytest.mark.spec("CLP-10-001")
+    def test_gap_anomaly_records_note(self, populated_dl):
+        """BB_RM_ANOMALY=gap → SUCCESS + one committed inline Add(Note)."""
         bridge = self._bridge_with_factory(populated_dl)
         node = EmitRMGapNoteNode(
             sender_actor_id=ACTOR_ID,
@@ -1690,16 +1691,14 @@ class TestEmitRMGapNoteNode:
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
-        outbox = populated_dl.outbox_list()
-        assert len(outbox) == 1, (
-            "Gap anomaly should emit exactly one Add(Note,Case)"
-        )
-        assert_add_note_carries_note_inline(populated_dl, outbox[0], CASE_ID)
+        note = assert_case_manager_note_recorded(populated_dl, CASE_ID)
+        assert "non-adjacent forward" in note["content"]
 
     @pytest.mark.spec("RSH-06-004")
     @pytest.mark.spec("VAM-01-010")
-    def test_regression_anomaly_emits_note(self, populated_dl):
-        """BB_RM_ANOMALY=regression → SUCCESS + one inline Add(Note)."""
+    @pytest.mark.spec("CLP-10-001")
+    def test_regression_anomaly_records_note(self, populated_dl):
+        """BB_RM_ANOMALY=regression → SUCCESS + one committed inline Add(Note)."""
         bridge = self._bridge_with_factory(populated_dl)
         node = EmitRMGapNoteNode(
             sender_actor_id=ACTOR_ID,
@@ -1710,11 +1709,32 @@ class TestEmitRMGapNoteNode:
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
-        outbox = populated_dl.outbox_list()
-        assert len(outbox) == 1, (
-            "Regression anomaly should emit exactly one Add(Note,Case)"
-        )
-        assert_add_note_carries_note_inline(populated_dl, outbox[0], CASE_ID)
+        note = assert_case_manager_note_recorded(populated_dl, CASE_ID)
+        assert "backward" in note["content"]
+
+    @pytest.mark.spec("RSH-06-004")
+    def test_refused_commit_is_logged_and_succeeds(
+        self, populated_dl, monkeypatch
+    ):
+        """A refused note commit is a logged no-op: SHOULD-level (RSH-06-004).
+
+        Nothing is attached, because the attach follows the commit.
+        """
+        from test.support.ledger import fail_commits
+        from vultron.core.behaviors.sync import commit_tree
+
+        refused = fail_commits(monkeypatch, commit_tree)
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitRMGapNoteNode(sender_actor_id=ACTOR_ID, case_id=CASE_ID)
+        self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
+
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+
+        assert result.status == Status.SUCCESS
+        assert len(refused) == 1
+        case = populated_dl.read_case(CASE_ID)
+        assert case is not None
+        assert case.notes == []
 
     def test_no_case_id_is_noop_success(self, populated_dl):
         """case_id=None → SUCCESS with no outbox entry (no case context)."""

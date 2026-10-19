@@ -176,6 +176,14 @@ def add_case_status_tree(
                 status_id=status_id,
                 status_obj_fallback=status_obj,
             ),
+            # The CSB-18 note is the CASE_MANAGER's own act, committed and
+            # replicated (#4829), so it runs only where the commit can.
+            PxaEmInvariantDiagnosticNode(
+                status_obj=status_obj,
+                case_id=case_id,
+                sender_actor_id=sender_actor_id,
+                name="PxaEmInvariantDiagnostic",
+            ),
         ]
         if case_id
         else None,
@@ -183,11 +191,10 @@ def add_case_status_tree(
         manager_gate_name=(
             "AppendCaseStatusIfCaseManager" if case_id else None
         ),
-        # The teardown side-effects and the CSB-18 diagnostic stay ungated
-        # (CASE_STATUS exemption): on the CASE_MANAGER they tear down after the
-        # adopted move; on a participant replica they do not write case state —
-        # the CSB-18 note skips a manager-declared status (RSH-03-004) and the
-        # threat teardown's terminate request only *asks* the CASE_MANAGER
+        # The teardown side-effects stay ungated (CASE_STATUS exemption): on
+        # the CASE_MANAGER they tear down after the adopted move; on a
+        # participant replica they do not write case state — the threat
+        # teardown's terminate request only *asks* the CASE_MANAGER
         # (RSH-03-001, EP-09-008).  They read the asserted ``status_obj`` and
         # the register-derived EM, so their position ahead of the gated append
         # does not matter (ADR-0122).
@@ -209,12 +216,6 @@ def add_case_status_tree(
                         ),
                     ],
                 ),
-            ),
-            PxaEmInvariantDiagnosticNode(
-                status_obj=status_obj,
-                case_id=case_id,
-                sender_actor_id=sender_actor_id,
-                name="PxaEmInvariantDiagnostic",
             ),
         ],
         replica_emit_exemption=CASE_STATUS,

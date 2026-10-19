@@ -25,7 +25,9 @@ Per specs/behavior-tree-integration.yaml BT-15-001, BTND-02-001 (memory=False),
 ADR-0026/CM-16.
 """
 
+import json
 import logging
+from typing import cast
 from unittest.mock import MagicMock
 
 import py_trees
@@ -83,10 +85,10 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseOwnerNode,
     SenderIsParticipantNode,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.activity_ids import derived_activity_id
+from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.protocol_pair import (
-    INVITE_ACTOR_TO_CASE_REPLY_TYPES,
-    OFFER_CASE_PARTICIPANT_REPLY_TYPES,
     ProtocolPair,
 )
 from vultron.core.use_cases.received.actor.offer_case_participant import (
@@ -852,8 +854,63 @@ class TestActorAlreadyParticipantNode:
         assert node.name == "MyName"
 
 
-class TestInviteInFlightNode:
-    """Unit tests for InviteInFlightNode (AC-7a, CM-16-009)."""
+_ZERO_HASH = "0" * 64
+_INVITE_SNAPSHOT = {"type": "Invite", "object": {"id": _RECOMMENDED}}
+_OFFER_SNAPSHOT = {
+    "type": "Offer",
+    "object": {"type": "CaseParticipant", "attributedTo": _RECOMMENDED},
+}
+
+
+def _ledger(*rows: tuple[str, dict]) -> SqliteDataLayer:
+    """A store whose ledger holds *rows* of (event_type, snapshot), in order.
+
+    Each entry is keyed by its own activity id, as the CASE_MANAGER commits a
+    request it sends (ADR-0119), never by the actor the request concerns.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR_ID)
+    prev = _ZERO_HASH
+    for index, (event_type, snapshot) in enumerate(rows):
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=_CASE_ID,
+                log_index=index,
+                object_id=f"https://example.org/activities/a-{index}",
+                event_type=event_type,
+                payload_snapshot=snapshot,
+                prev_log_hash=prev,
+            )
+        )
+        dl.save(entry)
+        prev = entry.entry_hash
+    return dl
+
+
+_LOOKUPS = [
+    pytest.param(
+        InviteInFlightNode,
+        "invite_actor_to_case",
+        _INVITE_SNAPSHOT,
+        "accept_invite_actor_to_case",
+        id="invite-in-flight",
+    ),
+    pytest.param(
+        PendingOfferCaseParticipantNode,
+        "offer_case_participant",
+        _OFFER_SNAPSHOT,
+        "accept_offer_case_participant",
+        id="pending-offer",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("node_type", "request_type", "snapshot", "reply"), _LOOKUPS
+)
+class TestPendingRequestLookup:
+    """InviteInFlightNode (AC-7a, CM-16-009) and PendingOfferCaseParticipantNode
+    (AC-6, CM-16-008) find the request by the actor its snapshot names (#4903).
+    """
 
     def setup_method(self):
         py_trees.blackboard.Blackboard.enable_activity_stream()
@@ -862,157 +919,56 @@ class TestInviteInFlightNode:
         py_trees.blackboard.Blackboard.disable_activity_stream()
         py_trees.blackboard.Blackboard.storage.clear()
 
-    def _node(self, pair):
-        dl = MagicMock()
-        dl.find_protocol_pair.return_value = pair
-        node = InviteInFlightNode(
-            recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
-        )
-        return _make_node_with_datalayer(node, dl)
-
-    def _pending_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
-            object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
-            request_found=True,
-        )
-
-    def _fresh_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
-            object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
-            request_found=False,
-        )
-
-    def _closed_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
-            object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
-            request_found=True,
-            reply_object_id="https://example.org/activities/accept-1",
-            reply_event_type="accept_invite_actor_to_case",
-        )
-
-    def test_returns_success_when_invite_in_flight(self):
-        node = self._node(self._pending_pair())
-        assert node.update() == Status.SUCCESS
-
-    def test_returns_failure_when_no_prior_invite(self):
-        node = self._node(self._fresh_pair())
-        assert node.update() == Status.FAILURE
-
-    def test_returns_failure_when_invite_closed(self):
-        node = self._node(self._closed_pair())
-        assert node.update() == Status.FAILURE
-
-    def test_queries_correct_event_type(self):
-        dl = MagicMock()
-        dl.find_protocol_pair.return_value = self._fresh_pair()
-        node = InviteInFlightNode(
-            recommended_id=_RECOMMENDED, case_id=_CASE_ID
-        )
+    def _run(self, node_type, dl) -> Status:
+        node = node_type(recommended_id=_RECOMMENDED, case_id=_CASE_ID)
         _make_node_with_datalayer(node, dl)
-        node.update()
-        dl.find_protocol_pair.assert_called_once_with(
-            case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
-            object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+        status = cast(Status, node.update())
+        dl.close()
+        return status
+
+    @pytest.mark.spec("CM-16-008", "CM-16-009")
+    def test_success_when_a_request_for_the_actor_is_unanswered(
+        self, node_type, request_type, snapshot, reply
+    ):
+        assert self._run(node_type, _ledger((request_type, snapshot))) == (
+            Status.SUCCESS
         )
 
-    def test_returns_failure_when_datalayer_not_available(self):
-        node = InviteInFlightNode(
-            recommended_id=_RECOMMENDED, case_id=_CASE_ID
+    def test_failure_when_no_request_was_sent(
+        self, node_type, request_type, snapshot, reply
+    ):
+        assert self._run(node_type, _ledger()) == Status.FAILURE
+
+    def test_failure_when_the_request_names_another_actor(
+        self, node_type, request_type, snapshot, reply
+    ):
+        other = json.loads(
+            json.dumps(snapshot).replace(_RECOMMENDED, _RECOMMENDER)
         )
-        assert node.update() == Status.FAILURE
-
-
-class TestPendingOfferCaseParticipantNode:
-    """Unit tests for PendingOfferCaseParticipantNode (AC-6, CM-16-008)."""
-
-    def setup_method(self):
-        py_trees.blackboard.Blackboard.enable_activity_stream()
-
-    def teardown_method(self):
-        py_trees.blackboard.Blackboard.disable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
-
-    def _node(self, pair):
-        dl = MagicMock()
-        dl.find_protocol_pair.return_value = pair
-        node = PendingOfferCaseParticipantNode(
-            recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
-        )
-        return _make_node_with_datalayer(node, dl)
-
-    def _pending_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
-            object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
-            request_found=True,
+        assert self._run(node_type, _ledger((request_type, other))) == (
+            Status.FAILURE
         )
 
-    def _fresh_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
-            object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
-            request_found=False,
+    def test_failure_when_the_request_was_answered(
+        self, node_type, request_type, snapshot, reply
+    ):
+        dl = _ledger((request_type, snapshot), (reply, {"type": "Accept"}))
+        assert self._run(node_type, dl) == Status.FAILURE
+
+    def test_success_when_a_later_request_is_unanswered(
+        self, node_type, request_type, snapshot, reply
+    ):
+        dl = _ledger(
+            (request_type, snapshot),
+            (reply, {"type": "Accept"}),
+            (request_type, snapshot),
         )
+        assert self._run(node_type, dl) == Status.SUCCESS
 
-    def _closed_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
-            object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
-            request_found=True,
-            reply_object_id="https://example.org/activities/accept-1",
-            reply_event_type="accept_offer_case_participant",
-        )
-
-    def test_returns_success_when_offer_pending(self):
-        node = self._node(self._pending_pair())
-        assert node.update() == Status.SUCCESS
-
-    def test_returns_failure_when_no_prior_offer(self):
-        node = self._node(self._fresh_pair())
-        assert node.update() == Status.FAILURE
-
-    def test_returns_failure_when_offer_closed(self):
-        node = self._node(self._closed_pair())
-        assert node.update() == Status.FAILURE
-
-    def test_queries_correct_event_type(self):
-        dl = MagicMock()
-        dl.find_protocol_pair.return_value = self._fresh_pair()
-        node = PendingOfferCaseParticipantNode(
-            recommended_id=_RECOMMENDED, case_id=_CASE_ID
-        )
-        _make_node_with_datalayer(node, dl)
-        node.update()
-        dl.find_protocol_pair.assert_called_once_with(
-            case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
-            object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
-        )
-
-    def test_returns_failure_when_datalayer_not_available(self):
-        node = PendingOfferCaseParticipantNode(
-            recommended_id=_RECOMMENDED, case_id=_CASE_ID
-        )
+    def test_failure_when_datalayer_not_available(
+        self, node_type, request_type, snapshot, reply
+    ):
+        node = node_type(recommended_id=_RECOMMENDED, case_id=_CASE_ID)
         assert node.update() == Status.FAILURE
 
 
@@ -1254,19 +1210,16 @@ class TestProtocolPairIsPending:
 
 
 class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
-    """Unit tests for offer_content forwarding (CM-16-008)."""
+    """Unit tests for the note text, offer_content forwarding (CM-16-016).
+
+    The text is the node's ``_compose()``; committing and announcing the
+    note is covered against a real store in
+    ``nodes/test_suggest_actor_owner_recipient.py`` (#4829).
+    """
 
     _OWNER_ID = "https://example.org/actors/owner"
 
-    def _node_with_factory(self, offer_content=None):
-        """Build a wired node with a mock DataLayer and factory."""
-        dl = MagicMock()
-        case_obj = MagicMock()
-        case_obj.attributed_to = self._OWNER_ID
-        dl.read_case.return_value = case_obj
-        factory = MagicMock()
-        factory.create_note.return_value = ("note-id-1", MagicMock())
-        factory.add_note_to_case.return_value = ("activity-id-1", MagicMock())
+    def _content(self, offer_content=None) -> str:
         node = EmitNoteDuplicateRecommendationToOwnerNode(
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
@@ -1274,70 +1227,40 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             case_id=_CASE_ID,
             offer_content=offer_content,
         )
-        writer = py_trees.blackboard.Client(name="test-emit-note-dup-writer")
-        writer.register_key(
-            key="datalayer", access=py_trees.common.Access.WRITE
-        )
-        writer.register_key(
-            key="actor_id", access=py_trees.common.Access.WRITE
-        )
-        writer.register_key(
-            key="trigger_activity_factory",
-            access=py_trees.common.Access.WRITE,
-        )
-        writer.datalayer = dl
-        writer.actor_id = _ACTOR_ID
-        writer.trigger_activity_factory = factory
-        node.setup()
-        node.initialise()
-        return node, factory
+        # Resolved by ``update()`` before it composes the note.
+        node._owner_id = self._OWNER_ID
+        note = node._compose()
+        assert note.in_reply_to == _REC_ID
+        return note.content
 
-    def setup_method(self):
-        py_trees.blackboard.Blackboard.enable_activity_stream()
-
-    def teardown_method(self):
-        py_trees.blackboard.Blackboard.disable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
-
-    def test_returns_success_without_offer_content(self):
-        """AC-6: node succeeds and sends Note when offer_content is None."""
-        node, factory = self._node_with_factory(offer_content=None)
-        result = node.update()
-        assert result == Status.SUCCESS
-        factory.create_note.assert_called_once()
+    @pytest.mark.spec("CM-16-016")
+    def test_note_names_the_owner_and_the_second_recommender(self):
+        content = self._content()
+        assert self._OWNER_ID in content
+        assert _RECOMMENDER in content
 
     def test_note_body_excludes_content_when_absent(self):
         """Note body must not contain 'Recommender note:' when offer_content is None."""
-        node, factory = self._node_with_factory(offer_content=None)
-        node.update()
-        call_kwargs = factory.create_note.call_args
-        content_arg = call_kwargs.kwargs["content"]
-        assert "Recommender note:" not in content_arg
+        assert "Recommender note:" not in self._content(offer_content=None)
 
-    def test_returns_success_with_offer_content(self):
-        """AC-6 + CM-16-008: node succeeds and sends Note when offer_content is set."""
-        node, factory = self._node_with_factory(
-            offer_content="Please add this vendor urgently."
-        )
-        result = node.update()
-        assert result == Status.SUCCESS
-        factory.create_note.assert_called_once()
-
+    @pytest.mark.spec("CM-16-016")
     def test_note_body_includes_offer_content(self):
-        """CM-16-008: Note body must include offer_content when provided."""
+        """CM-16-016: Note body must include offer_content when provided."""
         offer_text = "Please add this vendor urgently."
-        node, factory = self._node_with_factory(offer_content=offer_text)
-        node.update()
-        call_kwargs = factory.create_note.call_args
-        content_arg = call_kwargs.kwargs["content"]
-        assert "Recommender note:" in content_arg
-        assert offer_text in content_arg
+        content = self._content(offer_content=offer_text)
+        assert "Recommender note:" in content
+        assert offer_text in content
 
     def test_offer_content_stored_on_node(self):
         """offer_content is stored as an attribute for introspection."""
-        offer_text = "Some notes."
-        node, _ = self._node_with_factory(offer_content=offer_text)
-        assert node.offer_content == offer_text
+        node = EmitNoteDuplicateRecommendationToOwnerNode(
+            recommendation_id=_REC_ID,
+            recommender_id=_RECOMMENDER,
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            offer_content="Some notes.",
+        )
+        assert node.offer_content == "Some notes."
 
     def test_offer_content_none_by_default(self):
         """offer_content defaults to None (backward-compatible constructor)."""
@@ -1362,11 +1285,7 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
 
     def test_note_body_excludes_content_for_whitespace_only_input(self):
         """Note body must not contain 'Recommender note:' for whitespace-only offer_content."""
-        node, factory = self._node_with_factory(offer_content="   ")
-        node.update()
-        call_kwargs = factory.create_note.call_args
-        content_arg = call_kwargs.kwargs["content"]
-        assert "Recommender note:" not in content_arg
+        assert "Recommender note:" not in self._content(offer_content="   ")
 
 
 # ---------------------------------------------------------------------------

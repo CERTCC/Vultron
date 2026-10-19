@@ -340,7 +340,9 @@ def add_note_to_case_activity(
     """
     try:
         return _AddNoteToCaseActivity(
-            object_=note, target=case_target_ref(target), **kwargs
+            object_=note,
+            target=case_target_ref(target),
+            **with_case_context(kwargs, target),
         )
     except ValidationError as exc:
         logger.warning("add_note_to_case_activity: invalid arguments: %s", exc)
