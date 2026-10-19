@@ -54,7 +54,7 @@ import logging
 from collections.abc import Callable, Sequence
 
 from vultron.demo.actor_session import ActorSession
-from vultron.demo.helpers.polling import wait_for_object_stored
+from vultron.demo.helpers.polling import wait_for_received_activity
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
     verify_activity_in_inbox,
@@ -70,7 +70,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     demo_step,
     post_to_inbox_and_wait,
     setup_demo_logging,
-    verify_object_stored,
+    verify_received_activity_stored,
 )
 from vultron.wire.as2.factories import (
     rm_invalidate_report_activity,
@@ -128,7 +128,7 @@ def _vendor_acknowledges_to_reporter(
     with demo_check("RmReadReportActivity delivered to reporter"):
         if not isinstance(ack_id, str):
             raise TypeError("ack-report returned no activity id.")
-        wait_for_object_stored(client, ack_id, actor_id=reporter.id_)
+        wait_for_received_activity(client, ack_id, actor_id=reporter.id_)
 
 
 def demo_acknowledge_only(
@@ -204,7 +204,7 @@ def demo_acknowledge_then_validate(
         )
         post_to_inbox_and_wait(client, vendor.id_, validate)
         with demo_check("RmValidateReportActivity activity stored"):
-            verify_object_stored(client=client, obj_id=validate.id_)
+            verify_received_activity_stored(client, validate.id_)
 
     with demo_step("Step 4: Vendor notifies reporter of validation"):
         validate_to_reporter = rm_validate_report_activity(
@@ -271,7 +271,7 @@ def demo_acknowledge_then_invalidate(
         )
         post_to_inbox_and_wait(client, vendor.id_, invalidate)
         with demo_check("RmInvalidateReportActivity activity stored"):
-            verify_object_stored(client=client, obj_id=invalidate.id_)
+            verify_received_activity_stored(client, invalidate.id_)
 
     with demo_step("Step 4: Vendor notifies reporter of invalidation"):
         invalidate_to_reporter = rm_invalidate_report_activity(

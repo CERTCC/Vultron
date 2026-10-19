@@ -28,10 +28,17 @@ from vultron.adapters.driving.fastapi.deps import (
     get_hosted_actor_dls,
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.adapters.utils import full_object_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
+from vultron.core.use_cases._helpers import read_received_activity
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -62,6 +69,90 @@ router = APIRouter(prefix="/actors/{actor_id}/datalayer", tags=["datalayer"])
 #: operator actions on the process (like a restart), not one actor reading
 #: another's data through the protocol.
 admin_router = APIRouter(prefix="/admin/datalayer", tags=["datalayer"])
+
+
+_OFFER_TYPE = "Offer"
+
+
+def _read_offer(
+    datalayer: DataLayer, offer_id: str
+) -> PersistableModel | None:
+    """The Offer *offer_id* as this actor holds it, or ``None``.
+
+    Read as :func:`~vultron.core.use_cases._helpers.read_received_activity`
+    reads any activity a receiver holds: a received Offer from its archive
+    record, kept under a key the receiver derives from the sender's id
+    (CLP-10-017, ADR-0111), since a receiver holds no received activity under
+    the sender's id (DL-06-006); otherwise the row under *offer_id*, where an
+    Offer the actor authored is stored.  *offer_id* may be a bare UUID, as
+    the store's own lookup allows.  Whatever is held under the id must be an
+    Offer: a received Invite is not served as one.
+    """
+    try:
+        held = read_received_activity(
+            cast(CasePersistence, datalayer),
+            full_object_id(offer_id),
+            _OFFER_TYPE,
+        )
+    except VultronNotFoundError:
+        return None
+    return held if getattr(held, "type_", None) == _OFFER_TYPE else None
+
+
+def _received_offers(datalayer: DataLayer) -> dict[str, dict[str, Any]]:
+    """Every Offer this actor received, keyed by the sender's id for it."""
+    return {
+        record.activity_id: record.activity.model_dump(
+            by_alias=True, serialize_as_any=True
+        )
+        for record in datalayer.list_objects(ReceivedActivityRecord.__name__)
+        if isinstance(record, ReceivedActivityRecord)
+        and record.activity.type_ == _OFFER_TYPE
+    }
+
+
+def _concerns_actor(offer: as_Offer, actor_uri: str) -> bool:
+    """Whether *offer* is addressed to, or was sent by, *actor_uri*.
+
+    Ids are compared whole: a recipient whose id merely ends with the actor's
+    is a different actor.
+    """
+    recipients = offer.to if isinstance(offer.to, list) else [offer.to]
+    addressed = {getattr(r, "id_", r) for r in recipients if r is not None}
+    sender = getattr(offer.actor, "id_", offer.actor)
+    return actor_uri in addressed or sender == actor_uri
+
+
+# Declared ahead of ``/{object_type}/{object_id}``: routes match in
+# declaration order, and that pattern would otherwise answer every
+# ``/Offers/{offer_id}`` request, so this route was never reached.
+@router.get(
+    "/Offers/{offer_id}",
+    response_model=as_Offer,
+    description=(
+        "Returns an Offer the actor received or sent, by actor id and offer"
+        " id."
+    ),
+    operation_id="datalayer_get_actor_offer",
+)
+def get_actor_offer(
+    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_actor_dl)
+) -> AS2JSONResponse:
+    obj = _read_offer(datalayer, offer_id)
+
+    if not obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    offer = as_Offer.model_validate(
+        obj.model_dump(by_alias=True, serialize_as_any=True)
+    )
+
+    # ``actor_id`` is the raw path segment; compare the canonical URI the
+    # store was opened for (ADR-0073), as ``get_actor_outbox`` does.
+    if not _concerns_actor(offer, actor_hosts.canonical_actor_uri(actor_id)):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    return AS2JSONResponse(offer)
 
 
 @router.get(
@@ -103,7 +194,7 @@ def get_object(
 def get_offer(
     object_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
-    obj = datalayer.read(object_id)
+    obj = _read_offer(datalayer, object_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return AS2JSONResponse(
@@ -178,45 +269,19 @@ def get_datalayer_contents(
 
 
 @router.get(
-    "/Offers/{offer_id}",
-    response_model=as_Offer,
-    description="Returns a specific object by actor id and offer id.",
-    operation_id="datalayer_get_actor_offer",
-)
-def get_actor_offer(
-    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_actor_dl)
-) -> AS2JSONResponse:
-    obj = datalayer.read(offer_id)
-
-    if not obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-
-    offer = as_Offer.model_validate(
-        obj.model_dump(by_alias=True, serialize_as_any=True)
-    )
-
-    # Verify that the offer was targeted to the given actor
-    found = False
-    for _id in offer.to or []:
-        if _id.endswith(actor_id):
-            found = True
-            break
-
-    if not found:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-
-    return AS2JSONResponse(offer)
-
-
-@router.get(
     "/Offers/",
-    description="Returns all Offer objects.",
+    description=(
+        "Returns all Offer objects: the Offers the actor authored and those it"
+        " received, each received one keyed by the sender's id for it."
+    ),
     operation_id="datalayer_list_offers",
 )
 def get_offers(
     datalayer: DataLayer = Depends(get_actor_dl),
 ) -> AS2JSONResponse:
-    results = datalayer.by_type("Offer")
+    # A received Offer is served from its archive record, which replaces any
+    # row held under the sender's id for the same Offer (DL-06-006).
+    results = datalayer.by_type(_OFFER_TYPE) | _received_offers(datalayer)
 
     return AS2JSONResponse(
         {
