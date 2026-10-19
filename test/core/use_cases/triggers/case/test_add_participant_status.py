@@ -360,6 +360,51 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
         )
 
+    @pytest.mark.spec("MSM-08-003")
+    def test_notify_published_status_is_its_declared_occasion(self):
+        """The status the notify-published trigger sends (CSB-15-003)
+        carries the public-awareness occasion's distinguisher (#4569)."""
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.use_cases.triggers.case import (
+            SvcAddParticipantStatusUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AddParticipantStatusTriggerRequest,
+        )
+        from vultron.semantic_registry import SEMANTIC_REGISTRY
+        from vultron.semantic_registry._occasion import FieldValue
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_TransitiveActivity,
+        )
+
+        occasion = next(
+            o
+            for e in SEMANTIC_REGISTRY
+            for o in e.occasions
+            if o.anchor == "participant-public-awareness"
+        )
+        distinguisher = occasion.distinguisher
+        assert isinstance(distinguisher, FieldValue)
+
+        # The request demo_notify_published builds.
+        request = AddParticipantStatusTriggerRequest(
+            actor_id=self.actor.id_,
+            case_id=self.case.id_,
+            pxa_state=CS_pxa.Pxa,
+        )
+        before = set(self.dl.outbox_list())
+        SvcAddParticipantStatusUseCase(
+            self.dl, request, trigger_activity=self.trigger_activity
+        ).execute()
+        (activity_id,) = set(self.dl.outbox_list()) - before
+        activity = self.dl.read(activity_id)
+        assert isinstance(activity, as_TransitiveActivity)
+        status = activity.object_
+        if isinstance(status, str):
+            status = self.dl.read(status)
+        assert isinstance(status, ParticipantStatus)
+        assert distinguisher.read(status) is distinguisher.value
+
     def test_execute_appends_status_to_sender_participant(self):
         """After execute(), sender's participant_statuses contains the new status.
 

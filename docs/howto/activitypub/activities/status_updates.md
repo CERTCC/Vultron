@@ -62,10 +62,10 @@ Participant status is self-declaratory, so a participant asserting another parti
 
 Use a case status for public awareness, exploit publication, and observed attacks — the dimensions that are properties of the vulnerability rather than of any one participant.
 
-Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all implemented in ActivityStreams as `Add(CaseStatus)`.
+Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all implemented in ActivityStreams as `Add(CaseStatus)`, or in your own participant status (see [Report it in your own participant status](#report-it-in-your-own-participant-status)).
 All three set `pxaState`; which one you are sending is determined by which letter in it changes case.
 
-In every case, send `Add(CaseStatus)` naming the case in `target`, with the new status, carrying the new `pxaState`, inline as its `object`.
+When you send a case status, send `Add(CaseStatus)` naming the case in `target`, with the new status, carrying the new `pxaState`, inline as its `object`.
 The protocol names `Add(CaseStatus)` as the one form; a received `Create(CaseStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 ### Report that the vulnerability is public
@@ -90,6 +90,22 @@ That is Attacks Observed (CA).
 {% include-markdown "../../../reference/messages/_occasions/embeds/attacks-observed.md" %}
 
 The state change hangs off the `Add`, because that is the activity that asserts the attachment.
+
+### Report it in your own participant status
+
+A participant status embeds a case status that carries your own view of `pxaState`.
+Only the CASE_MANAGER sends `Add(CaseStatus)` directly; every other participant reports public awareness, exploit publication or observed attacks in its own participant status (RSH-04-001).
+Send `Add(ParticipantStatus)` targeting your own participant record, and make the same change to `pxaState` in its embedded case status.
+Your report is your view of the case status, not a change to it.
+The CASE_MANAGER records the status on your participant record and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization (RSH-07-001).
+If it adopts the change, the CASE_MANAGER records it in its own `Add(CaseStatus)`, and while an embargo is active or proposed, ends or abandons the embargo (RSH-03-001).
+The Finder + Vendor demo reports public awareness this way.
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-public-awareness.md" %}
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-exploit-public.md" %}
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-attacks-observed.md" %}
 
 ---
 

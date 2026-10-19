@@ -23,11 +23,13 @@ on the wire; see `notes/message-type-reference.md` and ADR-0083 for the rational
 import pytest
 
 from vultron.core.models.events import MessageSemantics
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
 )
 from vultron.semantic_registry import SEMANTIC_REGISTRY
+from vultron.semantic_registry._occasion import FieldValue, ProtocolShorthand
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
 from vultron.wire.as2.vocab.objects import as_CaseStatus, as_ParticipantStatus
@@ -133,6 +135,39 @@ def test_pxa_dimensions_ride_case_status():
     assert pattern.object_ == "CaseStatus"
     assert pattern.target_ == "VulnerabilityCase"
     assert as_CaseStatus.model_fields["pxa"].serialization_alias == "pxaState"
+
+
+@pytest.mark.spec("MSM-03-004")
+@pytest.mark.spec("MSM-03-005")
+@pytest.mark.spec("MSM-03-006")
+def test_pxa_also_rides_a_participant_status_embedded_case_status():
+    """A participant reports `CP`/`CX`/`CA` in the `CaseStatus` its
+    `Add(ParticipantStatus)` embeds (RSH-04-001, #4569)."""
+    pattern = _pattern(MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT)
+    assert pattern.activity_ is TAtype.ADD
+    assert pattern.object_ == "ParticipantStatus"
+    assert pattern.target_ == "CaseParticipant"
+    assert (
+        as_ParticipantStatus.model_fields["case_status"].serialization_alias
+        == "caseStatus"
+    )
+    entry = next(
+        e
+        for e in SEMANTIC_REGISTRY
+        if e.semantics
+        is MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+    )
+    carried = {
+        (o.shorthand, o.distinguisher.field, o.distinguisher.value)
+        for o in entry.occasions
+        if isinstance(o.distinguisher, FieldValue)
+        and o.distinguisher.within == "case_status"
+    }
+    assert carried == {
+        (ProtocolShorthand.CP, "pxa", CS_pxa.Pxa),
+        (ProtocolShorthand.CX, "pxa", CS_pxa.PXa),
+        (ProtocolShorthand.CA, "pxa", CS_pxa.pxA),
+    }
 
 
 # ---------------------------------------------------------------------------

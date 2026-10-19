@@ -56,6 +56,18 @@ This implementation's inbox refuses either one as an unrecognized activity and c
 
 - **Triggering transition:** VFd → VFD (participant-scoped, deployer path).
 
+{% include-markdown "./_occasions/sections/participant-public-awareness.md" %}
+
+- **Triggering transition:** p → P (case-scoped, reported in the sender's participant status).
+
+{% include-markdown "./_occasions/sections/participant-exploit-public.md" %}
+
+- **Triggering transition:** x → X (case-scoped, reported in the sender's participant status).
+
+{% include-markdown "./_occasions/sections/participant-attacks-observed.md" %}
+
+- **Triggering transition:** a → A (case-scoped, reported in the sender's participant status).
+
 ## Formal messages with no dedicated wire activity
 
 ### CK — CS Acknowledgment
