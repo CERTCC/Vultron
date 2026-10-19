@@ -203,8 +203,8 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
             "BackfillCanonicalLedgerToInviteeNode",
         ),
         (
-            "vultron.core.behaviors.case.nodes.leave.record",
-            "CommitRMClosureEntriesNode",
+            "vultron.core.behaviors.case.nodes.participant.status_entries",
+            "CommitParticipantStatusEntriesNode",
         ),
         (
             "vultron.core.behaviors.case.nodes.lifecycle",

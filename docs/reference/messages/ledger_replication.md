@@ -38,6 +38,7 @@ Applying an entry mints no id, reads no clock or local policy, and runs no lifec
 Each entry records one activity with its object.
 An embargo act's entry carries its whole step on the embargo register: a termination's entry also cancels every open proposal, and an activation's entry also supersedes the embargo it replaces.
 Each consent row the CASE_MANAGER changes as a consequence of an act is its own CASE_MANAGER `Create(EmbargoConsent)` or `Update(EmbargoConsent)` entry after the act's entry, and a replica copies that row rather than deciding the change itself (CLP-07-013, EP-09-007).
+The same holds for participants: an act that moves a participant's RM state, such as a report verdict, an engagement decision or a Leave, is followed by an `add_participant_status_to_participant` entry for each status the CASE_MANAGER wrote, and a record the CASE_MANAGER creates is its own `Create(CaseParticipant)` entry; a replica copies each, ids and times included (CLP-07-013, CM-23-016).
 An embargo or consent entry whose starting state does not match the replica's case is held in the `LedgerGapBuffer`, never patched over.
 
 ## Occasions

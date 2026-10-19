@@ -37,6 +37,7 @@ from vultron.adapters.driving.fastapi.routers import (
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -173,6 +174,18 @@ def _participant_for(dl, case_id: str, target_id: str) -> CaseParticipant:
     return participant
 
 
+def _stored_status(dl, status_id: str) -> ParticipantStatus:
+    """The status the trigger stored for its queued Add(ParticipantStatus).
+
+    The target's record is left alone: it changes only when the
+    CASE_MANAGER's ledger entry for the status is copied (RSH-08-003,
+    CM-23-016).
+    """
+    stored = dl.read(status_id)
+    assert isinstance(stored, ParticipantStatus)
+    return stored
+
+
 # ---------------------------------------------------------------------------
 # PRM-06-003: v→V on behalf of a Vendor
 # ---------------------------------------------------------------------------
@@ -197,12 +210,14 @@ def test_v_to_V_on_behalf_of_a_vendor(client, dl, actor, managed_case):
     body = resp.json()
     assert set(body) == {"activity_id", "status_id"}
     assert body["activity_id"] and body["status_id"]
+    stored = _stored_status(dl, body["status_id"])
+    assert stored.vf is not None and stored.vf.state == CS_vf.Vf
+    assert stored.rm is not None and stored.rm.state == RM.RECEIVED
     participant = _participant_for(dl, managed_case.id_, _VENDOR_ID)
     assert participant.has_role(CVDRole.VENDOR)
+    assert len(participant.participant_statuses) == 1
     last = participant.participant_statuses[-1]
-    assert last.vf is not None and last.vf.state == CS_vf.Vf
-    assert last.rm is not None and last.rm.state == RM.RECEIVED
-    assert last.id_ == body["status_id"]
+    assert last.vf is not None and last.vf.state == CS_vf.vf
     assert _roster(dl, managed_case.id_) == roster_before
 
 
@@ -286,11 +301,14 @@ def test_d_to_D_on_behalf_of_a_deployer(client, dl, actor, managed_case):
 
     assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
     assert set(resp.json()) == {"activity_id", "status_id"}
+    stored = _stored_status(dl, resp.json()["status_id"])
+    assert stored.d is not None and stored.d.state == CS_d.D
+    assert stored.rm is not None and stored.rm.state == RM.ACCEPTED
     participant = _participant_for(dl, managed_case.id_, _DEPLOYER_ID)
     assert participant.has_role(CVDRole.DEPLOYER)
+    assert len(participant.participant_statuses) == 1
     last = participant.participant_statuses[-1]
-    assert last.d is not None and last.d.state == CS_d.D
-    assert last.rm is not None and last.rm.state == RM.ACCEPTED
+    assert last.d is None or last.d.state == CS_d.d
 
 
 @pytest.mark.spec("PRM-06-004")

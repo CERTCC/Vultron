@@ -35,12 +35,6 @@ VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE = (
     f"{VULTRON_FAILURE_STATUS_ASSERTION_REFUSED}/ImpossibleState"
 )
 
-# ARCH-15-001: replica refused a ledger entry because its own stored
-# participant record is not core-shaped and the RM ratchet cannot be enforced.
-VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD = (
-    f"{VULTRON_FAILURE_STATUS_ASSERTION_REFUSED}/CorruptLocalRecord"
-)
-
 # EP-09-010, MSM-05-001: an Invite(EmbargoEvent) whose shape the protocol
 # does not allow — no `to` recipient or several — was received but not
 # understood.

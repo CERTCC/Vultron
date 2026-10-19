@@ -45,6 +45,9 @@ from typing import NamedTuple
 import py_trees
 
 from vultron.core.behaviors.case.nodes.case_lookup import RequireCaseForReport
+from vultron.core.behaviors.case.nodes.participant.status_entries import (
+    CommitParticipantStatusEntriesNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -126,6 +129,7 @@ def create_validate_report_received_tree(
         │       ├── EnsureEmbargoExists                 # DUR-07-004
         │       └── ValidationActions (Sequence)
         │           └── TransitionRMtoValid(sender_actor_id)
+        ├── RecordRMValidStatus                     # status entry, CLP-07-013
         └── EmitRMGapNoteNode                       # RSH-06-004
 
     ``AdjudicateRMDeclarationNode`` sits in the factory's
@@ -152,22 +156,34 @@ def create_validate_report_received_tree(
     Returns:
         Root node of the ``ValidateReportReceivedBT`` Sequence.
     """
+    written: list[str] = []
     validation = create_validate_report_subtree(
         report_id=report_id,
         offer_id=offer_id,
         sender_actor_id=sender_actor_id,
         emit=False,
         rm_rule=RMRule.DECLARATION,
+        written_ids=written,
     )
 
     # RSH-08-003: the sender's RM → VALID is canonical participant state only
-    # the CASE_MANAGER writes; ``validate_report`` is committed and replayed
-    # onto the sender's participant (RmVerdict slot), so a replica takes it from
-    # the ledger fan-out, not from the direct Accept (#3814).  With no case
+    # the CASE_MANAGER writes; ``validate_report`` is committed, then the
+    # status it wrote follows as its own entry, which a replica copies from
+    # the ledger fan-out, not from the direct Accept (#3814, CLP-07-013).  With no case
     # (``case_id`` None) the sender guard refuses the activity before any
     # effect, so there is nothing to gate.
     manager_effects = (
-        [validation, rm_gap_note(sender_actor_id, case_id)]
+        [
+            validation,
+            # The status the validation wrote, as its own entry (CLP-07-013).
+            CommitParticipantStatusEntriesNode(
+                subject_actor_id=sender_actor_id,
+                case_id=case_id,
+                status_ids=written,
+                name="RecordRMValidStatus",
+            ),
+            rm_gap_note(sender_actor_id, case_id),
+        ]
         if case_id is not None
         else None
     )
@@ -463,9 +479,10 @@ def create_invalidate_report_received_tree(
         name="InvalidateReportReceivedBT",
         # A canonical signature: the CASE_MANAGER commits it after the guards,
         # and replicas replay it (CLP-10-013, RSH-08-004).  RSH-08-003: the
-        # sender's RM → INVALID is committed and replayed (RmVerdict slot), so a
-        # replica takes it from the ledger, not from the direct TentativeReject
-        # (#3814).  With no case the guards refuse before any effect.
+        # sender's RM → INVALID is committed as the status entry that follows
+        # the act, so a replica copies it from the ledger, not from the direct
+        # TentativeReject (#3814, CLP-07-013).  With no case the guards refuse
+        # before any effect.
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=stages.sender_context,

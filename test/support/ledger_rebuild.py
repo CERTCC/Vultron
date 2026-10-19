@@ -16,8 +16,9 @@
 Two replicas at the same ledger position hold the same case file, and a
 replica infers nothing (ADR-0124).  So a store that starts empty and is handed
 every entry the CASE_MANAGER committed, through the same inbox route a replica
-uses, must end holding the CASE_MANAGER's participant records, consent rows and
-embargo register (#4294 AC-5).
+uses, must end holding the CASE_MANAGER's participant records (consent rows
+and statuses included), case statuses and embargo register (#4294 AC-5,
+#4295 AC-3).
 
 :func:`rebuild_from_ledger` builds that store and :func:`case_file_differences`
 compares it with the CASE_MANAGER's; :func:`assert_rebuilds_from_ledger` does
@@ -72,6 +73,7 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
 _CREATION_RECORDS: Mapping[str, tuple[str, type[CoreObject]]] = {
     "create_case": ("object", VulnerabilityCase),
     "add_report_to_case": ("object", VulnerabilityReport),
+    "create_case_participant": ("object", CaseParticipant),
     "add_participant_status_to_participant": ("target", CaseParticipant),
     "add_case_status_to_case": ("object", CaseStatus),
 }
@@ -240,23 +242,19 @@ def _register(case: VulnerabilityCase) -> list[dict[str, Any]]:
 
 
 def _participant(record: CaseParticipant) -> dict[str, Any]:
-    """A participant record, as compared: whole, consent rows included.
+    """A participant record, as compared: whole, consent rows and every
+    status included, ids and times too (CM-23-016)."""
+    return record.model_dump(mode="json")
 
-    Known difference (#4295): replaying an RM verdict (``engage_case``,
-    ``validate_report``, …) builds the ``ParticipantStatus`` afresh, with its
-    own id, so each status is compared without its id and times.  Every other
-    field of the status, and of the record, is compared.
-    """
-    data = record.model_dump(mode="json")
-    data["participant_statuses"] = [
-        {
-            k: v
-            for k, v in status.items()
-            if k not in ("id_", "published", "updated")
-        }
-        for status in data.get("participant_statuses") or []
+
+def _case_statuses(case: VulnerabilityCase) -> list[Any]:
+    """The case's statuses, as compared: whole, ids and times too."""
+    return [
+        status.model_dump(mode="json")
+        if isinstance(status, CaseStatus)
+        else str(status)
+        for status in case.case_statuses
     ]
-    return data
 
 
 def case_file_differences(
@@ -264,8 +262,9 @@ def case_file_differences(
 ) -> list[str]:
     """Every way *replica_dl*'s case file differs from the CASE_MANAGER's.
 
-    Compares the roster, each participant record whole (its consent rows
-    included) and the embargo register.  Empty when they are equal.
+    Compares the roster, each participant record whole (its consent rows and
+    statuses included), the case statuses and the embargo register.  Empty
+    when they are equal.
     """
     manager, replica = _case(manager_dl, case_id), _case(replica_dl, case_id)
     found: list[str] = []
@@ -288,6 +287,9 @@ def case_file_differences(
             for field in want
             if got.get(field) != want[field]
         )
+    want_cs, got_cs = _case_statuses(manager), _case_statuses(replica)
+    if got_cs != want_cs:
+        found.append(f"case statuses: {got_cs} != {want_cs}")
     want_register, got_register = _register(manager), _register(replica)
     if got_register != want_register:
         found.append(f"embargo register: {got_register} != {want_register}")

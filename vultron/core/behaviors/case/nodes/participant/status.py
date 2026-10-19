@@ -33,6 +33,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.case_lookup import CaseIdInputPortMixin
 from vultron.core.behaviors.case.nodes.participant.common import (
     ParticipantTransitionContext,
+    context_after_followed,
     resolve_transition_context_or_report,
     validate_participant_status_write,
 )
@@ -99,6 +100,9 @@ class CreateParticipantStatusNode(
         name: str | None = None,
         force_rm_state: bool = False,
         rm_rule: RMRule = RMRule.TRANSITION,
+        written_ids: list[str] | None = None,
+        attach: bool = True,
+        follows: list[str] | None = None,
     ) -> None:
         """Create the node.
 
@@ -139,6 +143,21 @@ class CreateParticipantStatusNode(
                 ``test/architecture/test_participant_status_validation.py``
                 pins the exempt call sites as an exact pinned exemption set
                 (ARCH-18-005).
+            written_ids: When given, cleared on each run and then given the
+                id of the status this node writes, so a
+                :class:`~vultron.core.behaviors.case.nodes.participant\
+.status_entries.CommitParticipantStatusEntriesNode` after it can commit
+                that status as its own entry (CLP-07-013).
+            attach: ``False`` stores the status object but does not append it
+                to the participant record.  A trigger that sends the status
+                to the CASE_MANAGER passes it: the activity carries the
+                stored object, and the record changes only when the
+                CASE_MANAGER's entry for it is copied, on this replica as on
+                every other (RSH-08-003, CM-23-016).
+            follows: Ids of statuses this run already stored without attaching
+                them; the write is validated as the step after the last of
+                them rather than after the record's current status.  A
+                trigger that sends two steps in order passes it.
         """
         super().__init__(name=name or self.__class__.__name__)
         self._actor_id = actor_id
@@ -153,9 +172,14 @@ class CreateParticipantStatusNode(
         self._result_out = result_out
         self._force_rm_state = force_rm_state
         self._rm_rule = rm_rule
+        self._written_ids = written_ids
+        self._attach = attach
+        self._follows = follows
 
     def initialise(self) -> None:
         super().initialise()
+        if self._written_ids is not None:
+            self._written_ids.clear()
         if not self._actor_id:
             self._actor_id = self.actor_id or ""
 
@@ -178,11 +202,16 @@ class CreateParticipantStatusNode(
     def _persist_status(
         self, dl: object, participant_id: str, status: "ParticipantStatus"
     ) -> None:
-        """Write the status to the DataLayer and link it to the participant."""
+        """Write the status to the DataLayer and link it to the participant.
+
+        With ``attach=False`` only the status object is written.
+        """
         try:
             dl.create(status)  # type: ignore[attr-defined]
         except VultronAlreadyExistsError:
             dl.save(status)  # type: ignore[attr-defined]
+        if not self._attach:
+            return
         participant_obj = dl.read(participant_id)  # type: ignore[attr-defined]
         wire_status = dl.read(status.id_)  # type: ignore[attr-defined]
         if isinstance(participant_obj, CaseParticipant) and isinstance(
@@ -335,6 +364,7 @@ class CreateParticipantStatusNode(
         )
         if isinstance(context, Status):
             return context
+        context = context_after_followed(dl, context, self._follows)
 
         failure = validate_participant_status_write(
             self,
@@ -356,6 +386,8 @@ class CreateParticipantStatusNode(
 
         status = self._build_status(case, context, effective, case_id)
         self._persist_status(dl, participant_id, status)
+        if self._written_ids is not None:
+            self._written_ids.append(status.id_)
 
         if self._result_out is not None:
             self._result_out["status_id"] = status.id_

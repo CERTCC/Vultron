@@ -782,6 +782,7 @@ def test_stay_deferred_short_circuits(
 
 @pytest.mark.spec("CSB-11-002")
 @pytest.mark.spec("BT-03-004")
+@pytest.mark.spec("RSH-08-006")
 def test_full_deploy_arm_completes_and_emits_cd(
     bt_scenario: BTTestScenario,
     case_with_deployer_and_case_manager: VulnerabilityCase,
@@ -792,7 +793,10 @@ def test_full_deploy_arm_completes_and_emits_cd(
     Sequence runs to completion (guards pass → PrioritizeDeployment → DeployFix
     → TransitionCStoFixDeployed → EmitCDActivity).  Asserts the deploy arm's
     two production action nodes actually fired: a new VFD ``ParticipantStatus``
-    was appended and a CD activity was queued to the deployer's outbox.
+    was stored and a CD activity carrying it was queued to the deployer's
+    outbox.  The deployer's own record is unchanged: it gains the status only
+    when the CASE_MANAGER's ledger entry for it is copied (RSH-08-003,
+    CM-23-016).
 
     This is the integration coverage the DETERMINISTIC default cannot provide
     (its ``deploy_fix_factory`` is AlwaysFail, so the arm never reaches the
@@ -815,13 +819,11 @@ def test_full_deploy_arm_completes_and_emits_cd(
     result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
     assert result.status == Status.SUCCESS
 
-    # TransitionCStoFixDeployed appended a new VFD (fix-deployed) status.
+    # TransitionCStoFixDeployed stored the fix-deployed status without
+    # attaching it to the deployer's record.
     participant = bt_scenario.dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)
-    assert len(participant.participant_statuses) == before + 1
-    last_status = participant.participant_statuses[-1]
-    assert last_status.d is not None
-    assert last_status.d.state == CS_d.D
+    assert len(participant.participant_statuses) == before
 
     # EmitCDActivity queued a CD activity to the deployer's outbox.
     outbox = bt_scenario.dl.outbox_list()
@@ -837,8 +839,10 @@ def test_full_deploy_arm_completes_and_emits_cd(
     assert getattr(activity, "to", None) == [CASE_MANAGER_ACTOR_ID]
     announced = getattr(activity, "object_", None)
     assert isinstance(announced, ParticipantStatus)
-    assert announced.id_ == last_status.id_
     assert announced.d is not None and announced.d.state == CS_d.D
+    stored = bt_scenario.dl.read(announced.id_)
+    assert isinstance(stored, ParticipantStatus)
+    assert stored.d is not None and stored.d.state == CS_d.D
 
 
 def test_deploy_arm_falls_through_to_monitor_when_deployfix_fails(

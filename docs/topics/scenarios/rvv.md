@@ -89,8 +89,7 @@ case ledger in that order.
 
 ### 3. Participant status records are created
 
-The Case Actor records the initial participant status for Reporter and Vendor1
-as `add_participant_status_to_participant` entries.
+Each record seated at case creation is ledgered as a `create_case_participant` entry, and each later status the Case Actor writes, Vendor1's engagement included, as an `add_participant_status_to_participant` entry.
 
 *Antecedent:* `engage_case` is present in the ledger.
 

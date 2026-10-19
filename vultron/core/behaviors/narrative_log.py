@@ -239,7 +239,7 @@ def log_case_engagement(
         actor_id: Actor that engaged the case.
         case_id: Case engaged.
         rm_before: Actor's RM state before engaging.
-        rm_after: Actor's RM state after engaging, read back from storage.
+        rm_after: The RM state the engagement declares.
     """
     if rm_before == rm_after:
         return

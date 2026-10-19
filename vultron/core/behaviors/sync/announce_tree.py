@@ -43,7 +43,6 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyReinstateCaseParticipantFromLedgerNode,
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
-    ApplyRmVerdictFromLedgerNode,
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
@@ -70,7 +69,6 @@ from vultron.core.behaviors.sync.nodes import (
     IsRemoveCaseParticipantEventNode,
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
-    IsRmVerdictEventNode,
     IsSubmitReportEventNode,
     IsUpdateCaseParticipantEventNode,
     IsWithdrawFromEmbargoEventNode,
@@ -254,11 +252,10 @@ def create_announce_log_entry_tree(
                 IsAddCaseStatusEventNode,
                 ApplyCaseStatusFromLedgerNode,
             ),
-            _event_effect_slot(
-                "RmVerdict",
-                IsRmVerdictEventNode,
-                ApplyRmVerdictFromLedgerNode,
-            ),
+            # No RmVerdict slot: a report verdict, an engagement decision or a
+            # full-case Invite reply records the act, and the status the
+            # CASE_MANAGER wrote for it arrives as the participant-status
+            # entry after it, copied below (CLP-07-013, CM-23-016).
             py_trees.composites.Selector(
                 name="ParticipantStatusEffects",
                 memory=False,
@@ -336,7 +333,7 @@ def create_announce_log_entry_tree(
             ),
             # No CloseCase slot: close_case records the received Leave, and
             # the RM moves it caused arrive as the participant-status entries
-            # after it, applied above.  A replica never walks a closure path
+            # after it, copied above.  A replica never walks a closure path
             # from its own stored state (CM-23-001, CM-23-016, #4091).
             _event_effect_slot(
                 "OfferReport",

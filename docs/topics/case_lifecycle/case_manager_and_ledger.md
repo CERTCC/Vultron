@@ -35,10 +35,11 @@ The flow of a change is always the same:
 
 1. A participant sends the CASE_MANAGER an assertion — *I accept the embargo*, *my report is now validated*, *here is a note*.
 2. The CASE_MANAGER judges the assertion.
-   If it admits the assertion, it appends one entry recording it.
+   If it admits the assertion, it appends an entry recording it.
+   Each change the act causes beyond what the assertion itself states then follows as its own CASE_MANAGER-authored entry, carrying the changed record in full: a participant's new RM status after *my report is now validated*, for example ([CLP-07-013](../../reference/specs/protocol.md#clp-07-013)).
    If it refuses the assertion, it appends nothing and records the refusal in its structured logs instead.
-3. The CASE_MANAGER sends the new entry to every participant as `Announce(CaseLedgerEntry)`.
-4. Each participant records the entry and applies its effects to its own replica.
+3. The CASE_MANAGER sends each new entry to every participant as `Announce(CaseLedgerEntry)`.
+4. Each participant records each entry and copies what it carries into its own replica, ids and times included, deriving nothing of its own ([CM-23-016](../../reference/specs/protocol.md#cm-23-016)).
 
 Because there is exactly one writer, no participant ever has to reconcile two competing versions of the case history.
 There is only one version.

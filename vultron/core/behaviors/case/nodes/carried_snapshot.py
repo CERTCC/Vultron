@@ -18,9 +18,12 @@ remote point-in-time view that carries the participants and the embargo it
 names inline.  Two steps make it usable on the receiver:
 
 - hold the embargo the case names, and refuse a case naming one this store
-  cannot read (:class:`HoldCarriedEmbargoNode`);
+  cannot read (:class:`HoldCarriedEmbargoNode`), on both paths;
 - store each inline participant as its own record so later nodes can find it by
-  id (:class:`StoreEmbeddedParticipantsNode`).
+  id (:class:`StoreEmbeddedParticipantsNode`), on the ``Create`` path only.
+  An ``Engage`` goes to the CASE_MANAGER, which already holds every record it
+  names, and a participant's view of them is no ledger entry a replica can
+  copy (CLP-07-013, CM-23-016).
 
 Both delegate to the neutral helpers in ``vultron/core/services/``, which the
 announce seed shares (BT-22-005), so there is one implementation of each.

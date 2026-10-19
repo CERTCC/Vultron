@@ -93,9 +93,6 @@ REPLAYED: dict[str, dict[str, Any]] = {
         UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
         MS.ACCEPT_INVITE_ACTOR_TO_CASE.value,
         MS.REJECT_INVITE_ACTOR_TO_CASE.value,
-        MS.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value,
-        MS.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
-        MS.REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
         MS.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
         MS.ACTIVATE_EMBARGO_ON_CASE.value,
         MS.ADD_CASE_PARTICIPANT_TO_CASE.value,
@@ -103,17 +100,12 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.ADD_NOTE_TO_CASE.value,
         MS.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
         MS.ADD_REPORT_TO_CASE.value,
-        MS.CLOSE_REPORT.value,
-        MS.DEFER_CASE.value,
-        MS.ENGAGE_CASE.value,
-        MS.INVALIDATE_REPORT.value,
         MS.OFFER_CASE_OWNERSHIP_TRANSFER.value,
         MS.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
         MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
         MS.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
         MS.REMOVE_CASE_PARTICIPANT_FROM_CASE.value,
         MS.REMOVE_NOTE_FROM_CASE.value,
-        MS.VALIDATE_REPORT.value,
         MS.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
         EMBARGO_REINVITE_EVENT_TYPE,
         HONOUR_LATE_ACCEPT_EVENT_TYPE,
@@ -127,6 +119,13 @@ REPLAYED: dict[str, dict[str, Any]] = {
         "object": _EMBARGO,
     },
 }
+
+_RM_VERDICT = (
+    "an act declaring its sender's RM state: the entry records the act, and"
+    " the status the CASE_MANAGER wrote for it follows as its own"
+    " add_participant_status_to_participant entry, which a replica copies"
+    " (CLP-07-013, CM-23-016)"
+)
 
 _RECOMMENDATION = (
     "suggest-actor bookkeeping between the recommender, the CASE_MANAGER"
@@ -168,6 +167,17 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " #4091)"
     ),
     MS.INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
+    MS.VALIDATE_REPORT.value: _RM_VERDICT,
+    MS.INVALIDATE_REPORT.value: _RM_VERDICT,
+    MS.CLOSE_REPORT.value: (
+        "no CASE_MANAGER commits it once a case holds the report (CM-23-019);"
+        " an entry already in a ledger records the act only"
+    ),
+    MS.ENGAGE_CASE.value: _RM_VERDICT,
+    MS.DEFER_CASE.value: _RM_VERDICT,
+    MS.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value: _RM_VERDICT,
+    MS.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE.value: _RM_VERDICT,
+    MS.REJECT_INVITE_ACTOR_TO_FULL_CASE.value: _RM_VERDICT,
     MS.OFFER_ACTOR_TO_CASE.value: (
         "the receipt of a suggestion (CM-16-002); the one thing the"
         " CASE_MANAGER keeps from it, who recommended whom, is its own"

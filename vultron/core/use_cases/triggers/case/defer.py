@@ -35,8 +35,9 @@ logger = logging.getLogger(__name__)
 class SvcDeferCaseUseCase(SvcActivityTriggerBase):
     """Defer a case (RM → DEFERRED).
 
-    Updates the actor's RM state to DEFERRED and sends a Defer(Case)
-    activity to the Case Actor via SenderSideBT (PCR-08-001).
+    Checks that the actor may move to DEFERRED, then sends a Defer(Case)
+    activity to the CASE_MANAGER via SenderSideBT (PCR-08-001).  The actor's
+    replica takes the recorded move from the ledger (RSH-08-003, CLP-07-013).
     """
 
     def _prepare(self) -> None:
@@ -59,6 +60,7 @@ class SvcDeferCaseUseCase(SvcActivityTriggerBase):
             case_id=self._case_id,
             actor_id=self._actor_id,
             activity_builder=_build_activities,
+            result_out=self._result_out,
         )
 
     def _extra_execute_kwargs(self) -> dict:
