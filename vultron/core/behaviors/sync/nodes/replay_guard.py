@@ -165,9 +165,10 @@ def should_replay(
     Returns:
         ``True`` when the replay should proceed — the peer's position has moved
         since the last replay we sent it, or the cooldown for an unchanged
-        position (:func:`replay_cooldown_seconds`) has elapsed.  ``False`` when the position is unchanged and
-        still within the cooldown, which is what breaks the amplification loop
-        described in this module's docstring.
+        position (:func:`replay_cooldown_seconds`) has elapsed.  ``False``
+        when the position is unchanged and still within the cooldown, which
+        is what breaks the amplification loop described in this module's
+        docstring.
 
     Genesis (``from_hash == ""``) gets a much shorter cooldown
     (:data:`GENESIS_REPLAY_COOLDOWN_SECONDS`) rather than the full one.  A peer

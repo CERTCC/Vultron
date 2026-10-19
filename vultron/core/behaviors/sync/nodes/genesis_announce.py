@@ -52,8 +52,9 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
     Returns SUCCESS when it queues the announce or has nothing to seed (a
     missing trigger port is only a WARNING, so the replay still runs in
     environments without one).  It seeds nothing while the replay guard
-    rate-limits the genesis replay it precedes (SYNC-15-003).  Returns FAILURE when the embargo gate is
-    undecidable, which fails the tree before the replay (BTND-07-005).
+    rate-limits the genesis replay it precedes (SYNC-15-014).  Returns FAILURE
+    when the embargo gate is undecidable, which fails the tree before the
+    replay (BTND-07-005).
 
     Authored as the executing actor; runs only inside the reject tree's
     CASE_MANAGER gate (ADR-0073, BT-17-008).
@@ -123,8 +124,8 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
                 entry.case_id,
             )
             return Status.SUCCESS
-        # SYNC-15-003: the pre-seed anchors the replay that follows it, so it
-        # goes out only when that replay will (SYNC-15-014).  A rate-limited genesis Reject
+        # SYNC-15-014: the pre-seed anchors the replay that follows it, so it
+        # goes out only when that replay will.  A rate-limited genesis Reject
         # finds the case already sent with the last replay, and announcing it
         # again per Reject kept the loop the guard bounds alive (#4882).
         if not should_replay(
@@ -135,7 +136,7 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
         ):
             self.logger.debug(
                 "%s: genesis replay to peer '%s' is rate-limited; not"
-                " re-announcing case '%s' (SYNC-15-003)",
+                " re-announcing case '%s' (SYNC-15-014)",
                 self.name,
                 peer_id,
                 entry.case_id,
