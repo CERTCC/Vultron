@@ -19,6 +19,9 @@ Node classes:
 
 - :class:`ActorAlreadyParticipantNode` — returns SUCCESS when the recommended
   actor is already a case participant (CM-16-009 / AC-7b).
+- :class:`SuggestedActorIsNotRemovedNode` and
+  :class:`AcceptedInviteeIsNotRemovedNode` — refuse a recommendation, or the
+  Case Owner's Accept of one, naming a removed participant (CM-31-013).
 - :class:`SuggestedActorIsInvitableNode` — refuses the Case Owner's Accept of
   a recommendation for an actor that has joined or is at ``RM.CLOSED``
   (CM-11-015, CM-16-006).
@@ -35,6 +38,11 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
+    RecordedOfferAnswerInputMixin,
+    RequireRecordedOfferAnswerNode,
+    recorded_offer_answer_key,
+)
 from vultron.core.behaviors.case.stub_invite_lifetime import (
     awaiting_stub_reply,
     invitee_record,
@@ -43,11 +51,13 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_CASE_REPLY_TYPES,
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
 )
+from vultron.core.ports.case_persistence import CasePersistence
 
 
 class ActorAlreadyParticipantNode(DataLayerActionWithPorts):
@@ -109,8 +119,30 @@ class ActorAlreadyParticipantNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class SuggestedActorIsNotRemovedNode(DataLayerConditionWithPorts):
-    """Guard: the actor a recommendation names is not a removed participant.
+def removed_participant_refusal(
+    datalayer: CasePersistence,
+    case: VulnerabilityCase,
+    actor_id: str,
+    case_id: str,
+) -> str | None:
+    """The refusal for suggesting *actor_id* when it is a removed participant.
+
+    ``None`` when the case does not list the actor, or its record carries no
+    removal fact (CM-31-013).
+    """
+    participant_id = case.actor_participant_index.get(actor_id)
+    record = datalayer.read(participant_id) if participant_id else None
+    if not (isinstance(record, CaseParticipant) and record.removed):
+        return None
+    return (
+        f"actor '{actor_id}' is a removed participant of case"
+        f" '{case_id}' and is sent no stub Invite; the Case Owner"
+        " reinstates it with Add(CaseParticipant) — REFUSED (CM-31-013)"
+    )
+
+
+class _NotRemovedGuardBase(DataLayerConditionWithPorts):
+    """Refuse when the actor :meth:`_suggested_actor` names was removed.
 
     A removed participant is sent no stub Invite (CM-31-013): the Case Owner
     took it out, and only the Case Owner's ``Add(CaseParticipant)`` brings it
@@ -123,15 +155,13 @@ class SuggestedActorIsNotRemovedNode(DataLayerConditionWithPorts):
     gate (CLP-10-009, RSH-08-003).
     """
 
-    def __init__(
-        self,
-        recommended_id: str,
-        case_id: str,
-        name: str | None = None,
-    ) -> None:
+    def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.recommended_id = recommended_id
         self.case_id = case_id
+
+    def _suggested_actor(self) -> str:
+        """The actor whose removal the guard checks."""
+        raise NotImplementedError
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -140,22 +170,59 @@ class SuggestedActorIsNotRemovedNode(DataLayerConditionWithPorts):
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: the CASE_MANAGER holds its case
-        participant_id = case.actor_participant_index.get(self.recommended_id)
-        record = (
-            self.datalayer.read(participant_id) if participant_id else None
+        refusal = removed_participant_refusal(
+            self.datalayer, case, self._suggested_actor(), self.case_id
         )
-        if not (isinstance(record, CaseParticipant) and record.removed):
+        if refusal is None:
             return Status.SUCCESS
-        self.feedback_message = (
-            f"actor '{self.recommended_id}' is a removed participant of case"
-            f" '{self.case_id}' and is sent no stub Invite; the Case Owner"
-            " reinstates it with Add(CaseParticipant) — REFUSED (CM-31-013)"
-        )
+        self.feedback_message = refusal
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
 
-class SuggestedActorIsInvitableNode(DataLayerConditionWithPorts):
+class SuggestedActorIsNotRemovedNode(_NotRemovedGuardBase):
+    """Guard: the actor a recommendation names is not a removed participant.
+
+    The recommended actor is fixed at construction; see
+    :class:`_NotRemovedGuardBase` for the rule.
+    """
+
+    def __init__(
+        self,
+        recommended_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(case_id=case_id, name=name)
+        self.recommended_id = recommended_id
+
+    def _suggested_actor(self) -> str:
+        return self.recommended_id
+
+
+class AcceptedInviteeIsNotRemovedNode(
+    RecordedOfferAnswerInputMixin, _NotRemovedGuardBase
+):
+    """Guard: the invitee of the Offer the Case Owner accepted was not removed.
+
+    The invitee is the recorded Offer's, read from the answer that
+    ``RequireRecordedOfferAnswerNode`` published for *answer_id*
+    (CM-16-019); see :class:`_NotRemovedGuardBase` for the rule.
+    """
+
+    def __init__(
+        self, answer_id: str, case_id: str, name: str | None = None
+    ) -> None:
+        super().__init__(case_id=case_id, name=name)
+        self._answer_key = recorded_offer_answer_key(answer_id)
+
+    def _suggested_actor(self) -> str:
+        return self._recorded_answer().invitee_id
+
+
+class SuggestedActorIsInvitableNode(
+    RecordedOfferAnswerInputMixin, DataLayerConditionWithPorts
+):
     """Guard: the actor the Case Owner accepted has not joined and is not closed.
 
     The Case Owner's ``Accept(Offer(CaseParticipant))`` makes the CASE_MANAGER
@@ -167,6 +234,10 @@ class SuggestedActorIsInvitableNode(DataLayerConditionWithPorts):
     nothing is written.  An actor with no record, or an inert one that has not
     answered (:func:`awaiting_stub_reply`), passes.
 
+    The actor is the recorded Offer's invitee, read from the answer that
+    ``RequireRecordedOfferAnswerNode`` published for *answer_id*
+    (CM-16-019).
+
     Read-only, so it runs in ``precondition_guards`` behind the CASE_MANAGER
     gate (CLP-10-009, RSH-08-003).  The predicate is the one the re-invite
     arm uses; this guard adds no sender check (HP-01-006, ADR-0115).
@@ -174,13 +245,13 @@ class SuggestedActorIsInvitableNode(DataLayerConditionWithPorts):
 
     def __init__(
         self,
-        recommended_id: str,
+        answer_id: str,
         case_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.recommended_id = recommended_id
         self.case_id = case_id
+        self._answer_key = recorded_offer_answer_key(answer_id)
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -189,12 +260,13 @@ class SuggestedActorIsInvitableNode(DataLayerConditionWithPorts):
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1: the CASE_MANAGER holds its case
-        record = invitee_record(self.datalayer, case, self.recommended_id)
+        invitee_id = self._recorded_answer().invitee_id
+        record = invitee_record(self.datalayer, case, invitee_id)
         if record is None or awaiting_stub_reply(record):
             return Status.SUCCESS
         state = "joined" if record.joined else "at RM.CLOSED"
         self.feedback_message = (
-            f"actor '{self.recommended_id}' has already {state} in case"
+            f"actor '{invitee_id}' has already {state} in case"
             f" '{self.case_id}' and is sent no further stub Invite"
             " — REFUSED (CM-11-015, CM-16-006)"
         )
@@ -203,25 +275,53 @@ class SuggestedActorIsInvitableNode(DataLayerConditionWithPorts):
 
 
 def case_manager_admits_accepted_invitee_guard(
-    recommended_id: str, case_id: str
+    answer_id: str, case_id: str
 ) -> py_trees.composites.Selector:
     """Precondition guard for the Case Owner's Accept of a recommendation.
 
-    The CASE_MANAGER runs :class:`SuggestedActorIsNotRemovedNode` (CM-31-013)
-    and then :class:`SuggestedActorIsInvitableNode`, so an Accept naming a
-    removed, joined or closed actor is refused before the guarded commit; a
-    replica skips both as ``SUCCESS`` (RSH-08-003).
+    The CASE_MANAGER looks up the Offer the Accept names and the
+    recommendation behind it (:class:`RequireRecordedOfferAnswerNode`), then
+    runs :class:`AcceptedInviteeIsNotRemovedNode` (CM-31-013) and
+    :class:`SuggestedActorIsInvitableNode` on the recorded invitee, so an
+    Accept naming an Offer it never recorded, or a removed, joined or closed
+    actor, is refused before the guarded commit; a replica skips all three
+    as ``SUCCESS`` (RSH-08-003).
     """
     return create_case_manager_gated_tree(
         name="AcceptedInviteeAdmittedIfCaseManager",
         case_id=case_id,
         body_name="AcceptedInviteeAdmitted",
         children=[
-            SuggestedActorIsNotRemovedNode(
-                recommended_id=recommended_id, case_id=case_id
+            RequireRecordedOfferAnswerNode(
+                verb="Accept", answer_id=answer_id, case_id=case_id
+            ),
+            AcceptedInviteeIsNotRemovedNode(
+                answer_id=answer_id, case_id=case_id
             ),
             SuggestedActorIsInvitableNode(
-                recommended_id=recommended_id, case_id=case_id
+                answer_id=answer_id, case_id=case_id
+            ),
+        ],
+    )
+
+
+def case_manager_requires_recorded_rejection_guard(
+    answer_id: str, case_id: str
+) -> py_trees.composites.Selector:
+    """Precondition guard for the Case Owner's Reject of a recommendation.
+
+    The CASE_MANAGER looks up the Offer the Reject names and the
+    recommendation behind it (:class:`RequireRecordedOfferAnswerNode`), so a
+    Reject naming either unrecorded is refused before the guarded commit; a
+    replica skips it as ``SUCCESS`` (RSH-08-003).
+    """
+    return create_case_manager_gated_tree(
+        name="RejectedOfferRecordedIfCaseManager",
+        case_id=case_id,
+        body_name="RejectedOfferRecorded",
+        children=[
+            RequireRecordedOfferAnswerNode(
+                verb="Reject", answer_id=answer_id, case_id=case_id
             ),
         ],
     )
@@ -342,4 +442,11 @@ __all__ = [
     "ActorAlreadyParticipantNode",
     "InviteInFlightNode",
     "PendingOfferCaseParticipantNode",
+    "AcceptedInviteeIsNotRemovedNode",
+    "SuggestedActorIsInvitableNode",
+    "SuggestedActorIsNotRemovedNode",
+    "case_manager_admits_accepted_invitee_guard",
+    "case_manager_admits_suggested_actor_guard",
+    "case_manager_requires_recorded_rejection_guard",
+    "removed_participant_refusal",
 ]

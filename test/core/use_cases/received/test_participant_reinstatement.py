@@ -877,19 +877,17 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
     factory: Any,
 ) -> None:
     """Both stub-Invite trees refuse a removed actor ahead of any commit."""
-    kwargs: dict[str, Any] = {
-        "recommendation_id": "https://example.org/activities/offer-1",
-        "recommender_id": OWNER,
-        "case_id": CASE_ID,
-    }
+    kwargs: dict[str, Any] = {"case_id": CASE_ID}
     if factory is create_recommend_actor_to_case_received_tree:
         kwargs |= {
+            "recommendation_id": "https://example.org/activities/offer-1",
+            "recommender_id": OWNER,
             "recommended_id": VENDOR,
             "sender_rule": OfferActorToCaseReceivedUseCase.sender_entitlement,
         }
     else:
         kwargs |= {
-            "invitee_id": VENDOR,
+            "answer_id": "https://example.org/activities/accept-1",
             "sender_id": OWNER,
             "sender_rule": (
                 AcceptOfferCaseParticipantReceivedUseCase.sender_entitlement

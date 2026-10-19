@@ -77,8 +77,6 @@ _UNDISPATCHABLE = frozenset({"update_case", "create_participant"})
 _REFUSED_BEFORE_ANY_TREE: dict[str, str] = {
     "accept_actor_recommendation": "routes to UNKNOWN (#4527)",
     "reject_actor_recommendation": "routes to UNKNOWN (#4527)",
-    "accept_case_participant_offer": "recorded-Offer lookup in execute() (#4863)",
-    "reject_case_participant_offer": "recorded-Offer lookup in execute() (#4863)",
 }
 
 #: Examples whose tree keeps what the message carried before its addressee
