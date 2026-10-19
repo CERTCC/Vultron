@@ -250,26 +250,31 @@ class TestCloseAndInvalidateReportCommit:
         assert _committed(dl) == []
 
     @pytest.mark.parametrize(
-        ("use_case", "build", "finder_known", "sender_rm"),
+        ("use_case", "build", "finder_known", "sender_rm", "expected"),
         [
             (
                 CloseReportReceivedUseCase,
                 rm_close_report_activity,
                 False,
                 RM.RECEIVED,
+                [],
             ),
             (
                 InvalidateReportReceivedUseCase,
                 rm_invalidate_report_activity,
                 False,
                 RM.RECEIVED,
+                [],
             ),
-            # Declaring INVALID after ACCEPTED is backward.
+            # Declaring INVALID after ACCEPTED is backward: the declaration
+            # is refused, and only the CASE_MANAGER's RSH-06-004 note is
+            # committed (CLP-10-022, #4829).
             (
                 InvalidateReportReceivedUseCase,
                 rm_invalidate_report_activity,
                 True,
                 RM.ACCEPTED,
+                ["add_note_to_case"],
             ),
             # A sender at RM CLOSED has left and may not act (CM-23-018).
             (
@@ -277,6 +282,7 @@ class TestCloseAndInvalidateReportCommit:
                 rm_invalidate_report_activity,
                 True,
                 RM.CLOSED,
+                [],
             ),
         ],
         ids=[
@@ -287,12 +293,13 @@ class TestCloseAndInvalidateReportCommit:
         ],
     )
     def test_refused_declaration_commits_nothing(
-        self, use_case, build, finder_known, sender_rm
+        self, use_case, build, finder_known, sender_rm, expected
     ):
         """The case manager refuses ahead of the commit (CLP-10-009).
 
-        Neither an unknown sender nor a backward RM move leaves a canonical
-        entry behind.
+        Neither an unknown sender nor a backward RM move leaves an entry of
+        the declaration behind; a backward move's only entry is the
+        CASE_MANAGER's clarification note (CLP-10-022).
         """
         dl = _store(MANAGER_ID, sender_rm, finder_known=finder_known)
         event = extract_event(
@@ -303,7 +310,7 @@ class TestCloseAndInvalidateReportCommit:
         result = use_case(dl, event, **_ports(dl)).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert _committed(dl) == []
+        assert _committed(dl) == expected
 
     def test_redelivered_activity_commits_once(self):
         """A repeat of the same activity is skipped and adds no entry.
