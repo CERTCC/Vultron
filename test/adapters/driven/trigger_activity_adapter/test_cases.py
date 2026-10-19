@@ -548,7 +548,7 @@ class TestCaseOnTheWireCarriesItsParticipants:
     participant as its own record; with ids alone it has no participant at
     ``RM.RECEIVED`` to validate and no CASE_MANAGER participant to route its
     reply to — the vendor's validate-report trigger failed with "no routable
-    recipients" and "RM.START -> RM.VALID" in the fcvcv demo once the outbox
+    recipients" and "RM.START -> RM.VALID" in the rcvcv demo once the outbox
     stopped expanding them at delivery time (#3923).
     """
 

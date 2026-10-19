@@ -1069,7 +1069,7 @@ groups:
       nobody.
     verification: For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the
       CASE_MANAGER's canonical ledger contains at least one entry with that `eventType`
-      after a full FV demo run.
+      after a full rv demo run.
     adr:
     - ADR-0021
     - ADR-0109

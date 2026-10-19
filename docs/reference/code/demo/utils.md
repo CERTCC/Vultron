@@ -15,7 +15,7 @@ setup/teardown helpers used by all demo scripts (DC-02-001).
 - **`demo_environment`** — context manager that sets up and tears down a clean
   DataLayer state around each demo run
 - **`setup_clean_environment`** — resets the DataLayer and returns the three
-  default demo actors (Finder, Vendor, Coordinator)
+  default demo actors (Reporter, Vendor, Coordinator)
 - **`check_server_availability`** — polls the health endpoint until the API
   server is ready
 

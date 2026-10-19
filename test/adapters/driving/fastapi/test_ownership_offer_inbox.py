@@ -168,7 +168,7 @@ def test_ownership_offer_commits_when_the_case_manager_holds_no_transferee_profi
 def test_ownership_offer_after_a_recommendation_commits_and_is_forwarded(
     case_actor_dl, vendor_dl
 ):
-    """The fvcv-handoff order: an ``Offer(Actor, Case)`` comes first (#4843).
+    """The rvcv-handoff order: an ``Offer(Actor, Case)`` comes first (#4843).
 
     The recommendation names the transferee, but the commit of the later
     ownership Offer must not depend on anything that delivery stored.

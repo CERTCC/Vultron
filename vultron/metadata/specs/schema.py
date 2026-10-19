@@ -166,7 +166,7 @@ class Trigger(BaseModel):
     ``type`` identifies the category of trigger; ``value`` names the specific
     message (e.g. ``"EP"``) or state (e.g. ``"RM.VALID"``) within that
     category. For ``scenario_start`` triggers, ``value`` names the scenario
-    (e.g. ``"fv"``, ``"fvv"``).
+    (e.g. ``"rv"``, ``"rvv"``).
     """
 
     model_config = ConfigDict(extra="forbid")

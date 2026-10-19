@@ -79,7 +79,7 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
     ----------
     replicas_fixture:
         Name of the module-scoped fixture in the calling harness that
-        returns ``dict[str, list[dict]]`` — e.g. ``"fv_replicas"``.
+        returns ``dict[str, list[dict]]`` — e.g. ``"rv_replicas"``.
     chain_actors:
         Per-scenario ``_CHAIN_ACTORS`` list (``pytest.param`` entries or
         plain strings) passed to ``@pytest.mark.parametrize``.
@@ -90,7 +90,7 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         Forwarded to ``check_cs_state_transitions_observed`` and its
         replica-side counterpart
         ``check_per_actor_replica_cs_state_transitions_observed``; set to
-        ``False`` for the ``fcv-reject`` scenario where Vendor never advances
+        ``False`` for the ``rcv-reject`` scenario where Vendor never advances
         the VFD state machine.
     narrative_path:
         Repo-relative path to the scenario narrative Markdown page that

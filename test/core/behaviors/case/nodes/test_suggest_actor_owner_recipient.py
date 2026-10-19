@@ -26,7 +26,7 @@ copy of the case names the CaseActor, and the owner would never see it.
 owner from the ``CASE_OWNER`` participant role, the authoritative record
 (CM-21-002).  These tests seed a store whose ``attributed_to`` names the
 CaseActor, so a node that reads ``attributed_to`` first fails here.
-The defect only ever surfaced in the fcvcv Docker scenario, as a chain of five
+The defect only ever surfaced in the rcvcv Docker scenario, as a chain of five
 failures starting at "Offer(CaseParticipant) for V2 arrived in C1's DataLayer"
 and ending with a 422 from ``accept-actor-recommendation``.
 """
@@ -230,7 +230,7 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
     ):
         """Same defect, same store, second node (CM-16-008).
 
-        fcvcv never reached the duplicate-recommendation path, so this one was
+        rcvcv never reached the duplicate-recommendation path, so this one was
         latent — it would have mis-addressed identically the first time a second
         recommendation for the same actor arrived.
         """

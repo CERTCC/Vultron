@@ -562,7 +562,7 @@ def test_check_cs_state_transitions_observed_detects_no_status_entries():
 def test_check_cs_state_transitions_observed_no_vf_passes_without_fix_ready():
     """check_fix_ready=False skips VF check — reject-flow scenario regression.
 
-    Reproduces the fcv-reject Invariant 15 failure (issue #2121): a scenario
+    Reproduces the rcv-reject Invariant 15 failure (issue #2121): a scenario
     where Vendor never participates produces no VF observation, which triggered
     a spurious violation when check_fix_ready was unconditional.
     """
@@ -709,7 +709,7 @@ class TestLoadDevlogsManifestHandling:
     def test_skips_when_devlogs_dir_is_absent(self, tmp_path, monkeypatch):
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path / "nope")
         with pytest.raises(Skipped) as excinfo:
-            common.load_devlogs("fvv")
+            common.load_devlogs("rvv")
         assert "devlogs/" in str(excinfo.value)
 
     def test_fails_when_scenario_dir_exists_but_no_dump(
@@ -723,9 +723,9 @@ class TestLoadDevlogsManifestHandling:
         run, so the harness must fail rather than skip (ISSUE-2411 Gap 2).
         """
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        (tmp_path / "fvv").mkdir()
+        (tmp_path / "rvv").mkdir()
         with pytest.raises(Failed) as excinfo:
-            common.load_devlogs("fvv")
+            common.load_devlogs("rvv")
         assert "run the" in (excinfo.value.msg or "")
 
     def test_skips_when_unscoped_and_no_files(self, tmp_path, monkeypatch):
@@ -745,12 +745,12 @@ class TestLoadDevlogsManifestHandling:
         self, tmp_path, monkeypatch
     ):
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        demo_dir = tmp_path / "fvv"
+        demo_dir = tmp_path / "rvv"
         demo_dir.mkdir()
         (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
             json.dumps(
                 {
-                    "demoName": "fvv",
+                    "demoName": "rvv",
                     "caseId": None,
                     "ledgerFileCount": 0,
                     "targetCount": 0,
@@ -761,7 +761,7 @@ class TestLoadDevlogsManifestHandling:
             encoding="utf-8",
         )
         with pytest.raises(Failed) as excinfo:
-            common.load_devlogs("fvv")
+            common.load_devlogs("rvv")
         message = excinfo.value.msg or ""
         assert "no case-ledger" in message.lower()
         assert "The scenario failed before a case existed." in message
@@ -779,12 +779,12 @@ class TestLoadDevlogsManifestHandling:
         flake was the cost recorded on #2898 (ISSUE-3879).
         """
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        demo_dir = tmp_path / "fcvcv"
+        demo_dir = tmp_path / "rcvcv"
         demo_dir.mkdir()
         (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
             json.dumps(
                 {
-                    "demoName": "fcvcv",
+                    "demoName": "rcvcv",
                     "caseId": None,
                     "ledgerFileCount": 0,
                     "targetCount": 0,
@@ -798,7 +798,7 @@ class TestLoadDevlogsManifestHandling:
             encoding="utf-8",
         )
         with pytest.raises(Failed) as excinfo:
-            common.load_devlogs("fcvcv")
+            common.load_devlogs("rcvcv")
         message = excinfo.value.msg or ""
         assert "real invariant failure" not in message
         assert "not exercised" in message
@@ -810,20 +810,20 @@ class TestLoadDevlogsManifestHandling:
     ):
         """A manifest that names a case but captured no ledgers keeps the strong wording."""
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        demo_dir = tmp_path / "fvv"
+        demo_dir = tmp_path / "rvv"
         demo_dir.mkdir()
         (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
             json.dumps(
                 {
-                    "demoName": "fvv",
+                    "demoName": "rvv",
                     "caseId": CASE_URI,
                     "ledgerFileCount": 0,
                     "targetCount": 2,
                     "reason": None,
                     "actors": [
                         {
-                            "actorName": "finder",
-                            "routeKey": "finder",
+                            "actorName": "reporter",
+                            "routeKey": "reporter",
                             "captured": False,
                             "reason": "HTTP 500",
                         },
@@ -839,7 +839,7 @@ class TestLoadDevlogsManifestHandling:
             encoding="utf-8",
         )
         with pytest.raises(Failed) as excinfo:
-            common.load_devlogs("fvv")
+            common.load_devlogs("rvv")
         message = excinfo.value.msg or ""
         assert "real invariant failure" in message
         assert "not exercised" not in message
@@ -860,12 +860,12 @@ class TestLoadDevlogsManifestHandling:
         from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
 
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        demo_dir = tmp_path / "fcv"
+        demo_dir = tmp_path / "rcv"
         demo_dir.mkdir()
         (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
             json.dumps(
                 {
-                    "demoName": "fcv",
+                    "demoName": "rcv",
                     "caseId": None,
                     "ledgerFileCount": 0,
                     "targetCount": 0,
@@ -876,7 +876,7 @@ class TestLoadDevlogsManifestHandling:
             encoding="utf-8",
         )
         with pytest.raises(Failed) as excinfo:
-            common.load_devlogs("fcv")
+            common.load_devlogs("rcv")
         message = excinfo.value.msg or ""
         assert "real invariant failure" not in message
         assert "before a case existed" not in message
@@ -888,20 +888,20 @@ class TestLoadDevlogsManifestHandling:
         self, tmp_path, monkeypatch
     ):
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        demo_dir = tmp_path / "fvv"
+        demo_dir = tmp_path / "rvv"
         demo_dir.mkdir()
         (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
             json.dumps(
                 {
-                    "demoName": "fvv",
+                    "demoName": "rvv",
                     "caseId": CASE_URI,
                     "ledgerFileCount": 0,
                     "targetCount": 2,
                     "reason": None,
                     "actors": [
                         {
-                            "actorName": "finder",
-                            "routeKey": "finder",
+                            "actorName": "reporter",
+                            "routeKey": "reporter",
                             "captured": False,
                             "entryCount": 0,
                             "ledgerFile": None,
@@ -921,31 +921,31 @@ class TestLoadDevlogsManifestHandling:
             encoding="utf-8",
         )
         with pytest.raises(Failed) as excinfo:
-            common.load_devlogs("fvv")
+            common.load_devlogs("rvv")
         message = excinfo.value.msg or ""
-        assert "finder" in message
+        assert "reporter" in message
         assert "ValueError: No case ledger entries" in message
         assert "vendor" in message
 
     def test_fails_when_manifest_is_unreadable(self, tmp_path, monkeypatch):
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        demo_dir = tmp_path / "fvv"
+        demo_dir = tmp_path / "rvv"
         demo_dir.mkdir()
         (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
             "{not json", encoding="utf-8"
         )
         with pytest.raises(Failed) as excinfo:
-            common.load_devlogs("fvv")
+            common.load_devlogs("rvv")
         assert "unreadable" in (excinfo.value.msg or "")
 
     def test_returns_entries_when_ledger_files_exist(
         self, tmp_path, monkeypatch, single_actor_replicas
     ):
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        actor_dir = tmp_path / "fvv" / "case-actor"
+        actor_dir = tmp_path / "rvv" / "case-actor"
         actor_dir.mkdir(parents=True)
-        (tmp_path / "fvv" / DUMP_MANIFEST_FILENAME).write_text(
-            json.dumps({"demoName": "fvv", "ledgerFileCount": 1}),
+        (tmp_path / "rvv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps({"demoName": "rvv", "ledgerFileCount": 1}),
             encoding="utf-8",
         )
         entries = single_actor_replicas["case-actor"]
@@ -953,7 +953,7 @@ class TestLoadDevlogsManifestHandling:
             "".join(json.dumps(e) + "\n" for e in entries), encoding="utf-8"
         )
 
-        replicas = common.load_devlogs("fvv")
+        replicas = common.load_devlogs("rvv")
 
         assert list(replicas) == ["case-actor"]
         assert [common.log_index(e) for e in replicas["case-actor"]] == list(
@@ -969,9 +969,9 @@ class TestLoadDevlogsManifestHandling:
         than being sorted to the front of the log as index ``-1``.
         """
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        (tmp_path / "fvv").mkdir()
-        (tmp_path / "fvv" / DUMP_MANIFEST_FILENAME).write_text(
-            json.dumps({"demoName": "fvv", "ledgerFileCount": 2}),
+        (tmp_path / "rvv").mkdir()
+        (tmp_path / "rvv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps({"demoName": "rvv", "ledgerFileCount": 2}),
             encoding="utf-8",
         )
         good = single_actor_replicas["case-actor"]
@@ -979,7 +979,7 @@ class TestLoadDevlogsManifestHandling:
             ("case-actor", {"eventType": "missing_index"}),
             ("vendor", {"logIndex": -1, "eventType": "negative_index"}),
         ):
-            actor_dir = tmp_path / "fvv" / actor
+            actor_dir = tmp_path / "rvv" / actor
             actor_dir.mkdir()
             (actor_dir / "test-case-case-ledger.jsonl").write_text(
                 "".join(json.dumps(e) + "\n" for e in [*good, bad]),
@@ -987,7 +987,7 @@ class TestLoadDevlogsManifestHandling:
             )
 
         with pytest.raises(Failed) as excinfo:
-            common.load_devlogs("fvv")
+            common.load_devlogs("rvv")
 
         msg = excinfo.value.msg or ""
         assert "'case-actor'" in msg and "missing_index" in msg
@@ -1014,7 +1014,7 @@ class TestLoadDevlogsManifestHandling:
         Regression: issue #2273.
         """
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        actor_dir = tmp_path / "fv" / "case-actor"
+        actor_dir = tmp_path / "rv" / "case-actor"
         actor_dir.mkdir(parents=True)
 
         CASE_A = "https://example.org/cases/case-a"
@@ -1044,10 +1044,10 @@ class TestLoadDevlogsManifestHandling:
         )
 
         # Manifest identifies the most recent run as case-b
-        (tmp_path / "fv" / DUMP_MANIFEST_FILENAME).write_text(
+        (tmp_path / "rv" / DUMP_MANIFEST_FILENAME).write_text(
             json.dumps(
                 {
-                    "demoName": "fv",
+                    "demoName": "rv",
                     "caseId": CASE_B,
                     "ledgerFileCount": 1,
                     "targetCount": 1,
@@ -1056,7 +1056,7 @@ class TestLoadDevlogsManifestHandling:
             encoding="utf-8",
         )
 
-        replicas = common.load_devlogs("fv")
+        replicas = common.load_devlogs("rv")
 
         assert "case-actor" in replicas
         case_ids_in_result = {e.get("caseId") for e in replicas["case-actor"]}
@@ -1075,7 +1075,7 @@ class TestLoadDevlogsManifestHandling:
         judged, so its missing index does not fail the load (ISSUE-2764).
         """
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        actor_dir = tmp_path / "fv" / "case-actor"
+        actor_dir = tmp_path / "rv" / "case-actor"
         actor_dir.mkdir(parents=True)
 
         CASE_A = "https://example.org/cases/case-a"
@@ -1094,10 +1094,10 @@ class TestLoadDevlogsManifestHandling:
         (actor_dir / "case-b-case-ledger.jsonl").write_text(
             json.dumps(current) + "\n", encoding="utf-8"
         )
-        (tmp_path / "fv" / DUMP_MANIFEST_FILENAME).write_text(
+        (tmp_path / "rv" / DUMP_MANIFEST_FILENAME).write_text(
             json.dumps(
                 {
-                    "demoName": "fv",
+                    "demoName": "rv",
                     "caseId": CASE_B,
                     "ledgerFileCount": 1,
                     "targetCount": 1,
@@ -1106,7 +1106,7 @@ class TestLoadDevlogsManifestHandling:
             encoding="utf-8",
         )
 
-        replicas = common.load_devlogs("fv")
+        replicas = common.load_devlogs("rv")
 
         assert replicas["case-actor"] == [current]
 
@@ -1115,10 +1115,10 @@ class TestLoadDevlogsManifestHandling:
     ):
         """Un-scoped loads look for a manifest anywhere beneath devlogs/."""
         monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
-        demo_dir = tmp_path / "fvv"
+        demo_dir = tmp_path / "rvv"
         demo_dir.mkdir()
         (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
-            json.dumps({"demoName": "fvv", "ledgerFileCount": 0}),
+            json.dumps({"demoName": "rvv", "ledgerFileCount": 0}),
             encoding="utf-8",
         )
         with pytest.raises(Failed) as excinfo:
@@ -1370,7 +1370,7 @@ class TestCheckPerActorReplicaRmClosedTermination:
     _MANAGER = "https://example.org/actors/case-actor"
     _NAMES = {
         "actor-a": "vendor",
-        "actor-b": "finder",
+        "actor-b": "reporter",
         "case-actor": "case-actor",
     }
 
@@ -1384,7 +1384,7 @@ class TestCheckPerActorReplicaRmClosedTermination:
         )
 
     def _authority(self) -> list[dict]:
-        """Finder leaves, then the owner (vendor); the manager closes last."""
+        """Reporter leaves, then the owner (vendor); the manager closes last."""
         return [
             _status_entry(0, "ACCEPTED", "VF", "Pxa", _ACTOR_A_ID),
             _status_entry(1, "ACCEPTED", "VF", "Pxa", _ACTOR_B_ID),
@@ -1409,9 +1409,9 @@ class TestCheckPerActorReplicaRmClosedTermination:
 
     @pytest.mark.spec("CM-23-004")
     def test_each_replica_ending_at_its_own_closure_passes(self):
-        """The finder never sees the owner close; the owner never sees the end."""
+        """The reporter never sees the owner close; the owner never sees the end."""
         authority = self._authority()
-        assert self._check(finder=authority[:4], vendor=authority[:6]) == []
+        assert self._check(reporter=authority[:4], vendor=authority[:6]) == []
 
     @pytest.mark.spec("CM-23-004")
     def test_an_entry_after_the_own_closure_is_flagged(self):
@@ -1423,7 +1423,7 @@ class TestCheckPerActorReplicaRmClosedTermination:
 
     def test_a_replica_short_of_its_own_closure_is_flagged(self):
         """The leaver must receive its own closure step (CM-23-001)."""
-        violations = self._check(finder=self._authority()[:3])
+        violations = self._check(reporter=self._authority()[:3])
         assert any("expected 3" in v for v in violations)
         assert any(
             "final RM state" in v and "'ACCEPTED'" in v for v in violations
@@ -1753,11 +1753,11 @@ def test_unique_payload_ids_ignores_snapshots_without_an_id():
 
 _PC_MANAGER = "https://example.org/api/v2/actors/case-actor"
 _PC_OWNER = "https://example.org/api/v2/actors/vendor"
-_PC_FINDER = "https://example.org/api/v2/actors/finder"
+_PC_REPORTER = "https://example.org/api/v2/actors/reporter"
 _PC_NAMES = {
     "case-actor": "case-actor",
     "vendor": "vendor",
-    "finder": "finder",
+    "reporter": "reporter",
 }
 
 
@@ -1774,7 +1774,7 @@ def _pc_entry(index: int, event: str, actor: str, subject: str | None = None):
 
 def _pc_ledger(*late: dict) -> dict[str, list[dict]]:
     entries = [
-        _pc_entry(0, "close_case", _PC_FINDER),
+        _pc_entry(0, "close_case", _PC_REPORTER),
         _pc_entry(1, "close_case", _PC_OWNER),
         _pc_entry(
             2,
@@ -1809,10 +1809,10 @@ def test_post_close_invariant_flags_a_participant_act_after_the_boundary():
     )
 
     (violation,) = check_no_participant_act_after_case_fully_closed(
-        _pc_ledger(_pc_entry(4, "close_case", _PC_FINDER)), _PC_NAMES
+        _pc_ledger(_pc_entry(4, "close_case", _PC_REPORTER)), _PC_NAMES
     )
     assert "logIndex=4" in violation
-    assert _PC_FINDER in violation
+    assert _PC_REPORTER in violation
 
 
 @pytest.mark.spec("CM-23-013")

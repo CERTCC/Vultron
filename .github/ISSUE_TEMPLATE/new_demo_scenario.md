@@ -56,7 +56,7 @@ Every new multi-actor demo scenario MUST update all of the following in the
     (DEMOMA-16-001–16-008).
   - Add `test_<scenario_name>_<event>_at_least_N` functions for events
     that must appear more than once.
-  - See `test/ci/invariants/test_fv_invariants.py` for the canonical
+  - See `test/ci/invariants/test_rv_invariants.py` for the canonical
     structure.
 - [ ] **Spec** — `specs/multi-actor-demo.yaml`
   - Add DEMOMA-16-XXX entries for each scenario-specific required event type

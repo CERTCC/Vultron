@@ -21,7 +21,7 @@ Each actor service must publish its host port as an env-var interpolation
 (``${VAR:-default}`` syntax) rather than a hardcoded number.  Docker Compose
 resolves these at startup time, which allows callers to override them:
 
-    FINDER_HOST_PORT=17901 ./integration_tests/demo/run_multi_actor_integration_test.sh
+    REPORTER_HOST_PORT=17901 ./integration_tests/demo/run_multi_actor_integration_test.sh
 """
 
 import re
@@ -39,9 +39,9 @@ _COMPOSE_FILE = _REPO_ROOT / "docker" / "docker-compose-multi-actor.yml"
 # the *default* value inside the ${VAR:-NNNN} expression.
 # Default is 0 (ephemeral) so concurrent test runs don't collide on the host;
 # callers that need a fixed port set the env var explicitly (e.g.
-# FINDER_HOST_PORT=17901).
+# REPORTER_HOST_PORT=17901).
 _EXPECTED_SERVICE_DEFAULTS: dict[str, int] = {
-    "finder": 0,
+    "reporter": 0,
     "vendor": 0,
     "case-actor": 0,
     "coordinator": 0,
@@ -49,7 +49,7 @@ _EXPECTED_SERVICE_DEFAULTS: dict[str, int] = {
 }
 
 # Pattern that matches Docker Compose env-var substitution with a default,
-# e.g. "${FINDER_HOST_PORT:-0}" as the left side of "HOST:CONTAINER".
+# e.g. "${REPORTER_HOST_PORT:-0}" as the left side of "HOST:CONTAINER".
 _ENV_VAR_PORT_RE = re.compile(r"^\$\{[A-Z0-9_]+:-\d+\}$")
 
 
@@ -96,7 +96,7 @@ class TestMultiActorComposeHostPorts:
             host_part, _container = mapping.rsplit(":", 1)
             assert _ENV_VAR_PORT_RE.match(host_part), (
                 f"Service '{service_name}' host port {host_part!r} must use "
-                f"env-var substitution (e.g. '${{FINDER_HOST_PORT:-7901}}'), "
+                f"env-var substitution (e.g. '${{REPORTER_HOST_PORT:-7901}}'), "
                 f"not a hardcoded value.  Hardcoded ports prevent concurrent "
                 f"runs and cause 'port is already allocated' errors."
             )
@@ -139,7 +139,7 @@ class TestMultiActorComposeHostPorts:
             var_name = m.group(1)
             assert var_name.endswith("_HOST_PORT"), (
                 f"Service '{service_name}' env var {var_name!r} should end "
-                f"with '_HOST_PORT' (e.g. FINDER_HOST_PORT)."
+                f"with '_HOST_PORT' (e.g. REPORTER_HOST_PORT)."
             )
 
     def test_container_port_is_always_7999(self):
@@ -163,7 +163,7 @@ _DEDICATED_CASE_ACTOR_URL = "http://case-actor:7999/api/v2"
 #: Every service that runs a Vultron API server, the case-actor container
 #: included (it points at itself).
 _API_SERVICES = (
-    "finder",
+    "reporter",
     "vendor",
     "coordinator",
     "case-actor",
@@ -241,7 +241,7 @@ _SLOWEST_OBSERVED_COLD_START_SECONDS = 31.0
 #: Every compose file that starts an actor, with the actor services in it.
 _ACTOR_COMPOSE_FILES: dict[str, tuple[str, ...]] = {
     "docker-compose-multi-actor.yml": (
-        "finder",
+        "reporter",
         "vendor",
         "coordinator",
         "case-actor",

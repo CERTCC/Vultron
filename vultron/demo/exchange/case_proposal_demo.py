@@ -22,7 +22,7 @@ ADR-0023 and ``specs/case-proposal.yaml`` CP-07-003.
 
 Workflow
 --------
-1. Finder submits a vulnerability report through its own ``submit-report``
+1. Reporter submits a vulnerability report through its own ``submit-report``
    trigger, which writes its pending ``ReportCaseLink`` (CBT-01-005).
 2. The vendor processes the report: ``create_receive_report_case_tree``
    runs, which includes ``ProposeReportCaseToActorNode`` — this queues
@@ -40,7 +40,7 @@ Workflow
      (the case-actor's acceptance of the proposal).
    - At least one ``VulnerabilityCase`` exists in the DataLayer
      (the case created by the case-actor service).
-   - The finder accepted the vendor's ``Create(VulnerabilityCase)``
+   - The reporter accepted the vendor's ``Create(VulnerabilityCase)``
      introduction on the trusted route (CBT-01-001, CBT-01-005).
 
 Note: In the current prototype the case-actor service is co-located on
@@ -76,11 +76,11 @@ logger = logging.getLogger(__name__)
 
 
 def demo_case_proposal_round_trip(
-    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+    client: DataLayerClient, reporter: as_Actor, vendor: as_Actor
 ) -> None:
     """Exercise the full CaseProposal round-trip (CP-07-003).
 
-    Finder submits a report through its own trigger.  The vendor's BT tree
+    Reporter submits a report through its own trigger.  The vendor's BT tree
     includes ``ProposeReportCaseToActorNode``, which queues
     ``Create(as_CaseProposal)`` to the case-actor service.  The
     case-actor responds with ``Accept(as_CaseProposal)`` and
@@ -88,17 +88,17 @@ def demo_case_proposal_round_trip(
 
     Args:
         client: DataLayerClient pointing at the demo server.
-        finder: The finder actor (report originator).
+        reporter: The reporter actor (report originator).
         vendor: The vendor actor (receives the report, hosts the
             case-actor service).
     """
-    # Step 1: through the finder's own submit-report trigger, which writes
+    # Step 1: through the reporter's own submit-report trigger, which writes
     # the anchor the vendor's case introduction is checked against
     # (CBT-01-005, #4675).  The helper records its own steps and raises when
     # the trigger fails, so nothing below runs on a missing report.
     report, _offer = reporter_submits_report(
         client,
-        finder,
+        reporter,
         vendor,
         reporter_client=client,
         report_name="CP-07-003 demo report",
@@ -134,12 +134,12 @@ def demo_case_proposal_round_trip(
             # not demo_gate.
             case = wait_for_initialized_case(client, report.id_)
 
-    with demo_step("Step 3: Vendor introduces the case to the finder"):
+    with demo_step("Step 3: Vendor introduces the case to the reporter"):
         # The vendor's own Create(VulnerabilityCase) introduces the case
-        # (CBT-01-001); the finder accepts it on the trusted route.
+        # (CBT-01-001); the reporter accepts it on the trusted route.
         verify_reporter_trusts_introduction(
             client,
-            finder,
+            reporter,
             vendor,
             report,
             case_id=case.id_ if case is not None else None,
@@ -168,9 +168,9 @@ def main(
     if demos is None:
         demos = [demo_case_proposal_round_trip]
 
-    with demo_environment(client) as (finder, vendor, _coordinator):
+    with demo_environment(client) as (reporter, vendor, _coordinator):
         for demo_fn in demos:
-            demo_fn(client, finder, vendor)
+            demo_fn(client, reporter, vendor)
 
 
 if __name__ == "__main__":

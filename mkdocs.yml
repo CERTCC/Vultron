@@ -15,8 +15,8 @@ nav:
     - 'tutorials/index.md'
     - Submit a Report to a Vultron Actor: 'tutorials/submit-a-report.md'
     - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
-    - Run the FV Demo: 'tutorials/fv-demo.md'
-    - Run the FVV Demo: 'howto/demos/fvv-demo.md'
+    - Run the rv Demo: 'tutorials/rv-demo.md'
+    - Run the RVV Demo: 'howto/demos/rvv-demo.md'
     - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
     - Running the Other Demos: 'tutorials/other_demos.md'
   - Explanation:
@@ -75,15 +75,15 @@ nav:
         - Embargo Lifecycle: 'topics/behavior_logic/use-cases/embargo-lifecycle.md'
     - Demo Scenarios:
       - 'topics/scenarios/index.md'
-      - FV: 'topics/scenarios/fv.md'
-      - FVV: 'topics/scenarios/fvv.md'
-      - FCV: 'topics/scenarios/fcv.md'
-      - FCV-reject: 'topics/scenarios/fcv-reject.md'
-      - FCVCV: 'topics/scenarios/fcvcv.md'
-      - FVCV-extension: 'topics/scenarios/fvcv-extension.md'
-      - FVCV-handoff: 'topics/scenarios/fvcv-handoff.md'
-      - FCCV-extension: 'topics/scenarios/fccv-extension.md'
-      - FCCV-handoff: 'topics/scenarios/fccv-handoff.md'
+      - rv: 'topics/scenarios/rv.md'
+      - RVV: 'topics/scenarios/rvv.md'
+      - RCV: 'topics/scenarios/rcv.md'
+      - RCV-reject: 'topics/scenarios/rcv-reject.md'
+      - RCVCV: 'topics/scenarios/rcvcv.md'
+      - RVCV-extension: 'topics/scenarios/rvcv-extension.md'
+      - RVCV-handoff: 'topics/scenarios/rvcv-handoff.md'
+      - RCCV-extension: 'topics/scenarios/rccv-extension.md'
+      - RCCV-handoff: 'topics/scenarios/rccv-handoff.md'
       - RCV-embargo: 'topics/scenarios/rcv-embargo.md'
       - RCVV-embargo: 'topics/scenarios/rcvv-embargo.md'
     - Activity Vocabulary Design: 'topics/activity_vocabulary_design.md'
@@ -134,7 +134,7 @@ nav:
       - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
     - Concept Taxonomy: 'reference/vultron-taxonomy.md'
     - Vultron AS Objects: 'reference/activitypub/objects.md'
-    - FV Demo Protocol: 'reference/fv-demo-protocol.md'
+    - rv Demo Protocol: 'reference/rv-demo-protocol.md'
     - Trigger API: 'reference/trigger-api.md'
     - Notation: 'reference/notation.md'
     - Case Model Fields: 'reference/case_model_fields.md'
@@ -372,8 +372,10 @@ plugins:
         howto/activitypub/objects.md: reference/activitypub/objects.md
         # The iCalendar mapping was retired with no successor (5a64f702f). The old
         # page named the EM process as what its ideas grew into, and linked it.
+        howto/demos/fvv-demo.md: howto/demos/rvv-demo.md
         howto/em_icalendar.md: topics/process_models/em/index.md
         howto/general_implementation.md: howto/activitypub/index.md
+        reference/fv-demo-protocol.md: reference/rv-demo-protocol.md
         topics/background/notation.md: reference/notation.md
         topics/background/overview.md: topics/background/what-is-vultron.md
         # Terms and Definitions was merged into the glossary's roles section (#3624).
@@ -395,6 +397,15 @@ plugins:
         topics/process_models/cs/events.md: topics/process_models/cs/cs_model.md
         topics/process_models/cs/model_definition.md: topics/process_models/cs/transitions.md
         topics/process_models/em/participant-embargo-consent.md: topics/behavior_logic/use-cases/embargo-lifecycle.md
+        topics/scenarios/fccv-extension.md: topics/scenarios/rccv-extension.md
+        topics/scenarios/fccv-handoff.md: topics/scenarios/rccv-handoff.md
+        topics/scenarios/fcv-reject.md: topics/scenarios/rcv-reject.md
+        topics/scenarios/fcv.md: topics/scenarios/rcv.md
+        topics/scenarios/fcvcv.md: topics/scenarios/rcvcv.md
+        topics/scenarios/fv.md: topics/scenarios/rv.md
+        topics/scenarios/fvcv-extension.md: topics/scenarios/rvcv-extension.md
+        topics/scenarios/fvcv-handoff.md: topics/scenarios/rvcv-handoff.md
+        topics/scenarios/fvv.md: topics/scenarios/rvv.md
         topics/user_stories/index.md: reference/user_stories/index.md
         topics/user_stories/story_2022_001.md: reference/user_stories/story_2022_001.md
         topics/user_stories/story_2022_002.md: reference/user_stories/story_2022_002.md
@@ -508,6 +519,7 @@ plugins:
         topics/user_stories/story_2022_110.md: reference/user_stories/story_2022_110.md
         topics/user_stories/story_2022_111.md: reference/user_stories/story_2022_111.md
         topics/user_stories/table.md: reference/user_stories/table.md
+        tutorials/fv-demo.md: tutorials/rv-demo.md
   # NOTE print-site MUST be the last plugin in the list (see its docs for why)
   - print-site
 repo_url: 'https://github.com/CERTCC/Vultron'

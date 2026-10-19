@@ -206,7 +206,7 @@ def test_invitee_response_edge_is_not_attributed_to_the_inviter(
     pairing is by position: each invite edge is followed by exactly one
     response edge, a shape every narrative must keep (see
     ``_invite_chain_violations``); that shape is what surfaced the missing
-    V2 acceptance edge in fcvcv (ISSUE-3885).  The ledger check reads the
+    V2 acceptance edge in rcvcv (ISSUE-3885).  The ledger check reads the
     label only for diagnostics, so nothing else would notice either slip.
     """
     edges = load_narrative_edges(_rel(page))
@@ -214,8 +214,8 @@ def test_invitee_response_edge_is_not_attributed_to_the_inviter(
     assert not violations, f"{_rel(page)}:\n" + "\n".join(violations)
 
 
-def test_fcv_reject_rejection_is_the_vendors() -> None:
-    """The fcv-reject narrative attributes the rejection to the Vendor.
+def test_rcv_reject_rejection_is_the_vendors() -> None:
+    """The rcv-reject narrative attributes the rejection to the Vendor.
 
     The Coordinator asks for the invitation and the Case Actor sends it
     (PCR-08-007); the Vendor is the one who declines, so the Vendor's actor is
@@ -224,7 +224,7 @@ def test_fcv_reject_rejection_is_the_vendors() -> None:
     that slip once every invite edge carries ``case-actor``, so the label is
     pinned directly.
     """
-    edges = load_narrative_edges("docs/topics/scenarios/fcv-reject.md")
+    edges = load_narrative_edges("docs/topics/scenarios/rcv-reject.md")
     rejections = [
         e
         for e in edges
@@ -271,7 +271,7 @@ _WELL_FORMED_CHAIN = [
     _edge(_ACCEPT, _OWNERSHIP_ACCEPTED, "coordinator"),
     _edge(_OWNERSHIP_ACCEPTED, _INVITE, "coordinator"),
     _edge(_INVITE, _ACCEPT, "vendor2"),
-    _edge("engage_case", "add_note_to_case", "finder"),
+    _edge("engage_case", "add_note_to_case", "reporter"),
 ]
 
 
@@ -304,7 +304,7 @@ def test_invite_chain_ignores_pages_without_invitations() -> None:
                 _edge("engage_case", _INVITE, "vendor"),
                 _edge(_OWNERSHIP_ACCEPTED, _INVITE, "coordinator"),
                 _edge(_INVITE, _ACCEPT, "vendor2"),
-                _edge("engage_case", "add_note_to_case", "finder"),
+                _edge("engage_case", "add_note_to_case", "reporter"),
                 _edge(_INVITE, _ACCEPT, "vendor"),
             ],
             "does not directly follow",

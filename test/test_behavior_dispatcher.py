@@ -197,7 +197,7 @@ def test_dispatcher_allows_gated_semantic_when_backfill_complete():
     gate must treat a completed backfill as holding the full prefix and NOT
     reject on the -1 sentinel — otherwise a settled genesis participant (e.g.
     the Finder reporting RM.CLOSED) is wrongly blocked and the case never
-    reaches auto-close.  Regression for PR #1746 fvcv-handoff failure.
+    reaches auto-close.  Regression for PR #1746 rvcv-handoff failure.
     """
     mock_dl = MagicMock()
     use_case_instance, use_case_class = _use_case_returning()

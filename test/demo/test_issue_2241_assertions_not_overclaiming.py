@@ -76,9 +76,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 _CASE_ID = "urn:uuid:test-case-2241-0001"
 _RECEIVER_ID = "http://vendor:7999/api/v2/actors/vendor"
-_REPORTER_ID = "http://finder:7999/api/v2/actors/finder"
+_REPORTER_ID = "http://reporter:7999/api/v2/actors/reporter"
 _PARTICIPANT_ID = "urn:uuid:p-vendor-2241"
-_REPORTER_PARTICIPANT_ID = "urn:uuid:p-finder-2241"
+_REPORTER_PARTICIPANT_ID = "urn:uuid:p-reporter-2241"
 
 
 # ===========================================================================
@@ -379,7 +379,7 @@ def test_run_invite_path_rm_triage_polls_invited_client_for_rm_state(
         invited_actor=MagicMock(),
         offer=MagicMock(),
         report=MagicMock(),
-        finder=MagicMock(),
+        reporter=MagicMock(),
         auth_client=cast(DataLayerClient, auth_client),
         case=case,
         invited_obj=invited_obj,

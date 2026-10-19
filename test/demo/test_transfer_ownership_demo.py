@@ -44,13 +44,13 @@ def test_demo(demo_env, demo_fn, caplog):
     Tests that the transfer_ownership demo workflows complete successfully.
 
     For the accept path, verifies:
-    - Case initialized with finder participant
+    - Case initialized with reporter participant
     - Vendor offers case ownership to coordinator
     - Coordinator accepts the offer
     - Case attributed_to updated to coordinator
 
     For the reject path, verifies:
-    - Case initialized with finder participant
+    - Case initialized with reporter participant
     - Vendor offers case ownership to coordinator
     - Coordinator rejects the offer
     - Case attributed_to remains with vendor

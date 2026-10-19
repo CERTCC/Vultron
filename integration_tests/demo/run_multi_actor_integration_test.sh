@@ -16,26 +16,26 @@
 #               services use a bind mount) to save significant startup time.
 #               Run without --no-build at least once, or after changing
 #               pyproject.toml, uv.lock, or docker/Dockerfile.
-#   SCENARIO    One of: fv (default), fvv, fcv, fcv-reject, fvcv-extension, fvcv-handoff, fccv-handoff, fccv-extension, fcvcv, rcv-embargo, rcvv-embargo
+#   SCENARIO    One of: rv (default), rvv, rcv, rcv-reject, rvcv-extension, rvcv-handoff, rccv-handoff, rccv-extension, rcvcv, rcv-embargo, rcvv-embargo
 #
 # Environment variables:
-#   DEMO                  Alternative way to specify the scenario (overridden by
-#                         the positional argument when both are supplied).
-#   PROJECT_NAME          Docker resource name prefix (default: vultron-it).
-#                         Use a unique prefix to avoid conflicts with a running
-#                         development stack.
-#   FINDER_HOST_PORT      Pin a specific host port for the finder service.
-#   VENDOR_HOST_PORT      Pin a specific host port for the vendor service.
-#   CASE_ACTOR_HOST_PORT  Pin a specific host port for the case-actor service.
-#   COORDINATOR_HOST_PORT Pin a specific host port for the coordinator service.
-#   ACTOR5_HOST_PORT      Pin a specific host port for the actor5 service.
-#   ACTOR6_HOST_PORT      Pin a specific host port for the actor6 service.
+#   DEMO                   Alternative way to specify the scenario (overridden by
+#                          the positional argument when both are supplied).
+#   PROJECT_NAME           Docker resource name prefix (default: vultron-it).
+#                          Use a unique prefix to avoid conflicts with a running
+#                          development stack.
+#   REPORTER_HOST_PORT     Pin a specific host port for the reporter service.
+#   VENDOR_HOST_PORT       Pin a specific host port for the vendor service.
+#   CASE_ACTOR_HOST_PORT   Pin a specific host port for the case-actor service.
+#   COORDINATOR_HOST_PORT  Pin a specific host port for the coordinator service.
+#   ACTOR5_HOST_PORT       Pin a specific host port for the actor5 service.
+#   ACTOR6_HOST_PORT       Pin a specific host port for the actor6 service.
 #   COMPOSE_SERVICE_COLORS
-#                         Path to a service-colors.env file that maps service
-#                         names to hex colors (default: docker/service-colors.env).
-#                         Colors are applied only when stdout is a TTY; output
-#                         redirected to a file or pipe passes through unmodified.
-#                         See docker/service-colors.env for format and defaults.
+#                          Path to a service-colors.env file that maps service
+#                          names to hex colors (default: docker/service-colors.env).
+#                          Colors are applied only when stdout is a TTY; output
+#                          redirected to a file or pipe passes through unmodified.
+#                          See docker/service-colors.env for format and defaults.
 #
 #   Host port variables are optional.  When unset (the default), Docker
 #   assigns an ephemeral host port for each service automatically, so no
@@ -44,7 +44,7 @@
 #   bridge and is unaffected by host port assignment.
 #
 #   To inspect the assigned host ports after startup:
-#     docker compose -f docker/docker-compose-multi-actor.yml port finder 7999
+#     docker compose -f docker/docker-compose-multi-actor.yml port reporter 7999
 #
 # Exit codes:
 #   0   Scenario completed successfully.
@@ -80,9 +80,9 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-DEMO="${SCENARIO_ARG:-${DEMO:-fv}}"
+DEMO="${SCENARIO_ARG:-${DEMO:-rv}}"
 
-VALID_SCENARIOS="fv fvv fcv fcv-reject fvcv-extension fvcv-handoff fccv-handoff fccv-extension fcvcv rcv-embargo rcvv-embargo"
+VALID_SCENARIOS="rv rvv rcv rcv-reject rvcv-extension rvcv-handoff rccv-handoff rccv-extension rcvcv rcv-embargo rcvv-embargo"
 if ! echo "${VALID_SCENARIOS}" | grep -qw "${DEMO}"; then
     echo "ERROR: unknown scenario '${DEMO}'. Valid options: ${VALID_SCENARIOS}" >&2
     exit 1

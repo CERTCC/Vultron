@@ -205,7 +205,7 @@ class TestNoFixtureLeakedConfig:
     """No demo fixture may leak config during the session.
 
     This is what pins the ``monkeypatch.undo()``-before-``reload_config()``
-    fixes in ``test_fvcv_handoff_demo.py``, ``test_pcr_late_joiner.py``,
+    fixes in ``test_rvcv_handoff_demo.py``, ``test_pcr_late_joiner.py``,
     ``test_case_proposal_round_trip.py``, and ``test_pcr_engage_case.py``.  The
     autouse guard repairs leaks, which keeps one bad teardown from cascading —
     but without this assertion the repair would also make a regression of those
@@ -270,7 +270,7 @@ class TestTestClientRouterDropLogging:
                 router.emit,
                 _ACTIVITY_ID,
                 _BODY,
-                ["https://vultron.example/users/finder"],
+                ["https://vultron.example/users/reporter"],
             )
         router_records = [
             r for r in caplog.records if r.name == "test.demo.conftest"

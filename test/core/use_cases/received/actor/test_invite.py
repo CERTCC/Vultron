@@ -1402,7 +1402,7 @@ class TestInviteActorUseCases:
 
         A late joiner that receives a ledger entry before its case seed enters
         the SYNC-15 pre-genesis path — Reject, then a from-genesis replay that
-        interleaves with the join backfill (fcvcv V2/C2, #2898).  The two
+        interleaves with the join backfill (rcvcv V2/C2, #2898).  The two
         channels are observed on one mock manager so their relative order is
         what is asserted, not each channel alone.
         """

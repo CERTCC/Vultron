@@ -727,7 +727,7 @@ def test_invite_keeps_the_invited_peer_inline():
     back from, so the stored Invite returned a bare string and outbox delivery
     refused it for AKM-03-003 after exhausting its retries. The invitation never
     arrived and the invitee's ``reject-case-invite`` answered 404 for an invite
-    it had never been told about (#2548, fcv-reject).
+    it had never been told about (#2548, rcv-reject).
     """
     invite = _invite_naming_a_peer()
 

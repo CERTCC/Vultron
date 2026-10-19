@@ -6,7 +6,7 @@ BT, takes the BT global lock, and does SQLite I/O.  Calling it directly from the
 coroutine stalls the whole container for the duration of every inbound
 activity: no HTTP response can be sent, no delivery from a peer can be
 accepted, and the co-hosted ``OutboxMonitor`` coroutine cannot drain.  The
-fv/fcvcv demo flakes (#3033, #2898) were the CaseActor's outbox waiting on the
+rv/rcvcv demo flakes (#3033, #2898) were the CaseActor's outbox waiting on the
 vendor's inbound BT ticks, one activity at a time.
 
 These tests pin the remedy: the synchronous work runs in a worker thread, and

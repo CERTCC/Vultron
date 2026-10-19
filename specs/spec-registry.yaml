@@ -224,7 +224,7 @@ groups:
       A `Trigger` object MUST carry a `type: TriggerType` field and a `value` string
       naming the specific message type (e.g. `EP`) or protocol state (e.g. `RM.VALID`)
       that activates the behavior; for `scenario_start` triggers `value` names the
-      scenario (e.g. `fv`, `fvv`).
+      scenario (e.g. `rv`, `rvv`).
     verification: >-
       `Trigger` model in `vultron/metadata/specs/schema.py` has required fields
       `type: TriggerType` and `value: str`.

@@ -1209,7 +1209,7 @@ groups:
       The reject/replay backstop (SYNC-15-001) does not converge under adversarial reordering
       for the same reason forward gaps are buffered (SYNC-14): replay re-announces entries
       individually over the same unordered transport and each pre-genesis entry Rejects again,
-      amplifying churn (issue #2169) and, for the fvcv-handoff demo, dropping the
+      amplifying churn (issue #2169) and, for the rvcv-handoff demo, dropping the
       add_report_to_case entry so no VultronOfferRecord is ever created (issue #2180). Holding
       the entry lets it drain deterministically once the case is seeded.
     verification: >-

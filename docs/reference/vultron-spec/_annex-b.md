@@ -8,7 +8,7 @@ It shows the coordinator acting as proxy for the reporter, a participant joining
 !!! info "Runnable scenarios"
     The reference implementation ships these flows as executable scenarios, which are the most current statement of what it supports:
 
-    - [`fv_demo.py`](https://github.com/CERTCC/Vultron/blob/main/vultron/demo/scenario/fv_demo.py) — Reporter → Vendor (two-party)
-    - [`fcv_demo.py`](https://github.com/CERTCC/Vultron/blob/main/vultron/demo/scenario/fcv_demo.py) — Reporter → Coordinator → Vendor
-    - [`fvcv_handoff_demo.py`](https://github.com/CERTCC/Vultron/blob/main/vultron/demo/scenario/fvcv_handoff_demo.py) — Coordinator hand-off
+    - [`rv_demo.py`](https://github.com/CERTCC/Vultron/blob/main/vultron/demo/scenario/rv_demo.py) — Reporter → Vendor (two-party)
+    - [`rcv_demo.py`](https://github.com/CERTCC/Vultron/blob/main/vultron/demo/scenario/rcv_demo.py) — Reporter → Coordinator → Vendor
+    - [`rvcv_handoff_demo.py`](https://github.com/CERTCC/Vultron/blob/main/vultron/demo/scenario/rvcv_handoff_demo.py) — Coordinator hand-off
     - [scenario inventory](https://github.com/CERTCC/Vultron/blob/main/vultron/demo/scenario/README.md) — the full list
