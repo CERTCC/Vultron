@@ -282,15 +282,6 @@ class ActorSession:
             body["note"] = note
         return self._post("invalidate-report", body)
 
-    def close_report(
-        self, *, offer_id: str, note: str | None = None
-    ) -> WireTriggerResult:
-        """Close the report after its RM lifecycle (close-report)."""
-        body: dict[str, Any] = {"offer_id": offer_id}
-        if note is not None:
-            body["note"] = note
-        return self._post("close-report", body)
-
     # -- case lifecycle triggers -----------------------------------------
 
     def create_case(
@@ -557,13 +548,9 @@ class ActorSession:
             path_prefix="demo",
         )
 
-    def close_case(self) -> WireTriggerResult:
-        """Send Leave(VulnerabilityCase) for the bound case (close-case, ADR-0050)."""
-        return self._post(
-            "close-case",
-            {"case_id": self._require_case_id()},
-            path_prefix="demo",
-        )
+    def leave_case(self) -> WireTriggerResult:
+        """Send Leave(VulnerabilityCase) for the bound case (leave-case, TRIG-13-001)."""
+        return self._post("leave-case", {"case_id": self._require_case_id()})
 
     def sync_log_entry(
         self, *, object_id: str, event_type: str

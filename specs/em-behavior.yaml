@@ -79,9 +79,10 @@ groups:
       A Participant MUST NOT accept a new embargo proposal (process EP) when information about the
       vulnerability is public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or attacks have
       been observed (q^cs ∈ ·····A). The Participant MUST respond with ER to reject the proposal.
-      The ER duty binds only the proposal's addressee: a receiver that is neither the sender nor
-      named in its `to` holds an unaddressed copy, refuses it (HP-01-005) and answers nothing
-      (ADR-0118); `cc` addresses nobody (ADR-0109). The ER names the Invite by id and needs no terms, so an Invite that
+      The ER duty binds only the proposal's addressee: a receiver the proposal is not
+      addressed to (HP-01-012) holds an unaddressed copy, refuses it (HP-01-005) and answers
+      nothing (ADR-0118); `cc` addresses nobody (ADR-0109). The ER names the Invite by id
+      and needs no terms, so an Invite that
       names its terms by URI only is answered too (ADR-0123). A re-delivery of an Invite already
       answered with ER is a duplicate: it is skipped and queues no second ER (HP-01-003). An ER
       recorded as sent but no longer pending is queued again under its own id, so a failed queue
@@ -599,8 +600,11 @@ groups:
       immediately rather than reverting to Active.
     rationale: >-
       Reverting to Active is not viable once public disclosure has occurred.
-      VP-11-002 requires termination in these states. Embargo termination takes
-      precedence over the revision rejection.
+      VP-11-002 requires termination in these states. "Rather than reverting"
+      describes where the act ends: EM ends EXITED, never back in Active. Inside
+      the act, the CASE_MANAGER records the rejection as decided (the revision
+      REJECTED) and then terminates the embargo, as two entries a replica copies
+      in order (MSM-07-009, CM-23-016).
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
       with a public/exploit/attack CS causes ET to be emitted and EM to transition

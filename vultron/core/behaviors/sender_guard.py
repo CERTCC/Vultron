@@ -54,25 +54,46 @@ that may be declared for it: ``CASE_MANAGER`` and ``LEDGER_PEER``.
 An empty side composes :class:`NoSenderAdmittedNode`, so an activity that
 names no case is refused under a rule with no ``outside_case`` side; ``ANY_ACTOR`` composes
 no node, so a rule that admits any actor composes no guard at all.
+
+The context records live in :mod:`vultron.core.behaviors.sender_check_context`
+and are re-exported here.  Beside the composer sit the closed-sender door
+(:func:`closed_sender_door`, built from :func:`closed_sender_guard` and
+:func:`case_owner_guard`, read back by :func:`closed_sender_turned_away`) and
+:func:`sender_guard_refused`, which tells a handler its run ended at the
+composed guard.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
 
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
+from vultron.core.behaviors.sender_check_context import (
+    AddresseeRequest,
+    AuthoredCaseProposal,
+    AuthoredNote,
+    AuthoredObject,
+    CaseBootstrapRequest,
+    CaseProposalRequest,
+    ClosedSenderCheck,
+    LedgerActivityContext,
+    OwnershipOfferRequest,
+    ReportOfferRequest,
+    SenderCheckContext,
+    SenderContext,
+    embargo_sender_context,
+)
 from vultron.core.behaviors.sender_entitlement import (
     NoSenderAdmittedNode,
     SenderClosureNotRecordedNode,
-    SenderEntitlementConditionNode,
     SenderEntitlementKind,
     SenderHoldsNoneOfNode,
     SenderIsActiveLedgerParticipantNode,
     SenderIsActiveParticipantNode,
     SenderIsCaseManagerNode,
     SenderIsCaseOwnerNode,
+    SenderIsExpectedCaseCreatorNode,
     SenderIsInviteeNode,
     SenderIsNoteAuthorNode,
     SenderIsOfferAddresseeNode,
@@ -93,175 +114,22 @@ __all__ = [
     "AuthoredCaseProposal",
     "AuthoredNote",
     "AuthoredObject",
+    "CaseBootstrapRequest",
+    "case_owner_guard",
     "CaseProposalRequest",
+    "ClosedSenderCheck",
     "LedgerActivityContext",
     "OwnershipOfferRequest",
     "ReportOfferRequest",
     "SenderCheckContext",
     "SenderContext",
+    "closed_sender_door",
     "closed_sender_guard",
+    "closed_sender_turned_away",
     "compose_sender_guard",
     "embargo_sender_context",
     "sender_guard_refused",
 ]
-
-#: The composites :func:`compose_sender_guard` builds around the kinds' nodes.
-_ANY_OF_NAME = "AnyOfSenderKinds"
-_RULE_GUARD_NAME = "SenderRuleGuard"
-
-
-@dataclass(frozen=True)
-class CaseProposalRequest:
-    """The request is a CaseProposal, recorded on the report case link.
-
-    Attributes:
-        report_id: The report the proposal was for (CP-06-005).
-    """
-
-    report_id: str
-
-
-@dataclass(frozen=True)
-class ReportOfferRequest:
-    """The request is an ``Offer(VulnerabilityReport)``, recorded on this
-    store's offer record.
-
-    Attributes:
-        offer_id: The Offer the reply names; ``None`` when it names none,
-            which refuses (RMB-08-004).
-    """
-
-    offer_id: str | None
-
-
-@dataclass(frozen=True)
-class OwnershipOfferRequest:
-    """The request is an ownership-transfer Offer, recorded in the case
-    ledger by the CASE_MANAGER of :attr:`SenderCheckContext.case_id`.
-
-    A ``NAMED_ACTOR`` sender must be its transferee (CM-21-011); a
-    ``CASE_OWNER`` sender must be the Case Owner that made it (CM-21-015).
-
-    Attributes:
-        offer_id: The Offer the reply names; ``None`` when it names none,
-            which refuses.
-        reply_id: The reply's own id, so the offerer check recognises a
-            redelivery of the withdrawal that closed the Offer (HP-01-003).
-    """
-
-    offer_id: str | None
-    reply_id: str
-
-
-#: The record that holds the request a ``NAMED_ACTOR`` sender answers.
-AddresseeRequest = (
-    CaseProposalRequest | ReportOfferRequest | OwnershipOfferRequest
-)
-
-
-@dataclass(frozen=True)
-class AuthoredNote:
-    """An ``AUTHOR`` sender must have written this note, and still be an
-    active participant of the case (CM-30-001).
-
-    Attributes:
-        note_id: The note being removed.
-    """
-
-    note_id: str
-
-
-@dataclass(frozen=True)
-class AuthoredCaseProposal:
-    """An ``AUTHOR`` sender must be this proposal's proposer, as the
-    CASE_MANAGER recorded it for the proposal id (CP-05-010).
-
-    Attributes:
-        proposal_id: The proposal the ``Create(CaseProposal)`` carries.
-    """
-
-    proposal_id: str
-
-
-#: The object an ``AUTHOR`` sender must have written.
-AuthoredObject = AuthoredNote | AuthoredCaseProposal
-
-
-@dataclass(frozen=True)
-class SenderCheckContext:
-    """What the kinds' condition nodes need to check one received activity.
-
-    Attributes:
-        sender_id: The activity's sender.
-        case_id: The case the activity names; ``None`` for an activity sent
-            before any case exists, which is checked against the rule's
-            ``outside_case`` side.
-        invite_id: The recorded Invite an ``INVITEE`` sender answers.
-        invite_is_case_join: The Invite is a case-join Invite, so the record
-            must also be one this CASE_MANAGER issued for ``case_id``
-            (CM-11-017).
-        case_manager_anchored: A ``CASE_MANAGER`` sender is matched against the
-            trust anchor the receiver recorded with the stub Invite when the
-            replica names no CASE_MANAGER (PCR-03-004).
-        case_manager_required: A ``CASE_MANAGER`` sender is refused, rather
-            than passed through, when this store holds no case or the case
-            names no CASE_MANAGER.
-        request: The record holding the request a ``NAMED_ACTOR`` sender
-            answers; it picks the addressee check (HP-01-009).  An
-            :class:`OwnershipOfferRequest` also makes a ``CASE_OWNER`` sender
-            the Case Owner that made the Offer.
-        authored_object: The object an ``AUTHOR`` sender must have written;
-            it picks the author check (HP-01-009).
-        offered_ownership_id: A new ownership-transfer Offer's own id: a
-            ``CASE_OWNER`` sender must hold the role, unless it redelivers
-            an Offer the CASE_MANAGER recorded from it (CM-21-019,
-            HP-01-003).
-    """
-
-    sender_id: str
-    case_id: str | None = None
-    invite_id: str | None = None
-    invite_is_case_join: bool = False
-    case_manager_anchored: bool = False
-    case_manager_required: bool = False
-    request: AddresseeRequest | None = None
-    authored_object: AuthoredObject | None = None
-    offered_ownership_id: str | None = None
-
-
-@dataclass(frozen=True)
-class LedgerActivityContext:
-    """The received activity carries a ``CaseLedgerEntry``, which names the case.
-
-    A ledger activity's tree has no case at build time, so the guard's nodes
-    read the sender and the case from the activity on the blackboard when the
-    tree runs: ``CASE_MANAGER`` from the announced entry (SYNC-13-006), and
-    ``LEDGER_PEER`` from the rejected entry (SYNC-03-005).  The guard is
-    composed for the activity's case, never for the rule's ``outside_case``
-    side, and the rule must state the same kinds at the CASE_MANAGER and at a
-    participant: telling the receiver's side apart needs the case at build
-    time.
-    """
-
-
-#: Either kind of context :func:`compose_sender_guard` composes a guard for.
-SenderContext = SenderCheckContext | LedgerActivityContext
-
-
-def embargo_sender_context(
-    sender_id: str, case_id: str | None
-) -> SenderCheckContext:
-    """The context an embargo activity's sender is checked in.
-
-    Embargo state is the case's, so the sender's standing is established
-    against the case this store holds: a case it does not hold, or one that
-    names no CASE_MANAGER, refuses the sender rather than passing it through
-    (Regime 1, ADR-0087).  ``Invite``, ``Remove`` and ``Announce`` of an
-    ``EmbargoEvent`` share it (EP-09-003, PCR-03-001, PCR-08).
-    """
-    return SenderCheckContext(
-        sender_id=sender_id, case_id=case_id, case_manager_required=True
-    )
 
 
 def closed_sender_guard(
@@ -269,15 +137,111 @@ def closed_sender_guard(
 ) -> SenderClosureNotRecordedNode:
     """The CM-23-018 check that the case does not record the sender's closure.
 
-    Built here, beside the kinds' guards, so the closed-sender pre-flight
-    (``vultron.core.use_cases.received._sender_preflight``) never names a
-    sender node itself (HP-01-007).  It is not a kind: it tells a repeated
-    closing act (``SKIPPED``) from any other act of a closed sender
-    (``REFUSED``) before a handler's received tree runs.
+    Built here, beside the kinds' guards, so no handler names a sender node
+    itself (HP-01-007).  It is not a kind: :func:`closed_sender_door` wraps
+    it as the door guard the receive-tree factory places, and the handler
+    tells a repeated closing act (``SKIPPED``) from any other act of a closed
+    sender (``REFUSED``).  The ``CASE_OWNER`` kind's guard composes it too,
+    so a closed owner is refused (CM-23-018).
     """
     return SenderClosureNotRecordedNode(
         case_id=case_id, sender_actor_id=sender_id
     )
+
+
+#: The names :func:`compose_sender_guard` gives the composites it builds.
+_RULE_GUARD = "SenderRuleGuard"
+_ANY_OF = "AnyOfSenderKinds"
+
+#: The attribute :func:`compose_sender_guard` sets on the guard it returns,
+#: so :func:`sender_guard_refused` knows that node by its origin, never by
+#: its name or type: another sender node at the root is not the guard.
+_COMPOSED_GUARD_MARK = "_vultron_composed_sender_guard"
+
+
+def _is_composed_guard(node: py_trees.behaviour.Behaviour) -> bool:
+    """*node* is the guard :func:`compose_sender_guard` returned."""
+    return getattr(node, _COMPOSED_GUARD_MARK, False) is True
+
+
+def sender_guard_refused(root: py_trees.behaviour.Behaviour) -> bool:
+    """True when a received tree's run ended at its composed sender guard.
+
+    The factory places the guard as one child of the tree's root Sequence
+    (HP-01-008); the run ended there when the first child that failed is
+    that guard.  A sender node deeper in the tree, which picks an effect
+    after admission, is not it.  A handler that answers a refused assertion
+    (a processing fault, say) asks this first: a sender with no standing is
+    owed no answer about its content (HP-01-006).
+    """
+    for child in root.children:
+        if child.status is Status.FAILURE:
+            return _is_composed_guard(child)
+    return False
+
+
+#: The attribute :func:`closed_sender_door` sets on the door it returns,
+#: holding the closure check inside it.
+_CLOSED_SENDER_MARK = "_vultron_closed_sender_check"
+
+
+def closed_sender_door(
+    case_id: str, check: ClosedSenderCheck
+) -> py_trees.behaviour.Behaviour:
+    """The closed-sender door guard the receive-tree factory places.
+
+    It fails when the case records the sender's closure (CM-23-018), unless
+    *check* lets the Case Owner complete the case's closure and the sender
+    is its Case Owner (CM-23-002).  :func:`closed_sender_turned_away` reads
+    whether a run ended there.
+    """
+    guard = closed_sender_guard(case_id, check.sender_id)
+    door: py_trees.behaviour.Behaviour = guard
+    if check.case_owner_completes:
+        door = py_trees.composites.Selector(
+            name="SenderOpenOrClosingCaseOwner",
+            memory=False,
+            children=[guard, case_owner_guard(case_id, check.sender_id)],
+        )
+    setattr(door, _CLOSED_SENDER_MARK, guard)
+    return door
+
+
+def closed_sender_turned_away(
+    root: py_trees.behaviour.Behaviour,
+) -> str | None:
+    """Why a received tree's run ended at its closed-sender door, or ``None``.
+
+    The factory places the door as one child of the tree's root Sequence; the
+    run ended there when the first child that failed is that door and its
+    check found the sender's closure recorded.  The reason names the sender
+    and the case (CM-23-018); the handler reports a repeated closing act as
+    ``SKIPPED`` (ID-05-003).
+    """
+    for child in root.children:
+        if child.status is Status.FAILURE:
+            guard = getattr(child, _CLOSED_SENDER_MARK, None)
+            if (
+                isinstance(guard, SenderClosureNotRecordedNode)
+                and guard.sender_closed
+            ):
+                return guard.feedback_message
+            return None
+    return None
+
+
+def case_owner_guard(
+    case_id: str, sender_id: str
+) -> py_trees.behaviour.Behaviour:
+    """The ``CASE_OWNER`` check the closed-sender door asks as its fallback.
+
+    Built here, beside the kinds' guards, so no handler names a sender node
+    itself (HP-01-007).  It admits no one: :func:`closed_sender_door` asks it
+    to tell a Case Owner's redelivered ``Leave``, whose case closure may
+    still be incomplete, from a repeat that changes nothing (CM-23-002,
+    CM-23-018).
+    """
+    return SenderIsCaseOwnerNode(sender_actor_id=sender_id, case_id=case_id)
 
 
 def _addressee_node(
@@ -292,6 +256,10 @@ def _addressee_node(
     if isinstance(request, ReportOfferRequest):
         return SenderIsOfferAddresseeNode(
             offer_id=request.offer_id, sender_actor_id=ctx.sender_id
+        )
+    if isinstance(request, CaseBootstrapRequest):
+        return SenderIsExpectedCaseCreatorNode(
+            case_id=request.case_id, sender_actor_id=ctx.sender_id
         )
     if isinstance(request, OwnershipOfferRequest):
         return SenderIsOwnershipTransfereeNode(
@@ -354,7 +322,30 @@ def _case_owner_node(ctx: SenderCheckContext) -> py_trees.behaviour.Behaviour:
     The withdrawal of a recorded ownership-transfer Offer checks the Owner
     that made it (CM-21-015); a new Offer checks the Owner making it
     (CM-21-019); anything else checks the role alone.
+
+    On a case, an owner whose closure the case records is refused first:
+    it has left and may act on nothing further (CM-23-018).  The check is
+    composed here, beside the role check, rather than inside
+    :class:`SenderIsCaseOwnerNode`, whose standing reads in the Leave,
+    suggest-actor, status and embargo trees must keep asking the role alone.
+    The owner's own ``Leave`` is the exception (*closing_case_owner*): its
+    repeat finishes the case's closure, so the role alone is asked and the
+    tree's closed-sender door guard decides the repeat (CM-23-002).
     """
+    owner = _case_owner_role_node(ctx)
+    if ctx.case_id is None or ctx.closing_case_owner:
+        return owner
+    return py_trees.composites.Sequence(
+        name="OpenCaseOwner",
+        memory=False,
+        children=[closed_sender_guard(ctx.case_id, ctx.sender_id), owner],
+    )
+
+
+def _case_owner_role_node(
+    ctx: SenderCheckContext,
+) -> py_trees.behaviour.Behaviour:
+    """The ``CASE_OWNER`` role check for the activity in *ctx*."""
     if isinstance(ctx.request, OwnershipOfferRequest):
         return SenderIsOwnershipOffererNode(
             case_id=_case_of(ctx, "an ownership-transfer Offer"),
@@ -453,7 +444,7 @@ def _any_of(
     # The last arm fails naming every kind, so the refusal reason is the
     # side's whole rule rather than the last kind tried (BT-13-001).
     return py_trees.composites.Selector(
-        name=_ANY_OF_NAME,
+        name=_ANY_OF,
         memory=False,
         children=[*nodes, SenderHoldsNoneOfNode(kinds)],
     )
@@ -501,6 +492,16 @@ def compose_sender_guard(
             ``case_id``; or a ledger activity's rule declares a kind that
             cannot read the case at run time, or differs by side.
     """
+    guard = _compose(rule, ctx)
+    if guard is not None:
+        setattr(guard, _COMPOSED_GUARD_MARK, True)
+    return guard
+
+
+def _compose(
+    rule: SenderRule, ctx: SenderContext
+) -> py_trees.behaviour.Behaviour | None:
+    """The guard :func:`compose_sender_guard` returns, before it is marked."""
     if isinstance(ctx, LedgerActivityContext):
         return _ledger_guard(rule)
 
@@ -529,7 +530,7 @@ def compose_sender_guard(
         "AtParticipant",
     )
     return py_trees.composites.Sequence(
-        name=_RULE_GUARD_NAME,
+        name=_RULE_GUARD,
         memory=False,
         children=[
             py_trees.composites.Selector(
@@ -556,25 +557,4 @@ def compose_sender_guard(
                 ],
             ),
         ],
-    )
-
-
-def _is_composed_guard(node: py_trees.behaviour.Behaviour) -> bool:
-    """Whether *node* is the root of a guard :func:`compose_sender_guard`
-    builds: a kind's node, an empty side's refusal, or a composite."""
-    return isinstance(
-        node, (SenderEntitlementConditionNode, SenderIsParticipantNode)
-    ) or node.name in {_ANY_OF_NAME, _RULE_GUARD_NAME}
-
-
-def sender_guard_refused(root: py_trees.behaviour.Behaviour) -> bool:
-    """Whether the sender guard the factory placed in *root* refused.
-
-    ``create_receive_activity_tree`` places the composed guard as a direct
-    child of the tree's root, so a handler can tell a sender refusal from a
-    failure elsewhere without naming a sender node itself (HP-01-007).
-    """
-    return any(
-        _is_composed_guard(child) and child.status is Status.FAILURE
-        for child in root.children
     )

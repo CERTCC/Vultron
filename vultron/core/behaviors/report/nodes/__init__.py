@@ -40,10 +40,10 @@ from vultron.core.behaviors.report.nodes.case_creation import (
 )
 from vultron.core.behaviors.report.nodes.close_conditions import (
     CheckReportClosable,
+    CheckReportHasNoCase,
 )
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
-    CheckReportNotClosed,
     CheckRMStateAccepted,
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
@@ -91,13 +91,13 @@ __all__ = [
     "CheckParticipantRMState",
     "CheckRMStateValid",
     "CheckRMStateReceivedOrInvalid",
-    "CheckReportNotClosed",
     "EnsureEmbargoExists",
     "EvaluateReportCredibility",
     "EvaluateReportValidity",
     "EvaluateCasePriority",
     # close_conditions
     "CheckReportClosable",
+    "CheckReportHasNoCase",
     # rm_transitions
     "_ReportPhaseRMTransition",
     "TransitionRMtoValid",

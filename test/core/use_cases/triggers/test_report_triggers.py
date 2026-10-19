@@ -449,6 +449,9 @@ class TestSvcValidateReportUseCase:
 class _ReportTriggerBase:
     """Shared fixture for use cases that act on a received offer."""
 
+    #: Seed the case the report belongs to; ``False`` for the pre-case path.
+    with_case: bool = True
+
     @pytest.fixture(autouse=True)
     def setup(self):
         self.vendor, self.dl = _make_actor_dl("Vendor Co")
@@ -469,13 +472,14 @@ class _ReportTriggerBase:
             actor_id=self.finder.id_,
         )
 
-        self.case = _make_case_with_embargo(
-            self.dl,
-            self.vendor.id_,
-            self.finder.id_,
-            self.case_actor.id_,
-            self.report.id_,
-        )
+        if self.with_case:
+            self.case = _make_case_with_embargo(
+                self.dl,
+                self.vendor.id_,
+                self.finder.id_,
+                self.case_actor.id_,
+                self.report.id_,
+            )
         self.dl.create(
             VultronReportCaseLink(
                 report_id=self.report.id_, rm_state=RM.RECEIVED
@@ -556,7 +560,14 @@ class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
 
 
 class TestSvcRejectReportUseCase(_ReportTriggerBase):
-    """execute() path tests for SvcRejectReportUseCase."""
+    """execute() path tests for SvcRejectReportUseCase, before any case.
+
+    A hard reject sends ``Close(Report)``, which is the pre-case path: once a
+    case holds the report the trigger fails closed
+    (:class:`TestSvcRejectReportOnACase`).
+    """
+
+    with_case = False
 
     def _seed_invalid(self):
         """Pre-seed RM.INVALID so INVALID→CLOSED is a valid transition (BTND-10-001)."""
@@ -668,6 +679,32 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
                 request,
                 trigger_activity=TriggerActivityAdapter(self.dl),
             ).execute()
+
+
+class TestSvcRejectReportOnACase(_ReportTriggerBase):
+    """Once a case holds the report, reject-report fails closed (CM-23-019)."""
+
+    @pytest.mark.spec("CM-23-019")
+    def test_reject_report_on_a_case_raises_and_sends_nothing(self):
+        """The case's owner closes it by ``Leave``, never by Close(Report)."""
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        before = set(self.dl.outbox_list())
+        with pytest.raises(
+            VultronInvalidStateTransitionError,
+            match=r"Leave\(VulnerabilityCase\)",
+        ):
+            SvcRejectReportUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+        assert set(self.dl.outbox_list()) == before
+        link = self.dl.read(VultronReportCaseLink.build_id(self.report.id_))
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.rm_state == RM.RECEIVED
 
 
 # ---------------------------------------------------------------------------

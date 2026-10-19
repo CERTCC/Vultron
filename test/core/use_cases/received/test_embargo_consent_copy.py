@@ -29,8 +29,8 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.behaviors.embargo import copy_commit
 from vultron.core.behaviors.embargo.copy_commit import (
     PlannedEmbargoEntry,
     commit_and_apply_embargo_entries,
@@ -52,8 +52,9 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-from vultron.core.use_cases.received.sync import drain_gap_buffer
 from vultron.errors import VultronEntryRefusedError
+from vultron.semantic_registry import extract_event
+from vultron.wire.as2.factories import announce_vulnerability_case_activity
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
@@ -212,6 +213,75 @@ class TestCaseManagerCommitsThenApplies:
         owner = _record(net, MANAGER, OWNER)
         assert owner.consent_for(net.initial_embargo_id) == _S.AGREED
 
+    @pytest.mark.spec("CLP-07-015")
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AttributeError,
+        reason="CLP-07-015: no step finishes an act's owed entries yet. #4855.",
+    )
+    def test_the_next_run_commits_the_entries_a_failed_commit_left_owed(
+        self, monkeypatch
+    ):
+        net = _net("cc-finish")
+        dl = net.stores[MANAGER]
+        failing = [True]
+        fail_commits(
+            monkeypatch,
+            commit_tree,
+            allowed=1,
+            when=lambda kw: (
+                failing[0]
+                and kw["event_type"] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+            ),
+        )
+        entries = [
+            _entry(net, _row_change(net, BYSTANDER, _S.DECLINED)),
+            _entry(net, _row_change(net, OWNER, _S.DECLINED)),
+        ]
+        with pytest.raises(RuntimeError):
+            commit_and_apply_embargo_entries(dl, net.case_id, entries)
+        failing[0] = False
+
+        copy_commit.finish_owed_embargo_entries(dl, net.case_id)  # type: ignore[attr-defined]
+
+        assert (
+            committed_event_types(dl, net.case_id).count(
+                UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+            )
+            == 2
+        )
+        owner = _record(net, MANAGER, OWNER)
+        assert owner.consent_for(net.initial_embargo_id) == _S.DECLINED
+
+    @pytest.mark.spec("CLP-07-015")
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AttributeError,
+        reason="CLP-07-015: no step finishes an act's owed entries yet. #4855.",
+    )
+    def test_the_next_run_commits_nothing_for_an_act_that_never_committed(
+        self, monkeypatch
+    ):
+        net = _net("cc-discard")
+        dl = net.stores[MANAGER]
+        held = _rows(_record(net, MANAGER, BYSTANDER))
+        failing = [True]
+        fail_commits(monkeypatch, commit_tree, when=lambda kw: failing[0])
+        with pytest.raises(RuntimeError):
+            commit_and_apply_embargo_entries(
+                dl,
+                net.case_id,
+                [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
+            )
+        failing[0] = False
+
+        copy_commit.finish_owed_embargo_entries(dl, net.case_id)  # type: ignore[attr-defined]
+
+        assert UPDATE_EMBARGO_CONSENT_EVENT_TYPE not in committed_event_types(
+            dl, net.case_id
+        )
+        assert _rows(_record(net, MANAGER, BYSTANDER)) == held
+
     def test_a_first_commit_that_fails_changes_nothing(self, monkeypatch):
         net = _net("cc-fail-first")
         dl = net.stores[MANAGER]
@@ -283,7 +353,10 @@ class TestReplicaCopies:
         """The gap buffer retries a refused entry; it is never dropped.
 
         Once this replica's case is where the entry starts (here the
-        diverged row is put back), the next drain applies and stores it.
+        diverged row is put back), the CASE_MANAGER's fresh
+        ``Announce(VulnerabilityCase)`` (SYNC-16) seeds nothing new, but its
+        tree hands the held entry back to the inbox, and that delivery applies
+        and stores it (SYNC-14-009, SYNC-16-007).
         """
         net = _net("cc-gap-retry")
         replica = net.stores[BYSTANDER]
@@ -305,12 +378,17 @@ class TestReplicaCopies:
         restored.copy_consent_row(_row_change(net, BYSTANDER, _S.AGREED).row)
         replica.save(restored)
         assert _rows(restored) == agreed
-        drain_gap_buffer(
-            replica,
-            net.case_id,
-            BYSTANDER,
-            get_ledger_gap_buffer(BYSTANDER),
-            wire_render_port=As2WireRenderAdapter(),
+        seed = announce_vulnerability_case_activity(
+            net.case(MANAGER), actor=MANAGER, to=[BYSTANDER]
+        )
+        assert (
+            net.receive_event(
+                BYSTANDER,
+                extract_event(seed).model_copy(
+                    update={"receiving_actor_id": BYSTANDER}
+                ),
+            ).disposition
+            is HandlerDisposition.APPLIED
         )
 
         assert replica.read(entry_id) is not None

@@ -40,6 +40,9 @@ from typing import Any, cast
 
 from test.support.ledger import ledger_entries
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.inbox_hand_back_adapter import (
+    InboxHandBackAdapter,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -58,6 +61,8 @@ from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.semantic_registry import extract_event, use_case_map
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.rehydration import rehydrate
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry,
 )
@@ -71,35 +76,49 @@ _CREATION_RECORDS: Mapping[str, tuple[str, type[CoreObject]]] = {
 }
 
 
+def received_event(activity: Any, receiver: str) -> Any:
+    """The event the inbox routes for *activity* delivered to *receiver*."""
+    return extract_event(activity).model_copy(
+        update={"receiving_actor_id": receiver}
+    )
+
+
 def run_use_case(
     dl: SqliteDataLayer, event: Any, *, without: frozenset[str] = frozenset()
 ) -> Any:
     """Run the use case for an extracted *event* against *dl*.
 
     It is composed with the ports it accepts, as the inbox composes it, minus
-    the ones named in *without*.  Returns the use case's verdict.
+    the ones named in *without*.  Then delivers whatever the run handed back
+    to the receiver's own inbox (SYNC-14-009), oldest first, as the inbox loop
+    does after a delivery.  Returns the first delivery's own verdict.
     """
     use_case = use_case_map()[event.semantic_type]
     offered: dict[str, Any] = {
         "sync_port": SyncActivityAdapter(cast(Any, dl)),
         "trigger_activity": TriggerActivityAdapter(cast(Any, dl)),
         "wire_render_port": As2WireRenderAdapter(),
+        "inbox_hand_back": InboxHandBackAdapter(cast(Any, dl)),
     }
     accepted = inspect.signature(use_case).parameters
     ports = {
         k: v for k, v in offered.items() if k in accepted and k not in without
     }
-    return use_case(dl, event, **ports).execute()
+    verdict = use_case(dl, event, **ports).execute()
+    while (queued_id := dl.inbox_pop()) is not None:
+        handed_back = received_event(
+            cast(as_Activity, rehydrate(queued_id, dl=dl)),
+            event.receiving_actor_id,
+        )
+        run_use_case(dl, handed_back, without=without)
+    return verdict
 
 
 def receive_into(
     dl: SqliteDataLayer, body: dict[str, Any], receiver: str
 ) -> Any:
     """Route the sealed *body* into *receiver*'s store as the inbox routes it."""
-    event = extract_event(parse_activity(body)).model_copy(
-        update={"receiving_actor_id": receiver}
-    )
-    return run_use_case(dl, event)
+    return run_use_case(dl, received_event(parse_activity(body), receiver))
 
 
 def creation_records(entries: Iterable[CaseLedgerEntry]) -> list[CoreObject]:

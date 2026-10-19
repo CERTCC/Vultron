@@ -34,22 +34,21 @@ This module MUST NOT import from ``vultron.core.behaviors``,
 
 from collections.abc import Iterable, Mapping
 
+# Defined in ``vultron.primitives`` so the wire extractor and the received
+# event model can use them too (ARCH-22-001, OID-01-007); re-exported here,
+# where core's addressing predicates have always been imported from.
+from vultron.primitives import normalise_actor_id, same_actor_id
 
-def normalise_actor_id(actor_id: str) -> str:
-    """Return *actor_id* without a trailing slash, its canonical spelling.
-
-    Use it where an id a sender wrote becomes an identity the receiver looks
-    up, so a recipient spelled ``…/vendor/`` still names ``…/vendor``.
-    """
-    return actor_id.rstrip("/")
-
-
-def same_actor_id(a: str, b: str) -> bool:
-    """Return True when *a* and *b* identify the same actor.
-
-    The two differ at most by a trailing slash.
-    """
-    return normalise_actor_id(a) == normalise_actor_id(b)
+__all__ = [
+    "PARTICIPANTS_COLLECTION_SEGMENT",
+    "distinct_recipients",
+    "is_addressed_to",
+    "participants_collection_case_id",
+    "normalise_actor_id",
+    "participant_id_for_actor",
+    "same_actor_id",
+    "snapshot_actor_id",
+]
 
 
 def participant_id_for_actor(
@@ -81,6 +80,27 @@ def is_addressed_to(actor_id: str, recipients: Iterable[str]) -> bool:
     return any(normalise_actor_id(r) == target for r in recipients)
 
 
+#: The last path segment of a case's participants collection,
+#: ``{case_id}/participants``: the one collection address Vultron senders use
+#: to reach every participant of a case at once (IE-11-002).
+PARTICIPANTS_COLLECTION_SEGMENT = "participants"
+
+
+def participants_collection_case_id(address: str) -> str | None:
+    """The case whose participants collection *address* names, or ``None``.
+
+    ``{case_id}/participants`` (with or without a trailing slash) names the
+    participants of ``case_id``; a participant's own id,
+    ``{case_id}/participants/{slug}``, and every other address name no
+    collection.  Whether the address names a case the receiver holds, and
+    whether the receiver belongs to it, is the caller's question.
+    """
+    base, sep, last = normalise_actor_id(address).rpartition("/")
+    if not sep or not base or last != PARTICIPANTS_COLLECTION_SEGMENT:
+        return None
+    return base
+
+
 def distinct_recipients(recipients: Iterable[str | None]) -> list[str]:
     """Return the actors *recipients* names, once each, in order.
 
@@ -90,3 +110,28 @@ def distinct_recipients(recipients: Iterable[str | None]) -> list[str]:
     recipient (EP-09-010): it has one exactly when this returns one id.
     """
     return list(dict.fromkeys(normalise_actor_id(r) for r in recipients if r))
+
+
+def snapshot_actor_id(value: object) -> str | None:
+    """Return the actor id an activity snapshot field names, normalised.
+
+    A ledger entry's ``payloadSnapshot`` is the activity as the sender wrote
+    it (OID-01-006), so an actor id read from it (``actor``,
+    ``attributedTo``, a ``target`` actor, an inline participant's
+    ``attributedTo``) may carry a trailing slash.  Read it through here when
+    it is then looked up, compared with a stored id or stored, so it has the
+    spelling the receiver's records use.
+
+    *value* is a bare id, an inline object as stored (``{"id": ...}``) or an
+    object with ``id_``.  ``None`` means it names no actor: absent, blank, or
+    not an id at all — never the ``str()`` of an object.
+    """
+    if isinstance(value, str):
+        raw: object = value
+    elif isinstance(value, Mapping):
+        raw = value.get("id") or value.get("id_")
+    else:
+        raw = getattr(value, "id_", None) or getattr(value, "id", None)
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    return normalise_actor_id(raw) or None

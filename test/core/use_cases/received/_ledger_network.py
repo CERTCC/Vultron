@@ -30,6 +30,7 @@ from test.support.embargo_register import (
 )
 from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
+    received_event,
     run_use_case,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -47,7 +48,6 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.parser import parse_activity
 
 from .conftest import make_embargo_case_with_actor
@@ -201,9 +201,7 @@ class LedgerNetwork:
 
         *without* names ports the receiver is composed without.
         """
-        event = extract_event(parse_activity(body)).model_copy(
-            update={"receiving_actor_id": receiver}
-        )
+        event = received_event(parse_activity(body), receiver)
         return self.receive_event(receiver, event, without=without)
 
     def receive_event(

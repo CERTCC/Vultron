@@ -50,7 +50,17 @@ groups:
   - id: TRIG-02-001
     priority: SHOULD
     kind: protocol
-    statement: 'The following RM behaviors SHOULD be individually triggerable via the trigger API: validate-report, invalidate-report, reject-report, close-report, submit-report, ack-report'
+    statement: >-
+      The following RM behaviors SHOULD be individually triggerable via the trigger
+      API: validate-report, invalidate-report, reject-report, submit-report,
+      ack-report
+    rationale: >-
+      Once a case holds a report, a case refuses `Close(Report)` from every sender
+      (CM-23-019, ADR-0144) and an actor closes by leaving the case (TRIG-13-001), so
+      no report trigger closes a report a case holds. A report no case holds is
+      closed with reject-report (ADR-0145).
+    adr:
+    - ADR-0145
   - id: TRIG-02-002
     priority: SHOULD
     kind: protocol
@@ -75,7 +85,12 @@ groups:
   - id: TRIG-02-004
     priority: SHOULD
     kind: protocol
-    statement: 'The following case management behaviors SHOULD be individually triggerable via the trigger API: engage-case, defer-case, add-object-to-case, create-case, add-report-to-case'
+    statement: >-
+      The following case management behaviors SHOULD be individually triggerable
+      via the trigger API: engage-case, defer-case, leave-case, add-object-to-case,
+      create-case, add-report-to-case
+    adr:
+    - ADR-0145
   - id: TRIG-02-005
     priority: SHOULD
     kind: protocol
@@ -84,9 +99,19 @@ groups:
     priority: MUST_NOT
     kind: project
     verification: >-
-      Inspection of the router mounting confirms add-note-to-case, close-case and
+      Inspection of the router mounting confirms add-note-to-case and
       sync-log-entry are mounted only under `/demo/` and only when demo mode is enabled.
-    statement: 'The following behaviors exist only to support demo and prototype scenarios. They are exposed under the `/demo/` URL prefix (see TRIG-09-001) and MUST NOT be mounted in production mode (see TRIG-09-002): add-note-to-case, close-case, sync-log-entry'
+    statement: >-
+      The following behaviors exist only to support demo and prototype scenarios.
+      They are exposed under the `/demo/` URL prefix (see TRIG-09-001) and MUST NOT
+      be mounted in production mode (see TRIG-09-002): add-note-to-case,
+      sync-log-entry
+    rationale: >-
+      Leaving a case is an actor decision, not a demo puppeteering step, so it is
+      the general-purpose leave-case trigger (TRIG-13-001), not a demo verb
+      (ADR-0145).
+    adr:
+    - ADR-0145
   - id: TRIG-02-007
     priority: SHOULD
     kind: protocol
@@ -622,3 +647,88 @@ groups:
       spec_id: TRIG-08-004
     adr:
     - ADR-0110
+- id: TRIG-13
+  title: Leaving a Case
+  specs:
+  - id: TRIG-13-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The system MUST expose a general-purpose `leave-case` trigger at
+      `POST /actors/{actor_id}/trigger/leave-case` that accepts a `case_id` and
+      sends `Leave(VulnerabilityCase)` from the requesting actor, addressed to the
+      case's CASE_MANAGER. It accepts a call from any participant of the case; what
+      the Leave means for the case is decided by the CASE_MANAGER on receipt
+      (CM-23-002, CM-23-003).
+    verification: >-
+      `test/core/use_cases/triggers/case/test_leave.py` runs `leave-case` for a
+      participant that is not the owner and for the Case Owner, and asserts one
+      `Leave(VulnerabilityCase)` addressed to the CASE_MANAGER in each actor's
+      outbox; `test/adapters/driving/fastapi/routers/test_trigger_case.py` POSTs
+      `trigger/leave-case` and asserts the same. `test/test_trigger_registry.py`
+      asserts the `leave-case` row is general-purpose and that no `close-report` or
+      demo `close-case` row exists, and
+      `test/adapters/driving/fastapi/routers/test_trigger_report.py` asserts the
+      `close-report` route is gone.
+    rationale: >-
+      A participant that has joined a case closes its part in it by leaving the case
+      (CM-23-001), never by `Close(Report)`, which a case refuses from every sender
+      (CM-23-019, ADR-0144). A production deployment needs a trigger for it: the
+      demo verb was not mounted in production mode (TRIG-09-002). The verb is named
+      for the message, because for a participant that is not the owner the case
+      stays open (ADR-0145).
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-02-004
+    - rel_type: depends_on
+      spec_id: CM-23-001
+    adr:
+    - ADR-0145
+  - id: TRIG-13-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The `leave-case` trigger MUST run the pre-close Actuator call-out
+      (`PreCloseAction`) for every caller before it sends the Leave. When the
+      call-out fails, the trigger MUST fail with nothing sent.
+    verification: >-
+      Trigger tests in `test/core/use_cases/triggers/case/test_leave.py` with a
+      recording `PreCloseAction` backend assert it ran before the Leave was queued,
+      for a participant that is not the owner and for the Case Owner; one with a
+      failing backend asserts the trigger fails with nothing queued.
+    rationale: >-
+      The pre-close step is the leaving actor's own integration work, such as
+      closing its ticket, so it runs where that actor decides to leave. Running it
+      when the actor's replica applies its closure entry would put local policy into
+      replica application, which CM-23-016 forbids (ADR-0145).
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-13-001
+    adr:
+    - ADR-0145
+  - id: TRIG-13-003
+    priority: MUST
+    kind: project
+    statement: >-
+      When the actor calling `leave-case` is the Case Owner and its replica records
+      an active embargo (EM.ACTIVE or EM.REVISE), the trigger MUST fail before the
+      pre-close call-out runs and before anything is sent, with an error that says
+      to terminate the embargo first.
+    verification: >-
+      Trigger tests in `test/core/use_cases/triggers/case/test_leave.py` call
+      `leave-case` as the Case Owner with the embargo in EM.ACTIVE and in EM.REVISE,
+      and assert the trigger fails, the pre-close call-out did not run, and nothing
+      was queued; they also assert a participant that is not the owner is not
+      blocked. `test/adapters/driving/fastapi/routers/test_trigger_case.py` asserts
+      the route answers 409.
+    rationale: >-
+      The CASE_MANAGER declines the Case Owner's Leave while an embargo is active
+      (CM-23-011). Checking first keeps the owner's own systems from acting on a
+      close that would be declined (ADR-0145).
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-13-002
+    - rel_type: depends_on
+      spec_id: CM-23-011
+    adr:
+    - ADR-0145

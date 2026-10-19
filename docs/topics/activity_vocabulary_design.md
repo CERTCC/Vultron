@@ -112,22 +112,22 @@ Modeling it as `as:Undo` would claim that the earlier `Ignore(VulnerabilityCase)
 
 Vultron distinguishes object creation from object attachment.
 `as:Create` mints a new object; `as:Add` attaches an existing object to another object.
-A new note is one `Create(Note)` whose note names the case as its `context`: the Case Manager attaches it from that `context`, so no `Add` follows.
-`Add(Note)[target=VulnerabilityCase]` attaches a note that already exists, and a receiver also accepts it after a `Create` of the same note.
+A note is one `Add(Note)[target=VulnerabilityCase]` that carries the note inline and attaches it, with no `Create` before it.
+A receiver still accepts a `Create(Note)` whose note names the case as its `context`, alone or ahead of an `Add` of the same note.
 A new status is different in this implementation: it travels inline on the `Add(CaseStatus)[target=VulnerabilityCase]` that attaches it, with no `Create` before it.
 
 ```mermaid
 ---
-title: Create alone for a new note; Add alone for statuses
+title: Add alone for notes and statuses
 ---
 flowchart TB
     subgraph as:Add
-        AddNoteToCase["Attach an existing note<br/>Add(Note)"]
+        AddNoteToCase["Post a note to the case<br/>Add(Note)"]
         AddStatusToCase["Public Awareness (CP) / Exploit Public (CX) / Attacks Observed (CA)<br/>Add(CaseStatus)"]
         AddStatusToParticipant["Vendor Awareness (CV) / Fix Readiness (CF) / Fix Deployed (CD)<br/>Add(ParticipantStatus)"]
     end
     subgraph as:Create
-        CreateNote["Post a new note to the case<br/>Create(Note)"]
+        CreateNote["Create a note in the case (received only)<br/>Create(Note)"]
     end
     start([Start])
     start -.-> AddStatusToCase
@@ -141,7 +141,7 @@ flowchart TB
     AddNoteToCase -.-> AddStatusToCase
 ```
 
-The diagram shows a new note being created in the case, an existing note being attached, and each status being attached with the status inline.
+The diagram shows a note posted with the note inline, a received `Create(Note)` that also attaches a note, and each status attached inline.
 The dotted arrows show attachments that can follow from one another: a participant status update can lead to a case status update, and a note can lead to either.
 
 ### ActivityStreams does not force the split

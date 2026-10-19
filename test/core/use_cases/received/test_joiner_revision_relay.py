@@ -103,7 +103,7 @@ def _join(dl: SqliteDataLayer, case_id: str, make_payload):
     seed_inert_invitee(dl, case, JOINER)
     dl.save(case)
     event = make_payload(
-        rm_accept_invite_to_case_activity(invite, actor=JOINER)
+        rm_accept_invite_to_case_activity(invite, actor=JOINER, to=[MANAGER])
     )
     return AcceptInviteActorToCaseReceivedUseCase(
         dl,
@@ -114,14 +114,14 @@ def _join(dl: SqliteDataLayer, case_id: str, make_payload):
     ).execute()
 
 
-def _open_revision(case_id: str, make_payload):
+def _open_revision(case_id: str, make_payload, proposer: str = PROPOSER):
     dl, revision = _active_case_with_revision(
         case_id, store_actor=MANAGER, participants=[PROPOSER]
     )
     proposal = em_propose_embargo_activity(
         revision,
         context=case_id,
-        actor=PROPOSER,
+        actor=proposer,
         to=[MANAGER],
         id_=f"{case_id}/embargo_proposals/revision",
     )
@@ -160,6 +160,24 @@ def test_joiner_during_revise_is_invited_to_the_open_revision(make_payload):
         _consent_of(dl, case_id, JOINER, revision.id_)
         is EmbargoConsentState.INVITED
     )
+
+
+@pytest.mark.spec("EP-09-011")
+@pytest.mark.spec("OID-01-006")
+def test_a_slash_spelled_proposer_is_relayed_to_the_joiner_canonically(
+    make_payload,
+):
+    """The proposal entry's snapshot keeps the proposer's trailing slash; the
+    relay to the joiner names the proposer as the case stores it."""
+    case_id = "https://example.org/cases/joiner-relay-slash"
+    dl, _ = _open_revision(case_id, make_payload, proposer=PROPOSER + "/")
+
+    result = _join(dl, case_id, make_payload)
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    invites = _relayed_to(dl, JOINER)
+    assert len(invites) == 1
+    assert invites[0].attributed_to == PROPOSER
 
 
 @pytest.mark.spec("EP-09-011")
@@ -413,7 +431,10 @@ def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invit
     )
 
     reply = rm_accept_full_case_invite_activity(
-        invite, ledger_tail_position(case_id, dl), actor=JOINER
+        invite,
+        ledger_tail_position(case_id, dl),
+        actor=JOINER,
+        to=[MANAGER],
     )
     event = extract_event(reply).model_copy(
         update={"receiving_actor_id": MANAGER}

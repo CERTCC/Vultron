@@ -68,7 +68,7 @@ _RCV_EMBARGO_EXPECTED_EVENT_TYPES = [
         id="add_participant_status_to_participant",
     ),
     pytest.param("close_case", id="close_case"),
-    pytest.param("create_note", id="create_note"),
+    pytest.param("add_note_to_case", id="add_note_to_case"),
     # DEMOMA-16-001: universal — the shared RM-triage helpers engage the case.
     pytest.param("engage_case", id="engage_case"),
     pytest.param("invite_actor_to_case", id="invite_actor_to_case"),

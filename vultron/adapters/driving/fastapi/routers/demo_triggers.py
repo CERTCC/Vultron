@@ -65,7 +65,6 @@ from vultron.config import get_config
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import (
-    ActivityResult,
     NoteResult,
     StatusResult,
     SyncLogEntryResult,
@@ -75,7 +74,6 @@ from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.use_cases.triggers.request_bodies import (
     AddNoteToCaseRequest,
-    CloseCaseRequest,
     NotifyFixDeployedRequest,
     NotifyFixReadyRequest,
     NotifyPublishedRequest,
@@ -85,7 +83,6 @@ from vultron.core.use_cases.triggers.request_bodies import (
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
     AddParticipantStatusTriggerRequest,
-    LeaveCaseTriggerRequest,
     SetStubSummaryTriggerRequest,
     SyncLogEntryTriggerRequest,
 )
@@ -113,9 +110,9 @@ def _resolve_case_id(case_key: str, dl: DataLayer) -> str:
     description=(
         "Demo-only convenience wrapper. "
         "Creates a Note object, adds it to the actor's local copy of the "
-        "case, and queues one Create(Note), whose note names the case as "
-        "its context, in the actor's outbox for delivery to the case's "
-        "CASE_MANAGER. "
+        "case, and queues one Add(Note), which names the case as its "
+        "target and carries the note inline, in the actor's outbox for "
+        "delivery to the case's CASE_MANAGER. "
         "In a production deployment the actor's own BT would handle this "
         "step autonomously. Use the general ``add-object-to-case`` trigger "
         "at ``/trigger/`` when the Note already exists. "
@@ -268,44 +265,6 @@ def demo_notify_published(
         AddParticipantStatusTriggerRequest(
             actor_id=actor_id, case_id=body.case_id, pxa_state=CS_pxa.Pxa
         ),
-        dispatcher=dispatcher,
-        dl=actor_dl,
-        background_tasks=background_tasks,
-    )
-
-
-@router.post(
-    "/{actor_id}/demo/close-case",
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="[Demo] Actor sends Leave(VulnerabilityCase) to close the case.",
-    description=(
-        "Demo-only scaffold. "
-        "Triggers Leave(VulnerabilityCase) via the canonical RM closure path "
-        "(ADR-0050). "
-        "Only available in ``RunMode.PROTOTYPE``. "
-        "Spec: DEMOMA-07-001."
-    ),
-    operation_id="actors_demo_close_case",
-    response_model=ActivityResult,
-)
-def demo_close_case(
-    actor_id: str,
-    body: CloseCaseRequest,
-    background_tasks: BackgroundTasks,
-    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
-    actor_dl: DataLayer = Depends(get_trigger_dl),
-) -> ActivityResult:
-    """Trigger Leave(VulnerabilityCase) for the given actor and case.
-
-    Implements the canonical RM case closure path (ADR-0050): emits
-    Leave(VulnerabilityCase) to the Case Actor inbox, which commits a
-    ``close_case`` CaseLedgerEntry and fans it out to all participants.
-
-    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-006, TRIG-06-001,
-        TRIG-12-001.
-    """
-    return run_trigger(
-        LeaveCaseTriggerRequest(actor_id=actor_id, case_id=body.case_id),
         dispatcher=dispatcher,
         dl=actor_dl,
         background_tasks=background_tasks,

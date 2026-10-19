@@ -47,6 +47,19 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 
 
+def _addressed_activity(
+    type_: str, sender_id: str, receiver_id: str, case_id: str
+) -> VultronActivity:
+    """The Join/Ignore an event carries, addressed to its receiver (HP-01-005)."""
+    return VultronActivity(
+        type_=type_,
+        actor=sender_id,
+        to=[receiver_id],
+        object_=VulnerabilityCase(id_=case_id),
+        context=case_id,
+    )
+
+
 class TestEngageDeferCaseBTFailureReason:
     """Regression tests for BUG-471.6.
 
@@ -82,6 +95,9 @@ class TestEngageDeferCaseBTFailureReason:
             actor_id=actor_id,
             object_=CoreObject(id_=case_id),
             semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=_addressed_activity(
+                "Join", actor_id, self._CASE_MANAGER_ID, case_id
+            ),
         )
 
     def _defer_event(
@@ -92,6 +108,9 @@ class TestEngageDeferCaseBTFailureReason:
             actor_id=actor_id,
             object_=CoreObject(id_=case_id),
             semantic_type=MessageSemantics.DEFER_CASE,
+            activity=_addressed_activity(
+                "Ignore", actor_id, self._CASE_MANAGER_ID, case_id
+            ),
         )
 
     @pytest.mark.parametrize(
@@ -250,6 +269,9 @@ class TestEngageCaseStoresEmbeddedParticipants:
             actor_id=self._ACTOR_ID,
             object_=case_with_inline_participant,
             semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=_addressed_activity(
+                "Join", self._ACTOR_ID, self._CASE_MANAGER_ID, self._CASE_ID
+            ),
         )
 
     def _execute(self, dl, event):
@@ -303,6 +325,9 @@ class TestEngageCaseStoresEmbeddedParticipants:
             actor_id=self._ACTOR_ID,
             object_=case_str_participants,
             semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=_addressed_activity(
+                "Join", self._ACTOR_ID, self._CASE_MANAGER_ID, self._CASE_ID
+            ),
         )
         self._execute(dl, event)
 
@@ -331,6 +356,9 @@ class TestEngageCaseStoresEmbeddedParticipants:
             actor_id=self._ACTOR_ID,
             object_=case_with_inline_participant,
             semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=_addressed_activity(
+                "Join", self._ACTOR_ID, self._CASE_MANAGER_ID, self._CASE_ID
+            ),
         )
 
         result = self._execute(dl, event)
@@ -434,6 +462,7 @@ class TestEngageCaseLedgerCommit:
             activity=VultronActivity(
                 type_="Join",
                 actor=self._SENDER_ID,
+                to=[self._CASE_MANAGER_ID],
                 object_=VulnerabilityCase(id_=self._CASE_ID),
                 context=self._CASE_ID,
             ),
@@ -566,8 +595,17 @@ class TestEngageCaseLedgerCommit:
         dl = self._seed(
             SqliteDataLayer("sqlite:///:memory:", actor_id=finder_id)
         )
-        event = self._engage_event().model_copy(
-            update={"receiving_actor_id": finder_id}
+        event = self._engage_event()
+        assert event.activity is not None
+        # Addressed to the finder too, so the run reaches the role gate this
+        # test exercises rather than stopping at the door (HP-01-005).
+        event = event.model_copy(
+            update={
+                "receiving_actor_id": finder_id,
+                "activity": event.activity.model_copy(
+                    update={"to": [self._CASE_MANAGER_ID, finder_id]}
+                ),
+            }
         )
 
         EngageCaseReceivedUseCase(
@@ -703,6 +741,7 @@ class TestDeferCaseLedgerCommit:
             activity=VultronActivity(
                 type_="Ignore",
                 actor=self._SENDER_ID,
+                to=[self._CASE_MANAGER_ID],
                 object_=VulnerabilityCase(id_=self._CASE_ID),
                 context=self._CASE_ID,
             ),

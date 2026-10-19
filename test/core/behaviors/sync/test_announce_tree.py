@@ -22,6 +22,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.addressee import (
+    ActivityAddressedToReceiverNode,
+)
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
@@ -134,18 +137,29 @@ def _make_entry(
 
 
 def _make_event(
-    entry: CaseLedgerEntry, actor_id: str
+    entry: CaseLedgerEntry,
+    actor_id: str,
+    to: list[str] | None = None,
 ) -> AnnounceLogEntryReceivedEvent:
+    """Build the received Announce, addressed to the replica that receives it.
+
+    The fan-out names each participant in ``to`` (SYNC-09-002); the tree's
+    addressee door refuses a copy that names nobody it executes as (HP-01-005).
+    """
+    recipients = [PARTICIPANT_ACTOR_ID] if to is None else to
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
-    activity = announce_log_entry_activity(entry=wire_entry, actor=actor_id)
+    activity = announce_log_entry_activity(
+        entry=wire_entry, actor=actor_id, to=recipients
+    )
     event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
     event.activity = VultronActivity(
         id_=event.activity_id,
         type_="Announce",
         actor=actor_id,
+        to=recipients,
         object_=entry,
     )
     return event
@@ -157,13 +171,14 @@ def test_create_announce_log_entry_tree_is_intake_then_role_selector():
     )
     assert tree.name == "AnnounceLogEntryReceivedBT"
     # Intake first (CLP-10-017), the post-close guard (CM-23-013), the
-    # sender guard the factory composes (HP-01-008, #4696), then the
-    # CASE_MANAGER / participant arms.
+    # addressee door (HP-01-005), the sender guard the factory composes
+    # (HP-01-008, #4696), then the CASE_MANAGER / participant arms.
     assert tree.children[0].name == "IntakeReceivedActivityNode"
     assert tree.children[1].name == "CaseOpenToExternalWrites"
-    assert tree.children[2].name == "SenderIsCaseManagerNode"
-    assert len(tree.children) == 4
-    assert len(tree.children[3].children) == 2
+    assert isinstance(tree.children[2], ActivityAddressedToReceiverNode)
+    assert tree.children[3].name == "SenderIsCaseManagerNode"
+    assert len(tree.children) == 5
+    assert len(tree.children[4].children) == 2
 
 
 def _archived(datalayer, event) -> bool:
@@ -1080,13 +1095,14 @@ def _reply_entry(
     log_index: int,
     prev_hash: str,
     published: datetime | None = _REPLIED_AT,
+    actor: str = INVITEE_ACTOR_ID,
 ) -> CaseLedgerEntry:
     """The entry for the invitee's own reply message: its actor, the stub
     Invite it answers, and its ``published``, verbatim."""
     snapshot: dict[str, object] = {
         "type": activity_type,
         "id": f"urn:uuid:reply-{log_index}",
-        "actor": INVITEE_ACTOR_ID,
+        "actor": actor,
         "object": {
             "type": "Invite",
             "id": "https://example.org/invites/1",
@@ -1195,6 +1211,33 @@ class TestAnnounceLogEntryAppliesStubPath:
         assert [s.vf.state for s in held.participant_statuses if s.vf] == [
             CS_vf.vf
         ]
+
+    @pytest.mark.spec("OID-01-006")
+    @pytest.mark.spec("CM-31-012")
+    def test_a_slash_spelled_accept_reaches_the_canonical_record(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The Accept's snapshot keeps the invitee's trailing slash; the
+        replica's index names it canonically, and the reply still lands."""
+        self._embargoed_case(datalayer, case_obj)
+        create = self._seat(bridge, datalayer, case_actor, case_obj)
+        accept = _reply_entry(
+            "accept_invite_actor_to_case",
+            "Accept",
+            1,
+            create.entry_hash,
+            actor=INVITEE_ACTOR_ID + "/",
+        )
+
+        assert (
+            self._announce(bridge, case_actor, accept).status == Status.SUCCESS
+        )
+
+        held = self._held(datalayer)
+        assert held.joined is True
+        assert held.consent_for(ACTIVE_EMBARGO_ID) == (
+            EmbargoConsentState.AGREED
+        )
 
     @pytest.mark.spec("CM-11-007")
     def test_the_reject_entry_declines_the_embargo_in_force(

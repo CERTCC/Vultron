@@ -62,14 +62,12 @@ from vultron.core.use_cases.triggers.embargo import (
     SvcTerminateEmbargoUseCase,
 )
 from vultron.core.use_cases.triggers.report import (
-    SvcCloseReportUseCase,
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
     AddParticipantStatusTriggerRequest,
-    CloseReportTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
     InvalidateReportTriggerRequest,
@@ -80,7 +78,10 @@ from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronValidationError
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
 from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     rm_submit_report_activity,
@@ -601,9 +602,9 @@ def _make_case_with_case_owner_and_manager(
 
 
 class TestReportTriggerToField:
-    """SvcCloseReportUseCase, SvcInvalidateReportUseCase, and
-    SvcRejectReportUseCase populate ``to`` with either the Case Actor
-    (when a linked case exists) or the offer submitter."""
+    """SvcInvalidateReportUseCase and SvcRejectReportUseCase populate ``to``
+    with either the Case Actor (when a linked case exists) or the offer
+    submitter."""
 
     @pytest.fixture(autouse=True)
     def setup(self):
@@ -637,28 +638,6 @@ class TestReportTriggerToField:
         self.dl.clear_all()
         self.dl.close()
         reset_datalayer(self.vendor.id_)
-
-    def test_close_report_to_field_falls_back_to_offer_actor(self):
-        """SvcCloseReportUseCase raises VultronNotFoundError when no linked case.
-
-        Per issue #1854 AC-1: close-case requires a linked VulnerabilityCase;
-        without one, _prepare raises VultronNotFoundError rather than falling
-        back to the offer actor.
-        """
-        from vultron.errors import VultronNotFoundError
-
-        request = CloseReportTriggerRequest(
-            actor_id=self.vendor.id_,
-            offer_id=self.offer.id_,
-        )
-        with pytest.raises(VultronNotFoundError):
-            SvcCloseReportUseCase(
-                self.dl,
-                request,
-                trigger_activity=TriggerActivityAdapter(self.dl),
-                sync_port=SyncActivityAdapter(self.dl),
-                wire_render_port=As2WireRenderAdapter(),
-            ).execute()
 
     def test_invalidate_report_to_field_falls_back_to_offer_actor(self):
         """SvcInvalidateReportUseCase uses offer actor as to when no case exists."""
@@ -713,49 +692,6 @@ class TestReportTriggerToField:
         assert self.finder.id_ in recipients
         assert self.vendor.id_ not in recipients
 
-    def test_close_report_to_field_uses_case_actor_when_case_exists(
-        self,
-    ):
-        """SvcCloseReportUseCase routes case-scoped close to the Case Actor.
-
-        Per issue #1854 AC-1: vendor must be CASE_OWNER; case actor is CASE_MANAGER.
-        """
-        case = _make_case_with_case_owner_and_manager(
-            self.dl,
-            owner_id=self.vendor.id_,
-            finder_id=self.finder.id_,
-            manager_id=self.case_actor.id_,
-        )
-        case.vulnerability_reports.append(self.report.id_)
-        self.dl.save(case)
-        # Pre-seed RM.ACCEPTED so ACCEPTED→CLOSED is a valid transition (BTND-10-001).
-        self.dl.create(
-            VultronReportCaseLink(
-                report_id=self.report.id_, rm_state=RM.ACCEPTED
-            )
-        )
-
-        request = CloseReportTriggerRequest(
-            actor_id=self.vendor.id_,
-            offer_id=self.offer.id_,
-        )
-        result = SvcCloseReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-
-        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
-        recipients = _to_field(act_obj)
-
-        assert recipients is not None
-        assert len(recipients) == 1
-        assert recipients[0] == self.case_actor.id_
-        assert self.finder.id_ not in recipients
-        assert self.vendor.id_ not in recipients
-
     def test_invalidate_report_to_field_uses_case_actor_when_case_exists(self):
         """SvcInvalidateReportUseCase routes case-scoped invalidation to Case Actor."""
         case = _make_case_with_case_manager(
@@ -792,78 +728,48 @@ class TestReportTriggerToField:
         assert self.finder.id_ not in recipients
         assert self.vendor.id_ not in recipients
 
-    def test_reject_report_to_field_uses_case_actor_when_case_exists(self):
-        """SvcRejectReportUseCase routes case-scoped reject to the Case Actor."""
-        case = _make_case_with_case_manager(
-            self.dl,
-            self.vendor.id_,
-            self.finder.id_,
-            self.case_actor.id_,
-        )
+    @pytest.mark.spec("CM-23-019")
+    @pytest.mark.parametrize("owner", [False, True], ids=["vendor", "owner"])
+    def test_close_report_is_sent_to_no_one_when_a_case_exists(self, owner):
+        """Once a case holds the report, reject-report queues no Close(Report).
+
+        Owner or not, an actor closes its part in the case by
+        ``Leave(VulnerabilityCase)`` through ``leave-case`` (CM-23-019,
+        TRIG-13-001), so reject-report addresses no one, the Case Actor
+        included.
+        """
+        if owner:
+            case = _make_case_with_case_owner_and_manager(
+                self.dl,
+                owner_id=self.vendor.id_,
+                finder_id=self.finder.id_,
+                manager_id=self.case_actor.id_,
+            )
+        else:
+            case = _make_case_with_case_manager(
+                self.dl,
+                self.vendor.id_,
+                self.finder.id_,
+                self.case_actor.id_,
+            )
         case.vulnerability_reports.append(self.report.id_)
         self.dl.save(case)
-        # Pre-seed RM.INVALID so INVALID→CLOSED is a valid transition (BTND-10-001).
         self.dl.create(
             VultronReportCaseLink(
-                report_id=self.report.id_, rm_state=RM.INVALID
+                report_id=self.report.id_, rm_state=RM.ACCEPTED
             )
         )
+        before = set(self.dl.outbox_list())
 
-        request = RejectReportTriggerRequest(
-            actor_id=self.vendor.id_,
-            offer_id=self.offer.id_,
-        )
-        result = SvcRejectReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-            sync_port=SyncActivityAdapter(self.dl),
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
-        recipients = _to_field(act_obj)
-
-        assert recipients is not None
-        assert len(recipients) == 1
-        assert recipients[0] == self.case_actor.id_
-        assert self.finder.id_ not in recipients
-        assert self.vendor.id_ not in recipients
-
-    def test_close_report_raises_when_case_exists_without_case_manager(self):
-        """Case-scoped close fails when actor is CASE_OWNER but no CASE_MANAGER exists.
-
-        Per issue #1854 AC-2: CheckCaseOwner passes (vendor IS CASE_OWNER),
-        but EmitCloseReportActivity cannot route to a CASE_MANAGER → raises
-        VultronValidationError (routing failure).
-        """
-        from vultron.core.models.case import VulnerabilityCase
-        from vultron.core.models.case_participant import CaseParticipant
-
-        owner_p = CaseParticipant(
-            attributed_to=self.vendor.id_,
-            case_roles=[CVDRole.CASE_OWNER],
-        )
-        finder_p = CaseParticipant(
-            attributed_to=self.finder.id_,
-            case_roles=[CVDRole.REPORTER],
-        )
-        case = VulnerabilityCase(name="No Manager Case")
-        case.vulnerability_reports.append(self.report.id_)
-        case.actor_participant_index[self.vendor.id_] = owner_p.id_
-        case.actor_participant_index[self.finder.id_] = finder_p.id_
-        self.dl.create(owner_p)
-        self.dl.create(finder_p)
-        self.dl.create(case)
-
-        request = CloseReportTriggerRequest(
-            actor_id=self.vendor.id_,
-            offer_id=self.offer.id_,
-        )
-        with pytest.raises(VultronValidationError):
-            SvcCloseReportUseCase(
+        with pytest.raises(VultronInvalidStateTransitionError):
+            SvcRejectReportUseCase(
                 self.dl,
-                request,
+                RejectReportTriggerRequest(
+                    actor_id=self.vendor.id_, offer_id=self.offer.id_
+                ),
                 trigger_activity=TriggerActivityAdapter(self.dl),
                 sync_port=SyncActivityAdapter(self.dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
+
+        assert set(self.dl.outbox_list()) == before

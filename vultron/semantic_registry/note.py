@@ -61,9 +61,7 @@ ENTRIES: list[SemanticEntry] = [
                     "the note and records the attachment in the case "
                     "ledger. The Create carries no target. A receiver also "
                     "accepts a Create followed by an Add of the same note, "
-                    "and the Add then changes nothing more. This "
-                    "implementation's add-note trigger sends the Create "
-                    "alone."
+                    "and the Add then changes nothing more."
                 ),
                 example="create_note",
                 howto=HowToGuide.STATUS_UPDATES,
@@ -82,20 +80,17 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when=(
-                    "a Participant attaches a note that already exists to "
-                    "the case"
-                ),
+                when="a Participant posts a note to the case",
                 anchor="add-note-to-case",
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Add note to case",
                 description=(
-                    "Attaches the note to the case named by the target, and "
-                    "the Case Manager records the attachment in the case "
-                    "ledger. A receiver accepts it on its own, for a note "
-                    "created earlier or elsewhere, or after a Create of the "
-                    "same note. This implementation's add-note trigger does "
-                    "not send it: a new note goes as a Create alone."
+                    "Posts the note to the case named by the target, with "
+                    "the note carried inline as the object: the Case Manager "
+                    "stores the note, attaches it to the case and records "
+                    "the attachment in the case ledger. A receiver also "
+                    "accepts it after a Create of the same note, and it then "
+                    "changes nothing more."
                 ),
                 example="add_note_to_case",
                 howto=HowToGuide.STATUS_UPDATES,

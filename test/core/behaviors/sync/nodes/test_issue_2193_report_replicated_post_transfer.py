@@ -178,7 +178,9 @@ def test_report_replicated_to_post_transfer_participant(
     # --- Step 1: ownership transfer entry (chains from the genesis anchor).
     transfer_record = _ownership_transfer_record(case_replica.genesis_hash)
     transfer_entry = _to_persistable_entry(transfer_record)
-    transfer_event = _make_event(transfer_entry, actor_id=case_actor.id_)
+    transfer_event = _make_event(
+        transfer_entry, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+    )
 
     transfer_result = bridge.execute_with_setup(
         tree=tree(),
@@ -198,7 +200,9 @@ def test_report_replicated_to_post_transfer_participant(
     # --- Step 2: add_report_to_case entry (chains from the transfer entry).
     report_record = _add_report_record(transfer_record.entry_hash)
     report_entry = _to_persistable_entry(report_record)
-    report_event = _make_event(report_entry, actor_id=case_actor.id_)
+    report_event = _make_event(
+        report_entry, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+    )
 
     report_result = bridge.execute_with_setup(
         tree=tree(),

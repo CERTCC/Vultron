@@ -274,7 +274,9 @@ def test_stub_invite_reject_closes_and_keeps_the_record(joining_case) -> None:
     """
     result = joining_case.route(
         rm_reject_invite_to_case_activity(
-            joining_case.stub_invite, actor=joining_case.invitee_id
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
 
@@ -294,7 +296,9 @@ def test_a_repeated_stub_reject_from_the_closed_invitee_is_skipped(
     """
     first = joining_case.route(
         rm_reject_invite_to_case_activity(
-            joining_case.stub_invite, actor=joining_case.invitee_id
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
     assert first.disposition is HandlerDisposition.APPLIED
@@ -305,11 +309,18 @@ def test_a_repeated_stub_reject_from_the_closed_invitee_is_skipped(
         rm_reject_invite_to_case_activity(
             joining_case.stub_invite,
             actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
             id_="https://example.org/activities/reject-stub-again",
         )
     )
 
     assert second.disposition is HandlerDisposition.SKIPPED, second.reason
+    assert (second.reason or "").startswith(
+        "RejectInviteActorToCaseReceivedBT: "
+    ), second.reason
+    assert (second.reason or "").endswith(
+        "— a repeat of a closing act, nothing to apply (ID-05-003)"
+    ), second.reason
     assert len(_ledger_tail(joining_case)) == entries_before
     assert list(joining_case.dl.outbox_list()) == outbox_before
 
@@ -324,7 +335,9 @@ def test_an_accept_from_the_closed_invitee_is_refused(joining_case) -> None:
     """
     first = joining_case.route(
         rm_reject_invite_to_case_activity(
-            joining_case.stub_invite, actor=joining_case.invitee_id
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
     assert first.disposition is HandlerDisposition.APPLIED
@@ -334,12 +347,20 @@ def test_an_accept_from_the_closed_invitee_is_refused(joining_case) -> None:
 
     accept = joining_case.route(
         rm_accept_invite_to_case_activity(
-            joining_case.stub_invite, actor=joining_case.invitee_id
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
 
     assert accept.disposition is HandlerDisposition.REFUSED, accept.reason
     assert "CM-23-018" in (accept.reason or "")
+    assert (accept.reason or "").startswith("AcceptInviteActorToCaseBT: "), (
+        accept.reason
+    )
+    assert (accept.reason or "").endswith("— it may act on nothing further"), (
+        accept.reason
+    )
     assert len(_ledger_tail(joining_case)) == entries_before
     assert list(joining_case.dl.outbox_list()) == outbox_before
     record = joining_case.participant()
@@ -356,7 +377,11 @@ def test_stub_invite_reply_marks_vendor_aware(joining_case, reply) -> None:
         "reject": rm_reject_invite_to_case_activity,
     }[reply]
     joining_case.route(
-        build(joining_case.stub_invite, actor=joining_case.invitee_id)
+        build(
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
+        )
     )
 
     latest = joining_case.participant().participant_statuses[-1]
@@ -381,7 +406,9 @@ def test_stub_invite_accept_seeds_case_then_replays_ledger(
 
     joining_case.route(
         rm_accept_invite_to_case_activity(
-            joining_case.stub_invite, actor=joining_case.invitee_id
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
 
@@ -448,7 +475,9 @@ def test_stub_invite_accept_is_followed_by_full_case_invite(
     """
     joining_case.route(
         rm_accept_invite_to_case_activity(
-            joining_case.stub_invite, actor=joining_case.invitee_id
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
 
@@ -545,6 +574,7 @@ def _full_case_reply_at(
         invite,
         _position(position.log_index, position.entry_hash),
         actor=joining.invitee_id,
+        to=[joining.case_actor_id],
     )
 
 
@@ -660,7 +690,9 @@ def test_stub_invite_reply_resolves_case_from_the_case_the_stub_names(
     "resolve the named case" are told apart.
     """
     accept = rm_accept_invite_to_case_activity(
-        joining_case.stub_invite, actor=joining_case.invitee_id
+        joining_case.stub_invite,
+        actor=joining_case.invitee_id,
+        to=[joining_case.case_actor_id],
     )
     stub = joining_case.stub_invite.target
     assert accept.target is None
@@ -703,7 +735,9 @@ def test_joined_participant_is_not_accepted_until_it_sends_join(
 
     joining_case.route(
         rm_accept_invite_to_case_activity(
-            joining_case.stub_invite, actor=joining_case.invitee_id
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
     assert RM.ACCEPTED not in _rm_history(joining_case)
@@ -711,7 +745,9 @@ def test_joined_participant_is_not_accepted_until_it_sends_join(
     _advance_invitee_to(joining_case, RM.VALID)
     result = joining_case.route(
         rm_engage_case_activity(
-            joining_case.case, actor=joining_case.invitee_id
+            joining_case.case,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
 
@@ -738,13 +774,19 @@ def test_valid_participant_engages_or_defers_with_join_or_ignore(
     # the invitee joins by accepting the stub before it engages or defers.
     joining_case.route(
         rm_accept_invite_to_case_activity(
-            joining_case.stub_invite, actor=joining_case.invitee_id
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
     _advance_invitee_to(joining_case, RM.VALID)
 
     result = joining_case.route(
-        build[decision](joining_case.case, actor=joining_case.invitee_id)
+        build[decision](
+            joining_case.case,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
+        )
     )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
@@ -760,7 +802,9 @@ def test_leave_from_valid_is_recorded_through_deferred(joining_case) -> None:
 
     result = joining_case.route(
         rm_close_case_activity(
-            joining_case.case, actor=joining_case.invitee_id
+            joining_case.case,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
 

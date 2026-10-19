@@ -37,18 +37,28 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
-    exempt,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class CreateNoteReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for note operations"
+    """Store a received note and, at the CASE_MANAGER, post it to its case.
+
+    The note's ``context`` names the case.  An active participant whose
+    closure the case does not record posts it to the CASE_MANAGER; a
+    participant replica takes it from the CASE_MANAGER alone (CM-23-018,
+    PCR-03-001, PCR-08-001).  Any other sender is refused with nothing
+    stored, committed or sent, and so is a note naming no case, or a case
+    this store does not hold: there is no standing to check it against.
+    """
+
+    # A note is case content: only an active participant posts one, to the
+    # CASE_MANAGER (CM-10-004, CM-23-018, PCR-08-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
     def __init__(
@@ -84,7 +94,12 @@ class CreateNoteReceivedUseCase:
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
         )
-        tree = create_note_tree(note_obj=note, case_id=case_id)
+        tree = create_note_tree(
+            note_obj=note,
+            case_id=case_id,
+            sender_id=request.actor_id,
+            sender_rule=self.sender_entitlement,
+        )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=actor_id, activity=request
         )
@@ -113,10 +128,17 @@ class AddNoteToCaseReceivedUseCase:
     non-manager takes the skip arm and neither attaches nor commits
     (CLP-10-003).  The handler reports that as a refusal (HP-01-005): the
     note was addressed to the wrong party.
+
+    The sender must be an active participant whose closure the case does
+    not record; anyone else is refused before anything is committed or sent
+    (CM-23-018, HP-01-006).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check for note operations"
+    # Mirror of Create(Note): an active participant asks the CASE_MANAGER,
+    # and a replica takes the attachment from the CASE_MANAGER alone
+    # (CM-23-018, PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
     )
 
     def __init__(
@@ -135,13 +157,14 @@ class AddNoteToCaseReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        note_id = request.note_id
+        note = request.note
         case_id = request.case_id
-        if note_id is None or case_id is None:
-            logger.warning("add_note_to_case: missing note_id or case_id")
+        if note is None or case_id is None:
+            logger.warning("add_note_to_case: missing inline note or case_id")
             return HandlerResult.refused(
-                "Add(Note, Case) is missing its note id or case id"
+                "Add(Note, Case) is missing its inline note or case id"
             )
+        note_id = note.id_
 
         # The CASE_MANAGER gate reads a missing case as "not the manager" and
         # skips, which would hide an Add aimed at a case this actor lacks.
@@ -154,8 +177,10 @@ class AddNoteToCaseReceivedUseCase:
         )
 
         tree = create_add_note_to_case_received_tree(
-            note_id=note_id,
+            note_obj=note,
             case_id=case_id,
+            sender_id=request.actor_id,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,

@@ -111,7 +111,7 @@ class as_CaseProposal(as_VultronObject):
     #
     # This comment used to claim the DataLayer could "store/restore the
     # dehydrated string ID; _rehydrate_fields expands it back".  It cannot, and
-    # that premise was #2482: ingress stores only the first level of nesting, so
+    # that premise was #2482: ingress stored only the first level of nesting, so
     # the report never got a record of its own and there was nothing for the
     # re-read to expand.  The id came back bare and every consequence of the
     # report degraded to a silent best-effort skip.

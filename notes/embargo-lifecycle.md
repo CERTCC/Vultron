@@ -192,8 +192,11 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   logic on replay, a **tracked deviation from CM-23-016 (#4789)**: it reads
   only the case file, so replicas still converge, but it evaluates EMB-04-002
   rather than copying. It is the only `_left_to_a_later_entry` override, and
-  `test/architecture/test_embargo_replica_slots_copy.py` keeps it the only one
-  until #4789 decides how the ledger records that `Reject`.
+  `test/architecture/test_embargo_replica_slots_copy.py` keeps it the only one.
+  The target design is decided (MSM-07-009): the CASE_MANAGER commits the
+  `Reject` carrying the `REJECT` step, then its own ET `Remove` carrying
+  `TERMINATE`, both trial-applied before either commits, so the revision ends
+  `REJECTED` and the replica copies both; #4850 builds it and removes the skip.
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
@@ -208,7 +211,7 @@ catch-up fetch or deferral, refuse instead.
   (`vultron/core/services/carried_embargo.py`) before saving the case; a case
   naming an unreadable embargo is refused and nothing is saved. An inline
   embargo whose `context` is not the carrying case is refused unstored, because
-  the inbox pre-store runs before trust checks and a first write wins.
+  a first write wins and a sender must not plant another case's embargo.
 - **Ledger replay.** Each embargo apply node stores the `EmbargoEvent` its entry
   carries before calling `EmbargoLifecycle`, and fails (blocking the persist,
   SYNC-12-001) when the entry names it by id only and the replica lacks it.
@@ -276,10 +279,10 @@ catch-up fetch or deferral, refuse instead.
 **A participant answers a revision on a P/X/A case with ER, never ET**
 (EMB-03-003, ADR-0118). Termination belongs to the owner, or to the
 CASE_MANAGER when delegated (EP-09-008); a participant's ET would write shared
-EM state it does not own. The duty binds only the addressee: every received
-embargo tree passes `addressee_check` to `create_receive_activity_tree`, whose
-`ActivityAddressedToReceiverNode` door guard refuses an unaddressed copy before
-anything answers it (HP-01-005, CLP-10-010).
+EM state it does not own. The duty binds only the addressee: the
+`ActivityAddressedToReceiverNode` door guard that `create_receive_activity_tree`
+places in every received tree refuses an unaddressed copy before anything
+answers it (HP-01-005, CLP-10-010).
 
 ## P/X/A Teardown
 
@@ -327,7 +330,8 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    the entry's step or row (a `Leave` carries none), and every other row
    arrives as its own CASE_MANAGER entry (ADR-0124). The owner's-rejection
    slot's skip of a `Reject` answered with ET is the one tracked deviation
-   from copy-only (CM-23-016, #4789; see the P/X/A guards above). One path
+   from copy-only until #4850 (CM-23-016, MSM-07-009; see the P/X/A guards
+   above). One path
    still passes
    `transition_mode=TransitionMode.OBSERVED`: a paused replica applying a
    CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).

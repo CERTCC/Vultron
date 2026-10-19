@@ -188,6 +188,24 @@ def test_the_senders_participant_reaches_the_recorded_state(
     assert _rm_history(datalayer, REPLICA_PARTICIPANT_ID) == [RM.RECEIVED]
 
 
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("RSH-08-001")
+def test_a_slash_spelled_sender_reaches_its_canonical_participant(
+    bridge, datalayer
+):
+    """The snapshot keeps the sender's trailing slash; the replica's index
+    names it canonically, and the verdict still lands on its record."""
+    _seed(datalayer, RM.RECEIVED)
+
+    result = _apply(bridge, _VALIDATE, actor=SENDER + "/")
+
+    assert result.status == Status.SUCCESS
+    assert _rm_history(datalayer, SENDER_PARTICIPANT_ID) == [
+        RM.RECEIVED,
+        RM.VALID,
+    ]
+
+
 @pytest.mark.spec("CM-23-016")
 def test_no_rung_the_ledger_does_not_record_is_written(bridge, datalayer):
     """RECEIVED → ACCEPTED is applied as recorded; VALID is not inserted."""

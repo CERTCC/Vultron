@@ -510,14 +510,19 @@ def test_a_replica_follows_a_participants_engagement_decision(
         assert _rm(net, store_of, OWNER) == owner_before[store_of], store_of
 
 
-def _create_note(net: LedgerNetwork, note_id: str) -> as_Create:
-    """A bystander's ``Create(Note)`` whose note names the network's case."""
+def _create_note(
+    net: LedgerNetwork, note_id: str, *, also_to: tuple[str, ...] = ()
+) -> as_Create:
+    """A bystander's ``Create(Note)`` whose note names the network's case.
+
+    Addressed to the CASE_MANAGER, plus any actors in *also_to*.
+    """
     return as_Create(
         actor=BYSTANDER,
         object_=as_Note(
             id_=note_id, content="A general inquiry", context=net.case_id
         ),
-        to=[MANAGER],
+        to=[MANAGER, *also_to],
     )
 
 
@@ -596,14 +601,19 @@ def _note_entries(net: LedgerNetwork, actor_id: str) -> list[CaseLedgerEntry]:
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.spec("SYNC-11-002")
 @pytest.mark.spec("RSH-08-004")
-def test_add_note_trigger_makes_one_create_note_entry():
-    """The add-note trigger sends one Create(Note) naming the case as the
-    note's context: the CASE_MANAGER commits exactly one entry for the note
-    (``create_note``), a replica attaches the note from it and holds the Note
-    object, and the entry's Announce clears the sender's pending assertion
-    (#4549 AC-2, AC-3)."""
+@pytest.mark.spec("CM-06-005")
+@pytest.mark.spec("CM-13-007")
+@pytest.mark.spec("VAM-07-002")
+@pytest.mark.spec("VAM-01-010")
+def test_add_note_trigger_makes_one_add_note_to_case_entry():
+    """The add-note trigger sends one Add(Note) that names the case as its
+    target and carries the note inline: the CASE_MANAGER commits exactly one
+    ``add_note_to_case`` entry, every other participant's replica attaches
+    the note from it and holds the Note object, the entry's Announce clears
+    the author's pending assertion, and a redelivered Add commits nothing
+    more (#4706 AC-3)."""
     net = LedgerNetwork(
-        "https://example.org/cases/trigger-create-note", em_state=EM.NONE
+        "https://example.org/cases/trigger-add-note", em_state=EM.NONE
     )
     net.stores[BYSTANDER].create(as_Service(id_=BYSTANDER, name="Vendor B"))
 
@@ -618,32 +628,46 @@ def test_add_note_trigger_makes_one_create_note_entry():
         trigger_activity=TriggerActivityAdapter(net.stores[BYSTANDER]),
     ).execute()
     assert result.activity is not None and result.note is not None
-    create_id: str = result.activity["id"]
+    add_id: str = result.activity["id"]
     note_id: str = result.note["id"]
 
     queued = net.queued(BYSTANDER, to=MANAGER)
-    assert [(a.type_, a.id_) for a in queued] == [("Create", create_id)]
+    assert [(a.type_, a.id_) for a in queued] == [("Add", add_id)]
     pending = get_pending_assertion_store(BYSTANDER)
-    assert pending.is_suppressed(net.case_id, "create_note", create_id)
+    assert pending.is_suppressed(net.case_id, "add_note_to_case", add_id)
 
+    # The Note itself travels inside the Add; the CASE_MANAGER has never
+    # seen it before this delivery.
+    assert net.stores[MANAGER].read(note_id) is None
     verdicts = net.deliver(BYSTANDER, to=MANAGER)
     assert [(type_, v.disposition) for type_, v in verdicts] == [
-        ("Create", HandlerDisposition.APPLIED)
+        ("Add", HandlerDisposition.APPLIED)
     ]
 
     entries = _note_entries(net, MANAGER)
     assert [(e.event_type, e.log_object_id) for e in entries] == [
-        ("create_note", create_id)
+        ("add_note_to_case", add_id)
     ]
     assert note_id in [_as_id(n) for n in net.case(MANAGER).notes]
+    assert net.stores[MANAGER].read(note_id) is not None
 
-    assert _replay(net, OWNER).count("create_note") == 1
+    # Every active participant other than the author receives the note.
+    assert _replay(net, OWNER).count("add_note_to_case") == 1
     assert [_as_id(n) for n in net.case(OWNER).notes].count(note_id) == 1
     assert net.stores[OWNER].read(note_id) is not None
 
-    assert "create_note" in _replay(net, BYSTANDER)
-    assert not pending.is_suppressed(net.case_id, "create_note", create_id)
+    # The author already holds the note; the entry's Announce only clears
+    # its pending assertion and attaches nothing twice.
+    assert "add_note_to_case" in _replay(net, BYSTANDER)
+    assert not pending.is_suppressed(net.case_id, "add_note_to_case", add_id)
     assert [_as_id(n) for n in net.case(BYSTANDER).notes].count(note_id) == 1
+
+    # A redelivered Add commits no second entry and attaches nothing twice.
+    body = read_sealed_body_dict(net.stores[BYSTANDER], add_id)
+    assert body is not None
+    net.receive(MANAGER, body)
+    assert [e.log_object_id for e in _note_entries(net, MANAGER)] == [add_id]
+    assert [_as_id(n) for n in net.case(MANAGER).notes].count(note_id) == 1
 
 
 @pytest.mark.spec("SYNC-11-002")
@@ -868,11 +892,13 @@ def test_case_status_writes_nothing_at_a_replica():
 
 
 @pytest.mark.spec("RSH-08-003")
+@pytest.mark.spec("PCR-03-001")
 @pytest.mark.spec("TB-06-007")
 def test_create_note_writes_no_attachment_at_a_replica():
-    """Create(Note) delivered straight to a replica keeps the Note object but
-    attaches nothing and commits nothing; the attachment comes from the
-    CASE_MANAGER's entry (RSH-08-003, CLP-07-013)."""
+    """Create(Note) delivered straight to a replica by a participant is
+    refused: a replica takes case content from the CASE_MANAGER alone
+    (PCR-03-001), so it stores, attaches and commits nothing; the attachment
+    comes from the CASE_MANAGER's entry (RSH-08-003, CLP-07-013)."""
     net = LedgerNetwork(
         "https://example.org/cases/direct-create-note", em_state=EM.NONE
     )
@@ -880,8 +906,10 @@ def test_create_note_writes_no_attachment_at_a_replica():
     notes_before = list(net.case(OWNER).notes)
     ledger_before = _ledger(net, OWNER)
 
-    _deliver_direct(net, OWNER, _create_note(net, note_id))
+    # Addressed to the replica too, so the run passes the addressee door
+    # (HP-01-005) and reaches the CASE_MANAGER gate under test.
+    _deliver_direct(net, OWNER, _create_note(net, note_id, also_to=(OWNER,)))
 
-    assert net.stores[OWNER].read(note_id) is not None
+    assert net.stores[OWNER].read(note_id) is None
     assert net.case(OWNER).notes == notes_before
     assert _ledger(net, OWNER) == ledger_before

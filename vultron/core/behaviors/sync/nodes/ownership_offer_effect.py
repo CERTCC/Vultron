@@ -56,6 +56,7 @@ from vultron.core.models.ownership_transfer_offer_record import (
 from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE,
 )
+from vultron.core.predicates.addressing import snapshot_actor_id
 
 
 class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
@@ -193,8 +194,11 @@ class ApplyOfferOwnershipTransferFromLedgerNode(
         return self._save_offer_record(
             offer_id,
             case_id,
-            actor_id=_id_from_snapshot_field(snapshot.get("actor")),
-            target_id=_id_from_snapshot_field(snapshot.get("target")),
+            # Actor ids are normalised: the snapshot keeps the sender's
+            # spelling, and the record is read as the canonical id
+            # (OID-01-006).
+            actor_id=snapshot_actor_id(snapshot.get("actor")),
+            target_id=snapshot_actor_id(snapshot.get("target")),
         )
 
     def _save_offer_record(

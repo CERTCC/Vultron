@@ -116,7 +116,7 @@ def _call_use_case(
 
 # Tests
 def test_create_report_handler_returns_applied(reporter, report, dl):
-    activity = as_Create(actor=reporter, object_=report)
+    activity = as_Create(actor=reporter, object_=report, to=[dl.actor_id])
     _call_use_case(activity, CreateReportReceivedUseCase, dl=dl)
 
 

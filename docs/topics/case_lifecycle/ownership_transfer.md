@@ -49,6 +49,8 @@ The owner asks for the transfer by sending its own offer to the CASE_MANAGER —
 The owner's offer leaves from the owner's own outbox, under the owner's own identity: no container sends a message as an actor it does not host ([CM-24-004](../../reference/specs/architecture.md#cm-24-004), [ADR-0109](../../adr/0109-a-container-emits-only-as-actors-it-hosts.md)).
 The CASE_MANAGER records the offer in the ledger, so every participant learns that a transfer is being offered, and then forwards the offer to the proposed new owner.
 It admits an offer only from the current Case Owner, and refuses one from anyone else before it writes or sends anything ([CM-21-019](../../reference/specs/protocol.md#cm-21-019)).
+The offer carries the proposed new owner (`target`) as a full actor object, not as an `id` alone.
+The CASE_MANAGER need not already know that actor, and its ledger entry must contain every object the offer names in full ([CLP-07-006](../../reference/specs/protocol.md#clp-07-006)).
 The proposed new owner, in turn, takes the offer only as the CASE_MANAGER's forward.
 The forwarded `Offer` is a new activity with its own `id`: the proposed new owner never sees the original offer, whose `id` exists only in the owner's and the CASE_MANAGER's stores.
 The forwarded offer points back to the recorded offer: its `inReplyTo` is the recorded offer's `id` ([CM-21-018](../../reference/specs/protocol.md#cm-21-018)).

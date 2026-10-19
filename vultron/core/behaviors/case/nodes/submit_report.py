@@ -30,6 +30,7 @@ it was sent (CLP-10-018).
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.addressee import named_in_to
 from vultron.core.behaviors.case.nodes.store_received_object import (
     StoreReceivedObjectNode,
 )
@@ -39,7 +40,6 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.events.report import SubmitReportReceivedEvent
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.predicates.addressing import is_addressed_to
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -90,23 +90,32 @@ class StoreSubmitReportOfferRecordNode(DataLayerActionWithPorts):
 
 
 class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
-    """Only a ``to`` recipient acts on an ``Offer(Report)`` (HP-09-001/002).
+    """Only an addressee acts on an ``Offer(Report)`` (HP-09-001/002).
 
-    ``FAILURE`` with the reason as feedback when the executing actor is not in
-    ``to``: the sender addressed the wrong party, which the receiver refuses
-    (HP-01-005) rather than reporting a processed no-op.  A receiver the
-    sender named only in ``cc`` lands here too, and the WARNING and reason say
-    that ``cc`` addressing is not supported (HP-10-001).  Core does not carry
-    ``cc`` (ADR-0109), so the node cannot tell a ``cc`` copy from any other
-    misaddressed one, and does not need to: both are discarded unprocessed.
-    :attr:`misaddressed` tells the handler that was the reason, as opposed to a
-    wiring fault (a missing DataLayer or actor), which it raises on.
+    The ``Offer(Report)`` tree's own late addressee check: its tree declares
+    the ``OFFER_REPORT_STORED_FIRST`` exemption because it keeps the report
+    and the Offer before the check (CM-15-002), and this node reads the one
+    ``to`` half of the shared definition,
+    :func:`~vultron.core.behaviors.case.nodes.addressee.named_in_to`: case
+    creation is decided from ``to`` alone (HP-09-001), so unlike the door
+    guard it does not admit the sender's own copy.
+
+    ``FAILURE`` with the reason as feedback when the Offer is not addressed
+    to the executing actor: the sender addressed the wrong party, which the
+    receiver refuses (HP-01-005) rather than reporting a processed no-op.  A
+    receiver the sender named only in ``cc`` lands here too, and the WARNING
+    and reason say that ``cc`` addressing is not supported (HP-10-001).  Core
+    does not carry ``cc`` (ADR-0109), so the node cannot tell a ``cc`` copy
+    from any other misaddressed one, and does not need to: both are
+    discarded unprocessed.  :attr:`misaddressed` tells the handler that was
+    the reason, as opposed to a wiring fault (a missing DataLayer or actor),
+    which it raises on.
     """
 
     def __init__(
         self,
         to: list[str],
-        report_id: str,
+        report_id: str | None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -117,17 +126,18 @@ class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
-        assert self.actor_id is not None
+        assert self.datalayer is not None and self.actor_id is not None
         self.misaddressed = False
-        if is_addressed_to(self.actor_id, self._to):
+        if named_in_to(self.datalayer, self.actor_id, self._to):
             return Status.SUCCESS
         self.misaddressed = True
         self.logger.warning(
-            "receiving actor '%s' is not in the Offer(Report)'s to; cc"
-            " addressing not supported (HP-10-001) — discarding activity for"
-            " report '%s'",
+            "receiving actor '%s' is not in the Offer's to; cc addressing"
+            " not supported (HP-10-001) — discarding activity for %s",
             self.actor_id,
-            self._report_id,
+            f"report '{self._report_id}'"
+            if self._report_id
+            else "an Offer that names no report",
         )
         self.feedback_message = (
             "receiving actor is not a to recipient of the Offer; cc"
@@ -142,8 +152,9 @@ def submit_report_received_effects(
     """The effect nodes that keep what a received ``Offer(Report)`` carried.
 
     Store the report and the Offer activity; for an Offer that names a report,
-    also write the offer record and check that the receiver is a ``to``
-    recipient.  An Offer that names no report is kept and goes no further.
+    also write the offer record.  Then check that the Offer is addressed to
+    the receiver, which stands in for the door guard the tree is exempt from
+    (CM-15-002, HP-01-005).  An Offer that names no report goes no further.
     """
     report_id = request.report_id
     nodes: list[py_trees.behaviour.Behaviour] = []
@@ -170,9 +181,7 @@ def submit_report_received_effects(
                 name="StoreReceivedOffer",
             )
         )
-    if not report_id:
-        return nodes
-    if activity is not None:
+    if report_id and activity is not None:
         nodes.append(
             StoreSubmitReportOfferRecordNode(
                 offer_id=request.activity_id,

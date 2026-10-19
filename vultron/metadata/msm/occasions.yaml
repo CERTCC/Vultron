@@ -83,14 +83,16 @@ groups:
     example: invalidate_report
   - anchor: report-closed
     heading: Close report
-    when: a report receiver closes the report
+    when: a report receiver closes a report no case holds
     send: Reject(Offer(VulnerabilityReport))
-    send_to: the case manager
-    sent_by: 'a participant (usually: vendor, coordinator)'
+    send_to: an actor outside any case
+    sent_by: 'the addressee of the vulnerability report offer (usually: vendor, coordinator)'
     semantics: close_report
     shorthand: RC
     status: expansion
-    description: Closes the report, moving the sender's RM state to Closed.
+    description: Closes the report, moving the sender's RM state to Closed. Once a case holds
+      the report, its Case Owner closes the case with Leave(VulnerabilityCase) instead, and
+      every receiver refuses a Close(Report) for it.
     seen_in:
     - path: howto/activitypub/activities/manage_case.md
       title: How to Advance a Case Through Report Management
@@ -175,7 +177,7 @@ groups:
     when: the Case Manager has opened a case for a submitted report
     send: Create(VulnerabilityCase)
     send_to: a participant
-    sent_by: not yet checked
+    sent_by: the addressee of the case proposal or vulnerability report offer
     semantics: create_case
     status: none
     description: Mints the vulnerability case, seats its initial participants and links the
@@ -290,7 +292,7 @@ groups:
     when: the Case Manager invites an actor to join the case
     send: Invite(Actor)[target=VulnerabilityCaseStub]
     send_to: a participant
-    sent_by: not yet checked
+    sent_by: the case manager
     semantics: invite_actor_to_case
     status: none
     description: Sends a Stub Invite carrying the case stub and the embargo terms the invitee
@@ -393,7 +395,7 @@ groups:
     when: the Case Manager has admitted a new Participant to the case
     send: Announce(VulnerabilityCase)
     send_to: a participant
-    sent_by: not yet checked
+    sent_by: the case manager
     semantics: announce_vulnerability_case
     status: none
     description: Sends the full case to the newly admitted Participant once its acceptance
@@ -407,7 +409,7 @@ groups:
     when: a Participant ends its participation in the case
     send: Leave(VulnerabilityCase)
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: the case owner or a participant
     semantics: close_case
     status: none
     description: Leaves the case, moving the sender's RM state to Closed.
@@ -681,7 +683,7 @@ groups:
     when: a Participant learns that the public knows of the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: a participant
     distinguished_by: '`pxaState` = `Pxa`'
     semantics: add_case_status_to_case
     shorthand: CP
@@ -696,7 +698,7 @@ groups:
     when: a Participant learns that an exploit for the vulnerability is public
     send: Add(CaseStatus)[target=VulnerabilityCase]
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: a participant
     distinguished_by: '`pxaState` = `PXa`'
     semantics: add_case_status_to_case
     shorthand: CX
@@ -711,7 +713,7 @@ groups:
     when: a Participant observes attacks that exploit the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: a participant
     distinguished_by: '`pxaState` = `pxA`'
     semantics: add_case_status_to_case
     shorthand: CA
@@ -854,32 +856,31 @@ groups:
     when: a Participant posts a new note to the case
     send: Create(Note)
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: an active participant
     semantics: create_note
     shorthand: GI
     status: expansion
     description: 'Creates a note and, when the note''s context names the case, posts it to
       that case: the Case Manager attaches the note and records the attachment in the case
       ledger. The Create carries no target. A receiver also accepts a Create followed by an
-      Add of the same note, and the Add then changes nothing more. This implementation''s
-      add-note trigger sends the Create alone.'
+      Add of the same note, and the Add then changes nothing more.'
     seen_in:
     - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note
     example: create_note
   - anchor: add-note-to-case
     heading: Add note to case
-    when: a Participant attaches a note that already exists to the case
+    when: a Participant posts a note to the case
     send: Add(Note)[target=VulnerabilityCase]
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: an active participant
     semantics: add_note_to_case
     shorthand: GI
     status: expansion
-    description: 'Attaches the note to the case named by the target, and the Case Manager
-      records the attachment in the case ledger. A receiver accepts it on its own, for a note
-      created earlier or elsewhere, or after a Create of the same note. This implementation''s
-      add-note trigger does not send it: a new note goes as a Create alone.'
+    description: 'Posts the note to the case named by the target, with the note carried inline
+      as the object: the Case Manager stores the note, attaches it to the case and records
+      the attachment in the case ledger. A receiver also accepts it after a Create of the
+      same note, and it then changes nothing more.'
     seen_in:
     - path: howto/activitypub/activities/status_updates.md
       title: How to Post a Status Update or a Case Note

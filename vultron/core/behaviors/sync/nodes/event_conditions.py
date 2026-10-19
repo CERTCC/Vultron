@@ -29,7 +29,6 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
@@ -46,6 +45,7 @@ from vultron.core.models.rsvp_deadline import (
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.errors import VultronWiringError
 
 _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
@@ -334,8 +334,8 @@ def is_relayed_embargo_invite(
     classified on authorship alone, and the apply nodes skip it leniently
     (Regime 2, ADR-0087), so the classification has no effect.
     """
-    actor_id = _extract_id_from_field(snapshot.get("actor"))
-    attributed_to = _extract_id_from_field(snapshot.get(_ATTRIBUTED_TO))
+    actor_id = snapshot_actor_id(snapshot.get("actor"))
+    attributed_to = snapshot_actor_id(snapshot.get(_ATTRIBUTED_TO))
     if not actor_id or not attributed_to or attributed_to == actor_id:
         return False
     if case is None:

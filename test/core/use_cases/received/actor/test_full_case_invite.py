@@ -73,7 +73,9 @@ def test_stub_accept_sends_announce_then_replay_then_full_case_invite(
 
     joining_case.route(
         rm_accept_invite_to_case_activity(
-            joining_case.stub_invite, actor=invitee_id
+            joining_case.stub_invite,
+            actor=invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
 
@@ -114,7 +116,9 @@ def test_a_resumed_join_does_not_send_a_second_full_case_invite(
     joining_case,  # noqa: F811
 ) -> None:
     accept = rm_accept_invite_to_case_activity(
-        joining_case.stub_invite, actor=joining_case.invitee_id
+        joining_case.stub_invite,
+        actor=joining_case.invitee_id,
+        to=[joining_case.case_actor_id],
     )
     joining_case.route(accept)
     joining_case.route(accept)
@@ -452,7 +456,9 @@ def test_an_invite_for_another_case_or_invitee_does_not_suppress_the_invite(
 
     joining_case.route(
         rm_accept_invite_to_case_activity(
-            joining_case.stub_invite, actor=joining_case.invitee_id
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
 

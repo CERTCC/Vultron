@@ -2,12 +2,12 @@
 
 !!! info "Create note"
 
-    Creates a note and, when the note's context names the case, posts it to that case: the Case Manager attaches the note and records the attachment in the case ledger. The Create carries no target. A receiver also accepts a Create followed by an Add of the same note, and the Add then changes nothing more. This implementation's add-note trigger sends the Create alone.
+    Creates a note and, when the note's context names the case, posts it to that case: the Case Manager attaches the note and records the attachment in the case ledger. The Create carries no target. A receiver also accepts a Create followed by an Add of the same note, and the Add then changes nothing more.
 
     - **When…** a Participant posts a new note to the case
     - **Send:** `Create(Note)`
     - **Send to:** the case manager
-    - **Sent by:** not yet checked
+    - **Sent by:** an active participant
     - **Reference:** [Create note](../../general.md#create-note)
 
     ??? example "Example activity"

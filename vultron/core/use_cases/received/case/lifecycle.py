@@ -25,8 +25,9 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    closed_sender_verdict,
+    door_refusal,
     find_named,
-    post_close_refusal,
     reference_edit_verdict,
     verdict_from_bt,
 )
@@ -37,11 +38,10 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
-    exempt,
 )
+from vultron.core.behaviors.sender_guard import sender_guard_refused
 
 logger = logging.getLogger(__name__)
 
@@ -127,14 +127,30 @@ class AddReportToCaseReceivedUseCase:
 class CloseCaseReceivedUseCase:
     """Close the case on an owner Leave, or close one participant's handling.
 
+    The sender must hold a participant record on the case whose closure is
+    not recorded, or be its Case Owner; a participant replica takes the
+    closure from the CASE_MANAGER alone (PCR-03-001).  Any other sender is
+    ``REFUSED`` with nothing committed or sent (HP-01-006).  A Leave from a
+    sender whose closure the case already records is a repeat of a closing
+    act: it is ``SKIPPED``, whatever its activity id, with nothing committed
+    or sent (CM-23-018, ID-05-003).  The Case Owner's is the exception: its
+    Leave closes the case as well, so its redelivery runs again to complete
+    a closure a failed first delivery left part-way (CM-23-002); once the
+    case is fully closed, the post-close boundary refuses it (CM-23-013).
+
     A Leave that arrives after ``case_fully_closed`` is ``REFUSED`` and
     records nothing (CM-23-013); ``actor_config.post_close_reply`` decides
     whether the sender gets ``Reject(Leave(VulnerabilityCase))`` or no reply
     (ADR-0131).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check defined for case closure"
+    # A participant leaves through the CASE_MANAGER; a replica takes the
+    # closure from the CASE_MANAGER alone (CM-23-001, PCR-03-001).  The Case
+    # Owner is named too: once its own closure is recorded it is no longer
+    # an open participant, but its redelivered Leave must still complete a
+    # case closure a failed first delivery left part-way (CM-23-002).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.CASE_OWNER, SenderEntitlementKind.PARTICIPANT
     )
 
     def __init__(
@@ -186,6 +202,7 @@ class CloseCaseReceivedUseCase:
             sender_actor_id=request.actor_id,
             receiving_actor_id=receiving_actor_id,
             post_close_reply=self._actor_config.post_close_reply,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -197,10 +214,31 @@ class CloseCaseReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        if (refusal := post_close_refusal(tree)) is not None:
-            # The case is fully closed: nothing was recorded, and the sender
-            # got a Reject only under PostCloseReply.REJECT (CM-23-013).
+        if (refusal := door_refusal(tree)) is not None:
+            # The case is fully closed, or the copy was not addressed to this
+            # receiver: nothing was recorded, and the sender got a Reject only
+            # under PostCloseReply.REJECT (CM-23-013, HP-01-005).
             return refusal
+        closed = closed_sender_verdict(
+            tree, result, closes=True, label="Leave(VulnerabilityCase)"
+        )
+        if closed is not None:
+            # A sender already closed repeats a closing act: its effect is in
+            # place, so it is SKIPPED whatever its activity id, with nothing
+            # committed or sent (CM-23-018, ID-05-003).  An internal error in
+            # the door's Case Owner check raises instead (ARCH-15-001).
+            logger.info("CloseCaseReceivedUseCase: %s", closed.reason)
+            return closed
+        if sender_guard_refused(tree):
+            # No standing: refused before the close/decline decision, with
+            # nothing committed, declined or sent (HP-01-006).
+            verdict = verdict_from_bt(tree, result, label="CloseCaseBT")
+            logger.warning(
+                "CloseCaseReceivedUseCase: Leave of case '%s' refused: %s",
+                case_id,
+                verdict.reason,
+            )
+            return verdict
         if _close_declined(tree):
             # The decline arm ran: the case was left open and the owner was
             # answered with an as:Reject (CM-23-011).  That is a refusal of the
