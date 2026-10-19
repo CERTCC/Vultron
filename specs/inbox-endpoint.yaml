@@ -392,25 +392,30 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      The endpoint SHOULD detect a redelivered activity early, at ingress storage:
-      when the activity id is already held in the receiving actor's store, the stored
-      copy is routed and the redelivered body is not re-stored.
+      The endpoint SHOULD detect a redelivered activity early, at ingress: when the
+      receiving actor already holds the activity under a key it derives from the
+      activity id (its `ReceivedActivityRecord`, or the deferred record holding it for
+      replay), the held copy is routed and the redelivered body is not held again.
     rationale: >-
-      Ingress storage is the first point at which the receiver holds durable evidence
-      of a prior delivery, so the HTTP adapter realises the early filtering ID-05-002
-      permits there, in the background task rather than the route handler. An earlier
-      route-level check keyed on the actor record's inbox collection was a no-op in
-      production, because the core actor's `inbox` is a URI string (ARCH-12-006); it
-      gave the appearance of early duplicate detection without providing any (#3141).
+      Ingress is the first point at which the receiver can consult durable evidence of
+      a prior delivery, so the HTTP adapter realises the early filtering ID-05-002
+      permits there, in the background task rather than the route handler. The
+      evidence is keyed by the receiver: a row under the sender's id is read as one of
+      the receiver's own activities (DL-06-006). A route-level check on the actor's
+      `inbox` collection was a no-op, since that field is a URI string (#3141).
     verification: >-
-      `vultron/adapters/driving/fastapi/inbox_storage.py` reports whether ingress
-      wrote the activity or found the id already held, and
-      `vultron/adapters/driving/fastapi/inbox_orchestration.py` routes the stored
-      copy in the latter case. No duplicate check keyed on the actor record exists
-      in `vultron/adapters/driving/fastapi/routers/actors/`.
+      `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_resend_under_a_held_id_routes_without_this_body_evidence`
+      asserts a second body under a held id routes the first copy, and
+      `test/adapters/driving/fastapi/test_inbox_redelivery.py::test_second_delivery_leaves_store_and_outbox_unchanged`
+      that it adds nothing to the store. Until #4871 the copy consulted is the row
+      ingress writes under the sender's id. No duplicate
+      check keyed on the actor record exists in
+      `vultron/adapters/driving/fastapi/routers/actors/`.
     relationships:
     - rel_type: depends_on
       spec_id: ID-05-002
+    - rel_type: depends_on
+      spec_id: DL-06-006
 - id: IE-11
   title: Activity Addressing
   specs:
