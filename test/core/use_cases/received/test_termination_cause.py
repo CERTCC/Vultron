@@ -35,7 +35,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
@@ -351,7 +351,7 @@ def test_case_manager_records_an_owner_cause_as_given(
     (entry,) = [
         e
         for e in ledger_entries(net.stores[MANAGER], net.case_id)
-        if e.event_type == EMBARGO_TEARDOWN_EVENT_TYPE
+        if e.semantic_type == EMBARGO_TEARDOWN_SEMANTIC_TYPE
     ]
     snapshot = entry.payload_snapshot or {}
     assert snapshot["terminationCause"] == cause.model_dump(
@@ -449,7 +449,7 @@ def test_the_threat_cascade_remove_carries_the_signals_it_records() -> None:
     (entry,) = [
         e
         for e in ledger_entries(net.stores[MANAGER], net.case_id)
-        if e.event_type == EMBARGO_TEARDOWN_EVENT_TYPE
+        if e.semantic_type == EMBARGO_TEARDOWN_SEMANTIC_TYPE
     ]
     assert (entry.payload_snapshot or {})["terminationCause"] == expected
 
