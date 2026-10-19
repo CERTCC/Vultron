@@ -109,13 +109,13 @@ If the case is public, an exploit is public, or attacks are observed when the Ca
   A receiver refuses a `Remove` whose `content` is anything else.
   `summary` is a human-readable account that the protocol does not read.
 - **Why it ended:** `terminationCause` gives the cause, when the sender names one, and the Case Manager's embargo register records it beside the reason (EMB-13-004, EMB-13-005).
-  Each replica copies the cause from the ledger entry onto its own register, and never works a cause out from its own case state.
   Its `kind` is `THREAT_SIGNAL` (with the `signals` `P`, `X` or `A`), `FIX_READY` (with the `vendors` whose readiness made the quorum), `FIX_DEPLOYED`, or `OTHER` (whose account is the `summary`).
   Every cause goes with `EARLY`; a `Remove` that carries `END_TIME_REACHED` names no cause.
   A receiver refuses a `Remove` with an unknown `kind`, a missing or malformed detail, or a cause on `END_TIME_REACHED`.
   The Case Owner's `Remove` may name `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, and the Case Manager records the cause as given.
   Only the Case Manager's own `Remove` may name `THREAT_SIGNAL`.
   A Case Owner reports public awareness, a public exploit or observed attacks as a case status update setting `P`, `X` or `A`; the Case Manager then ends the embargo with the signals the case carries.
+  Each replica copies the cause from the ledger entry onto its own register, and never works a cause out from its own case state.
 - **At the end time:** when the end time of the embargo in force has passed, the Case Manager ends it with `END_TIME_REACHED`.
   It does so the next time it handles the case, or when an outside service such as a [Sentinel](../glossary.md) asks it to.
   Whichever comes second finds the embargo already ended and sends nothing.
