@@ -84,7 +84,8 @@ The formal message set does not name this exchange: all three activities fall un
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/reject-actor-recommendation.md" %}
 
-   You accept either answer only from the CASE_MANAGER, and you change nothing on receipt: the CASE_MANAGER ledgered it, and your replica takes it from the ledger.
+   Accept either answer only from the CASE_MANAGER, and change nothing on receipt.
+   The CASE_MANAGER ledgered the answer, and your replica takes it from the ledger.
 
 The forwarded offer carries the original recommendation's ID in its `origin` field, so the Case Owner can trace the request back to you.
 
