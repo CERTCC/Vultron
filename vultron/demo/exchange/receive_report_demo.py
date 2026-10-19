@@ -53,7 +53,6 @@ The BT logs will show tree structure before execution and final state after comp
 """
 
 # Standard library imports
-import json
 import logging
 from collections.abc import Callable, Sequence
 
@@ -79,7 +78,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     post_to_inbox_and_wait,
     setup_demo_logging,
-    verify_object_stored,
+    verify_received_activity_stored,
 )
 from vultron.wire.as2.factories import (
     rm_close_case_activity,
@@ -161,10 +160,7 @@ def demo_validate_report(
         )
         post_to_inbox_and_wait(client, vendor.id_, validate_activity)
         with demo_check("ValidateReport activity stored"):
-            response = client.get(client.dl_path(validate_activity.id_))
-            logger.info(
-                "ValidateReport stored: %s", json.dumps(response, indent=2)
-            )
+            verify_received_activity_stored(client, validate_activity.id_)
 
     with demo_step("Step 3: Vendor creates case and introduces it to finder"):
         case_data = None
@@ -237,13 +233,7 @@ def demo_invalidate_report(
         )
         post_to_inbox_and_wait(client, vendor.id_, invalidate_activity)
         with demo_check("InvalidateReport activity stored"):
-            invalidate_response = client.get(
-                client.dl_path(invalidate_activity.id_)
-            )
-            logger.info(
-                "InvalidateReport stored: %s",
-                json.dumps(invalidate_response, indent=2),
-            )
+            verify_received_activity_stored(client, invalidate_activity.id_)
 
     with demo_step("Step 3: Vendor notifies finder of invalidation"):
         invalidate_response_to_finder = rm_invalidate_report_activity(
@@ -330,17 +320,8 @@ def demo_invalidate_and_close_report(
         close_activity = rm_close_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close_activity)
         with demo_check("InvalidateReport and CloseCase activities stored"):
-            invalidate_response = client.get(
-                client.dl_path(invalidate_activity.id_)
-            )
-            logger.info(
-                "InvalidateReport stored: %s",
-                json.dumps(invalidate_response, indent=2),
-            )
-            close_response = client.get(client.dl_path(close_activity.id_))
-            logger.info(
-                "CloseCase stored: %s", json.dumps(close_response, indent=2)
-            )
+            verify_received_activity_stored(client, invalidate_activity.id_)
+            verify_received_activity_stored(client, close_activity.id_)
 
     with demo_step("Step 3: Vendor notifies finder of invalidation"):
         invalidate_response_to_finder = rm_invalidate_report_activity(

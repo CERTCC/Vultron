@@ -108,9 +108,9 @@ class _Store:
         return self
 
     def invite_dump(self) -> dict[str, dict]:
-        """The dump the full-case Invite poll reads: Invite types only."""
+        """The dump the full-case Invite poll reads: archive records only."""
         return get_datalayer_contents(
-            datalayer=self.dl, types=list(polling._RECEIVED_INVITE_TYPES)
+            datalayer=self.dl, types=list(polling._RECEIVED_ACTIVITY_TYPES)
         )
 
     def invite_poll(self) -> "_PollReads":

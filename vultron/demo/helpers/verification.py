@@ -40,7 +40,11 @@ from vultron.core.states.cs import (
 from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.seeding import _dl_key
-from vultron.demo.utils import DataLayerClient, ref_id
+from vultron.demo.utils import (
+    DataLayerClient,
+    read_received_activity,
+    ref_id,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -464,10 +468,12 @@ def verify_activity_in_inbox(
 ) -> bool:
     """Check whether *activity_id* was received and stored by the actor.
 
-    Checks the actor's store directly for the activity record — the
-    authoritative approach for exchange-demo tests.  Ingress stores every
-    received activity in the receiving actor's store, so a lookup by ID is
-    sufficient to confirm receipt.  The inbox path itself has no read surface
+    Checks the actor's store directly for the activity — the authoritative
+    approach for exchange-demo tests.  Intake archives every activity it
+    receives as a ``ReceivedActivityRecord`` under a key the receiver derives
+    from the activity's id (CLP-10-017, ADR-0111), so that record confirms
+    receipt; a row under the sender's id never does (DL-06-006).  The inbox
+    path itself has no read surface
     (IE-02-004): receipt is verified through the actor's store, which is what
     the datalayer client reads here.
 
@@ -486,24 +492,28 @@ def verify_activity_in_inbox(
     """
     actor_obj_id = parse_id(actor_id)["object_id"]
     try:
-        client.get(client.dl_path(activity_id, actor_id=actor_id))
-        logger.info(
-            "✓ Activity %s found in DataLayer (actor %s)",
-            activity_id,
-            actor_obj_id,
+        received = (
+            read_received_activity(client, activity_id, actor_id) is not None
         )
-        return True
     except (httpx.HTTPStatusError, AssertionError):
         # Only a transport/HTTP "not there" answer means "not received".  A bare
         # ``except Exception`` here would report a programming error — an unbound
         # client, a bad key — as a protocol failure, which is how the
         # ``dl_path`` ValueError stayed invisible for a whole CI cycle.
+        received = False
+    if not received:
         logger.warning(
             "Activity %s not found in DataLayer (actor %s)",
             activity_id,
             actor_obj_id,
         )
         return False
+    logger.info(
+        "✓ Activity %s found in DataLayer (actor %s)",
+        activity_id,
+        actor_obj_id,
+    )
+    return True
 
 
 def verify_receiver_case_state(

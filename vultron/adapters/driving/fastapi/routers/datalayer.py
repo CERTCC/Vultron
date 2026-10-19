@@ -28,8 +28,13 @@ from vultron.adapters.driving.fastapi.deps import (
     get_hosted_actor_dls,
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.adapters.utils import id_lookup_candidates
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.wire.as2.rehydration import rehydrate
@@ -62,6 +67,91 @@ router = APIRouter(prefix="/actors/{actor_id}/datalayer", tags=["datalayer"])
 #: operator actions on the process (like a restart), not one actor reading
 #: another's data through the protocol.
 admin_router = APIRouter(prefix="/admin/datalayer", tags=["datalayer"])
+
+
+_OFFER_TYPE = "Offer"
+
+
+def _received_offer(
+    datalayer: DataLayer, offer_id: str
+) -> VultronActivity | None:
+    """The Offer *offer_id* this actor received, from its archive record.
+
+    Intake archives a received activity under a key the receiver derives from
+    the sender's id (CLP-10-017, ADR-0111), and a receiver holds no received
+    activity under the sender's id (DL-06-006), so the record is where a
+    received Offer is read.  *offer_id* may be a bare UUID, as the store's own
+    lookup allows.
+    """
+    for candidate in id_lookup_candidates(offer_id):
+        record = datalayer.read(ReceivedActivityRecord.build_id(candidate))
+        if (
+            isinstance(record, ReceivedActivityRecord)
+            and record.activity.type_ == _OFFER_TYPE
+        ):
+            return record.activity
+    return None
+
+
+def _read_offer(
+    datalayer: DataLayer, offer_id: str
+) -> PersistableModel | None:
+    """The Offer *offer_id* as this actor holds it, or ``None``.
+
+    A received Offer is read from its archive record (:func:`_received_offer`).
+    Otherwise the row stored under *offer_id* is read: an Offer the actor
+    authored is stored under its own id.
+    """
+    received = _received_offer(datalayer, offer_id)
+    if received is not None:
+        return received
+    return datalayer.read(offer_id)
+
+
+def _received_offers(datalayer: DataLayer) -> dict[str, dict[str, Any]]:
+    """Every Offer this actor received, keyed by the sender's id for it."""
+    return {
+        record.activity_id: record.activity.model_dump(
+            by_alias=True, serialize_as_any=True
+        )
+        for record in datalayer.list_objects(ReceivedActivityRecord.__name__)
+        if isinstance(record, ReceivedActivityRecord)
+        and record.activity.type_ == _OFFER_TYPE
+    }
+
+
+# Declared ahead of ``/{object_type}/{object_id}``: routes match in
+# declaration order, and that pattern would otherwise answer every
+# ``/Offers/{offer_id}`` request without the addressee check.
+@router.get(
+    "/Offers/{offer_id}",
+    response_model=as_Offer,
+    description="Returns a specific object by actor id and offer id.",
+    operation_id="datalayer_get_actor_offer",
+)
+def get_actor_offer(
+    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_actor_dl)
+) -> AS2JSONResponse:
+    obj = _read_offer(datalayer, offer_id)
+
+    if not obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    offer = as_Offer.model_validate(
+        obj.model_dump(by_alias=True, serialize_as_any=True)
+    )
+
+    # Verify that the offer was targeted to the given actor
+    found = False
+    for _id in offer.to or []:
+        if _id.endswith(actor_id):
+            found = True
+            break
+
+    if not found:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    return AS2JSONResponse(offer)
 
 
 @router.get(
@@ -103,7 +193,7 @@ def get_object(
 def get_offer(
     object_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
-    obj = datalayer.read(object_id)
+    obj = _read_offer(datalayer, object_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return AS2JSONResponse(
@@ -178,45 +268,19 @@ def get_datalayer_contents(
 
 
 @router.get(
-    "/Offers/{offer_id}",
-    response_model=as_Offer,
-    description="Returns a specific object by actor id and offer id.",
-    operation_id="datalayer_get_actor_offer",
-)
-def get_actor_offer(
-    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_actor_dl)
-) -> AS2JSONResponse:
-    obj = datalayer.read(offer_id)
-
-    if not obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-
-    offer = as_Offer.model_validate(
-        obj.model_dump(by_alias=True, serialize_as_any=True)
-    )
-
-    # Verify that the offer was targeted to the given actor
-    found = False
-    for _id in offer.to or []:
-        if _id.endswith(actor_id):
-            found = True
-            break
-
-    if not found:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-
-    return AS2JSONResponse(offer)
-
-
-@router.get(
     "/Offers/",
-    description="Returns all Offer objects.",
+    description=(
+        "Returns all Offer objects: the Offers the actor authored and those it"
+        " received, each received one keyed by the sender's id for it."
+    ),
     operation_id="datalayer_list_offers",
 )
 def get_offers(
     datalayer: DataLayer = Depends(get_actor_dl),
 ) -> AS2JSONResponse:
-    results = datalayer.by_type("Offer")
+    # A received Offer is served from its archive record, which replaces any
+    # row held under the sender's id for the same Offer (DL-06-006).
+    results = datalayer.by_type(_OFFER_TYPE) | _received_offers(datalayer)
 
     return AS2JSONResponse(
         {

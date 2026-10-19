@@ -64,10 +64,13 @@ from vultron.demo.helpers.workflow import (
 from vultron.demo.utils import (  # BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
+    assert_demo_success,
     check_server_availability,
     demo_check,
     demo_environment,
     demo_step,
+    read_received_activities,
+    reset_demo_failures,
     setup_demo_logging,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -116,8 +119,13 @@ def demo_case_proposal_round_trip(
         with demo_check(
             "Accept(as_CaseProposal) exists — case-actor accepted the proposal"
         ):
-            accept_activities = client.get("/Accepts/")
-            assert isinstance(accept_activities, dict) and accept_activities, (
+            # The vendor received the Accept, so it is read from the vendor's
+            # archive record of it, never a row under the case-actor's id
+            # (DL-06-006).
+            accept_activities = read_received_activities(
+                client, "Accept", actor_id=vendor.id_
+            )
+            assert accept_activities, (
                 "Expected at least one Accept activity in the DataLayer "
                 "after the CaseProposal round-trip (CP-05-003).  "
                 "The case-actor may not have processed Create(as_CaseProposal)."
@@ -168,9 +176,13 @@ def main(
     if demos is None:
         demos = [demo_case_proposal_round_trip]
 
+    # A failed demo_check only records the failure, so the run must raise
+    # on what it recorded (DEMOCI-01-001, DEMOCI-01-003).
+    reset_demo_failures()
     with demo_environment(client) as (finder, vendor, _coordinator):
         for demo_fn in demos:
             demo_fn(client, finder, vendor)
+    assert_demo_success()
 
 
 if __name__ == "__main__":

@@ -38,11 +38,14 @@ from vultron.demo.helpers.verification import (
 )
 from vultron.demo.utils import (
     CASE_ACTOR_SLUG,
+    RECEIVED_ACTIVITY_RECORD_TYPE,
     DataLayerClient,
     case_actor_id_for_report,
     case_references_report,
     demo_check,
     logfmt,
+    read_received_activity,
+    received_activity_in,
 )
 from vultron.enums.object_types import VultronObjectType
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -844,10 +847,23 @@ def _poll_datalayer_for(
 # ---------------------------------------------------------------------------
 
 
-#: The stored types a received Invite can be held as: intake's archive record,
-#: or the bare activity while the inbox defers it (see
-#: :func:`_received_activity`).
-_RECEIVED_INVITE_TYPES: tuple[str, ...] = ("ReceivedActivityRecord", "Invite")
+#: The stored type a received activity is read from: intake's archive record,
+#: kept under the receiver's key (CLP-10-017, ADR-0111).  A row of an activity
+#: type under the sender's id is never read as a received one (DL-06-006).
+_RECEIVED_ACTIVITY_TYPES: tuple[str, ...] = (RECEIVED_ACTIVITY_RECORD_TYPE,)
+
+#: The stored type of an activity the inbox defers until its case is known.
+#: A stub Invite is the one the demo waits on: the invitee holds no case until
+#: its Accept brings the bootstrap Announce (MV-10-003), so the Invite has not
+#: reached intake, and the row ingress keeps under the sender's id is the only
+#: copy the invitee holds until the replay (see :func:`_received_activity`).
+_DEFERRED_INVITE_TYPE = "Invite"
+
+#: The stored types a received stub Invite can be held as.
+_RECEIVED_OR_DEFERRED_INVITE_TYPES: tuple[str, ...] = (
+    *_RECEIVED_ACTIVITY_TYPES,
+    _DEFERRED_INVITE_TYPE,
+)
 
 
 def _received_activity(obj_data: dict) -> dict:
@@ -862,15 +878,9 @@ def _received_activity(obj_data: dict) -> dict:
     Raises:
         AssertionError: when a ``ReceivedActivityRecord`` wraps no activity.
     """
-    if obj_data.get("type") != "ReceivedActivityRecord":
+    if obj_data.get("type") != RECEIVED_ACTIVITY_RECORD_TYPE:
         return obj_data
-    activity = obj_data.get("activity")
-    if not isinstance(activity, dict):
-        raise AssertionError(  # noqa: TRY004 — demo_check assertion, not a type error
-            f"received-activity record {obj_data.get('id')!r} wraps no"
-            f" activity: {activity!r}"
-        )
-    return activity
+    return received_activity_in(obj_data)
 
 
 def _received_activity_id(raw_id: str, obj_data: dict) -> str:
@@ -882,7 +892,7 @@ def _received_activity_id(raw_id: str, obj_data: dict) -> str:
     Raises:
         AssertionError: when a record's activity carries no id.
     """
-    if obj_data.get("type") != "ReceivedActivityRecord":
+    if obj_data.get("type") != RECEIVED_ACTIVITY_RECORD_TYPE:
         return raw_id
     activity_id = _received_activity(obj_data).get("id")
     if not activity_id:
@@ -890,6 +900,16 @@ def _received_activity_id(raw_id: str, obj_data: dict) -> str:
             f"received-activity record {raw_id!r} holds an activity with no id"
         )
     return str(activity_id)
+
+
+def _stub_case_id(stub: dict) -> object:
+    """The case a served ``VulnerabilityCaseStub`` names (CM-11-013).
+
+    The archive record serves the objects nested in its activity under their
+    field names (``case_id``); a bare activity row serves them under their
+    wire names (``caseId``).
+    """
+    return stub["caseId"] if "caseId" in stub else stub.get("case_id")
 
 
 def _is_case_invite_for(
@@ -915,7 +935,7 @@ def _is_case_invite_for(
         return False
     if isinstance(target_raw, dict):
         target_case_id = (
-            target_raw.get("caseId") if is_stub else target_raw.get("id")
+            _stub_case_id(target_raw) if is_stub else target_raw.get("id")
         )
     else:
         target_case_id = target_raw
@@ -926,28 +946,45 @@ def _is_case_invite_for(
     return inner_id == invitee_id
 
 
-def read_received_activity_for(
-    client: DataLayerClient, activity_id: str
-) -> dict:
-    """The activity *activity_id* as the actor behind *client* holds it.
+def _read_deferred_activity(
+    client: DataLayerClient, activity_id: str, deferred_type: str
+) -> dict | None:
+    """The *deferred_type* activity *activity_id* the inbox holds for replay.
 
-    Reads intake's archive record or the inbox's deferred copy, as
-    :func:`_received_activity` describes.
+    Read through the type-filtered store route (#4600); ``None`` when the
+    inbox holds no such activity.
+    """
+    rows = client.get(client.dl_path(), params={"type": [deferred_type]})
+    if not isinstance(rows, dict):
+        return None
+    row = rows.get(activity_id)
+    return row if isinstance(row, dict) else None
+
+
+def read_received_activity_for(
+    client: DataLayerClient,
+    activity_id: str,
+    *,
+    deferred_type: str | None = None,
+) -> dict:
+    """The activity *activity_id* as the actor behind *client* received it.
+
+    Reads intake's archive record (:func:`read_received_activity`).  Only a
+    caller waiting on an activity the inbox defers names *deferred_type*, the
+    activity's type; the inbox's copy is then read when no record exists yet,
+    as :data:`_DEFERRED_INVITE_TYPE` describes.
 
     Raises:
         AssertionError: If the actor holds no activity *activity_id*.
     """
-    all_objects = client.get(client.dl_path())
-    if isinstance(all_objects, dict):
-        for raw_id, obj_data in all_objects.items():
-            if (
-                isinstance(obj_data, dict)
-                and _received_activity_id(str(raw_id), obj_data) == activity_id
-            ):
-                return _received_activity(obj_data)
-    raise AssertionError(
-        f"{client.base_url} holds no received activity {activity_id!r}"
-    )
+    activity = read_received_activity(client, activity_id)
+    if activity is None and deferred_type is not None:
+        activity = _read_deferred_activity(client, activity_id, deferred_type)
+    if activity is None:
+        raise AssertionError(
+            f"{client.base_url} holds no received activity {activity_id!r}"
+        )
+    return activity
 
 
 def assert_received_from(
@@ -955,6 +992,8 @@ def assert_received_from(
     activity_id: str,
     sender_id: str,
     consequence: str,
+    *,
+    deferred_type: str | None = None,
 ) -> None:
     """Assert the actor behind *client* received *activity_id* from *sender_id*.
 
@@ -963,11 +1002,15 @@ def assert_received_from(
         activity_id: The sender's id for the received activity.
         sender_id: The actor the activity must have been emitted as.
         consequence: What goes wrong when it was not, for the failure message.
+        deferred_type: The activity's type, when the inbox may still be
+            deferring it (:func:`read_received_activity_for`).
 
     Raises:
         AssertionError: If the activity is not held, or another actor sent it.
     """
-    actor = read_received_activity_for(client, activity_id).get("actor")
+    actor = read_received_activity_for(
+        client, activity_id, deferred_type=deferred_type
+    ).get("actor")
     emitted_as = actor.get("id") if isinstance(actor, dict) else actor
     assert emitted_as == sender_id, (
         f"'{activity_id}' was emitted as '{emitted_as}', not as"
@@ -1007,7 +1050,7 @@ def find_case_invite_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=_RECEIVED_INVITE_TYPES,
+        object_types=_RECEIVED_OR_DEFERRED_INVITE_TYPES,
         discriminator_fn=lambda obj: _is_case_invite_for(
             obj, case_id, invitee_id
         ),
@@ -1083,7 +1126,7 @@ def find_full_case_invite_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=_RECEIVED_INVITE_TYPES,
+        object_types=_RECEIVED_ACTIVITY_TYPES,
         discriminator_fn=lambda obj: _is_case_invite_for(
             obj, case_id, invitee_id, full_case=True
         ),
@@ -1121,15 +1164,16 @@ def _is_ownership_transfer_offer_for(
     does NOT match this discriminator, so polling for the forwarded Offer on
     Coordinator's DataLayer correctly skips the original.
     """
-    if obj_data.get("type") != "Offer":
+    offer = _received_activity(obj_data)
+    if offer.get("type") != "Offer":
         return False
-    target_raw = obj_data.get("target")
+    target_raw = offer.get("target")
     target_id = (
         target_raw.get("id") if isinstance(target_raw, dict) else target_raw
     )
     if target_id != transferee_id:
         return False
-    inner = obj_data.get("object")
+    inner = offer.get("object")
     inner_id = inner.get("id") if isinstance(inner, dict) else inner
     return inner_id == case_id
 
@@ -1173,10 +1217,11 @@ def find_ownership_transfer_offer_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=("Offer",),
+        object_types=_RECEIVED_ACTIVITY_TYPES,
         discriminator_fn=lambda obj: _is_ownership_transfer_offer_for(
             obj, case_id, transferee_id
         ),
+        id_fn=_received_activity_id,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
         log_msg=(
@@ -1190,12 +1235,6 @@ def find_ownership_transfer_offer_for_actor(
             " not have completed (CM-21-005)"
         ),
     )
-
-
-#: The stored types a received Offer(CaseParticipant) can be held as.  The
-#: bare stored Offer names its participant by id only, because ingress stores
-#: no inline object (IO-03-004); intake's archive record keeps it inline.
-_RECEIVED_OFFER_TYPES: tuple[str, ...] = ("ReceivedActivityRecord", "Offer")
 
 
 def _is_cp_offer_for_case(obj_data: dict, case_id: str) -> bool:
@@ -1247,7 +1286,7 @@ def find_cp_offer_for_case(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=_RECEIVED_OFFER_TYPES,
+        object_types=_RECEIVED_ACTIVITY_TYPES,
         discriminator_fn=lambda obj: _is_cp_offer_for_case(obj, case_id),
         id_fn=_received_activity_id,
         timeout_seconds=timeout_seconds,
@@ -1466,6 +1505,11 @@ def wait_for_object_stored(
 ) -> None:
     """Poll *client*'s DataLayer until *obj_id* appears.
 
+    For an object the actor stores under its own id.  An activity the actor
+    *received* is not one: it is held in the receiver's archive record, never
+    under the sender's id (DL-06-006), so wait on it with
+    :func:`wait_for_received_activity`.
+
     .. warning::
         **Only valid when the recipient stores the same object ID.**  When the
         receiving actor creates a *new* derived object in response (the
@@ -1514,6 +1558,48 @@ def wait_for_object_stored(
     )
 
 
+def wait_for_received_activity(
+    client: DataLayerClient,
+    activity_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+    actor_id: str | None = None,
+) -> None:
+    """Poll the receiver's store until it has archived *activity_id*.
+
+    The gate for "the receiver took in this delivery": intake archives every
+    activity it receives as a ``ReceivedActivityRecord`` under the receiver's
+    key (CLP-10-017, ADR-0111), and that record is the only place a received
+    activity is read from (DL-06-006), so the wait is on it rather than on a
+    row under the sender's id (EDF-06-002).
+
+    Args:
+        client: DataLayerClient connected to the receiver's container.
+        activity_id: The sender's id for the activity.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between poll attempts.
+        actor_id: Whose store to poll.  Defaults to *client*'s own actor;
+            name the recipient when it is not the actor *client* is bound to
+            (ADR-0073).
+
+    Raises:
+        AssertionError: If the activity is not archived within
+            *timeout_seconds*.
+    """
+    _poll_until(
+        lambda: (
+            read_received_activity(client, activity_id, actor_id=actor_id)
+            is not None
+        ),
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for {actor_id or client.actor_id!r} at"
+        f" {client.base_url} to archive received activity {activity_id!r} —"
+        " outbox delivery may not have completed",
+        swallow_exceptions=True,
+    )
+
+
 def wait_for_report_submission_stored(
     client: DataLayerClient,
     receiver_id: str,
@@ -1546,10 +1632,20 @@ def wait_for_report_submission_stored(
     """
     missing: set[str] = {report_id, offer_id}
 
+    def _stored(obj_id: str) -> bool:
+        # The Offer is a received activity, read from the receiver's archive
+        # record (DL-06-006); the report it carried is stored under its own id.
+        if obj_id == offer_id:
+            return (
+                read_received_activity(client, offer_id, actor_id=receiver_id)
+                is not None
+            )
+        return bool(client.get(client.dl_path(obj_id, actor_id=receiver_id)))
+
     def _check() -> bool:
         for obj_id in sorted(missing):
             try:
-                if client.get(client.dl_path(obj_id, actor_id=receiver_id)):
+                if _stored(obj_id):
                     missing.discard(obj_id)
             except Exception:  # noqa: BLE001, S110
                 pass
@@ -1958,7 +2054,7 @@ def find_embargo_invite_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=_RECEIVED_INVITE_TYPES,
+        object_types=_RECEIVED_ACTIVITY_TYPES,
         discriminator_fn=lambda obj: _is_embargo_invite_for(
             obj, embargo_id, invitee_id
         ),

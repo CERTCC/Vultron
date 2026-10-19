@@ -73,7 +73,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     post_to_inbox_and_wait,
     ref_id,
     setup_demo_logging,
-    verify_object_stored,
+    verify_received_activity_stored,
 )
 from vultron.wire.as2.factories import (
     rm_close_case_activity,
@@ -173,13 +173,13 @@ def demo_engage_path(
         engage = rm_engage_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, engage)
         with demo_check("RmEngageCaseActivity activity stored"):
-            verify_object_stored(client, engage.id_)
+            verify_received_activity_stored(client, engage.id_)
 
     with demo_step("Step 4: Vendor closes the case (RmCloseCaseActivity)"):
         close = rm_close_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close)
         with demo_check("RmCloseCaseActivity activity stored"):
-            verify_object_stored(client, close.id_)
+            verify_received_activity_stored(client, close.id_)
 
     logger.info("✅ DEMO 1 COMPLETE: Case engaged then closed.")
 
@@ -236,7 +236,7 @@ def demo_defer_reengage_path(
         defer = rm_defer_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, defer)
         with demo_check("RmDeferCaseActivity activity stored"):
-            verify_object_stored(client, defer.id_)
+            verify_received_activity_stored(client, defer.id_)
         logger.info("Case is now deferred (RM → DEFERRED).")
 
     with demo_step(
@@ -245,7 +245,7 @@ def demo_defer_reengage_path(
         reengage = rm_engage_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, reengage)
         with demo_check("RmEngageCaseActivity (re-engage) activity stored"):
-            verify_object_stored(client, reengage.id_)
+            verify_received_activity_stored(client, reengage.id_)
         logger.info(
             "Case re-engaged via RmEngageCaseActivity (RM → ACCEPTED). "
             "Note: re-engagement uses the same RmEngageCaseActivity activity as initial "
@@ -256,7 +256,7 @@ def demo_defer_reengage_path(
         close = rm_close_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close)
         with demo_check("RmCloseCaseActivity activity stored"):
-            verify_object_stored(client, close.id_)
+            verify_received_activity_stored(client, close.id_)
 
     logger.info("✅ DEMO 2 COMPLETE: Case deferred, re-engaged, then closed.")
 
@@ -315,14 +315,14 @@ def demo_invalidate_path(
         )
         post_to_inbox_and_wait(client, vendor.id_, invalidate)
         with demo_check("RmInvalidateReportActivity activity stored"):
-            verify_object_stored(client, invalidate.id_)
+            verify_received_activity_stored(client, invalidate.id_)
 
     with demo_step("Step 3: Vendor closes the case (RmCloseCaseActivity)"):
         case = wait_for_case_for_offer(client, stored_offer.id_)
         close = rm_close_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close)
         with demo_check("RmCloseCaseActivity activity stored"):
-            verify_object_stored(client, close.id_)
+            verify_received_activity_stored(client, close.id_)
 
     # The case was created on receipt (auto_create_case), so the vendor still
     # introduces it to the finder (CBT-01-001); it is never engaged.

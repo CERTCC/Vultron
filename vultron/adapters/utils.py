@@ -38,6 +38,18 @@ _UUID_RE = re.compile(
 _URN_UUID_PREFIX = "urn:uuid:"
 
 
+def id_lookup_candidates(object_id: str) -> list[str]:
+    """The ids a lookup of *object_id* tries, in order.
+
+    *object_id* itself, then — for a bare UUID — its ``urn:uuid:`` form, so a
+    caller may name an object by the UUID alone.
+    """
+    candidates = [object_id]
+    if _UUID_RE.match(object_id):
+        candidates.append(f"{_URN_UUID_PREFIX}{object_id}")
+    return candidates
+
+
 class ParsedObjectId(TypedDict):
     base_url: str
     object_type: str | None
