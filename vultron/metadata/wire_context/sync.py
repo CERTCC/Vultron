@@ -47,6 +47,8 @@ import pkgutil
 import sys
 from pathlib import Path
 
+from pydantic.fields import FieldInfo
+
 import vultron.wire.as2.vocab as vocab_pkg
 from vultron.metadata.base import repo_root
 from vultron.metadata.generated_files import stale_paths, write_generated
@@ -179,6 +181,12 @@ def vultron_context_terms() -> dict[str, str]:
     return {term: f"vultron:{term}" for term in sorted(terms)}
 
 
+def _wire_name(name: str, info: FieldInfo) -> str:
+    """The name a field travels under: its serialization alias, else its
+    alias, else its Python name."""
+    return info.serialization_alias or info.alias or name
+
+
 def vultron_property_terms() -> dict[str, str]:
     """Map each Vultron-namespace wire property to its ``vultron:`` IRI.
 
@@ -195,7 +203,7 @@ def vultron_property_terms() -> dict[str, str]:
         for name, info in cls.model_fields.items():
             extra = info.json_schema_extra
             if isinstance(extra, dict) and extra.get(VULTRON_PROPERTY_KEY):
-                terms.add(info.serialization_alias or info.alias or name)
+                terms.add(_wire_name(name, info))
     return {term: f"vultron:{term}" for term in sorted(terms)}
 
 

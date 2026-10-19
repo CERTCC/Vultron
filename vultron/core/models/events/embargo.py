@@ -126,13 +126,6 @@ class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
         return self
 
     @property
-    def termination(self) -> EmbargoTermination:
-        """The termination the ``Remove`` tells its receiver: what and why."""
-        return EmbargoTermination.from_reason(
-            self.termination_reason, self.termination_cause
-        )
-
-    @property
     def embargo_id(self) -> str | None:
         return self.object_id
 

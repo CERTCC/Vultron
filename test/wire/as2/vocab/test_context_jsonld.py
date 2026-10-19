@@ -16,6 +16,7 @@ import json
 import re
 
 import pytest
+from pydantic.fields import FieldInfo
 
 from vultron.metadata.base import repo_root
 from vultron.metadata.wire_context.sync import (
@@ -23,6 +24,7 @@ from vultron.metadata.wire_context.sync import (
     WRITE_COMMAND,
     _all_object_subclasses,
     _concrete_type_value,
+    _wire_name,
     as2_term_values,
     build_context_document,
     is_stale,
@@ -233,13 +235,33 @@ def test_termination_cause_is_a_declared_vultron_property() -> None:
     It is a Vultron property, not an AS2 one, so a receiver resolves it only
     through the Vultron context.
     """
-    assert vultron_property_terms() == {
-        "terminationCause": "vultron:terminationCause"
-    }
+    terms = vultron_property_terms()
+    assert terms["terminationCause"] == "vultron:terminationCause"
+    # Keyed by the wire name, never the Python field name.
+    assert "termination_cause" not in terms
     committed = _term_block(_committed_context())
     assert committed["terminationCause"] == "vultron:terminationCause"
     # A property is not a type, so the type-term guards above do not see it.
     assert "terminationCause" not in vultron_context_terms()
+
+
+@pytest.mark.parametrize(
+    ("info", "expected"),
+    [
+        (
+            FieldInfo(alias="inAlias", serialization_alias="outAlias"),
+            "outAlias",
+        ),
+        (FieldInfo(alias="inAlias"), "inAlias"),
+        (FieldInfo(), "field_name"),
+    ],
+    ids=["serialization-alias", "alias", "name"],
+)
+def test_a_property_term_is_the_field_wire_name(
+    info: FieldInfo, expected: str
+) -> None:
+    """A marked field's term is the name it travels under."""
+    assert _wire_name("field_name", info) == expected
 
 
 def test_render_is_deterministic_and_sorted() -> None:

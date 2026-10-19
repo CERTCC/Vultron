@@ -51,7 +51,7 @@ from pydantic.alias_generators import to_camel
 from vultron.core.models.base import ValidatedAssignmentMixin
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.embargo_register import TerminationReason
-from vultron.primitives import NonEmptyString
+from vultron.primitives import NormalisedActorId
 
 
 class ThreatSignal(StrEnum):
@@ -141,8 +141,9 @@ class FixReadyCause(ValidatedAssignmentMixin, BaseModel):
         TerminationCauseKind.FIX_READY
     )
     #: The actor IDs of the vendors whose readiness made the quorum
-    #: (VP-09-007); at least one, each named once.
-    vendors: list[NonEmptyString] = Field(min_length=1)
+    #: (VP-09-007); at least one, each named once, in its normalised
+    #: spelling (OID-01-006), so one vendor has one form.
+    vendors: list[NormalisedActorId] = Field(min_length=1)
 
     @model_validator(mode="after")
     def _vendors_are_distinct(self) -> "FixReadyCause":
@@ -256,6 +257,21 @@ class EmbargoTermination(ValidatedAssignmentMixin, BaseModel):
         """
         return cls(reason=reason, cause=cause)
 
+    @property
+    def participant_cause(self) -> "TerminationCause | None":
+        """The cause a participant's ask for this termination may carry.
+
+        The cause itself, unless only the CASE_MANAGER may name its kind
+        (``THREAT_SIGNAL``): the CASE_MANAGER would refuse that ask, and it
+        learns the signals from the case status update instead (EMB-13-005).
+        """
+        if (
+            self.cause is None
+            or self.cause.kind in CASE_MANAGER_ONLY_CAUSE_KINDS
+        ):
+            return None
+        return self.cause
+
 
 class ThreatSignalTermination(ValidatedAssignmentMixin, BaseModel):
     """A threat-signal termination, its signals given or read at the write.
@@ -283,6 +299,15 @@ class ThreatSignalTermination(ValidatedAssignmentMixin, BaseModel):
     def reason(self) -> TerminationReason:
         """The what: a threat signal ends an embargo early (ADR-0122)."""
         return TerminationReason.EARLY
+
+    @property
+    def participant_cause(self) -> None:
+        """A participant's ask names no threat-signal cause (EMB-13-005).
+
+        Only the CASE_MANAGER may name ``THREAT_SIGNAL``; it learns the
+        signals from the case status update instead.
+        """
+        return None
 
     def resolve(self, pxa: CS_pxa) -> EmbargoTermination:
         """The termination this names, reading *pxa* when no signals are given.

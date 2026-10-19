@@ -59,9 +59,13 @@ from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.errors import VultronParseValidationError
-from vultron.wire.as2.factories import remove_embargo_from_case_activity
+from vultron.wire.as2.factories import (
+    remove_embargo_from_case_activity,
+    remove_participant_from_case_activity,
+)
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
@@ -127,6 +131,7 @@ def test_every_cause_kind_is_early_and_end_time_has_none() -> None:
         {"kind": "FIX_READY", "vendors": []},
         {"kind": "FIX_READY", "vendors": [VENDOR, VENDOR]},
         {"kind": "FIX_READY", "vendors": [""]},
+        {"kind": "FIX_READY", "vendors": [VENDOR, f"{VENDOR}/"]},
         {"kind": "THREAT_SIGNAL", "signals": []},
         {"kind": "THREAT_SIGNAL", "signals": ["X", "P"]},
         {"kind": "OTHER", "account": "a leak"},
@@ -137,6 +142,7 @@ def test_every_cause_kind_is_early_and_end_time_has_none() -> None:
         "empty-vendors",
         "repeated-vendor",
         "blank-vendor",
+        "unnormalised-vendor",
         "no-signals",
         "unordered-signals",
         "detail-on-other",
@@ -233,6 +239,36 @@ def test_parse_edge_refuses_a_cause_on_an_end_time_termination() -> None:
 
     with pytest.raises(VultronParseValidationError, match="END_TIME_REACHED"):
         _extract(parse_activity(body))
+
+
+@pytest.mark.spec("EMB-13-005")
+def test_the_event_refuses_a_cause_on_an_end_time_termination() -> None:
+    """The event checks the fit itself, so one built past the parse edge
+    cannot carry a cause its what cannot have."""
+    with pytest.raises(ValidationError, match="END_TIME_REACHED"):
+        RemoveEmbargoEventFromCaseReceivedEvent(
+            activity_id="urn:uuid:tc-event-end-time",
+            actor_id=OWNER,
+            termination_reason=TerminationReason.END_TIME_REACHED,
+            termination_cause=OtherCause(),
+        )
+
+
+@pytest.mark.spec("EMB-13-005")
+def test_parse_edge_refuses_a_cause_on_a_remove_that_ends_no_embargo() -> None:
+    """Only a termination ``Remove`` has a why: a ``Remove(CaseParticipant)``
+    naming one is refused, so the cause never reaches its ledger snapshot."""
+    participant = as_CaseParticipant(
+        attributed_to=VENDOR, context=CASE, name="vendor"
+    )
+    activity = remove_participant_from_case_activity(
+        participant, target=CASE, actor=OWNER
+    )
+    body = activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    body["terminationCause"] = {"kind": "THREAT_SIGNAL", "signals": ["X"]}
+
+    with pytest.raises(VultronParseValidationError, match="terminationCause"):
+        extract_event(parse_activity(body))
 
 
 @pytest.mark.spec("EMB-13-005")

@@ -209,6 +209,28 @@ class TestTerminationCauseIsAdmissibleNode:
         node = self._tick("tca-other", OTHER_PARTICIPANT_ACTOR, termination)
         assert node.status == py_trees.common.Status.SUCCESS
 
+    @pytest.mark.spec("EMB-13-005")
+    def test_a_threat_signal_with_no_case_manager_is_refused(self):
+        """No CASE_MANAGER resolves, so no sender is it: refused."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, _ = make_case_and_embargo("tca-nomgr")
+        dl.create(case)
+        setup_blackboard(dl)
+        node = TerminationCauseIsAdmissibleNode(
+            case_id=case.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
+            termination=EmbargoTermination.threat([ThreatSignal.X]),
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+        assert node.status == py_trees.common.Status.FAILURE
+        assert "case status update" in node.feedback_message
+
+    @pytest.mark.spec("EMB-13-005")
     def test_a_threat_signal_on_a_missing_case_fails(self):
         dl = SqliteDataLayer(
             "sqlite:///:memory:",

@@ -221,6 +221,14 @@ def _content_kwargs(
         termination = termination_of(activity)
         kwargs["termination_reason"] = termination.reason
         kwargs["termination_cause"] = termination.cause
+    elif getattr(activity, "termination_cause", None) is not None:
+        # Only a termination Remove(EmbargoEvent) has a why (EMB-13-005).
+        # Any other Remove naming one is refused here, so the cause never
+        # reaches a ledger snapshot through an activity that cannot carry it.
+        raise VultronParseValidationError(
+            f"activity {activity.id_!r} carries a terminationCause, but only"
+            " a termination Remove(EmbargoEvent) may name one (EMB-13-005)"
+        )
     return kwargs
 
 

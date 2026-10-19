@@ -194,10 +194,10 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
     was requested by another actor (the Case Owner), that actor is
     ``attributedTo`` (CM-24-001, CM-24-002).
 
-    The notice is not committed to the ledger and carries nothing but the
-    embargo; a termination notice adds the what and the why the register
-    records (EMB-13-005).  No notice owed, or nobody to send it to, is ``SUCCESS`` with
-    nothing sent.  A notice owed with no trigger-activity factory is a
+    The notice is not committed to the ledger.  It carries the embargo and,
+    for a termination, the what and the why the register records
+    (EMB-13-005).  No notice owed, or nobody to send it to, is ``SUCCESS``
+    with nothing sent.  A notice owed with no trigger-activity factory is a
     wiring fault and fails the node (BT-14-001); so does a capture node that
     never ran.  A factory or outbox error escapes to ``BTBridge``: the EM
     write is already done, so it is an internal fault, not a refusal.

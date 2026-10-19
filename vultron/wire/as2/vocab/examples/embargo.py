@@ -13,6 +13,7 @@
 
 from datetime import timedelta
 
+from vultron.core.models.embargo_termination import FixDeployedCause
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
@@ -252,6 +253,11 @@ def announce_embargo_termination() -> as_Announce:
 
 
 def remove_embargo() -> as_Remove:
+    """The Case Owner's ``Remove(Event)`` ending the embargo early.
+
+    It names why as ``terminationCause`` (EMB-13-005): here the fix is
+    deployed.  The CASE_MANAGER records the owner's cause as given.
+    """
     _vendor = vendor()
     _case = case()
     activity = remove_embargo_from_case_activity(
@@ -259,6 +265,7 @@ def remove_embargo() -> as_Remove:
         actor=_vendor.id_,
         origin=_case.id_,
         reason=TerminationReason.EARLY,
+        cause=FixDeployedCause(),
     )
     return activity
 

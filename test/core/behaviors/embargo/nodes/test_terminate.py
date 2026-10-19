@@ -40,6 +40,13 @@ from vultron.core.behaviors.embargo.nodes.terminate import (
     ask_case_manager_to_terminate_once,
 )
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    FixDeployedCause,
+    FixReadyCause,
+    ThreatSignal,
+    ThreatSignalTermination,
+)
 from vultron.core.models.pending_assertion import (
     _STORES,
     PendingAssertion,
@@ -418,3 +425,38 @@ class TestAskCaseManagerToTerminateOnce:
 
         with pytest.raises(VultronWiringError):
             node.update()
+
+
+class TestTheAskCarriesTheParticipantCause:
+    """A participant's ask carries any cause it may name (EMB-13-005)."""
+
+    @pytest.mark.spec("EMB-13-005")
+    def test_the_ask_carries_the_given_cause(self) -> None:
+        factory = _factory()
+        cause = FixDeployedCause()
+
+        _run(
+            ask_case_manager_to_terminate_once(
+                CASE_ID, TerminationReason.EARLY, cause
+            ),
+            _VENDOR_ID,
+            factory,
+        )
+
+        assert factory.terminate_embargo.call_args.kwargs["cause"] == cause
+
+    @pytest.mark.spec("EMB-13-005")
+    def test_a_participant_names_no_threat_signal_cause(self) -> None:
+        assert (
+            EmbargoTermination.threat([ThreatSignal.X]).participant_cause
+            is None
+        )
+        assert ThreatSignalTermination().participant_cause is None
+        assert EmbargoTermination.early().participant_cause is None
+        cause = FixReadyCause(vendors=[_VENDOR_ID])
+        assert (
+            EmbargoTermination.from_reason(
+                TerminationReason.EARLY, cause
+            ).participant_cause
+            == cause
+        )
