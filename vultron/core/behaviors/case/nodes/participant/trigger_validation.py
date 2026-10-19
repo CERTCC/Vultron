@@ -57,6 +57,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     validate_participant_status_write,
 )
 from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
@@ -69,7 +70,6 @@ def check_participant_status_move(
     node: py_trees.behaviour.Behaviour,
     dl: CasePersistence,
     case: VulnerabilityCase,
-    participant_id: str,
     *,
     actor_id: str,
     rm_state: "RM | None",
@@ -85,8 +85,17 @@ def check_participant_status_move(
     (RSH-08-006): the same evaluator the write node uses (BTND-10-002), run
     against the participant's current state, or the state the last of
     *follows* leaves.  On a refusal it returns ``FAILURE`` with the
-    violations reported on *node* and in ``result_out["error"]``.
+    violations reported on *node* and in ``result_out["error"]``; an actor
+    with no participant record in *case* is refused too.
     """
+    participant_id = case.actor_participant_index.get(actor_id)
+    if participant_id is None:
+        node.feedback_message = (
+            f"No participant record for actor '{actor_id}' in case"
+            f" '{case.id_}'"
+        )
+        node_logger(node).warning("%s: %s", node.name, node.feedback_message)
+        return Status.FAILURE
     context = resolve_transition_context_or_report(
         node, dl, case, participant_id
     )
@@ -193,25 +202,24 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         # missing case/participant. Passing through as SUCCESS here avoids a
         # duplicate failure and lets the canonical reporter own it (allowlist).
         case = dl.read_case(self._case_id)
-        participant_id = (
-            case.actor_participant_index.get(self._actor_id) if case else None
-        )
-        if case is None or participant_id is None:
+        if case is None:
             if not self._require_participant:
                 # CreateParticipantStatusNode will report this; pass through.
                 return Status.SUCCESS
-            self.feedback_message = (
-                f"No participant record for actor '{self._actor_id}'"
-                f" in case '{self._case_id}'"
-            )
+            self.feedback_message = f"Case '{self._case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+        if (
+            self._actor_id not in case.actor_participant_index
+            and not self._require_participant
+        ):
+            # CreateParticipantStatusNode will report this; pass through.
+            return Status.SUCCESS
 
         failure = check_participant_status_move(
             self,
             dl,
             case,
-            participant_id,
             actor_id=self._actor_id,
             rm_state=self._rm_state,
             vf_state=self._vf_state,

@@ -65,7 +65,6 @@ from test.architecture import _corpus
 #                tracked separately per BTND-10-001 / issue #2081
 #   FILTER     — carry-forward writes inside FilterParticipantStatusDimensions-
 #                Node (received path); the filter adjudicates before writing
-#   REPLICATE  — authoritative ledger-replication write with monotonic ratchet
 # ---------------------------------------------------------------------------
 # permanent: BTND-10-001 (the list is the write-site audit)
 AUDITED_SITES: list[tuple[str, str]] = sorted(

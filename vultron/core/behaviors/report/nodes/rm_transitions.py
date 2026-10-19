@@ -238,11 +238,11 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
                 report-phase record, not the sender's participant.
             written_ids: Passed to :class:`CreateParticipantStatusNode`, which
                 reports in it the id of the status it writes.
-            record_participant: ``False`` latches only the report link.  The
-                trigger side passes it: the sender's participant is case-file
-                state the CASE_MANAGER records when it accepts the
-                validation, and the sender's replica copies that status from
-                the ledger (RSH-08-003, CLP-07-013).
+            record_participant: ``False`` checks the report link and the
+                sender's move and writes nothing.  The trigger side passes
+                it: the CASE_MANAGER latches its link and records the status
+                when it accepts the validation, and the sender's replica
+                copies that status from the ledger (RSH-08-006, CLP-07-013).
         """
         super().__init__(name=name or "TransitionRMtoValid")
         self.report_id = report_id
@@ -346,11 +346,14 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
 
         # 2. Case-scoped write FIRST (ID-04-005), through the sole
         #    ParticipantStatus writer.
-        failure = (
-            self._advance_participant()
-            if self._record_participant
-            else self._check_participant()
-        )
+        if not self._record_participant:
+            # Trigger side: check the move and write nothing, the link
+            # included.  The CASE_MANAGER latches its own link and records
+            # the status when it accepts the validation; latching here would
+            # make an actor that is its own CASE_MANAGER skip that write
+            # (CheckRMStateValid) and a redelivery stop short (RSH-08-006).
+            return self._check_participant() or Status.SUCCESS
+        failure = self._advance_participant()
         if failure is not None:
             return failure
 
@@ -395,21 +398,11 @@ class TransitionRMtoValid(DataLayerActionWithPorts, StateWriteCapable):
         case, failure = self._require_case(case_id)
         if failure is not None:
             return failure
-        subject = self.sender_actor_id or self.actor_id or ""
-        participant_id = case.actor_participant_index.get(subject)
-        if participant_id is None:
-            self.feedback_message = (
-                f"No participant record for actor '{subject}' in case"
-                f" '{case_id}'"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
         return check_participant_status_move(
             self,
             self.datalayer,
             case,
-            participant_id,
-            actor_id=subject,
+            actor_id=self.sender_actor_id or self.actor_id or "",
             rm_state=RM.VALID,
         )
 

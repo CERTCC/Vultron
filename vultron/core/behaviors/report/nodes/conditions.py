@@ -107,10 +107,11 @@ class CheckRMStateValid(_CheckReportPhaseRMStateBase):
 
 
 class CheckRMStateReceivedOrInvalid(_CheckReportPhaseRMStateBase):
-    """Check if report is in RM.RECEIVED or RM.INVALID state.
+    """Check the report is not already in RM.VALID.
 
-    Returns SUCCESS if report is in acceptable precondition state.
-    Returns FAILURE if report is in any other state (e.g., CLOSED, VALID).
+    Returns SUCCESS for any state but VALID; FAILURE when the report is
+    already VALID.  An illegal source state such as CLOSED passes here and is
+    refused by the RM transition that follows (``TransitionRMtoValid``).
 
     Input ports (inherited + declared):
         datalayer (object, required): CasePersistence, remapped to /datalayer.

@@ -849,8 +849,9 @@ groups:
       satisfies the entailments, so does the recorded state. When the incumbent
       state is already impossible no per-dimension refusal can repair it, since
       every carry-forward writes the offending value back; that case is logged
-      and left alone. It is reachable today only via the replica-apply path,
-      which enforces only the RM ratchet (ISSUE-3009).
+      and left alone. It is reachable only through a replica that diverged
+      from the ledger, since the replica-apply path copies each status as
+      carried (CM-23-016, ISSUE-3009).
 
       A `None` dimension is absent, not at its initial state (ADR-0075), so no
       entailment applies through it — a non-VENDOR participant asserting `d=D`
@@ -1413,13 +1414,18 @@ groups:
       case owner from writing its own copy; this extends that to every
       sender of a status declaration (CLP-07-013, CM-23-016).
     verification: >
-      `test/core/use_cases/triggers/case/test_engage.py`,
-      `test/core/use_cases/triggers/case/test_add_participant_status.py` and
-      `test/adapters/driving/fastapi/routers/test_demo_triggers.py` assert
-      the engage, defer, validate, self-report, on-behalf, develop-fix and
-      deploy-fix triggers leave the actor's participant record unchanged and
-      queue the declaration; refusals are still raised before anything is
-      sent.
+      Each trigger path has a marked test that asserts it leaves the
+      participant record unchanged and queues the declaration, and that a
+      refused move sends nothing: engage
+      (`test/core/use_cases/triggers/case/test_engage.py`), defer
+      (`test/core/use_cases/triggers/case/test_defer.py`), validate
+      (`test/core/behaviors/report/test_validate_tree.py`,
+      `test/core/use_cases/test_receive_report_chain.py`), self-report
+      (`test/core/use_cases/triggers/case/test_add_participant_status.py`,
+      `test/adapters/driving/fastapi/routers/test_demo_triggers.py`),
+      on-behalf (`test/core/use_cases/triggers/case/test_add_on_behalf_status.py`),
+      develop-fix (`test/core/behaviors/report/test_develop_fix_tree.py`) and
+      deploy-fix (`test/core/behaviors/report/test_deploy_fix_tree.py`).
     relationships:
     - rel_type: extends
       spec_id: PCR-03-002

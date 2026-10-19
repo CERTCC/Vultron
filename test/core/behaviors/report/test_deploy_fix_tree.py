@@ -782,6 +782,7 @@ def test_stay_deferred_short_circuits(
 
 @pytest.mark.spec("CSB-11-002")
 @pytest.mark.spec("BT-03-004")
+@pytest.mark.spec("RSH-08-006")
 def test_full_deploy_arm_completes_and_emits_cd(
     bt_scenario: BTTestScenario,
     case_with_deployer_and_case_manager: VulnerabilityCase,

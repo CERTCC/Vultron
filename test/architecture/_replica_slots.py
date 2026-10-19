@@ -149,7 +149,29 @@ def _reach(
     (``test/support/ledger_rebuild.py``) compares every record whole and
     would fail if one did.
     """
-    reached: dict[str, set[str]] = {}
+    return {
+        f"{function.__module__}.{function.__qualname__}": names
+        for function, names in _walk(roots, follow_methods=follow_methods)
+    }
+
+
+def _reached_functions(
+    cls: type, *, follow_methods: bool = True
+) -> list[types.FunctionType]:
+    """The codebase functions *cls* reaches, as objects (see :func:`_reach`)."""
+    return [
+        function
+        for function, _ in _walk(
+            _own_classes(cls), follow_methods=follow_methods
+        )
+    ]
+
+
+def _walk(
+    roots: Iterable[object], *, follow_methods: bool
+) -> list[tuple[types.FunctionType, set[str]]]:
+    """Each function :func:`_reach` reaches, with the names its source uses."""
+    reached: list[tuple[types.FunctionType, set[str]]] = []
     pending: list[object] = list(roots)
     seen: set[int] = set()
     while pending:
@@ -159,7 +181,7 @@ def _reach(
         seen.add(id(obj))
         names = _names_used(obj)
         if isinstance(obj, types.FunctionType):
-            reached[f"{obj.__module__}.{obj.__qualname__}"] = names
+            reached.append((obj, names))
         module_globals = vars(sys.modules[cast(Any, obj).__module__])
         for name in names:
             value = module_globals.get(name)

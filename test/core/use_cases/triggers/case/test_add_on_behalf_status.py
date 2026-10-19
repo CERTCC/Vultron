@@ -217,6 +217,7 @@ class TestAddOnBehalfStatusVtoV:
         assert _store_state(self.dl, self.case.id_) == before
 
     @pytest.mark.spec("PRM-06-003")
+    @pytest.mark.spec("RSH-08-006")
     def test_changes_only_vf_of_an_inert_vendor_invitee(self):
         """v→V moves VF only; the invitee's RM stays at RECEIVED.
 

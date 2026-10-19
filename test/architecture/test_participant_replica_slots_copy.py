@@ -44,6 +44,7 @@ from test.architecture._replica_slots import (
     _functions_reached,
     _names_used,
     _own_classes,
+    _reached_functions,
     _tree_slot_classes,
 )
 from vultron.core.behaviors.sync.nodes.case_status_effect import (
@@ -179,11 +180,16 @@ def test_a_participant_slot_derives_nothing(slot: type) -> None:
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.parametrize("slot", _SLOTS, ids=lambda c: c.__name__)
 def test_a_participant_slot_builds_no_record(slot: type) -> None:
-    """A copy keeps the carried record's id and times; a build mints its own."""
+    """A copy keeps the carried record's id and times; a build mints its own.
+
+    Checked in the slot's own classes and every helper and core model method
+    it reaches, so a slot cannot hand the build to a helper.
+    """
+    roots: list[Any] = [*_own_classes(slot), *_reached_functions(slot)]
     builds = {
-        c.__qualname__: sorted(_record_builds(c))
-        for c in _own_classes(slot)
-        if _record_builds(c)
+        r.__qualname__: sorted(_record_builds(r))
+        for r in roots
+        if _record_builds(r)
     }
     assert not builds, f"{slot.__name__} builds {builds}"
 

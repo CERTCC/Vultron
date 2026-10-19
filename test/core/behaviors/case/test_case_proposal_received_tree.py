@@ -2774,6 +2774,55 @@ class TestADR0041GenesisCommitFailure:
             (e.event_type, e.log_object_id) for e in entries[: len(expected)]
         ] == expected
 
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_seated_record_missing_from_the_store_stops_the_sequence(
+        self, make_payload, monkeypatch
+    ):
+        """A record the case seats but the store lacks has no entry to carry it.
+
+        No replica could learn of it, so the creation entries stop there and
+        the node fails, rather than skipping the record (CLP-07-013).
+        """
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.nodes import (
+            CommitNativeLedgerEntriesNode,
+            proposal_ledger,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        with monkeypatch.context() as patch:
+            fail_commits(patch, proposal_ledger)
+            _run_full_bt(make_payload, dl)
+        (case,) = dl.list_objects("VulnerabilityCase")
+        assert isinstance(case, VulnerabilityCase)
+        missing = str(_as_id(case.case_participants[0]))
+        dl.delete("CaseParticipant", missing)
+
+        # Every commit the node attempts succeeds without writing, so the
+        # only thing that can stop it is the missing record.
+        attempted: list[str] = []
+
+        def _accept(*_args, **kwargs):
+            attempted.append(kwargs["event_type"])
+            return py_trees.behaviours.Success(name="AcceptedCommit")
+
+        monkeypatch.setattr(
+            proposal_ledger, "create_commit_log_entry_tree", _accept
+        )
+        node = CommitNativeLedgerEntriesNode(
+            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
+        )
+        node.datalayer = dl
+        node.actor_id = _CASE_ACTOR_URI
+        node.trigger_activity_factory = TriggerActivityAdapter(dl)
+        node._case_id_bb = case.id_
+
+        assert node.update() == Status.FAILURE
+        assert missing in node.feedback_message
+        assert "create_case_participant" not in attempted
+
     def test_case_not_found_is_best_effort_success(self, make_payload):
         """case-not-found in the ledger node is best-effort SUCCESS."""
         from py_trees.common import Status

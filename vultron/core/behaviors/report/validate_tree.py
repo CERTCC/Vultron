@@ -33,9 +33,9 @@ Structure:
        ├─ RequireCaseForReport               # case must be in *this* store
        ├─ EnsureEmbargoExists                # embargo present (DUR-07-004)
        └─ ValidationActions (Sequence, memory=False)
-          ├─ TransitionRMtoValid             # participant write (received) or
-          │                                  # check (trigger), then RM latch
-          └─ MaybeEmitValidateReport         # only when emit=True
+          ├─ TransitionRMtoValid             # write + RM latch (received) or
+          │                                  # check only (trigger)
+          └─ EmitValidateReportActivity      # only when emit=True
 
 Why the guards precede the actions
 ----------------------------------
@@ -152,9 +152,9 @@ def create_validate_report_subtree(
             id of the status it writes.  The received side passes it so the
             CASE_MANAGER can commit that status as its own entry
             (CLP-07-013).
-        record_participant: ``False`` latches only the report link and
-            leaves the sender's participant to the CASE_MANAGER.  The
-            trigger side passes it (RSH-08-003, CM-23-016).
+        record_participant: ``False`` checks the move and writes nothing,
+            leaving the link and the sender's participant to the
+            CASE_MANAGER.  The trigger side passes it (RSH-08-006, CM-23-016).
 
     Returns:
         Root node of the validation subtree (a Selector).
@@ -162,8 +162,8 @@ def create_validate_report_subtree(
     bundle = call_out if call_out is not None else VALIDATION_DETERMINISTIC
 
     # The transition comes first: on the trigger side it is the check that
-    # refuses a move before anything is sent (RSH-08-006), and it latches the
-    # report link; on the received side it is the CASE_MANAGER's write.
+    # refuses a move before anything is sent and writes nothing (RSH-08-006);
+    # on the received side it is the CASE_MANAGER's write and link latch.
     action_children: list[py_trees.behaviour.Behaviour] = [
         TransitionRMtoValid(
             report_id=report_id,
@@ -175,23 +175,14 @@ def create_validate_report_subtree(
         )
     ]
     if emit:
-        # The emit is masked by a Success fallback because emit failure was
-        # already tolerated by design: callers that run this tree without a
-        # TriggerActivityPort (e.g. the received-validate path) still succeed,
-        # and ADR-0066 gives the outbox its own retry path.  Without the mask
-        # those callers would regress to FAILURE.
+        # Not masked: the trigger writes nothing of its own (RSH-08-006), so
+        # the send is the whole effect, and a send that fails fails the
+        # trigger rather than reporting a validation nobody received.
         action_children.append(
-            py_trees.composites.Selector(
-                name="MaybeEmitValidateReport",
-                memory=False,
-                children=[
-                    EmitValidateReportActivity(
-                        offer_id=offer_id,
-                        report_id=report_id,
-                        captured=captured,
-                    ),
-                    py_trees.behaviours.Success(name="NoEmitFallback"),
-                ],
+            EmitValidateReportActivity(
+                offer_id=offer_id,
+                report_id=report_id,
+                captured=captured,
             )
         )
 
@@ -251,10 +242,10 @@ def create_validate_report_tree(
     sent to the Case Actor (CASE_MANAGER participant) whose inbox executes the
     guarded commit (ADR-0021 CLP-10-001, CLP-10-002, CLP-10-003).
 
-    Latches RM ``VALID`` on the report link only.  The actor's participant is
-    case-file state: the CASE_MANAGER records the move when it accepts the
-    validation and commits that status as its own entry, and the actor's
-    replica copies it from the ledger (RSH-08-003, CLP-07-013, CM-23-016).
+    Checks the move and sends; it writes nothing of its own.  The
+    CASE_MANAGER records the move when it accepts the validation and commits
+    that status as its own entry, and the actor's replica copies it from the
+    ledger (RSH-08-006, CLP-07-013, CM-23-016).
     The engage/defer decision is a separate, explicit protocol step the
     operator must trigger via ``engage-case`` or ``defer-case``.
 

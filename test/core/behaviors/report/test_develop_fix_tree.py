@@ -763,6 +763,54 @@ class TestEmitCFActivity:
             for a in sent
         )
 
+    @pytest.mark.spec("RSH-08-006")
+    def test_an_actor_that_is_its_own_case_manager_addresses_itself(
+        self,
+        bt_scenario: BTTestScenario,
+        case_with_vendor: VulnerabilityCase,
+        vendor_participant: CaseParticipant,
+    ) -> None:
+        """No local write, so the CASE_MANAGER's own copy must be delivered.
+
+        Its received ``Add(ParticipantStatus)`` tree records the status and
+        commits it (RSH-08-006), as for any other sender.
+        """
+        vendor_participant.case_roles = [CVDRole.VENDOR, CVDRole.CASE_MANAGER]
+        bt_scenario.dl.save(vendor_participant)
+        _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
+        result_out: dict = {}
+        bt_scenario.run(
+            TransitionCStoFixReady(
+                case_id=CASE_ID,
+                actor_id=VENDOR_ACTOR_ID,
+                result_out=result_out,
+            ),
+            actor_id=VENDOR_ACTOR_ID,
+        )
+        before = list(bt_scenario.dl.outbox_list())
+
+        result = bt_scenario.run(
+            EmitCFActivity(
+                case_id=CASE_ID,
+                actor_id=VENDOR_ACTOR_ID,
+                result_out=result_out,
+            ),
+            actor_id=VENDOR_ACTOR_ID,
+        )
+
+        assert result.status == Status.SUCCESS
+        sent = [
+            bt_scenario.dl.read(i)
+            for i in bt_scenario.dl.outbox_list()
+            if i not in before
+        ]
+        assert sent
+        assert all(
+            [str(_as_id(r)) for r in getattr(a, "to", None) or []]
+            == [VENDOR_ACTOR_ID]
+            for a in sent
+        )
+
     def test_failure_when_result_out_empty(
         self,
         bt_scenario: BTTestScenario,

@@ -22,6 +22,7 @@ import py_trees.behaviour
 from py_trees.common import Status
 
 from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
@@ -238,12 +239,23 @@ def context_after_followed(
 
     Raises:
         VultronNotFoundError: the followed status is not stored.
+        VultronValidationError: the followed status is another actor's or
+            another case's, so it is no step of this participant's.
     """
     if not follows:
         return context
     last = dl.read(follows[-1])
     if not isinstance(last, ParticipantStatus):
         raise VultronNotFoundError("ParticipantStatus", follows[-1])
+    record = context.participant
+    if not isinstance(record, CaseParticipant) or (
+        _as_id(last.attributed_to),
+        _as_id(last.context),
+    ) != (_as_id(record.attributed_to), _as_id(record.context)):
+        raise VultronValidationError(
+            f"followed status '{last.id_}' is not a step of participant"
+            f" '{getattr(record, 'id_', record)}'"
+        )
     return context._replace(
         current_rm=last.rm.state,
         current_vf=last.vf.state if last.vf is not None else None,

@@ -239,19 +239,29 @@ class TestValidateEngageChain:
         )
         return [s.rm.state for s in participant.participant_statuses]
 
-    def test_validate_report_latches_the_link_and_writes_no_status(
-        self, chain_context
-    ):
-        """The report link reads VALID; the participant is the manager's."""
-        vendor, _, _, dl, report, offer, case = chain_context
+    @pytest.mark.spec("RSH-08-006")
+    def test_validate_report_sends_and_writes_nothing(self, chain_context):
+        """The validation goes to the CASE_MANAGER; the vendor writes nothing.
+
+        Neither the participant status nor the report link moves: the
+        CASE_MANAGER records VALID and latches its own link when it accepts
+        the validation (RSH-08-006, CM-23-016).
+        """
+        vendor, _, case_actor, dl, report, offer, case = chain_context
         before = self._rm_history(dl, vendor, case)
+        outbox_before = set(dl.outbox_list())
 
         self._validate(dl, vendor, offer)
 
         assert self._rm_history(dl, vendor, case) == before
         link = dl.read(VultronReportCaseLink.build_id(report.id_))
         assert isinstance(link, VultronReportCaseLink)
-        assert link.rm_state == RM.VALID
+        assert link.rm_state == RM.RECEIVED
+        sent = set(dl.outbox_list()) - outbox_before
+        assert len(sent) == 1
+        activity = dl.read(next(iter(sent)))
+        assert activity is not None
+        assert getattr(activity, "to", None) == [case_actor.id_]
 
     @pytest.mark.spec("RSH-08-006")
     @pytest.mark.spec("BTND-10-002")

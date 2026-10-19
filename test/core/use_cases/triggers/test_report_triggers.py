@@ -237,22 +237,30 @@ class TestSvcValidateReportUseCase:
     # --- AC-1: RM state transition -----------------------------------------
 
     @pytest.mark.spec("TRIG-02-001")
-    def test_validate_report_creates_rm_valid_status_record(self):
-        """execute() creates a as_ParticipantStatus record for RM.VALID."""
+    @pytest.mark.spec("RSH-08-006")
+    def test_validate_report_leaves_the_link_to_the_case_manager(self):
+        """execute() sends the validation and does not latch the report link.
+
+        The trigger checks the move and writes nothing of its own: the
+        CASE_MANAGER latches its link and records RM VALID when it accepts
+        the validation (RSH-08-006, CM-23-016).
+        """
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
+        before = set(self.dl.outbox_list())
         SvcValidateReportUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
+        assert set(self.dl.outbox_list()) - before
         link = self.dl.read(VultronReportCaseLink.build_id(self.report.id_))
         assert (
             isinstance(link, VultronReportCaseLink)
-            and link.rm_state == RM.VALID
+            and link.rm_state == RM.RECEIVED
         )
 
     @pytest.mark.spec("TRIG-02-001")
