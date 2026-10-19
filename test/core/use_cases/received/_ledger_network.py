@@ -28,6 +28,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
     received_event,
@@ -275,7 +276,14 @@ def rebuild_every_network(networks: list[LedgerNetwork]) -> None:
     """
     for net in networks:
         seed = net.rebuild_seed
-        if net.ledger_bypassed or seed is None:
+        if net.ledger_bypassed:
+            continue
+        if seed is None:
+            # No seed means no entry was committed; a ledger that holds one
+            # anyway would skip the check silently.
+            assert not ledger_entries(net.stores[MANAGER], net.case_id), (
+                f"case '{net.case_id}' has ledger entries but no rebuild seed"
+            )
             continue
         assert_rebuilds_from_ledger(
             net.stores[MANAGER], net.case_id, as_actor=BYSTANDER, seed=seed

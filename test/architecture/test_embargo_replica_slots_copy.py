@@ -25,8 +25,9 @@ joiner's consent (:data:`_SLOTS`), and
 The check is per class, over every class in each slot's MRO that this
 codebase defines, because ``abandon.py`` and ``withdrawal.py`` also hold the
 CASE_MANAGER's own nodes, which decide through ``EmbargoLifecycle`` as they
-must.  It also follows every module-level function a slot reaches, however
-indirectly, so a slot cannot hand the work to a helper that runs it.
+must.  It also follows every module-level function and core model method a
+slot reaches, however indirectly, so a slot cannot hand the work to a helper
+or a model method that runs it.
 
 The one tracked deviation is the owner's-rejection slot's skip of a
 ``Reject`` the CASE_MANAGER answered with ET (#4789): it reads one shared
@@ -44,12 +45,14 @@ import pkgutil
 import sys
 import textwrap
 import types
+from collections.abc import Iterable
 from typing import Any, cast
 
 import pytest
 
 import vultron.core.behaviors.embargo.nodes as embargo_nodes
 import vultron.core.behaviors.sync.nodes as sync_nodes
+import vultron.core.models as core_models
 from test.architecture import _corpus
 from vultron.core.behaviors.embargo.nodes.abandon import (
     ApplyEmbargoAbandonmentFromLedgerNode,
@@ -175,17 +178,85 @@ def _uses_lifecycle(cls: type) -> bool:
     return bool(used & _LIFECYCLE_NAMES)
 
 
-def _functions_reached(cls: type) -> dict[str, set[str]]:
-    """Each codebase function *cls* reaches by name, and the names it uses.
+#: The core model writes behind the one apply function, deliberately not
+#: followed (see :func:`_functions_reached`).
+_UNWALKED_MODEL_WRITES = frozenset(
+    {
+        "VulnerabilityCase.apply_embargo_register_step",
+        "VulnerabilityCase.add_participant",
+    }
+)
+
+
+def _function_of(attr: object) -> types.FunctionType | None:
+    """The function a class attribute runs, unwrapping a descriptor."""
+    if isinstance(attr, (staticmethod, classmethod)):
+        attr = attr.__func__
+    elif isinstance(attr, property):
+        attr = attr.fget
+    return attr if isinstance(attr, types.FunctionType) else None
+
+
+@functools.cache
+def _model_methods() -> dict[str, tuple[types.FunctionType, ...]]:
+    """Every method a ``vultron.core.models`` class defines, by name.
+
+    Static and class methods and property getters count too.  A call is
+    matched to every method of its name, whatever the receiver, so a name
+    two models share follows both: the walk over-follows rather than misses.
+    """
+    methods: dict[str, list[types.FunctionType]] = {}
+    for info in pkgutil.walk_packages(
+        core_models.__path__, f"{core_models.__name__}."
+    ):
+        module = importlib.import_module(info.name)
+        for cls in vars(module).values():
+            if not inspect.isclass(cls) or cls.__module__ != module.__name__:
+                continue
+            for name, attr in vars(cls).items():
+                function = _function_of(attr)
+                if (
+                    function is not None
+                    # Generated methods (validators, dataclass dunders) have
+                    # no source of their own to walk.
+                    and function.__code__.co_filename == module.__file__
+                    and function.__qualname__ not in _UNWALKED_MODEL_WRITES
+                ):
+                    methods.setdefault(name, []).append(function)
+    return {name: tuple(found) for name, found in methods.items()}
+
+
+def _functions_reached(
+    cls: type, *, follow_methods: bool = True
+) -> dict[str, set[str]]:
+    """Each codebase function *cls* reaches, and the names it uses.
+
+    Starts from every class in *cls*'s MRO that this codebase defines.
+    """
+    return _reach(_own_classes(cls), follow_methods=follow_methods)
+
+
+def _reach(
+    roots: Iterable[object], *, follow_methods: bool = True
+) -> dict[str, set[str]]:
+    """Each codebase function *roots* reach by name, and the names it uses.
 
     Follows every name a class body or function body uses that resolves, in
-    its module, to a module-level function this codebase defines, and so on
-    from there.  Classes are not followed: a slot's own classes are walked by
-    MRO, and a lifecycle-running node class is forbidden by name.
+    its module, to a module-level function this codebase defines, and every
+    attribute name that a core model method bears
+    (:func:`_model_methods`, unless *follow_methods* is false), and so on
+    from there.  So a slot calling
+    ``record.sign_embargo(...)`` reaches the PEC transition inside it.
+    Classes are not followed: a slot's own classes are walked by MRO, and a
+    lifecycle-running node class is forbidden by name.
 
-    Methods are not followed either, so a forbidden method is caught where
-    it is called, by name.  That leaves the domain models' own writes behind
-    the one apply function unwalked, on purpose:
+    Blind spots, by construction: a function reached as ``module.func`` (an
+    attribute that names no model method is not resolved); a method of a
+    class outside ``vultron.core.models``; and a lifecycle-running node
+    class outside ``embargo/nodes`` (:func:`_lifecycle_nodes`).
+
+    Two model writes behind the one apply function stay unwalked, on
+    purpose (:data:`_UNWALKED_MODEL_WRITES`):
     ``VulnerabilityCase.apply_embargo_register_step`` gives an *inline*
     participant its ``UNINVITED`` rows so the register assignment validates,
     and ``VulnerabilityCase.add_participant`` gives a seated record a row
@@ -195,7 +266,7 @@ def _functions_reached(cls: type) -> dict[str, set[str]]:
     would fail if one did.
     """
     reached: dict[str, set[str]] = {}
-    pending: list[object] = list(_own_classes(cls))
+    pending: list[object] = list(roots)
     seen: set[int] = set()
     while pending:
         obj = pending.pop()
@@ -212,6 +283,8 @@ def _functions_reached(cls: type) -> dict[str, set[str]]:
                 value, types.FunctionType
             ) and value.__module__.startswith("vultron."):
                 pending.append(value)
+            if follow_methods:
+                pending.extend(_model_methods().get(name, ()))
     return reached
 
 
@@ -268,6 +341,22 @@ def test_the_walk_follows_a_slots_helpers() -> None:
     assert "vultron.core.models.embargo_apply.apply_embargo_change" in reached
 
 
+def test_the_walk_follows_a_model_method() -> None:
+    """A PEC transition behind a model method is caught where it runs."""
+
+    class _SignsOnReplica:
+        def update(self, record: Any) -> None:
+            record.sign_embargo("https://example.org/embargoes/1")
+
+    offenders = {
+        function
+        for function, names in _reach([_SignsOnReplica]).items()
+        if names & _LIFECYCLE_NAMES
+    }
+
+    assert any(f.endswith("CaseParticipant.sign_embargo") for f in offenders)
+
+
 def _tree_slot_classes() -> set[type]:
     """Every apply node class ``AnnounceLogEntryReceivedBT`` runs."""
     return {
@@ -282,15 +371,19 @@ def _tree_slot_classes() -> set[type]:
 def _writes_embargo_state(cls: type) -> bool:
     """A slot that writes embargo state, by what it reaches or where it lives.
 
-    It reaches a writer name, copies through the frame, or lives with the
-    embargo nodes (the store-only relay slots, which write the embargo
-    record itself).
+    It reaches a writer name through its own functions, reaches a lifecycle
+    name through any model method, copies through the frame, or lives with
+    the embargo nodes (the store-only relay slots, which write the embargo
+    record itself).  A model method counts only for a lifecycle name: many
+    of them merely read ``embargo_register`` (``VulnerabilityCase.em_state``).
     """
     names = set().union(*(_names_used(c) for c in _own_classes(cls)))
-    for reached in _functions_reached(cls).values():
+    for reached in _functions_reached(cls, follow_methods=False).values():
         names |= reached
+    through_methods = set().union(*_functions_reached(cls).values())
     return bool(
         names & _WRITER_NAMES
+        or through_methods & _LIFECYCLE_NAMES
         or issubclass(cls, ApplyEmbargoChangeFromLedgerNode)
         or cls.__module__.startswith(f"{embargo_nodes.__name__}.")
     )

@@ -104,8 +104,13 @@ def stub_accept_consent(
     (:func:`~vultron.core.models.embargo_consent_move.joiner_agreement`) is
     written through the one apply function (ADR-0124), on the CASE_MANAGER
     and on every replica alike, so both write the same row.  Returns *record*
-    itself when the Accept moves no row (no embargo in force, or a row that
-    already agrees or declined); otherwise a changed copy.
+    itself when the Accept moves no row (no embargo in force, a row that
+    already agrees or declined, or a record attributed to no actor);
+    otherwise a changed copy.
+
+    Raises:
+        VultronEntryRefusedError: the case's participant index does not name
+            *record* for its actor, so the row has no record to land on.
     """
     return _stated_consent(case, record, joiner_agreement)
 
@@ -120,7 +125,12 @@ def stub_reject_consent(
     Reject states (:func:`~vultron.core.models.embargo_consent_move
     .joiner_decline`) is written through the one apply function (ADR-0124),
     on the CASE_MANAGER and on every replica alike.  Returns *record* itself
-    when the Reject moves no row; otherwise a changed copy.
+    when the Reject moves no row (no embargo in force, a row that already
+    declined, or a record attributed to no actor); otherwise a changed copy.
+
+    Raises:
+        VultronEntryRefusedError: the case's participant index does not name
+            *record* for its actor, so the row has no record to land on.
     """
     return _stated_consent(case, record, joiner_decline)
 

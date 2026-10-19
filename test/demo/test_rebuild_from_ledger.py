@@ -23,6 +23,8 @@ their in-process equivalents are the per-actor-store scenarios under
 ``test/core/use_cases/received/``, each rebuilt by that package's conftest.
 """
 
+import logging
+
 import pytest
 
 import test.demo._helpers as helpers
@@ -79,3 +81,33 @@ def test_any_rebuild_failure_is_recorded_not_raised(monkeypatch, error):
     with pytest.raises(AssertionError, match=str(error)):
         helpers.assert_no_rebuild_failures()
     assert helpers.REBUILD_FAILURES == []
+
+
+@pytest.mark.parametrize("multi_party", [True, False], ids=["held", "none"])
+def test_a_multi_party_case_with_nothing_rebuilt_is_a_failure(
+    monkeypatch, multi_party
+):
+    """A demo cannot pass the check by leaving every case unrebuildable."""
+    monkeypatch.setattr(helpers, "_managed_cases", lambda: iter([]))
+    monkeypatch.setattr(
+        helpers, "_holds_a_multi_party_case", lambda: multi_party
+    )
+
+    helpers.check_cases_rebuild_from_their_ledgers()
+
+    failures = list(helpers.REBUILD_FAILURES)
+    helpers.REBUILD_FAILURES.clear()
+    assert bool(failures) is multi_party
+    assert all("no case was rebuilt" in f for f in failures)
+
+
+def test_the_check_restores_the_logging_level_it_found(monkeypatch):
+    monkeypatch.setattr(helpers, "_managed_cases", lambda: iter([]))
+    monkeypatch.setattr(helpers, "_holds_a_multi_party_case", lambda: False)
+    logging.disable(logging.INFO)
+    try:
+        helpers.check_cases_rebuild_from_their_ledgers()
+
+        assert logging.root.manager.disable == logging.INFO
+    finally:
+        logging.disable(logging.NOTSET)

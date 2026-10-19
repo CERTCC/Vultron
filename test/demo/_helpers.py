@@ -288,19 +288,38 @@ def _managed_cases() -> Iterator[tuple[Any, str]]:
                 yield dl, case.id_
 
 
+def _holds_a_multi_party_case() -> bool:
+    """Whether any hosted store holds a case seating more than one actor."""
+    return any(
+        isinstance(case, VulnerabilityCase)
+        and len(case.actor_participant_index) > 1
+        for dl in get_all_actor_datalayers().values()
+        for case in dl.list_objects("VulnerabilityCase")
+    )
+
+
 def check_cases_rebuild_from_their_ledgers() -> None:
     """Rebuild every managed case from its ledger alone (#4294 AC-5).
 
-    Run before the demo's teardown clears the node.  A case whose rebuild
-    differs from its CASE_MANAGER's, or fails in any other way, is recorded in
-    :data:`REBUILD_FAILURES` rather than raised, because the demo runner would
-    log a raise as a failed demo and hide the difference.  Logging is silenced
-    while it runs: the rebuild's own log lines are not the demo's, and the demo
-    tests fail on any ERROR they capture.
+    Run each time the demo clears the node, before it does.  A case whose
+    rebuild differs from its CASE_MANAGER's, or fails in any other way, is
+    recorded in :data:`REBUILD_FAILURES` rather than raised, because the demo
+    runner would log a raise as a failed demo and hide the difference.  So
+    is a node holding a multi-party case when no case was rebuilt: every
+    case :func:`_managed_cases` passed over would otherwise pass unchecked.
+    Logging is silenced while it runs: the rebuild's own log lines are not
+    the demo's, and the demo tests fail on any ERROR they capture.
     """
+    previous_level = logging.root.manager.disable
     logging.disable(logging.CRITICAL)
     try:
-        for dl, case_id in list(_managed_cases()):
+        managed = list(_managed_cases())
+        if not managed and _holds_a_multi_party_case():
+            REBUILD_FAILURES.append(
+                "a multi-party case is held, but no case was rebuilt: none"
+                " has a CASE_MANAGER holding its ledger and a replica"
+            )
+        for dl, case_id in managed:
             REBUILT_CASES.append(
                 (
                     case_id,
@@ -314,7 +333,7 @@ def check_cases_rebuild_from_their_ledgers() -> None:
                     f"'{case_id}': {type(exc).__name__}: {exc}"
                 )
     finally:
-        logging.disable(logging.NOTSET)
+        logging.disable(previous_level)
 
 
 def assert_no_rebuild_failures() -> None:
@@ -341,8 +360,9 @@ def route_exchange_demo_at_testclient(
     ``BASE_URL`` must point at the same server; each is patched like *demo* and
     reloaded on exit.
 
-    Before each teardown clears the node, every case a hosted actor manages is
-    rebuilt from its ledger alone and compared with the CASE_MANAGER's
+    Each time the demo clears the node, at its setup as well as its teardown,
+    every case a hosted actor manages is first rebuilt from its ledger alone
+    and compared with the CASE_MANAGER's
     (:func:`check_cases_rebuild_from_their_ledgers`, #4294 AC-5).
 
     Every patch is undone on exit and *demo* and each of *also* is reloaded, so
@@ -366,8 +386,9 @@ def route_exchange_demo_at_testclient(
                 result = reset(client=client)
             return result
 
-        # Every exchange demo tears down through ``demo_environment``, which
-        # clears the node with this function: check the cases first.
+        # Every exchange demo sets up and tears down through
+        # ``demo_environment``, which clears the node with this function:
+        # check the cases first.
         mp.setattr(demo_utils, "reset_datalayer", _check_then_reset)
         yield base
     finally:

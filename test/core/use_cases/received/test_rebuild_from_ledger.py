@@ -22,6 +22,7 @@ missing entry, and its one embargo exclusion (#4748) hides only the
 termination's cause.
 """
 
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import pytest
@@ -37,7 +38,9 @@ from test.support.ledger_rebuild import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_termination import TerminationCauseKind
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
@@ -47,6 +50,7 @@ from vultron.core.states.embargo_register import (
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.core.states.rm import RM
 
 from ._ledger_network import (
     BYSTANDER,
@@ -170,6 +174,54 @@ def test_only_the_termination_cause_is_left_out(replica, differs):
     ) is differs
 
 
+_STATUS_CASE = "https://example.org/cases/rebuild-status"
+_STATUS_ACTOR = "https://example.org/actors/status"
+
+
+def _with_status(status: ParticipantStatus) -> CaseParticipant:
+    return CaseParticipant(
+        id_=f"{_STATUS_CASE}/participants/status",
+        attributed_to=_STATUS_ACTOR,
+        context=_STATUS_CASE,
+        participant_statuses=[status],
+    )
+
+
+def _status(state: RM, **fields: Any) -> ParticipantStatus:
+    return ParticipantStatus(
+        attributed_to=_STATUS_ACTOR,
+        context=_STATUS_CASE,
+        rm=RmDimension(state=state),
+        **fields,
+    )
+
+
+@pytest.mark.parametrize(
+    "replica, differs",
+    [
+        (
+            _status(
+                RM.VALID,
+                id_=f"{_STATUS_CASE}/statuses/replayed",
+                published=datetime(2100, 1, 1, tzinfo=UTC),
+                updated=datetime(2100, 1, 1, tzinfo=UTC),
+            ),
+            False,
+        ),
+        (_status(RM.INVALID), True),
+    ],
+    ids=["id-and-times-only", "rm-state"],
+)
+def test_only_a_statuss_id_and_times_are_left_out(replica, differs):
+    """#4295: a replayed status has its own id; every other field compares."""
+    manager = _status(RM.VALID)
+
+    assert (
+        ledger_rebuild._participant(_with_status(replica))
+        != ledger_rebuild._participant(_with_status(manager))
+    ) is differs
+
+
 def test_creation_records_stop_at_the_first_act():
     """Only the leading creation entries seed the store; acts are replayed."""
     case = VulnerabilityCase(
@@ -234,6 +286,16 @@ def test_the_scenario_check_skips_a_network_with_no_entries():
 
     assert net.rebuild_seed is None
     rebuild_every_network([net])
+
+
+def test_the_scenario_check_refuses_entries_with_no_seed():
+    """A network that committed entries but captured no seed is not skipped."""
+    net, _ = _negotiated("check-no-seed")
+    net._seed = None
+
+    with pytest.raises(AssertionError, match="no rebuild seed"):
+        rebuild_every_network([net])
+    net.bypass_ledger()  # the test's own break; skip the autouse check
 
 
 class _Item:

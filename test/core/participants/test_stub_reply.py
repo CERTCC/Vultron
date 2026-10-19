@@ -30,11 +30,13 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.participants.stub_reply import (
     apply_stub_reject,
+    stub_accept_consent,
     stub_reject_consent,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.errors import VultronEntryRefusedError
 
 CASE_ID = "https://example.org/cases/stub-reply"
 INVITEE = "https://example.org/actors/invitee"
@@ -96,3 +98,28 @@ def test_a_reject_that_moves_no_row_changes_nothing(case, held):
 
     assert stub_reject_consent(case, record) is record
     assert apply_stub_reject(case, record, PUBLISHED) is None
+
+
+_STATED = pytest.mark.parametrize(
+    "stated",
+    [stub_accept_consent, stub_reject_consent],
+    ids=["accept", "reject"],
+)
+
+
+@_STATED
+def test_a_reply_for_a_record_the_case_does_not_index_is_refused(stated):
+    case = _case()
+    case.actor_participant_index[INVITEE] = f"{CASE_ID}/participants/other"
+
+    with pytest.raises(
+        VultronEntryRefusedError, match="no participant record"
+    ):
+        stated(case, _record(_S.INVITED))
+
+
+@_STATED
+def test_a_reply_for_a_record_attributed_to_no_actor_moves_no_row(stated):
+    record = _record(_S.INVITED).model_copy(update={"attributed_to": None})
+
+    assert stated(_case(), record) is record
