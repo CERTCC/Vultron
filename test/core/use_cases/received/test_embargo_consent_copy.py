@@ -25,6 +25,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import committed_event_types, fail_commits
+from test.support.ledger_rebuild import received_event
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -53,7 +54,6 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.errors import VultronEntryRefusedError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
@@ -384,9 +384,7 @@ class TestReplicaCopies:
         assert (
             net.receive_event(
                 BYSTANDER,
-                extract_event(seed).model_copy(
-                    update={"receiving_actor_id": BYSTANDER}
-                ),
+                received_event(seed, BYSTANDER),
             ).disposition
             is HandlerDisposition.APPLIED
         )

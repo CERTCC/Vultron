@@ -341,6 +341,12 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    still passes
    `transition_mode=TransitionMode.OBSERVED`: a paused replica applying a
    CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
+   Two checks hold this: `test/architecture/test_embargo_replica_slots_copy.py`
+   keeps every replica embargo slot, and every helper it reaches, free of
+   lifecycle calls, and every per-actor-store scenario and exchange demo is
+   rebuilt from the CASE_MANAGER's ledger into an empty store and compared
+   (`test/support/ledger_rebuild.py`). A test that writes the CASE_MANAGER's
+   store outside the ledger on purpose calls `LedgerNetwork.bypass_ledger()`.
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
 6. **Read EM in an action node through `read_case_em_state()`** beside

@@ -26,9 +26,19 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
+import vultron.demo.utils as demo_utils
+from test.support.ledger import ledger_entries
+from test.support.ledger_rebuild import (
+    assert_rebuilds_from_ledger,
+    replica_actor,
+)
+from vultron.adapters.driven.datalayer_sqlite import get_all_actor_datalayers
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain, runner, workflow
 from vultron.demo.utils import DataLayerClient
+from vultron.errors import VultronError
 
 # Names the invite chain (``vultron.demo.helpers.invite_chain``) calls itself.
 _CHAIN_OWNED = frozenset({"find_case_invite_for_actor"})
@@ -251,6 +261,95 @@ def stub_closure_gate() -> Iterator[MagicMock]:
         yield wait
 
 
+#: Each case an exchange demo left behind that did not rebuild from its
+#: ledger, as a message; checked after every demo test (``conftest``).
+REBUILD_FAILURES: list[str] = []
+
+#: Each case the check rebuilt, with its ledger's event types, so a test can
+#: see what it covered.
+REBUILT_CASES: list[tuple[str, list[str]]] = []
+
+
+def _managed_cases() -> Iterator[tuple[Any, str]]:
+    """``(store, case id)`` for every case a hosted actor manages."""
+    for actor_id, dl in get_all_actor_datalayers().items():
+        for case in dl.list_objects("VulnerabilityCase"):
+            if not isinstance(case, VulnerabilityCase):
+                continue
+            try:
+                manager_id = resolve_case_manager_id(case, dl)
+            except VultronError:
+                continue  # a case this store names no CASE_MANAGER for
+            if (
+                manager_id == actor_id
+                and ledger_entries(dl, case.id_)
+                and replica_actor(dl, case.id_) is not None
+            ):
+                yield dl, case.id_
+
+
+def _multi_party_cases() -> set[str]:
+    """The id of every case a hosted store holds seating more than one actor.
+
+    Each such case has a replica, so its ledger must rebuild it: one the
+    check passes over is a gap, not a case with nothing to replicate.
+    """
+    return {
+        case.id_
+        for dl in get_all_actor_datalayers().values()
+        for case in dl.list_objects("VulnerabilityCase")
+        if isinstance(case, VulnerabilityCase)
+        and len(case.actor_participant_index) > 1
+    }
+
+
+def check_cases_rebuild_from_their_ledgers() -> None:
+    """Rebuild every managed case from its ledger alone (#4294 AC-5).
+
+    Run each time the demo clears the node, before it does.  A case whose
+    rebuild differs from its CASE_MANAGER's, or fails in any other way, is
+    recorded in :data:`REBUILD_FAILURES` rather than raised, because the demo
+    runner would log a raise as a failed demo and hide the difference.  So
+    is each multi-party case held on the node that is not rebuilt
+    (:func:`_multi_party_cases`): one :func:`_managed_cases` passed over
+    would otherwise pass unchecked.
+    Logging is silenced while it runs: the rebuild's own log lines are not
+    the demo's, and the demo tests fail on any ERROR they capture.
+    """
+    previous_level = logging.root.manager.disable
+    logging.disable(logging.CRITICAL)
+    try:
+        managed = list(_managed_cases())
+        rebuilt = {case_id for _dl, case_id in managed}
+        REBUILD_FAILURES.extend(
+            f"'{case_id}': a multi-party case is held, but not rebuilt: no"
+            " hosted CASE_MANAGER holds it with a ledger and a replica"
+            for case_id in sorted(_multi_party_cases() - rebuilt)
+        )
+        for dl, case_id in managed:
+            REBUILT_CASES.append(
+                (
+                    case_id,
+                    [str(e.event_type) for e in ledger_entries(dl, case_id)],
+                )
+            )
+            try:
+                assert_rebuilds_from_ledger(dl, case_id)
+            except Exception as exc:  # noqa: BLE001 — recorded, then failed
+                REBUILD_FAILURES.append(
+                    f"'{case_id}': {type(exc).__name__}: {exc}"
+                )
+    finally:
+        logging.disable(previous_level)
+
+
+def assert_no_rebuild_failures() -> None:
+    """Fail with every recorded rebuild failure, and clear the record."""
+    failures = list(REBUILD_FAILURES)
+    REBUILD_FAILURES.clear()
+    assert not failures, "\n\n".join(failures)
+
+
 @contextlib.contextmanager
 def route_exchange_demo_at_testclient(
     client: TestClient, demo: ModuleType, *also: ModuleType
@@ -268,6 +367,11 @@ def route_exchange_demo_at_testclient(
     ``BASE_URL`` must point at the same server; each is patched like *demo* and
     reloaded on exit.
 
+    Each time the demo clears the node, at its setup as well as its teardown,
+    every case a hosted actor manages is first rebuilt from its ledger alone
+    and compared with the CASE_MANAGER's
+    (:func:`check_cases_rebuild_from_their_ledgers`, #4294 AC-5).
+
     Every patch is undone on exit and *demo* and each of *also* is reloaded, so
     nothing leaks into later modules.
     """
@@ -280,6 +384,19 @@ def route_exchange_demo_at_testclient(
             demo.DataLayerClient, "call", make_testclient_call(client, base)
         )
         mp.setattr(runner, "DataLayerClient", lambda: make_client(base))
+        reset = demo_utils.reset_datalayer
+
+        def _check_then_reset(client: DataLayerClient) -> dict:
+            try:
+                check_cases_rebuild_from_their_ledgers()
+            finally:
+                result = reset(client=client)
+            return result
+
+        # Every exchange demo sets up and tears down through
+        # ``demo_environment``, which clears the node with this function:
+        # check the cases first.
+        mp.setattr(demo_utils, "reset_datalayer", _check_then_reset)
         yield base
     finally:
         mp.undo()

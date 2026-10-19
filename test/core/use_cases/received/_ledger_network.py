@@ -21,7 +21,6 @@ CASE_MANAGER's state, from the ``Announce(CaseLedgerEntry)`` broadcast alone
 (RSH-08-004, ADR-0108).
 """
 
-import inspect
 from typing import Any, cast
 
 from test.support.embargo_register import (
@@ -29,18 +28,19 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.ledger import ledger_entries
+from test.support.ledger_rebuild import (
+    assert_rebuilds_from_ledger,
+    received_event,
+    run_use_case,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.inbox_hand_back_adapter import (
-    InboxHandBackAdapter,
-)
-from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -49,10 +49,7 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event, use_case_map
 from vultron.wire.as2.parser import parse_activity
-from vultron.wire.as2.rehydration import rehydrate
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 from .conftest import make_embargo_case_with_actor
 
@@ -65,11 +62,9 @@ OWNER = "https://example.org/users/vendor-a"
 BYSTANDER = "https://example.org/users/vendor-b"
 
 
-def _received_event(activity: Any, receiver: str) -> Any:
-    """The event the inbox routes for *activity* delivered to *receiver*."""
-    return extract_event(activity).model_copy(
-        update={"receiving_actor_id": receiver}
-    )
+#: Every network built in the current test, for the rebuild check
+#: (``conftest._every_network_rebuilds_from_its_ledger``).
+NETWORKS: list["LedgerNetwork"] = []
 
 
 class LedgerNetwork:
@@ -129,6 +124,14 @@ class LedgerNetwork:
         manager_dl.save(owner_participant)
         self.initial_embargo_id = embargo.id_
         self.stores: dict[str, SqliteDataLayer] = {MANAGER: manager_dl}
+        #: The case file as it stood before the first ledger entry, the seed
+        #: a rebuild from the ledger starts from (``rebuild_seed``).
+        self._seed: list[CoreObject] | None = None
+        #: Set by a test that writes the CASE_MANAGER's store outside the
+        #: ledger on purpose (``bypass_ledger``); its rebuild is not checked.
+        self.ledger_bypassed = False
+        self._capture_seed_at_first_entry(manager_dl)
+        NETWORKS.append(self)
         replicated = [
             case_id,
             embargo.id_,
@@ -143,6 +146,51 @@ class LedgerNetwork:
             self.stores[actor_id] = replica
         self._delivered: set[tuple[str, str]] = set()
 
+    def _capture_seed_at_first_entry(
+        self, manager_dl: SqliteDataLayer
+    ) -> None:
+        """Copy the case file just before the first entry is committed.
+
+        The tests build the case outside the ledger and then adjust it (roles,
+        RM, rows) before the scenario starts, so the seed is taken when the
+        ledger starts, not when the network is built.
+        """
+        save = manager_dl.save
+
+        def _save(obj: Any, *args: Any, **kwargs: Any) -> Any:
+            if self._seed is None and isinstance(obj, CaseLedgerEntry):
+                self._seed = self._case_file_records(manager_dl)
+            return save(obj, *args, **kwargs)
+
+        manager_dl.save = _save  # type: ignore[method-assign]
+
+    def _case_file_records(self, dl: SqliteDataLayer) -> list[CoreObject]:
+        case = cast(VulnerabilityCase, dl.read(self.case_id))
+        ids = [
+            self.case_id,
+            *(str(p) for p in case.actor_participant_index.values()),
+            *(str(_as_id(e.embargo)) for e in case.embargo_register),
+        ]
+        records = (dl.read(record_id) for record_id in ids)
+        return [
+            cast(CoreObject, r).model_copy(deep=True)
+            for r in records
+            if r is not None
+        ]
+
+    @property
+    def rebuild_seed(self) -> list[CoreObject] | None:
+        """The case file before the first entry, or ``None`` with no entries."""
+        return self._seed
+
+    def bypass_ledger(self) -> None:
+        """Declare that this test writes the CASE_MANAGER's store directly.
+
+        Such a test sets up a state no entry records, so a store rebuilt from
+        the ledger cannot equal it; the rebuild check skips the network.
+        """
+        self.ledger_bypassed = True
+
     def receive(
         self,
         receiver: str,
@@ -154,7 +202,7 @@ class LedgerNetwork:
 
         *without* names ports the receiver is composed without.
         """
-        event = _received_event(parse_activity(body), receiver)
+        event = received_event(parse_activity(body), receiver)
         return self.receive_event(receiver, event, without=without)
 
     def receive_event(
@@ -164,33 +212,8 @@ class LedgerNetwork:
         *,
         without: frozenset[str] = frozenset(),
     ):
-        """Run the use case for an already-extracted *event* at *receiver*.
-
-        Then delivers whatever the run handed back to *receiver*'s own inbox
-        (SYNC-14-009), oldest first, as the inbox loop does after a delivery;
-        the returned verdict is the first delivery's own.
-        """
-        dl = self.stores[receiver]
-        use_case = use_case_map()[event.semantic_type]
-        offered: dict[str, Any] = {
-            "sync_port": SyncActivityAdapter(dl),
-            "trigger_activity": TriggerActivityAdapter(dl),
-            "wire_render_port": As2WireRenderAdapter(),
-            "inbox_hand_back": InboxHandBackAdapter(dl),
-        }
-        accepted = inspect.signature(use_case).parameters
-        ports = {
-            k: v
-            for k, v in offered.items()
-            if k in accepted and k not in without
-        }
-        verdict = use_case(dl, event, **ports).execute()
-        while (queued_id := dl.inbox_pop()) is not None:
-            handed_back = _received_event(
-                cast(as_Activity, rehydrate(queued_id, dl=dl)), receiver
-            )
-            self.receive_event(receiver, handed_back, without=without)
-        return verdict
+        """Run the use case for an already-extracted *event* at *receiver*."""
+        return run_use_case(self.stores[receiver], event, without=without)
 
     def queued(self, sender: str, *, to: str, type_: str | None = None):
         """*sender*'s outbox items addressed to *to*, oldest first."""
@@ -240,4 +263,28 @@ class LedgerNetwork:
     def case(self, actor_id: str) -> VulnerabilityCase:
         return cast(
             VulnerabilityCase, self.stores[actor_id].read(self.case_id)
+        )
+
+
+def rebuild_every_network(networks: list[LedgerNetwork]) -> None:
+    """Rebuild each network's case from its CASE_MANAGER's ledger (#4294 AC-5).
+
+    A network with no entries has nothing to rebuild, and one whose test
+    wrote the CASE_MANAGER's store outside the ledger (``bypass_ledger()``)
+    cannot be; every other must equal the CASE_MANAGER's, rebuilt as
+    ``BYSTANDER`` from the case as it stood before the first entry.
+    """
+    for net in networks:
+        seed = net.rebuild_seed
+        if net.ledger_bypassed:
+            continue
+        if seed is None:
+            # No seed means no entry was committed; a ledger that holds one
+            # anyway would skip the check silently.
+            assert not ledger_entries(net.stores[MANAGER], net.case_id), (
+                f"case '{net.case_id}' has ledger entries but no rebuild seed"
+            )
+            continue
+        assert_rebuilds_from_ledger(
+            net.stores[MANAGER], net.case_id, as_actor=BYSTANDER, seed=seed
         )

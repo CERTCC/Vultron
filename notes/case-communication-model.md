@@ -271,11 +271,11 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 | `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed; a no-op when the seed is past it, else refuses it into the gap buffer |
 | `activate_embargo_on_case` (owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | copies the `ACTIVATE` step (B `ACTIVE`, A `SUPERSEDED`) and the owner's `AGREED` row; each `CARRY_OVER` row follows as its own `update_embargo_consent` |
 | `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | copies the `REJECT` step: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent. A no-op when the CASE_MANAGER answered it with ET (EMB-04-002): the teardown entry that follows cancels B. The replica decides that skip itself, a tracked deviation from CM-23-016 until #4850 (MSM-07-009) |
-| `invite_to_embargo_on_case_expired` | `InviteExpiry` | invitee PEC `TIME_OUT` on that invitation's row; no deadline re-evaluated (CM-28-014) |
-| `honour_late_accept_invite_to_embargo_on_case` | `InviteHonourLateAccept` | `TIMED_OUT → AGREED` or `DECLINED → AGREED` (EMB-17-001, EMB-17-002) |
+| `invite_to_embargo_on_case_expired` | `InviteExpiry` | records the act only; the `TIMED_OUT` row follows as its own `update_embargo_consent`, and no deadline is re-evaluated (CM-28-014) |
+| `honour_late_accept_invite_to_embargo_on_case` | `InviteHonourLateAccept` | records the act only; the `AGREED` row (from `TIMED_OUT` or `DECLINED`) follows as its own `update_embargo_consent` (EMB-17-001, EMB-17-002) |
 | `invite_to_embargo_on_case_expired_noop` | `InviteExpiryNoop` | no PEC change (EMB-17-004) |
 | `invite_to_embargo_on_case_reinvite` (no `attributedTo`) | `EmbargoReinvite` | stores B; the invitee's `INVITED` row and deadline follow; no EM change (EMB-17-003) |
-| `remove_embargo_event_from_case` | teardown | unchanged |
+| `remove_embargo_event_from_case` | `EmbargoTeardown` | copies the `TERMINATE` step for the embargo the entry names, with the `CANCEL` of every open proposal (EP-08-004); writes no row (MSM-07-006); an entry naming an embargo not in force here changes nothing |
 
 - A proposal and a relay share one event type; `is_relayed_embargo_invite()` reads a
   relay only when `actor` is the case's CASE_MANAGER and `attributedTo` names someone
@@ -287,6 +287,10 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   rebuild the embargo fails, blocking persistence (SYNC-12-001).
 - `test/architecture/test_embargo_relay_entries_are_replayed.py` is the ratchet;
   `test_embargo_relay_replay.py` drives the cycle across per-actor stores.
+  `test/architecture/test_embargo_replica_slots_copy.py` keeps every slot above
+  free of lifecycle logic, and every per-actor-store scenario is rebuilt from the
+  CASE_MANAGER's ledger into an empty store when it ends
+  (`test/support/ledger_rebuild.py`, #4294).
 
 ---
 

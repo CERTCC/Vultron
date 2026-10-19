@@ -250,7 +250,9 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 
 - The CASE_MANAGER and the replica apply the same writes
   (`core/participants/stub_reply.py`), storing what the entry carries; the replica
-  derives nothing (ADR-0103, CLP-15-007).
+  derives nothing (ADR-0103, CLP-15-007). The consent row each reply states
+  (`joiner_agreement`, `joiner_decline`) is written through the one apply function,
+  never by a consent transition on the replica's own row (CM-23-016, #4718).
 - Entries are built from the objects the CASE_MANAGER stored, so ids and times match.
 - The Accept's VF status is committed after the announce and backfill, so it reaches
   the invitee after its case seed (#2898). Replay from genesis may run over a seed that

@@ -133,6 +133,57 @@ The protocol-level view of consent is in [§9.2 Transitions and Guards in the sp
 
 ---
 
+## What each act commits
+
+Every change the case manager makes to the embargo register or to a consent row is recorded in the case ledger before the case changes (CLP-07-013, [ADR-0124](../../../adr/0124-case-is-a-projection-of-its-ledger.md)).
+One ledger entry records one activity and its object.
+An act therefore commits its own entry first.
+Each other object the act changes then follows as its own case manager entry, in the order the case manager changes them.
+For embargo acts, those other objects are consent rows.
+Each is a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoConsent)` for a changed one, and it carries the row in full.
+A register change is never an entry of its own: the act's own activity carries it.
+
+The case manager makes every decision before the first commit: who is invited, which signatories carry over, which proposals a termination cancels.
+It checks the whole act against a copy of the case, commits the entries, and only then writes the case.
+A refused act commits nothing.
+An act whose entry fails to commit changes nothing.
+
+| Act | What the act's own entry records | What follows, one entry per row |
+|---|---|---|
+| Proposal or revision, `Invite(Event)` on the case | the new embargo, now proposed | a `Create(EmbargoConsent)` for every Participant: the proposer's row `AGREED`, because proposing terms is consenting to them, and every other row `UNINVITED` |
+| Relayed invitation, `Invite(Event)` to one Participant | no register change | an `Update(EmbargoConsent)` moving the invitee's row to `INVITED`, with its respond-by deadline (CM-28-013) |
+| Case manager's policy answer to a proposal | no register change | an `Update(EmbargoConsent)` for the case manager's own row, `AGREED` or `DECLINED` |
+| Participant's answer, `Accept` or `Reject` of `Invite(Event)` | the row the answer states, `AGREED` or `DECLINED` | nothing: the answer is that row's entry |
+| Owner's activation, `Accept(Event, target=Case)` | the activation, the supersession of the embargo it replaces, and the owner's own `AGREED` row | an `Update(EmbargoConsent)` for each signatory carried over to terms that end no later (EP-05-001) |
+| Owner's rejection, `Reject(Event, target=Case)` | the rejected proposal | nothing |
+| Abandonment once the case is public, one ER per open proposal | the canceled proposal | nothing |
+| Withdrawal, `Leave(Event)` | no register change | an `Update(EmbargoConsent)` moving the withdrawing Participant's row for the embargo in force to `DECLINED`, and one for each open revision it had agreed to (MSM-07-010) |
+| Termination, `Remove(Event, origin=Case)` | the end of the embargo in force and the cancellation of every open proposal (EP-08-004) | nothing: a termination writes no consent row (MSM-07-006) |
+| Invitation deadline passes | the expiry of that invitation (CM-28-009) | an `Update(EmbargoConsent)` moving the row to `TIMED_OUT` |
+| Late `Accept` of the current embargo | the decision to honor it | an `Update(EmbargoConsent)` moving the row to `AGREED` |
+| Late `Accept` of a superseded embargo | the fresh invitation | an `Update(EmbargoConsent)` moving the row to `INVITED`, with its deadline |
+| Late `Accept` of an embargo the case no longer has | the case manager's `Ignore` of it | nothing |
+| Stub invitation re-sent after the embargo changed | the replacement invitation | an `Update(EmbargoConsent)` moving the invitee's row for the embargo in force to `INVITED`; with no embargo in force, nothing |
+
+A Participant joining through its stub invitation agrees to the embargo in force with that same `Accept`, so the joiner's `AGREED` row has no entry of its own either.
+
+Every replica, and the case manager itself, writes each register step and consent row an entry carries by copying it through one shared apply function (CM-23-016).
+That includes the row a Participant's own answer states, such as a joiner's `AGREED` or `DECLINED` row from its reply to the stub invitation.
+That function checks that the entry fits the case as it stands, then writes what the entry carries.
+It runs no embargo lifecycle logic, creates no ids, and reads no clock.
+
+An entry that does not fit is held as a gap until the missing entries arrive, never patched over.
+The result is that a store rebuilt from the case manager's ledger alone holds the same participant records, consent rows and embargo register as the case manager.
+
+Two limits apply today.
+The `Remove` entry carries what ended the embargo, `EARLY` or `END_TIME_REACHED`, but not the structured cause behind an early end, such as a threat signal.
+A replica therefore records that termination as `EARLY` with no cause.
+When the owner rejects the last open revision after the case went public, the case manager answers with a termination instead (EMB-04-002).
+A replica then skips the `Reject` entry, because the `Remove` that follows cancels the revision.
+Deciding that skip is the one place a replica decides what an entry changes rather than copying it.
+
+---
+
 ## The condition that overrides everything
 
 If the vulnerability is public, an exploit is public, or attacks have been observed, there is nothing left to embargo.

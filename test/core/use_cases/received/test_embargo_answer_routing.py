@@ -189,6 +189,8 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
     revision = _propose(net, "late", 90)
     _deliver_all(net, BYSTANDER)
     net.deliver(MANAGER, to=OWNER, type_="Invite")
+    # P/X/A is set in every store directly, with no entry recording it.
+    net.bypass_ledger()
     for actor_id in (MANAGER, OWNER, BYSTANDER):
         dl = net.stores[actor_id]
         case = cast(VulnerabilityCase, dl.read(net.case_id))
@@ -303,6 +305,8 @@ def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
     # A signatory's consent survives a revision Invite (EP-09-004), so seed an
     # invitee that has not yet signed, everywhere; only the manager's record
     # holds a passed deadline.
+    # The rows are seeded outside the ledger, so no rebuild reaches them.
+    net.bypass_ledger()
     for actor_id in (MANAGER, OWNER):
         dl = net.stores[actor_id]
         participant = cast(CaseParticipant, dl.read(bystander_pid))
@@ -369,6 +373,8 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
     body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
     assert body is not None
+    # The rows are seeded outside the ledger, so no rebuild reaches them.
+    net.bypass_ledger()
     for actor_id in (MANAGER, OWNER):
         dl = net.stores[actor_id]
         participant = cast(CaseParticipant, dl.read(bystander_pid))
@@ -503,6 +509,8 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
     # (INVITED → TIMED_OUT via expiry, TIMED_OUT → AGREED via honour).
     # Pre-seeding TIMED_OUT would cause the relay-invite replay to revert it to
     # INVITED (INVITE is legal from TIMED_OUT), creating an ordering hazard.
+    # The rows are seeded outside the ledger, so no rebuild reaches them.
+    net.bypass_ledger()
     for actor_id in (MANAGER, OWNER):
         dl = net.stores[actor_id]
         participant = cast(CaseParticipant, dl.read(bystander_pid))
@@ -555,6 +563,8 @@ def _late_accept_on_an_exited_embargo(
     # state (embargo_in_force=False → all participants are recipients), and
     # the expiry/noop replay nodes on OWNER's store have no EM dependency.
     # BYSTANDER's store keeps the original state — it is the sender, not the judge.
+    # The termination is written outside the ledger, so no rebuild reaches it.
+    net.bypass_ledger()
     dl_mgr = net.stores[MANAGER]
     case_mgr = net.case(MANAGER)
     terminate(case_mgr)
