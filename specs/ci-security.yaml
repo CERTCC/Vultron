@@ -125,10 +125,10 @@ groups:
       combination of both labels MUST uniquely identify the open failure issue
       for a specific workflow, enabling the composite action to find and update
       rather than duplicate. Within a workflow, exactly one job MUST run the
-      notify step and the close step for its workflow-specific label; a
-      workflow with more than one job MUST run them once, from a final job that
-      `needs:` every other job and keys on the `needs.*.result` aggregate
-      (CISEC-05-002, CISEC-05-006).
+      notify step and the close step for its workflow-specific label; when
+      more than one job can run in the same workflow run, that job MUST be a
+      final job that `needs:` every other job that can run in it and keys on
+      the `needs.*.result` aggregate (CISEC-05-002, CISEC-05-006).
     rationale: >-
       The close step closes every open issue carrying both labels. When several
       jobs each run a notify/close pair under the same label, a job that passes

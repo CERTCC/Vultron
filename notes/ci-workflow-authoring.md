@@ -6,8 +6,9 @@ description: >
   Pitfalls when writing or reading GitHub Actions workflows and the YAML that
   drives them: PyYAML's bare `on:` key, matrix booleans coerced to strings,
   `actionlint` and block-scalar indentation, single-quoted apostrophes, the
-  mandatory `notify-failure` wiring and its one-job-per-label rule, why a `GITHUB_TOKEN`-raised event never
-  triggers another workflow, and how to read a red CI job correctly.
+  mandatory `notify-failure` wiring and its one-job-per-label rule, why a
+  `GITHUB_TOKEN`-raised event never triggers another workflow, and how to read a
+  red CI job correctly.
 related_notes:
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
@@ -41,8 +42,9 @@ CISEC-05-002).
 
 Only one job per workflow runs that pair. The close step closes every open issue
 carrying the label, so a passing job closes the issue a sibling job just filed.
-A workflow with several jobs adds a final `notify` job that `needs:` all of them
-and keys on `needs.*.result`, as `python-app.yml` does (CISEC-05-003, #4229).
+When several jobs can run in the same run, the pair moves to a final `notify` job
+that `needs:` all of them and keys on `needs.*.result`, as `python-app.yml` does
+(CISEC-05-003).
 
 The workflow MUST grant `issues: write` (CISEC-02-002). A root-level
 `permissions: contents: read` block MUST become a map that also lists

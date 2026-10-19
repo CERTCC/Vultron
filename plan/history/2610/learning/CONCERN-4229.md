@@ -25,7 +25,7 @@ Medium. A red `main` can be reported and then silently auto-closed.
 
 ## Evidence
 
-On a push to main where `spec-lint` fails and `spec-tests` passes: `spec-lint`'s notify step files "CI failure: Spec Check", and `spec-tests`'s close step (`if: success()`) then closes every open issue with that label pair. Which happens last depends on job completion order. The spec review of PR #4228 (#4199) surfaced this. That PR's new workflow, `verification-debt-owners.yml`, avoids the pattern by giving its job its own label.
+On a push to main where `spec-lint` fails and `spec-tests` passes: `spec-lint`'s notify step files "CI failure: Spec Check", and `spec-tests`'s close step (`if: success()`) then closes every open issue with that label pair. Which happens last depends on job completion order. The spec review of PR #4228 (#4199) surfaced this. That PR's new workflow, `verification-debt-owners.yml`, avoids the pattern by running its notify/close pair in only one of its two jobs.
 
 ## Impact if Ignored
 
