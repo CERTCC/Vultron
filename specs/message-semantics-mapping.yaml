@@ -495,13 +495,15 @@ groups:
     priority: MUST
     kind: project
     statement: The note lifecycle MUST realize protocol shorthand `GI` (General Inquiry) as
-      `MessageSemantics.ADD_NOTE_TO_CASE` and `MessageSemantics.REMOVE_NOTE_FROM_CASE`; their AS2 wire forms are
-      `Add(Note)[target=VulnerabilityCase]` per VAM-07-002 and `Remove(Note)[target=VulnerabilityCase]` per VAM-07-003.
+      `MessageSemantics.ADD_NOTE_TO_CASE` and `MessageSemantics.REMOVE_NOTE_FROM_CASE`;
+      their AS2 wire forms are `Add(Note)[target=VulnerabilityCase]` per VAM-07-002
+      and `Remove(Note)[target=VulnerabilityCase]` per VAM-07-003.
       A received `Create(Note)` is not a protocol message (VAM-01-011).
       These are not the whole of `GI` — MSM-04-002 adds the actor-suggestion exchange.
     rationale: '`GI` is defined in the formal protocol as any message conveying non-state-change information, so it is
-      inherently one-to-many on the wire. The `Add` and `Remove` split is a wire-layer artifact with no formal counterpart:
-      the formal set models the inquiry, not the object lifecycle that carries it.'
+      inherently one-to-many on the wire. The `Add` and `Remove` split is a wire-layer
+      artifact with no formal counterpart: the formal set models the inquiry, not the
+      object lifecycle that carries it.'
     verification: >-
       Inspection of `vultron/semantic_registry/note.py` confirms both
       note-scoped entries are registered, and that no single `MessageSemantics`
@@ -563,8 +565,8 @@ groups:
     kind: protocol
     statement: 'Fault reporting MUST be partitioned by failure mode rather than by state machine, using exactly three
       mechanisms: `Create(ProcessingFault)` when a message was received but not understood; `as:Reject` when a message was
-      received and understood but declined; and `Add(Note)[target=VulnerabilityCase]` when the condition requires narrative
-      explanation.'
+      received and understood but declined; and `Add(Note)[target=VulnerabilityCase]`
+      when the condition requires narrative explanation.'
     rationale: 'Failure mode is actionable to a receiver in a way that originating state machine is not. Not-understood calls
       for a format or version fix, declined calls for a protocol-level decision, and needs-explanation calls for a human. The
       formal RE, EE, CE and GE partition carries no such signal, which is why it was not reproduced.'
