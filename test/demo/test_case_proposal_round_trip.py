@@ -646,19 +646,32 @@ class TestCaseProposalDemo:
             + caplog.text
         )
 
-    def test_a_failed_check_is_reported(self, demo_env, caplog, monkeypatch):
+    @pytest.mark.parametrize(
+        "received_accepts",
+        [
+            [],
+            [{"type": "Accept", "object": {"type": "Offer", "id": "urn:x"}}],
+        ],
+        ids=["no-accept", "accept-of-another-object"],
+    )
+    def test_a_failed_check_is_reported(
+        self, demo_env, caplog, monkeypatch, received_accepts
+    ):
         """A failed demo_check fails the run, not just its log line (#4884).
 
-        With no Accept(CaseProposal) received, the Accept check fails; the
-        run must report it in the error summary, which is what the success
-        test above asserts is absent.
+        With no Accept of a CaseProposal received — none at all, or only an
+        Accept of something else — the Accept check fails; the run must
+        report it in the error summary, which is what the success test above
+        asserts is absent.
         """
         import logging
 
         from vultron.demo.exchange import case_proposal_demo as demo
 
         monkeypatch.setattr(
-            demo, "read_received_activities", lambda *_a, **_kw: []
+            demo,
+            "read_received_activities",
+            lambda *_a, **_kw: received_accepts,
         )
         with caplog.at_level(logging.WARNING):
             demo.main(

@@ -102,6 +102,8 @@ def demo_case_proposal_round_trip(
         reporter: The reporter actor (report originator).
         vendor: The vendor actor (receives the report, hosts the
             case-actor service).
+        coordinator: Unused; accepted so the demo takes the standard
+            exchange-demo arguments :func:`run_exchange_demos` passes.
     """
     # Step 1: through the reporter's own submit-report trigger, which writes
     # the anchor the vendor's case introduction is checked against

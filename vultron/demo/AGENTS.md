@@ -33,10 +33,10 @@ including via `post_to_inbox_and_wait`. Delivery is the transport's job; carryin
 the mail means the outbox→delivery→inbox path is never exercised and demo CI
 proves nothing end-to-end. Poll the effect instead
 (`wait_for_case_on_container`, `find_case_invite_for_actor`; a received activity
-via `wait_for_received_activity`, DL-06-006). A timing-out poll is a delivery bug to
-investigate, not a workaround to write. Scope: `vultron/demo/scenario/` plus the
-`vultron/demo/helpers/` code it calls (#3980); `vultron/demo/exchange/` demos drive
-one backend directly and use `post_to_inbox_and_wait` as their normal mechanism.
+via `wait_for_received_activity`, DL-06-006). A reliably-timing-out poll is a
+delivery bug to investigate, not a workaround to write. Scope: `vultron/demo/scenario/`
+plus the `vultron/demo/helpers/` code it calls (#3980); `vultron/demo/exchange/` demos
+drive one backend directly and use `post_to_inbox_and_wait` as their normal mechanism.
 
 There is **no self-delivery exception**: an actor does not POST to its own inbox to
 update its own replica either. Activities route through the CaseActor, whose

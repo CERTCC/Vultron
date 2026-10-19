@@ -615,6 +615,17 @@ def received_activity_in(record: dict) -> dict:
     return activity
 
 
+def served_field(obj: dict, wire_key: str, field_name: str) -> object:
+    """*obj*'s field served as *wire_key* or, failing that, as *field_name*.
+
+    The store route serves a stored object's own fields under their wire
+    (camelCase) names, but the objects nested in an archive record's activity
+    under their field names (``case_id``), so a reader that may get either
+    shape reads both.  The wire name wins when both are present.
+    """
+    return obj[wire_key] if wire_key in obj else obj.get(field_name)
+
+
 def _received_activity_records(
     client: DataLayerClient, actor_id: str | None
 ) -> dict:
@@ -634,6 +645,11 @@ def read_received_activity(
     (:meth:`ReceivedActivityRecord.build_id`).  A row stored under the sender's
     id is never read: ingress writes one today, but a receiver holds no
     received activity under the sender's id (DL-06-006).
+
+    Unlike the core
+    :func:`~vultron.core.use_cases._helpers.read_received_activity`, which
+    falls back to that row for an activity the inbox deferred and raises when
+    nothing is held, this reads the record only and returns ``None``.
 
     Args:
         client: DataLayerClient for the receiving actor's container.

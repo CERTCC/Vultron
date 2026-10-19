@@ -48,6 +48,7 @@ from vultron.demo.utils import (
     read_received_activity,
     read_stored_of_types,
     received_activity_in,
+    served_field,
 )
 from vultron.enums.object_types import VultronObjectType
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -909,7 +910,7 @@ def _stub_case_id(stub: dict) -> object:
     field names (``case_id``); a bare activity row serves them under their
     wire names (``caseId``).
     """
-    return stub["caseId"] if "caseId" in stub else stub.get("case_id")
+    return served_field(stub, "caseId", "case_id")
 
 
 def _is_case_invite_for(
@@ -2423,8 +2424,8 @@ def wait_for_case_attributed_to(
         case_data = client.get(client.dl_path(case_id))
         if not isinstance(case_data, dict):
             return False
-        attributed_to = case_data.get("attributedTo") or case_data.get(
-            "attributed_to"
+        attributed_to = served_field(
+            case_data, "attributedTo", "attributed_to"
         )
         if isinstance(attributed_to, dict):
             attributed_to = attributed_to.get("id") or attributed_to.get("id_")
