@@ -19,8 +19,8 @@ rebuilt before its node is cleared (``test/demo/_helpers.py``).  These tests
 show the check is not vacuous: it reaches the CASE_MANAGER's state through a
 whole embargo cycle, it catches a change no entry records,
 it fails on a missing entry, it compares every participant status and case
-status whole, ids and times included (#4295), and its one embargo exclusion
-(#4748) hides only the termination's cause.
+status whole, ids and times included (#4295), and it compares the embargo
+register whole, each termination's cause included (EMB-13-005).
 """
 
 from datetime import UTC, datetime
@@ -159,22 +159,23 @@ def _terminated(cause: bool, reason: TerminationReason) -> VulnerabilityCase:
     )
 
 
+@pytest.mark.spec("EMB-13-005")
 @pytest.mark.parametrize(
-    "replica, differs",
+    "replica",
     [
-        (_terminated(False, TerminationReason.EARLY), False),
-        (_terminated(False, TerminationReason.END_TIME_REACHED), True),
+        _terminated(False, TerminationReason.EARLY),
+        _terminated(False, TerminationReason.END_TIME_REACHED),
     ],
-    ids=["cause-only", "reason"],
+    ids=["cause", "reason"],
 )
-def test_only_the_termination_cause_is_left_out(replica, differs):
-    """#4748: the replica slot does not copy the cause yet, though the
-    ``Remove`` carries it (EMB-13-005); the reason is still compared."""
+def test_a_termination_difference_is_caught(replica):
+    """A replica must copy the cause the ``Remove`` carries as well as the
+    reason (EMB-13-005), so a missing cause is a difference too."""
     manager = _terminated(True, TerminationReason.EARLY)
 
-    assert (
-        ledger_rebuild._register(replica) != ledger_rebuild._register(manager)
-    ) is differs
+    assert ledger_rebuild.register_rows(replica) != (
+        ledger_rebuild.register_rows(manager)
+    )
 
 
 _STATUS_CASE = "https://example.org/cases/rebuild-status"

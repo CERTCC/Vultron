@@ -156,13 +156,6 @@ def _sync(net: LedgerNetwork, replica: str) -> list[str]:
     return applied
 
 
-def _register(net: LedgerNetwork, holder: str) -> list[dict[str, Any]]:
-    return [
-        entry.model_dump(mode="json")
-        for entry in net.case(holder).embargo_register
-    ]
-
-
 def _rows(net: LedgerNetwork, holder: str) -> dict[str, list[dict]]:
     """Every participant's consent rows in *holder*'s store, by actor."""
     case = net.case(holder)
@@ -213,7 +206,7 @@ def _count(net: LedgerNetwork) -> int:
 def _assert_replicas_match(net: LedgerNetwork, replicas: tuple[str, ...]):
     for replica in replicas:
         _sync(net, replica)
-        assert _register(net, replica) == _register(net, MANAGER), replica
+        assert net.register(replica) == net.register(MANAGER), replica
         assert _rows(net, replica) == _rows(net, MANAGER), replica
 
 
@@ -496,7 +489,7 @@ class TestTriggerActivation:
     def test_a_failed_accept_commit_leaves_no_write_behind(self, monkeypatch):
         net = _managing_owner("https://example.org/cases/ac-trigger-fail")
         revision_id = _manager_revises(net, 30)
-        register, rows = _register(net, MANAGER), _rows(net, MANAGER)
+        register, rows = net.register(MANAGER), _rows(net, MANAGER)
         failed = fail_commits(
             monkeypatch,
             commit_tree,
@@ -510,7 +503,7 @@ class TestTriggerActivation:
             _manager_activates(net)
 
         assert len(failed) == 1
-        assert _register(net, MANAGER) == register
+        assert net.register(MANAGER) == register
         assert _rows(net, MANAGER) == rows
         assert net.case(MANAGER).proposed_embargo_ids == [revision_id]
         assert (

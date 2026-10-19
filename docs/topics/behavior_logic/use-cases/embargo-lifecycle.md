@@ -175,9 +175,10 @@ It runs no embargo lifecycle logic, creates no ids, and reads no clock.
 An entry that does not fit is held as a gap until the missing entries arrive, never patched over.
 The result is that a store rebuilt from the case manager's ledger alone holds the same participant records, consent rows and embargo register as the case manager.
 
-Two limits apply today.
-The `Remove` entry carries what ended the embargo, `EARLY` or `END_TIME_REACHED`, but not the structured cause behind an early end, such as a threat signal.
-A replica therefore records that termination as `EARLY` with no cause.
+The `Remove` entry carries what ended the embargo, `EARLY` or `END_TIME_REACHED`, and the structured cause behind an early end, such as a threat signal.
+A replica copies both onto its own register, so its record of the termination matches the case manager's.
+
+One limit applies today.
 When the owner rejects the last open revision after the case went public, the case manager answers with a termination instead (EMB-04-002).
 A replica then skips the `Reject` entry, because the `Remove` that follows cancels the revision.
 Deciding that skip is the one place a replica decides what an entry changes rather than copying it.

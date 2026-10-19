@@ -123,10 +123,10 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   base `as_Remove`, marked a Vultron property so `context.jsonld` names it),
   checked at the parse edge (EMB-13-005), because a replica learns the why
   only from the ledger entry: it copies the cause, never works it out from its
-  own PXA (#4748). Every `Remove` the CASE_MANAGER sends passes the cause it
-  records to `terminate_embargo(cause=...)`. An owner's `Remove` may claim
-  `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, recorded as given; one naming
-  `THREAT_SIGNAL` is refused before the commit
+  own PXA (`ApplyEmbargoTeardownNode`). Every `Remove` the CASE_MANAGER sends
+  passes the cause it records to `terminate_embargo(cause=...)`. An owner's
+  `Remove` may claim `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, recorded as
+  given; one naming `THREAT_SIGNAL` is refused before the commit
   (`TerminationCauseIsAdmissibleNode`), since a threat signal arrives as a
   case status update setting `P`, `X` or `A`.
   The CASE_MANAGER decides the termination first (`decide_termination()`),
