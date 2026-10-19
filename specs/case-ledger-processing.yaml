@@ -1157,14 +1157,16 @@ groups:
       any match outside the guarded-commit factory''s own module is a violation. Known
       violations are tracked as a ratchet set (`KNOWN_VIOLATIONS`) that must shrink
       to empty as each use case migrates to the single-tree shape. Its hard invariant
-      counts every `execute_with_setup()` call that an `execute()` under `vultron/core/use_cases/received/`
-      reaches, directly or through functions and methods under `vultron/core/use_cases/`
-      or `vultron/core/services/` resolved transitively (the walk shared with `test_no_dl_mutations_in_execute.py`),
+      counts every `execute_with_setup()` call that an `execute()` under
+      `vultron/core/use_cases/received/` reaches, directly or through functions and
+      methods under `vultron/core/use_cases/` or `vultron/core/services/` resolved
+      transitively (the walk shared with `test_no_dl_mutations_in_execute.py`),
       sums calls on alternative branches, and asserts at most one, with no exemption
       set; trigger-side `execute()` bodies are out of scope (BT-15-001). Detector
       self-tests on synthetic sources assert that a helper call, a helper two calls
       deep, and two calls on alternative branches are each counted, and that a call
-      inside a BT node the tree runs is not. A reviewer MUST still confirm no other domain-significant code remains
+      inside a BT node the tree runs is not. A reviewer MUST still confirm no other
+      domain-significant code remains
       in `execute()` when closing each migration.'
     adr:
     - ADR-0021
@@ -1190,8 +1192,9 @@ groups:
       function, not invoked as a separate `execute_with_setup()` call.
     verification: '`test/architecture/test_single_bt_execution_received_side.py` confirms
       that no received-side `execute()` method reaches `BTBridge.execute_with_setup()`
-      more than once, directly or through use-case helpers, enforcing that the guarded-commit subtree is composed into the
-      single tree rather than invoked separately.'
+      more than once, directly or through use-case helpers, enforcing that the
+      guarded-commit subtree is composed into the single tree rather than invoked
+      separately.'
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005
