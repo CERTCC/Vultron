@@ -283,12 +283,14 @@ and the specification renders them in two forms:
 - **The Requirements Catalog**, a body section after §12 Conformance: every
   requirement of the two tiers, once, one subsection per requirement file,
   files grouped onto themed pages, `foundation` rows on a page of their own
-  (DF-12-001). The catalog row is the requirement's only anchor (DF-12-002).
+  (DF-12-001). The catalog row is the requirement's only anchor, apart from its
+  in-page copy in `full.md` (DF-12-002).
 
 Rules for the narrative around them:
 
-- **No RFC 2119 keyword in prose** outside a rendered block; the §2 Terminology
-  paragraph that states the convention is the one exception (DF-12-004). Prose
+- **No RFC 2119 keyword in prose** outside a rendered block; the §1.4 Document
+  Conventions paragraph that states the convention is the one exception
+  (DF-12-004). Prose
   says what a rule is for and how rules work together; the rule itself is a
   callout.
 - **Reconcile, don't restate.** A prose statement the YAML holds becomes a
@@ -297,6 +299,13 @@ Rules for the narrative around them:
   informative. A cited ID that is not `protocol` or `foundation` is dropped or
   re-checked with the MS-12 tree — the specification never presents it as
   protocol.
+- **Exec-printed links bypass the `full.md` rewrite.** The `full.md` link hook
+  skips fenced code, which is how exec blocks are written, so the callout and
+  catalog renderers emit in-page links themselves when rendering for `full.md`
+  (DF-12-002).
+- **The catalog waits for the kind re-audit.** Publishing makes the two tiers
+  the normative text, so the catalog does not publish until every `protocol` and
+  `foundation` item's kind is re-checked with the MS-12 tree (ADR-0147, #4888).
 - **Placement is one table on the docs side** (DF-12-005). A new requirement
   file holding either tier fails the check until it is placed on a catalog
   page; the requirement files carry no placement field.

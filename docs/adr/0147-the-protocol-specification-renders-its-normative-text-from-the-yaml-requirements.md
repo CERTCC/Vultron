@@ -56,15 +56,16 @@ The decision has five parts.
    A subsection is one requirement file, and requirement files are grouped into themed pages.
    Foundation requirements, which Vultron inherits unchanged from ActivityStreams 2.0, ActivityPub, or HTTP, are on a page of their own, so the line between what Vultron adds and what it inherits stays visible.
 2. **The catalog row is a requirement's one home.**
-   The anchor for a requirement is defined only by its catalog row.
+   The anchor for a requirement is defined only by its catalog row, and by that row's copy in the single-page edition of the specification.
    Every other place that shows or links the requirement links to that row.
    The separate Protocol Requirements and Foundation Requirements pages are retired, and their published URLs redirect to the catalog.
+   On Implement the Protocol, the **Protocol Requirements** label that ADR-0136 gave the two tiers now names the catalog.
 3. **The narrative shows requirements as rendered callouts.**
    Where an explanatory section needs a rule, it shows the rule as a callout rendered from the YAML by ID, in the same row format as the catalog.
    A callout fails the build when an ID does not name a Protocol or Foundation requirement.
 4. **Hand-written normative keywords are not allowed in the specification.**
    Outside rendered blocks, the specification's prose carries no RFC 2119 keyword.
-   The one exception is the Terminology paragraph that states the keyword convention.
+   The one exception is the Document Conventions paragraph in the Introduction, which states the keyword convention.
    A check enforces this.
    An existing normative statement becomes a callout when the YAML holds it; the YAML wording governs, and the YAML is corrected where the prose was right.
    A statement the YAML does not hold becomes a new requirement or is reworded as informative.
@@ -90,7 +91,7 @@ Publishing the tiers in full makes them the normative text, so a misfiled requir
 
 - A check fails when any Protocol or Foundation requirement renders in the catalog zero times or more than once, or when a requirement file holding either tier is unplaced or placed twice.
 - A callout that names an ID outside the two tiers fails the documentation build.
-- A check fails on an RFC 2119 keyword in the specification's prose outside rendered blocks and the Terminology convention paragraph, and reports an empty target set as a failure (DF-09-009).
+- A check fails on an RFC 2119 keyword in the specification's prose outside rendered blocks and the Document Conventions paragraph, and reports an empty target set as a failure (DF-09-009).
 - The strict site build and the link and continuity checks (DOCBW-03) cover the renumbered sections and the redirected pages.
 
 ## Pros and Cons of the Options

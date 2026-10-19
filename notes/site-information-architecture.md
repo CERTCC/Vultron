@@ -269,8 +269,9 @@ page about CERT/CC's codebase, such as the Trigger API or a demo, is basement
 material however protocol-shaped its subject is.
 
 **The normative protocol is the Protocol Specification plus the Protocol and
-Foundation requirement tiers**, all on Engineering and labeled *Protocol
-Requirements* there. The YAML is the source of truth: the specification
+Foundation requirement tiers**, all on Engineering; *Protocol Requirements* there
+labels the specification's Requirements Catalog, which replaces the per-kind
+pages (ADR-0147). The YAML is the source of truth: the specification
 renders both tiers in its Requirements Catalog body section and shows rules in
 its narrative only as rendered callouts, so the two cannot drift (DF-12,
 ADR-0147). In the basement, the Architecture,
