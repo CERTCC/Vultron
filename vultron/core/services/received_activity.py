@@ -41,6 +41,23 @@ def _archived(
     return None
 
 
+def _archived_else_by_id(
+    dl: CasePersistence, activity_id: str, resource_type: str
+) -> PersistableModel:
+    """The archived activity *activity_id*, else whatever is under that id.
+
+    Raises:
+        VultronNotFoundError: When this store holds neither.
+    """
+    archived = _archived(dl, activity_id)
+    if archived is not None:
+        return archived
+    held = dl.read(activity_id)
+    if held is None:
+        raise VultronNotFoundError(resource_type, activity_id)
+    return held
+
+
 def read_received_activity(
     dl: CasePersistence, activity_id: str, resource_type: str = "Activity"
 ) -> PersistableModel:
@@ -64,13 +81,8 @@ def read_received_activity(
     Raises:
         VultronNotFoundError: When this store holds no such activity.
     """
-    archived = _archived(dl, activity_id)
-    if archived is not None:
-        return archived
-    deferred = dl.read(activity_id)
-    if deferred is None:
-        raise VultronNotFoundError(resource_type, activity_id)
-    return deferred
+    # The by-id read finds only the inbox's deferred copy; #4871 retires it.
+    return _archived_else_by_id(dl, activity_id, resource_type)
 
 
 def read_held_activity(
@@ -96,13 +108,7 @@ def read_held_activity(
     Raises:
         VultronNotFoundError: When this store holds no such activity.
     """
-    archived = _archived(dl, activity_id)
-    if archived is not None:
-        return archived
-    own = dl.read(activity_id)
-    if own is None:
-        raise VultronNotFoundError(resource_type, activity_id)
-    return own
+    return _archived_else_by_id(dl, activity_id, resource_type)
 
 
 __all__ = ["read_held_activity", "read_received_activity"]

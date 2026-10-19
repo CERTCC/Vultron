@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from test.support.embargo_register import register
 from vultron.core.models._helpers import days_from_now_utc
@@ -1262,4 +1262,7 @@ def test_ownership_reply_refuses_an_archived_offer_of_another_kind(
 
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         factory(offer=archived, actor=_ACTOR_URI)
-    assert exc_info.value.__cause__ is not None
+    cause = exc_info.value.__cause__
+    # as_answered's validation of the core form refused it, not the reply's.
+    assert isinstance(cause, ValidationError)
+    assert cause.title == "_OfferCaseOwnershipTransferActivity"

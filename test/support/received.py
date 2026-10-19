@@ -20,15 +20,17 @@ about to answer its Invite, for instance — seeds that record, so the code
 under test reads it the way production does.
 """
 
-from typing import Any
-
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.semantic_registry import extract_event
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 
-def archive_received(dl: Any, activity: Any) -> ReceivedActivityRecord:
+def archive_received(
+    dl: CasePersistence, activity: as_Activity
+) -> ReceivedActivityRecord:
     """Store *activity* in *dl* as intake archives a received activity.
 
     *activity* may be a wire activity, as a factory builds it: it is extracted
@@ -44,7 +46,7 @@ def archive_received(dl: Any, activity: Any) -> ReceivedActivityRecord:
 
 
 def received_record(
-    dl: Any, activity_id: str
+    dl: CasePersistence, activity_id: str
 ) -> ReceivedActivityRecord | None:
     """The ``ReceivedActivityRecord`` *dl* holds for *activity_id*, if any.
 
@@ -55,7 +57,9 @@ def received_record(
     return record if isinstance(record, ReceivedActivityRecord) else None
 
 
-def assert_held_only_as_received(dl: Any, activity_id: str) -> None:
+def assert_held_only_as_received(
+    dl: CasePersistence, activity_id: str
+) -> None:
     """Assert *dl* holds *activity_id* as a received archive and nothing else.
 
     A receiver keeps a received activity only under a key it derives, never

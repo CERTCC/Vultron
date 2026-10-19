@@ -23,7 +23,7 @@ Split from ``cases.py`` at the CS-18-001 module-size cap.
 
 import logging
 from collections.abc import Sequence
-from typing import Any, cast
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -159,7 +159,9 @@ class _ProposalsMixin:
             held = read_held_activity(
                 self._dl, offer_id, "Offer(VulnerabilityReport)"
             )
-            _, offer = parse_submit_report_offer(cast(Any, held))
+            _, offer = parse_submit_report_offer(
+                held.model_dump(by_alias=True)
+            )
         except (VultronNotFoundError, VultronActivityConstructionError) as exc:
             logger.warning(
                 "create_case_proposal: offer '%s' for report '%s' is not"

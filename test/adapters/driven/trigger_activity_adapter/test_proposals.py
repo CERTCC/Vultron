@@ -183,6 +183,9 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
         assert proposal.get("inReplyTo") is None
         assert proposal["offerId"] == other.id_
         assert "bare provenance only" in caplog.text
+        # The archive was found and refused as a report Offer, not missed.
+        assert "invalid offer data" in caplog.text
+        assert dl.read(other.id_) is None
 
     @pytest.mark.spec("CP-01-007")
     def test_an_offer_this_store_does_not_hold_is_not_carried(
@@ -205,3 +208,4 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
         assert proposal.get("inReplyTo") is None
         assert proposal["offerId"] == offer_id
         assert "bare provenance only" in caplog.text
+        assert "invalid offer data" not in caplog.text

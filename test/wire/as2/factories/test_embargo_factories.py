@@ -26,6 +26,7 @@ Spec coverage:
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.states.embargo_register import TerminationReason
@@ -667,4 +668,7 @@ def test_answer_refuses_an_archived_activity_that_is_not_an_embargo_invite(
 
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         factory(proposal=archived, context=_CASE_URI, actor=_ACTOR_URI)
-    assert exc_info.value.__cause__ is not None
+    cause = exc_info.value.__cause__
+    # as_answered's validation of the core form refused it, not the reply's.
+    assert isinstance(cause, ValidationError)
+    assert cause.title == "_EmProposeEmbargoActivity"
