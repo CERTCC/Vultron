@@ -24,7 +24,6 @@ from vultron.core.behaviors.sync.nodes import (
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _ADD_NOTE_TO_CASE_EVENT,
     _ADD_PARTICIPANT_STATUS_EVENT,
-    _CREATE_NOTE_EVENT,
     _REMOVE_EMBARGO_EVENT,
     _REMOVE_NOTE_FROM_CASE_EVENT,
 )
@@ -40,8 +39,6 @@ from vultron.core.models.participant_event_types import (
         (IsRemoveEmbargoEventNode, _REMOVE_EMBARGO_EVENT),
         (IsParticipantStatusEventNode, _ADD_PARTICIPANT_STATUS_EVENT),
         (IsAddNoteEventNode, _ADD_NOTE_TO_CASE_EVENT),
-        # A received Create(Note) naming the case attaches it too (#4441).
-        (IsAddNoteEventNode, _CREATE_NOTE_EVENT),
         (IsRemoveNoteEventNode, _REMOVE_NOTE_FROM_CASE_EVENT),
         (IsCreateCaseParticipantEventNode, CREATE_CASE_PARTICIPANT_EVENT_TYPE),
         (IsInviteAcceptEventNode, "accept_invite_actor_to_case"),
@@ -85,6 +82,24 @@ class TestPositiveLedgerEntryConditionNodes:
         )
 
         assert result.status == Status.FAILURE
+
+
+@pytest.mark.spec("RSH-08-004", "VAM-01-011")
+def test_a_create_note_entry_attaches_no_note(bridge, case_actor):
+    """Only an ``add_note_to_case`` entry attaches a note (#4707).
+
+    The retired ``create_note`` event type no longer reaches the note slot.
+    """
+    entry = _make_entry(0).model_copy(update={"event_type": "create_note"})
+    event = _make_event(entry, actor_id=case_actor.id_)
+
+    result = bridge.execute_with_setup(
+        tree=IsAddNoteEventNode(name="IsAddNoteEventNode"),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+    )
+
+    assert result.status == Status.FAILURE
 
 
 @pytest.fixture

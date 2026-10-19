@@ -309,34 +309,6 @@ def create_case_activity(
         ) from exc
 
 
-def create_note_activity(note: as_Note, **kwargs) -> as_Create:
-    """Build a ``Create(Note)``.
-
-    The case the note belongs to is the note's own ``context``, so the
-    ``Create`` takes no ``target``.  No emitter in this codebase sends it:
-    a note is sent inline on the single ``Add(Note, target=Case)`` that
-    attaches it (:func:`add_note_to_case_activity`, VAM-01-010).
-
-    Args:
-        note: The ``as_Note`` being created.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``, ``id_``).
-
-    Returns:
-        An ``as_Create`` whose ``object_`` is the note.
-
-    Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
-    """
-    try:
-        return as_Create(object_=note, **kwargs)
-    except ValidationError as exc:
-        logger.warning("create_note_activity: invalid arguments: %s", exc)
-        raise VultronActivityConstructionError(
-            "create_note_activity: invalid arguments"
-        ) from exc
-
-
 def add_note_to_case_activity(
     note: as_Note,
     target: as_VulnerabilityCaseRef | None = None,

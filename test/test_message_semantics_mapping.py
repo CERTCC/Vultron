@@ -144,16 +144,15 @@ def test_pxa_dimensions_ride_case_status():
 def test_gi_expands_across_the_note_lifecycle():
     """`GI` is one-to-many on the wire: the note lifecycle carries it."""
     expected = {
-        MessageSemantics.CREATE_NOTE,
         MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.REMOVE_NOTE_FROM_CASE,
     }
     assert expected <= _registered()
 
-    # The expansion is real: three distinct AS2 verbs, not one activity carrying
-    # all three meanings in a payload field the way the CS collapse does.
+    # The expansion is real: distinct AS2 verbs, not one activity carrying
+    # both meanings in a payload field the way the CS collapse does.
     verbs = {_pattern(s).activity_ for s in expected}
-    assert verbs == {TAtype.CREATE, TAtype.ADD, TAtype.REMOVE}
+    assert verbs == {TAtype.ADD, TAtype.REMOVE}
 
 
 @pytest.mark.spec("MSM-04-002")
@@ -283,7 +282,6 @@ def test_faults_are_partitioned_by_failure_mode_not_state_machine():
     # received and understood but declined — as:Reject carries this
     assert MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE in registered
     # needs narrative explanation
-    assert MessageSemantics.CREATE_NOTE in registered
     assert MessageSemantics.ADD_NOTE_TO_CASE in registered
 
     # "exactly three mechanisms" is the part that can regress: a fourth

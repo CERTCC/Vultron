@@ -72,10 +72,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # the only Undo(Offer) semantic today; a second one would share this
     # signature.  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
     ("Undo", "Offer"),
+    # No ``("Create", "Note")``: a received Create(Note) is not a protocol
+    # message, so ``Add(Note)`` is a note's one entry (VAM-01-011).
     ("Add", "Note"),
-    # A received note whose ``context`` names the case: its entry is the
-    # attachment's entry (CLP-07-013, #4441).
-    ("Create", "Note"),
     ("Remove", "Note"),  # remove_note_from_case
     ("Add", "VulnerabilityReport"),  # add_report_to_case
     ("Add", "CaseStatus"),  # add_case_status_to_case

@@ -103,16 +103,12 @@ Set the note's `context` to the case as well.
 The CASE_MANAGER stores the note, attaches it to the case and commits an `add_note_to_case` entry to the case ledger.
 The CASE_MANAGER accepts a note only from an active participant whose closure the case does not record, and refuses it from any other sender, including a closed participant (CM-23-018).
 A refused note is not stored, attached, committed or sent on.
-This implementation sends every note this way and does not send a separate `Create(Note)` (VAM-01-010).
+A participant's replica accepts a note only from the CASE_MANAGER.
+`Add(Note)` is the one message that attaches a note (VAM-01-011).
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/add-note-to-case.md" %}
 
-A receiver still accepts a received `Create(Note)` whose note names the case, sent alone or ahead of an `Add(Note)` of the same note.
-The same sender rule applies to it.
-A `Create(Note)` whose note names no case, or a case the receiver does not hold, is refused.
-A participant's replica accepts a note only from the CASE_MANAGER.
-
-{% include-markdown "../../../reference/messages/_occasions/embeds/create-note.md" %}
+A received `Create` of a note is not a protocol message, and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 To withdraw a note, send `Remove(Note)` to the CASE_MANAGER, targeting the case.
 The CASE_MANAGER admits it from the note's author while that author is an active participant, or from the Case Owner, and refuses it from anyone else.

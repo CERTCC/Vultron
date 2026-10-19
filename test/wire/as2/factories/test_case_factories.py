@@ -26,7 +26,7 @@ Spec coverage:
 
 import json
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from pydantic import BaseModel
@@ -45,7 +45,6 @@ from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
-    create_note_activity,
     offer_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     rm_accept_invite_to_case_activity,
@@ -230,34 +229,6 @@ def test_create_case_kwargs_forwarded(sample_case):
 def test_create_case_invalid_raises():
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         create_case_activity(case="not-a-case")  # type: ignore[arg-type]
-    assert exc_info.value.__cause__ is not None
-
-
-# ---------------------------------------------------------------------------
-# create_note_activity
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.spec("VAM-07-001")
-def test_create_note_returns_create_of_the_note():
-    note = as_Note(content="Test note content", context=_CASE_URI)
-    result = create_note_activity(note, actor=_ACTOR_URI)
-    assert isinstance(result, as_Create)
-    assert result.object_ == note
-
-
-def test_create_note_names_the_case_only_through_the_notes_context():
-    """The case is the note's context; the Create has no target (#4549)."""
-    note = as_Note(content="Test note content", context=_CASE_URI)
-    result = create_note_activity(note, actor=_ACTOR_URI)
-    assert result.target is None
-    assert cast(as_Note, result.object_).context == _CASE_URI
-
-
-@pytest.mark.spec("AF-04-001")
-def test_create_note_invalid_raises():
-    with pytest.raises(VultronActivityConstructionError) as exc_info:
-        create_note_activity(as_Note(content="x"), actor=42)  # type: ignore[arg-type]
     assert exc_info.value.__cause__ is not None
 
 
@@ -840,7 +811,6 @@ def test_all_case_factories_importable_from_package():
         add_status_to_case_activity,
         announce_vulnerability_case_activity,
         create_case_activity,
-        create_note_activity,
         offer_case_ownership_transfer_activity,
         reject_case_ownership_transfer_activity,
         rm_accept_invite_to_case_activity,

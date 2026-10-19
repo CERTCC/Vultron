@@ -11,13 +11,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.wire.as2.factories import (
-    add_note_to_case_activity,
-    create_note_activity,
-)
+from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Add,
-    as_Create,
     as_Remove,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -26,7 +22,6 @@ from vultron.wire.as2.vocab.examples._base import (
     base_url,
     case,
     finder,
-    vendor,
 )
 
 
@@ -52,11 +47,6 @@ def add_note_to_case() -> as_Add:
     )
 
     return activity
-
-
-def create_note() -> as_Create:
-    """``Create(Note)``: the note's ``context`` names the case; no ``target``."""
-    return create_note_activity(note(), actor=vendor().id_)
 
 
 def remove_note_from_case() -> as_Remove:
