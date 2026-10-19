@@ -31,8 +31,8 @@ from vultron.metadata.line_length import (
     new_lines,
     overlong_python_doc_lines,
     overlong_spec_yaml_lines,
-    python_doc_lines,
 )
+from vultron.metadata.specs.growth_guard import GrowthCheck, compare_with_base
 
 REPO_ROOT = Path(__file__).parents[2]
 
@@ -58,6 +58,15 @@ def _words(n: int) -> str:
     return text if not text.endswith(" ") else text[:-1] + "x"
 
 
+#: Doc text long enough to be overlong after any prefix the tests give it.
+_LONG = _words(100)
+
+#: :data:`_HEADER` with a notice line past the limit, as the real notice has.
+_LONG_HEADER = _HEADER.replace(
+    "Contribute to this project", f"Contribute to this project {_words(40)}"
+)
+
+
 @pytest.mark.spec("PD-10-002")
 class TestIsOverlong:
     def test_a_line_at_the_limit_passes(self):
@@ -80,60 +89,87 @@ class TestIsOverlong:
 
 @pytest.mark.spec("PD-10-002")
 class TestPythonDocLines:
-    def test_comments_and_docstrings_are_doc_lines(self):
+    """Which lines of a module are doc lines, as ruff's ``W505`` reads them."""
+
+    @staticmethod
+    def _doc_lines(tmp_path: Path, source: str) -> set[str]:
+        _write(tmp_path, "vultron/m.py", source)
+        return {
+            item.removeprefix("vultron/m.py: ")
+            for item in overlong_python_doc_lines(tmp_path)
+        }
+
+    def test_comments_and_docstrings_are_doc_lines(self, tmp_path):
         source = (
-            '"""Module docstring\n\nsecond line.\n"""\n'
-            "x = 1  # trailing comments are code lines\n"
-            "# a comment line\n"
+            f'"""{_LONG}\n\n{_LONG}.\n"""\n'
+            f"x = 1  # trailing comments are code lines {_LONG}\n"
+            f"# {_LONG}\n"
             "def f():\n"
-            '    r"""One-line docstring."""\n'
+            f'    r"""{_LONG}"""\n'
             "    return 1\n"
         )
-        assert list(python_doc_lines(source)) == [
-            '"""Module docstring',
-            "",
-            "second line.",
-            '"""',
-            "# a comment line",
-            '    r"""One-line docstring."""',
-        ]
+        assert self._doc_lines(tmp_path, source) == {
+            f'"""{_LONG}',
+            f"{_LONG}.",
+            f"# {_LONG}",
+            f'r"""{_LONG}"""',
+        }
 
-    def test_a_string_opened_mid_line_is_data(self):
-        source = 'QUERY = """\nselect a long line of data\n"""\n# after\n'
-        assert list(python_doc_lines(source)) == ["# after"]
+    def test_a_string_opened_mid_line_is_data(self, tmp_path):
+        source = f'QUERY = """\n{_LONG}\n"""\n'
+        assert self._doc_lines(tmp_path, source) == set()
 
-    def test_a_string_passed_as_an_argument_is_data(self):
-        source = 'node(\n    """An argument, not a docstring.""",\n)\n'
-        assert list(python_doc_lines(source)) == []
+    def test_a_string_passed_as_an_argument_is_data(self, tmp_path):
+        source = f'node(\n    """{_LONG}""",\n)\n'
+        assert self._doc_lines(tmp_path, source) == set()
 
-    def test_a_string_in_a_larger_expression_is_data(self):
-        assert list(python_doc_lines('"""a""" + b\n')) == []
+    def test_a_string_in_a_larger_expression_is_data(self, tmp_path):
+        assert self._doc_lines(tmp_path, f'"""{_LONG}""" + b\n') == set()
 
-    def test_an_implicitly_joined_string_statement_is_a_doc(self):
-        source = 'def f():\n    """One."""  """Two."""\n'
-        assert list(python_doc_lines(source)) == ['    """One."""  """Two."""']
+    def test_an_implicitly_joined_string_statement_is_a_doc(self, tmp_path):
+        source = f'def f():\n    """One."""  """{_LONG}"""\n'
+        assert self._doc_lines(tmp_path, source) == {
+            f'"""One."""  """{_LONG}"""'
+        }
 
-    def test_a_triple_quote_inside_a_short_string_is_not_an_opening(self):
-        source = 'Q = \'"""\'\n\ndef f():\n    """Doc."""\n    # note\n'
-        assert list(python_doc_lines(source)) == [
-            '    """Doc."""',
-            "    # note",
-        ]
+    def test_source_that_does_not_parse_raises(self, tmp_path):
+        with pytest.raises(SyntaxError, match=r"vultron/m\.py:1"):
+            self._doc_lines(tmp_path, f'x = """never closed {_LONG}\n')
 
-    def test_source_that_does_not_tokenize_raises(self):
-        with pytest.raises(SyntaxError):
-            list(python_doc_lines('x = """never closed\n'))
+    def test_the_license_header_is_skipped(self, tmp_path):
+        source = f"#!/usr/bin/env python\n\n{_LONG_HEADER}\n# {_LONG}\n"
+        assert self._doc_lines(tmp_path, source) == {f"# {_LONG}"}
 
-    def test_the_license_header_is_skipped(self):
-        source = f"#!/usr/bin/env python\n\n{_HEADER}\n# real comment\n"
-        assert list(python_doc_lines(source)) == ["# real comment"]
+    def test_a_leading_comment_without_the_notice_is_read(self, tmp_path):
+        assert self._doc_lines(tmp_path, f"# {_LONG}\nx = 1\n") == {
+            f"# {_LONG}"
+        }
 
-    def test_a_leading_comment_without_the_notice_is_read(self):
-        assert list(python_doc_lines("# plain\nx = 1\n")) == ["# plain"]
+    def test_a_comment_right_after_the_notice_is_read(self, tmp_path):
+        source = f"{_LONG_HEADER}# {_LONG}\n"
+        assert self._doc_lines(tmp_path, source) == {f"# {_LONG}"}
 
-    def test_a_comment_right_after_the_notice_is_read(self):
-        source = f"{_HEADER}# real comment\n"
-        assert list(python_doc_lines(source)) == ["# real comment"]
+    def test_an_unbreakable_overflow_is_not_overlong(self, tmp_path):
+        url = "https://example.org/" + "a" * 120
+        assert self._doc_lines(tmp_path, f"# see {url}\n") == set()
+
+    def test_a_noqa_comment_does_not_exempt_a_line(self, tmp_path):
+        line = f"# {_LONG}  # noqa: W505"
+        assert self._doc_lines(tmp_path, f"{line}\n") == {line}
+
+    def test_the_tree_ruff_config_does_not_change_the_limit(self, tmp_path):
+        _write(
+            tmp_path,
+            "pyproject.toml",
+            "[tool.ruff.lint.pycodestyle]\nmax-doc-length = 200\n",
+        )
+        assert self._doc_lines(tmp_path, f"# {_LONG}\n") == {f"# {_LONG}"}
+
+    def test_a_dot_directory_root_is_read(self, tmp_path):
+        _write(tmp_path, ".agents/skills/x/s.py", f"# {_LONG}\n")
+        assert overlong_python_doc_lines(tmp_path) == {
+            f".agents/skills/x/s.py: # {_LONG}"
+        }
 
 
 def _write(root: Path, rel: str, text: str) -> None:
@@ -270,3 +306,75 @@ class TestAddedOverlongLines:
             require_base=True,
         )
         assert check.added == {f"specs/a.yaml: {_words(101)}"}
+
+    def test_a_copy_of_an_untouched_line_into_a_new_file_is_added(
+        self, tmp_path
+    ):
+        long_line = _words(100)
+        _write(tmp_path, "specs/a.yaml", f"{long_line}\n")
+        commit_base(tmp_path)
+        _write(tmp_path, "specs/b.yaml", f"{long_line}\n")
+        check = _added_spec_lines(tmp_path)
+        assert check.added == {f"specs/b.yaml: {long_line}"}
+
+    def test_an_untracked_python_file_is_read(self, tmp_path):
+        _write(tmp_path, "vultron/a.py", "x = 1\n")
+        commit_base(tmp_path)
+        _write(tmp_path, "vultron/b.py", f"# {_LONG}\n")
+        check = added_overlong_lines(
+            overlong_python_doc_lines,
+            repo_root=tmp_path,
+            paths=("vultron",),
+            base_ref="base",
+            require_base=True,
+        )
+        assert check.added == {f"vultron/b.py: # {_LONG}"}
+        assert check.head_total is None
+
+    def test_a_deleted_file_adds_no_line(self, tmp_path):
+        _write(tmp_path, "specs/a.yaml", f"{_words(100)}\n")
+        _write(tmp_path, "specs/b.yaml", "short\n")
+        commit_base(tmp_path)
+        (tmp_path / "specs/a.yaml").unlink()
+        assert _added_spec_lines(tmp_path).added == frozenset()
+
+    def test_reading_changed_files_only_matches_reading_the_whole_tree(
+        self, tmp_path
+    ):
+        """Leaving untouched files out of both sides changes no result."""
+        lines = [_words(90 + n) for n in range(6)]
+        _write(tmp_path, "specs/kept.yaml", f"{lines[0]}\n{lines[1]}\n")
+        _write(tmp_path, "specs/edited.yaml", f"{lines[2]}\n{lines[3]}\n")
+        _write(tmp_path, "specs/moved.yaml", f"{lines[4]}\n")
+        _write(tmp_path, "specs/gone.yaml", f"{lines[1]}\n")
+        commit_base(tmp_path)
+        git(tmp_path, "checkout", "-q", "-b", "work")
+        _write(tmp_path, "specs/edited.yaml", f"{lines[3]}\n{lines[5]}\n")
+        git(tmp_path, "mv", "specs/moved.yaml", "specs/renamed.yaml")
+        git(tmp_path, "rm", "-q", "specs/gone.yaml")
+        commit_all(tmp_path)
+        _write(tmp_path, "specs/new.yaml", f"{lines[0]}\n{lines[2]}\n")
+        _write(tmp_path, "specs/staged.yaml", f"{lines[1]}\n")
+        git(tmp_path, "add", "specs/staged.yaml")
+
+        whole = compare_with_base(
+            overlong_spec_yaml_lines,
+            repo_root=tmp_path,
+            paths=("specs",),
+            base_ref="base",
+            require_base=True,
+        )
+        assert whole.base_value is not None
+        expected = new_lines(whole.base_value, whole.head_value)
+        assert expected  # the fixture exercises an addition
+        assert _added_spec_lines(tmp_path).added == expected
+
+
+def _added_spec_lines(root: Path) -> GrowthCheck:
+    return added_overlong_lines(
+        overlong_spec_yaml_lines,
+        repo_root=root,
+        paths=("specs",),
+        base_ref="base",
+        require_base=True,
+    )

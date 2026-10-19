@@ -17,7 +17,8 @@ Markdown outside ``docs/`` is held to the 88-character limit by markdownlint's
 limit by thousands of lines and have no linter that takes a baseline, so each
 line is its own item (PD-10-002): the guards evaluate the per-line extractors of
 :mod:`vultron.metadata.line_length` at the merge base with the base branch and
-in the working tree, and fail on each overlong line the branch added. An edited
+in the working tree, reading only the files the branch changed, and fail on each
+overlong line the branch added. An edited
 line is a new line, so the corpus moves toward the limit one touched line at a
 time; a line a rename or module split only moved is not new. No count is
 committed, so concurrent PRs cannot race on one (#3984).

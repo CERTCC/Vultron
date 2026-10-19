@@ -25,8 +25,12 @@ from vultron.metadata.specs.growth_guard import (
     DEFAULT_BASE_REF,
     BaseExtractionError,
     BaseUnavailableError,
+    ChangedFiles,
+    GrowthCheck,
     added_since_base,
     base_ref_name,
+    changed_files,
+    compare_changed_with_base,
     compare_with_base,
     running_in_ci,
 )
@@ -547,6 +551,7 @@ def test_guarded_path_absent_at_base_reads_as_empty(tmp_path):
 def test_extractor_error_on_base_tree_names_the_merge_base(suppression_repo):
     """A guard that cannot read the base must not read as a pass."""
     base = _git(suppression_repo, "rev-parse", "HEAD").strip()
+    (suppression_repo / "specs" / "notes.txt").write_text("a change to read")
 
     def extract(root: Path) -> frozenset[str]:
         if root != suppression_repo:
@@ -617,6 +622,7 @@ def test_missing_git_binary_is_an_unavailable_base(
 
 def test_precomputed_head_is_used_instead_of_extracting(suppression_repo):
     """A caller may pass the head set it built from an in-memory corpus."""
+    (suppression_repo / "specs" / "notes.txt").write_text("a change to read")
     check = added_since_base(
         missing_story_suppression_carriers,
         repo_root=suppression_repo,
@@ -649,3 +655,138 @@ def test_failure_message_lists_each_added_item(suppression_repo):
     assert "  TST-01-002\n  TST-01-003\n" in message
     assert "\nFix it.\n" in message
     assert "git fetch origin" in message
+
+
+def test_failure_message_without_a_head_total_omits_the_count():
+    check = GrowthCheck("a" * 40, frozenset({"X"}), None)
+    message = check.failure_message("item(s)", "Fix it.")
+    assert "1 item(s) added since the merge base aaaaaaaaaaaa:\n" in message
+    assert "in the working tree" not in message
+
+
+@pytest.fixture
+def files_repo(tmp_path: Path) -> Path:
+    """A base with three tracked files under ``d/`` and one outside it."""
+    repo = tmp_path / "repo"
+    (repo / "d").mkdir(parents=True)
+    for name in ("kept", "edited", "gone"):
+        (repo / "d" / name).write_text(name)
+    (repo / "outside").write_text("x")
+    (repo / ".gitignore").write_text("*.ignored\n")
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "base")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    return repo
+
+
+def test_changed_files_lists_each_kind_of_change(files_repo):
+    base = _git(files_repo, "rev-parse", "HEAD").strip()
+    (files_repo / "d" / "edited").write_text("edited again")
+    (files_repo / "d" / "gone").unlink()
+    (files_repo / "d" / "untracked").write_text("new")
+    (files_repo / "d" / "staged").write_text("new")
+    _git(files_repo, "add", "d/staged")
+    (files_repo / "d" / "x.ignored").write_text("ignored")
+    (files_repo / "outside").write_text("changed, but not under d/")
+    changed = changed_files(files_repo, base, ("d",))
+    assert sorted(changed.at_base) == ["d/edited", "d/gone"]
+    assert sorted(changed.at_head) == ["d/edited", "d/staged", "d/untracked"]
+
+
+def test_changed_files_lists_both_names_of_a_rename(files_repo):
+    base = _git(files_repo, "rev-parse", "HEAD").strip()
+    _git(files_repo, "mv", "d/kept", "d/moved")
+    _git(files_repo, "commit", "-q", "-m", "rename")
+    changed = changed_files(files_repo, base, ("d",))
+    assert changed.at_base == ("d/kept",)
+    assert changed.at_head == ("d/moved",)
+
+
+def test_changed_files_with_no_paths_is_empty(files_repo):
+    base = _git(files_repo, "rev-parse", "HEAD").strip()
+    assert changed_files(files_repo, base, ()) == ChangedFiles((), ())
+
+
+def _file_names(root: Path) -> frozenset[str]:
+    return frozenset(
+        p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()
+    )
+
+
+def test_compare_changed_reads_only_the_changed_files(files_repo):
+    (files_repo / "d" / "edited").write_text("edited again")
+    (files_repo / "d" / "new").write_text("new")
+    seen = compare_changed_with_base(
+        _file_names, repo_root=files_repo, paths=("d",)
+    )
+    assert seen.base_value == {"d/edited"}
+    assert seen.head_value == {"d/edited", "d/new"}
+    assert seen.skipped is None
+
+
+def test_compare_changed_with_nothing_changed_reads_empty_trees(files_repo):
+    seen = compare_changed_with_base(
+        _file_names, repo_root=files_repo, paths=("d",)
+    )
+    assert seen.base_value == frozenset()
+    assert seen.head_value == frozenset()
+
+
+def test_compare_changed_without_base_reads_the_whole_tree(files_repo):
+    _git(files_repo, "update-ref", "-d", "refs/remotes/origin/main")
+    seen = compare_changed_with_base(
+        _file_names, repo_root=files_repo, paths=("d",)
+    )
+    assert seen.skipped is not None
+    assert seen.base_value is None
+    assert {"d/kept", "d/edited", "d/gone"} <= seen.head_value
+
+
+def test_compare_changed_without_base_raises_when_required(files_repo):
+    _git(files_repo, "update-ref", "-d", "refs/remotes/origin/main")
+    with pytest.raises(BaseUnavailableError):
+        compare_changed_with_base(
+            _file_names, repo_root=files_repo, paths=("d",), require_base=True
+        )
+
+
+def test_compare_changed_names_the_merge_base_on_a_base_error(files_repo):
+    base = _git(files_repo, "rev-parse", "HEAD").strip()
+    (files_repo / "d" / "edited").write_text("edited again")
+
+    def read(root: Path) -> frozenset[str]:
+        if root.name == "base":
+            raise ValueError("unknown field")
+        return frozenset()
+
+    with pytest.raises(BaseExtractionError, match=base[:12]):
+        compare_changed_with_base(read, repo_root=files_repo, paths=("d",))
+
+
+def test_an_unchanged_tree_is_not_read_at_the_base(suppression_repo):
+    """With nothing under the paths changed, the head result is the base's."""
+    reads: list[Path] = []
+
+    def extract(root: Path) -> frozenset[str]:
+        reads.append(root)
+        return frozenset({"X"})
+
+    seen = compare_with_base(
+        extract, repo_root=suppression_repo, paths=("specs",)
+    )
+    assert reads == [suppression_repo]
+    assert seen.base_value == seen.head_value == {"X"}
+    assert seen.base == _git(suppression_repo, "rev-parse", "HEAD").strip()
+
+
+def test_a_change_outside_the_paths_does_not_read_the_base(suppression_repo):
+    (suppression_repo / "elsewhere.txt").write_text("not a guarded path")
+    reads: list[Path] = []
+
+    def extract(root: Path) -> frozenset[str]:
+        reads.append(root)
+        return frozenset()
+
+    compare_with_base(extract, repo_root=suppression_repo, paths=("specs",))
+    assert reads == [suppression_repo]

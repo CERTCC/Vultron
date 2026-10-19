@@ -41,6 +41,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 
 from vultron.metadata.base import iter_tree_texts
@@ -87,6 +88,14 @@ class IndexedTestFile:
     nodes: frozenset[str]
     names: frozenset[str]
     source: str
+
+    @cached_property
+    def marked_ids(self) -> frozenset[str]:
+        """The spec IDs the file's ``@pytest.mark.spec`` markers name.
+
+        Scanned once per file: one test file is named by many clauses.
+        """
+        return marked_ids_in((self.source,))
 
 
 #: A ``def`` or ``class`` statement, with its indentation.
@@ -297,7 +306,7 @@ def named_tests_lack_marker(
     files = clause_refs(spec.verification, index).files
     if not files:
         return False
-    return spec_id not in marked_ids_in(index.modules[k].source for k in files)
+    return not any(spec_id in index.modules[k].marked_ids for k in files)
 
 
 def unmarked_named_test_ids(repo_root: Path) -> frozenset[str]:

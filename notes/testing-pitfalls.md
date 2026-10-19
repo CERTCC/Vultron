@@ -531,6 +531,11 @@ When adding one, keep three properties:
 - **An unreadable base fails.** If the branch's loaders cannot read the base, the
   guard raises `BaseExtractionError` naming the merge base; give the loader a path
   that also accepts the old form.
+- **Cost follows the change, not the tree.** A guard runs on every PR under the
+  unit timeout, and reading two whole trees tripped it under load (#4904). An
+  extractor whose items depend on one file at a time reads only the changed files
+  (`compare_changed_with_base`); a cross-file one keeps `compare_with_base`, which
+  skips the base read when nothing under its paths changed.
 
 ## Delete an Ephemeral Migration Check When the Migration Lands
 
