@@ -344,12 +344,13 @@ class TestFullReportFlow:
     def test_full_flow_validate_at_a_replica_is_gated(self, make_payload):
         """RSH-08-003 (#3814): the vendor is the CASE_OWNER, not the case's
         CASE_MANAGER (the CaseActor is), so processing its own validate-report
-        in its own store writes no RM.VALID — ``validate_report`` is committed
-        and replayed from the CASE_MANAGER's ledger (RmVerdict slot), and the
-        vendor converges to VALID from that fan-out, not from the direct
-        Accept.  The transition at the CASE_MANAGER and the convergence are
-        covered by ``test_receive_tree_ledger_commit.py`` and
-        ``test_rm_verdict_effect.py``.
+        in its own store writes no RM.VALID — the CASE_MANAGER commits
+        ``validate_report``, then the VALID status it wrote as its own entry,
+        and the vendor copies that status from the fan-out, not from the
+        direct Accept (CLP-07-013, CM-23-016).  The transition at the
+        CASE_MANAGER and its status entry are covered by
+        ``test_receive_tree_ledger_commit.py`` and
+        ``test_rm_verdict_status_entry.py``.
 
         The replica delivery is still required: under ADR-0041 the vendor has
         no case of its own at RM.RECEIVED (ISSUE-2548), so the guards resolve

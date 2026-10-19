@@ -357,7 +357,7 @@ def test_confirmation_and_gap_replies_are_accepted(
     committed, but no new status record is written, so it reads ``SKIPPED``
     (RSH-08-002).
     A Reject after Accept (VALID→CLOSED, a gap) is a forward move and is also
-    accepted, and a new status record *is* written.
+    accepted, and a new status record *is* written and committed.
     """
     tail = _ledger_tail(joining_case)[-1]
     invite = _full_case_invite_at(
@@ -380,12 +380,15 @@ def test_confirmation_and_gap_replies_are_accepted(
     assert _rm_history(joining_case)[-1] == expected_rm
     assert len(_rm_history(joining_case)) == records_before + new_records
     committed = [e.semantic_type for e in _ledger_tail(joining_case)[before:]]
-    # The receipt is committed even for a confirmation or gap; a gap also
-    # gets the CASE_MANAGER's RSH-06-004 note, its own entry (#4829).
-    assert len(committed) == 1 + (second == "reject"), committed
-    assert committed[1:] == (
-        ["add_note_to_case"] if second == "reject" else []
-    )
+    gap = second == "reject"
+    # The receipt is committed even for a confirmation or gap; each status
+    # written follows it as its own entry (CLP-07-013), and a gap also gets
+    # the CASE_MANAGER's RSH-06-004 note, its own entry (#4829).
+    assert len(committed) == 1 + new_records + gap, committed
+    assert (
+        committed.count("add_participant_status_to_participant") == new_records
+    ), committed
+    assert committed.count("add_note_to_case") == int(gap), committed
 
 
 @pytest.mark.spec("RSH-06-006")

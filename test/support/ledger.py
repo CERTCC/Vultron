@@ -78,8 +78,9 @@ def creation_entry_sequence(
     """The ``(semantic_type, object id)`` entries creating *case* commits.
 
     One rule for every creation path, read off the resulting case file: the
-    genesis ``create_case``, each linked report, each participant's statuses
-    in roster order, then each case status (CLP-07-013).  Two paths that
+    genesis ``create_case``, each linked report, each participant's record
+    created with its first status and then its later statuses, in roster
+    order, then each case status (CLP-07-013, CM-23-007).  Two paths that
     produce the same case therefore commit the same sequence.
     """
     sequence = [("create_case", case.id_)]
@@ -90,9 +91,10 @@ def creation_entry_sequence(
     for participant_ref in case.case_participants:
         participant = dl.read(str(_as_id(participant_ref)))
         assert isinstance(participant, CaseParticipant), participant_ref
+        sequence.append(("create_case_participant", participant.id_))
         sequence += [
             ("add_participant_status_to_participant", status.id_)
-            for status in participant.participant_statuses
+            for status in participant.participant_statuses[1:]
         ]
     sequence += [
         ("add_case_status_to_case", str(_as_id(status)))

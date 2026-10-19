@@ -180,8 +180,10 @@ def demo_notify_fix_ready(
     # VF hypercube: vf → Vf is the only valid first hop from the initial
     # state; Vf → VF is the second hop.  The verb is two protocol steps, so
     # it is two trigger runs — each validated by ValidateTriggerTransitionsNode
-    # — and the response is the second hop's status.
-    run_trigger(
+    # — and the response is the second hop's status.  Neither hop is on the
+    # actor's record until the CASE_MANAGER records it (RSH-08-003), so the
+    # second is validated as following the first.
+    first = run_trigger(
         AddParticipantStatusTriggerRequest(
             actor_id=actor_id, case_id=body.case_id, vf_state=CS_vf.Vf
         ),
@@ -191,7 +193,10 @@ def demo_notify_fix_ready(
     )
     return run_trigger(
         AddParticipantStatusTriggerRequest(
-            actor_id=actor_id, case_id=body.case_id, vf_state=CS_vf.VF
+            actor_id=actor_id,
+            case_id=body.case_id,
+            vf_state=CS_vf.VF,
+            follows_status_id=first.status_id,
         ),
         dispatcher=dispatcher,
         dl=actor_dl,

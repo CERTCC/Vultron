@@ -37,6 +37,8 @@ Closes #2081 AC-7, #1903.
 import ast
 from collections import Counter
 
+import pytest
+
 from test.architecture import _corpus
 
 # ---------------------------------------------------------------------------
@@ -65,7 +67,6 @@ from test.architecture import _corpus
 #                tracked separately per BTND-10-001 / issue #2081
 #   FILTER     — carry-forward writes inside FilterParticipantStatusDimensions-
 #                Node (received path); the filter adjudicates before writing
-#   REPLICATE  — authoritative ledger-replication write with monotonic ratchet
 # ---------------------------------------------------------------------------
 # permanent: BTND-10-001 (the list is the write-site audit)
 AUDITED_SITES: list[tuple[str, str]] = sorted(
@@ -102,14 +103,6 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         ("case_status_snapshot.py", "PxaDimension"),
         # AC-1 promote_pxa() result applied in AppendCaseStatusToCaseNode
         ("status/nodes/case_status.py", "PxaDimension"),
-        # REPLICATE — participant_status_effect.py: monotonic RM ratchet
-        ("sync/nodes/participant_status_effect.py", "RmDimension"),
-        # REPLICATE — rm_verdict_effect.py: the RM state an act-typed ledger
-        # entry records, ratcheted (RSH-05-007, RSH-08-004, #3814)
-        ("sync/nodes/rm_verdict_effect.py", "RmDimension"),
-        # REPLICATE — case_status_effect.py: CaseStatus per-dimension
-        # carry-forward on replay (RSH-05-023/019, #3814)
-        ("sync/nodes/case_status_effect.py", "PxaDimension"),
         # BOOTSTRAP — ADR-0114 birth write: invitee's first ParticipantStatus
         # at RM.RECEIVED (no prior state; embed directly in CaseParticipant,
         # not via CreateParticipantStatusNode). CM-11-006 / #4048.
@@ -143,6 +136,7 @@ def _collect_sites() -> list[tuple[str, str]]:
     return sorted(found)
 
 
+@pytest.mark.spec("RSH-04-002")
 def test_audited_write_sites_unchanged() -> None:
     """All VfDimension/DDimension/RmDimension/PxaDimension sites match the audited set.
 

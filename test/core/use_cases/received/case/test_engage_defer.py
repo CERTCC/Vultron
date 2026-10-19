@@ -198,14 +198,14 @@ class TestEngageDeferCaseBTFailureReason:
         )
 
 
-class TestEngageCaseStoresEmbeddedParticipants:
-    """EngageCaseReceivedUseCase stores the participants a Join carries (#573).
+class TestEngageCaseStoresNoEmbeddedParticipants:
+    """EngageCaseReceivedUseCase stores no record a Join's snapshot carries.
 
-    When ``Join(VulnerabilityCase)`` arrives with inline participant objects,
-    those objects are persisted as independent DataLayer records, matching
-    the Create (#564) and Announce (#566) paths, but only once the sender
-    guard has admitted the sender: a stranger's Engage stores nothing
-    (HP-01-006, #4696).
+    ``Join(VulnerabilityCase)`` goes to the CASE_MANAGER, which already holds
+    every record the snapshot names.  A participant's view of them is no
+    ledger entry, so storing it would change the case file with nothing a
+    replica can copy (CLP-07-013, CM-23-016).  A stranger's Engage stores
+    nothing either (HP-01-006, #4696).
     """
 
     # The received-side tree executes under the case manager
@@ -283,18 +283,14 @@ class TestEngageCaseStoresEmbeddedParticipants:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-    def test_inline_participants_stored_once_the_sender_is_admitted(
+    @pytest.mark.spec("CLP-07-013")
+    def test_an_admitted_senders_snapshot_records_are_not_stored(
         self, dl_holding_the_sender, engage_event_with_inline_case
     ):
-        """An admitted sender's snapshot participants are stored (#573)."""
+        """Only the records the case file already holds stay; none is added."""
         self._execute(dl_holding_the_sender, engage_event_with_inline_case)
 
-        stored = dl_holding_the_sender.read(self._OTHER_PARTICIPANT_ID)
-        assert stored is not None, (
-            "CaseParticipant embedded in Join(VulnerabilityCase) must be "
-            "stored as an independent DataLayer record once the sender is "
-            "admitted (EngageCaseReceivedUseCase regression #573)"
-        )
+        assert dl_holding_the_sender.read(self._OTHER_PARTICIPANT_ID) is None
 
     @pytest.mark.spec("HP-01-006")
     def test_a_refused_senders_snapshot_stores_nothing(
@@ -639,9 +635,10 @@ class TestEngageCaseLedgerCommit:
             sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
 
+        # The act, then the status it wrote as its own entry (CLP-07-013).
         assert [
             e.semantic_type for e in seeded_dl.list_objects("CaseLedgerEntry")
-        ] == ["engage_case"]
+        ] == ["engage_case", "add_participant_status_to_participant"]
 
     def test_engage_case_transitions_vendor_rm_to_accepted(self, seeded_dl):
         """EngageCaseReceivedUseCase still transitions the engaging actor's RM to ACCEPTED.
@@ -764,9 +761,10 @@ class TestDeferCaseLedgerCommit:
             sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
 
+        # The act, then the status it wrote as its own entry (CLP-07-013).
         assert [
             e.semantic_type for e in seeded_dl.list_objects("CaseLedgerEntry")
-        ] == ["defer_case"]
+        ] == ["defer_case", "add_participant_status_to_participant"]
 
     def test_defer_case_commits_ledger_entry_when_receiving_actor_is_case_manager(
         self, seeded_dl

@@ -305,6 +305,8 @@ def test_a_repeat_accept_on_a_public_case_sends_no_refusal():
     _embargo_id, invite_id = _invited(net, BYSTANDER, "repeat-pxa")
     first = _answer(net, BYSTANDER, invite_id, accept=True, tag="1")
     assert first.disposition is HandlerDisposition.APPLIED, first.reason
+    # P/X/A set outside the ledger, as test setup (``bypass_ledger``).
+    net.bypass_ledger()
     case = net.case(MANAGER)
     case.current_status.pxa.state = CS_pxa.Pxa
     net.stores[MANAGER].save(case)

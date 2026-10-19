@@ -23,15 +23,12 @@ replays the entry on a participant replica, so the replica's
 ``case.case_statuses`` and ``current_status`` follow the CASE_MANAGER's without
 the ``Add(CaseStatus)`` reaching the replica directly (PCR-03-001).
 
-The replica adjudicates EM and P/X/A with the same acceptance rules the
-CASE_MANAGER's ``add_case_status_tree`` uses (RSH-05-023, RSH-05-019), through
-the shared predicates :func:`~vultron.core.states.em.is_em_assertion_acceptable`
-and :func:`~vultron.core.states.cs.is_pxa_assertion_acceptable`: a refused
-dimension carries the replica's current value forward.  For an entry in ledger
-order both rules accept: the CASE_MANAGER already adjudicated, and the EM
-transitions an embargo act causes arrive first in that act's own entry, copied
-through the one apply function (EMB-18-001, ADR-0124), so the snapshot's EM is
-the replica's own.  The rules guard a replica that has diverged.
+The replica copies the status the entry carries, id, times and every
+dimension included (CM-23-016, ADR-0124).  The CASE_MANAGER adjudicated the
+``Add(CaseStatus)`` before committing it (RSH-05-023, RSH-05-019), so the
+replica does not adjudicate again, and it never carries its own EM or P/X/A
+value forward over the entry's: two replicas at the same ledger position hold
+the same case statuses.
 
 The status is appended the way the CASE_MANAGER's
 ``AppendCaseStatusToCaseNode`` appends it, so both stores record the same
@@ -54,12 +51,8 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     _SingleSemanticTypeNode,
 )
 from vultron.core.models._helpers import _as_id, project_wire_snapshot_to_core
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.states.cs import is_pxa_assertion_acceptable
-from vultron.core.states.em import is_em_assertion_acceptable
 
 logger = logging.getLogger(__name__)
 
@@ -78,16 +71,6 @@ class IsAddCaseStatusEventNode(_SingleSemanticTypeNode):
     matched_semantic_type = ADD_CASE_STATUS_SEMANTIC_TYPE
 
 
-def _adjudicate(current: CaseStatus, asserted: CaseStatus) -> CaseStatus:
-    """Carry *current* forward on each dimension the rules refuse (RSH-05)."""
-    updates: dict[str, Any] = {}
-    if not is_em_assertion_acceptable(current.em.state, asserted.em.state):
-        updates["em"] = EmDimension(state=current.em.state)
-    if not is_pxa_assertion_acceptable(current.pxa.state, asserted.pxa.state):
-        updates["pxa"] = PxaDimension(state=current.pxa.state)
-    return asserted.model_copy(update=updates) if updates else asserted
-
-
 class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
     """Append an ``add_case_status_to_case`` entry's CaseStatus to the replica.
 
@@ -95,12 +78,7 @@ class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
 
     * the replica holds no copy of the case (Regime 2, ADR-0087);
     * the status is already in ``case.case_statuses`` — the genesis status a
-      seeded replica holds, or a re-delivery (CLP-13-001);
-    * every dimension is refused and the result is the replica's current
-      state, so there is nothing new to record (the replica-side reading of
-      RSH-05-005).  Carrying the replica's value forward *is* the entry's
-      applied effect under RSH-05-023/019, as it is for a regressing RM move
-      under RSH-05-007, so persisting the entry does not break SYNC-12-002.
+      seeded replica holds, or a re-delivery (CLP-13-001).
 
     FAILURE, so the entry is not persisted (SYNC-12-001): the snapshot names
     no status, or carries one that is not a valid ``CaseStatus``.  Persisting
@@ -118,20 +96,16 @@ class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
 
-        asserted = self._reconstruct(entry.payload_snapshot.get("object"))
-        if asserted is None:
+        status = self._reconstruct(entry.payload_snapshot.get("object"))
+        if status is None:
             return Status.FAILURE
-        if asserted.id_ in {_as_id(s) for s in case.case_statuses}:
+        if status.id_ in {_as_id(s) for s in case.case_statuses}:
             self.logger.debug(
                 "%s: status '%s' already in case '%s' — idempotent no-op",
                 self.name,
-                asserted.id_,
+                status.id_,
                 case.id_,
             )
-            return Status.SUCCESS
-
-        status = self._adjudicated(case, asserted)
-        if status is None:
             return Status.SUCCESS
 
         self.datalayer.save(status)
@@ -169,40 +143,3 @@ class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return None
-
-    def _adjudicated(
-        self, case: VulnerabilityCase, asserted: CaseStatus
-    ) -> CaseStatus | None:
-        """Apply the RSH-05 rules; ``None`` when nothing new is accepted."""
-        try:
-            current = case.current_status
-        except ValueError:
-            return asserted  # the case's first CaseStatus: nothing to compare
-        status = _adjudicate(current, asserted)
-        if status is asserted:
-            return status
-        if (status.em.state, status.pxa.state) == (
-            current.em.state,
-            current.pxa.state,
-        ):
-            self.logger.warning(
-                "%s: case status '%s' refused in full on case '%s'"
-                " (em %s → %s, pxa %s → %s) — the replica has diverged from"
-                " the ledger; nothing applied (RSH-05-005)",
-                self.name,
-                asserted.id_,
-                case.id_,
-                current.em.state,
-                asserted.em.state,
-                current.pxa.state,
-                asserted.pxa.state,
-            )
-            return None
-        self.logger.warning(
-            "%s: case status '%s' partly refused on case '%s'; carrying the"
-            " replica's value forward (RSH-05-023, RSH-05-019)",
-            self.name,
-            asserted.id_,
-            case.id_,
-        )
-        return status

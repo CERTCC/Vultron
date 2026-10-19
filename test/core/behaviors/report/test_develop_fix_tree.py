@@ -25,6 +25,8 @@ Covers all acceptance criteria from issue #1812:
 - AC-8: Tree root is a Fallback; guards short-circuit before inner Sequence
 """
 
+from typing import cast
+
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -49,6 +51,7 @@ from vultron.core.behaviors.report.nodes.develop_fix import (
     TransitionCStoFixReady,
     _EmitParticipantStatusActivityBase,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
@@ -534,6 +537,50 @@ class TestTransitionCStoFixReady:
         assert "status_id" in result_out
         assert "participant_id" in result_out
 
+    @pytest.mark.spec("RSH-08-006")
+    @pytest.mark.spec("CSB-16-001")
+    def test_a_vendor_not_yet_aware_stores_both_steps_unattached(
+        self,
+        bt_scenario: BTTestScenario,
+        case_with_vendor: VulnerabilityCase,
+    ) -> None:
+        """From ``vf`` the node stores Vf then VF, in order, attaching neither.
+
+        The VF step is validated as following the Vf step; the CASE_MANAGER
+        records both, and the vendor's replica copies them (RSH-08-006).
+        """
+        _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
+        participant_id = case_with_vendor.actor_participant_index[
+            VENDOR_ACTOR_ID
+        ]
+        before = cast(
+            CaseParticipant, bt_scenario.dl.read(participant_id)
+        ).participant_statuses
+        result_out: dict = {}
+
+        result = bt_scenario.run(
+            TransitionCStoFixReady(
+                case_id=CASE_ID,
+                actor_id=VENDOR_ACTOR_ID,
+                result_out=result_out,
+            ),
+            actor_id=VENDOR_ACTOR_ID,
+        )
+
+        assert result.status == Status.SUCCESS
+        steps = [bt_scenario.dl.read(i) for i in result_out["status_ids"]]
+        assert [
+            cast(ParticipantStatus, step).vf.state  # type: ignore[union-attr]
+            for step in steps
+        ] == [CS_vf.Vf, CS_vf.VF]
+        assert result_out["status_id"] == result_out["status_ids"][-1]
+        assert (
+            cast(
+                CaseParticipant, bt_scenario.dl.read(participant_id)
+            ).participant_statuses
+            == before
+        )
+
     def test_failure_when_case_missing(
         self, bt_scenario: BTTestScenario
     ) -> None:
@@ -672,6 +719,97 @@ class TestEmitCFActivity:
         )
         result = bt_scenario.run(emit_node, actor_id=VENDOR_ACTOR_ID)
         assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("RSH-08-006")
+    def test_each_stored_step_is_sent_to_the_case_manager_in_order(
+        self,
+        bt_scenario: BTTestScenario,
+        case_with_vendor_and_case_manager: VulnerabilityCase,
+    ) -> None:
+        """One Add(ParticipantStatus) per stored step, Vf before VF."""
+        _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
+        result_out: dict = {}
+        bt_scenario.run(
+            TransitionCStoFixReady(
+                case_id=CASE_ID,
+                actor_id=VENDOR_ACTOR_ID,
+                result_out=result_out,
+            ),
+            actor_id=VENDOR_ACTOR_ID,
+        )
+        before = list(bt_scenario.dl.outbox_list())
+
+        result = bt_scenario.run(
+            EmitCFActivity(
+                case_id=CASE_ID,
+                actor_id=VENDOR_ACTOR_ID,
+                result_out=result_out,
+            ),
+            actor_id=VENDOR_ACTOR_ID,
+        )
+
+        assert result.status == Status.SUCCESS
+        sent = [
+            bt_scenario.dl.read(i)
+            for i in bt_scenario.dl.outbox_list()
+            if i not in before
+        ]
+        assert [_as_id(getattr(a, "object_", None)) for a in sent] == (
+            result_out["status_ids"]
+        )
+        assert all(
+            [str(_as_id(r)) for r in getattr(a, "to", None) or []]
+            == [CASE_MANAGER_ACTOR_ID]
+            for a in sent
+        )
+
+    @pytest.mark.spec("RSH-08-006")
+    def test_an_actor_that_is_its_own_case_manager_addresses_itself(
+        self,
+        bt_scenario: BTTestScenario,
+        case_with_vendor: VulnerabilityCase,
+        vendor_participant: CaseParticipant,
+    ) -> None:
+        """No local write, so the CASE_MANAGER's own copy must be delivered.
+
+        Its received ``Add(ParticipantStatus)`` tree records the status and
+        commits it (RSH-08-006), as for any other sender.
+        """
+        vendor_participant.case_roles = [CVDRole.VENDOR, CVDRole.CASE_MANAGER]
+        bt_scenario.dl.save(vendor_participant)
+        _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
+        result_out: dict = {}
+        bt_scenario.run(
+            TransitionCStoFixReady(
+                case_id=CASE_ID,
+                actor_id=VENDOR_ACTOR_ID,
+                result_out=result_out,
+            ),
+            actor_id=VENDOR_ACTOR_ID,
+        )
+        before = list(bt_scenario.dl.outbox_list())
+
+        result = bt_scenario.run(
+            EmitCFActivity(
+                case_id=CASE_ID,
+                actor_id=VENDOR_ACTOR_ID,
+                result_out=result_out,
+            ),
+            actor_id=VENDOR_ACTOR_ID,
+        )
+
+        assert result.status == Status.SUCCESS
+        sent = [
+            bt_scenario.dl.read(i)
+            for i in bt_scenario.dl.outbox_list()
+            if i not in before
+        ]
+        assert sent
+        assert all(
+            [str(_as_id(r)) for r in getattr(a, "to", None) or []]
+            == [VENDOR_ACTOR_ID]
+            for a in sent
+        )
 
     def test_failure_when_result_out_empty(
         self,

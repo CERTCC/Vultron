@@ -14,9 +14,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Replay of ``add_case_status_to_case`` on a participant replica (#3814 AC-2).
 
-The replica appends the committed CaseStatus under the EM and P/X/A acceptance
-rules the CASE_MANAGER's ``add_case_status_tree`` uses (RSH-05-023,
-RSH-05-019); a refused dimension carries the replica's value forward.
+The replica copies the committed CaseStatus as carried (CM-23-016, ADR-0124).
+The CASE_MANAGER adjudicated it (RSH-05-023, RSH-05-019); the replica does not
+adjudicate again.  EM is derived from the replica's embargo register, so a
+status never moves it (ADR-0122).
 """
 
 from datetime import timedelta
@@ -163,19 +164,29 @@ def test_a_status_never_moves_the_replicas_em(bridge, datalayer):
     assert case.current_status.pxa.state == CS_pxa.Pxa
 
 
-@pytest.mark.spec("RSH-05-019")
-def test_a_pxa_regression_is_carried_forward(bridge, datalayer):
+@pytest.mark.spec("CM-23-016")
+def test_the_pxa_the_entry_carries_is_copied(bridge, datalayer):
+    """The replica keeps no P/X/A of its own over the entry's.
+
+    A replica that refused the entry's value and carried its own forward
+    would hold a status no entry records.
+    """
     current = _seed(datalayer, EM.ACTIVE, CS_pxa.PXa)
     committed = _later(current, EM.ACTIVE, CS_pxa.Pxa)
 
-    # EM unchanged, P/X/A refused: nothing new, nothing appended.
     assert _apply(bridge, _wire(committed)).status == Status.SUCCESS
-    assert [_as_id(s) for s in _case(datalayer).case_statuses] == [current.id_]
+
+    case = _case(datalayer)
+    assert [_as_id(s) for s in case.case_statuses] == [
+        current.id_,
+        committed.id_,
+    ]
+    assert case.current_status.pxa.state == CS_pxa.Pxa
 
 
-@pytest.mark.spec("RSH-05-019")
-def test_a_multi_step_pxa_advance_is_accepted(bridge, datalayer):
-    """The received rule is monotone-forward, not single-step adjacency."""
+@pytest.mark.spec("CM-23-016")
+def test_a_multi_step_pxa_advance_is_copied(bridge, datalayer):
+    """A replica copies the move; it checks no adjacency."""
     current = _seed(datalayer, EM.ACTIVE, CS_pxa.pxa)
     committed = _later(current, EM.ACTIVE, CS_pxa.PXA)
 
@@ -207,8 +218,8 @@ def test_a_status_the_replica_holds_is_not_appended_twice(bridge, datalayer):
 
 @pytest.mark.spec("SYNC-12-003")
 @pytest.mark.spec("RSH-05-023")
-def test_a_partly_refused_status_is_not_appended_twice(bridge, datalayer):
-    """Re-delivery after a carry-forward is a no-op: the id is already held."""
+def test_a_status_with_a_stale_em_is_not_appended_twice(bridge, datalayer):
+    """Re-delivery is a no-op: the id is already held."""
     current = _seed(datalayer, EM.EXITED, CS_pxa.pxa)
     committed = _later(current, EM.ACTIVE, CS_pxa.Pxa)
 
@@ -227,10 +238,10 @@ def test_a_partly_refused_status_is_not_appended_twice(bridge, datalayer):
 def test_a_status_with_no_materialized_one_to_compare_is_appended(
     bridge, datalayer
 ):
-    """No readable current status: nothing to adjudicate against.
+    """No readable current status: the committed status still lands.
 
-    The replica's only status is a reference it cannot resolve, so
-    ``current_status`` raises and the committed status lands as recorded.
+    The replica's only status is a reference it cannot resolve; the entry's
+    status is appended as recorded.
     """
     unresolved = "urn:uuid:unresolved-status"
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)

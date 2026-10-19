@@ -25,6 +25,7 @@ execute() path against a real in-memory DataLayer and asserts:
 """
 
 from datetime import UTC, datetime
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
@@ -236,45 +237,63 @@ class TestSvcValidateReportUseCase:
     # --- AC-1: RM state transition -----------------------------------------
 
     @pytest.mark.spec("TRIG-02-001")
-    def test_validate_report_creates_rm_valid_status_record(self):
-        """execute() creates a as_ParticipantStatus record for RM.VALID."""
+    @pytest.mark.spec("RSH-08-006")
+    def test_validate_report_leaves_the_link_to_the_case_manager(self):
+        """execute() sends the validation and does not latch the report link.
+
+        The trigger checks the move and writes nothing of its own: the
+        CASE_MANAGER latches its link and records RM VALID when it accepts
+        the validation (RSH-08-006, CM-23-016).
+        """
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
+        before = set(self.dl.outbox_list())
         SvcValidateReportUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
+        assert set(self.dl.outbox_list()) - before
         link = self.dl.read(VultronReportCaseLink.build_id(self.report.id_))
         assert (
             isinstance(link, VultronReportCaseLink)
-            and link.rm_state == RM.VALID
+            and link.rm_state == RM.RECEIVED
         )
 
     @pytest.mark.spec("TRIG-02-001")
-    def test_validate_report_updates_case_participant_rm_state(self):
-        """execute() advances the as_CaseParticipant.participant_statuses to RM.VALID."""
+    def test_validate_report_leaves_the_participant_to_the_case_manager(
+        self,
+    ):
+        """execute() writes no participant status of its own (RSH-08-003).
+
+        The CASE_MANAGER records RM VALID when it accepts the validation and
+        commits that status as its own entry; the replica copies it
+        (CLP-07-013, CM-23-016).
+        """
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
+        vendor_participant_id = self.case.actor_participant_index[
+            self.vendor.id_
+        ]
+        before = cast(
+            CaseParticipant, self.dl.read(vendor_participant_id)
+        ).participant_statuses
         SvcValidateReportUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        vendor_participant_id = self.case.actor_participant_index[
-            self.vendor.id_
-        ]
         updated = self.dl.read(vendor_participant_id)
         assert updated is not None
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
-        assert updated.participant_statuses[-1].rm.state == RM.VALID
+        assert updated.participant_statuses == before
 
     # --- AC-2: outbox effect -----------------------------------------------
 

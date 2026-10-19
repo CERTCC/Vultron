@@ -25,7 +25,9 @@ it; there is no hand-mirrored copy to keep in sync (ARCH-15-004, ISSUE-2548).
 Structure:
 
     ValidateReportBT (Selector, memory=False)
-    ├─ CheckRMStateValid                     # idempotent early exit (ID-04-004)
+    ├─ CheckRMStateValid                     # early exit on a latched link
+    │                                        # (received side only: the
+    │                                        # trigger latches nothing)
     └─ ValidationFlow (Sequence, memory=False)
        ├─ CheckRMStateReceivedOrInvalid      # RM precondition
        ├─ EvaluateReportCredibility          # call-out point
@@ -33,8 +35,9 @@ Structure:
        ├─ RequireCaseForReport               # case must be in *this* store
        ├─ EnsureEmbargoExists                # embargo present (DUR-07-004)
        └─ ValidationActions (Sequence, memory=False)
-          ├─ MaybeEmitValidateReport         # only when emit=True
-          └─ TransitionRMtoValid             # case participant, then RM latch
+          ├─ TransitionRMtoValid             # write + RM latch (received) or
+          │                                  # check only (trigger)
+          └─ EmitValidateReportActivity      # only when emit=True
 
 Why the guards precede the actions
 ----------------------------------
@@ -115,6 +118,8 @@ def create_validate_report_subtree(
     emit: bool = True,
     name: str = "ValidateReportBT",
     rm_rule: RMRule = RMRule.TRANSITION,
+    written_ids: list[str] | None = None,
+    record_participant: bool = True,
 ) -> py_trees.behaviour.Behaviour:
     """Build the canonical validate-report subtree.
 
@@ -134,7 +139,7 @@ def create_validate_report_subtree(
             ``EvaluateReportValidity``.
         captured: Optional dict; ``captured["activity"]`` is set to the
             serialised emitted activity on success (DL-06-001, AC-1).
-        emit: When ``True``, ``ValidationActions`` starts with a
+        emit: When ``True``, ``ValidationActions`` ends with a
             ``Read(Offer(Report))``-style emit to the Case Actor so its inbox
             can write the canonical ledger entry (ADR-0021 CLP-10-001).  Pass
             ``False`` on the received side: the activity being handled *is* that
@@ -145,41 +150,43 @@ def create_validate_report_subtree(
             ``DECLARATION``, because the write records the state the sender
             declared, which the received-side acceptance rule adjudicates
             (RSH-06-006).
+        written_ids: Given to the participant write, which reports in it the
+            id of the status it writes.  The received side passes it so the
+            CASE_MANAGER can commit that status as its own entry
+            (CLP-07-013).
+        record_participant: ``False`` checks the move and writes nothing,
+            leaving the link and the sender's participant to the
+            CASE_MANAGER.  The trigger side passes it (RSH-08-006, CM-23-016).
 
     Returns:
         Root node of the validation subtree (a Selector).
     """
     bundle = call_out if call_out is not None else VALIDATION_DETERMINISTIC
 
-    action_children: list[py_trees.behaviour.Behaviour] = []
-    if emit:
-        # The emit is masked by a Success fallback because emit failure was
-        # already tolerated by design: callers that run this tree without a
-        # TriggerActivityPort (e.g. the received-validate path) still succeed,
-        # and ADR-0066 gives the outbox its own retry path.  Without the mask
-        # those callers would regress to FAILURE.
-        action_children.append(
-            py_trees.composites.Selector(
-                name="MaybeEmitValidateReport",
-                memory=False,
-                children=[
-                    EmitValidateReportActivity(
-                        offer_id=offer_id,
-                        report_id=report_id,
-                        captured=captured,
-                    ),
-                    py_trees.behaviours.Success(name="NoEmitFallback"),
-                ],
-            )
-        )
-    action_children.append(
+    # The transition comes first: on the trigger side it is the check that
+    # refuses a move before anything is sent and writes nothing (RSH-08-006);
+    # on the received side it is the CASE_MANAGER's write and link latch.
+    action_children: list[py_trees.behaviour.Behaviour] = [
         TransitionRMtoValid(
             report_id=report_id,
             offer_id=offer_id,
             sender_actor_id=sender_actor_id,
             rm_rule=rm_rule,
+            written_ids=written_ids,
+            record_participant=record_participant,
         )
-    )
+    ]
+    if emit:
+        # Not masked: the trigger writes nothing of its own (RSH-08-006), so
+        # the send is the whole effect, and a send that fails fails the
+        # trigger rather than reporting a validation nobody received.
+        action_children.append(
+            EmitValidateReportActivity(
+                offer_id=offer_id,
+                report_id=report_id,
+                captured=captured,
+            )
+        )
 
     validation_actions = py_trees.composites.Sequence(
         name="ValidationActions",
@@ -237,9 +244,12 @@ def create_validate_report_tree(
     sent to the Case Actor (CASE_MANAGER participant) whose inbox executes the
     guarded commit (ADR-0021 CLP-10-001, CLP-10-002, CLP-10-003).
 
-    Advances RM state to VALID only.  The engage/defer decision is a separate,
-    explicit protocol step the operator must trigger via ``engage-case`` or
-    ``defer-case``.
+    Checks the move and sends; it writes nothing of its own.  The
+    CASE_MANAGER records the move when it accepts the validation and commits
+    that status as its own entry, and the actor's replica copies it from the
+    ledger (RSH-08-006, CLP-07-013, CM-23-016).
+    The engage/defer decision is a separate, explicit protocol step the
+    operator must trigger via ``engage-case`` or ``defer-case``.
 
     Args:
         report_id: ID of VulnerabilityReport to validate.
@@ -273,6 +283,7 @@ def create_validate_report_tree(
         captured=captured,
         emit=True,
         sender_actor_id=sender_actor_id,
+        record_participant=False,
     )
     logger.info(
         "Created ValidateReportBT for report=%s, offer=%s", report_id, offer_id

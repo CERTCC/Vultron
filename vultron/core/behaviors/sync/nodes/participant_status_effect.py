@@ -15,10 +15,10 @@
 
 """Ledger effect nodes for add_participant_status_to_participant entries.
 
-Provides :class:`ApplyParticipantStatusFromLedgerNode`, which applies an
-``add_participant_status_to_participant`` ledger entry to the local participant
-record, enforcing the RM ratchet (RSH-05-007) and composite-state entailments
-(RSH-05-021, ADR-0061).
+Provides :class:`ApplyParticipantStatusFromLedgerNode`, which copies the
+status an ``add_participant_status_to_participant`` ledger entry carries onto
+the local participant record (CM-23-016, ADR-0124), refusing one that
+describes an impossible composite state (RSH-05-021, ADR-0061).
 
 Provides :class:`EmitImpossibleStateFaultNode`, which emits
 ``Create(ProcessingFault)`` with failure class
@@ -40,7 +40,6 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
-    read_rm_states,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes.conditions import (
@@ -52,47 +51,15 @@ from vultron.core.models._helpers import (
     project_wire_snapshot_to_core,
 )
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.fault_classes import (
-    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD,
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
-from vultron.core.states.rm import RM, is_rm_replay_acceptable
 
 logger = logging.getLogger(__name__)
-
-
-def _ratchet_rm(
-    status_obj: ParticipantStatus, local_rm: RM | None
-) -> tuple[ParticipantStatus, RM | None]:
-    """Carry *local_rm* forward when *status_obj* would regress it.
-
-    Monotonic visibility (``notes/sync-ledger-replication.md``): a replica must
-    never move an RM state backwards on the progress scale, even on an entry
-    from the authoritative Case Actor.  A replayed, reordered, or divergent
-    entry would otherwise un-see progress the replica has already observed.
-
-    Lateral moves at the same rank (``VALID`` ↔ ``INVALID``,
-    ``DEFERRED`` ↔ ``ACCEPTED``) are *not* regressions: the Case Actor is
-    authoritative for re-adjudication and those are applied unchanged.
-
-    Returns:
-        The status to record and the refused RM value, or ``(status_obj, None)``
-        when nothing was refused.
-    """
-    entry_rm = status_obj.rm.state
-    if local_rm is None or is_rm_replay_acceptable(local_rm, entry_rm):
-        return status_obj, None
-    return (
-        status_obj.model_copy(
-            update={"rm": RmDimension(state=local_rm), "name": None}
-        ),
-        entry_rm,
-    )
 
 
 class ApplyParticipantStatusFromLedgerNode(
@@ -108,15 +75,13 @@ class ApplyParticipantStatusFromLedgerNode(
     :class:`~vultron.core.models.case_participant.CaseParticipant` in the
     local DataLayer.
 
-    The Case Actor is considered authoritative for *which* transition happened
-    — it already adjudicated the assertion before committing the entry — so
-    this node does not re-run the RM transition rules.  It does enforce one
-    invariant the Case Actor cannot vouch for from the replica's vantage point:
-    RM state must never move backwards on the progress scale (monotonic
-    visibility).  A replayed, reordered, or divergent entry that would regress
-    the local RM state has that dimension carried forward at the local value;
-    every other dimension is applied as the entry describes it.  Lateral moves
-    at the same rank (``VALID`` ↔ ``INVALID``) are applied unchanged.
+    The entry carries the status the CASE_MANAGER stored, in full, so this
+    node copies it — id, times and every dimension as carried — and derives
+    nothing from the replica's own state (CM-23-016, ADR-0124).  The
+    CASE_MANAGER adjudicated the move before committing it, so the replica
+    does not re-run the RM transition rules, and it does not carry a local RM
+    value forward over the entry's: a replica applies the ledger in order, and
+    two replicas at the same position hold the same statuses.
 
     Idempotency is preserved — if the status ID is already present in the
     participant's list, the node returns SUCCESS without modifying the
@@ -125,10 +90,8 @@ class ApplyParticipantStatusFromLedgerNode(
     Lenient on missing data: if the participant is not found in the local
     DataLayer (this actor may have a partial view of the case), or the
     payload snapshot is incomplete, the node returns SUCCESS without error to
-    avoid blocking the ``Announce`` processing flow.  It is *not* lenient on a
-    malformed local record: a participant whose recorded status is not
-    core-shaped yields FAILURE, because the ratchet cannot be enforced against
-    an unreadable floor (ARCH-15-001, ADR-0062).
+    avoid blocking the ``Announce`` processing flow.  An entry describing an
+    impossible composite state yields FAILURE (RSH-05-021).
 
     Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
     specs/sync-ledger-replication.yaml SYNC-02-002.
@@ -146,47 +109,6 @@ class ApplyParticipantStatusFromLedgerNode(
     def initialise(self) -> None:
         super().initialise()
         self.activity = self.get_input("activity")
-        self._failure_cause: str | None = None
-
-    def _apply_rm_ratchet(
-        self,
-        status_obj: ParticipantStatus,
-        participant: CaseParticipant,
-        status_id: str,
-        participant_id: str,
-    ) -> ParticipantStatus | None:
-        """Enforce monotonic RM visibility, logging a carried-forward value.
-
-        Returns ``None`` when the participant's recorded status is not
-        core-shaped, and the caller must then return ``Status.FAILURE``.  A
-        shape mismatch is not an absence: reading it as "no local RM known"
-        would hand :func:`_ratchet_rm` a ``None`` floor and skip the ratchet
-        entirely, letting a regressing entry through unchecked — the defect
-        behind #2264 (ARCH-15-001, ARCH-15-002, ADR-0062).  Genuine absence —
-        a replica whose participant record carries no status yet — has no
-        floor to enforce and is handled here as such.
-        """
-        current = getattr(participant, "participant_status", None)
-        local_rm: RM | None = None
-        if current is not None:
-            states = read_rm_states(self, current)
-            if states is None:
-                return None
-            (local_rm,) = states
-
-        ratcheted, refused_rm = _ratchet_rm(status_obj, local_rm)
-        if refused_rm is not None:
-            self.logger.warning(
-                "%s: ledger entry for '%s' would regress participant '%s'"
-                " from rm=%s to rm=%s — carrying the local value forward"
-                " (monotonic visibility, SYNC-02-002)",
-                self.name,
-                status_id,
-                participant_id,
-                ratcheted.rm.state,
-                refused_rm,
-            )
-        return ratcheted
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -257,22 +179,6 @@ class ApplyParticipantStatusFromLedgerNode(
             )
             return Status.SUCCESS
 
-        ratcheted = self._apply_rm_ratchet(
-            status_obj, participant, status_id, participant_id
-        )
-        if ratcheted is None:
-            self.logger.error(
-                "%s: cannot enforce monotonic RM visibility for participant"
-                " '%s' — its recorded status is not core-shaped; refusing to"
-                " apply ledger entry '%s' (ARCH-15-001, ADR-0062)",
-                self.name,
-                participant_id,
-                status_id,
-            )
-            self._failure_cause = "CORRUPT_LOCAL_RECORD"
-            return Status.FAILURE
-        status_obj = ratcheted
-
         rm = status_obj.rm.state
         vf = status_obj.vf.state if status_obj.vf is not None else None
         d = status_obj.d.state if status_obj.d is not None else None
@@ -294,9 +200,6 @@ class ApplyParticipantStatusFromLedgerNode(
             )
             return Status.FAILURE
 
-        # Saved unconditionally: ``status_obj`` carries the RM ratchet applied
-        # above; skipping the save would silently discard that ratchet,
-        # regressing the replica's RM visibility (RSH-05-007, SYNC-02-002).
         self.datalayer.save(status_obj)
 
         participant.add_participant_status(status_obj)
@@ -316,14 +219,9 @@ class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
     """Emit ``Create(ProcessingFault)`` when the Apply node fails.
 
     This node is the fallback in the Selector that wraps
-    :class:`ApplyParticipantStatusFromLedgerNode`.  When the Apply node returns
-    FAILURE it writes ``_failure_cause`` before returning; this node reads it
-    to select the precise fault class:
-
-    - RSH-05-021 (impossible composite state): emits
-      ``StatusAssertionRefused/ImpossibleState``
-    - ARCH-15-001 (unreadable local participant record): emits
-      ``StatusAssertionRefused/CorruptLocalRecord``
+    :class:`ApplyParticipantStatusFromLedgerNode`.  The Apply node fails only
+    when the entry describes an impossible composite state (RSH-05-021), so
+    this node emits ``StatusAssertionRefused/ImpossibleState``.
 
     After emitting it returns FAILURE, so the Selector's FAILURE propagates up
     to block ``PersistReceivedLogEntry`` (SYNC-12-001, RSH-05-021).
@@ -371,16 +269,6 @@ class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
         failure_class = (
             VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE
         )
-        if self.parent is not None and hasattr(self.parent, "children"):
-            for sibling in self.parent.children:
-                if isinstance(sibling, ApplyParticipantStatusFromLedgerNode):
-                    if (
-                        getattr(sibling, "_failure_cause", None)
-                        == "CORRUPT_LOCAL_RECORD"
-                    ):
-                        failure_class = VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD
-                    break
-
         if failed_id and sender_id:
             self.trigger_activity_factory.emit_processing_fault(
                 actor=self.actor_id,

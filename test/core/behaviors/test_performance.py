@@ -179,7 +179,10 @@ def _seed_mock_case(storage: dict) -> VulnerabilityCase:
         id_=f"{case.id_}/participants/vendor",
         attributed_to=_PERF_ACTOR_ID,
         context=case.id_,
-        case_roles=[CVDRole.VENDOR],
+        # The vendor manages its own case, so the validate trigger has a
+        # CASE_MANAGER to address: the send is the whole effect, and a send
+        # with no recipient fails the tree (RSH-08-006).
+        case_roles=[CVDRole.VENDOR, CVDRole.CASE_MANAGER],
     )
     advance_participant_rm(participant, RM.RECEIVED, _PERF_ACTOR_ID, case.id_)
     case.add_participant(participant)
@@ -217,6 +220,23 @@ def mock_datalayer():
 
 
 @pytest.fixture
+def perf_bridge(mock_datalayer) -> BTBridge:
+    """BTBridge with a stub TriggerActivityPort, so the emit step can send.
+
+    The validate trigger's send is unmasked (RSH-08-006): without a port the
+    tree fails.  A stub keeps the measurement on the tree, not the factory.
+    """
+    trigger_activity = MagicMock()
+    trigger_activity.validate_report.return_value = (
+        "https://example.org/activities/perf-validate",
+        {"id": "https://example.org/activities/perf-validate"},
+    )
+    return BTBridge(
+        datalayer=mock_datalayer, trigger_activity=trigger_activity
+    )
+
+
+@pytest.fixture
 def sample_activity():
     """Sample validation activity for testing."""
     report = VulnerabilityReport(
@@ -235,14 +255,14 @@ def sample_activity():
     )
 
 
-def test_bt_execution_performance_single_run(mock_datalayer, sample_activity):
+def test_bt_execution_performance_single_run(perf_bridge, sample_activity):
     """
     Test single BT execution for performance baseline.
 
     This measures one complete validation BT execution to establish
     baseline performance. Target: < 100ms per BT_INTEGRATION.md.
     """
-    bridge = BTBridge(datalayer=mock_datalayer)
+    bridge = perf_bridge
     tree = create_validate_report_tree(
         report_id="test-report-123",
         offer_id="test-offer-456",
@@ -271,14 +291,14 @@ def test_bt_execution_performance_single_run(mock_datalayer, sample_activity):
         logger.info("Execution time within 100ms target")
 
 
-def test_bt_execution_performance_percentiles(mock_datalayer, sample_activity):
+def test_bt_execution_performance_percentiles(perf_bridge, sample_activity):
     """
     Measure BT execution across multiple runs to calculate percentiles.
 
     Runs BT execution N times and calculates P50, P95, P99 to establish
     performance baseline. Target: P99 < 100ms per BT_INTEGRATION.md.
     """
-    bridge = BTBridge(datalayer=mock_datalayer)
+    bridge = perf_bridge
     n_runs = 100
     timings = []
 

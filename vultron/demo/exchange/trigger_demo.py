@@ -44,12 +44,14 @@ the response body and that the vendor's outbox is updated accordingly.
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.exchange.embargo_lifecycle import demo_terminate_embargo
 from vultron.demo.helpers.closure import (
     CaseLeaver,
     wait_for_owner_replica_embargo_state,
 )
+from vultron.demo.helpers.polling import wait_for_participant_rm_state
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     find_case_for_offer,
@@ -127,6 +129,18 @@ def demo_validate_and_engage(
         with demo_check("Case created by validate-report BT"):
             assert case is not None, f"No case found for report {report.id_}"
             logger.info("Found case: %s", case.id_)
+
+        # Gate the engagement on its cause: the CASE_MANAGER records the
+        # vendor's RM.VALID and the vendor's replica copies it from the
+        # ledger, so engaging before it lands is refused (RSH-08-006,
+        # ADR-0058).
+        with demo_gate(f"{vendor.id_} reached RM.VALID before engage-case"):
+            wait_for_participant_rm_state(
+                client=client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={RM.VALID, RM.ACCEPTED},
+            )
 
         response = vendor_session.with_case(case).engage_case()
         logger.info(

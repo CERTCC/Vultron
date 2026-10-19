@@ -13,6 +13,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     RmDimension,
 )
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers.case import (
     DeferCaseTriggerRequest,
@@ -123,7 +124,13 @@ class TestDeferCaseRMTransitionViaBT:
         reset_datalayer(self.finder.id_)
         reset_datalayer(self.case_actor.id_)
 
-    def test_defer_case_updates_rm_to_deferred_via_bt(self):
+    @pytest.mark.spec("RSH-08-006")
+    def test_defer_case_sends_and_leaves_rm_to_the_case_manager(self):
+        """The decision is sent; the actor writes no status (RSH-08-003).
+
+        The CASE_MANAGER records RM DEFERRED and the replica copies the status
+        it commits (CLP-07-013, CM-23-016).
+        """
         request = DeferCaseTriggerRequest(
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
@@ -137,7 +144,7 @@ class TestDeferCaseRMTransitionViaBT:
         assert updated is not None
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
-        assert updated.participant_statuses[-1].rm.state == RM.DEFERRED
+        assert updated.participant_statuses[-1].rm.state == RM.VALID
 
         after = set(self.dl.outbox_list())
         new_ids = after - before
@@ -152,6 +159,58 @@ class TestDeferCaseRMTransitionViaBT:
         assert len(to_ids) == 1, (
             f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
         )
+
+    @pytest.mark.spec("RSH-08-006")
+    @pytest.mark.spec("BTND-10-002")
+    def test_defer_refused_move_sends_nothing(self):
+        """A closed participant's defer is refused before anything is sent.
+
+        The trigger writes no status (RSH-08-006) but checks the move the
+        CASE_MANAGER would record: VALID → CLOSED → defer is refused.
+        """
+        participant = self.dl.read(self.vendor_participant.id_)
+        assert isinstance(participant, CaseParticipant)
+        participant.add_participant_status(
+            ParticipantStatus(
+                context=self.case.id_,
+                attributed_to=self.vendor.id_,
+                rm=RmDimension(state=RM.CLOSED),
+            )
+        )
+        self.dl.save(participant)
+        statuses_before = list(participant.participant_statuses)
+        before = set(self.dl.outbox_list())
+
+        with pytest.raises(VultronValidationError):
+            SvcDeferCaseUseCase(
+                self.dl,
+                DeferCaseTriggerRequest(
+                    actor_id=self.vendor.id_, case_id=self.case.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+        assert set(self.dl.outbox_list()) == before
+        after = self.dl.read(self.vendor_participant.id_)
+        assert isinstance(after, CaseParticipant)
+        assert after.participant_statuses == statuses_before
+
+    def test_defer_by_an_actor_with_no_participant_sends_nothing(self):
+        """An actor the case does not index is refused and sends nothing."""
+        case_solo = as_VulnerabilityCase(name="Unseated Case")
+        self.dl.create(case_solo)
+        before = set(self.dl.outbox_list())
+
+        with pytest.raises(VultronValidationError):
+            SvcDeferCaseUseCase(
+                self.dl,
+                DeferCaseTriggerRequest(
+                    actor_id=self.vendor.id_, case_id=case_solo.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+        assert set(self.dl.outbox_list()) == before
 
     def test_defer_case_actor_not_found_raises_error(self):
         request = DeferCaseTriggerRequest(
