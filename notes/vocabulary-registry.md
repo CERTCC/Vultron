@@ -6,7 +6,8 @@ tags: [vocabulary, registry, wire, as2, deserialization]
 description: >
   Design rules for the AS2 vocabulary registry: auto-registration via
   __init_subclass__, flat dict, VocabNamespace, the generated JSON-LD
-  context (types and marked properties), fail-fast lookup, CORE_TYPE_MAP, and disjoint registry keys.
+  context (types and marked properties), fail-fast lookup, CORE_TYPE_MAP,
+  and disjoint registry keys.
   Operating rules live in vultron/wire/as2/vocab/AGENTS.md.
 related_specs:
   - specs/vocabulary-model.yaml (VM-01 through VM-03, VM-06, VM-10)

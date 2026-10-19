@@ -445,14 +445,24 @@ class TestTheAskCarriesTheParticipantCause:
 
         assert factory.terminate_embargo.call_args.kwargs["cause"] == cause
 
+
+class TestParticipantCause:
+    """``participant_cause`` drops only the CASE_MANAGER-only kinds."""
+
     @pytest.mark.spec("EMB-13-005")
-    def test_a_participant_names_no_threat_signal_cause(self) -> None:
+    def test_a_threat_signal_cause_is_dropped(self) -> None:
         assert (
             EmbargoTermination.threat([ThreatSignal.X]).participant_cause
             is None
         )
         assert ThreatSignalTermination().participant_cause is None
+
+    @pytest.mark.spec("EMB-13-005")
+    def test_no_cause_stays_none(self) -> None:
         assert EmbargoTermination.early().participant_cause is None
+
+    @pytest.mark.spec("EMB-13-005")
+    def test_any_other_cause_passes_through(self) -> None:
         cause = FixReadyCause(vendors=[_VENDOR_ID])
         assert (
             EmbargoTermination.from_reason(

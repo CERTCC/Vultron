@@ -394,8 +394,8 @@ def test_an_owner_threat_signal_cause_is_refused_before_the_commit() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _bridge(net: LedgerNetwork) -> BTBridge:
-    dl = net.stores[MANAGER]
+def _bridge(net: LedgerNetwork, actor_id: str = MANAGER) -> BTBridge:
+    dl = net.stores[actor_id]
     return BTBridge(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),
@@ -404,9 +404,11 @@ def _bridge(net: LedgerNetwork) -> BTBridge:
     )
 
 
-def _sent_removes(net: LedgerNetwork) -> list[dict[str, Any]]:
-    """The sealed bodies of every ``Remove`` the CASE_MANAGER queued."""
-    dl = net.stores[MANAGER]
+def _sent_removes(
+    net: LedgerNetwork, actor_id: str = MANAGER
+) -> list[dict[str, Any]]:
+    """The sealed bodies of every ``Remove`` *actor_id* queued."""
+    dl = net.stores[actor_id]
     bodies = []
     for activity_id in dl.outbox_list():
         if cast(VultronActivity, dl.read(activity_id)).type_ != "Remove":
@@ -470,3 +472,49 @@ def test_an_uncaused_remove_carries_no_termination_cause() -> None:
     assert result.status == py_trees.common.Status.SUCCESS
     sent = _sent_removes(net)
     assert sent and all("terminationCause" not in body for body in sent)
+
+
+def _owner_ask(
+    net: LedgerNetwork,
+    termination: EmbargoTermination | ThreatSignalTermination,
+) -> list[dict[str, Any]]:
+    """Run ``terminate_embargo_bt`` as the owner; return the asks it queued."""
+    result = _bridge(net, OWNER).execute_with_setup(
+        terminate_embargo_bt(
+            case_id=net.case_id, result_out={}, termination=termination
+        ),
+        actor_id=OWNER,
+    )
+
+    assert result.status == py_trees.common.Status.SUCCESS
+    sent = _sent_removes(net, OWNER)
+    assert len(sent) == 1, f"expected one ask, got {sent}"
+    return sent
+
+
+@pytest.mark.spec("EMB-13-005")
+def test_a_participant_ask_carries_the_cause_it_may_name() -> None:
+    """The owner's ask names its ``FIX_DEPLOYED`` cause."""
+    net = LedgerNetwork("https://example.org/cases/tc-ask-cause")
+
+    (ask,) = _owner_ask(
+        net,
+        EmbargoTermination.from_reason(
+            TerminationReason.EARLY, FixDeployedCause()
+        ),
+    )
+
+    assert ask["terminationCause"] == FixDeployedCause().model_dump(
+        mode="json", by_alias=True
+    )
+
+
+@pytest.mark.spec("EMB-13-005")
+def test_a_participant_threat_signal_ask_names_no_cause() -> None:
+    """Only the CASE_MANAGER may name ``THREAT_SIGNAL``, so the owner's
+    threat-signal ask leaves ``terminationCause`` out."""
+    net = LedgerNetwork("https://example.org/cases/tc-ask-threat")
+
+    (ask,) = _owner_ask(net, ThreatSignalTermination(signals=[ThreatSignal.X]))
+
+    assert "terminationCause" not in ask
