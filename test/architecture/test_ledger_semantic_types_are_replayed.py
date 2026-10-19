@@ -16,7 +16,7 @@
 """Architecture ratchet: every committed ledger semantic type is replayed (RSH-08-004).
 
 A participant replica takes case state from the CASE_MANAGER's ledger
-(PCR-03-001, ADR-0108).  An ``semantic_type`` the CASE_MANAGER commits with no
+(PCR-03-001, ADR-0108).  A ``semantic_type`` the CASE_MANAGER commits with no
 effect slot in ``AnnounceLogEntryReceivedBT`` is stored and ignored, so the
 replica silently stops following the case — and gating a received-side effect
 behind the CASE_MANAGER role (RSH-08-003) before the slot exists blinds every
@@ -239,9 +239,9 @@ def test_the_derivation_finds_both_commit_paths():
         INVITE_EXPIRED_SEMANTIC_TYPE,
     } <= explicit_semantic_types()
     # A replay slot's own constant is compared, never committed, so defining
-    # it must not make its type look committed: Add(Note) is committed only
-    # on the receive side.
-    assert MS.ADD_NOTE_TO_CASE.value not in explicit_semantic_types()
+    # it must not make its type look committed: Remove(Note) is committed
+    # only on the receive side.
+    assert MS.REMOVE_NOTE_FROM_CASE.value not in explicit_semantic_types()
 
 
 @pytest.mark.spec("RSH-08-004")

@@ -379,8 +379,12 @@ def test_confirmation_and_gap_replies_are_accepted(
     assert result.disposition is expected_disposition, result.reason
     assert _rm_history(joining_case)[-1] == expected_rm
     assert len(_rm_history(joining_case)) == records_before + new_records
-    assert len(_ledger_tail(joining_case)) == before + 1, (
-        "the receipt is committed even for a confirmation or gap"
+    committed = [e.semantic_type for e in _ledger_tail(joining_case)[before:]]
+    # The receipt is committed even for a confirmation or gap; a gap also
+    # gets the CASE_MANAGER's RSH-06-004 note, its own entry (#4829).
+    assert len(committed) == 1 + (second == "reject"), committed
+    assert committed[1:] == (
+        ["add_note_to_case"] if second == "reject" else []
     )
 
 
@@ -409,7 +413,11 @@ def test_a_regression_reply_is_refused_before_receipt(
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
     assert _rm_history(joining_case)[-1] == RM.VALID
-    assert len(_ledger_tail(joining_case)) == before
+    # Nothing of the reply is committed; only the CASE_MANAGER's RSH-06-004
+    # note is (CLP-10-022, #4829).
+    assert [e.semantic_type for e in _ledger_tail(joining_case)[before:]] == [
+        "add_note_to_case"
+    ]
 
 
 @pytest.mark.spec("CM-11-010")

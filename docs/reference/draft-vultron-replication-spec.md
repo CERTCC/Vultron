@@ -252,6 +252,11 @@ Specifically:
   replay, regardless of cooldown. (SYNC-15-010)
 - A replay in which zero entries were sent MUST NOT update the recorded
   position. (SYNC-15-011)
+- Each consecutive non-empty replay from an unchanged position MUST lengthen
+  the cooldown before the next (doubling it, up to a fixed ceiling); a replay
+  from a different position MUST reset it. (SYNC-15-013)
+- The genesis `Announce(VulnerabilityCase)` pre-seed MUST NOT be sent for a
+  genesis Reject whose replay the cooldown suppresses. (SYNC-15-014)
 
 The genesis position (`last_accepted_hash == ""`) SHOULD use a shorter
 cooldown than a mid-chain stall, to avoid starving the initial bootstrap
@@ -579,6 +584,8 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-15-009 | §5.4 | Reject at unchanged position within cooldown MUST NOT trigger replay |
 | SYNC-15-010 | §5.4 | Reject at advanced position MUST always trigger replay |
 | SYNC-15-011 | §5.4 | Zero-entry replay MUST NOT update recorded position |
+| SYNC-15-013 | §5.4 | Cooldown MUST double per no-progress replay, capped; reset on progress |
+| SYNC-15-014 | §5.4 | Genesis case pre-seed MUST NOT be sent while its replay is suppressed |
 | SYNC-16-001 | §5.5 | Participant MUST report a refused entry that extends its chain as a divergence fault |
 | SYNC-16-002 | §5.5 | A fault about applying an entry MUST NOT be ledgered |
 | SYNC-16-003 | §5.5 | CASE_MANAGER MUST re-seed an active participant that reports divergence |

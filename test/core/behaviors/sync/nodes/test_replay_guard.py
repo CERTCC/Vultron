@@ -12,6 +12,7 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     GENESIS_REPLAY_COOLDOWN_SECONDS,
+    MAX_REPLAY_COOLDOWN_SECONDS,
     REPLAY_COOLDOWN_SECONDS,
     record_replay,
     replay_from_hash,
@@ -210,6 +211,107 @@ class TestClaimReplayPosition:
         )
 
         assert admitted is True
+
+
+def _age_last_replay(datalayer, *, peer_id, seconds: float) -> None:
+    """Move *peer_id*'s recorded replay *seconds* into the past."""
+    state_id = VultronReplicationState(case_id=CASE_ID, peer_id=peer_id).id_
+    state = datalayer.read(state_id)
+    state.last_replayed_at = state.last_replayed_at - timedelta(
+        seconds=seconds
+    )
+    datalayer.save(state)
+
+
+class TestNoProgressBackoff:
+    """Each no-progress replay doubles the next cooldown (SYNC-15-013).
+
+    A fixed cooldown ends the Reject/replay loop only when one round trip is
+    faster than the cooldown, so a slow host — or a peer that can never anchor
+    its chain — kept it running forever (#4882).  Doubling the wait bounds a
+    stuck peer to a logarithmic number of replays over any period.
+    """
+
+    def _claim(self, datalayer, from_hash: str = "") -> bool:
+        return claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash=from_hash,
+        )
+
+    @pytest.mark.spec("SYNC-15-003")
+    @pytest.mark.spec("SYNC-15-009")
+    @pytest.mark.spec("SYNC-15-013")
+    def test_unchanged_position_cooldown_doubles_per_replay(self, datalayer):
+        assert self._claim(datalayer)
+        _age_last_replay(
+            datalayer,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            seconds=GENESIS_REPLAY_COOLDOWN_SECONDS + 0.5,
+        )
+        assert self._claim(datalayer), "first cooldown is the base value"
+
+        # Second replay at the same position: the base cooldown no longer
+        # suffices, twice the base does.
+        _age_last_replay(
+            datalayer,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            seconds=GENESIS_REPLAY_COOLDOWN_SECONDS + 0.5,
+        )
+        assert not self._claim(datalayer)
+        _age_last_replay(
+            datalayer,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            seconds=GENESIS_REPLAY_COOLDOWN_SECONDS,
+        )
+        assert self._claim(datalayer)
+
+    @pytest.mark.spec("SYNC-15-003")
+    @pytest.mark.spec("SYNC-15-008")
+    @pytest.mark.spec("SYNC-15-013")
+    def test_replay_count_is_recorded_per_position(self, datalayer):
+        self._claim(datalayer, "abc")
+        _age_last_replay(datalayer, peer_id=PARTICIPANT_ACTOR_ID, seconds=3600)
+        self._claim(datalayer, "abc")
+
+        state_id = VultronReplicationState(
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+        ).id_
+        assert datalayer.read(state_id).replays_at_position == 2
+
+    @pytest.mark.spec("SYNC-15-010")
+    @pytest.mark.spec("SYNC-15-013")
+    def test_cooldown_resets_when_position_advances(self, datalayer):
+        for _ in range(3):
+            self._claim(datalayer, "abc")
+            _age_last_replay(
+                datalayer, peer_id=PARTICIPANT_ACTOR_ID, seconds=3600
+            )
+        assert self._claim(datalayer, "def"), "progress always replays"
+
+        # Back to the base cooldown at the new position.
+        _age_last_replay(
+            datalayer,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            seconds=REPLAY_COOLDOWN_SECONDS + 1,
+        )
+        assert self._claim(datalayer, "def")
+
+    @pytest.mark.spec("SYNC-15-011")
+    @pytest.mark.spec("SYNC-15-013")
+    def test_backoff_is_capped_so_a_stuck_peer_is_still_retried(
+        self, datalayer
+    ):
+        """A rate limit, never permanent suppression (SYNC-15-011 note)."""
+        for _ in range(30):
+            self._claim(datalayer, "abc")
+            _age_last_replay(
+                datalayer,
+                peer_id=PARTICIPANT_ACTOR_ID,
+                seconds=MAX_REPLAY_COOLDOWN_SECONDS + 1,
+            )
+        assert self._claim(datalayer, "abc")
 
 
 class TestZeroEntryReplayDoesNotRecordPosition:

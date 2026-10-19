@@ -387,6 +387,10 @@ class TestReceivedRejection:
             assert case.em_state is EM.ACTIVE, holder
             assert case.proposed_embargo_ids == [], holder
 
+    # Integration tier: it drives three stores and rebuilds the case from
+    # the ledger at teardown, about 10s idle; under the full unit run's load it
+    # passed the 30s ceiling (notes/testing-pitfalls.md, #4829).
+    @pytest.mark.integration
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("EP-08-001")
     def test_with_several_proposals_open(self):

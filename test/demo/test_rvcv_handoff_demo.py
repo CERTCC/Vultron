@@ -17,8 +17,11 @@ True multi-container isolation is validated by the acceptance test runnable via:
     DEMO=rvcv-handoff docker compose -f docker/docker-compose-multi-actor.yml up --abort-on-container-exit
 """
 
+import contextlib
 import importlib
 import json
+from collections.abc import Iterator
+from datetime import timedelta
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -34,7 +37,11 @@ from test.demo._helpers import (
     patch_chain_shared,
     stub_closure_gate,
 )
-from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from test.demo.conftest import (
+    IsolatedActorApp,
+    _TestClientRouter,
+    create_isolated_actor_app,
+)
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
 from vultron.demo.helpers import invite_chain
@@ -798,6 +805,183 @@ def _otc_record_offer(dl, offer, case_manager_id: str) -> None:
         pass
 
 
+@contextlib.contextmanager
+def _otc_ownership_transferred(
+    router: _TestClientRouter,
+) -> Iterator[IsolatedActorApp]:
+    """Run the AC-5c ownership transfer and yield the Reporter's app.
+
+    Three isolated actor apps wired through *router*: the Vendor (case owner),
+    the Coordinator (CASE_MANAGER, which records the Vendor's Offer and receives
+    the Accept) and the Reporter.  The case lives only on the Coordinator, so
+    neither peer can anchor its chain: each Rejects every ledger entry it is
+    sent, which is what drives the Reject/replay loop SYNC-15-003 bounds.
+    Yields once the Accept's inbox POST — and every delivery it set off — has
+    returned.
+    """
+    from vultron.adapters.driving.fastapi.outbox_handler import (
+        configure_default_emitter,
+        get_default_emitter,
+    )
+    from vultron.config import config_override
+    from vultron.enums.roles import CVDRole
+    from vultron.wire.as2.factories.case import (
+        accept_case_ownership_transfer_activity,
+        offer_case_ownership_transfer_activity,
+    )
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    with config_override(
+        VULTRON_SERVER__BASE_URL=f"{_OTC_COORDINATOR_BASE}/api/v2",
+        VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OTC_COORDINATOR_BASE}/api/v2",
+    ):
+        # `actor_slug` decides which actor's store `iso.dl` is. These actors
+        # are created under the module slugs below, and a store belongs to
+        # exactly one actor (ADR-0073), so leaving the default `"primary"`
+        # points `dl` at an empty database — the reporter's Announce assertion
+        # then reads a store nothing was ever delivered to.
+        vendor_iso = create_isolated_actor_app(
+            base_url=_OTC_VENDOR_BASE,
+            router=router,
+            actor_slug=_OTC_VENDOR_SLUG,
+        )
+        coordinator_iso = create_isolated_actor_app(
+            base_url=_OTC_COORDINATOR_BASE,
+            router=router,
+            actor_slug=_OTC_COORDINATOR_SLUG,
+        )
+        reporter_iso = create_isolated_actor_app(
+            base_url=_OTC_REPORTER_BASE,
+            router=router,
+            actor_slug=_OTC_REPORTER_SLUG,
+        )
+
+        previous_emitter = get_default_emitter()
+        configure_default_emitter(router)  # type: ignore[arg-type]
+
+        try:
+            with (
+                vendor_iso.client as vendor_tc,
+                coordinator_iso.client as coordinator_tc,
+                reporter_iso.client as reporter_tc,
+            ):
+                coordinator_base_api = f"{_OTC_COORDINATOR_BASE}/api/v2"
+                vendor_base_api = f"{_OTC_VENDOR_BASE}/api/v2"
+                reporter_base_api = f"{_OTC_REPORTER_BASE}/api/v2"
+
+                vendor_id = _otc_create_actor(
+                    vendor_tc,
+                    vendor_base_api,
+                    _OTC_VENDOR_SLUG,
+                    "Vendor OTC",
+                )
+                coordinator_id = _otc_create_actor(
+                    coordinator_tc,
+                    coordinator_base_api,
+                    _OTC_COORDINATOR_SLUG,
+                    "Coordinator OTC",
+                )
+                reporter_id = _otc_create_actor(
+                    reporter_tc,
+                    reporter_base_api,
+                    _OTC_REPORTER_SLUG,
+                    "Reporter OTC",
+                )
+
+                # Build a case on the Coordinator's DataLayer directly so
+                # CommitCaseLedgerEntryNode can read participants and the
+                # FanOutLogEntryNode knows to broadcast to Reporter.
+                case = as_VulnerabilityCase(
+                    name="OTC Test Case",
+                    attributed_to=vendor_id,
+                    content="AC-5c integration test case",
+                )
+                case_id = case.id_
+
+                vendor_p = as_CaseParticipant(
+                    attributed_to=vendor_id,
+                    context=case_id,
+                    case_roles=[CVDRole.CASE_OWNER],
+                )
+                coordinator_p = as_CaseParticipant(
+                    attributed_to=coordinator_id,
+                    context=case_id,
+                    case_roles=[CVDRole.CASE_MANAGER],
+                )
+                reporter_p = as_CaseParticipant(
+                    attributed_to=reporter_id,
+                    context=case_id,
+                    case_roles=[CVDRole.REPORTER],
+                )
+                case.actor_participant_index[vendor_id] = vendor_p.id_
+                case.actor_participant_index[coordinator_id] = (
+                    coordinator_p.id_
+                )
+                case.actor_participant_index[reporter_id] = reporter_p.id_
+                case.case_participants.extend(
+                    [vendor_p.id_, coordinator_p.id_, reporter_p.id_]
+                )
+
+                cdl = coordinator_iso.dl
+                cdl.create(case)
+                cdl.create(vendor_p)
+                cdl.create(coordinator_p)
+                cdl.create(reporter_p)
+                # Coordinator's DL needs to know about the other actors
+                # for outbox delivery routing.
+                from vultron.wire.as2.vocab.base.objects.actors import (
+                    as_Service,
+                )
+
+                cdl.create(as_Service(id_=vendor_id, name="Vendor OTC"))
+                cdl.create(as_Service(id_=reporter_id, name="Reporter OTC"))
+
+                # The Coordinator records (ledgers) the Vendor's Offer, as
+                # its received Offer use case does: an Accept is acted on
+                # only for an Offer the CASE_MANAGER recorded (CM-21-011).
+                # It runs in-process because the transferee is the
+                # Coordinator itself, and its forward would be delivered
+                # back into the inbox call that sent it.
+                case_wire = as_VulnerabilityCase.model_validate(
+                    {"id": case_id, "name": case.name or "OTC Test Case"}
+                )
+                offer = offer_case_ownership_transfer_activity(
+                    case=case_wire,
+                    # Inline, as the inbox rehydrates it: the ledger
+                    # commit refuses a bare-id target (CLP-07).
+                    target=as_Service(
+                        id_=coordinator_id, name="Coordinator OTC"
+                    ),
+                    actor=vendor_id,
+                    to=[coordinator_id],
+                )
+                _otc_record_offer(cdl, offer, coordinator_id)
+
+                # Build and deliver Accept(Offer) to Coordinator's inbox.
+                # The Coordinator IS the CaseActor so it processes the
+                # Accept, updates attributed_to, commits the ledger entry,
+                # and fans out Announce(CaseLedgerEntry) to all
+                # case participants.
+                accept = accept_case_ownership_transfer_activity(
+                    offer=offer,
+                    actor=coordinator_id,
+                    to=[coordinator_id],
+                )
+                _otc_post_inbox(coordinator_tc, _OTC_COORDINATOR_SLUG, accept)
+
+                yield reporter_iso
+        finally:
+            configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+            vendor_iso.dl.close()
+            coordinator_iso.dl.close()
+            reporter_iso.dl.close()
+
+
 @pytest.mark.spec("CM-21-007")
 class TestOwnershipTransferAnnounceReachesReporterAC5c:
     """AC-5c: Reporter receives Announce(CaseLedgerEntry) after ownership transfer.
@@ -820,211 +1004,107 @@ class TestOwnershipTransferAnnounceReachesReporterAC5c:
     """
 
     def test_reporter_receives_announce_ledger_entry(self):
-        from vultron.adapters.driving.fastapi.outbox_handler import (
-            configure_default_emitter,
-            get_default_emitter,
-        )
-        from vultron.config import config_override
-        from vultron.enums.roles import CVDRole
-        from vultron.wire.as2.factories.case import (
-            accept_case_ownership_transfer_activity,
-            offer_case_ownership_transfer_activity,
-        )
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
+        with _otc_ownership_transferred(_TestClientRouter()) as reporter_iso:
+            # The TestClient processes BackgroundTasks synchronously;
+            # the outbox drains during the POST and _TestClientRouter
+            # delivers Announce(CaseLedgerEntry) to Reporter's inbox.
+            # by_type returns a dict keyed by ID; values are model
+            # dicts with type_ / object_ fields (SQLite DataLayer
+            # row format).
+            announces = reporter_iso.dl.by_type("Announce")
+            announce_values = (
+                list(announces.values())
+                if isinstance(announces, dict)
+                else list(announces)
+            )
 
-        with config_override(
-            VULTRON_SERVER__BASE_URL=f"{_OTC_COORDINATOR_BASE}/api/v2",
-            VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OTC_COORDINATOR_BASE}/api/v2",
+            def _is_ot_announce(a: object) -> bool:
+                obj = (
+                    a.get("object_")
+                    if isinstance(a, dict)
+                    else getattr(a, "object_", None)
+                )
+                if obj is None:
+                    return False
+                semantic_type = (
+                    obj.get("semantic_type")
+                    if isinstance(obj, dict)
+                    else getattr(obj, "semantic_type", None)
+                )
+                return semantic_type == "accept_case_ownership_transfer"
+
+            ot_announces = [a for a in announce_values if _is_ot_announce(a)]
+            assert len(ot_announces) >= 1, (
+                "Reporter's DataLayer must contain at least one "
+                "Announce(CaseLedgerEntry[semantic_type="
+                "accept_case_ownership_transfer]) "
+                "after ownership transfer — no manual trigger (AC-5c). "
+                f"Got announces: {announce_values!r}"
+            )
+
+
+class _CountingRouter(_TestClientRouter):
+    """A router that counts deliveries and drops every one past *cap*.
+
+    The cap turns a Reject/replay storm into a fast, readable failure instead
+    of a test that never returns.
+    """
+
+    def __init__(self, cap: int) -> None:
+        super().__init__()
+        self.cap = cap
+        self.attempted = 0
+
+    async def emit(
+        self, activity_id: str, json_body: str, recipients: list[str]
+    ) -> None:
+        self.attempted += len(recipients)
+        if self.attempted > self.cap:
+            return
+        await super().emit(activity_id, json_body, recipients)
+
+
+@pytest.mark.spec("SYNC-15-013")
+@pytest.mark.spec("SYNC-15-014")
+class TestUnanchoredPeerRejectStormIsBounded:
+    """A peer that can never anchor its chain does not keep a replay loop alive.
+
+    In the AC-5c setup neither peer holds the case, and each refuses the case
+    announce because it has no CASE_MANAGER on record (PCR-03-004), so every
+    replayed entry comes back as a genesis Reject.  With a fixed cooldown the
+    loop stopped only when one round trip beat it: on a loaded host it ran
+    until the test timed out (#4882).  The fake clock here advances on every
+    read, so each round looks slower than any fixed cooldown.
+    """
+
+    #: A healthy transfer makes a few dozen deliveries; the storm made
+    #: over a thousand in two minutes.
+    _DELIVERY_CAP = 300
+
+    def test_reject_storm_terminates_under_slow_rounds(self):
+        from vultron.core.models._helpers import now_utc as real_now
+
+        start = real_now()
+        reads = 0
+
+        def slow_clock():
+            nonlocal reads
+            reads += 1
+            return start + timedelta(seconds=3 * reads)
+
+        router = _CountingRouter(cap=self._DELIVERY_CAP)
+        with patch(
+            "vultron.core.behaviors.sync.nodes.replay_guard.now_utc",
+            slow_clock,
         ):
-            router = _TestClientRouter()
-            # `actor_slug` decides which actor's store `iso.dl` is. These actors
-            # are created under the module slugs below, and a store belongs to
-            # exactly one actor (ADR-0073), so leaving the default `"primary"`
-            # points `dl` at an empty database — the reporter's Announce assertion
-            # then reads a store nothing was ever delivered to.
-            vendor_iso = create_isolated_actor_app(
-                base_url=_OTC_VENDOR_BASE,
-                router=router,
-                actor_slug=_OTC_VENDOR_SLUG,
-            )
-            coordinator_iso = create_isolated_actor_app(
-                base_url=_OTC_COORDINATOR_BASE,
-                router=router,
-                actor_slug=_OTC_COORDINATOR_SLUG,
-            )
-            reporter_iso = create_isolated_actor_app(
-                base_url=_OTC_REPORTER_BASE,
-                router=router,
-                actor_slug=_OTC_REPORTER_SLUG,
-            )
+            with _otc_ownership_transferred(router):
+                pass
 
-            previous_emitter = get_default_emitter()
-            configure_default_emitter(router)  # type: ignore[arg-type]
-
-            try:
-                with (
-                    vendor_iso.client as vendor_tc,
-                    coordinator_iso.client as coordinator_tc,
-                    reporter_iso.client as _reporter_tc,
-                ):
-                    coordinator_base_api = f"{_OTC_COORDINATOR_BASE}/api/v2"
-                    vendor_base_api = f"{_OTC_VENDOR_BASE}/api/v2"
-                    reporter_base_api = f"{_OTC_REPORTER_BASE}/api/v2"
-
-                    vendor_id = _otc_create_actor(
-                        vendor_tc,
-                        vendor_base_api,
-                        _OTC_VENDOR_SLUG,
-                        "Vendor OTC",
-                    )
-                    coordinator_id = _otc_create_actor(
-                        coordinator_tc,
-                        coordinator_base_api,
-                        _OTC_COORDINATOR_SLUG,
-                        "Coordinator OTC",
-                    )
-                    reporter_id = _otc_create_actor(
-                        _reporter_tc,
-                        reporter_base_api,
-                        _OTC_REPORTER_SLUG,
-                        "Reporter OTC",
-                    )
-
-                    # Build a case on the Coordinator's DataLayer directly so
-                    # CommitCaseLedgerEntryNode can read participants and the
-                    # FanOutLogEntryNode knows to broadcast to Reporter.
-                    case = as_VulnerabilityCase(
-                        name="OTC Test Case",
-                        attributed_to=vendor_id,
-                        content="AC-5c integration test case",
-                    )
-                    case_id = case.id_
-
-                    vendor_p = as_CaseParticipant(
-                        attributed_to=vendor_id,
-                        context=case_id,
-                        case_roles=[CVDRole.CASE_OWNER],
-                    )
-                    coordinator_p = as_CaseParticipant(
-                        attributed_to=coordinator_id,
-                        context=case_id,
-                        case_roles=[CVDRole.CASE_MANAGER],
-                    )
-                    reporter_p = as_CaseParticipant(
-                        attributed_to=reporter_id,
-                        context=case_id,
-                        case_roles=[CVDRole.REPORTER],
-                    )
-                    case.actor_participant_index[vendor_id] = vendor_p.id_
-                    case.actor_participant_index[coordinator_id] = (
-                        coordinator_p.id_
-                    )
-                    case.actor_participant_index[reporter_id] = reporter_p.id_
-                    case.case_participants.extend(
-                        [vendor_p.id_, coordinator_p.id_, reporter_p.id_]
-                    )
-
-                    cdl = coordinator_iso.dl
-                    cdl.create(case)
-                    cdl.create(vendor_p)
-                    cdl.create(coordinator_p)
-                    cdl.create(reporter_p)
-                    # Coordinator's DL needs to know about the other actors
-                    # for outbox delivery routing.
-                    from vultron.wire.as2.vocab.base.objects.actors import (
-                        as_Service,
-                    )
-
-                    cdl.create(as_Service(id_=vendor_id, name="Vendor OTC"))
-                    cdl.create(
-                        as_Service(id_=reporter_id, name="Reporter OTC")
-                    )
-
-                    # The Coordinator records (ledgers) the Vendor's Offer, as
-                    # its received Offer use case does: an Accept is acted on
-                    # only for an Offer the CASE_MANAGER recorded (CM-21-011).
-                    # It runs in-process because the transferee is the
-                    # Coordinator itself, and its forward would be delivered
-                    # back into the inbox call that sent it.
-                    case_wire = as_VulnerabilityCase.model_validate(
-                        {"id": case_id, "name": case.name or "OTC Test Case"}
-                    )
-                    offer = offer_case_ownership_transfer_activity(
-                        case=case_wire,
-                        # Inline, as the inbox rehydrates it: the ledger
-                        # commit refuses a bare-id target (CLP-07).
-                        target=as_Service(
-                            id_=coordinator_id, name="Coordinator OTC"
-                        ),
-                        actor=vendor_id,
-                        to=[coordinator_id],
-                    )
-                    _otc_record_offer(cdl, offer, coordinator_id)
-
-                    # Build and deliver Accept(Offer) to Coordinator's inbox.
-                    # The Coordinator IS the CaseActor so it processes the
-                    # Accept, updates attributed_to, commits the ledger entry,
-                    # and fans out Announce(CaseLedgerEntry) to all
-                    # case participants.
-                    accept = accept_case_ownership_transfer_activity(
-                        offer=offer,
-                        actor=coordinator_id,
-                        to=[coordinator_id],
-                    )
-                    _otc_post_inbox(
-                        coordinator_tc, _OTC_COORDINATOR_SLUG, accept
-                    )
-
-                    # The TestClient processes BackgroundTasks synchronously;
-                    # the outbox drains during the POST and _TestClientRouter
-                    # delivers Announce(CaseLedgerEntry) to Reporter's inbox.
-                    # by_type returns a dict keyed by ID; values are model
-                    # dicts with type_ / object_ fields (SQLite DataLayer
-                    # row format).
-                    announces = reporter_iso.dl.by_type("Announce")
-                    announce_values = (
-                        list(announces.values())
-                        if isinstance(announces, dict)
-                        else list(announces)
-                    )
-
-                    def _is_ot_announce(a: object) -> bool:
-                        obj = (
-                            a.get("object_")
-                            if isinstance(a, dict)
-                            else getattr(a, "object_", None)
-                        )
-                        if obj is None:
-                            return False
-                        semantic_type = (
-                            obj.get("semantic_type")
-                            if isinstance(obj, dict)
-                            else getattr(obj, "semantic_type", None)
-                        )
-                        return (
-                            semantic_type == "accept_case_ownership_transfer"
-                        )
-
-                    ot_announces = [
-                        a for a in announce_values if _is_ot_announce(a)
-                    ]
-                    assert len(ot_announces) >= 1, (
-                        "Reporter's DataLayer must contain at least one "
-                        "Announce(CaseLedgerEntry[semantic_type="
-                        "accept_case_ownership_transfer]) "
-                        "after ownership transfer — no manual trigger (AC-5c). "
-                        f"Got announces: {announce_values!r}"
-                    )
-            finally:
-                configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-                vendor_iso.dl.close()
-                coordinator_iso.dl.close()
-                reporter_iso.dl.close()
+        assert router.attempted <= self._DELIVERY_CAP, (
+            f"{router.attempted} deliveries for one ownership transfer: the"
+            " Reject/replay loop to the unanchored peers did not settle"
+            " (SYNC-15-003)"
+        )
 
 
 # ---------------------------------------------------------------------------

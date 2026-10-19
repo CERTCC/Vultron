@@ -26,6 +26,7 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     accept_case_participant_role_activity,
+    add_note_to_case_activity,
     add_participant_to_case_activity,
     offer_case_participant_activity,
     offer_case_participant_role_activity,
@@ -46,6 +47,7 @@ from vultron.wire.as2.factories.actor import (
     reject_case_participant_offer_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -168,6 +170,14 @@ def _role_offer():
                 participant=_participant(), target=_CASE_ID, actor=_ACTOR
             ),
             id="add_participant_to_case",
+        ),
+        pytest.param(
+            lambda: add_note_to_case_activity(
+                note=as_Note(content="x", context=_CASE_ID),
+                target=_CASE_ID,
+                actor=_ACTOR,
+            ),
+            id="add_note_to_case",
         ),
         pytest.param(
             lambda: remove_participant_from_case_activity(
