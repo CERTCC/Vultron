@@ -2462,9 +2462,9 @@ groups:
     statement: >-
       Every change to a case's embargo register, and so to the EM state derived
       from it (ADR-0122), MUST be made through EmbargoLifecycle (its public
-      operations such as propose_embargo(), activate_embargo(),
-      reject_embargo_proposal(), and terminate_active_embargo(), each of which
-      applies one register step), or, for an act converted to the copy model,
+      operations such as propose_embargo(), activate_embargo(), and
+      reject_embargo_proposal(), each of which applies one register step), or,
+      for an act converted to the copy model,
       by applying the act's ledger entry through the one apply function,
       apply_embargo_change() (ADR-0124, CM-23-016). BT nodes and helper
       functions MUST NOT otherwise apply a register step to the case

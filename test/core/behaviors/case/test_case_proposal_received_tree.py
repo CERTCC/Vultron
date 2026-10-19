@@ -35,7 +35,7 @@ from unittest.mock import patch
 import py_trees
 import pytest
 
-from test.support.embargo_register import register
+from test.support.embargo_register import register, terminate
 from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -3963,7 +3963,6 @@ class TestEP04SenderProposalAtCaseCreation:
         let the creation arm run: an orphan event, then the EM machine's
         refusal of ``EXITED → PROPOSED`` failed the tree before the Accept.
         """
-        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
         from vultron.core.use_cases.received.case_proposal import (
             CreateCaseProposalReceivedUseCase,
         )
@@ -3973,11 +3972,8 @@ class TestEP04SenderProposalAtCaseCreation:
             make_payload, dl, sender_days=self._SENDER_END_DAYS
         )
         assert case.current_status.em.state == EM.ACTIVE
-        EmbargoLifecycle(persistence=dl).terminate_active_embargo(
-            termination=EmbargoTermination.early(),
-            case_id=case.id_,
-            actor_id=_VENDOR_URI,
-        )
+        terminate(case, EmbargoTermination.early())
+        dl.save(case)
         while dl.outbox_pop() is not None:
             pass
         events_before = {e.id_ for e in dl.list_objects("EmbargoEvent")}

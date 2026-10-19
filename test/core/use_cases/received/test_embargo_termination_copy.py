@@ -70,13 +70,16 @@ def _net(name: str) -> LedgerNetwork:
     """An embargoed case with one open revision, the same in every store.
 
     The revision makes the termination's ``CANCEL`` part of the step under
-    test (EP-08-004).
+    test (EP-08-004).  The index entry for the revision exercises EP-08-003.
     """
     net = LedgerNetwork(f"https://example.org/cases/{name}")
     revision = f"{net.case_id}/embargo_events/revision"
     for dl in net.stores.values():
         case = cast(VulnerabilityCase, dl.read(net.case_id))
         propose(case, revision)
+        case.pending_embargo_proposal_index[revision] = (
+            f"{net.case_id}/activities/revision-proposal"
+        )
         dl.save(case)
         write_consent_rows(dl, case)
     assert net.case(MANAGER).em_state is EM.REVISE
@@ -201,6 +204,7 @@ class TestCaseManagerCommitsFirst:
     """AC-1: decide → trial apply → commit the ``Remove`` → apply."""
 
     @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("EP-08-003")
     @pytest.mark.spec("EP-08-004")
     @pytest.mark.spec("MSM-07-006")
     @pytest.mark.parametrize("path", ["trigger", "cascade"])
@@ -233,6 +237,7 @@ class TestCaseManagerCommitsFirst:
                 EmbargoRegisterStatus.CANCELLED
             ),
         }
+        assert ended.pending_embargo_proposal_index == {}
         # One activity/object pair, one entry: no cancel or consent entry.
         assert _embargo_entry_types(net, before) == [
             EMBARGO_TEARDOWN_SEMANTIC_TYPE
