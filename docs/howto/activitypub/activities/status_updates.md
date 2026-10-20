@@ -30,6 +30,7 @@ Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemen
 Which one you are sending is determined by the field you set, not by a different activity.
 
 In every case, send `Add(ParticipantStatus)` targeting your own participant record, with the new status inline as its `object`.
+Set the status's `context` to the case your participant record belongs to: the CASE_MANAGER acts on the case of the participant record you target, and refuses a status whose `context` names another case (HP-08-008).
 The protocol names `Add(ParticipantStatus)` as the one form; a received `Create(ParticipantStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 ### Report that a vendor now knows
