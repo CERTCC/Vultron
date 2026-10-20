@@ -27,7 +27,7 @@ Spec coverage:
 
 import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -48,6 +48,7 @@ from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     create_case_activity,
     offer_case_ownership_transfer_activity,
+    propose_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     rm_accept_invite_to_case_activity,
     rm_close_case_activity,
@@ -89,6 +90,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 _ACTOR_URI = "https://example.org/actors/alice"
 _CASE_URI = "https://example.org/cases/case-001"
+_TARGET_URI = "https://example.org/actors/bob"
+_CASE_ACTOR_URI = "https://example.org/actors/case-actor"
 
 
 @pytest.fixture
@@ -123,6 +126,14 @@ def sample_offer(sample_case) -> as_Offer:
     """OfferCaseOwnershipTransferActivity — used for Accept/Reject tests."""
     return offer_case_ownership_transfer_activity(
         case=sample_case, actor=_ACTOR_URI
+    )
+
+
+@pytest.fixture
+def sample_proposal(sample_case) -> as_Offer:
+    """The owner's ownership-transfer proposal — used for Undo tests."""
+    return propose_case_ownership_transfer_activity(
+        sample_case, target=_TARGET_URI, actor=_ACTOR_URI
     )
 
 
@@ -469,26 +480,73 @@ def test_reject_ownership_transfer_plain_offer_raises(sample_report):
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("CM-21-015")
-def test_undo_ownership_transfer_returns_undo(sample_offer):
+def test_undo_ownership_transfer_returns_undo(sample_proposal):
     result = undo_case_ownership_transfer_activity(
-        offer=sample_offer, actor=_ACTOR_URI
+        proposal=sample_proposal, actor=_ACTOR_URI
     )
     assert isinstance(result, as_Undo)
 
 
-def test_undo_ownership_transfer_object_is_offer(sample_offer):
+def test_undo_ownership_transfer_object_is_the_proposal(sample_proposal):
     result = undo_case_ownership_transfer_activity(
-        offer=sample_offer, actor=_ACTOR_URI
+        proposal=sample_proposal, actor=_ACTOR_URI
     )
-    assert result.object_ == sample_offer
+    assert result.object_ == sample_proposal
 
 
 @pytest.mark.spec("AF-04-001")
-def test_undo_ownership_transfer_plain_offer_raises(sample_report):
-    plain_offer = as_Offer(actor=_ACTOR_URI, object_=sample_report)
+def test_undo_ownership_transfer_plain_offer_raises(sample_offer):
+    """The Offer itself is not withdrawn; the owner's proposal is (ADR-0148)."""
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        undo_case_ownership_transfer_activity(offer=plain_offer)
+        undo_case_ownership_transfer_activity(proposal=sample_offer)
     assert exc_info.value.__cause__ is not None
+
+
+@pytest.mark.spec("DL-06-006")
+def test_undo_embeds_a_proposal_held_in_its_core_form(sample_proposal):
+    """The owner's proposal, as a store hands it back, validates into the
+    proposal class the Undo embeds."""
+    from vultron.semantic_registry import extract_event
+
+    held = extract_event(sample_proposal).activity
+    assert held is not None
+    assert not isinstance(held, as_Offer)
+
+    result = undo_case_ownership_transfer_activity(
+        proposal=cast(Any, held), actor=_ACTOR_URI
+    )
+
+    assert cast(Any, result.object_).id_ == sample_proposal.id_
+
+
+# ---------------------------------------------------------------------------
+# propose_case_ownership_transfer_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CM-21-005")
+@pytest.mark.spec("CM-21-016")
+def test_proposal_nests_the_offer_the_case_manager_will_make(sample_case):
+    """Offer(Offer(Case), context=case): the inner Offer names the case, the
+    transferee and the deadline (ADR-0148)."""
+    deadline = datetime(2030, 1, 1, tzinfo=UTC)
+    result = propose_case_ownership_transfer_activity(
+        sample_case,
+        target=_TARGET_URI,
+        end_time=deadline,
+        actor=_ACTOR_URI,
+        to=[_CASE_ACTOR_URI],
+    )
+
+    assert isinstance(result, as_Offer)
+    assert result.context == sample_case.id_
+    inner = result.object_
+    assert isinstance(inner, as_Offer)
+    assert inner.object_ == sample_case
+    assert isinstance(inner.target, as_Actor)
+    assert inner.target.id_ == _TARGET_URI
+    assert inner.end_time == deadline
+    assert result.end_time is None
 
 
 # ---------------------------------------------------------------------------
@@ -1216,7 +1274,6 @@ def test_stub_invite_factory_docstrings_do_not_label_the_stub_replies_as_rm_repl
     [
         accept_case_ownership_transfer_activity,
         reject_case_ownership_transfer_activity,
-        undo_case_ownership_transfer_activity,
     ],
 )
 def test_ownership_reply_embeds_an_offer_as_intake_archived_it(factory):
@@ -1244,7 +1301,6 @@ def test_ownership_reply_embeds_an_offer_as_intake_archived_it(factory):
     [
         accept_case_ownership_transfer_activity,
         reject_case_ownership_transfer_activity,
-        undo_case_ownership_transfer_activity,
     ],
 )
 def test_ownership_reply_refuses_an_archived_offer_of_another_kind(

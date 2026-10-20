@@ -328,9 +328,10 @@ _MEMBERSHIP_NODES: dict[
 def _case_owner_node(ctx: SenderCheckContext) -> py_trees.behaviour.Behaviour:
     """The ``CASE_OWNER`` check for the activity in *ctx*.
 
-    The withdrawal of a recorded ownership-transfer Offer checks the Owner
-    that made it (CM-21-015); a new Offer checks the Owner making it
-    (CM-21-019); anything else checks the role alone.
+    The withdrawal of an ownership-transfer proposal checks the Owner that
+    made the Offer the CASE_MANAGER recorded from it (CM-21-015); a new
+    proposal checks the Owner making it (CM-21-019); anything else checks
+    the role alone.
 
     On a case, an owner whose closure the case records is refused first:
     it has left and may act on nothing further (CM-23-018).  The check is
@@ -362,10 +363,10 @@ def _case_owner_role_node(
             sender_actor_id=ctx.sender_id,
             reply_id=ctx.request.reply_id,
         )
-    if ctx.offered_ownership_id is not None:
+    if ctx.ownership_proposal_id is not None:
         return SenderIsOfferingCaseOwnerNode(
             case_id=_case_of(ctx, "an ownership-transfer Offer"),
-            offer_id=ctx.offered_ownership_id,
+            proposal_id=ctx.ownership_proposal_id,
             sender_actor_id=ctx.sender_id,
         )
     return SenderIsCaseOwnerNode(

@@ -72,6 +72,7 @@ from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     offer_case_ownership_transfer,
     offer_case_participant_role,
     populated_case,
+    propose_case_ownership_transfer,
     reengage_case,
     reject_case_ownership_transfer,
     reject_case_participant_role,
@@ -259,6 +260,10 @@ def main(outdir=None):
 
     _coordinator = _COORDINATOR
     obj_to_file(_coordinator, f"{outdir}/coordinator.json")
+
+    # activity: propose case ownership transfer
+    activity = propose_case_ownership_transfer()
+    obj_to_file(activity, f"{outdir}/propose_case_ownership_transfer.json")
 
     # activity: offer case ownership transfer
     activity = offer_case_ownership_transfer()

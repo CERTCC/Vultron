@@ -22,7 +22,9 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.ownership_offer import (
+    offer_made_from_proposal,
     open_ownership_offer,
+    ownership_offer_id,
     recorded_ownership_offer,
 )
 from vultron.errors import VultronNotFoundError
@@ -71,24 +73,19 @@ def _ledger(
     )
 
 
-def _forward(
-    dl: SqliteDataLayer,
-    offer_id: str,
-    actor: str,
-    at: datetime,
-    in_reply_to: str | None,
+def _planted(
+    dl: SqliteDataLayer, offer_id: str, at: datetime, in_reply_to: str
 ):
-    """Store a forward *actor* sent, linked to *in_reply_to* (CM-21-018)."""
+    """Store an Offer the CASE_MANAGER never made, linked to a recorded one."""
     case = dl.read_case(_CASE_ID)
     assert case is not None
-    extra = {} if in_reply_to is None else {"in_reply_to": in_reply_to}
     offer = offer_case_ownership_transfer_activity(
         case,
         target=_TRANSFEREE,
-        actor=actor,
+        actor=_MANAGER,
         id_=offer_id,
         published=at,
-        **extra,
+        in_reply_to=in_reply_to,
     )
     dl.create(offer)
     return offer
@@ -97,7 +94,7 @@ def _forward(
 def test_ledgered_offer_is_found_open(dl):
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
     assert offer.offer_id == "urn:offer:1"
     assert offer.transferee_id == _TRANSFEREE
@@ -109,7 +106,7 @@ def test_answered_offer_counts_its_own_answer_as_a_redelivery(dl):
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
     _ledger(dl, 1, "urn:accept:1", "accept_case_ownership_transfer", _T0)
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
     assert offer.is_answered_other_than("urn:accept:2")
     assert not offer.is_answered_other_than("urn:accept:1")
@@ -117,106 +114,108 @@ def test_answered_offer_counts_its_own_answer_as_a_redelivery(dl):
 
 def test_offer_never_ledgered_is_not_found(dl):
     with pytest.raises(VultronNotFoundError):
-        recorded_ownership_offer(dl, _CASE_ID, "urn:offer:none", _MANAGER)
+        recorded_ownership_offer(dl, _CASE_ID, "urn:offer:none")
 
 
 def test_ledgered_offer_naming_no_transferee_is_not_found(dl):
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0, None)
 
     with pytest.raises(VultronNotFoundError):
-        recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
-
-
-@pytest.mark.spec("CM-21-005")
-@pytest.mark.spec("CM-21-018")
-def test_forward_stands_for_the_offer_it_links_to(dl):
-    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
-    _forward(dl, "urn:forward:1", _MANAGER, _T0, "urn:offer:1")
-
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
-
-    assert offer.offer_id == "urn:offer:1"
-
-
-def test_offer_issued_by_another_actor_is_not_a_forward(dl):
-    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
-    _forward(
-        dl,
-        "urn:forward:1",
-        "https://example.org/actors/other",
-        _T0,
-        "urn:offer:1",
-    )
-
-    with pytest.raises(VultronNotFoundError):
-        recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
-
-
-@pytest.mark.spec("CM-21-018")
-def test_forward_with_no_link_stands_for_no_offer(dl):
-    """No ``inReplyTo``, no Offer: nothing falls back to comparing times."""
-    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
-    _forward(dl, "urn:forward:1", _MANAGER, _T0, None)
-
-    with pytest.raises(VultronNotFoundError):
-        recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
-
-
-@pytest.mark.spec("CM-21-018")
-def test_forward_linked_to_no_recorded_offer_stands_for_none(dl):
-    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
-    _forward(dl, "urn:forward:1", _MANAGER, _T0, "urn:offer:never")
-
-    with pytest.raises(VultronNotFoundError):
-        recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
-
-
-@pytest.mark.spec("CM-21-018")
-def test_forward_linked_to_another_transferees_offer_stands_for_none(dl):
-    """The link must name an Offer to the transferee the forward names."""
-    other = "https://example.org/actors/other-transferee"
-    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0, other)
-    _forward(dl, "urn:forward:1", _MANAGER, _T0, "urn:offer:1")
-
-    with pytest.raises(VultronNotFoundError):
-        recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
+        recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
 
 @pytest.mark.spec("CM-21-011")
-@pytest.mark.spec("CM-21-018")
-def test_stale_forward_stands_for_its_own_offer_not_a_later_one(dl):
-    """A forward of an answered Offer is not an answer to the next Offer."""
-    later = _T0 + timedelta(minutes=5)
+def test_an_offer_linked_to_the_recorded_one_stands_for_nothing(dl):
+    """No back-link is followed: only the recorded Offer's own id names it
+    (ADR-0148)."""
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
-    _forward(dl, "urn:forward:1", _MANAGER, _T0, "urn:offer:1")
-    _ledger(dl, 1, "urn:reject:1", "reject_case_ownership_transfer", _T0)
-    _ledger(dl, 2, "urn:offer:2", "offer_case_ownership_transfer", later)
+    _planted(dl, "urn:planted:1", _T0, "urn:offer:1")
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
-
-    assert offer.offer_id == "urn:offer:1"
-    assert offer.is_answered_other_than("urn:accept:late")
+    with pytest.raises(VultronNotFoundError):
+        recorded_ownership_offer(dl, _CASE_ID, "urn:planted:1")
 
 
-@pytest.mark.spec("CM-21-018")
-def test_same_second_forward_resolves_to_its_own_offer_not_the_later_one(dl):
-    """A later Offer recorded in the forward's second does not capture it.
+_OWNER_ID = "https://example.org/actors/owner"
 
-    Second-precision times cannot tell the two Offers apart; the link can, so
-    an answer through the old forward finds the old, answered Offer and
-    leaves the new one open (#4565).
-    """
-    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
-    _forward(dl, "urn:forward:1", _MANAGER, _T0, "urn:offer:1")
-    _ledger(dl, 1, "urn:accept:1", "accept_case_ownership_transfer", _T0)
-    _ledger(dl, 2, "urn:offer:2", "offer_case_ownership_transfer", _T0)
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:forward:1", _MANAGER)
+@pytest.mark.spec("CM-21-005")
+@pytest.mark.spec("OID-01-006")
+def test_the_offer_id_is_derived_from_the_manager_case_proposal_and_proposer():
+    """The CASE_MANAGER keys its Offer by an id it derives, never by one the
+    owner chose; the same proposal always derives the same id, whatever
+    spelling an actor id was read in, and another proposer's reuse of the
+    proposal id derives another."""
+    made = ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1", _OWNER_ID)
 
-    assert offer.offer_id == "urn:offer:1"
-    assert offer.answer_id == "urn:accept:1"
-    newer = open_ownership_offer(dl, _CASE_ID)
-    assert newer is not None and newer.offer_id == "urn:offer:2"
+    assert made == ownership_offer_id(
+        _MANAGER + "/", _CASE_ID, "urn:proposal:1", _OWNER_ID + "/"
+    )
+    assert made != "urn:proposal:1"
+    assert made != ownership_offer_id(
+        _MANAGER, _CASE_ID, "urn:proposal:2", _OWNER_ID
+    )
+    assert made != ownership_offer_id(
+        "https://example.org/actors/other",
+        _CASE_ID,
+        "urn:proposal:1",
+        _OWNER_ID,
+    )
+    assert made != ownership_offer_id(
+        _MANAGER, _CASE_ID, "urn:proposal:1", "https://example.org/actors/x"
+    )
+
+
+def _managed_case(dl: SqliteDataLayer) -> None:
+    from test.core.use_cases.received.conftest import (
+        seed_case_manager_participant,
+    )
+
+    case = dl.read_case(_CASE_ID)
+    assert case is not None
+    seed_case_manager_participant(dl, case, _MANAGER)
+    dl.save(case)
+
+
+@pytest.mark.spec("CM-21-019")
+@pytest.mark.spec("HP-01-003")
+def test_the_offer_made_from_a_proposal_is_found_by_the_proposal(dl):
+    _managed_case(dl)
+    made = ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1", _OWNER_ID)
+    _ledger(
+        dl,
+        0,
+        made,
+        "offer_case_ownership_transfer",
+        _T0,
+        actor=_MANAGER,
+        attributedTo=_OWNER_ID,
+    )
+
+    offer = offer_made_from_proposal(dl, _CASE_ID, "urn:proposal:1", _OWNER_ID)
+
+    assert offer is not None and offer.offer_id == made
+    assert offer.offerer_id(_MANAGER) == _OWNER_ID
+    assert (
+        offer_made_from_proposal(dl, _CASE_ID, "urn:proposal:2", _OWNER_ID)
+        is None
+    )
+    # Another sender reusing the proposal id names no Offer of its own.
+    assert (
+        offer_made_from_proposal(
+            dl, _CASE_ID, "urn:proposal:1", "https://example.org/actors/x"
+        )
+        is None
+    )
+
+
+def test_no_offer_is_made_from_a_proposal_on_a_case_with_no_manager(dl):
+    made = ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1", _OWNER_ID)
+    _ledger(dl, 0, made, "offer_case_ownership_transfer", _T0)
+
+    assert (
+        offer_made_from_proposal(dl, _CASE_ID, "urn:proposal:1", _OWNER_ID)
+        is None
+    )
 
 
 _OWNER = "https://example.org/actors/owner"
@@ -235,7 +234,7 @@ def test_offerer_is_the_participant_a_delegated_offer_speaks_for(dl):
         attributedTo=_OWNER,
     )
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
     assert offer.offerer_id(_MANAGER) == _OWNER
 
@@ -251,7 +250,7 @@ def test_offerer_of_an_offer_sent_directly_is_its_actor(dl):
         actor=_OWNER,
     )
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
     assert offer.offerer_id(_MANAGER) == _OWNER
 
@@ -270,7 +269,7 @@ def test_attributed_to_counts_only_on_an_offer_the_manager_sent(dl):
         attributedTo="urn:actor:someone_else",
     )
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
     assert offer.offerer_id(_MANAGER) == _OWNER
 
@@ -283,7 +282,7 @@ def test_withdrawal_closes_the_offer(dl):
     assert open_ownership_offer(dl, _CASE_ID) is not None
     _ledger(dl, 1, "urn:undo:1", "undo_case_ownership_transfer", _T0)
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
     assert offer.answer_id == "urn:undo:1"
     assert offer.closed_by_semantic_type == "undo_case_ownership_transfer"
@@ -297,7 +296,7 @@ def test_expiry_closes_the_offer(dl):
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
     _ledger(dl, 1, "urn:offer:1", "offer_case_ownership_transfer_expired", _T0)
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
     assert offer.closed_by_expiry
     assert open_ownership_offer(dl, _CASE_ID) is None
@@ -315,7 +314,7 @@ def test_deadline_is_read_from_the_ledgered_offer_in_utc(dl):
         endTime="2026-10-01T17:00:00+05:00",
     )
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
     assert offer.end_time == _T0
     assert offer.end_time is not None and offer.end_time.tzinfo == UTC
@@ -328,7 +327,7 @@ def test_deadline_is_read_from_the_ledgered_offer_in_utc(dl):
 def test_offer_without_a_deadline_never_passes_one(dl):
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
 
-    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
     assert offer.end_time is None
     assert not offer.is_past_deadline(_T0 + timedelta(days=365))

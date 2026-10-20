@@ -118,10 +118,10 @@ from vultron.core.behaviors.case.nodes.on_behalf_guards import (
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
-    EmitOfferCaseOwnershipTransferNode,
+    EmitProposeCaseOwnershipTransferNode,
     EmitRejectCaseOwnershipTransferNode,
     EmitWithdrawCaseOwnershipTransferNode,
-    ForwardOfferToTransfereeNode,
+    MakeOwnershipTransferOfferNode,
 )
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
@@ -243,11 +243,11 @@ __all__ = [
     "CaptureCaseUpdateBroadcastExclusionsNode",
     "BroadcastCaseUpdateNode",
     # ownership_transfer (leaf nodes)
-    "EmitOfferCaseOwnershipTransferNode",
+    "EmitProposeCaseOwnershipTransferNode",
     "EmitAcceptCaseOwnershipTransferNode",
     "EmitRejectCaseOwnershipTransferNode",
     "EmitWithdrawCaseOwnershipTransferNode",
-    "ForwardOfferToTransfereeNode",
+    "MakeOwnershipTransferOfferNode",
     # role_gates (gated composites)
     "create_case_manager_gated_tree",
     "create_participant_replica_gated_tree",

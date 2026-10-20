@@ -65,6 +65,7 @@ from vultron.wire.as2.factories.case import (
     accept_case_participant_role_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
+    propose_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
@@ -76,7 +77,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
     as_Offer,
     as_Reject,
-    as_Undo,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -759,6 +759,34 @@ class _ActorsMixin:
             id_=id_,
         )
 
+    def propose_case_ownership_transfer(
+        self,
+        case_id: str,
+        transferee_id: str,
+        actor: str,
+        content: str | None = None,
+        to: list[str] | None = None,
+        end_time: datetime | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the owner's ``Offer(Offer(VulnerabilityCase))``.
+
+        The proposal goes from ``actor`` to the CASE_MANAGER (*to*), which
+        makes the inner Offer itself (ADR-0148, TRIG-11-001).  The inner
+        Offer carries the case inline, so its shape is the Offer the
+        CASE_MANAGER will make, the transferee as its ``target`` and, when
+        given, *end_time* as its deadline (CM-21-016).
+        """
+        case = _case_for_wire(self._dl, case_id)
+        extra: dict[str, Any] = {"actor": actor, "to": to}
+        if content is not None:
+            extra["content"] = content
+        activity = propose_case_ownership_transfer_activity(
+            case, target=transferee_id, end_time=end_time, **extra
+        )
+        return _create_and_seal(
+            self._dl, activity, "propose_case_ownership_transfer"
+        )
+
     def offer_case_ownership_transfer(
         self,
         case_id: str,
@@ -768,33 +796,34 @@ class _ActorsMixin:
         to: list[str] | None = None,
         attributed_to: str | None = None,
         end_time: datetime | None = None,
-        in_reply_to: str | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
-        Emits the offer from ``actor`` to ``transferee_id``.  The case is read
-        from the DataLayer and passed inline so the recipient can distinguish
-        this from a ``SUBMIT_REPORT`` offer (TRIG-11-001).  *end_time*, when
-        given, is the Offer's deadline to answer (TRIG-11-007, CM-21-016).
-        *in_reply_to*, when given, links a CASE_MANAGER forward to the
-        recorded Offer it forwards (CM-21-018).
+        The CASE_MANAGER's Offer to ``transferee_id``, made from the owner's
+        proposal (ADR-0148, CM-21-005).  The case is read from the DataLayer
+        and passed inline so the recipient can distinguish this from a
+        ``SUBMIT_REPORT`` offer.  *end_time*, when given, is the Offer's
+        deadline to answer (CM-21-016).  An Offer already built under *id_*
+        is the earlier attempt's, and its sealed body is handed back
+        (ID-04-004, OX-06-002).
         """
+        if (built := _already_sealed(self._dl, id_)) is not None:
+            return built
         case = _case_for_wire(self._dl, case_id)
-        extra: dict[str, Any] = {
-            "actor": actor,
-            "to": to or [transferee_id],
-        }
+        extra: dict[str, Any] = _addressing(actor, to or [transferee_id], id_)
         if content is not None:
             extra["content"] = content
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
         if end_time is not None:
             extra["end_time"] = end_time
-        if in_reply_to is not None:
-            extra["in_reply_to"] = in_reply_to
+        # The CASE_MANAGER ledgers the Offer it makes, and a ledger snapshot
+        # names its case as ``context`` (CLP-07).
         activity = offer_case_ownership_transfer_activity(
             case=case,
             target=transferee_id,
+            context=case_id,
             **extra,
         )
         return _create_and_seal(
@@ -843,21 +872,26 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Undo(Offer(VulnerabilityCase))`` withdrawal.
+        """Create and persist the owner's ``Undo`` of its own proposal.
 
-        See :meth:`_ownership_answer` (TRIG-11-006, CM-21-015).
+        *offer_id* names the ``Offer(Offer(VulnerabilityCase))`` this actor
+        sent, held under its own id (TRIG-11-006, CM-21-015, ADR-0148).  The
+        Undo goes to *to*, the CASE_MANAGER; there is no fallback, since the
+        proposal's ``actor`` is this actor itself.
         """
-        return self._ownership_answer(
-            undo_case_ownership_transfer_activity,
-            "withdraw_case_ownership_transfer",
-            offer_id=offer_id,
-            actor=actor,
-            to=to,
+        proposal = read_held_activity(
+            self._dl, offer_id, "Offer(Offer(VulnerabilityCase))"
+        )
+        activity = undo_case_ownership_transfer_activity(
+            proposal=cast(as_Offer, proposal), actor=actor, to=to
+        )
+        return _create_and_seal(
+            self._dl, activity, "withdraw_case_ownership_transfer"
         )
 
     def _ownership_answer(
         self,
-        factory: Callable[..., as_Accept | as_Reject | as_Undo],
+        factory: Callable[..., as_Accept | as_Reject],
         label: str,
         offer_id: str,
         actor: str,
@@ -865,11 +899,10 @@ class _ActorsMixin:
     ) -> tuple[str, str]:
         """Build, persist and seal a reply to an ownership-transfer Offer.
 
-        The reply is the transferee's answer (Accept or Reject) or the
-        offerer's withdrawal (Undo).  Reads the offer as this actor holds
-        it (:func:`read_held_activity`): the transferee's received forward
-        from its intake archive, the offerer's own Offer under its id, never
-        a received Offer under the id its sender chose (DL-06-006).  Derives
+        The reply is the transferee's answer (Accept or Reject).  Reads the
+        offer as this actor holds it (:func:`read_held_activity`): the
+        CASE_MANAGER's Offer from the transferee's intake archive, never a
+        received Offer under the id its sender chose (DL-06-006).  Derives
         the ``to:`` field from the offer's ``actor`` when not supplied, and
         persists the reply that *factory* builds from it.
 
@@ -889,10 +922,8 @@ class _ActorsMixin:
         offer = cast(as_Offer, raw)
         if to is None:
             # Last resort, used only when the emit node found no local case
-            # or CASE_MANAGER to address.  For the CASE_MANAGER's forward the
-            # Offer's actor is the CASE_MANAGER (CM-21-006, CM-21-010); for an
-            # Offer rebuilt from a replicated ledger record it is the record's
-            # sender of record, which need not be.
+            # or CASE_MANAGER to address.  The Offer's actor is the
+            # CASE_MANAGER that made it (CM-21-006, CM-21-010).
             offer_actor_id = _as_id(getattr(offer, "actor", None))
             if offer_actor_id:
                 to = [offer_actor_id]

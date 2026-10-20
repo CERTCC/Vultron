@@ -92,7 +92,9 @@ The suggested-actor path adds one round-trip, because the Case Owner's decision 
 
 The Case Owner MAY transfer ownership to another actor via
 `Offer(VulnerabilityCase)` / `Accept` handshake routed through the CASE_MANAGER
-(ADR-0053). On acceptance, the receiving actor acquires Case Owner authority and
+(ADR-0053).
+The Case Owner proposes the transfer to the CASE_MANAGER as `Offer(Offer(VulnerabilityCase))`, and the CASE_MANAGER makes the one `Offer(VulnerabilityCase)` the receiving actor answers ([CM-21-005](../specs/protocol.md#cm-21-005), ADR-0148).
+On acceptance, the receiving actor acquires Case Owner authority and
 the associated protocol responsibilities.
 
 !!! note "Open: cryptographic identity across a change of case manager"

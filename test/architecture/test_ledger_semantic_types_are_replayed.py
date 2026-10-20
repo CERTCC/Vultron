@@ -190,6 +190,12 @@ NO_REPLICA_EFFECT: dict[str, str] = {
     MS.REJECT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
     "accept_actor_recommendation": _RECOMMENDATION,
     "reject_actor_recommendation": _RECOMMENDATION,
+    MS.PROPOSE_CASE_OWNERSHIP_TRANSFER.value: (
+        "records the Case Owner's proposal; the Offer the CASE_MANAGER makes"
+        " from it follows as its own offer_case_ownership_transfer entry, and"
+        " no owner or role moves until that Offer is accepted (ADR-0148,"
+        " CM-21-005)"
+    ),
     MS.ACCEPT_CASE_OWNERSHIP_TRANSFER.value: (
         "records the received Accept and closes the ownership-transfer Offer;"
         " each change it causes follows as the CASE_MANAGER's own entry, the"
@@ -202,8 +208,8 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " itself, not from replica state (CM-21-012, CM-21-014)"
     ),
     MS.UNDO_CASE_OWNERSHIP_TRANSFER.value: (
-        "the offerer's withdrawal closes the ownership-transfer Offer and"
-        " changes no owner or role; the open state is read from the ledger"
+        "the owner's withdrawal of its proposal closes the Offer made from"
+        " it and changes no owner or role; the open state is read from the ledger"
         " itself, not from replica state (CM-21-014, CM-21-015)"
     ),
     OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE: (

@@ -187,10 +187,10 @@ class SenderCheckContext:
             the Case Owner that made the Offer.
         authored_object: The object an ``AUTHOR`` sender must have written;
             it picks the author check (HP-01-009).
-        offered_ownership_id: A new ownership-transfer Offer's own id: a
+        ownership_proposal_id: An ownership-transfer proposal's own id: a
             ``CASE_OWNER`` sender must hold the role, unless it redelivers
-            an Offer the CASE_MANAGER recorded from it (CM-21-019,
-            HP-01-003).
+            a proposal the CASE_MANAGER already made its Offer from on the
+            sender's behalf (CM-21-019, HP-01-003, ADR-0148).
         closing_case_owner: The activity is the Case Owner's
             ``Leave(VulnerabilityCase)``, whose repeat finishes the case's
             closure (CM-23-002, CM-23-018): a ``CASE_OWNER`` sender is
@@ -208,7 +208,7 @@ class SenderCheckContext:
     case_manager_required: bool = False
     request: AddresseeRequest | None = None
     authored_object: AuthoredObject | None = None
-    offered_ownership_id: str | None = None
+    ownership_proposal_id: str | None = None
     closing_case_owner: bool = False
 
 

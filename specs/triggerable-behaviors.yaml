@@ -429,15 +429,18 @@ groups:
     priority: MUST
     kind: protocol
     statement: The system MUST expose an `offer-case-ownership-transfer` trigger at `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`
-      that accepts a `case_id` and `transferee_id` in its request body and emits an `Offer(VulnerabilityCase)` (ownership
-      transfer variant) from the requesting actor to the specified transferee.
+      that accepts a `case_id` and `transferee_id` in its request body and emits
+      the requesting Case Owner's proposal, `Offer(Offer(VulnerabilityCase))`, to
+      the case's CASE_MANAGER, which offers the case to the specified transferee
+      (CM-21-005). The response's `activity` is the proposal.
     rationale: Without this trigger, demo scripts must inject ownership-transfer offers directly into the transferee's inbox,
       which bypasses the offering actor's BT execution and violates DEMOMA-05-001. A trigger endpoint ensures the full hexagonal
       stack is exercised for both sides of the handshake.
     verification: >-
       Integration tests in `test/demo/` confirm that a POST to
       `/actors/{actor_id}/trigger/offer-case-ownership-transfer` with a valid
-      `case_id` and `transferee_id` emits an `Offer(VulnerabilityCase)` activity.
+      `case_id` and `transferee_id` emits the proposal and that the transferee then
+      receives the CASE_MANAGER's `Offer(VulnerabilityCase)`.
     relationships:
     - rel_type: refines
       spec_id: TRIG-01-001
@@ -523,9 +526,10 @@ groups:
     statement: >-
       The system MUST expose a `withdraw-case-ownership-transfer` trigger at
       `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer` that
-      accepts an `offer_id` in its request body and emits an
-      `Undo(Offer(VulnerabilityCase))` (ownership transfer variant) from the
-      requesting actor, addressed to the CASE_MANAGER (CM-21-015).
+      accepts an `offer_id` in its request body, naming the requesting Case
+      Owner's own proposal (the activity TRIG-11-001 returned), and emits
+      `Undo(Offer(Offer(VulnerabilityCase)))` of that proposal, addressed to the
+      CASE_MANAGER (CM-21-015).
     rationale: >-
       Symmetry with TRIG-11-002 and TRIG-11-005: the offerer withdraws through a
       trigger, so the withdrawal runs the same behavior tree a real client would
@@ -545,11 +549,12 @@ groups:
     statement: >-
       The `offer-case-ownership-transfer` trigger (TRIG-11-001) MUST accept an
       optional `end_time` in its request body and, when given, set it as the
-      emitted Offer's activity-level `end_time`, the deadline to answer
-      (CM-21-016). Without it the Offer carries no `end_time`.
+      `end_time` of the proposal's inner Offer, which the CASE_MANAGER carries
+      to the Offer it makes as the deadline to answer (CM-21-016). Without it
+      the Offer carries no `end_time`.
     rationale: >-
-      The offerer is the party that knows how long it can wait for an answer, so
-      the deadline is set where the Offer is made.
+      The owner is the party that knows how long it can wait for an answer, so
+      the deadline is set where the transfer is proposed.
     verification: >-
       A test marked `TRIG-11-007` confirms the trigger's request model has an
       optional `end_time` field.

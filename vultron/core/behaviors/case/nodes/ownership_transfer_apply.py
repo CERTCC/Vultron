@@ -333,8 +333,8 @@ class AcceptRecordedOwnershipOfferNode(_TransferCaseOwnershipNode):
     """Transfer the case's ownership to the transferee of a recorded Offer.
 
     The new owner is read from the ownership-transfer Offer the CASE_MANAGER
-    recorded, which *offer_id* names directly or through its forward
-    (CM-21-005), never from the sender of the Accept (CM-21-011).  Runs only
+    made and recorded, which *offer_id* names (CM-21-005), never from the
+    sender of the Accept (CM-21-011).  Runs only
     at the CASE_MANAGER, so the executing actor is the Offer's issuer.  The
     consequence entries follow the Offer the Accept names.
     """
@@ -355,7 +355,7 @@ class AcceptRecordedOwnershipOfferNode(_TransferCaseOwnershipNode):
                 "Ownership-transfer Offer", str(self.offer_id)
             )
         return recorded_ownership_offer(
-            self.datalayer, self.case_id, self.offer_id, self.actor_id
+            self.datalayer, self.case_id, self.offer_id
         ).transferee_id
 
     def _cause_id(self) -> str:

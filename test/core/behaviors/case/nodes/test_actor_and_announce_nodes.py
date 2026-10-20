@@ -905,7 +905,7 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
 
 
 # ---------------------------------------------------------------------------
-# AC-5a / AC-5b: EmitOfferCaseOwnershipTransferNode and
+# AC-5a / AC-5b: EmitProposeCaseOwnershipTransferNode and
 #               EmitAcceptCaseOwnershipTransferNode BT-layer routing tests
 # ---------------------------------------------------------------------------
 
@@ -961,19 +961,19 @@ class TestEmitOwnershipTransferNodes:
 
     @pytest.mark.spec("CM-21-005", "DL-08-003")
     def test_emit_offer_to_is_case_actor_id(self, store_for):
-        """AC-5a: EmitOfferCaseOwnershipTransferNode sets to=[case_actor_id]."""
+        """AC-5a: EmitProposeCaseOwnershipTransferNode sets to=[case_actor_id]."""
         dl = store_for(_OT_OWNER_ID)
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
         )
         from vultron.core.behaviors.case.nodes.ownership_transfer import (
-            EmitOfferCaseOwnershipTransferNode,
+            EmitProposeCaseOwnershipTransferNode,
         )
 
         _make_ot_case(dl)
 
         captured: dict = {}
-        node = EmitOfferCaseOwnershipTransferNode(
+        node = EmitProposeCaseOwnershipTransferNode(
             case_id=_OT_CASE_ID,
             transferee_id=_OT_TRANSFEREE_ID,
             captured=captured,
@@ -987,28 +987,32 @@ class TestEmitOwnershipTransferNodes:
         result = bridge.execute_with_setup(tree=node, actor_id=_OT_OWNER_ID)
 
         assert result.status == Status.SUCCESS, (
-            f"EmitOfferCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+            f"EmitProposeCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
         )
         activity = captured.get("activity", {})
-        # ADR-0053 / CM-21-005: Offer is routed to the CaseActor, not the transferee.
+        # ADR-0053 / CM-21-005: the proposal is routed to the CaseActor, not
+        # the transferee.
         assert _OT_CASE_ACTOR_ID in activity.get("to", []), (
-            f"Offer must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
+            f"proposal must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
             f"got to={activity.get('to')!r}"
         )
-        # CM-24-004, ADR-0109: the owner sends its own Offer, naming no one
-        # else as its author; the CASE_MANAGER's forward is the delegated emit.
+        # CM-24-004, ADR-0109: the owner sends its own proposal, naming no
+        # one else as its author; the CASE_MANAGER's Offer is the delegated
+        # emit (ADR-0148).
         assert activity.get("actor") == _OT_OWNER_ID
         assert "attributedTo" not in activity
         # Queued in the owner's own outbox, not the CASE_MANAGER's.
         assert activity["id"] in dl.outbox_list()
-        # The transferee is named as the intended new owner in the target
-        # field, carried inline as an Actor, never a bare id (DL-08-003).
-        target = activity.get("target")
+        # The inner Offer names the transferee as its target, carried inline
+        # as an Actor, never a bare id (DL-08-003).
+        inner = activity.get("object")
+        assert isinstance(inner, dict) and inner.get("type") == "Offer"
+        target = inner.get("target")
         assert isinstance(target, dict), (
-            f"Offer.target must carry the transferee inline; got {target!r}"
+            f"the inner Offer must carry the transferee inline; got {target!r}"
         )
         assert target.get("id") == _OT_TRANSFEREE_ID, (
-            f"Offer.target must name the transferee ({_OT_TRANSFEREE_ID}); "
+            f"the inner Offer must name the transferee ({_OT_TRANSFEREE_ID}); "
             f"got target={target!r}"
         )
 

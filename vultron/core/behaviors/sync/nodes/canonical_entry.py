@@ -60,7 +60,12 @@ _PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", CaseLedgerEntry)
 _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Create", "VulnerabilityCase"),
     ("Offer", "VulnerabilityReport"),
+    # The CASE_MANAGER's ownership-transfer Offer (CM-21-005, ADR-0148).
     ("Offer", "VulnerabilityCase"),
+    # The Case Owner's ownership-transfer proposal, Offer(Offer(Case)),
+    # committed as received (ADR-0148).  Owner-authored, so not in
+    # ``_CASE_AUTHORED_SIGNATURES``.
+    ("Offer", "Offer"),
     ("Accept", "Offer"),  # validate_report (RV) — object_ is the Offer
     ("TentativeReject", "Offer"),  # invalidate_report (RI)
     # A Reject of an Offer: the ownership transferee's decline (CLP-02-012),
@@ -68,9 +73,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # Close(Report) on a case is admitted now (CM-23-019).
     ("Reject", "Offer"),
     # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-003, CLP-02-013).
-    # The Case Owner's withdrawal of an ownership-transfer Offer (CM-21-015),
-    # the only Undo(Offer) semantic today; a second one would share this
-    # signature.  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
+    # The Case Owner's withdrawal of its ownership-transfer proposal
+    # (CM-21-015, ADR-0148), the only Undo(Offer) semantic today; a second
+    # one would share this signature.  Owner-authored, so not in
+    # ``_CASE_AUTHORED_SIGNATURES``.
     ("Undo", "Offer"),
     # No ``("Create", "Note")``: a received Create(Note) is not a protocol
     # message, so ``Add(Note)`` is a note's one entry (VAM-01-011).

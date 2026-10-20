@@ -11,18 +11,19 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Resolve the CASE_MANAGER's forward of an Offer to the Offer it recorded.
+"""Resolve the CASE_MANAGER's forward of a role Offer to the Offer it recorded.
 
-An Offer the CASE_MANAGER relays to its target is ledgered as received, then
-forwarded as a new ``Offer`` with its own id, which is the one the target
-holds and answers.  The forward is not ledgered, so it carries ``inReplyTo``
-set to the recorded Offer's id, and an answer naming the forward is resolved
-through that link, read from the forward in the CASE_MANAGER's own store,
-never from the copy the answer embeds (CM-21-018, CM-33-005).
+A role Offer the CASE_MANAGER relays to its target is ledgered as received,
+then forwarded as a new ``Offer`` with its own id, which is the one the
+target holds and answers.  The forward is not ledgered, so it carries
+``inReplyTo`` set to the recorded Offer's id, and an answer naming the
+forward is resolved through that link, read from the forward in the
+CASE_MANAGER's own store, never from the copy the answer embeds (CM-33-005).
 
-:func:`forwarded_offer_entry` is that one resolution, shared by the
-ownership-transfer Offer (``vultron.core.participants.ownership_offer``) and
-the role Offer (``vultron.core.participants.role_offer``).
+:func:`forwarded_offer_entry` is that one resolution, used by the role Offer
+(``vultron.core.participants.role_offer``).  The ownership-transfer Offer has
+no forward: the CASE_MANAGER makes it itself, under its own id (ADR-0148),
+and reads only :func:`entry_target` from here.
 """
 
 from typing import Literal
