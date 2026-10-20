@@ -109,8 +109,10 @@ bad payloads, out-of-order entries — are surfaced through Python logging, not
 ledger entries. A participant's `Reject` answering an `Invite` or an `Offer` is
 not a refusal: it is a case event, admitted and ledgered like its `Accept`
 (CLP-02-012). A precondition refusal at the CASE_MANAGER is answered with the
-refusal notice, `refusal_notice(case_id)` passed as `refusal_effects`
-(CLP-05-001); it is never ledgered.
+refusal notice, which `create_receive_activity_tree` adds to every tree that
+commits to a case and has precondition guards (CLP-02-005, CLP-05-001); it is
+never ledgered. A tree opts out only by naming a registered
+`RefusalNoticeExemption` that says what answers its refusals instead.
 
 **`SilentIdempotencyGuardMixin`** (`vultron/core/behaviors/idempotency.py`)
 implements this correctly and satisfies CLP-13-002. Use it for all idempotency

@@ -26,6 +26,9 @@ from vultron.core.behaviors.case.nodes.diversion_stage import (
     DiversionGate,
     DiversionStage,
 )
+from vultron.core.behaviors.case.nodes.refusal_notice import (
+    EMBARGO_REFUSAL_ANSWERS,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -125,6 +128,7 @@ def test_the_factory_builds_each_refusal_in_place() -> None:
     tree = create_receive_activity_tree(
         name="Probe",
         case_id=_CASE,
+        refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         precondition_guards=[
             _invite_refusal(),
             pxa_accept_refusal(

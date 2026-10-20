@@ -25,6 +25,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.core.use_cases.received.conftest import (
+    assert_only_refusal_notice,
     seed_case_manager_participant,
     seed_case_owner_participant,
     seed_case_participant,
@@ -356,8 +357,9 @@ def test_a_copy_not_addressed_to_the_receiver_is_refused(make_payload):
 
 @pytest.mark.spec("CM-33-003")
 @pytest.mark.spec("BT-17-008")
+@pytest.mark.spec("CLP-02-005")
 def test_offer_naming_the_case_manager_as_target_is_refused(make_payload):
-    """The CASE_MANAGER would forward the Offer to itself."""
+    """The CASE_MANAGER would forward the Offer to itself; it answers instead."""
     dl = _store(_CASE_MANAGER_ID)
 
     result = _deliver_offer(
@@ -366,7 +368,7 @@ def test_offer_naming_the_case_manager_as_target_is_refused(make_payload):
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert _semantic_types(dl) == []
-    assert _queued(dl) == []
+    assert_only_refusal_notice(dl, _OFFER_ID, _OWNER_ID)
 
 
 @pytest.mark.spec("CM-33-004")
@@ -391,15 +393,23 @@ def test_an_addressee_that_is_not_the_target_does_not_answer(make_payload):
 
 
 @pytest.mark.spec("CM-33-003")
+@pytest.mark.spec("CLP-02-005")
 @pytest.mark.parametrize(
-    "dropped",
+    ("dropped", "answered"),
     [
-        pytest.param("context", id="no-case"),
-        pytest.param("target", id="no-target"),
+        # No case, so no case whose CASE_MANAGER answers.
+        pytest.param("context", False, id="no-case"),
+        pytest.param("target", True, id="no-target"),
     ],
 )
-def test_offer_naming_no_case_or_no_target_is_refused(make_payload, dropped):
-    """Only intake's archive keeps it: no entry, no forward (CLP-10-018)."""
+def test_offer_naming_no_case_or_no_target_is_refused(
+    make_payload, dropped, answered
+):
+    """Only intake's archive keeps it: no entry, no forward (CLP-10-018).
+
+    The guard's refusal of an Offer naming its case is answered with the
+    refusal notice (CLP-05-001).
+    """
     dl = _store(_CASE_MANAGER_ID)
     request = make_payload(_offer(), receiving_actor_id=dl.actor_id)
     request = request.model_copy(
@@ -417,7 +427,10 @@ def test_offer_naming_no_case_or_no_target_is_refused(make_payload, dropped):
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert _semantic_types(dl) == []
-    assert _queued(dl) == []
+    if answered:
+        assert_only_refusal_notice(dl, _OFFER_ID, _OWNER_ID)
+    else:
+        assert _queued(dl) == []
 
 
 def _queued_offers(dl: SqliteDataLayer) -> list[Any]:
@@ -454,10 +467,12 @@ def test_offer_from_a_participant_that_is_not_the_owner_is_refused(
     ],
 )
 def test_offer_the_case_manager_must_refuse(make_payload, role, target):
-    """Each refused shape leaves no entry and sends nothing.
+    """Each refused shape leaves no entry and is answered by the notice.
 
     A missing role must not be read as any default role, as the received use
-    case once read it as CASE_MANAGER.
+    case once read it as CASE_MANAGER.  An Offer whose role object is
+    malformed cannot be carried inline in the notice, so that one refusal
+    goes unanswered and is logged (CLP-05-001).
     """
     dl = _store(_CASE_MANAGER_ID)
 
@@ -470,7 +485,10 @@ def test_offer_the_case_manager_must_refuse(make_payload, role, target):
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert _semantic_types(dl) == []
-    assert _queued(dl) == []
+    if role is None:
+        assert _queued(dl) == []
+    else:
+        assert_only_refusal_notice(dl, _OFFER_ID, _OWNER_ID)
 
 
 @pytest.mark.spec("CM-33-004")

@@ -23,11 +23,17 @@ alone and carrying the refusing guard's reason in ``summary`` (CLP-02-005,
 CLP-05-001).  :class:`ClearRefusedAssertionNode` is the participant's side:
 it closes the pending assertion the notice answers (CLP-06-006).
 
-The node is a refusal effect: a received tree passes it, through
-:func:`refusal_notice`, as ``refusal_effects`` to
-:func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`.
-The factory runs it only when a precondition guard refuses, only at the
-case's CASE_MANAGER, never for a sender-guard refusal, a repeat reported
+The node is a refusal effect, and the factory adds it itself:
+:func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
+puts :func:`refusal_notice` ahead of a tree's own ``refusal_effects`` in every
+tree that commits to a case and has precondition guards, so no tree writes
+its own copy (CS-22-001).  A tree goes without it only by passing a
+registered :class:`RefusalNoticeExemption` that says what answers its
+refusals instead: :data:`REFUSAL_NOTICE_EXEMPTIONS` is the whole list, and
+``test/architecture/test_received_tree_refusal_notice.py`` pins which tree
+uses each one.
+The factory runs the notice only when a precondition guard refuses, only at
+the case's CASE_MANAGER, never for a sender-guard refusal, a repeat reported
 ``SKIPPED`` or a redelivery (CLP-10-022).  It writes no state: the notice's
 id is derived from the CASE_MANAGER and the refused activity, so a retry
 queues it once (ID-04-004, OX-06-002).
@@ -40,7 +46,12 @@ Blackboard contract (BTND-03-003):
   (CLP-07-009); its sender is the asserter.
 """
 
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import Final
+
 from py_trees.common import Status
+from pydantic import BaseModel, ConfigDict
 
 from vultron.core.behaviors.case.nodes.ledger_payload import (
     _extract_payload_snapshot,
@@ -59,12 +70,66 @@ from vultron.core.models.pending_assertion import (
     get_pending_assertion_store,
 )
 from vultron.errors import VultronWiringError
+from vultron.primitives import NonEmptyString
 
 __all__ = [
     "ClearRefusedAssertionNode",
+    "EMBARGO_REFUSAL_ANSWERS",
     "EmitRefusalNoticeNode",
+    "OWNER_CLOSE_DECLINE",
+    "REFUSAL_NOTICE_EXEMPTIONS",
+    "RefusalNoticeExemption",
     "refusal_notice",
 ]
+
+
+class RefusalNoticeExemption(BaseModel):
+    """One recorded decision that a received tree sends no refusal notice.
+
+    Attributes:
+        name: Short stable name of the decision.
+        reason: Why the tree is correct without the notice, and what
+            answers its refusals instead.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: NonEmptyString
+    reason: NonEmptyString
+
+
+OWNER_CLOSE_DECLINE: Final = RefusalNoticeExemption(
+    name="owner-close-decline",
+    reason=(
+        "The close-case tree's close arm refuses a Case Owner's"
+        " Leave(VulnerabilityCase) only while an embargo is active, and the"
+        " enclosing tree's decline arm answers that refusal with its own"
+        " Reject of the Leave (CM-23-011, MSM-05-001).  The decline is the"
+        " refusal's answer, so a notice would answer it twice (CLP-05-001)."
+    ),
+)
+
+EMBARGO_REFUSAL_ANSWERS: Final = RefusalNoticeExemption(
+    name="embargo-refusal-answers",
+    reason=(
+        "An embargo tree decides per message which of its refusals the"
+        " CASE_MANAGER answers and how (MSM-07-003, MSM-07-004, MSM-07-008,"
+        " MSM-07-010): several already answer in place through a diversion"
+        " (CLP-10-026), and a repeated answer to an embargo is reported"
+        " SKIPPED (CM-13-005).  #4755 gives each embargo tree its refusal"
+        " notice and retires this exemption."
+    ),
+)
+
+#: Every registered exemption, by name.  The factory refuses any other.
+REFUSAL_NOTICE_EXEMPTIONS: Final[Mapping[str, RefusalNoticeExemption]] = (
+    MappingProxyType(
+        {
+            exemption.name: exemption
+            for exemption in (OWNER_CLOSE_DECLINE, EMBARGO_REFUSAL_ANSWERS)
+        }
+    )
+)
 
 
 class EmitRefusalNoticeNode(_EmitSingleActivityBase):

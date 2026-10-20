@@ -309,7 +309,8 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
         "IntakeReceivedActivityNode",
         "CaseOpenToExternalWrites",
         "ActivityAddressedToReceiverNode",
-        "Guard",
+        # The guards, with the refusal notice that answers them (CLP-02-005).
+        "PreconditionGuardStage",
         "GuardedCommitCaseLedgerEntryBT",
         "Effect",
     ]
