@@ -88,8 +88,8 @@ class ExpiryPrompt:
 
     Attributes:
         sender_id: The reply's sender.
-        offer_id: The Offer the reply names: the recorded Offer or the
-            forward of it (CM-21-005); ``None`` when it names none.
+        offer_id: The Offer the reply names, the CASE_MANAGER's own
+            (CM-21-005); ``None`` when it names none.
         party: Which party to the Offer the sender must be.
     """
 

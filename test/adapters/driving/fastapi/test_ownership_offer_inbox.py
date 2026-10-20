@@ -6,7 +6,8 @@ and the CASE_MANAGER makes and ledgers the ``Offer(VulnerabilityCase)``
 (ADR-0148).  The transferee is a *peer*: the CASE_MANAGER's store need not
 hold its actor profile, and no handler writes one.  Both ledger commits still
 need the transferee inline in the snapshot (CLP-07-006), so the proposal and
-the Offer must carry it inline and storage must keep it so (DL-08-003).  Before #4843 the sender named the transferee by a bare id and the
+the Offer must carry it inline and storage must keep it so (DL-08-003).
+Before #4843 the sender named the transferee by a bare id and the
 commit worked only when an earlier delivery had happened to leave the
 transferee's profile in the CASE_MANAGER's store.
 

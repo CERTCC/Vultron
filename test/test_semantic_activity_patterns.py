@@ -312,7 +312,8 @@ def test_unknown_activity_type_with_bare_string_object_returns_unknown():
 
     # as_Flag has no registered Vultron patterns; a bare-string object_ should
     # return UNKNOWN, not UNKNOWN_UNRESOLVABLE_OBJECT.  (as_Undo was the
-    # example until Undo(Offer(VulnerabilityCase)) got a pattern, CM-21-015.)
+    # example until the ownership-transfer withdrawal got a pattern,
+    # CM-21-015.)
     activity = as_Flag(
         actor="https://example.org/alice",
         object_="urn:uuid:some-object",

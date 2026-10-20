@@ -429,8 +429,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: The system MUST expose an `offer-case-ownership-transfer` trigger at `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`
-      that accepts a `case_id` and `transferee_id` in its request body and emits the requesting Case Owner's proposal,
-      `Offer(Offer(VulnerabilityCase))`, to the case's CASE_MANAGER, which offers the case to the specified transferee
+      that accepts a `case_id` and `transferee_id` in its request body and emits
+      the requesting Case Owner's proposal, `Offer(Offer(VulnerabilityCase))`, to
+      the case's CASE_MANAGER, which offers the case to the specified transferee
       (CM-21-005). The response's `activity` is the proposal.
     rationale: Without this trigger, demo scripts must inject ownership-transfer offers directly into the transferee's inbox,
       which bypasses the offering actor's BT execution and violates DEMOMA-05-001. A trigger endpoint ensures the full hexagonal

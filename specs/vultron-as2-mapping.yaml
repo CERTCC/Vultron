@@ -460,8 +460,10 @@ groups:
   - id: VAM-04-007
     priority: MUST
     kind: protocol
-    statement: '`OFFER_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Offer(VulnerabilityCase)`: the one
-      Offer of a transfer, which the CASE_MANAGER makes from the Case Owner''s proposal (CM-21-005).'
+    statement: >-
+      `OFFER_CASE_OWNERSHIP_TRANSFER` MUST be represented as
+      `Offer(VulnerabilityCase)`: the one Offer of a transfer, which the
+      CASE_MANAGER makes from the Case Owner's proposal (CM-21-005).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `OfferCaseOwnershipTransferPattern` uses `TAtype.OFFER` and `AOtype.VULNERABILITY_CASE`; integration
       tests in `test/demo/test_transfer_ownership_demo.py` exercise this flow.
