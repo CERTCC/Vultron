@@ -9,6 +9,7 @@ from vultron.adapters.driving.fastapi.inbox_pipeline import (
     MAX_REQUEUE_ATTEMPTS,
     InboxPipeline,
 )
+from vultron.adapters.driving.fastapi.inbox_staging import hold_activity
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.protocols import PersistableModel
@@ -43,6 +44,7 @@ from vultron.wire.as2.factories import (
     rm_create_report_activity,
     rm_invite_to_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
@@ -76,8 +78,14 @@ def _base_case(case_id: str = CASE_ID) -> as_VulnerabilityCase:
     return as_VulnerabilityCase(id_=case_id, name="CASE-IBP")
 
 
-def _store_note_activity(dl: SqliteDataLayer, note_id: str) -> str:
-    """Store a case, a note and an Add(Note, Case) activity; return its ID."""
+def _store_note_activity_whole(
+    dl: SqliteDataLayer, note_id: str
+) -> as_Activity:
+    """Store a case and a note, hold an Add(Note, Case); return it.
+
+    The activity is held as the inbox holds a queued delivery, never under
+    its own id (DL-06-006).
+    """
     case = _base_case()
     note = as_Note(id_=note_id, content=note_id)
     activity = add_note_to_case_activity(
@@ -87,21 +95,27 @@ def _store_note_activity(dl: SqliteDataLayer, note_id: str) -> str:
         actor=SENDER_ID,
         to=[RECEIVER_ID],
     )
-    for obj in (case, note, activity):
+    for obj in (case, note):
         dl.save(obj)
-    return activity.id_
+    hold_activity(dl, activity)
+    return activity
+
+
+def _store_note_activity(dl: SqliteDataLayer, note_id: str) -> str:
+    """:func:`_store_note_activity_whole`, returning the activity's id."""
+    return _store_note_activity_whole(dl, note_id).id_
 
 
 def _save_and_process(
     test_pipeline: PipelineFixture,
     *,
-    activity: PersistableModel,
+    activity: as_Activity,
     objects: list[PersistableModel],
 ):
     pipeline, dl = test_pipeline
     for obj in objects:
         dl.save(obj)
-    dl.save(activity)
+    hold_activity(dl, activity)
     return pipeline.process(activity.id_), dl
 
 
@@ -283,7 +297,7 @@ def test_process_defers_unknown_case_activity(test_pipeline):
     )
 
     dl.save(note)
-    dl.save(activity)
+    hold_activity(dl, activity)
 
     result = pipeline.process(activity.id_)
 
@@ -317,7 +331,7 @@ def test_stub_invite_for_unknown_case_is_dispatched_not_deferred(
         to=[RECEIVER_ID],
     )
     pipeline, dl = test_pipeline
-    dl.save(activity)
+    hold_activity(dl, activity)
 
     result = pipeline.process(activity.id_)
 
@@ -367,7 +381,7 @@ def test_create_case_with_correct_context_not_deferred(
     # would normally establish it, which is what the monkeypatched marker
     # proves was invoked.
     dl.save(case)
-    dl.save(activity)
+    hold_activity(dl, activity)
 
     result = pipeline.process(activity.id_)
 
@@ -430,7 +444,9 @@ def test_rehydrate_protocol_violation_returns_none_not_raises(
     def _raise_protocol(*args, **kwargs):
         raise VultronProtocolViolationError("rehydrate protocol violation")
 
-    monkeypatch.setattr(ip_module, "rehydrate", _raise_protocol)
+    monkeypatch.setattr(
+        ip_module.InlineObjectStaging, "rehydrate_deferred", _raise_protocol
+    )
 
     pipeline, _dl = test_pipeline
     result = pipeline.process("https://example.org/activities/bad-rehydrate")
@@ -455,7 +471,9 @@ def test_rehydrate_generic_exception_returns_none_not_raises(
     def _raise_generic(*args, **kwargs):
         raise RuntimeError("simulated rehydration failure")
 
-    monkeypatch.setattr(ip_module, "rehydrate", _raise_generic)
+    monkeypatch.setattr(
+        ip_module.InlineObjectStaging, "rehydrate_deferred", _raise_generic
+    )
 
     pipeline, _dl = test_pipeline
     activity_id = "https://example.org/activities/transient-rehydrate"
@@ -568,9 +586,10 @@ def test_successful_dispatch_resets_requeue_budget(
     import vultron.adapters.driving.fastapi.inbox_pipeline as ip_module
 
     pipeline, dl = test_pipeline
-    activity_id = _store_note_activity(
+    activity = _store_note_activity_whole(
         dl, "https://example.org/notes/n-ibp-requeue-reset"
     )
+    activity_id = activity.id_
     queue_dl = dl.clone_for_actor(RECEIVER_ID)
     fail = True
 
@@ -586,6 +605,8 @@ def test_successful_dispatch_resets_requeue_budget(
     fail = False
     assert pipeline.process(queue_dl.inbox_pop() or activity_id) is not None
 
+    # Processed, so no longer held; the same item queued again is held again.
+    hold_activity(dl, activity)
     fail = True
     assert _drain_cycles(pipeline, queue_dl, activity_id) == (
         MAX_REQUEUE_ATTEMPTS + 1

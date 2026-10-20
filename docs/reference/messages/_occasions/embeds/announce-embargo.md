@@ -8,6 +8,7 @@
     - **Send:** `Announce(Event)[context=VulnerabilityCase]`
     - **Send to:** a participant
     - **Sent by:** the case manager
+    - **Distinguished by:** register status of the named embargo `ACTIVE`
     - **Reference:** [Announce embargo](../../em.md#announce-embargo)
 
     ??? example "Example activity"

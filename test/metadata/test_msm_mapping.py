@@ -54,6 +54,7 @@ from vultron.semantic_registry._occasion import (
     MessagePage,
     Occasion,
     ProtocolShorthand,
+    SenderStanding,
 )
 from vultron.wire.as2.enums import (
     as_ObjectType,
@@ -92,6 +93,14 @@ def _occasion(index: int = 0, **overrides: Any) -> Occasion:
     return Occasion(**fields)
 
 
+def _told_apart(index: int) -> SenderStanding:
+    """A distinguisher for sibling *index* of a two-occasion stub entry,
+    since same-addressee siblings must declare differing ones (MSM-08-011)."""
+    return SenderStanding(
+        kind=SenderEntitlementKind.CASE_OWNER, holds=bool(index)
+    )
+
+
 def _entry(
     *occasions: Occasion,
     semantics: MessageSemantics = MessageSemantics.ADD_NOTE_TO_CASE,
@@ -125,8 +134,12 @@ def test_one_shorthand_on_one_entry_is_direct():
 @pytest.mark.spec("MSM-08-006")
 def test_several_distinct_shorthands_on_one_entry_is_a_collapse():
     entry = _entry(
-        _occasion(0, shorthand=ProtocolShorthand.CV),
-        _occasion(1, shorthand=ProtocolShorthand.CF),
+        _occasion(
+            0, shorthand=ProtocolShorthand.CV, distinguisher=_told_apart(0)
+        ),
+        _occasion(
+            1, shorthand=ProtocolShorthand.CF, distinguisher=_told_apart(1)
+        ),
     )
     assert mapping_status(entry, [entry]) is MappingStatus.COLLAPSE
 
@@ -159,8 +172,12 @@ def test_a_declared_evolved_mechanism_is_evolved():
 def test_occasions_sharing_one_shorthand_on_one_entry_are_direct():
     """Two situations conveyed by one shorthand do not make a collapse."""
     entry = _entry(
-        _occasion(0, shorthand=ProtocolShorthand.RA),
-        _occasion(1, shorthand=ProtocolShorthand.RA),
+        _occasion(
+            0, shorthand=ProtocolShorthand.RA, distinguisher=_told_apart(0)
+        ),
+        _occasion(
+            1, shorthand=ProtocolShorthand.RA, distinguisher=_told_apart(1)
+        ),
     )
     assert mapping_status(entry, [entry]) is MappingStatus.DIRECT
 

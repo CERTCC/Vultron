@@ -154,6 +154,9 @@ def activate_embargo_on_case_tree(
             ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
         ],
         manager_case_id=case_id,
+        # The activation's rows, the backfill and the stub re-issue are one
+        # act (CLP-07-015, ADR-0146).
+        manager_effects_as_one_act=True,
     )
     logger.info(
         "Created ActivateEmbargoOnCaseBT for case=%s embargo=%s sender=%s",
@@ -284,6 +287,9 @@ def reject_embargo_proposal_on_case_tree(
             ),
         ],
         manager_case_id=case_id,
+        # A termination the rejection causes, with its stub re-issue, and the
+        # rejection itself are one act (CLP-07-015, ADR-0146).
+        manager_effects_as_one_act=True,
     )
     logger.info(
         "Created RejectEmbargoProposalOnCaseBT for case=%s embargo=%s"

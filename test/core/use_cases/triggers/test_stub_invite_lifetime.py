@@ -583,22 +583,24 @@ def test_a_replacement_carries_a_new_deadline_and_current_terms_and_roles(
     )
 
 
+@pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("CM-11-016")
-@pytest.mark.spec("OX-06-002")
-def test_a_replacement_whose_commit_failed_is_recorded_once_by_the_next_run(
+def test_a_termination_whose_stub_re_issue_fails_is_not_kept(
     actor_store,
 ) -> None:
-    """A replacement is queued, then committed; a failed commit is finished.
+    """An act and the re-issue it makes due succeed or fail as one.
 
-    The replacement's id derives from the stub it replaces, and the next run
-    of the re-issue node records the replacement it already sent, under the
-    same id: one queued Invite, one entry (ADR-0119, OX-06-002).
+    The termination and the replacement stub run in one transaction
+    (ADR-0146): when the replacement's commit fails, the embargo is still in
+    force, and no replacement is stored, queued or committed.  Nothing is
+    left for a later run, and the stub is not stale (CM-11-016).
     """
     from test.support.ledger import fail_commits
-    from vultron.core.behaviors.case.nodes.stub_reissue import (
-        ReissueStubInvitesNode,
+    from vultron.core.behaviors.case.stub_invite_lifetime import (
+        outstanding_stale_stubs,
     )
     from vultron.core.behaviors.sync import commit_tree
+    from vultron.core.models._helpers import now_utc
     from vultron.core.models.case_ledger_entry import CaseLedgerEntry
     from vultron.errors import VultronBTInternalError
 
@@ -608,7 +610,9 @@ def test_a_replacement_whose_commit_failed_is_recorded_once_by_the_next_run(
     dl.create(finder)
     dl.create(invitee)
     case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
-    original = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
+    _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
+    entries_before = {e.id_ for e in dl.list_objects("CaseLedgerEntry")}
+    outbox_before = list(dl.outbox_list())
 
     with pytest.MonkeyPatch.context() as mp:
         failed = fail_commits(
@@ -619,34 +623,18 @@ def test_a_replacement_whose_commit_failed_is_recorded_once_by_the_next_run(
         with pytest.raises(VultronBTInternalError, match="commit failed"):
             _terminate(dl, owner.id_, case.id_)
     (replacement_id,) = failed
-    assert dl.outbox_list().count(replacement_id) == 1
 
-    def _recorded() -> list[str]:
-        return [
-            e.log_object_id
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry)
-            and e.log_object_id == replacement_id
-        ]
-
-    assert _recorded() == []
-
-    result = BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute_with_setup(
-        tree=ReissueStubInvitesNode(case_id=case.id_), actor_id=owner.id_
-    )
-
-    assert result.status.name == "SUCCESS", result
-    assert dl.outbox_list().count(replacement_id) == 1
-    assert _recorded() == [replacement_id]
-    replacements = [
-        i for i in _invites_to(dl, invitee.id_) if i.id_ != original["id"]
-    ]
-    assert [i.id_ for i in replacements] == [replacement_id]
+    stored = dl.read_case(case.id_)
+    assert stored is not None
+    assert stored.active_embargo_id == case.active_embargo_id
+    assert dl.read(replacement_id) is None
+    assert list(dl.outbox_list()) == outbox_before
+    assert {
+        e.id_
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry)
+    } == entries_before
+    assert outstanding_stale_stubs(dl, stored, owner.id_, now_utc()) == []
 
 
 @pytest.mark.spec("CM-11-016")
@@ -858,14 +846,17 @@ def test_an_activated_revision_reissues_a_stub_sent_in_revise(
 
 @pytest.mark.spec("CM-11-016")
 @pytest.mark.spec("OX-06-002")
-def test_a_replacement_left_unrecorded_is_recorded_during_a_later_revision(
+def test_a_failed_replacement_waits_while_a_later_revision_is_open(
     actor_store,
 ) -> None:
-    """A replacement whose commit failed is recorded by a run in EM REVISE.
+    """A replacement whose commit failed leaves nothing, so a run in EM
+    REVISE re-issues nothing: no stub is stale while a proposal is open.
 
-    The replacement invites to the embargo in force; a revision opened before
-    the next run leaves that embargo in force (EP-05-002), so the run records
-    the replacement once, still carrying it (CM-11-016, CM-17-002).
+    The failed replacement was built, queued and committed in one
+    transaction (ADR-0146), so the invitee's newest stub is still the
+    original.  The revision opened after it holds the re-issue back until
+    the answer that settles the embargo in force (CM-11-016); the run
+    commits, queues and stores nothing.
     """
     from test.support.ledger import fail_commits
     from vultron.core.behaviors.sync import commit_tree
@@ -885,6 +876,8 @@ def test_a_replacement_left_unrecorded_is_recorded_during_a_later_revision(
         result = _run_reissue(dl, case.id_, owner.id_)
     assert result.internal_error, result
     (replacement_id,) = failed
+    assert dl.read(replacement_id) is None
+    assert replacement_id not in dl.outbox_list()
 
     stored = dl.read_case(case.id_)
     assert stored is not None
@@ -898,24 +891,15 @@ def test_a_replacement_left_unrecorded_is_recorded_during_a_later_revision(
 
     assert _run_reissue(dl, case.id_, owner.id_).status.name == "SUCCESS"
 
-    recorded = [
+    assert [
         e.log_object_id
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry) and e.log_object_id == replacement_id
-    ]
-    assert recorded == [replacement_id]
-    assert dl.outbox_list().count(replacement_id) == 1
-    (replacement,) = [
-        i for i in _invites_to(dl, invitee.id_) if i.id_ != invite["id"]
-    ]
-    assert replacement.id_ == replacement_id
-    carried = getattr(replacement.target, "active_embargo", None)
-    assert getattr(carried, "id_", carried) == revision_id
-    # The replacement invites to the embargo in force (CM-11-016, CM-28-013).
-    row = _participant_of(dl, case.id_, invitee.id_).held_row(revision_id)
-    assert row is not None
-    assert row.state is EmbargoConsentState.INVITED
-    assert row.rsvp_deadline == replacement.end_time
+    ] == []
+    assert replacement_id not in dl.outbox_list()
+    assert [
+        i.id_ for i in _invites_to(dl, invitee.id_) if i.id_ != invite["id"]
+    ] == []
 
 
 @pytest.mark.spec("CM-11-016")

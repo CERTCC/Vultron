@@ -1312,8 +1312,9 @@ groups:
       `TestRelayEmbargoInviteToEachNode::test_each_emission_is_committed_as_a_canonical_entry`
       in the same node test file asserts each emission is committed,
       `test_each_invite_is_queued_before_it_is_committed` that it is queued first, and
-      `test/core/use_cases/received/test_embargo_revision_relay.py::test_a_relay_whose_commit_failed_after_the_send_is_recorded_once_on_retry`
-      that a retry sends and records each Invite once;
+      `test/core/use_cases/received/test_embargo_revision_relay.py::test_a_received_proposal_whose_relay_commit_fails_keeps_no_consequence`
+      that a failed Invite commit keeps no Invite, row or entry of the act
+      (CLP-07-015);
       `test/core/use_cases/received/test_embargo_manager_consent.py` asserts the
       proposer's row is `AGREED` after the commit, that a stakeholder manager (and a
       manager that is the proposer) holds an `AGREED` row with no Invite addressed to

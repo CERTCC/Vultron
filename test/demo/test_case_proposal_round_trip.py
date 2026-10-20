@@ -86,6 +86,7 @@ from test.demo.conftest import (
     create_isolated_actor_app,
     submit_report_through_reporter,
 )
+from test.support.received import received_of_type
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -339,7 +340,7 @@ class TestCaseProposalRoundTrip:
         #   vendor inbox → AcceptCaseProposalReceivedUseCase +
         #   CreateVulnerabilityCaseReceivedUseCase
 
-        accept_activities = vendor_iso.dl.by_type("Accept")
+        accept_activities = received_of_type(vendor_iso.dl, "Accept")
         assert len(accept_activities) >= 1, (
             "Expected at least one Accept activity in the vendor DataLayer "
             "after the CaseProposal round-trip.  "
@@ -441,7 +442,7 @@ class TestCaseProposalRoundTrip:
 
         senders = {
             _as_id(create.actor)
-            for create in reporter_iso.dl.list_objects("Create")
+            for create in received_of_type(reporter_iso.dl, "Create")
         }
         assert senders == {vendor_actor_id}
 
@@ -576,14 +577,14 @@ class TestCaseProposalRejectRoundTrip:
             ),
         )
 
-        reject_activities = vendor_iso.dl.by_type("Reject")
+        reject_activities = received_of_type(vendor_iso.dl, "Reject")
         assert len(reject_activities) >= 1, (
             "A declining case actor service MUST send Reject(as_CaseProposal) "
             "back to the proposer (CP-05-002, CP-05-004).  No Reject reached "
             "the vendor's store, so the refusal never left the case actor."
         )
 
-        assert not vendor_iso.dl.by_type("Accept"), (
+        assert not received_of_type(vendor_iso.dl, "Accept"), (
             "the service refused, so it must not also acknowledge the proposal"
         )
         assert not vendor_iso.dl.by_type("VulnerabilityCase"), (

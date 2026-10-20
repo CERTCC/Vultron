@@ -10,7 +10,7 @@ level: 100
 
 You want to run, change, or extend the Python code in this repository.
 This page is a reading path from running the demos to understanding why the codebase is built the way it is.
-Each step builds on the one before it.
+Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
 
 ## Run it
 

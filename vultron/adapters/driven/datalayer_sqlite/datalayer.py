@@ -26,7 +26,7 @@ submodules and tests call them by those names.
 
 import logging
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
@@ -46,6 +46,7 @@ from vultron.core.ports.datalayer import StorableRecord
 from . import crud, hydration, queries, queues
 from .engine import dispose_actor_engines, get_actor_engine, session_guard
 from .schema import VultronObjectRecord, require_outbox_pending_index
+from .transaction import open_transaction, transaction as _transaction
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +82,15 @@ class SqliteDataLayer:
         self._actor_id = actor_id
         self._engine = get_actor_engine(db_url, actor_id)
         self._enqueue_callback: Callable[[str], None] | None = enqueue_callback
-        SQLModel.metadata.create_all(self._engine)
-        require_outbox_pending_index(self._engine)
+        if open_transaction(self._engine) is None:
+            # Under the session lock: on an in-memory store these
+            # connections are the one shared connection, and closing them
+            # would roll back a transaction another thread holds open
+            # (#3602).  A store with a transaction open in this thread is
+            # already open and its schema checked, so it skips the check.
+            with session_guard(self._engine):
+                SQLModel.metadata.create_all(self._engine)
+                require_outbox_pending_index(self._engine)
 
     @contextmanager
     def _session(self) -> Iterator[Session]:
@@ -92,10 +100,34 @@ class SqliteDataLayer:
         in-memory store's single shared connection is never used by two
         threads at once — see :func:`~.engine.session_guard` for why that
         lost writes (#3602).  File-backed stores pay nothing.
+
+        Inside :meth:`transaction`, on the thread that opened it, the session
+        binds to the transaction's connection and joins it through a
+        SAVEPOINT, so its ``commit()`` commits nothing until the block ends.
         """
+        state = open_transaction(self._engine)
+        if state is not None:
+            with Session(
+                bind=state.connection,
+                join_transaction_mode="create_savepoint",
+            ) as session:
+                yield session
+            return
         with session_guard(self._engine):
             with Session(self._engine) as session:
                 yield session
+
+    def transaction(self) -> AbstractContextManager[None]:
+        """Commit every write inside the block together, or none of them.
+
+        Every call on this store from the same thread inside the block, by
+        this instance or any other on the same store, reads the block's own
+        writes and commits with it; when the block raises, all of them are
+        rolled back and the exception propagates.  A block opened inside
+        another is a SAVEPOINT in it.  Enqueue callbacks fire after the
+        commit.  See :mod:`.transaction`.
+        """
+        return _transaction(self._engine)
 
     @property
     def actor_id(self) -> str:
@@ -320,6 +352,8 @@ class SqliteDataLayer:
         request_semantic_type: str,
         object_id: str,
         reply_semantic_types: frozenset[str],
+        *,
+        answering: frozenset[str] | None = None,
     ) -> ProtocolPair:
         """Return the open/closed state of a request/reply protocol pair."""
         return queries.find_protocol_pair(
@@ -328,6 +362,7 @@ class SqliteDataLayer:
             request_semantic_type,
             object_id,
             reply_semantic_types,
+            answering=answering,
         )
 
     def find_actor_by_short_id(self, short_id: str) -> PersistableModel | None:

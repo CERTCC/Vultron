@@ -243,9 +243,15 @@ before proceeding. Do not open a PR with lint failures.
 ```bash
 uv run ruff check --fix && uv run ruff format
 uv run ruff check && uv run mypy && uv run pyright
-timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
-timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
+timeout -k 30 1800 uv run pytest -n auto --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -5 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)
 ```
+
+Run the block as one shell command, so `logs` is set for each line. The
+log names carry the worktree's directory name because parallel sessions
+share `/tmp`: a fixed name lets one session read, or overwrite, another
+session's run.
 
 Both suites must pass. The first pytest command covers the unit suite
 (integration tests excluded by `addopts`); the second explicitly runs the

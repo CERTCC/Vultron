@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-"""Ingress stages inline objects for routing and stores none of them (#3763).
+"""Ingress stages a delivery for routing and stores none of it (#3763, #4871).
 
-The stored activity names its inline object by id, so the by-id re-read that
-rebuilds the routed activity reads through a staging store holding the
-delivery's inline objects.  Nothing staged reaches the receiver's store, and a
-deferred activity keeps its staged rows only until its replay.
+The routed activity is rebuilt by a by-id read through a staging store that
+holds the parsed activity's row and its inline objects.  Nothing staged
+reaches the receiver's store (DL-06-006, IO-03-004), and a deferred activity
+is held whole, its sealed body and staged rows, only until its replay.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -20,6 +20,7 @@ deferred activity keeps its staged rows only until its replay.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import json
 import logging
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
@@ -47,9 +48,10 @@ from vultron.adapters.driving.fastapi.inbox_staging import (
 )
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.models.pending_inline_objects import PendingInlineObjects
+from vultron.errors import VultronWiringError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -95,14 +97,15 @@ def _routed(dl: SqliteDataLayer, body: dict[str, Any], **kwargs: Any) -> Any:
     return ingress.rehydrate(parsed)
 
 
-@pytest.mark.spec("CLP-10-017", "IO-03-004")
+@pytest.mark.spec("CLP-10-017", "IO-03-004", "DL-06-006")
 def test_rehydrate_routes_the_inline_object_without_storing_it(dl):
     routed = _routed(dl, _add_note_body())
 
     assert getattr(routed.object_, "id_", None) == _NOTE_ID
     assert getattr(routed.object_, "content", None) == "staged"
     assert dl.read(_NOTE_ID) is None
-    assert dl.read(routed.id_) is not None, "the activity itself is stored"
+    assert dl.read(routed.id_) is None, "nor is the activity itself"
+    assert sum(dl.count_all().values()) == 0, "nothing at all is written"
 
 
 @pytest.mark.spec("IO-03-004")
@@ -115,18 +118,21 @@ def test_rehydrate_routes_the_receivers_own_copy_over_the_inline_one(dl):
     assert getattr(routed.object_, "content", None) == "held"
 
 
-@pytest.mark.spec("IO-03-004", "CBT-03-001")
+@pytest.mark.spec("IO-03-004", "CBT-03-001", "DL-06-006", "VM-08-002")
 def test_deferred_activity_replays_with_its_inline_object(dl):
     staging = InlineObjectStaging(dl)
     queue = FastAPIQueuePort(
         dl=dl, actor_dl=dl, actor_id=_RECEIVER_ID, staging=staging
     )
-    routed = _routed(dl, _add_note_body(), staging=staging)
+    body = _add_note_body()
+    routed = _routed(dl, body, staging=staging)
     queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
-    assert isinstance(
-        dl.read(PendingInlineObjects.build_id(routed.id_)),
-        PendingInlineObjects,
-    )
+    held = dl.read(DeferredInboxActivity.build_id(routed.id_))
+    assert isinstance(held, DeferredInboxActivity)
+    assert held.received_body is not None
+    assert json.loads(held.received_body) == body, "held as it arrived"
+    assert held.activity_row_json is None
+    assert dl.read(routed.id_) is None, "never under the sender's id"
 
     dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="arrived"))
     queue.replay(_CASE_ID)
@@ -140,8 +146,9 @@ def test_deferred_activity_replays_with_its_inline_object(dl):
     assert getattr(getattr(replayed, "object_", None), "content", None) == (
         "staged"
     )
+    assert replayed.received_evidence == body, "the first delivery's evidence"
     assert dl.read(_NOTE_ID) is None
-    assert dl.read(PendingInlineObjects.build_id(routed.id_)) is None
+    assert dl.read(DeferredInboxActivity.build_id(routed.id_)) is None
 
 
 @pytest.mark.spec("IO-03-004", "CBT-03-003")
@@ -169,7 +176,7 @@ def test_expired_queue_drops_the_inline_objects_held_for_replay(dl):
     )
 
     assert expired is True
-    assert dl.read(PendingInlineObjects.build_id(routed.id_)) is None
+    assert dl.read(DeferredInboxActivity.build_id(routed.id_)) is None
 
 
 @pytest.mark.spec("IO-03-004")
@@ -193,7 +200,7 @@ def test_staging_store_is_emptied_when_the_rebuild_raises(dl):
         raise RuntimeError("rebuild failed")
 
     with pytest.raises(RuntimeError, match="rebuild failed"):
-        staging._rehydrate(parsed.id_, _stage_then_fail)
+        staging._rehydrate(parsed.id_, _stage_then_fail, received_body=None)
 
     assert _StagingStore(dl, "urn:uuid:next").read(_NOTE_ID) is None
 
@@ -215,17 +222,17 @@ def test_a_later_bare_reference_does_not_see_an_earlier_staged_object(dl):
 def test_held_rows_are_released_when_the_replay_rebuild_raises(
     dl, monkeypatch
 ):
-    """The replay already left the queue, so its held rows go regardless."""
+    """The replay already left the queue, so its held record goes regardless."""
     staging = InlineObjectStaging(dl)
     queue = FastAPIQueuePort(
         dl=dl, actor_dl=dl, actor_id=_RECEIVER_ID, staging=staging
     )
     routed = _routed(dl, _add_note_body(), staging=staging)
     queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
-    held_id = PendingInlineObjects.build_id(routed.id_)
+    held_id = DeferredInboxActivity.build_id(routed.id_)
     assert dl.read(held_id) is not None
 
-    def _fail(*_args: Any) -> None:
+    def _fail(*_args: Any, **_kwargs: Any) -> None:
         raise RuntimeError("rebuild failed")
 
     monkeypatch.setattr(staging, "_rehydrate", _fail)
@@ -547,7 +554,8 @@ def test_stage_inline_object_duplicate_stays_at_debug(datalayer, caplog):
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
-def test_deferring_an_activity_with_no_inline_object_holds_nothing(dl):
+@pytest.mark.spec("IO-03-004", "DL-06-006")
+def test_deferring_an_activity_with_no_inline_object_holds_it_alone(dl):
     staging = InlineObjectStaging(dl)
     queue = FastAPIQueuePort(
         dl=dl, actor_dl=dl, actor_id=_RECEIVER_ID, staging=staging
@@ -566,7 +574,9 @@ def test_deferring_an_activity_with_no_inline_object_holds_nothing(dl):
 
     queue.queue(activity_id=routed.id_, case_id=_CASE_ID)
 
-    assert dl.read(PendingInlineObjects.build_id(routed.id_)) is None
+    held = dl.read(DeferredInboxActivity.build_id(routed.id_))
+    assert isinstance(held, DeferredInboxActivity)
+    assert json.loads(held.rows_json) == []
     replayed = StoredActivityIngressAdapter(dl=dl, staging=staging).parse(
         routed.id_
     )
@@ -574,10 +584,136 @@ def test_deferring_an_activity_with_no_inline_object_holds_nothing(dl):
     assert getattr(replayed, "object_", None) == _NOTE_ID
 
 
-def test_rebuilding_an_activity_nothing_stored_fails_as_the_plain_read(dl):
-    """With no stored row to stage, the plain re-read reports the miss."""
-    with pytest.raises(ValueError):
-        InlineObjectStaging(dl).rehydrate_deferred("urn:uuid:never-stored")
+@pytest.mark.spec("DL-06-006")
+def test_replaying_an_activity_nothing_holds_finds_nothing(dl, caplog):
+    """With no record, nothing under the sender's id is read in its place."""
+    with caplog.at_level(logging.WARNING):
+        assert (
+            InlineObjectStaging(dl).rehydrate_deferred("urn:uuid:never-held")
+            is None
+        )
+    assert "urn:uuid:never-held" in caplog.text
+
+
+@pytest.mark.spec("DL-06-006")
+def test_a_row_under_the_senders_id_is_not_replayed(dl):
+    """A row of the activity's type under its id is never the held copy."""
+    parsed = parse_activity(_add_note_body())
+    dl.create(parsed)
+
+    assert InlineObjectStaging(dl).rehydrate_deferred(parsed.id_) is None
+
+
+@pytest.mark.spec("IO-03-004", "IE-10-001")
+def test_a_redelivery_of_a_deferred_activity_is_not_held_again(dl):
+    """The held body is kept; the redelivered one is not held in its place."""
+    staging = InlineObjectStaging(dl)
+    first = _add_note_body(content="first")
+    routed = _routed(dl, first, staging=staging)
+    assert staging.hold_for_replay(routed.id_)
+
+    again = InlineObjectStaging(dl)
+    second = {**first, "summary": "second"}
+    _routed(dl, second, staging=again)
+
+    assert again.hold_for_replay(routed.id_) is False
+    held = staging.held(routed.id_)
+    assert held is not None and held.received_body is not None
+    assert json.loads(held.received_body) == first
+
+
+@pytest.mark.spec("IO-03-004", "CBT-03-003")
+def test_a_released_activity_queued_again_is_held_as_first_held(dl):
+    """A replay deferred again keeps the body it was first held with."""
+    staging = InlineObjectStaging(dl)
+    body = _add_note_body()
+    routed = _routed(dl, body, staging=staging)
+    assert staging.hold_for_replay(routed.id_)
+
+    replaying = InlineObjectStaging(dl)
+    assert replaying.rehydrate_deferred(routed.id_) is not None
+    assert replaying.held(routed.id_) is None
+    assert replaying.hold_for_replay(routed.id_)
+
+    held = replaying.held(routed.id_)
+    assert held is not None and held.received_body is not None
+    assert json.loads(held.received_body) == body
+
+
+@pytest.mark.spec("VM-08-002", "DL-06-006")
+def test_an_activity_with_no_sealed_body_is_held_as_its_row(dl):
+    """One this process built carries no evidence, held or replayed."""
+    parsed = parse_activity(_add_note_body())
+    built = parsed.model_copy(deep=True)
+    built._received_evidence = None
+    staging = InlineObjectStaging(dl)
+    staging.rehydrate_parsed(built)
+    assert staging.hold_for_replay(built.id_)
+
+    held = staging.held(built.id_)
+    assert held is not None
+    assert held.received_body is None and held.activity_row_json is not None
+    replayed = InlineObjectStaging(dl).rehydrate_deferred(built.id_)
+    assert replayed is not None
+    assert replayed.received_evidence is None
+    assert getattr(getattr(replayed, "object_", None), "content", None) == (
+        "staged"
+    )
+
+
+def test_a_stage_that_stages_no_activity_row_fails_loudly(dl):
+    """A rebuild with no row for the activity itself is a wiring fault."""
+    with pytest.raises(VultronWiringError, match="staged no row"):
+        InlineObjectStaging(dl)._rehydrate(
+            "urn:uuid:unstaged", lambda _store: None, received_body=None
+        )
+    assert _StagingStore(dl, "urn:uuid:next").read("urn:uuid:unstaged") is None
+
+
+@pytest.mark.spec("DL-06-006")
+def test_holding_what_was_never_staged_is_a_wiring_fault(dl):
+    """A queue port with its own staging would queue an id holding nothing."""
+    staging = InlineObjectStaging(dl)
+
+    assert staging.can_hold("urn:uuid:x") is False
+    with pytest.raises(VultronWiringError, match="share one"):
+        staging.hold_for_replay("urn:uuid:x")
+    assert sum(dl.count_all().values()) == 0
+
+
+@pytest.mark.spec("DL-06-006")
+def test_hold_again_holds_only_what_this_staging_released(dl):
+    """A re-queue holds the released record again, and is a no-op for an id
+    this staging never rebuilt."""
+    parsed = parse_activity(_add_note_body())
+    holder = InlineObjectStaging(dl)
+    holder.rehydrate_parsed(parsed)
+    holder.hold_for_replay(parsed.id_)
+    staging = InlineObjectStaging(dl)
+
+    assert staging.hold_again(parsed.id_) is False
+    assert staging.rehydrate_deferred(parsed.id_) is not None
+    assert staging.held(parsed.id_) is None, "precondition: released"
+
+    assert staging.hold_again(parsed.id_) is True
+    assert staging.held(parsed.id_) is not None
+
+
+@pytest.mark.spec("DL-06-006", "CBT-03-001")
+def test_a_failed_hold_queues_nothing(dl):
+    """The record is held before the id is queued, so a hold that raises
+    leaves no queued id with nothing behind it."""
+    queue = FastAPIQueuePort(
+        dl=dl,
+        actor_dl=dl,
+        actor_id=_RECEIVER_ID,
+        staging=InlineObjectStaging(dl),
+    )
+
+    with pytest.raises(VultronWiringError):
+        queue.queue(activity_id="urn:uuid:unstaged", case_id=_CASE_ID)
+
+    assert dl.read(VultronPendingCaseInbox.build_id(_CASE_ID)) is None
 
 
 def test_staging_store_of_a_file_deployment_is_in_memory():

@@ -18,22 +18,26 @@
 Hands a buffered ledger entry back to the receiving actor's own inbox as a
 delivery of its own (SYNC-14-009, ADR-0135).  It wraps the entry in an
 ``Announce(CaseLedgerEntry)`` attributed to the case's CASE_MANAGER and
-addressed to the receiving actor, stores the activity in that actor's store
-and appends its id to the actor's inbox queue.
+addressed to the receiving actor, holds it in that actor's store the way the
+inbox holds a deferred delivery (a ``DeferredInboxActivity`` keyed by the
+receiver, never a row under the activity's own id, DL-06-006) and appends its
+id to the actor's inbox queue.
 
 That queue is the inbox's existing scheduling path: the delivery that made the
 entry appliable is still running when the port is called, and once it ends
-``run_inbox_pipeline`` pops the queued id and runs it through
+``run_inbox_pipeline`` pops the queued id and replays the held activity through
 ``process_payload`` under the same actor lock (IO-02-003, BT-11-001).  The
 older ``inbox_handler`` queue worker also drains the queue, through its own
-dispatch step rather than ``process_payload``.  No new concurrency mechanism is
-involved, and the handed-back entry takes the same parse, route and tree path
-as any delivery (SYNC-14-008).  The entry itself is stored inline in the
-Announce, never on its own: only the replica's ``PersistReceivedLogEntry`` step
-writes a ledger entry (SYNC-13-002).
+dispatch step rather than ``process_payload``, and rebuilds from the same
+record.  No new concurrency mechanism is involved, and the handed-back entry
+takes the same rebuild, route and tree path as a deferred delivery
+(SYNC-14-008).  The entry itself is held inline in the Announce, never on its
+own: only the replica's ``PersistReceivedLogEntry`` step writes a ledger entry
+(SYNC-13-002).
 """
 
 import logging
+from collections.abc import Callable
 
 from vultron.adapters.driven.sync_activity_adapter import (
     ledger_entry_to_wire,
@@ -42,9 +46,15 @@ from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
 )
+
+#: Holds an activity for the inbox replay under the receiver's key, returning
+#: whether it was newly held (a held copy is kept); the driving side's
+#: ``inbox_staging.hold_activity`` (DL-06-006).
+ActivityHolder = Callable[[DataLayer, as_Activity], bool]
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +99,14 @@ class InboxHandBackAdapter:
     Args:
         dl: The receiving actor's own DataLayer (ADR-0073), whose inbox queue
             the inbox loop drains.
+        hold: Holds the Announce for the inbox replay the way the inbox holds
+            a deferred delivery.  Injected by the inbox port factory, so this
+            driven adapter does not import the driving inbox's staging.
     """
 
-    def __init__(self, dl: DataLayer) -> None:
+    def __init__(self, dl: DataLayer, hold: ActivityHolder) -> None:
         self._dl = dl
+        self._hold = hold
 
     def hand_back_ledger_entry(
         self,
@@ -103,13 +117,26 @@ class InboxHandBackAdapter:
         """Wrap *entry* in an Announce from the CASE_MANAGER and queue it.
 
         Handing the same entry back twice names the same delivery
-        (:func:`hand_back_activity_id`); the second one finds the entry stored
-        and is a no-op.
+        (:func:`hand_back_activity_id`).  While the first is still held and
+        queued, the second keeps the held copy and queues nothing; once
+        replayed, a later hand-back finds the entry stored and is a no-op.  A
+        held copy that is not queued (the append after an earlier hold
+        failed) is queued now, so it is never stranded.  The Announce has no
+        received body, because no peer sent it, so it is held as its row and
+        replayed with no received evidence (VM-08-002).
         """
         announce = hand_back_announce(
             entry, case_manager_id, receiving_actor_id
         )
-        self._dl.save(announce)
+        self._hold(self._dl, announce)
+        if announce.id_ in self._dl.inbox_list():
+            logger.debug(
+                "inbox hand-back: Announce(CaseLedgerEntry) '%s' is already"
+                " queued for actor '%s'",
+                announce.id_,
+                receiving_actor_id,
+            )
+            return
         self._dl.inbox_append(announce.id_)
         logger.debug(
             "inbox hand-back: queued Announce(CaseLedgerEntry) '%s' for"
@@ -123,6 +150,7 @@ class InboxHandBackAdapter:
 
 
 __all__ = [
+    "ActivityHolder",
     "InboxHandBackAdapter",
     "hand_back_activity_id",
     "hand_back_announce",

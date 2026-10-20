@@ -46,22 +46,6 @@ PARTICIPANT_URI = "https://example.org/actors/participant-1"
 CASE_URI = "https://example.org/cases/case1"
 
 
-def _to_persistable_entry(
-    chain_entry: HashChainLedgerRecord,
-) -> CaseLedgerEntry:
-    """Test helper: convert a HashChainLedgerRecord to a CaseLedgerEntry."""
-    return CaseLedgerEntry(
-        case_id=chain_entry.case_id,
-        log_index=chain_entry.log_index,
-        term=chain_entry.term,
-        log_object_id=chain_entry.object_id,
-        semantic_type=chain_entry.semantic_type,
-        payload_snapshot=dict(chain_entry.payload_snapshot),
-        prev_log_hash=chain_entry.prev_log_hash,
-        entry_hash=chain_entry.entry_hash,
-    )
-
-
 def _make_entry(
     case_id: str, log_index: int, prev_hash: str
 ) -> CaseLedgerEntry:
@@ -73,7 +57,7 @@ def _make_entry(
         payload_snapshot={"key": "value"},
         prev_log_hash=prev_hash,
     )
-    return _to_persistable_entry(chain)
+    return chain.to_ledger_entry()
 
 
 @pytest.fixture

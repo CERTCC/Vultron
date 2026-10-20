@@ -271,35 +271,42 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
         )
         dl = cast(CaseOutboxPersistence, self.datalayer)
         em_before = self._em_state()
-        for embargo_id, invite_id in self._proposals.items():
-            activity_id, blob = self.trigger_activity_factory.reject_embargo(
-                proposal_id=invite_id,
-                case_id=self._case_id_value,
-                actor=actor_id,
-                to=None,
-            )
-            # The ER is the CANCEL step (ADR-0122): committed, then copied
-            # through the one apply function (ADR-0124).
-            commit_and_apply_embargo_entries(
-                dl,
-                self._case_id_value,
-                [
-                    PlannedEmbargoEntry(
-                        change=RegisterStep(
-                            kind=RegisterStepKind.CANCEL, embargo=embargo_id
-                        ),
-                        commit=partial(
-                            commit_emitted_activity,
-                            datalayer=dl,
-                            actor_id=actor_id,
-                            case_id=self._case_id_value,
-                            activity_id=activity_id,
-                            activity_blob=blob,
-                            semantic_type=EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
-                        ),
+        # One act: every ER is built (which stores it), committed and
+        # applied in one transaction, so a failure on any proposal abandons
+        # none of them (ADR-0146).
+        with dl.transaction():
+            for embargo_id, invite_id in self._proposals.items():
+                activity_id, blob = (
+                    self.trigger_activity_factory.reject_embargo(
+                        proposal_id=invite_id,
+                        case_id=self._case_id_value,
+                        actor=actor_id,
+                        to=None,
                     )
-                ],
-            )
+                )
+                # The ER is the CANCEL step (ADR-0122): committed, then copied
+                # through the one apply function (ADR-0124).
+                commit_and_apply_embargo_entries(
+                    dl,
+                    self._case_id_value,
+                    [
+                        PlannedEmbargoEntry(
+                            change=RegisterStep(
+                                kind=RegisterStepKind.CANCEL,
+                                embargo=embargo_id,
+                            ),
+                            commit=partial(
+                                commit_emitted_activity,
+                                datalayer=dl,
+                                actor_id=actor_id,
+                                case_id=self._case_id_value,
+                                activity_id=activity_id,
+                                activity_blob=blob,
+                                semantic_type=EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
+                            ),
+                        )
+                    ],
+                )
         self.feedback_message = (
             f"CASE_MANAGER committed and applied {len(self._proposals)}"
             f" '{EMBARGO_ABANDONMENT_SEMANTIC_TYPE}' entr(y/ies) on case"

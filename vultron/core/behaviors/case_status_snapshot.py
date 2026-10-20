@@ -46,6 +46,7 @@ from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.cs import CS_pxa
+from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +100,10 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     After an EM or PXA lifecycle node mutates the case state, this node:
 
     1. Reads the VulnerabilityCase from the DataLayer (post-mutation).
-    2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa``
-       state, with the P/X/A latches of the reported status adopted when one
-       is named (RSH-01-003).
+    2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa`` state.
+       With ``reported_status_id`` set, the ``pxa`` also sets every P/X/A
+       latch the adopted ``ParticipantStatus`` reports, clearing none
+       (RSH-01-003).
     3. Builds the CASE_MANAGER's ``Add(CaseStatus)`` through the
        trigger-activity port and commits its sealed blob as a CaseLedgerEntry
        via ``create_commit_log_entry_tree`` (VM-08-003).
@@ -115,39 +117,47 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     Args:
         case_id: The case whose status is snapshotted.
         name: Node name; defaults to the class name.
-        reported_status: The case status a participant reported, which the
-            StatusAdoptionGate ahead of this node adopted.  Every P/X/A latch
-            it sets is added to the case's, and none is cleared
-            (:func:`adopted_pxa`, RSH-01-003).  ``None`` for a tree that has
-            already mutated the case.
-        reported_status_id: The id of the reported ``ParticipantStatus`` or
-            ``CaseStatus``, read at tick time so a status received by
-            reference is adopted too; the stored copy wins over
-            *reported_status*, which is the fallback.
+        reported_status_id: The adopted ``ParticipantStatus``, read at tick
+            time, whose embedded ``case_status`` reports P/X/A.  Every latch it
+            sets is added to the case's, and none is cleared
+            (:func:`adopted_pxa`, RSH-01-003).  ``None`` for trees that mutate
+            the case before the snapshot (EM lifecycle).
     """
 
     def __init__(
         self,
         case_id: str | None,
         name: str | None = None,
-        reported_status: CaseStatus | None = None,
         reported_status_id: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
-        self.reported_status = reported_status
         self.reported_status_id = reported_status_id
         self._committed_status_id: str | None = None
 
-    def _resolve_reported(self) -> CaseStatus | None:
-        """The reported case status: the stored copy, else the inline one."""
-        if self.reported_status_id and self.datalayer is not None:
-            stored = self.datalayer.read(self.reported_status_id)
-            if isinstance(stored, ParticipantStatus):
-                return stored.case_status or self.reported_status
-            if isinstance(stored, CaseStatus):
-                return stored
-        return self.reported_status
+    def _reported(self) -> CaseStatus | None:
+        """The case status the adopted ``ParticipantStatus`` embeds.
+
+        Read from the stored, dimension-filtered status the append step saved
+        (RSH-05), so a status received by reference is adopted too.  ``None``
+        when no report is named, or the status embeds no ``case_status``
+        (it reports no P/X/A).
+
+        Raises:
+            VultronNotFoundError: no ``ParticipantStatus`` is stored at
+                ``reported_status_id``.  The append step saves it before
+                this node runs, so its absence is a broken store, never a
+                report to skip (ARCH-15-001).
+        """
+        if self.reported_status_id is None:
+            return None
+        assert self.datalayer is not None
+        reported = self.datalayer.read(self.reported_status_id)
+        if not isinstance(reported, ParticipantStatus):
+            raise VultronNotFoundError(
+                "ParticipantStatus", self.reported_status_id
+            )
+        return reported.case_status
 
     def update(self) -> Status:
         if not self.case_id:
@@ -188,13 +198,22 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
-        reported = self._resolve_reported()
+        try:
+            reported = self._reported()
+        except VultronNotFoundError as exc:
+            self.feedback_message = (
+                f"Cannot adopt reported status into case '{self.case_id}':"
+                f" {exc}"
+            )
+            self.logger.exception("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         pxa_state = adopted_pxa(current.pxa.state, reported)
         if cleared := latches_cleared_by(current.pxa.state, reported):
             self.logger.info(
-                "%s: reported status for case '%s' omits %s, which the case"
+                "%s: status '%s' for case '%s' omits %s, which the case"
                 " already records; kept (RSH-01-003, actor_id=%s)",
                 self.name,
+                self.reported_status_id,
                 self.case_id,
                 cleared,
                 self.actor_id,

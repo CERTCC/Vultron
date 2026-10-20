@@ -68,11 +68,7 @@ from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
-    em_reject_embargo_activity,
     withdraw_from_embargo_activity,
-)
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Invite,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
@@ -343,19 +339,25 @@ def test_the_act_entry_comes_first(arm):
     }, entries
 
 
-@pytest.mark.spec("CLP-07-013")
-def test_a_row_commit_that_fails_saves_only_what_committed():
-    """The act committed and its first row did not: only the act applies.
+@pytest.mark.spec("CLP-07-015")
+def test_a_row_commit_that_fails_leaves_no_write_behind():
+    """The act committed and its first row did not: neither is kept.
 
-    The managing owner's proposal commits (its ``PROPOSE`` step is saved,
-    and the embargo it names stays stored); the first
-    ``Create(EmbargoConsent)`` fails, so no row is written.  The
-    recovery of the rows is #4764.
+    The managing owner's proposal commits its ``Invite(EmbargoEvent)``
+    entry; the first ``Create(EmbargoConsent)`` then fails.  The act and its
+    rows are one transaction (ADR-0146), so the proposal's entry, its
+    ``PROPOSE`` step and its embargo are all undone with the row.
     """
     net = _net("fail-row", owner=MANAGER, em_state=EM.NONE)
+    before_file = _case_file(net, MANAGER)
+    before_entries = committed_semantic_types(net.stores[MANAGER], net.case_id)
+    before_embargoes = _embargo_records(net)
+    before_invites = {
+        str(a.id_) for a in net.stores[MANAGER].list_objects("Invite")
+    }
 
     with pytest.MonkeyPatch.context() as patch:
-        fail_commits(
+        failed = fail_commits(
             patch,
             commit_tree,
             when=lambda kw: (
@@ -365,13 +367,17 @@ def test_a_row_commit_that_fails_saves_only_what_committed():
         with pytest.raises(VultronBTInternalError, match="commit failed"):
             _propose(net)
 
-    (embargo_id,) = net.case(MANAGER).proposed_embargo_ids
-    assert committed_semantic_types(net.stores[MANAGER], net.case_id)[-1] == (
-        "invite_to_embargo_on_case"
+    assert failed, "the act's own entry committed before the row's failed"
+    assert net.case(MANAGER).proposed_embargo_ids == []
+    assert _case_file(net, MANAGER) == before_file
+    assert (
+        committed_semantic_types(net.stores[MANAGER], net.case_id)
+        == before_entries
     )
-    assert _row(net, MANAGER, MANAGER, embargo_id) is None
-    # The committed proposal's embargo stays stored: it is case data now.
-    assert embargo_id in _embargo_records(net)
+    assert _embargo_records(net) == before_embargoes
+    assert {
+        str(a.id_) for a in net.stores[MANAGER].list_objects("Invite")
+    } == before_invites, "the proposal's Invite is not left stored"
 
 
 @pytest.mark.spec("CLP-07-013")
@@ -723,32 +729,19 @@ def _is_invitee_row_update(kwargs: dict[str, Any]) -> bool:
 
 
 @pytest.mark.spec("CM-11-016")
-@pytest.mark.spec("CLP-07-013")
-@pytest.mark.parametrize(
-    ("declined_first", "revising"),
-    [
-        pytest.param(False, False, id="owed"),
-        pytest.param(True, False, id="answered-meanwhile"),
-        # Integration tier, with the rest of the LedgerNetwork replay group
-        # (#4917): about 11s idle, most of it in DataLayer reads.
-        pytest.param(
-            False,
-            True,
-            id="owed-during-revision",
-            marks=pytest.mark.integration,
-        ),
-    ],
-)
-def test_a_replacement_whose_row_did_not_commit_is_completed_next_run(
-    declined_first, revising
-):
-    """The replacement committed and its invitee's row did not: the next
-    run of the re-issue commits the row it owes, once, unless the invitee
-    has answered in between.
+@pytest.mark.spec("CLP-07-015")
+def test_an_accept_whose_re_issued_row_did_not_commit_is_not_kept():
+    """The replacement's row commit fails: the Accept that staled the stub
+    is undone with the replacement, and nothing is left for a later run.
 
-    A revision opened before the next run leaves the embargo the replacement
-    invited to in force (EP-05-002), so the row is still owed (CM-17-002).
+    The Accept, the replacement and its invitee's row are one act
+    (ADR-0146), so the failure leaves the revision still proposed, the
+    original embargo in force, and no replacement stored, queued or
+    committed.  The stub is not stale, so a re-issue run sends nothing.
     """
+    from test.core.use_cases.triggers.test_case_joining_trigger import (
+        _invites_to,
+    )
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter as _Sync,
     )
@@ -757,24 +750,32 @@ def test_a_replacement_whose_row_did_not_commit_is_completed_next_run(
         ReissueStubInvitesNode,
     )
 
-    net = _stub_network("reissue-row-retry")
+    net = _stub_network("reissue-row-fails")
     original_id = _send_stub(net)
     _propose(net)
     (revision_id,) = net.case(MANAGER).proposed_embargo_ids
+    dl = net.stores[MANAGER]
+    in_force = net.case(MANAGER).active_embargo_id
+    committed_before = committed_semantic_types(dl, net.case_id)
+    outbox_before = list(dl.outbox_list())
+    row_before = _invitee_row(net, MANAGER, revision_id)
     with pytest.MonkeyPatch.context() as patch:
         _later_stamps(patch)
         failed = fail_commits(patch, commit_tree, when=_is_invitee_row_update)
         with pytest.raises(VultronBTInternalError, match="commit failed"):
             _accept(net)
     assert len(failed) == 1
-    replacement = _replacement(net, original_id)
-    stale = _invitee_row(net, MANAGER, revision_id)
-    assert stale.rsvp_deadline != replacement.end_time
 
-    dl = net.stores[MANAGER]
-
-    def _rerun() -> list[str]:
-        return _new_entries(
+    assert net.case(MANAGER).active_embargo_id == in_force
+    assert net.case(MANAGER).proposed_embargo_ids == [revision_id]
+    assert committed_semantic_types(dl, net.case_id) == committed_before
+    assert list(dl.outbox_list()) == outbox_before
+    assert _invitee_row(net, MANAGER, revision_id) == row_before
+    assert [
+        i for i in _invites_to(dl, INVITEE) if i.in_reply_to == original_id
+    ] == [], "the replacement is not stored"
+    assert (
+        _new_entries(
             net,
             lambda: BTBridge(
                 datalayer=dl,
@@ -786,45 +787,8 @@ def test_a_replacement_whose_row_did_not_commit_is_completed_next_run(
                 actor_id=MANAGER,
             ),
         )
-
-    if declined_first:
-        # The invitee answers the relayed embargo Invite first: a row it
-        # answered owes no invitation (ADR-0122).
-        (relayed,) = [
-            invite
-            for invite in net.queued(MANAGER, to=INVITEE, type_="Invite")
-            if getattr(invite.object_, "id_", invite.object_) == revision_id
-        ]
-        verdict = net.receive(
-            MANAGER,
-            json.loads(
-                dump_outbound_body(
-                    em_reject_embargo_activity(
-                        cast(as_Invite, dl.read(relayed.id_)),
-                        context=net.case_id,
-                        actor=INVITEE,
-                        to=[MANAGER],
-                    )
-                )
-            ),
-        )
-        assert verdict.disposition is HandlerDisposition.APPLIED, (
-            verdict.reason
-        )
-        assert _rerun() == []
-        assert _invitee_row(net, MANAGER, revision_id).state is _S.DECLINED
-        return
-
-    if revising:
-        _propose(net, days=60)
-        assert net.case(MANAGER).em_state is EM.REVISE
-        assert net.case(MANAGER).active_embargo_id == revision_id
-
-    assert _rerun() == [UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE]
-    row = _invitee_row(net, MANAGER, revision_id)
-    assert row.state is _S.INVITED
-    assert row.rsvp_deadline == replacement.end_time
-    assert _rerun() == [], "a completed row is not committed twice"
+        == []
+    ), "nothing is stale, so nothing is left to re-issue"
 
 
 # ---------------------------------------------------------------------------
@@ -946,7 +910,8 @@ def test_a_received_withdrawal_is_copied_by_every_replica(replica):
 @pytest.mark.spec("CLP-07-013")
 def test_a_received_withdrawal_whose_row_commit_fails_writes_no_row():
     """The Leave is committed at intake; a row commit that fails saves no
-    row it did not commit (#4764 owns the recovery)."""
+    row.  The Leave's own entry stays: intake commits it in its own
+    transaction, the known gap ADR-0146 names."""
     net, revision_id = _bystander_agreed_to_a_revision("withdraw-row-fails")
 
     with pytest.MonkeyPatch.context() as patch:
@@ -956,6 +921,31 @@ def test_a_received_withdrawal_whose_row_commit_fails_writes_no_row():
 
     assert _row(net, MANAGER, BYSTANDER, net.initial_embargo_id) is (_S.AGREED)
     assert _row(net, MANAGER, BYSTANDER, revision_id) is _S.AGREED
+
+
+@pytest.mark.spec("CLP-07-015")
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "CLP-07-015: intake commits a received act's own entry in its own"
+        " transaction, before its consequences (ADR-0111). Tracked by #4933."
+    ),
+)
+def test_a_received_act_whose_consequence_fails_keeps_no_entry_for_it():
+    """A received act and its consequences succeed or fail as one: when a
+    row commit fails, the Leave's own entry is not kept either."""
+    net, _revision_id = _bystander_agreed_to_a_revision("withdraw-atomic")
+    before = committed_semantic_types(net.stores[MANAGER], net.case_id)
+
+    with pytest.MonkeyPatch.context() as patch:
+        fail_commits(patch, commit_tree)
+        with pytest.raises(VultronBTInternalError, match="commit failed"):
+            _bystander_leaves(net)
+
+    assert committed_semantic_types(net.stores[MANAGER], net.case_id) == (
+        before
+    )
 
 
 @pytest.mark.spec("CLP-07-013")

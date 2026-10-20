@@ -6,7 +6,8 @@ description: >
   Cross-cutting mechanics for py_trees BT integration: failure reason
   propagation, blackboard key semantics, execution-scoped key lifetime and
   the BTBridge exception-handler contract, idempotency patterns,
-  memory=False partial-write behavior, key namespacing, refusal-arm
+  memory=False partial-write behavior and the ActTransaction remedy, key
+  namespacing, refusal-arm
   fail-closed rules, and the received-tree CASE_MANAGER gate.
 related_specs:
   - specs/behavior-tree-integration.yaml
@@ -136,7 +137,9 @@ and assert the partial-write state in tests so nobody assumes FAILURE means no
 writes (BTND-07-001). To make a failing guard leave nothing behind, put every
 read-only guard (case existence, role resolution, routing prerequisite) before the
 first mutation (BT-19-001). Worked example: `vultron/core/behaviors/note/AGENTS.md`
-§ "`memory=False` Note Sequence".
+§ "`memory=False` Note Sequence". Where a later child's failure must keep nothing,
+as for an embargo act and the consequences its later nodes commit, make the
+Sequence an `ActTransaction` (`core/behaviors/act_transaction.py`, CLP-07-015).
 
 ---
 

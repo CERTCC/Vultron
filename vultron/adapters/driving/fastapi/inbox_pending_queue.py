@@ -27,9 +27,9 @@ from datetime import UTC, datetime
 from vultron.adapters.outbox_sealed_body import seal_outbound_body
 from vultron.config import get_config
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.events import VultronEvent, resolve_case_context_id
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.models.pending_inline_objects import PendingInlineObjects
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.factories.case import bootstrap_replay_question_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -108,7 +108,7 @@ def _expire_pending_case_activities(
     When expired:
 
     1. Logs a WARNING for each dropped activity ID (CBT-03-003).
-    2. Deletes the inline objects held for each activity's replay, and the
+    2. Deletes the record holding each activity for its replay, and the
        queue record — unless a stub Invite anchored it (``invite_anchored``,
        PCR-03-004 path b), in which case only its queue is emptied: the
        anchor is what admits the case's later ``Announce``.
@@ -162,9 +162,10 @@ def _expire_pending_case_activities(
             age_seconds,
             timeout_seconds,
         )
-        # The inline objects held for its replay go with it (#3763).
+        # The record holding it for its replay goes with it (#3763, #4871).
         queue_dl.delete(
-            "PendingInlineObjects", PendingInlineObjects.build_id(activity_id)
+            "DeferredInboxActivity",
+            DeferredInboxActivity.build_id(activity_id),
         )
     if pending.invite_anchored:
         # Keep the stub Invite's trust anchor; drop only what was queued.

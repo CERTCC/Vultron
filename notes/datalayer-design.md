@@ -7,8 +7,8 @@ description: >
   Rules for the DataLayer port contract, CasePersistence narrowing, the
   write/read shape boundary, activity read-back, the received archive as the
   sealed body, received-activity keying, received-artifact snapshots, per-actor
-  stores, shared-record writes, and stored-shape changes. Operating rules live
-  in vultron/core/ports/AGENTS.md.
+  stores, shared-record writes, multi-call transactions, and stored-shape
+  changes. Operating rules live in vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
@@ -17,8 +17,10 @@ related_specs:
   - specs/outbox.yaml (OX-06-002)
   - specs/inbox-endpoint.yaml (IE-10-001)
   - specs/vocabulary-model.yaml (VM-08-002)
+  - specs/case-ledger-processing.yaml (CLP-07-015)
 related_notes:
   - notes/architecture-hexagonal.md
+  - notes/case-ledger-authority.md
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
   - notes/testing-pitfalls.md
@@ -30,6 +32,7 @@ related_notes:
   - notes/triggerable-behaviors.md
 relevant_packages:
   - vultron/core/ports
+  - vultron/core/behaviors
   - vultron/adapters/driven
   - vultron/wire/as2/vocab
 ---
@@ -133,11 +136,11 @@ its Activity type from the DL-05-004 exemption set (DL-06-005).
 **A type table holds only what this actor authored (DL-06-006).** A scan over
 `list_objects("Create")` filtered on `actor == self` or on `context` answers "did
 I send it" only while no received activity sits in that table under the sender's
-id. A received copy must live in a receiver-keyed `ReceivedActivityRecord` or an
-opaque deferred record, never under the sender's id: not at ingress, not in an
-effect node. A `StoreReceivedObjectNode` or `idempotent_store` of the received
-activity itself breaks every such scan at once, and the sender controls both the
-id and the unsigned `actor`. Source: #4866; work: #4869, #4870, #4871.
+id. A received copy must live in a receiver-keyed `ReceivedActivityRecord` or the
+opaque `DeferredInboxActivity` holding it for replay, never under the sender's id:
+not at ingress, not in an effect node. A `StoreReceivedObjectNode` or
+`idempotent_store` of the received activity itself breaks every such scan at once,
+and the sender controls both the id and the unsigned `actor`. Source: #4866.
 
 **The received archive is the sealed received body.** Store the body the parser
 sealed and nothing derived from it; each load reparses it through the inbox's
@@ -288,27 +291,60 @@ are in `test/adapters/driven/test_sqlite_save_if_unchanged.py`.
 
 ---
 
-## Renaming a Stored Field
+## Writes That Must Land Together Use `transaction()`
 
-Stored data carries no backwards compatibility. A renamed persisted field gets
-no read alias (`AliasChoices`) and no conversion: the model declares the old key
-in `retired_stored_fields` via `RetiredFieldsRecord`
-(`vultron/core/models/retired_stored_fields.py`), and a row that still carries
-it, in either the field-name or camelCase spelling, fails to load with a
-message naming the old shape and saying the store must be reset (#4128). Every
-retired key the row carries is reported, not only the first (EH-07-001), and a
-retirement table whose replacement the model does not declare, or whose old key
-it still declares, fails at class definition.
+`with dl.transaction():` makes every call on that store, from that thread, one
+SQLite transaction: it commits once at the end, or rolls everything back when the
+block raises (DL-02-004, ADR-0146, CLP-07-015). The rules that keep it sound:
 
-The declaration is what makes the refusal legible. `CoreRecord` refuses unknown
-keys (`extra="forbid"`), so an undeclared rename never loses a field silently,
-but the row fails with a bare "extra inputs are not permitted" plus a "field
-required" for a name the operator never wrote, and nothing says a rename
-happened. The SQLite read path logs the validation reason at WARNING when it
-reads such a row as absent, so `dl.read()` returning `None` always has a logged
-cause. Every PR that renames a stored field carries an operator note saying a
-file-backed store must be reset (`docker compose down -v`); an in-memory store is
-unaffected.
+- **Every session goes through `SqliteDataLayer._session()`.** Inside the block
+  that seam binds the session to the block's connection and joins it by
+  SAVEPOINT, so a helper's `commit()` commits nothing early and its `rollback()`
+  undoes only its own writes. A raw `engine.connect()` inside the block bypasses
+  it; on an in-memory store it shares the one connection and its close rolls the
+  whole block back (#3602).
+- **Side effects outside the store wait for the commit.** The outbox enqueue
+  callback runs through `run_after_commit()`; anything else that tells another
+  thread a row exists does the same, or it signals a row that may roll back.
+- **One store only.** The block covers the store it was opened on; a write to
+  another actor's store inside it commits on its own.
+- **Keep it short.** It takes the write lock (`BEGIN IMMEDIATE`) and, in memory,
+  the session lock, so other writers wait for the whole block. A waiter can be
+  the event loop (the outbox drain writes synchronously), and on a file store a
+  wait past SQLite's busy timeout (5 s by default) raises `database is locked`.
+  An `ActTransaction` holds the lock for a whole act's effects, so keep slow or
+  external work (a call-out, another store) out of it.
+
+---
+
+## Retiring a Stored Field (Rename, Move, or Delete)
+
+Stored data carries no backwards compatibility.
+A renamed, moved, or deleted persisted field gets no read alias (`AliasChoices`)
+and no conversion: the model declares the old key in `retired_stored_fields` via
+`RetiredFieldsRecord` (`vultron/core/models/retired_stored_fields.py`), and a
+row that still carries it, in either the field-name or camelCase spelling, fails
+to load with a message naming the old shape and saying the store must be reset
+(#4128).
+Every retired key the row carries is reported, not only the first (EH-07-001),
+and a retirement table whose replacement the model does not declare, or whose old
+key it still declares, fails at class definition.
+
+Pass `RetiredStoredField(replacement, retired_by)` for a rename within the same
+model, `RetiredStoredField(replacement, retired_by, moved_to=OtherModel)` when
+the field moved to a different model, and `RetiredStoredField(None, retired_by)`
+when the field was deleted with no replacement.
+The camelCase spelling of the old key is refused in all three cases (#4950).
+
+The declaration is what makes the refusal legible.
+`CoreRecord` refuses unknown keys (`extra="forbid"`), so an undeclared change
+never loses a field silently, but the row fails with a bare "extra inputs are not
+permitted" (and a "field required" for a renamed field) that never says a change
+happened.
+The SQLite read path logs the validation reason at WARNING when it reads such a
+row as absent, so `dl.read()` returning `None` always has a logged cause.
+Every PR that retires a stored field carries an operator note saying a file-backed
+store must be reset (`docker compose down -v`); an in-memory store is unaffected.
 
 ## Changing a Table's Shape
 

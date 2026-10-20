@@ -85,6 +85,31 @@ groups:
       call, a write between the call''s own read and write on a file-backed store, an absent record, and a mismatched id.'
     tags:
     - persistence
+  - id: DL-02-004
+    priority: MUST
+    kind: project
+    statement: >-
+      `with dl.transaction():` MUST make every call on that store, from the
+      thread that opened the block, one atomic unit: every write inside the block
+      commits when it ends, or none does when it raises, and a read inside the
+      block MUST see the block's own writes. A block opened inside another MUST
+      roll back only its own writes when it raises. A side effect that tells
+      another component a write happened (the outbox enqueue callback) MUST run
+      only after the commit.
+    rationale: >-
+      An act and its consequences are several DataLayer calls (an activity, an
+      outbox row, ledger entries, the case-file save). Committed one call at a
+      time, a failure part-way leaves a state no single act produces, and recovery
+      machinery to finish it is what ADR-0146 rejects. `save_many` is atomic only
+      within one call, and its callers cannot read their own uncommitted writes.
+    verification: >-
+      `test/adapters/driven/datalayer_sqlite/test_transaction.py` covers commit,
+      rollback, read-your-writes, another instance on the same store, a nested
+      block, a helper's own rollback, a failed flush, the enqueue callback, a
+      failing after-commit callback, and another thread, on an in-memory and a
+      file-backed store.
+    tags:
+    - persistence
 - id: DL-03
   title: Port Isolation
   specs:
@@ -125,7 +150,8 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The current required minimum `CasePersistence` surface is `actor_id`, `clone_for_actor`, `create`, `read`,
-      `read_case`, `save`, `save_many`, `list_objects`, `find_case_by_report_id`, `find_actor_by_short_id`,
+      `read_case`, `save`, `save_many`, `transaction`, `list_objects`,
+      `find_case_by_report_id`, `find_actor_by_short_id`,
       `find_case_by_short_id`, `find_protocol_pair`, and `delete`; future additions MAY be made only when they preserve
       the same core-facing persistence/query boundary and do not introduce queue, admin, health, or diagnostic
       responsibilities. `actor_id` and `clone_for_actor` are part of the minimum because a store belongs to exactly one
@@ -498,9 +524,8 @@ groups:
       deferred replay, and not in a received-side tree. A received activity is held only
       under a key the receiver derives from the activity id: its
       `ReceivedActivityRecord.build_id`, or the opaque deferred record that holds it for
-      replay, as `PendingInlineObjects.build_id` keys the staged inline rows today (the
-      record holding the activity itself arrives with #4871). A record of an activity
-      type stored under its own id is then always one the receiver authored.
+      replay (`DeferredInboxActivity.build_id`, IO-03-004). A record of an activity type
+      stored under its own id is then always one the receiver authored.
     rationale: >-
       An actor scans the type tables holding its sent activities to ask "did I already
       send this?" (was the case announced, which stub Invites did it issue). A received
@@ -514,9 +539,14 @@ groups:
       spec_id: IO-03-004
     verification: >-
       `test/adapters/driving/fastapi/test_received_activity_not_sender_keyed.py`
-      delivers a `Create` naming a case through the ingress adapter and asserts that
-      nothing is held under its id and that `case_is_announced` does not count it. Both
-      tests are strict xfails until #4871 lands. For the received-side trees, the
+      asserts that ingress writes nothing, and delivers through the real inbox an
+      activity each "did I send it" scan would match (a `Create` naming the case, one
+      under the proposal-derived id, a `Create` and a stub `Invite` whose `actor` names
+      the receiver), asserting `case_is_announced`, `announced_case_id`,
+      `find_case_create_sent_by` and `recorded_stub_invites` do not count it; all pass.
+      `test/adapters/driving/fastapi/test_inbox_staging.py` asserts a deferred
+      activity is held only in its `DeferredInboxActivity` and that no row under the
+      sender's id is replayed. For the received-side trees, the
       `Invite(EmbargoEvent)`, `Offer(VulnerabilityReport)` and ownership-transfer
       `Offer` tests in `test/core/use_cases/received/` (marked DL-06-006) run each tree
       on a store with no ingress row and assert, through `assert_held_only_as_received`

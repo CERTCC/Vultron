@@ -5,8 +5,9 @@ This module derives what the occasions already say, so nothing here is typed
 by hand:
 
 - the mapping status of an entry (MSM-06-003, MSM-08-006);
-- the "Distinguished by" value of an occasion, the field value or state
-  context that tells it apart from its entry's other occasions;
+- the "Distinguished by" value of an occasion, the field value, state
+  context or sender standing that tells it apart from its entry's other
+  occasions;
 - the "Sent by" value of an occasion, from the side of the sender rule its
   received use case declares that matches the occasion's addressee, worded by
   each kind (MSM-08-005, MSM-08-010);
@@ -35,7 +36,7 @@ import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Annotated, Final, Literal
 
@@ -49,6 +50,7 @@ from vultron.core.behaviors.sender_entitlement import (
     in_declaration_order,
 )
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import (
     display_path,
@@ -69,6 +71,7 @@ from vultron.semantic_registry._occasion import (
     MessagePage,
     Occasion,
     ProtocolShorthand,
+    SenderStanding,
     StateContext,
     wire_spelling,
 )
@@ -328,13 +331,29 @@ def section_heading(
     return f"{shorthand.formal_name} ({shorthand.value})"
 
 
-def distinguished_by(occasion: Occasion) -> str | None:
-    """Render what tells *occasion* apart, as markdown, or ``None``.
+#: How a state context words a machine whose state is not the case's own
+#: ("EM state"): the register status belongs to the embargo the activity
+#: names, not to the case (MSM-08-003).
+_STATE_CONTEXT_WORDS: Final[dict[type[Enum], str]] = {
+    EmbargoRegisterStatus: "register status of the named embargo",
+}
+
+
+def _state_context_words(machine: type[Enum]) -> str:
+    """Name what a state context on *machine* reads, e.g. "EM state"."""
+    return _STATE_CONTEXT_WORDS.get(machine, f"{machine.__name__} state")
+
+
+def distinguished_by(entry: SemanticEntry, occasion: Occasion) -> str | None:
+    """Render what tells *occasion* on *entry* apart, as markdown, or ``None``.
 
     A field value reads "`pxaState` = `Pxa`", the field named by its wire
     spelling (:func:`wire_spelling`), as a dotted path when it is read within
     an embedded model ("`caseStatus.pxaState` = `Pxa`"); a state context reads
-    "EM state `NONE` or `PROPOSED`".  Enum members are named, not valued,
+    "EM state `NONE` or `PROPOSED`", or "register status of the named embargo
+    `ACTIVE`" on ``EmbargoRegisterStatus``; a sender standing reads "sender is
+    the case owner" or "sender is not the case owner", worded by its kind
+    (:func:`_kind_wording`, MSM-08-010).  Enum members are named, not valued,
     because a composite state such as ``CS_pxa.Pxa`` has no scalar value.
     """
     d = occasion.distinguisher
@@ -343,7 +362,10 @@ def distinguished_by(occasion: Occasion) -> str | None:
         return f"`{spelling}` = `{d.value.name}`"
     if isinstance(d, StateContext):
         states = " or ".join(f"`{state.name}`" for state in d.states)
-        return f"{d.machine.__name__} state {states}"
+        return f"{_state_context_words(d.machine)} {states}"
+    if isinstance(d, SenderStanding):
+        verb = "is" if d.holds else "is not"
+        return f"sender {verb} {_kind_wording(d.kind, entry)}"
     return None
 
 

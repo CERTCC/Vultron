@@ -23,6 +23,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    add_note_redelivery_verdict,
     not_case_manager_refusal,
     reference_edit_verdict,
     verdict_from_bt,
@@ -107,6 +108,7 @@ class AddNoteToCaseReceivedUseCase:
             note_obj=note,
             case_id=case_id,
             sender_id=request.actor_id,
+            activity_id=request.activity_id,
             sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
@@ -119,8 +121,9 @@ class AddNoteToCaseReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        verdict = verdict_from_bt(
-            tree, result, label="GuardedAttachAndCommitBT"
+        verdict = add_note_redelivery_verdict(
+            tree,
+            verdict_from_bt(tree, result, label="GuardedAttachAndCommitBT"),
         )
         if verdict.disposition is HandlerDisposition.APPLIED:
             # Only the CASE_MANAGER attaches; others learn of the note through

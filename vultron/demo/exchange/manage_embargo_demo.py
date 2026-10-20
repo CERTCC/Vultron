@@ -69,7 +69,6 @@ from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     remove_embargo_from_case_activity,
 )
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
@@ -106,13 +105,6 @@ def demo_activate_then_terminate(
     embargo = proposal = None
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = make_embargo_event(case, days=90, seq=1)
-        create_embargo = as_Create(
-            actor=vendor.id_,
-            object_=embargo,
-            context=case.id_,
-        )
-        post_to_inbox_and_wait(client, vendor.id_, create_embargo)
-
         proposal = em_propose_embargo_activity(
             embargo,
             id_=f"{case.id_}/embargo_proposals/activate-1",
@@ -223,13 +215,6 @@ def demo_reject_then_repropose(
     embargo_v1 = proposal_v1 = None
     with demo_step("Step 2: Coordinator proposes first embargo (45-day)"):
         embargo_v1 = make_embargo_event(case, days=45, seq=1)
-        create_embargo_v1 = as_Create(
-            actor=vendor.id_,
-            object_=embargo_v1,
-            context=case.id_,
-        )
-        post_to_inbox_and_wait(client, vendor.id_, create_embargo_v1)
-
         proposal_v1 = em_propose_embargo_activity(
             embargo_v1,
             id_=f"{case.id_}/embargo_proposals/reject-1",
@@ -267,13 +252,6 @@ def demo_reject_then_repropose(
     embargo_v2 = proposal_v2 = None
     with demo_step("Step 5: Coordinator proposes revised embargo (90-day)"):
         embargo_v2 = make_embargo_event(case, days=90, seq=2)
-        create_embargo_v2 = as_Create(
-            actor=vendor.id_,
-            object_=embargo_v2,
-            context=case.id_,
-        )
-        post_to_inbox_and_wait(client, vendor.id_, create_embargo_v2)
-
         proposal_v2 = em_propose_embargo_activity(
             embargo_v2,
             id_=f"{case.id_}/embargo_proposals/reject-2",

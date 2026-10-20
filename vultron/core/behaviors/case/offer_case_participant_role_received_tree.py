@@ -22,7 +22,7 @@ commits it and forwards it to the target (CM-33-001 to CM-33-003).  At the
 target it is the CASE_MANAGER's forward: the target answers it, to the
 CASE_MANAGER (CM-33-004).  The CASE_MANAGER never answers for the target and
 never grants the role on the Offer: the grant is the committed Accept
-(CM-02-016, #4703).
+(CM-02-016, CM-33-006).
 
 Structure::
 

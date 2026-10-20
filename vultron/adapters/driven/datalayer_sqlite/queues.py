@@ -48,6 +48,7 @@ from vultron.adapters.outbox_dead_letter import (
 )
 
 from .schema import OUTBOX_PENDING_PREDICATE, QueueAttemptEntry, QueueEntry
+from .transaction import run_after_commit
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle broken for typing only
     # ``datalayer`` imports this module to build its own methods, so the name
@@ -211,14 +212,21 @@ def outbox_append(
             dl._actor_id,
         )
         return False
-    if dl._enqueue_callback is not None:
-        try:
-            dl._enqueue_callback(dl._actor_id)
-        except Exception:  # noqa: BLE001  # ruff-baseline #3326
-            logger.warning(
-                "outbox_append: enqueue_callback raised for actor '%s'",
-                dl._actor_id,
-            )
+    callback = dl._enqueue_callback
+    if callback is not None:
+
+        def _notify() -> None:
+            try:
+                callback(dl._actor_id)
+            except Exception:  # noqa: BLE001  # ruff-baseline #3326
+                logger.warning(
+                    "outbox_append: enqueue_callback raised for actor '%s'",
+                    dl._actor_id,
+                )
+
+        # Inside a transaction the row is not visible to the drain until the
+        # transaction commits, and is gone if it rolls back.
+        run_after_commit(dl._engine, _notify)
     return True
 
 

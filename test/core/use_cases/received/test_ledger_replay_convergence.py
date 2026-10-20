@@ -641,6 +641,8 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
                 id_="https://example.org/notes/trigger-add-object",
                 content="Written here",
                 attributed_to=BYSTANDER,
+                # A note belongs to the case it is added to (HP-08-007).
+                context="https://example.org/cases/trigger-add-object-add_note_to_case",
             ),
             "add_note_to_case",
             id="note-from-author",
@@ -699,13 +701,12 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
 
 
 @pytest.mark.spec("CLP-07-013")
-@pytest.mark.spec("VAM-07-002")
-@pytest.mark.spec("RSH-08-004")
-def test_a_replica_follows_an_existing_note_added_to_the_case():
-    """Add(Note, target=Case) for a note that already exists stays a
-    supported received message: the CASE_MANAGER commits an
-    ``add_note_to_case`` entry and attaches the note, and a replica attaches
-    it from that entry (#4549 AC-4)."""
+@pytest.mark.spec("HP-08-006")
+def test_an_add_naming_a_note_the_manager_already_holds_is_refused():
+    """An Add(Note, target=Case) naming a note the CASE_MANAGER already
+    holds is refused: an Add introduces a new note (a change is an
+    Update(Note)), so no ``add_note_to_case`` entry is committed, the case
+    does not gain the note and no replica learns of it (#4831)."""
     net = LedgerNetwork(
         "https://example.org/cases/replay-add-existing-note", em_state=EM.NONE
     )
@@ -715,22 +716,23 @@ def test_a_replica_follows_an_existing_note_added_to_the_case():
         context=net.case_id,
     )
     net.stores[MANAGER].create(note)
-    assert note.id_ not in [_as_id(n) for n in net.case(MANAGER).notes]
 
-    _send(
-        net,
-        add_note_to_case_activity(
-            note, target=net.case_id, actor=BYSTANDER, to=[MANAGER]
+    verdict = net.receive(
+        MANAGER,
+        json.loads(
+            dump_outbound_body(
+                add_note_to_case_activity(
+                    note, target=net.case_id, actor=BYSTANDER, to=[MANAGER]
+                )
+            )
         ),
     )
 
-    assert [e.semantic_type for e in _note_entries(net, MANAGER)] == [
-        "add_note_to_case"
-    ]
-    assert note.id_ in [_as_id(n) for n in net.case(MANAGER).notes]
-    assert "add_note_to_case" in _replay(net, OWNER)
-    assert note.id_ in [_as_id(n) for n in net.case(OWNER).notes]
-    assert net.stores[OWNER].read(note.id_) is not None
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert _note_entries(net, MANAGER) == []
+    assert note.id_ not in [_as_id(n) for n in net.case(MANAGER).notes]
+    assert "add_note_to_case" not in _replay(net, OWNER)
+    assert net.stores[OWNER].read(note.id_) is None
 
 
 # ---------------------------------------------------------------------------

@@ -43,6 +43,7 @@ from vultron.core.models.case import VulnerabilityCase as CoreCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import PxaDimension
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_pxa
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -234,11 +235,15 @@ class TestEmitCaseStatusUpdateNode:
             as_CaseStatus(context=CASE_ID, pxa=PxaDimension(state=case_pxa))
         )
         dl.create(case)
-        node = EmitCaseStatusUpdateNode(
-            case_id=CASE_ID,
-            reported_status=CaseStatus(
+        report = ParticipantStatus(
+            context=CASE_ID,
+            case_status=CaseStatus(
                 context=CASE_ID, pxa=PxaDimension(state=reported)
             ),
+        )
+        dl.create(report)
+        node = EmitCaseStatusUpdateNode(
+            case_id=CASE_ID, reported_status_id=report.id_
         )
         result = BTBridge(
             datalayer=dl,
@@ -318,6 +323,50 @@ class TestEmitCaseStatusUpdateNode:
             "EmitCaseStatusUpdateNode must commit a CaseLedgerEntry"
             " with semantic_type='add_case_status_to_case'"
         )
+
+    @pytest.mark.spec("ARCH-15-001")
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.parametrize(
+        "reported_status_id",
+        [
+            pytest.param(
+                "https://example.org/cases/case-01/statuses/absent",
+                id="absent",
+            ),
+            # STATUS_ID holds a CaseStatus, not a ParticipantStatus.
+            pytest.param(STATUS_ID, id="wrong-type"),
+        ],
+    )
+    def test_unreadable_reported_status_commits_and_persists_nothing(
+        self, populated_dl, populated_bridge, reported_status_id
+    ):
+        """No ``ParticipantStatus`` at ``reported_status_id`` → FAILURE.
+
+        The append step stores the report before this node runs, so a missing
+        one is a broken store.  Snapshotting the case's own P/X/A instead
+        would report a dropped adoption as SUCCESS (ARCH-15-001, #4956).
+        """
+        case_before = populated_dl.read(CASE_ID)
+        assert isinstance(case_before, CoreCase)
+        initial_count = len(case_before.case_statuses)
+
+        node = EmitCaseStatusUpdateNode(
+            case_id=CASE_ID, reported_status_id=reported_status_id
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.FAILURE
+        assert reported_status_id in node.feedback_message
+        case_after = populated_dl.read(CASE_ID)
+        assert isinstance(case_after, CoreCase)
+        assert len(case_after.case_statuses) == initial_count
+        assert not [
+            obj
+            for obj in populated_dl.list_objects("CaseLedgerEntry")
+            if getattr(obj, "semantic_type", None) == "add_case_status_to_case"
+        ]
 
     @pytest.mark.spec("RSH-04-004")
     def test_missing_case_fails(self, bridge):

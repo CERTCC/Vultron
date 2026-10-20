@@ -49,7 +49,16 @@
     ],
     "actorParticipantIndex": {},
     "vulnerabilityReports": [
-      "https://demo.vultron.local/VulnerabilityReport/512a7510-c2ac-4d52-963a-cdca1a7fa813"
+      {
+        "id": "https://demo.vultron.local/VulnerabilityReport/512a7510-c2ac-4d52-963a-cdca1a7fa813",
+        "type": "VulnerabilityReport",
+        "name": "FDR-8675309",
+        "published": "2026-10-07T18:18:40+00:00",
+        "updated": "2026-10-07T18:18:40+00:00",
+        "content": "I found a vulnerability!",
+        "attributedTo": "https://vultron.example/users/finndervul",
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      }
     ],
     "caseStatuses": [
       {

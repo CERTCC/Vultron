@@ -46,7 +46,8 @@ would carry a change no node could apply.
 
 :func:`commit_and_apply_decision` then commits the act's entry (or relies on
 intake having committed it, for a received act, ADR-0111), then each
-consent-row entry, and applies them by copying, through
+consent-row entry, and applies them by copying, all in one transaction,
+through
 :func:`~vultron.core.behaviors.embargo.copy_commit.commit_and_apply_embargo_entries`.
 Call both from a BT node's ``update()``, never from a use case's
 ``execute()`` (CLP-10-020).
@@ -333,8 +334,8 @@ def commit_and_apply_decision(
     Raises:
         VultronEntryRefusedError: the case changed since the decision, and
             the trial refused an entry; nothing was committed or saved.
-        Exception: whatever a commit raised; the changes of the entries
-            committed before it are saved first.
+        Exception: whatever a commit raised; nothing the act wrote is kept
+            (the act is one transaction, ADR-0146).
     """
     entries: list[PlannedEmbargoEntry] = []
     if decision.act is not None or act_commit is not None:

@@ -1675,12 +1675,26 @@ groups:
   - id: CM-13-007
     priority: MUST
     kind: project
-    statement: Note attachment idempotency MUST be checked by testing whether the note's `id_` is present in `VulnerabilityCase.notes`,
-      NOT by testing whether the note object exists in the DataLayer
-    rationale: A note may be stored in the DataLayer by one path and never attached to `case.notes` by another path. Checking
-      DataLayer existence produces false idempotency.
-    verification: A unit test confirms that note idempotency is checked by testing `note.id_` in
-      `VulnerabilityCase.notes`, not by querying the DataLayer for the note object's existence.
+    statement: >-
+      A received `Add(Note)` MUST be treated as an idempotent redelivery only when the
+      case's ledger already records that same `Add`, and the attach step MUST test
+      whether the note's `id_` is present in `VulnerabilityCase.notes`. Neither MUST
+      be decided by whether the note object exists in the DataLayer: a stored note
+      under the id refuses the `Add` (HP-08-006).
+    rationale: >-
+      A note stored under an id is not evidence that this `Add` attached it to this
+      case: it may be another case's note, or another `Add`'s. Treating its existence
+      as idempotency let an `Add` naming another case's note pass (#4831).
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-08-006
+    verification: >-
+      `test/core/behaviors/note/nodes/test_storage.py` confirms the attach step tests
+      `note.id_` in `VulnerabilityCase.notes`.
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_redelivered_add_note_is_skipped`
+      and `::test_new_add_naming_an_attached_note_is_refused` confirm a redelivery
+      of the ledgered `Add` is `SKIPPED` while a different `Add` naming the stored
+      note is refused.
 - id: CM-14
   title: Case Initialization Sequence
   description: Defines the canonical ordered sequence of initialization steps that MUST occur when a VulnerabilityCase is

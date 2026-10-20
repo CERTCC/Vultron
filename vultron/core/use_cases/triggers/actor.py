@@ -382,8 +382,8 @@ class SvcAcceptCaseInviteUseCase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        # Held as intake archived it, or by the inbox until the case
-        # bootstrap (CLP-10-017).
+        # Held as intake archived it (CLP-10-017): a stub Invite precedes its
+        # case, so the inbox processes it on arrival (PCR-06-005).
         read_received_activity(
             self._dl, request.invite_id, "RmInviteToCaseActivity"
         )
@@ -416,8 +416,8 @@ class SvcRejectCaseInviteUseCase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        # Held as intake archived it, or by the inbox until the case
-        # bootstrap (CLP-10-017).
+        # Held as intake archived it (CLP-10-017): a stub Invite precedes its
+        # case, so the inbox processes it on arrival (PCR-06-005).
         read_received_activity(
             self._dl, request.invite_id, "RmInviteToCaseActivity"
         )

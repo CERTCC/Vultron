@@ -33,10 +33,11 @@ MSM-08. Current-state guidance for the message pages: `notes/message-type-refere
 A builder asks "a fix is ready — what do I send?", not "what wire form does `CF`
 take?". The answer is one table keyed by **occasion**: a situation in a case that
 a sender conveys with a wire activity, sometimes narrowed by a distinguishing
-field value or state context (glossary, Messaging and Protocol). One semantic
-type has one or more occasions (`Add(CaseStatus)` has three), so the table has one
-row per (occasion, wire activity): When… | Send | Send to | Sent by |
-Distinguished by | Details. The formal shorthand is only the Details link text.
+field value, state context or sender standing (glossary, Messaging and Protocol).
+One semantic type has one or more occasions (`Add(CaseStatus)` has three), so the
+table has one row per (occasion, wire activity): When… | Send | Send to |
+Sent by | Distinguished by | Details. The formal shorthand is only the Details
+link text.
 
 ## Where each fact lives
 

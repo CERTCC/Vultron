@@ -1188,10 +1188,10 @@ groups:
   description: >-
     Requirements for the occasion, the unit of the message lookup table: a situation in
     a case that a sender conveys with a wire activity, sometimes narrowed by a
-    distinguishing field value or state context (glossary, Messaging and Protocol). One
-    `SEMANTIC_REGISTRY` entry has one or more occasions. Occasions are declared on the
-    entry, and the lookup table and the per-occasion reference sections are renderings
-    of them. Decision: ADR-0128.
+    distinguishing field value, state context or sender standing (glossary, Messaging
+    and Protocol). One `SEMANTIC_REGISTRY` entry has one or more occasions. Occasions
+    are declared on the entry, and the lookup table and the per-occasion reference
+    sections are renderings of them. Decision: ADR-0128.
   specs:
   - id: MSM-08-001
     priority: MUST

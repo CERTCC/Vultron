@@ -41,6 +41,7 @@ from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.participant_semantic_types import (
     CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
     UPDATE_CASE_OWNER_SEMANTIC_TYPE,
@@ -407,6 +408,68 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
     # The refused chain check leaves the archive of what arrived, and only
     # that: the inlined entry is not stored (CLP-10-017, CLP-10-018).
     assert _archived(datalayer, event)
+
+
+def _tampered(entry: CaseLedgerEntry) -> CaseLedgerEntry:
+    """Return *entry* with content its ``entry_hash`` was not computed over."""
+    return entry.model_copy(update={"payload_snapshot": {"tampered": True}})
+
+
+@pytest.mark.spec("SYNC-03-006")
+@pytest.mark.spec("SYNC-12-001")
+def test_replica_refuses_entry_whose_hash_does_not_match_content(
+    bridge, datalayer, case_actor, case_obj, caplog
+):
+    """An entry that extends the tail but fails its own hash is refused (#3744).
+
+    No effect, no store, and no ``Reject(CaseLedgerEntry)``: a replay would
+    resend the same entry, so the refusal is logged instead.
+    """
+    entry = _tampered(_make_entry(0, case_obj.genesis_hash))
+    event = _make_event(entry, actor_id=case_actor.id_)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    with caplog.at_level("ERROR"):
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(
+                sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+            ),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=sync_port,
+        )
+
+    assert result.status == Status.FAILURE
+    assert datalayer.read(entry.id_) is None
+    sync_port.send_reject_log_entry.assert_not_called()
+    assert any(
+        r.levelname == "ERROR" and "entry_hash" in r.getMessage()
+        for r in caplog.records
+    )
+
+
+@pytest.mark.spec("SYNC-03-006")
+def test_replica_does_not_buffer_forward_gap_entry_with_bad_hash(
+    bridge, datalayer, case_actor, case_obj
+):
+    """A tampered entry ahead of the tail is refused, not held for later."""
+    entry = _tampered(_make_entry(2))
+    event = _make_event(entry, actor_id=case_actor.id_)
+    gap_buffer = LedgerGapBuffer()
+
+    result = bridge.execute_with_setup(
+        tree=create_announce_log_entry_tree(
+            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
+        ),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+        sync_port=MagicMock(spec=SyncActivityPort),
+        gap_buffer=gap_buffer,
+    )
+
+    assert result.status == Status.FAILURE
+    assert gap_buffer.depth(CASE_ID) == 0
+    assert datalayer.read(entry.id_) is None
 
 
 ACTIVE_EMBARGO_ID = f"{CASE_ID}/embargo_events/active"

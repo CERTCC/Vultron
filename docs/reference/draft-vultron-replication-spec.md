@@ -217,6 +217,10 @@ A receiver MUST reject a replication message whose predecessor hash
 The receiver sends `Reject(CaseLedgerEntry)` carrying its last accepted hash
 as the recovery signal. (SYNC-03-001, SYNC-08-005)
 
+Before that check, a receiver MUST recompute the entry's hash from its content and compare it with the stated `entry_hash`.
+An entry that states no hash, or whose content does not reproduce it, MUST be refused and logged, and is not buffered, applied or stored.
+It is not answered with `Reject(CaseLedgerEntry)`, because a replay would resend the same entry. (SYNC-03-006)
+
 ### 5.2 Sender Retry
 
 On receiving a rejection, the sender MUST retry replication starting from the
@@ -530,6 +534,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-03-002 | §5.2 | Sender MUST retry from last accepted hash after rejection |
 | SYNC-03-003 | §5.3 | Replication MUST be idempotent |
 | SYNC-03-004 | §9 | Participants SHOULD include last accepted hash in context |
+| SYNC-03-006 | §5.1 | Receiver MUST refuse an entry whose content does not reproduce its hash |
 | SYNC-04-001 | §9 | Leader MUST track per-peer last acknowledged hash |
 | SYNC-04-002 | §9 | Per-peer state MUST be persisted across leader restart |
 | SYNC-05-001 | §10 | Sender SHOULD retry with exponential backoff |

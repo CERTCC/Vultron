@@ -1054,8 +1054,7 @@ def _add_note(dl: SqliteDataLayer, note_id: str, sync_port=None):
         AddNoteToCaseReceivedUseCase,
     )
 
-    note, event = _add_note_event(note_id)
-    dl.create(note)
+    _, event = _add_note_event(note_id)
     return AddNoteToCaseReceivedUseCase(
         dl,
         event,
@@ -1311,10 +1310,9 @@ class TestPostCloseWriteBoundary:
         with config_override(VULTRON_ACTOR__POST_CLOSE_REPLY=policy):
             dispatcher = make_dispatcher()
             outbox_before = set(dl.outbox_list())
-            note, note_event = _add_note_event(
+            _, note_event = _add_note_event(
                 "https://example.org/notes/dispatched-late-note"
             )
-            dl.create(note)
             note_result = dispatcher.dispatch(note_event, dl)
             assert note_result.disposition is HandlerDisposition.REFUSED
             assert set(dl.outbox_list()) == outbox_before

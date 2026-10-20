@@ -64,6 +64,7 @@ from test.demo.conftest import (
     create_isolated_actor_app,
     submit_report_through_reporter,
 )
+from test.support.received import received_of_type
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.demo.utils import case_actor_id_for_report
@@ -487,7 +488,10 @@ def _run_late_joiner_sequence(
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Step 4: retrieve invite_id from late-joiner's DataLayer
-    invites = late_joiner_iso.store_for(lj_actor_id).list_objects("Invite")
+    # Held only as intake archived it, never under its own id (DL-06-006).
+    invites = received_of_type(
+        late_joiner_iso.store_for(lj_actor_id), "Invite"
+    )
     assert len(invites) >= 1, (
         "Expected at least one Invite in late-joiner's DataLayer after "
         "owner triggered invite-actor-to-case.  The Invite may not have "

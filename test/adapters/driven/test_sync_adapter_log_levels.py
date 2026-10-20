@@ -52,16 +52,7 @@ def entry() -> CaseLedgerEntry:
         payload_snapshot={"key": "value"},
         prev_log_hash=_ZERO_HASH,
     )
-    return CaseLedgerEntry(
-        case_id=chain.case_id,
-        log_index=chain.log_index,
-        term=chain.term,
-        log_object_id=chain.object_id,
-        semantic_type=chain.semantic_type,
-        payload_snapshot=dict(chain.payload_snapshot),
-        prev_log_hash=chain.prev_log_hash,
-        entry_hash=chain.entry_hash,
-    )
+    return chain.to_ledger_entry()
 
 
 def _queued_records(caplog) -> list[logging.LogRecord]:

@@ -839,13 +839,110 @@ groups:
       The generator's `--check` mode runs as a pre-commit hook and in CI, failing when the
       committed fragment differs from what the schema implies. Per DF-09-009 the check fails
       rather than passes when it resolves no targets.
+  - id: DF-11-013
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A reading-path thread MUST be declared once, as data in the frontmatter of the
+      start page that opens it, one thread per start page, as an ordered list of stages,
+      where each stage has a title naming the reader's goal, may be marked as a stopping
+      point, and is either an unordered set of reader-facing pages or an ordered chain of
+      them, each member carrying its page path and a blurb written for this thread.
+    rationale: >-
+      A reader's route through the site is a partial order: at some points order
+      matters, and at others any of several pages will do. Ordered stages of sets or
+      chains express that directly without forcing a sequence, and cannot contain a
+      cycle. Declaring the thread once is what lets the start-page listing and every
+      member page's directions be renders of one source (DF-10-002) instead of copies
+      that drift.
+    verification: >-
+      The frontmatter validator parses each start page's thread declaration against the
+      stage schema and reports a malformed stage, an empty stage, a stage with no title,
+      a member with no blurb, or a member that is not a page path as a finding.
+  - id: DF-11-014
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A start page's listing of its thread MUST be generated from the thread's data and
+      gated by a check mode, and MUST NOT be hand-maintained; framing prose outside the
+      generated block stays hand-written.
+    rationale: >-
+      The listing is an enumeration of the thread, the defect class DF-11-005 exists to
+      remove when it is hand-maintained. Generating it into the committed source keeps
+      the diff showing what readers will see, the way generated landing pages do.
+    verification: >-
+      The generator's check mode runs as a pre-commit hook and in CI, failing when a
+      start page's committed generated block differs from what its thread data implies.
+  - id: DF-11-015
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      Every page that is a member of a thread MUST show, for each thread it belongs to,
+      the set of thread pages immediately before it, the set immediately after it, and a
+      link to the thread's start page, titled by the reader's situation rather than by
+      `stakeholder_type` (DF-11-009), and the rendered page MUST be the same for every
+      reader. The set before a page is the preceding member of its chain, or else the
+      previous stage's exit pages; the set after it is the next member of its chain, or
+      else the next stage's entry pages. A set stage's entry and exit pages are all its
+      members; a chain's entry page is its first member and its exit page its last.
+    rationale: >-
+      A reader who followed a thread into a page needs directions onward without being
+      forced down one next page, so predecessors and successors are sets. A page on
+      several threads lists each, so it never needs to know which thread a reader is
+      on: no query parameter, script or referrer is involved, the page renders the same
+      on a deep link, and it still stands alone (DF-11-007).
+    verification: >-
+      A test builds a fixture tree with a page on two threads, one in a chain and one in
+      a set stage, and confirms the rendered page carries one entry per thread with the
+      expected before and after sets, a title taken from the start page's situation, a
+      link to each start page, no `stakeholder_type` or `level` value, no script
+      element, and no link carrying a query string.
+  - id: DF-11-016
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A thread check MUST fail when a thread lists a page that does not exist or is not
+      reader-facing (DF-11-001), when a page appears more than once in one thread, or
+      when it resolves no threads at all (DF-09-009).
+    rationale: >-
+      A thread that routes a reader to a missing or working-record page is a broken
+      route, and a page listed twice in one thread has two places in a partial order.
+      The build's broken-link check catches only the first, and only on the start page.
+    verification: >-
+      Unit tests cover each failure — a missing page, a working-record page, a duplicate
+      member, and an empty set of threads — and the check runs as a pre-commit hook and
+      in CI.
+  - id: DF-11-017
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A page that is a member of a thread MUST NOT show the theme's navigation-order
+      previous and next footer.
+    rationale: >-
+      The footer follows navigation order, not the thread, so on a member page it would
+      offer a second "next" link that can disagree with the thread's own directions
+      (DF-11-015).
+    verification: >-
+      The DF-11-015 fixture test confirms the rendered member page carries no
+      navigation-order footer, and that a page on no thread still carries it.
 - id: DF-12
   title: Protocol Specification normative text rendered from the requirement tiers
   description: >-
     The Protocol Specification presents the `protocol` and `foundation` requirement
     tiers of `specs/*.yaml` as rendered content, never as restated prose, so the
     specification cannot state a requirement differently from the YAML and presents
-    every one of them (ADR-0136, ADR-0147).
+    every one of them; the normative banner marks exactly the normative set
+    (ADR-0136, ADR-0147).
   specs:
   - id: DF-12-001
     priority: MUST
@@ -960,3 +1057,52 @@ groups:
       placement table, or appears in it twice for one tier. Not yet written; owned by
       #4895.
     tracking_issue: '#4895'
+  - id: DF-12-006
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+      - ADR-0147
+    statement: >-
+      Every page of the normative set — the Protocol Specification's body section
+      pages and the `protocol` and `foundation` requirement-tier pages, but not the
+      specification's landing page, its single-page full view, its annexes or its
+      open-questions page — MUST include the shared normative banner
+      (`docs/includes/normative.md`) in the page itself, not through a shared
+      fragment, and every other page MUST NOT include it except the page that
+      documents the banners. The normative-set pages MUST be declared once, in the
+      check that enforces this, and the check MUST fail when a declared page does
+      not exist.
+    rationale: >-
+      A banner a reader trusts must be true. Hand-placed banners drifted: 19 pages
+      outside the normative set still called themselves normative after ADR-0136
+      and ADR-0147 fixed what the set is. Failing on a missing declared page keeps
+      the list current when the Requirements Catalog replaces the per-tier pages.
+    verification: >-
+      A check over the `include-markdown` directives in `docs/` fails, naming
+      `path:line`, when a declared page does not include the banner, when any other
+      page or a shared fragment includes it, when a declared page is missing, or
+      when it resolves no targets. Not yet written; owned by #4945.
+    tracking_issue: '#4945'
+  - id: DF-12-007
+    priority: SHOULD
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      An informative page that explains the protocol's design SHOULD carry the shared
+      "specification governs" banner, which states that the page is informative and
+      that where it differs from the Protocol Specification the specification
+      governs, instead of the not-normative banner, which says a page is not part of
+      the protocol.
+    rationale: >-
+      Pages such as Formal Protocol and the RM, EM and CS process models still
+      explain how the protocol is defined, but they predate the specification and
+      may lag it. Neither the normative banner nor the not-normative banner is true
+      of them; a precedence statement keeps their standing and names the tiebreaker.
+    verification: >-
+      Not yet checked: no review step inspects banners today. #4945 places the
+      banner on the known protocol-design pages; #4946 adds the check that
+      requires it on informative protocol-design pages, which a `subject: protocol`
+      key alone does not single out from the protocol-floor companions.
+    tracking_issue: '#4945'

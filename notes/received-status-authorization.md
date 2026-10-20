@@ -92,12 +92,9 @@ round-trip (RSH-01-003, RSH-01-004). `add_case_status_tree` runs neither: it
 is admitted only at a participant replica, from the CASE_MANAGER, and writes
 nothing on receipt (RSH-04-005, RSH-08-003).
 
-**The adoption commit carries the reported P/X/A.** `EmitCaseStatusUpdateNode`
-snapshots the case's own state, so in `add_participant_status_tree` it takes the
-sender's status (by id at tick, else inline) and adds every P/X/A latch it sets,
-clearing none (`adopted_pxa`, RSH-01-003). Without it the commit
-re-snapshots an unchanged `pxa` and the adoption adopts nothing (#4956). Assert
-a P/X/A report against `case.current_status`, not the sender's record.
+**Assert a P/X/A report against `case.current_status`, not the sender's
+record.** Teardown reads the report itself, so checks on the sender's record
+pass even when the adoption commit adopts nothing (#4956).
 
 **Both seams are call-outs that require Case Owner approval by default**
 (RSH-07-001, RSH-07-002, ADR-0076). A permissive backend
@@ -225,6 +222,10 @@ sender check: authorization happened at the gates.
   `CaseStatus` ledger write** through `EmitCaseStatusUpdateNode` (RSH-04-002,
   RSH-04-003); without it every replica stays stale. Wire it after any new EM
   lifecycle node.
+- **Adoption passes the report to the snapshot.** On the participant path the
+  case has not moved when `EmitCaseStatusUpdateNode` runs, so a bare snapshot
+  re-commits the old P/X/A. Pass `reported_status_id`; the node adds every
+  P/X/A latch the report sets and clears none (`adopted_pxa`, RSH-01-003, #4956).
 - **Write directly, never through the inbox.** The CASE_MANAGER records its own
   state change by an inner commit, not by sending `Add(CaseStatus)` to itself
   (RSH-04-004, ADR-0108). The inbox gates exist for *external* suggestions.

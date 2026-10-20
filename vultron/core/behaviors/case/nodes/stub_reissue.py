@@ -36,12 +36,8 @@ from vultron.core.behaviors.case.nodes.invite_actor_emit import (
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import (
     RecordedStubInvite,
-    awaiting_stub_reply,
     current_stub_embargo_id,
-    invitee_record,
     outstanding_stale_stubs,
-    recorded_stub_invites,
-    stub_invite_expired,
 )
 from vultron.core.behaviors.embargo.decided_entries import (
     decide_commit_and_apply,
@@ -49,21 +45,11 @@ from vultron.core.behaviors.embargo.decided_entries import (
 from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
 from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity_ids import derived_activity_id
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_consent_semantic_types import (
-    CONSENT_ROW_VERBS,
-)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-from vultron.core.states.participant_embargo_consent import (
-    EmbargoConsentState,
-)
-from vultron.core.sync_helpers import recorded_entries_for_case
 
 #: Kind label of a replacement stub Invite's id, derived from the Invite it
 #: replaces (CM-11-016).
@@ -93,14 +79,13 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
     CASE_MANAGER's own ``Update(EmbargoConsent)`` entry and written by
     copying it (ADR-0124); with no embargo in force no row changes.
 
-    Each replacement is queued, then committed (ADR-0119), under an id
-    derived from the stub it replaces.  A replacement that committed while
-    its invitee's row did not is completed by the next run, which commits
-    the row it owes (:meth:`_rows_owed`).  A replacement whose commit failed is
-    stored and sent but not yet in the ledger, and it is the invitee's newest
-    stub, so nothing is stale for that invitee any more: the next run of the
-    node finds it and records it, rebuilding it under the same id so the
-    outbox does not queue it twice (OX-06-002).
+    Each replacement is built, queued, then committed (ADR-0119), under an
+    id derived from the stub it replaces, and its invitee's row is committed
+    after it, all in one transaction.  The tree runs this node in the same
+    ``ActTransaction`` as the act that staled the stub (CLP-07-015,
+    ADR-0146): a failure at any step keeps neither the act nor any
+    replacement, queued Invite or row change, so nothing is left for a later
+    run.
 
     Succeeds with nothing emitted when no stub is stale.
     """
@@ -123,14 +108,10 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
         dl = cast(CaseOutboxPersistence, self.datalayer)
-        now = now_utc()
-        stale_stubs = outstanding_stale_stubs(dl, case, self.actor_id, now)
-        unrecorded = self._unrecorded_replacements()
-        # A re-issued stub invites to the embargo it carries, the one in
-        # force (CM-11-016); with none in force it invites to nothing.
-        in_force = current_stub_embargo_id(case)
-        owed = self._rows_owed(case, in_force, now)
-        if not stale_stubs and not unrecorded and not owed:
+        stale_stubs = outstanding_stale_stubs(
+            dl, case, self.actor_id, now_utc()
+        )
+        if not stale_stubs:
             return Status.SUCCESS
         # Only a re-issue needs the emit port: a change that leaves no stub
         # stale must not fail a tree that was composed without one.
@@ -138,113 +119,12 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
             self.logger.error("%s", self.feedback_message)
             return f
         assert self.trigger_activity_factory is not None
-        for replacement in owed:
-            # The replacement committed and its row did not: commit the row.
-            self._commit_with_invitee_row(
-                dl,
-                replacement.invitee_id,
-                in_force,
-                replacement.invite_id,
-                replacement.end_time,
-            )
-        for replaced in unrecorded:
-            self._reissue(replaced, in_force)
+        # A re-issued stub invites to the embargo it carries, the one in
+        # force (CM-11-016); with none in force it invites to nothing.
+        in_force = current_stub_embargo_id(case)
         for stale in stale_stubs:
             self._reissue(stale, in_force)
         return Status.SUCCESS
-
-    def _rows_owed(
-        self,
-        case: VulnerabilityCase,
-        in_force: str | None,
-        now: datetime,
-    ) -> list[RecordedStubInvite]:
-        """Recorded replacements whose invitee's row was never invited.
-
-        A replacement commits before its invitee's row (CLP-07-013), so a run
-        whose row commit failed leaves the replacement recorded and the row
-        as it was.  It is owed when the replacement is the invitee's newest
-        stub and still outstanding, carries the embargo in force, the row
-        has not moved to the replacement's invitation (``UNINVITED``, or
-        ``INVITED`` under another deadline), and no row entry for it follows
-        the replacement's in the ledger.  An answered or expired invitation
-        owes nothing.
-        """
-        if in_force is None:
-            return []
-        assert self.datalayer is not None and self.actor_id is not None
-        dl = self.datalayer
-        entries = recorded_entries_for_case(case_id=self.case_id, dl=dl)
-        position = {e.log_object_id: e.log_index for e in entries}
-        by_invitee: dict[str, list[RecordedStubInvite]] = {}
-        for stub in recorded_stub_invites(dl, self.case_id, self.actor_id):
-            by_invitee.setdefault(stub.invitee_id, []).append(stub)
-        owed: list[RecordedStubInvite] = []
-        for invitee_id, stubs in by_invitee.items():
-            newest = stubs[-1]
-            replaced = next(
-                (s for s in stubs if s.invite_id == newest.in_reply_to), None
-            )
-            record = invitee_record(dl, case, invitee_id)
-            if (
-                replaced is None
-                or newest.invite_id != self._replacement_id(replaced)
-                or newest.invite_id not in position
-                or newest.embargo_id != in_force
-                or stub_invite_expired(newest, now)
-                or not awaiting_stub_reply(record)
-            ):
-                continue
-            assert record is not None
-            row = record.held_row(in_force)
-            if row is None or not (
-                row.state is EmbargoConsentState.UNINVITED
-                or (
-                    row.state is EmbargoConsentState.INVITED
-                    and row.rsvp_deadline != newest.end_time
-                )
-            ):
-                continue
-            row_id = EmbargoConsent.build_id(in_force, invitee_id)
-            after = position[newest.invite_id]
-            if not any(
-                e.log_index > after
-                and e.semantic_type in CONSENT_ROW_VERBS
-                and _extract_id_from_field(e.payload_snapshot.get("object"))
-                == row_id
-                for e in entries
-            ):
-                owed.append(newest)
-        return owed
-
-    def _unrecorded_replacements(self) -> list[RecordedStubInvite]:
-        """The stubs whose replacement this node sent but did not commit.
-
-        A replacement is told apart from any other stub by its id, which only
-        this node derives from the stub replaced; one with no ledger entry was
-        queued by a run whose commit failed.
-        """
-        assert self.datalayer is not None and self.actor_id is not None
-        stubs = recorded_stub_invites(
-            self.datalayer, self.case_id, self.actor_id
-        )
-        by_id = {stub.invite_id: stub for stub in stubs}
-        recorded = {
-            entry.log_object_id
-            for entry in recorded_entries_for_case(
-                case_id=self.case_id, dl=self.datalayer
-            )
-        }
-        found: list[RecordedStubInvite] = []
-        for stub in stubs:
-            replaced = by_id.get(stub.in_reply_to or "")
-            if (
-                replaced is not None
-                and stub.invite_id not in recorded
-                and stub.invite_id == self._replacement_id(replaced)
-            ):
-                found.append(replaced)
-        return found
 
     def _replacement_id(self, stale: RecordedStubInvite) -> str:
         """The id of the replacement for *stale*, derived from it."""
@@ -261,15 +141,39 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
     ) -> None:
         """Send the replacement for *stale*, naming it: queue, then commit.
 
-        The replacement's id is derived from the Invite it replaces, so a
-        retry after a queued replacement whose commit failed — *stale* is
-        still the invitee's newest recorded stub — rebuilds the same
-        replacement, and the outbox does not queue it twice (OX-06-002,
-        ADR-0119).
+        The replacement's id is derived from the Invite it replaces, so the
+        same staled stub always gets the same replacement id (ID-04-004).
         """
         assert self.actor_id is not None
         assert self.trigger_activity_factory is not None
         dl = cast(CaseOutboxPersistence, self.datalayer)
+        # The build stores the replacement, so it joins the transaction the
+        # commits run in: a failed commit must not leave a stored
+        # replacement that makes the stub look answered for.  Inside the
+        # act's ActTransaction this block is part of the act (ADR-0146).
+        with dl.transaction():
+            activity_id = self._build_send_and_commit(
+                dl, stale, embargo_in_force
+            )
+        self.logger.info(
+            "Actor '%s' re-issued stub Invite '%s' to '%s' as '%s' after"
+            " an embargo change on case '%s' (CM-11-016)",
+            self.actor_id,
+            stale.invite_id,
+            stale.invitee_id,
+            activity_id,
+            self.case_id,
+        )
+
+    def _build_send_and_commit(
+        self,
+        dl: CaseOutboxPersistence,
+        stale: RecordedStubInvite,
+        embargo_in_force: str | None,
+    ) -> str:
+        """Build, queue and commit the replacement for *stale*; return its id."""
+        assert self.actor_id is not None
+        assert self.trigger_activity_factory is not None
         activity_id, activity_blob = build_stub_invite(
             datalayer=dl,
             factory=self.trigger_activity_factory,
@@ -301,15 +205,7 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
             invite_rsvp_deadline(json.loads(activity_blob)),
             _send_and_commit,
         )
-        self.logger.info(
-            "Actor '%s' re-issued stub Invite '%s' to '%s' as '%s' after"
-            " an embargo change on case '%s' (CM-11-016)",
-            self.actor_id,
-            stale.invite_id,
-            stale.invitee_id,
-            activity_id,
-            self.case_id,
-        )
+        return activity_id
 
     def _commit_with_invitee_row(
         self,
@@ -318,7 +214,7 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
         embargo_id: str | None,
         activity_id: str,
         rsvp_deadline: datetime | None,
-        send_and_commit: Callable[[], None] | None = None,
+        send_and_commit: Callable[[], None],
     ) -> None:
         """Commit the replacement, then the invitee's row for the embargo in force.
 
@@ -332,8 +228,8 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
         ``Update(EmbargoConsent)`` entry after the replacement's, and written
         by copying (ADR-0124, CLP-07-013).  With no embargo in force
         (*embargo_id* ``None``, the re-issue after a termination) no row
-        changes and none is committed.  *send_and_commit* is ``None`` when
-        the replacement *activity_id* is already committed.
+        changes and none is committed.  *send_and_commit* queues and
+        commits the replacement *activity_id*.
         """
         assert self.actor_id is not None
         assert self.trigger_activity_factory is not None

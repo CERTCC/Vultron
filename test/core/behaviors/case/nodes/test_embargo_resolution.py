@@ -602,7 +602,6 @@ def test_a_contest_records_the_relay_without_indexing_it(
     assert owed.losing_source == losing_source
     assert owed.report_id == REPORT_ID
     assert owed.case_actor_id == ACTOR_ID
-    assert owed.invite_queued is False
 
 
 @pytest.mark.spec("EP-04-011")

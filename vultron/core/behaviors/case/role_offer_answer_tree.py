@@ -1,0 +1,234 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Received-side BT factories for the target's answer to a role Offer (CM-33).
+
+The target of a role ``Offer(CaseParticipantRole)`` answers the CASE_MANAGER
+with ``Accept`` or ``Reject`` (CM-33-004).  The CASE_MANAGER checks that the
+sender is the target of a role Offer it recorded and that the Offer is open
+(CM-33-005), commits the answer and broadcasts ``Announce(CaseLedgerEntry)``
+(CM-33-006, CLP-02-012), and on an Accept grants the role on its own replica
+(CM-02-016).  Every other participant learns the grant by replaying the
+entry (``ApplyCaseParticipantRoleGrantFromLedgerNode``).
+
+Structure::
+
+    Accept/RejectCaseParticipantRoleReceivedBT (Sequence)
+    ├── IntakeReceivedActivityNode      # archives the answer (CLP-10-017)
+    ├── CaseOpenToExternalWrites
+    ├── SenderRuleGuard                 # the recorded Offer's target, at the
+    │                                   # CASE_MANAGER only (CM-33-005)
+    ├── RoleOfferOpenNode               # open, not a redelivery (CM-33-005)
+    ├── GuardedCommit                   # CASE_MANAGER only (CM-33-006)
+    └── GrantRoleIfCaseManager          # Accept only (CM-02-016)
+        └── GrantCaseParticipantRoleNode
+
+Provides:
+
+- :func:`create_accept_case_participant_role_tree`
+- :func:`create_reject_case_participant_role_tree`
+"""
+
+import logging
+
+import py_trees
+
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
+from vultron.core.behaviors.case.nodes.delegation import (
+    GrantCaseParticipantRoleNode,
+)
+from vultron.core.behaviors.case.nodes.role_offer_guard import (
+    RoleOfferOpenNode,
+)
+from vultron.core.behaviors.case.receive_activity_tree import (
+    create_receive_activity_tree,
+)
+from vultron.core.behaviors.sender_entitlement import SenderRule
+from vultron.core.behaviors.sender_guard import (
+    RoleOfferRequest,
+    SenderCheckContext,
+)
+from vultron.enums.roles import CVDRole
+
+logger = logging.getLogger(__name__)
+
+
+def _answer_guards(
+    case_id: str,
+    offer_id: str | None,
+    sender_id: str,
+    answer_id: str,
+    carried_role: CVDRole | None,
+    carried_target_id: str | None,
+) -> tuple[SenderCheckContext, list[py_trees.behaviour.Behaviour]]:
+    """The sender context and guards both answers pass the factory."""
+    context = SenderCheckContext(
+        sender_id=sender_id,
+        case_id=case_id,
+        request=RoleOfferRequest(offer_id=offer_id),
+        case_manager_required=True,
+    )
+    guard = RoleOfferOpenNode(
+        case_id=case_id,
+        offer_id=offer_id,
+        reply_id=answer_id,
+        carried_role=carried_role,
+        carried_target_id=carried_target_id,
+    )
+    return context, [guard]
+
+
+def create_accept_case_participant_role_tree(
+    case_id: str | None,
+    offer_id: str | None,
+    sender_id: str,
+    answer_id: str,
+    carried_role: CVDRole | None,
+    carried_target_id: str | None,
+    *,
+    sender_rule: SenderRule,
+) -> py_trees.composites.Sequence:
+    """Create the BT for ``AcceptCaseParticipantRoleReceivedUseCase``.
+
+    The guards admit only the target of an open role Offer the CASE_MANAGER
+    recorded, answering with a copy of that Offer (CM-33-005); the guarded
+    commit ledgers the Accept and broadcasts it (CM-33-006); then the
+    CASE_MANAGER grants the role on its own replica (CM-02-016).
+
+    Args:
+        case_id: The case the Accept names; ``None`` builds the tree that
+            archives the Accept and refuses it (CLP-10-018).
+        offer_id: The Offer the Accept names: the recorded Offer or the
+            CASE_MANAGER's forward of it.
+        sender_id: The Accept's sender.
+        answer_id: The Accept's own id, so a redelivery is recognised.
+        carried_role: The role the Offer the Accept carries names.
+        carried_target_id: The target the Offer the Accept carries names.
+        sender_rule: The use case's declared sender rule (HP-01-008).
+    """
+    if case_id is None:
+        # Intake archives the answer; there is no case to judge it
+        # against (CLP-10-018).
+        return create_incomplete_activity_received_tree(
+            "AcceptCaseParticipantRoleReceivedBT",
+            "Accept(role Offer) names no case",
+        )
+    context, guards = _answer_guards(
+        case_id,
+        offer_id,
+        sender_id,
+        answer_id,
+        carried_role,
+        carried_target_id,
+    )
+    # The grant is the recorded Offer's role and target (ASK-01-004): the
+    # open-Offer guard refuses, before the commit, an answer whose carried
+    # copy names any other, so the carried values the grant takes are the
+    # recorded ones, and the CASE_MANAGER grants what every replica grants
+    # from the entry.  An answer that carries no role or target is refused
+    # by that guard.
+    grant: list[py_trees.behaviour.Behaviour] | None = (
+        [
+            GrantCaseParticipantRoleNode(
+                case_id=case_id,
+                role=carried_role,
+                target_actor_id=carried_target_id,
+            )
+        ]
+        if carried_role is not None and carried_target_id
+        else None
+    )
+    tree = create_receive_activity_tree(
+        name="AcceptCaseParticipantRoleReceivedBT",
+        case_id=case_id,
+        sender_rule=sender_rule,
+        sender_context=context,
+        precondition_guards=guards,
+        manager_effects=grant,
+        manager_case_id=case_id if grant else None,
+        manager_gate_name="GrantRoleIfCaseManager" if grant else None,
+    )
+    logger.debug(
+        "Created AcceptCaseParticipantRoleReceivedBT for case='%s' offer='%s'",
+        case_id,
+        offer_id,
+    )
+    return tree
+
+
+def create_reject_case_participant_role_tree(
+    case_id: str | None,
+    offer_id: str | None,
+    sender_id: str,
+    answer_id: str,
+    carried_role: CVDRole | None,
+    carried_target_id: str | None,
+    *,
+    sender_rule: SenderRule,
+) -> py_trees.composites.Sequence:
+    """Create the BT for ``RejectCaseParticipantRoleReceivedUseCase``.
+
+    The Accept's tree with no effects: the guards admit only the target of
+    an open role Offer the CASE_MANAGER recorded (CM-33-005), and the guarded
+    commit ledgers the Reject and broadcasts it (CM-33-006, CLP-02-012).  That
+    entry closes the Offer; no role changes.
+
+    Args:
+        case_id: The case the Reject names; ``None`` builds the tree that
+            archives the Reject and refuses it (CLP-10-018).
+        offer_id: The Offer the Reject names: the recorded Offer or the
+            CASE_MANAGER's forward of it.
+        sender_id: The Reject's sender.
+        answer_id: The Reject's own id, so a redelivery is recognised.
+        carried_role: The role the Offer the Reject carries names.
+        carried_target_id: The target the Offer the Reject carries names.
+        sender_rule: The use case's declared sender rule (HP-01-008).
+    """
+    if case_id is None:
+        # Intake archives the answer; there is no case to judge it
+        # against (CLP-10-018).
+        return create_incomplete_activity_received_tree(
+            "RejectCaseParticipantRoleReceivedBT",
+            "Reject(role Offer) names no case",
+        )
+    context, guards = _answer_guards(
+        case_id,
+        offer_id,
+        sender_id,
+        answer_id,
+        carried_role,
+        carried_target_id,
+    )
+    tree = create_receive_activity_tree(
+        name="RejectCaseParticipantRoleReceivedBT",
+        case_id=case_id,
+        sender_rule=sender_rule,
+        sender_context=context,
+        precondition_guards=guards,
+    )
+    logger.debug(
+        "Created RejectCaseParticipantRoleReceivedBT for case='%s' offer='%s'",
+        case_id,
+        offer_id,
+    )
+    return tree
+
+
+__all__ = [
+    "create_accept_case_participant_role_tree",
+    "create_reject_case_participant_role_tree",
+]

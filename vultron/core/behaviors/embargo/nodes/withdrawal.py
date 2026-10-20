@@ -74,18 +74,8 @@ from vultron.core.services.embargo_lifecycle import (
     embargo_withdrawal_refusal,
     reject_is_withdrawal_refusal,
 )
-from vultron.core.sync_helpers import recorded_entries_for_case
+from vultron.core.sync_helpers import is_ledgered_activity
 from vultron.errors import VultronNotFoundError, VultronValidationError
-
-
-def is_ledgered_activity(
-    datalayer: CasePersistence, case_id: str, activity_id: str
-) -> bool:
-    """``True`` when *case_id*'s ledger already records *activity_id*."""
-    return any(
-        entry.log_object_id == activity_id
-        for entry in recorded_entries_for_case(case_id=case_id, dl=datalayer)
-    )
 
 
 class _EmbargoRefusalGuardNode(DataLayerConditionWithPorts):

@@ -36,6 +36,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -49,6 +50,7 @@ from vultron.core.models.pending_assertion import (
     _reset_stores,
     get_pending_assertion_store,
 )
+from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
@@ -99,7 +101,9 @@ def _make_case_with_case_manager(
         as_ParticipantStatus as WireParticipantStatus,
     )
 
-    case = as_VulnerabilityCase(name="Test Case")
+    # attributed_to seeds the per-case genesis hash (CLP-08-003), so a
+    # CASE_MANAGER commit can anchor the chain.
+    case = as_VulnerabilityCase(name="Test Case", attributed_to=case_actor_id)
 
     finder_participant = ReporterParticipant(
         attributed_to=finder_id,
@@ -511,10 +515,58 @@ class TestSvcAddNoteToCaseUseCase:
             manager_dl,
             request,
             trigger_activity=TriggerActivityAdapter(manager_dl),
+            sync_port=SyncActivityAdapter(manager_dl),
         ).execute()
 
         assert activity_of(result)["id"] is not None
         assert len(get_pending_assertion_store(manager.id_)) == 0
+
+    def _execute_as_case_manager(self):
+        """Run the trigger as the case's CASE_MANAGER; return its store too."""
+        manager, manager_dl = _make_actor_dl("Manager Co")
+        case, _ = _make_case_with_case_manager(
+            manager_dl, self.vendor.id_, self.finder.id_, manager.id_
+        )
+        request = AddNoteToCaseTriggerRequest(
+            actor_id=manager.id_,
+            case_id=case.id_,
+            note_name=self.NOTE_NAME,
+            note_content=self.NOTE_CONTENT,
+        )
+        result = SvcAddNoteToCaseUseCase(
+            manager_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(manager_dl),
+            sync_port=SyncActivityAdapter(manager_dl),
+        ).execute()
+        return result, manager, manager_dl, case
+
+    @pytest.mark.spec("HP-08-006")
+    @pytest.mark.spec("CLP-07-013")
+    def test_case_manager_commits_its_own_note_without_an_add_to_itself(
+        self,
+    ):
+        """The CASE_MANAGER's note is committed as its own entry and attached;
+        no Add(Note) is queued to itself, whose handler would refuse a note it
+        already holds (HP-08-006)."""
+        result, manager, manager_dl, case = self._execute_as_case_manager()
+
+        note_id = note_of(result)["id"]
+        entries = [
+            e
+            for e in recorded_entries_for_case(case_id=case.id_, dl=manager_dl)
+            if e.semantic_type == MessageSemantics.ADD_NOTE_TO_CASE.value
+        ]
+        assert [e.log_object_id for e in entries] == [
+            activity_of(result)["id"]
+        ]
+        stored_case = manager_dl.read_case(case.id_)
+        assert stored_case is not None
+        assert note_id in stored_case.notes
+        # The entry's Announce fan-out is queued; the Add itself is not.
+        assert activity_of(result)["id"] not in _outbox_activity_ids(
+            manager.id_, manager_dl
+        )
 
     def test_zero_timeout_store_does_not_suppress(self):
         """When the store has zero timeout, is_suppressed always returns False

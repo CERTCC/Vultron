@@ -190,6 +190,22 @@ class TestResetContainersRvcv:
 # ---------------------------------------------------------------------------
 
 
+def _archived(rows: dict[str, dict]) -> dict[str, dict]:
+    """*rows*, keyed by activity id, as intake archives them (DL-06-006).
+
+    The invitee holds a received Invite only as a ``ReceivedActivityRecord``
+    under its own key, never under the sender's id.
+    """
+    return {
+        f"received-activity/{activity_id}": {
+            "type": "ReceivedActivityRecord",
+            "id": f"received-activity/{activity_id}",
+            "activity": {"id": activity_id, **row},
+        }
+        for activity_id, row in rows.items()
+    }
+
+
 class TestFindCaseInviteForActor:
     """Test the helper that locates the CaseActor's Invite for the invitee.
 
@@ -206,11 +222,13 @@ class TestFindCaseInviteForActor:
 
     def test_matches_invite_with_dict_target_and_object(self):
         client = MagicMock()
-        client.get.return_value = {
-            "urn:uuid:invite-1": self._invite(
-                {"id": self.CASE_ID}, {"id": self.INVITEE_ID}
-            )
-        }
+        client.get.return_value = _archived(
+            {
+                "urn:uuid:invite-1": self._invite(
+                    {"id": self.CASE_ID}, {"id": self.INVITEE_ID}
+                )
+            }
+        )
         result = find_case_invite_for_actor(
             client=client,
             case_id=self.CASE_ID,
@@ -222,9 +240,9 @@ class TestFindCaseInviteForActor:
     def test_matches_invite_with_bare_string_target_and_object(self):
         """Target/object may arrive as bare URI strings after wire round-trip."""
         client = MagicMock()
-        client.get.return_value = {
-            "urn:uuid:invite-2": self._invite(self.CASE_ID, self.INVITEE_ID)
-        }
+        client.get.return_value = _archived(
+            {"urn:uuid:invite-2": self._invite(self.CASE_ID, self.INVITEE_ID)}
+        )
         result = find_case_invite_for_actor(
             client=client,
             case_id=self.CASE_ID,
@@ -235,11 +253,13 @@ class TestFindCaseInviteForActor:
 
     def test_ignores_invite_for_other_case(self):
         client = MagicMock()
-        client.get.return_value = {
-            "urn:uuid:invite-3": self._invite(
-                {"id": "urn:uuid:other-case"}, {"id": self.INVITEE_ID}
-            )
-        }
+        client.get.return_value = _archived(
+            {
+                "urn:uuid:invite-3": self._invite(
+                    {"id": "urn:uuid:other-case"}, {"id": self.INVITEE_ID}
+                )
+            }
+        )
         with pytest.raises(AssertionError, match="Timed out waiting"):
             find_case_invite_for_actor(
                 client=client,
@@ -251,11 +271,13 @@ class TestFindCaseInviteForActor:
 
     def test_ignores_invite_for_other_actor(self):
         client = MagicMock()
-        client.get.return_value = {
-            "urn:uuid:invite-4": self._invite(
-                {"id": self.CASE_ID}, {"id": "http://elsewhere/actors/x"}
-            )
-        }
+        client.get.return_value = _archived(
+            {
+                "urn:uuid:invite-4": self._invite(
+                    {"id": self.CASE_ID}, {"id": "http://elsewhere/actors/x"}
+                )
+            }
+        )
         with pytest.raises(AssertionError, match="Timed out waiting"):
             find_case_invite_for_actor(
                 client=client,
@@ -267,13 +289,15 @@ class TestFindCaseInviteForActor:
 
     def test_ignores_non_invite_activities(self):
         client = MagicMock()
-        client.get.return_value = {
-            "urn:uuid:offer-1": {
-                "type": "Offer",
-                "target": {"id": self.CASE_ID},
-                "object": {"id": self.INVITEE_ID},
+        client.get.return_value = _archived(
+            {
+                "urn:uuid:offer-1": {
+                    "type": "Offer",
+                    "target": {"id": self.CASE_ID},
+                    "object": {"id": self.INVITEE_ID},
+                }
             }
-        }
+        )
         with pytest.raises(AssertionError, match="Timed out waiting"):
             find_case_invite_for_actor(
                 client=client,

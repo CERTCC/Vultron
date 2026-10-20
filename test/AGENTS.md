@@ -12,7 +12,7 @@ need on *every* run; the longer pitfall write-ups live in
 ## ⚠️ Running the Test Suite — ONE RUN RULE (MUST)
 
 ```bash
-timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)
 ```
 
 Run **exactly once**; never re-run for counts, a longer tail, or `-q`. `-n auto`
@@ -34,7 +34,7 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 ```
 
 <!-- markdownlint-disable-next-line MD013 -->
-Before a Pull Request's first push, if `vultron/demo/` or `test/demo/` was touched, run the full suite (after the push, a fix commit is gated by `targeted-tests`, PAD-18-002/003): `timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
+Before a Pull Request's first push, if `vultron/demo/` or `test/demo/` was touched, run the full suite (after the push, a fix commit is gated by `targeted-tests`, PAD-18-002/003): `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)`.
 
 ---
 

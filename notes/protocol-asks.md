@@ -190,9 +190,12 @@ its deadline in `end_time` (CM-28-012), and a late reply is still honoured
 (EP-09, ADR-0113) the CASE_MANAGER emits one Invite per participant with itself
 as `actor` and the proposer in `attributedTo`, so the manager records those as
 its own outstanding asks; the proposer records only its proposal to the manager
-(ASK-04-010). `find_protocol_pair`'s one-open-request-per-type assumption does
-not survive N simultaneous Invites of one semantic type — the ask-kind registry
-(#2884) is where that gets fixed, not a per-call-site workaround.
+(ASK-04-010). `find_protocol_pair` with no `answering` set assumes one open
+request per type, which does not survive N simultaneous Invites of one semantic
+type. Its keyword-only `answering` set scopes the pair to one request's own reply
+ids (the request and its forward); role Offers use it so several may be open at
+once (CLP-11-001). It is the interim per-request read; the ask-kind registry
+(#2884) is still where an ask kind declares its closing replies.
 
 **The pending-assertion store has a second client.** Embargo triggers that do
 not hold the CASE_MANAGER role emit their proposal, answer or termination to the

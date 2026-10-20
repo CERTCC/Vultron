@@ -331,12 +331,17 @@ def rebuild_every_network(networks: list[LedgerNetwork]) -> None:
         seed = net.rebuild_seed
         if net.ledger_bypassed:
             continue
+        held = ledger_entries(net.stores[MANAGER], net.case_id)
         if seed is None:
             # No seed means no entry was committed; a ledger that holds one
             # anyway would skip the check silently.
-            assert not ledger_entries(net.stores[MANAGER], net.case_id), (
+            assert not held, (
                 f"case '{net.case_id}' has ledger entries but no rebuild seed"
             )
+            continue
+        if not held:
+            # The seed was taken when an entry was saved, but the act that
+            # saved it failed and rolled back as one (ADR-0146).
             continue
         assert_rebuilds_from_ledger(
             net.stores[MANAGER], net.case_id, as_actor=BYSTANDER, seed=seed

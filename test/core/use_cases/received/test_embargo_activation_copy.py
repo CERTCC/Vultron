@@ -310,11 +310,14 @@ class TestReceivedActivation:
         assert _carried_over(net, revision_id) == set()
 
     @pytest.mark.spec("CLP-07-013")
-    def test_a_failed_carry_over_commit_writes_only_what_committed(
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_failed_carry_over_commit_writes_no_carry_over(
         self, monkeypatch
     ):
-        """The Accept is committed by intake; the second carry-over commit
-        fails, so its row is not written, and the first row is."""
+        """The Accept is committed by intake, so its step and the owner's
+        row it carries stand; the second carry-over commit fails, and the
+        carry-overs are one transaction (ADR-0146), so neither row is
+        written."""
         net = LedgerNetwork("https://example.org/cases/ac-received-fail")
         revision_id = _propose(net, "short", 30)
         failed = fail_commits(
@@ -334,7 +337,7 @@ class TestReceivedActivation:
         case = net.case(MANAGER)
         assert case.active_embargo_id == revision_id
         assert _state(net, MANAGER, OWNER, revision_id) is _S.AGREED
-        assert len(_carried_over(net, revision_id)) == 1
+        assert _carried_over(net, revision_id) == set()
 
 
 # -- the received owner's rejection -----------------------------------------

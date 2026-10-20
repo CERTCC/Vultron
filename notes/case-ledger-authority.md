@@ -5,8 +5,8 @@ kind: guidance
 description: >
   Rules for the canonical case ledger: participant assertions versus
   CASE_MANAGER-admitted entries, the three authority/address/store questions,
-  what belongs in the ledger, one entry per change and how an act whose later
-  entries failed is finished, the two timestamps, native
+  what belongs in the ledger, one entry per change and one transaction per
+  act, the two timestamps, native
   case-initialization entries, the genesis hash, and why an unrecorded transition
   is invisible to every replica.
 related_specs:
@@ -41,6 +41,7 @@ related_notes:
 relevant_packages:
   - vultron/wire/as2
   - vultron/core/models
+  - vultron/core/behaviors
 ---
 
 # Case Ledger Authority and Assertion Recording
@@ -184,12 +185,19 @@ causes with nowhere to be recorded, and replicas rebuild it with their own ids
 and times (#4425).
 
 **Pitfall: "a failed commit is retried by the next act".** It is not: a repeated
-trigger starts a new act and a redelivered one stops at its idempotency guard. An
-embargo act stores its decided entries as case bookkeeping before its first
-commit, and the next CASE_MANAGER embargo tree for the case finishes them before
-its guards read a row; never re-decide them in a per-act repair pass. The stub
-re-issue's `ReissueStubInvitesNode._rows_owed` is such a pass today and is replaced
-by the finishing step in #4855 (CLP-07-015, ADR-0146).
+trigger starts a new act and a redelivered one stops at its idempotency guard. So
+an act never leaves work for a later run: `commit_and_apply_embargo_entries()`
+trial-applies, commits every entry and saves the case file inside one
+`CasePersistence.transaction()`, and any failure writes nothing. Never add a
+stored plan, a finishing node or a per-act repair pass; put the act's writes
+inside the transaction instead (CLP-07-015, ADR-0146). A later node that commits
+a consequence of the act (the stub re-issue, a proposal's relay) runs in the
+same transaction: compose the act's commit node and it into one `ActTransaction`
+(`vultron/core/behaviors/act_transaction.py`), through
+`create_case_manager_gated_tree(as_one_act=True)` or
+`create_receive_activity_tree(manager_effects_as_one_act=True)` (#4949). Known
+gap: intake commits a received act's own entry in its own transaction first
+(ADR-0111, #4933).
 
 ### Two Meanings of "Reject"
 

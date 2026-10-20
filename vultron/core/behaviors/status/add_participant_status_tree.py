@@ -110,7 +110,6 @@ from vultron.core.behaviors.status.nodes.threat_termination import (
 from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
-from vultron.core.models.participant_status import ParticipantStatus
 
 logger = logging.getLogger(__name__)
 
@@ -151,12 +150,13 @@ def add_participant_status_tree(
       ``call_out.status_adoption_gate_factory``; default is ``AlwaysSucceed``
 
     When the gate passes, ``EmitCaseStatusUpdateNode`` writes the post-adoption
-    CaseStatus, with the reported P, X or A when it moves the case's forward,
-    directly to the case ledger and fans it out to participants (RSH-01-003,
-    RSH-04-004, #4956).  A ``FailureIsSuccess``-wrapped ``TeardownEffects``
-    Sequence then attempts embargo teardown: the ``EmbargoTeardownAuthorizationGate``
-    call-out gates execution, and ``ThreatTerminationBranchNode`` fires when the
-    received CaseStatus has P=True, X=True, or A=True (RSH-03-001 to RSH-03-003).
+    CaseStatus, adding every P, X or A latch the report sets and clearing
+    none, directly to the case ledger and fans it out to participants
+    (RSH-01-003, RSH-04-004).  A ``FailureIsSuccess``-wrapped
+    ``TeardownEffects`` Sequence then attempts embargo teardown: the
+    ``EmbargoTeardownAuthorizationGate`` call-out gates execution, and
+    ``ThreatTerminationBranchNode`` fires when the received CaseStatus has
+    P=True, X=True, or A=True (RSH-03-001 to RSH-03-003).
     The ``FailureIsSuccess`` wrapper ensures the tree still returns SUCCESS when
     the gate blocks teardown, mirroring the tolerant semantics in the use case
     layer.  ``PxaEmInvariantDiagnosticNode`` then reads the post-teardown EM and
@@ -249,13 +249,9 @@ def add_participant_status_tree(
             EmitCaseStatusUpdateNode(
                 case_id=tree_case_id,
                 name="EmitCaseStatusUpdate",
-                reported_status=(
-                    status_obj.case_status
-                    if isinstance(status_obj, ParticipantStatus)
-                    else None
-                ),
-                # Read at tick, after the append, so a status received by
-                # reference is adopted too.
+                # The case adopts the report's P/X/A here, read at tick after
+                # the append, so a status received by reference is adopted
+                # too (RSH-01-003).
                 reported_status_id=status_id or None,
             ),
             py_trees.decorators.FailureIsSuccess(

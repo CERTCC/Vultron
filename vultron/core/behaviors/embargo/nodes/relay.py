@@ -170,34 +170,26 @@ class RelayEmbargoInviteToEachNode(
     *answers* names the request the relay answers — the proposer's Invite on
     the received path, the manager's own proposal on the trigger path.
     Given, each Invite's id is derived from it, the embargo and the
-    recipient, so a retry of the tree for the same request rebuilds the
-    Invites the failed attempt queued, under the same ids: the outbox does
-    not queue one twice (OX-06-002) and the commit records each once.
+    recipient, so the same request always relays under the same ids: the
+    outbox does not queue one twice (OX-06-002) and the commit records each
+    once (ID-04-004).
 
-    A step failing mid-relay is not a protocol refusal — the proposal is
-    already committed and the EM state moved — so this node catches nothing:
+    A step failing mid-relay is not a protocol refusal — the proposal passed
+    every guard and was decided — so this node catches nothing:
     the exception escapes to ``BTBridge``, which reports the tree as FAILURE
     with ``internal_error`` set, and the handler raises rather than reporting
     REFUSED (BT-14-001 without the masking the pitfalls table warns of).
-    Partial relays are visible in the ledger as the Invites that were
-    committed.  The idempotency latch (``pending_embargo_proposal_index``)
-    is written by the handler only after the whole tree succeeded
-    (ID-04-005), so a redelivery after a mid-relay fault passes the
-    :class:`EmbargoProposalNotYetRecordedNode` guard and re-adjudicates: the
-    proposal's own commit is deduplicated by the ledger and the EM write is a
-    no-op counter-proposal, but this node relays to *every* recipient again —
-    each recipient is relayed to again.  With *answers* given, the retry
-    rebuilds each Invite under its first id, so a recipient the failed run
-    already invited is not sent a second one and its entry is not committed
-    twice; its consent row, already ``INVITED``, is unchanged.  The key is
-    the request, not the terms: the same terms re-proposed under a new
-    Invite id are a counter-proposal that *is* relayed again.
-
-    *withdraw_unrecorded* is for a relay no retry rebuilds: the manager's own
-    proposal, which a repeated trigger answers with a new embargo.  An Invite
-    whose commit fails is then taken back out of the outbox before the
-    failure is raised, so no participant is sent an Invite the ledger does
-    not record (CLP-07-013).
+    Every Invite of the relay is built, queued and committed, each followed
+    by its invitee's row, in one transaction, and the tree runs this node in
+    the same ``ActTransaction`` as the proposal it relays (CLP-07-015,
+    ADR-0146): a fault for any recipient keeps no Invite for any of them,
+    no row change and not the proposal's own entries either, so no
+    participant is sent an Invite the ledger does not record (CLP-07-013)
+    and nothing is left for a later run.  The idempotency latch
+    (``pending_embargo_proposal_index``) is written only after the whole
+    tree succeeded (ID-04-005).  The one known gap is the received
+    proposal's own entry, which intake commits before the act's transaction
+    opens (ADR-0111, #4933).
     """
 
     def __init__(
@@ -209,7 +201,6 @@ class RelayEmbargoInviteToEachNode(
         actor_config: "ActorConfig | None" = None,
         *,
         answers: str | None = None,
-        withdraw_unrecorded: bool = False,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
@@ -217,7 +208,6 @@ class RelayEmbargoInviteToEachNode(
         self._proposer_id = proposer_id
         self._actor_config = actor_config
         self._answers = answers
-        self._withdraw_unrecorded = withdraw_unrecorded
         self._sync_port: SyncActivityPort | None = None
         self._recipients: list[str] = []
 
@@ -283,8 +273,13 @@ class RelayEmbargoInviteToEachNode(
         if (f := self._require_factory()) is not None:
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return f
-        for recipient_id in self._recipients:
-            self._relay_to(recipient_id)
+        # Every Invite is built (which stores it), queued and committed, with
+        # its invitee's row, in one transaction: a failure for any recipient
+        # leaves no Invite and no row for any of them.  Inside the act's
+        # ActTransaction this block is part of the act (ADR-0146).
+        with cast(CaseOutboxPersistence, self.datalayer).transaction():
+            for recipient_id in self._recipients:
+                self._relay_to(recipient_id)
         self.feedback_message = (
             f"Relayed embargo '{self._embargo_id}' on case '{self._case_id}'"
             f" to {len(self._recipients)} participant(s)"
@@ -333,17 +328,10 @@ class RelayEmbargoInviteToEachNode(
 
         def _send_and_commit() -> None:
             # Sent, then recorded: the entry records a completed act
-            # (ADR-0119).
+            # (ADR-0119).  Both run in the act's transaction, so a failed
+            # commit takes the queued Invite back out with it (ADR-0146).
             self._queue(activity_id)
-            committed = False
-            try:
-                self._commit_emission(activity_id, blob)
-                committed = True
-            finally:
-                # The failure itself propagates (BT-14-001); an Invite no
-                # retry rebuilds is first taken back out of the outbox.
-                if not committed and self._withdraw_unrecorded:
-                    self._withdraw(activity_id)
+            self._commit_emission(activity_id, blob)
 
         self._invite_where_legal(
             dl,
@@ -361,7 +349,7 @@ class RelayEmbargoInviteToEachNode(
         )
 
     def _queue(self, activity_id: str) -> None:
-        """Queue *activity_id* in the outbox, then note that it was queued.
+        """Queue *activity_id* in the outbox.
 
         An id already pending is an earlier attempt's send and is not queued
         again (OX-06-002).
@@ -375,37 +363,6 @@ class RelayEmbargoInviteToEachNode(
                 self.name,
                 activity_id,
             )
-        self._record_queued(activity_id)
-
-    def _withdraw(self, activity_id: str) -> None:
-        """Take an Invite whose commit failed back out of the outbox.
-
-        One delivery already took cannot be withdrawn, and is reported.
-        """
-        if cast(CaseOutboxPersistence, self.datalayer).outbox_withdraw(
-            activity_id
-        ):
-            self.logger.warning(
-                "%s: withdrew Invite '%s' from the outbox: its entry did not"
-                " commit",
-                self.name,
-                activity_id,
-            )
-            return
-        self.logger.error(
-            "%s: Invite '%s' was already taken for delivery, but its entry did"
-            " not commit",
-            self.name,
-            activity_id,
-        )
-
-    def _record_queued(self, activity_id: str) -> None:
-        """Note that *activity_id* reached the outbox; the base records nothing.
-
-        A subclass whose retry must tell a queued Invite from a lost one
-        overrides this to write a durable receipt (EP-04-011), since delivery
-        empties the outbox and leaves nothing there to read.
-        """
 
     def _commit_emission(self, activity_id: str, blob: str) -> None:
         """Commit the emitted Invite as a canonical entry (ADR-0109, VM-08-003)."""
@@ -426,15 +383,15 @@ class RelayEmbargoInviteToEachNode(
         rsvp_deadline: datetime | None,
         *,
         cause_id: str,
-        send_and_commit: Callable[[], None] | None = None,
+        send_and_commit: Callable[[], None],
     ) -> None:
         """Commit the Invite, then the invitee's row; apply it by copying.
 
         The decision is PEC ``INVITE`` on *recipient_id*'s row for this
         embargo where legal, with the Invite's deadline (CM-18-003,
         CM-28-013), taken on a staged store.  The Invite's entry is
-        committed first (*send_and_commit*; ``None`` when the Invite
-        *cause_id* is already committed), then the row as the CASE_MANAGER's
+        committed first (*send_and_commit* queues and commits the Invite
+        *cause_id*), then the row as the CASE_MANAGER's
         own ``Update(EmbargoConsent)`` entry, and only then is the row
         written, by copying (ADR-0124, CLP-07-013).  Where INVITE does not
         apply the Invite is still committed, and no row entry follows.

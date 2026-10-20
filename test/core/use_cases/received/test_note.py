@@ -107,8 +107,8 @@ class TestNoteUseCases:
         note = as_Note(
             id_="https://example.org/notes/note3",
             content="A note",
+            context=case_id,
         )
-        dl.create(note)
 
         activity = add_note_to_case_activity(
             note,
@@ -211,20 +211,16 @@ class TestNoteUseCases:
         assert note_id not in refreshed.notes
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
 
-    @pytest.mark.spec("HP-08-006")
-    def test_add_note_through_ingress_keeps_the_stored_note(self):
-        """The conflicting Add of the test above, sent through the inbox
-        ingress: ingress keeps the stored note and the rehydrated Add holds
-        it, so the stored note is never replaced (#4706)."""
-        case_actor_id = "https://example.org/cases/case_n1d/actor"
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
-        case_id = "https://example.org/cases/case_n1d"
-        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
-        note_id = "https://example.org/notes/note3d"
-        dl.create(as_Note(id_=note_id, content="Original", context=case_id))
-
+    def _add_note_through_ingress(
+        self,
+        dl: SqliteDataLayer,
+        case_actor_id: str,
+        note: as_Note,
+        case: as_VulnerabilityCase,
+    ):
+        """Send an Add(Note) through inbox parse and rehydrate, then run it."""
         activity = add_note_to_case_activity(
-            as_Note(id_=note_id, content="Rewritten", context=case_id),
+            note,
             target=case,
             actor="https://example.org/users/finder",
             to=[dl.actor_id],
@@ -238,14 +234,116 @@ class TestNoteUseCases:
             update={"receiving_actor_id": case_actor_id}
         )
         assert isinstance(event, AddNoteToCaseReceivedEvent)
-        AddNoteToCaseReceivedUseCase(
+        result = AddNoteToCaseReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        # Ingress holds nothing under the Add's own id (DL-06-006).
+        assert dl.read(activity.id_) is None
+        return result
+
+    @pytest.mark.spec("HP-08-006")
+    @pytest.mark.spec("DL-06-006")
+    def test_add_note_through_ingress_with_a_taken_id_is_refused(self):
+        """The conflicting Add of the test above, sent through the inbox
+        ingress, is refused too: the routing rebuild hands the handler the
+        stored note, but the id is taken either way (#4831)."""
+        case_actor_id = "https://example.org/cases/case_n1d/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1d"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        note_id = "https://example.org/notes/note3d"
+        dl.create(as_Note(id_=note_id, content="Original", context=case_id))
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._add_note_through_ingress(
+            dl,
+            case_actor_id,
+            as_Note(id_=note_id, content="Rewritten", context=case_id),
+            case,
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert getattr(dl.read(note_id), "content", None) == "Original"
+        refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert note_id not in refreshed.notes
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+
+    @pytest.mark.spec("HP-08-006")
+    def test_add_note_through_ingress_naming_another_cases_note_is_refused(
+        self,
+    ):
+        """An Add(Note) to case A whose note id names case B's note is
+        refused on the inbox path: B's note is not attached to A and no
+        entry carries it to A's participants (#4831, AC-1)."""
+        case_actor_id = "https://example.org/cases/case_x/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_a = self._setup_case_with_case_manager(
+            dl, "https://example.org/cases/case_xa", case_actor_id
+        )
+        case_b_id = "https://example.org/cases/case_xb"
+        note_id = "https://example.org/notes/case-b-note"
+        dl.create(
+            as_Note(id_=note_id, content="Case B only", context=case_b_id)
+        )
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._add_note_through_ingress(
+            dl,
+            case_actor_id,
+            as_Note(id_=note_id, content="Case B only", context=case_a.id_),
+            case_a,
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        refreshed = cast(as_VulnerabilityCase, dl.read(case_a.id_))
+        assert note_id not in refreshed.notes
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+        assert _as_id(getattr(dl.read(note_id), "context", None)) == case_b_id
+
+    @pytest.mark.spec("HP-08-006")
+    @pytest.mark.parametrize(
+        "note_context",
+        ["https://example.org/cases/some-other-case", None],
+        ids=["another-case", "no-case"],
+    )
+    def test_add_note_whose_case_is_not_the_target_is_refused(
+        self, make_payload, note_context
+    ):
+        """A new note whose own case is not the Add's target, or names no
+        case, is refused before the commit and is not stored (#4831)."""
+        case_actor_id = "https://example.org/cases/case_n1g/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n1g"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        note_id = "https://example.org/notes/note3g"
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        event = make_payload(
+            add_note_to_case_activity(
+                as_Note(
+                    id_=note_id, content="Elsewhere", context=note_context
+                ),
+                target=case,
+                actor="https://example.org/users/finder",
+                to=[dl.actor_id],
+            ),
+            receiving_actor_id=case_actor_id,
+        )
+        result = AddNoteToCaseReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        assert getattr(dl.read(note_id), "content", None) == "Original"
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert dl.read(note_id) is None
+        refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert note_id not in refreshed.notes
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
 
     @pytest.mark.spec("HP-08-006")
     @pytest.mark.spec("VAM-01-010")
@@ -294,6 +392,7 @@ class TestNoteUseCases:
         )
         refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
         assert note_id in refreshed.notes
+        assert dl.read(activity.id_) is None, "held only as received"
 
     @pytest.mark.spec("HP-01-005")
     def test_add_note_without_an_inline_note_is_refused(self, make_payload):
@@ -323,46 +422,90 @@ class TestNoteUseCases:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None and "inline note" in result.reason
 
-    def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
-        """CaseActor skips adding a note already in the case (idempotent)."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id="https://example.org/cases/case_n2/actor",
-        )
+    @pytest.mark.spec("HP-08-006")
+    @pytest.mark.spec("CM-13-007")
+    def test_redelivered_add_note_is_skipped(self, make_payload):
+        """A redelivery of an Add(Note) the case's ledger already records is
+        SKIPPED: the note stays attached once and no second entry is
+        committed (HP-01-003, #4831)."""
         case_actor_id = "https://example.org/cases/case_n2/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
         case_id = "https://example.org/cases/case_n2"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
         note = as_Note(
             id_="https://example.org/notes/note4",
             content="A note",
-        )
-        dl.create(note)
-        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
-        # Pre-populate note into case to exercise idempotent path
-        case.notes.append(note.id_)
-        dl.save(case)
-
-        activity = add_note_to_case_activity(
-            note,
-            target=case,
-            actor="https://example.org/users/finder",
-            to=[dl.actor_id],
+            context=case_id,
         )
         event = make_payload(
-            activity,
+            add_note_to_case_activity(
+                note,
+                target=case,
+                actor="https://example.org/users/finder",
+                to=[dl.actor_id],
+            ),
             receiving_actor_id=case_actor_id,
         )
 
-        AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
+        def run():
+            return AddNoteToCaseReceivedUseCase(
+                dl,
+                event,
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
 
-        refreshed = dl.read(case_id)
-        assert refreshed is not None
-        refreshed = cast(as_VulnerabilityCase, refreshed)
+        assert run().disposition == HandlerDisposition.APPLIED
+        entries_after_first = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = run()
+
+        assert result.disposition == HandlerDisposition.SKIPPED
+        refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
         assert refreshed.notes.count(note.id_) == 1
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_after_first
+
+    @pytest.mark.spec("HP-08-006")
+    @pytest.mark.spec("CM-13-007")
+    def test_new_add_naming_an_attached_note_is_refused(self, make_payload):
+        """A second, different Add(Note) naming a note the case already holds
+        is refused, even with the same content: an Add introduces a note,
+        and changing one is an Update(Note) (#4831)."""
+        case_actor_id = "https://example.org/cases/case_n2b/actor"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        case_id = "https://example.org/cases/case_n2b"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        note = as_Note(
+            id_="https://example.org/notes/note4b",
+            content="A note",
+            context=case_id,
+        )
+
+        def run():
+            return AddNoteToCaseReceivedUseCase(
+                dl,
+                make_payload(
+                    add_note_to_case_activity(
+                        note,
+                        target=case,
+                        actor="https://example.org/users/finder",
+                        to=[dl.actor_id],
+                    ),
+                    receiving_actor_id=case_actor_id,
+                ),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+
+        assert run().disposition == HandlerDisposition.APPLIED
+        entries_after_first = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = run()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
+        assert refreshed.notes.count(note.id_) == 1
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_after_first
 
     @pytest.mark.spec("HP-01-005")
     def test_add_note_refused_for_non_case_manager(
@@ -391,9 +534,9 @@ class TestNoteUseCases:
         note = as_Note(
             id_="https://example.org/notes/note_noop",
             content="A note",
+            context=case.id_,
         )
         dl.create(case)
-        dl.create(note)
 
         activity = add_note_to_case_activity(
             note,
@@ -717,7 +860,6 @@ class TestNoteUseCases:
             content="Log entry cascade note",
             context=case_id,
         )
-        dl.create(note)
 
         activity = add_note_to_case_activity(
             note, target=case, actor=author_id, to=[dl.actor_id]
@@ -807,7 +949,6 @@ class TestNoteUseCases:
             content="No cascade note",
             context=case_id,
         )
-        dl.create(note)
 
         activity = add_note_to_case_activity(
             note, target=case, actor=author_id, to=[dl.actor_id]

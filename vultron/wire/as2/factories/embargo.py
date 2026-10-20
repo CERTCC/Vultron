@@ -41,6 +41,7 @@ from vultron.wire.as2.factories._context import (
     with_case_context,
 )
 from vultron.wire.as2.factories._held import as_answered
+from vultron.wire.as2.factories._inline import require_inline
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
@@ -141,11 +142,9 @@ def em_propose_embargo_activity(
     """
     # The wire class takes the terms by URI for a received Invite (ADR-0123);
     # this codebase always sends them inline (VAM-01-010).
-    if not isinstance(embargo, as_EmbargoEvent):
-        raise VultronActivityConstructionError(
-            "em_propose_embargo_activity: embargo must be an inline"
-            f" as_EmbargoEvent, got {type(embargo).__name__} (VAM-01-010)"
-        )
+    embargo = require_inline(
+        embargo, as_EmbargoEvent, factory="em_propose_embargo_activity"
+    )
     if rsvp_deadline is not None:
         if rsvp_deadline.tzinfo is None:
             raise VultronActivityConstructionError(

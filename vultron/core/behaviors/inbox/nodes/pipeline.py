@@ -407,6 +407,7 @@ class DeferCheckNode(_InboxNodeWithPorts):
             activity_id=event.activity_id,
             case_id=context_id,
             case_actor_id=event.actor_id,
+            activity=event.activity,
         )
         reason = f"Deferred: case '{context_id}' not yet known locally"
         return self._defer(reason)

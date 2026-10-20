@@ -21,6 +21,7 @@ SYNC-03-002.
 
 from datetime import UTC, datetime
 
+from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.wire.as2.factories.sync import (
     announce_log_entry_activity,
     reject_log_entry_activity,
@@ -33,24 +34,22 @@ _CASE_URI = case().id_ or "https://vultron.example/cases/00000000"
 _ACTIVITY_URI = (
     "https://vultron.example/activities/00000000-0000-0000-0000-000000000001"
 )
-_ENTRY_URI = f"{_CASE_URI}/ledger/0"
-# All-zeros genesis hash for the first entry; fixed 64-char hex for entry hash.
+# All-zeros genesis hash for the first entry.
 _GENESIS_HASH = "0" * 64
-_ENTRY_HASH = "a1b2c3d4" * 8
 _RECEIVED_AT = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
 
 
 def _example_ledger_entry() -> as_CaseLedgerEntry:
-    return as_CaseLedgerEntry(
-        id_=_ENTRY_URI,
+    # Built through the hashed record, so the example's ``entryHash`` is the
+    # hash of its own content, as a receiver checks (SYNC-03-006).
+    return HashChainLedgerRecord(
         case_id=_CASE_URI,
-        log_object_id=_ACTIVITY_URI,
-        semantic_type="create_case",
         log_index=0,
+        object_id=_ACTIVITY_URI,
+        semantic_type="create_case",
         prev_log_hash=_GENESIS_HASH,
-        entry_hash=_ENTRY_HASH,
         received_at=_RECEIVED_AT,
-    )
+    ).to_ledger_entry()
 
 
 def announce_case_ledger_entry():

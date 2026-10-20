@@ -59,6 +59,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.carried_object_case import (
+    CarriedObjectInTargetCaseNode,
+)
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
 )
@@ -400,8 +403,12 @@ class TestFilterCsEmDimensionNodeBug2704:
 
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
-        assert node_failed(tree, FilterCsEmDimensionNode), (
-            "An unresolvable status must be rejected by FilterCsEmDimensionNode"
+        # The case check (HP-08-007) now refuses it first; the filter's own
+        # FAILURE is pinned by test_guard_fails_when_status_unresolvable.
+        assert node_failed(tree, CarriedObjectInTargetCaseNode) or node_failed(
+            tree, FilterCsEmDimensionNode
+        ), (
+            "An unresolvable status must be rejected by a precondition guard"
             " before GuardedCommit fires (CLP-10-009, #2704)"
         )
         assert _ledger_entries(dl) == []
@@ -1404,16 +1411,7 @@ class TestThreatTerminationBranchNode:
             payload_snapshot={"id": ask_id},
             prev_log_hash="0" * 64,
         )
-        entry = CaseLedgerEntry(
-            case_id=record.case_id,
-            log_index=record.log_index,
-            term=record.term,
-            log_object_id=record.object_id,
-            semantic_type=record.semantic_type,
-            payload_snapshot=dict(record.payload_snapshot),
-            prev_log_hash=record.prev_log_hash,
-            entry_hash=record.entry_hash,
-        )
+        entry = record.to_ledger_entry()
         activity = announce_log_entry_activity(
             WireCaseLedgerEntry.model_validate(entry.model_dump(mode="json")),
             actor=CASE_MANAGER_ID,

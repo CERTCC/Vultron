@@ -26,6 +26,7 @@ from vultron.core.models.events.embargo import (
     WithdrawFromEmbargoOnCaseReceivedEvent,
 )
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     ActivateEmbargoOnCaseReceivedUseCase,
@@ -131,6 +132,10 @@ ENTRIES: list[SemanticEntry] = [
                     "proposes nothing."
                 ),
                 example="announce_embargo",
+                distinguisher=StateContext(
+                    machine=EmbargoRegisterStatus,
+                    states=(EmbargoRegisterStatus.ACTIVE,),
+                ),
                 howto=HowToGuide.MANAGE_EMBARGO,
             ),
             Occasion(
@@ -147,16 +152,16 @@ ENTRIES: list[SemanticEntry] = [
                     "names is terminated. It proposes nothing."
                 ),
                 example="announce_embargo_termination",
+                distinguisher=StateContext(
+                    machine=EmbargoRegisterStatus,
+                    states=(EmbargoRegisterStatus.TERMINATED,),
+                ),
                 howto=HowToGuide.MANAGE_EMBARGO,
                 notes=(
-                    "The wire form is the same as the embargo announcement's; "
-                    "the embargo it names, which the case's embargo register "
-                    "records as terminated, makes it a termination "
-                    "announcement. A termination the Case Manager starts "
-                    "itself, or one at the end time, sends no announcement: "
-                    "after the end time, the Case Manager's own end-time "
-                    "check ends the embargo before it applies a Case Owner's "
-                    "termination."
+                    "A termination the Case Manager starts itself, or one at "
+                    "the end time, sends no announcement: after the end time, "
+                    "the Case Manager's own end-time check ends the embargo "
+                    "before it applies a Case Owner's termination."
                 ),
             ),
         ),

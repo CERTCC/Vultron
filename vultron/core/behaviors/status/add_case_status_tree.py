@@ -29,6 +29,7 @@ the embargo trees (RSH-01-003, RSH-04-004).
     AddCaseStatusToCaseBT (Sequence)
     ├─ <intake, post-close guard, sender guard, clock decisions>  # factory
     ├─ CheckCaseStatusIdempotencyNode              # precondition guard (CLP-10-009)
+    ├─ CarriedObjectInTargetCaseNode               # status of this case only (HP-08-007, #4831)
     ├─ CheckCsEphemeralStateNode                   # pX ephemeral guard (CSB-17-012, ISSUE-2524)
     ├─ CheckCsHistoryPrefixNode                    # history prefix guard (CSB-17-005, ISSUE-2524)
     ├─ FilterCsEmDimensionNode                     # per-dim EM adjudication (RSH-05, ISSUE-2256)
@@ -47,6 +48,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.carried_object_case import (
+    CarriedObjectInTargetCaseNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -78,20 +82,22 @@ def add_case_status_tree(
 
     Handles receipt of an ``Add(CaseStatus, VulnerabilityCase)`` activity at
     a participant replica, from the case's CASE_MANAGER (RSH-04-005).  After
-    the factory's intake and guards, six precondition guards run in a
+    the factory's intake and guards, seven precondition guards run in a
     Sequence:
 
     1. Idempotency check — fail fast if the status is already present.
-    2. Ephemeral-state guard — rejects CaseStatus that violates the pX→P
+    2. Case check — refuse a status whose ``context`` is not this case
+       (HP-08-007, #4831).
+    3. Ephemeral-state guard — rejects CaseStatus that violates the pX→P
        constraint (CSB-17-012, ISSUE-2524).
-    3. History-prefix guard — rejects single-step PXA transitions that would
+    4. History-prefix guard — rejects single-step PXA transitions that would
        produce an invalid CS history prefix (CSB-17-005, ISSUE-2524).
-    4. Per-dimension EM adjudication — accept valid advances, carry forward
+    5. Per-dimension EM adjudication — accept valid advances, carry forward
        refused EM; returns FAILURE when the case is not found in the DataLayer
        (CLP-10-009), otherwise SUCCESS (RSH-05, ISSUE-2256).
-    5. Per-dimension PXA adjudication — accepts monotone-forward PXA moves,
+    6. Per-dimension PXA adjudication — accepts monotone-forward PXA moves,
        carries forward refused PXA; always returns SUCCESS (RSH-05, ISSUE-2256).
-    6. Whole-refusal gate — returns FAILURE if no dimension carries new state;
+    7. Whole-refusal gate — returns FAILURE if no dimension carries new state;
        returns SUCCESS otherwise, publishing the filtered CaseStatus.
 
     The tree has no effects: a replica writes no case state on receipt and
@@ -127,6 +133,18 @@ def add_case_status_tree(
             CheckCaseStatusIdempotencyNode(
                 case_id=case_id,
                 status_id=status_id,
+            ),
+            # HP-08-007: a status of another case never joins this one.
+            *(
+                [
+                    CarriedObjectInTargetCaseNode(
+                        object_id=status_id,
+                        carried=status_obj,
+                        case_id=case_id,
+                    )
+                ]
+                if case_id
+                else []
             ),
             CheckCsEphemeralStateNode(
                 case_id=case_id,

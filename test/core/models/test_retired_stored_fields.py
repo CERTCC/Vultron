@@ -219,3 +219,57 @@ def test_a_retired_key_the_model_still_declares_is_refused_at_definition() -> (
             retired_stored_fields: ClassVar[
                 Mapping[str, RetiredStoredField]
             ] = {"old_name": RetiredStoredField("new_name", "#0")}
+
+
+@pytest.mark.spec("CP-05-005")
+@pytest.mark.usefixtures("isolated_core_registries")
+def test_a_deleted_field_is_refused_naming_the_reset() -> None:
+    """A field removed entirely (no replacement) still produces a legible
+    refusal when an old stored row carries the key (#4950)."""
+
+    class _Deleted(RetiredFieldsRecord):
+        kept: str
+        retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+            "old_field": RetiredStoredField(None, "#0"),
+        }
+
+    with pytest.raises(ValidationError, match="must be reset") as excinfo:
+        _Deleted.model_validate({"kept": "x", "old_field": "y"})
+
+    message = str(excinfo.value)
+    assert "'old_field'" in message
+    assert "removed it" in message
+    assert "(field removed)" not in message
+    assert "#0" in message
+
+
+@pytest.mark.usefixtures("isolated_core_registries")
+def test_a_deleted_field_camel_case_form_is_also_refused() -> None:
+    """Both spellings of the old key are refused for a deletion."""
+
+    class _Deleted(RetiredFieldsRecord):
+        kept: str
+        retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+            "old_field": RetiredStoredField(None, "#0"),
+        }
+
+    with pytest.raises(ValidationError, match="must be reset") as excinfo:
+        _Deleted.model_validate({"kept": "x", "oldField": "y"})
+
+    message = str(excinfo.value)
+    assert "'oldField'" in message
+
+
+@pytest.mark.usefixtures("isolated_core_registries")
+def test_a_deleted_key_the_model_still_declares_is_refused_at_definition() -> (
+    None
+):
+    """Declaring a retirement for a key the model still has is an error,
+    even when the replacement is None."""
+    with pytest.raises(TypeError, match="still declares"):
+
+        class _StillThere(RetiredFieldsRecord):
+            old_field: str
+            retired_stored_fields: ClassVar[
+                Mapping[str, RetiredStoredField]
+            ] = {"old_field": RetiredStoredField(None, "#0")}

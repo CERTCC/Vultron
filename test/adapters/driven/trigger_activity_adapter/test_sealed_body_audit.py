@@ -194,6 +194,8 @@ class _World:
             origin=self.recommendation_id(),
             to=[_ACTOR],
         )
+        # The CASE_MANAGER answers the Offer it received (DL-06-006).
+        archive_received(self.dl, self.dl.read(cp_id))
         return cp_id
 
     def proposal_id(self) -> str:

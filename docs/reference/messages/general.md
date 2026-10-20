@@ -51,6 +51,10 @@ For the `CVDRole` delegation that uses a dedicated object type, see [Offer case 
 
 {% include-markdown "./_occasions/sections/add-note-to-case.md" heading-offset=1 %}
 
+- **What the CASE_MANAGER refuses:** an `Add(Note)` whose note id it already holds, whatever the carried note says, and a note whose `context` is not the target case.
+  A change to a stored note would be an `Update(Note)`, not a second `Add`, and this implementation does not handle `Update(Note)` yet (HP-08-006, HP-08-007).
+  A redelivery of an `Add(Note)` the case ledger already records changes nothing.
+
 {% include-markdown "./_occasions/sections/remove-note-from-case.md" heading-offset=1 %}
 
 - **Who may send:** the CASE_MANAGER admits `Remove(Note)[target=VulnerabilityCase]` from the note's author while that author is an active participant, or from the Case Owner.

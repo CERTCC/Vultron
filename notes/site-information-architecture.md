@@ -5,8 +5,9 @@ kind: guidance
 description: >
   Rules for organizing reader-facing documentation: the argument the site must
   win, stakeholder types versus CVD roles, the invisible 100-500 prerequisite
-  levels and their check, the working record's door, generated landing pages
-  and coverage matrix, and how docs remediation is partitioned.
+  levels and their check, the three normative-status banners, the working
+  record's door, generated landing pages, reading-path threads and coverage
+  matrix, and how docs remediation is partitioned.
 related_notes:
   - notes/agentic-workflow.md
   - notes/diataxis-framework.md
@@ -278,8 +279,24 @@ ADR-0147). In the basement, the Architecture,
 Project and Process tiers are *Implementation Requirements*: how we build ours,
 not how others must build theirs. Messages, the Conformance Matrix, the Quick
 Reference and Formal Protocol are companions that never add to the normative
-set; protocol-floor pages outside it carry `not_normative.md`
-(`reference/conventions.md`). Normative status is not a `page_type`.
+set. Normative status is not a `page_type`.
+
+**Three banners say a page's normative status** (`reference/conventions.md`):
+
+| Banner | Carried by |
+|---|---|
+| `normative.md` | exactly the normative set: the specification's body pages and the two tier pages, never its annexes or open questions (DF-12-006) |
+| "specification governs" | informative pages that explain the protocol's design, such as Formal Protocol and the RM, EM and CS process models (DF-12-007) |
+| `not_normative.md` | every other informative page, including the protocol-floor companions (Messages, the Conformance Matrix, the Quick Reference); a page with no requirement-like statements may omit it |
+
+The middle banner exists because the older design pages are neither: they
+still explain how the protocol is defined, but the specification now carries
+the design and they may lag it, so they name the tiebreaker rather than claim or
+disclaim standing. The normative set is declared once, in the banner check, not
+in frontmatter: it is a short fixed list, and a key on hundreds of pages would be
+one more thing to drift (#4945). Machine-checking that no nav section mixes
+protocol and implementation pages needs a per-page `subject` key and waits for
+the tabbed nav; until then the rule is a review rule (#4946).
 
 **Edge placements decided so far:** Behavior Logic and Federation
 (`platform-developer`) are Engineering; the Concept Taxonomy and Documentation
@@ -311,12 +328,9 @@ Groups inside a tab are named by topic, never by Diátaxis type ("Run the
 Demos", not "Tutorials"). Every tab opens on a landing page. Large groups go
 behind a routing page (DF-11-006) rather than nesting deeper.
 
-Each reader tab's landing page starts a **thread**: an ordered reading path that
-may cross tabs; lobby signage has a shared thread. The nav is the structure and
-the threads give the route. ADR-0102's level rule already guarantees an order
-exists for each audience. How threads are shown (curated lists, "next on this
-path" links, or a draft from `stakeholder_type` and `level`), and what to do
-with a page on several threads, is #4750.
+Each reader tab's landing page starts a **thread**: a reading path that may
+cross tabs; lobby signage has a shared thread. The nav is the structure and the
+threads give the route. See "Threads: staged data, rendered at both ends".
 
 A returning reader gets one cross-tab lookup page, linked from the front desk,
 listing the reference pages (specification, requirement tiers, messages,
@@ -413,10 +427,51 @@ them. A situation is recognizable without asking the reader to identify with a
 label, and a later `cvd-practitioner` split then just adds a page with a
 narrower situation.
 
-The entry pages are hand-written curated paths, not enumerations, so
-DF-11-005's generate-and-gate rule does not apply. Each one opens its floor's
-tab (see "The front desk and the floors"); there is no separate *Start Here*
-tab, because every tab is an entry.
+An entry page's framing prose is hand-written; its reading path is its
+thread, rendered from data (below). Each one opens its floor's tab (see "The
+front desk and the floors"); there is no separate *Start Here* tab, because
+every tab is an entry.
+
+### Threads: staged data, rendered at both ends
+
+A thread is a partial order, not a sequence: a progression where order matters
+at some points and not at others (ADR-0150).
+
+- **Shape.** One thread per start page: an ordered list of **stages**, each
+  with a goal-named title and an optional stopping-point mark, and each an
+  unordered set ("read any of these") or a short ordered chain of pages with a
+  blurb apiece. Stages are the start page's sections; a chain is a numbered
+  list, a set a bulleted one (DF-11-013). Add
+  explicit page-to-page edges only when a real thread needs an order stages
+  cannot express; nobody has yet.
+- **One source.** The thread lives in its start page's frontmatter. The start
+  page's listing is spliced between markers and gated (DF-11-014), so do not
+  edit the listing by hand: edit the data.
+- **Member pages.** A build hook adds a box per thread the page is on: the
+  pages before it and after it, both as sets, and a link back to the start
+  page (DF-11-015). The sets are the adjacent ones: the neighbor in a chain,
+  or else the whole neighboring set stage (or the near end of a neighboring
+  chain). It is titled by situation, never by `stakeholder_type`, and is the
+  same for every reader, so no query parameter or referrer is needed. The
+  theme's nav-order footer is suppressed on member pages so two "next" links
+  never disagree (DF-11-017).
+- **Not a level sort.** The level rule forbids depending upward; it does not
+  require a thread to climb in level. Order a thread by what the reader needs
+  first.
+- **More threads, not more tabs.** The practitioner start page already serves
+  someone deciding whether to adopt and someone working cases; splitting them
+  adds a start page with its own thread, and no page's `stakeholder_type`
+  changes.
+
+Authoring practice:
+
+- Name each stage for the reader's goal ("Decide whether it solves a problem
+  you have"), never for a page type.
+- Give each step a blurb saying what the reader gets from it, written for this
+  thread; it need not match the page's `description:`.
+- Mark early stages as stopping points: a reader who only needed "should we
+  adopt this?" should know when they are done.
+- Keep the main route to about 8–12 pages; anything beyond is a set stage.
 
 ### The coverage matrix is generated too
 

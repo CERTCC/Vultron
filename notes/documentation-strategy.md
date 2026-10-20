@@ -66,9 +66,11 @@ state names, the enum wins and the doc is updated, unless a maintainer has
 named the enum a bug. Canonical files: `vultron/core/states/rm.py`,
 `vultron/core/states/em.py`, `vultron/core/states/cs.py`.
 
-**The formal protocol stays normative.** `docs/reference/formal_protocol/`
-(`states.md`, `transitions.md`, `messages.md`) defines correct transitions;
-check a new handler or BT node against it, and never treat it as historical.
+**Check transitions against the formal protocol, under the specification.**
+`docs/reference/formal_protocol/` (`states.md`, `transitions.md`, `messages.md`)
+defines correct transitions; check a new handler or BT node against it and never
+treat it as historical. It is informative, though: where it differs from the
+Protocol Specification, the specification governs (DF-12-007).
 
 ## Three Views of Behavior, and Which One to Edit
 
@@ -204,6 +206,12 @@ a URL an earlier build served and this one dropped. `uv run docs-legacy-urls`
 - **The evidence is committed before `publish` advances.**
   `vultron/metadata/docs/legacy_urls_baseline.txt` only grows (`--snapshot
   <ref>` adds a ref's pages, drops none): a URL cited once can be cited forever.
+- **Snapshot the incoming publish, not the outgoing one.** A pull request to
+  `publish` fails until every page its merge result builds is recorded
+  (DOCBW-03-012), whatever paths the pull request changes: run
+  `--snapshot origin/main` on `main` and commit it. Recording each publish as
+  it ships covers every earlier one, and the check reuses the snapshot's
+  definition of a built page, so the two cannot disagree.
 - **A snapshot records what the ref built, not what it held** — it applies that
   ref's own `draft_docs` and `exclude_docs`.
 - **The baseline lists built pages, not nav entries.** Fragments built as their

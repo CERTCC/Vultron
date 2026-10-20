@@ -82,6 +82,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
+    PxaDimension,
     RmDimension,
     VfDimension,
 )
@@ -1996,7 +1997,7 @@ def _pxa_report(
     em: EM | None = None,
 ):
     """``Add(ParticipantStatus)`` reporting *pxa* in its embedded case status."""
-    from vultron.core.models.dimensions import EmDimension, PxaDimension
+    from vultron.core.models.dimensions import EmDimension
     from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
     embedded = as_CaseStatus(
@@ -2179,6 +2180,30 @@ class TestAdoptedPxaReachesTheCaseStatus:
 
     @pytest.mark.spec("RSH-01-003")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_a_report_without_case_status_keeps_case_pxa(
+        self, populated_dl, make_payload
+    ):
+        """A status embedding no ``case_status`` reports no P/X/A."""
+        _seed_case_pxa(populated_dl, CS_pxa.Pxa)
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(
+                id_=f"{PARTICIPANT_ID}/statuses/none", context=CASE_ID
+            ),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            to=[CASE_MANAGER_ID],
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+
+        result = _run_at_case_manager(populated_dl, make_payload(activity))
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        assert _case_pxa(populated_dl) == CS_pxa.Pxa
+
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_a_mixed_report_adds_its_new_latch(
         self, populated_dl, make_payload
     ):
@@ -2247,7 +2272,6 @@ class TestAdoptedPxa:
     def test_adopted_pxa(self, current, reported, expected):
         from vultron.core.behaviors.case_status_snapshot import adopted_pxa
         from vultron.core.models.case_status import CaseStatus
-        from vultron.core.models.dimensions import PxaDimension
 
         status = (
             None
