@@ -145,10 +145,11 @@ def add_participant_status_tree(
     When the gate passes, ``EmitCaseStatusUpdateNode`` writes the post-adoption
     CaseStatus — carrying the report's P/X/A when it does not regress the
     case's — directly to the case ledger and fans it out to participants
-    (RSH-01-003, RSH-04-004, RSH-05-019).  A ``FailureIsSuccess``-wrapped ``TeardownEffects``
-    Sequence then attempts embargo teardown: the ``EmbargoTeardownAuthorizationGate``
-    call-out gates execution, and ``ThreatTerminationBranchNode`` fires when the
-    received CaseStatus has P=True, X=True, or A=True (RSH-03-001 to RSH-03-003).
+    (RSH-01-003, RSH-04-004, RSH-05-019).  A ``FailureIsSuccess``-wrapped
+    ``TeardownEffects`` Sequence then attempts embargo teardown: the
+    ``EmbargoTeardownAuthorizationGate`` call-out gates execution, and
+    ``ThreatTerminationBranchNode`` fires when the received CaseStatus has
+    P=True, X=True, or A=True (RSH-03-001 to RSH-03-003).
     The ``FailureIsSuccess`` wrapper ensures the tree still returns SUCCESS when
     the gate blocks teardown, mirroring the tolerant semantics in the use case
     layer.  This replaces the side-effect handling previously routed via the

@@ -1990,7 +1990,7 @@ class TestReportedPxaAdoption:
         self,
         dl: SqliteDataLayer,
         make_payload,
-        reported: CS_pxa,
+        reported: CS_pxa | None,
         *,
         sender: str = ACTOR_ID,
         participant_id: str = PARTICIPANT_ID,
@@ -1998,13 +1998,18 @@ class TestReportedPxaAdoption:
             STATUS_AUTHORIZATION_DETERMINISTIC
         ),
     ) -> Status:
-        status_id = f"{STATUS_ID}/reported-{reported.name}"
+        label = "none" if reported is None else reported.name
+        status_id = f"{STATUS_ID}/reported-{label}"
         activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(
                 id_=status_id,
                 context=CASE_ID,
-                case_status=CaseStatus(
-                    context=CASE_ID, pxa=PxaDimension(state=reported)
+                case_status=(
+                    None
+                    if reported is None
+                    else CaseStatus(
+                        context=CASE_ID, pxa=PxaDimension(state=reported)
+                    )
                 ),
             ),
             target=as_CaseParticipant(
@@ -2078,6 +2083,16 @@ class TestReportedPxaAdoption:
             Status.SUCCESS
         )
         assert self._case_pxa(populated_dl) is CS_pxa.PXa
+
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_report_without_case_status_keeps_case_pxa(
+        self, populated_dl, make_payload
+    ):
+        """A status embedding no ``case_status`` reports no P/X/A."""
+        self._seed_case_pxa(populated_dl, CS_pxa.Pxa)
+        assert self._run(populated_dl, make_payload, None) == Status.SUCCESS
+        assert self._case_pxa(populated_dl) is CS_pxa.Pxa
 
     @pytest.mark.spec("RSH-01-002")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
