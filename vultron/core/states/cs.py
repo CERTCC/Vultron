@@ -682,12 +682,12 @@ def is_monotonic_pxa_forward(source: CS_pxa, dest: CS_pxa) -> bool:
 def is_pxa_assertion_acceptable(current: CS_pxa, asserted: CS_pxa) -> bool:
     """Return True if a received CaseStatus may move PXA *current* → *asserted*.
 
-    The PXA acceptance rule for a received ``CaseStatus`` (RSH-05-019): the
-    asserted state is the current one, or a monotone forward move from it.
-    Deliberately weaker than :func:`is_valid_pxa_transition`, which applies
-    only to local writes (CSB-16-002).  The CASE_MANAGER's
-    ``FilterCsPxaDimensionNode`` and the replica's
-    ``ApplyCaseStatusFromLedgerNode`` both apply it.
+    The PXA acceptance rule for a received status (RSH-09-003, RSH-09-005):
+    the asserted state is the current one, or a monotone forward move from
+    it.  Deliberately weaker than :func:`is_valid_pxa_transition`, which
+    applies only to local writes (CSB-16-002).  The CASE_MANAGER applies it
+    to a received ``CaseStatus`` and ``ParticipantStatus`` and when adopting a
+    report's P/X/A; a replica copies the entry instead (CM-23-016).
     """
     return asserted == current or is_monotonic_pxa_forward(current, asserted)
 

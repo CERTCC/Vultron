@@ -29,9 +29,7 @@ note as its own ``add_note_to_case`` entry if the invariant is still violated
     ├─ CheckCaseStatusIdempotencyNode              # precondition guard (CLP-10-009)
     ├─ CheckCsEphemeralStateNode                   # pX ephemeral guard (CSB-17-012, ISSUE-2524)
     ├─ CheckCsHistoryPrefixNode                    # history prefix guard (CSB-17-005, ISSUE-2524)
-    ├─ FilterCsEmDimensionNode                     # per-dim EM adjudication (RSH-05, ISSUE-2256)
-    ├─ FilterCsPxaDimensionNode                    # per-dim PXA adjudication (RSH-05, ISSUE-2256)
-    ├─ FinalizeCsFilterNode                        # whole-refusal gate; FAILURE if nothing new
+    ├─ CheckCaseStatusAcceptableNode               # accept whole or refuse whole (RSH-09-005)
     ├─ GuardedCommitOrSkip                         # canonical ledger commit (CLP-10-006)
     ├─ TeardownEffectsOrSkip (FailureIsSuccess)    # RSH-03-001 to RSH-03-003 (ungated)
     │   └─ TeardownEffects (Sequence)
@@ -69,10 +67,8 @@ from vultron.core.behaviors.status.nodes import (
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
 )
-from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
-    FilterCsEmDimensionNode,
-    FilterCsPxaDimensionNode,
-    FinalizeCsFilterNode,
+from vultron.core.behaviors.status.nodes.case_status_acceptance import (
+    CheckCaseStatusAcceptableNode,
 )
 from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
     PxaEmInvariantDiagnosticNode,
@@ -98,7 +94,7 @@ def add_case_status_tree(
     """Create the behavior tree for the AddCaseStatusToCase workflow.
 
     Handles receipt of an ``Add(CaseStatus, VulnerabilityCase)`` activity.
-    Implements ten nodes in a Sequence:
+    Implements eight nodes in a Sequence:
 
     1. Idempotency check — fail fast if the status is already present.
     2. Case check — refuse a status whose ``context`` is not this case
@@ -107,20 +103,17 @@ def add_case_status_tree(
        constraint (CSB-17-012, ISSUE-2524).
     4. History-prefix guard — rejects single-step PXA transitions that would
        produce an invalid CS history prefix (CSB-17-005, ISSUE-2524).
-    5. Per-dimension EM adjudication — accept valid advances, carry forward
-       refused EM; returns FAILURE when the case is not found in the DataLayer
-       (CLP-10-009), otherwise SUCCESS (RSH-05, ISSUE-2256).
-    6. Per-dimension PXA adjudication — accepts monotone-forward PXA moves,
-       carries forward refused PXA; always returns SUCCESS (RSH-05, ISSUE-2256).
-    7. Whole-refusal gate — returns FAILURE if no dimension carries new state;
-       returns SUCCESS otherwise, publishing the filtered CaseStatus.
-    8. Append and persist — write the filtered CaseStatus to the case record.
-    9. ``TeardownEffectsOrSkip`` (``FailureIsSuccess`` decorator) — wraps a
+    5. Acceptance — the status is accepted as sent when its EM is the case's
+       and its P/X/A confirms or advances the case's, and refused whole
+       otherwise; also FAILURE when the case or the status cannot be resolved
+       (CLP-10-009, RSH-09-005).
+    6. Append and persist — write the CaseStatus to the case record.
+    7. ``TeardownEffectsOrSkip`` (``FailureIsSuccess`` decorator) — wraps a
        Sequence of the ``EmbargoTeardownAuthorizationGate`` call-out
        (RSH-02-001) and ``ThreatTerminationBranchNode`` (RSH-03-001 to
        RSH-03-003). Decorated so that authorization-gate FAILURE does not
        abort the outer Sequence — teardown side-effects are optional.
-    10. ``PxaEmInvariantDiagnosticNode`` — at the CASE_MANAGER only, reads
+    8. ``PxaEmInvariantDiagnosticNode`` — at the CASE_MANAGER only, reads
        fresh EM state from the DataLayer after the teardown block and commits
        a note as its own ``add_note_to_case`` entry if the CSB-18-002..004
        invariant is still violated (e.g. gate blocked teardown). A missing
@@ -178,13 +171,11 @@ def add_case_status_tree(
                 status_id=status_id,
                 status_obj_fallback=status_obj,
             ),
-            FilterCsEmDimensionNode(
+            CheckCaseStatusAcceptableNode(
                 case_id=case_id,
                 status_id=status_id,
                 status_obj_fallback=status_obj,
             ),
-            FilterCsPxaDimensionNode(),
-            FinalizeCsFilterNode(),
         ],
         # RSH-08-003: appending the canonical ``CaseStatus`` moves PXA, which is
         # case state only the CASE_MANAGER writes; ``add_case_status_to_case`` is

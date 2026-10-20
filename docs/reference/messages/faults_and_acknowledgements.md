@@ -38,7 +38,7 @@ in a way that state-machine origin is not.
 
 {% include-markdown "./_occasions/sections/create-processing-fault.md" heading-offset=1 %}
 
-In the example, a Vendor cannot apply a ledger entry from the CASE_MANAGER whose participant status names an impossible state, and reports the fault to the CASE_MANAGER ([RSH-05-021](../specs/protocol.md#rsh-05-021)).
+In the example, a Vendor cannot apply a ledger entry from the CASE_MANAGER whose participant status names an impossible state, and reports the fault to the CASE_MANAGER ([RSH-09-006](../specs/protocol.md#rsh-09-006)).
 
 The formal fault shorthands have no dedicated wire counterpart ([MSM-05-001](../specs/protocol.md#msm-05-001)).
 

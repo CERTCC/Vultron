@@ -76,9 +76,9 @@ def append_participant_status_tree(
             not yet in DataLayer (used for bootstrap activities).
         validate_rm: When ``False``, skip ``ValidateRMTransitionNode``.
             Set to ``False`` when called from ``add_participant_status_tree``
-            where ``FilterParticipantStatusDimensionsNode`` in
-            ``precondition_guards`` has already adjudicated the ``rm``
-            dimension (CLP-10-009). Defaults to ``True`` for standalone use.
+            where ``CheckParticipantStatusAcceptableNode`` in
+            ``precondition_guards`` has already judged the ``rm`` dimension
+            (CLP-10-009). Defaults to ``True`` for standalone use.
 
     Returns:
         Root node of the ``AppendParticipantStatusBT`` Sequence.

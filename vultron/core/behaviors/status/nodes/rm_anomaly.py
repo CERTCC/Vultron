@@ -34,7 +34,7 @@ from vultron.core.behaviors.note.case_manager_note import (
     CaseManagerNote,
     _CommitCaseManagerNoteBase,
 )
-from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
+from vultron.core.behaviors.status.nodes.rm_rule import BB_RM_ANOMALY
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +43,8 @@ class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
     """Record the RSH-06-004 note when an RM transition anomaly is detected.
 
     Reads the ``rm_transition_anomaly`` blackboard key written by
-    :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`
-    (non-adjacent forward jump) or
+    :class:`~vultron.core.behaviors.status.nodes.participant_status_acceptance.CheckParticipantStatusAcceptableNode`
+    (a gap or a regression) or
     :class:`~vultron.core.behaviors.status.nodes.rm_validation.ValidateRMTransitionNode`
     (backward regression on the standalone path).  When the key is ``None``
     (no anomaly), or the tree has no case context, returns SUCCESS without

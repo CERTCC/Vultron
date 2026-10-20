@@ -162,7 +162,7 @@ class TestCheckCsEphemeralStateNode:
         assert _run(bridge, node) == Status.FAILURE
 
     def test_unresolvable_asserted_defers(self, dl, bridge):
-        """Status not in DL and no fallback → SUCCESS (deferred to FilterCsEm)."""
+        """Status not in DL and no fallback → SUCCESS (deferred to CheckCaseStatusAcceptableNode)."""
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         # Do NOT create the asserted status in DL
@@ -303,7 +303,7 @@ class TestCheckCsHistoryPrefixNode:
         assert _run(bridge, node) == Status.SUCCESS
 
     def test_unresolvable_asserted_defers(self, dl, bridge):
-        """Status not in DL and no fallback → SUCCESS (deferred to FilterCsEm)."""
+        """Status not in DL and no fallback → SUCCESS (deferred to CheckCaseStatusAcceptableNode)."""
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
 

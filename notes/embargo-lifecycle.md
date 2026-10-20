@@ -107,8 +107,8 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   leaves the others open as revisions.
 - **`CaseStatus.em` is a frozen stamped copy.** Core reads `case.em_state`,
   never the copy. `append_case_status(em=...)` is refused, and a received
-  `Add(CaseStatus)` whose EM differs has its EM refused and the case's carried
-  forward (RSH-05-023, SDO-03-006).
+  `Add(CaseStatus)` whose EM differs is refused whole (RSH-09-005,
+  SDO-03-006).
 - **A termination records what and why (ADR-0122, EMB-13-004).** The what
   (`TerminationReason`: `END_TIME_REACHED` or `EARLY`) is the `Remove`'s
   `content`, parsed at the edge (`termination_reason_from_content()`); the why

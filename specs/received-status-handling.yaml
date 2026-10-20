@@ -375,613 +375,6 @@ groups:
     stories:
     - story_2022_045
     - story_2022_046
-- id: RSH-05
-  title: Per-Dimension Partial Accept (liberal accept)
-  description: >
-    An inbound `Add(ParticipantStatus, CaseParticipant)` carries a snapshot of
-    several independent state machines (`rm`, `vfd`, `em`, `pxa`, `consent`).
-    An inbound `Add(CaseStatus, Case)` carries independent EM and PXA dimensions.
-    These requirements govern adjudicating each dimension on its own rather
-    than accepting or discarding the snapshot as a unit.
-    Derived from ISSUE-2235, ISSUE-2256, and epic ISSUE-2229 (Postel's maxim / liberal
-    accept).
-  specs:
-  - id: RSH-05-001
-    priority: MUST
-    kind: protocol
-    statement: >
-      A CASE_MANAGER receiving an `Add(ParticipantStatus, CaseParticipant)` MUST
-      adjudicate each state dimension of the reported status independently. An
-      unacceptable value in one dimension MUST NOT cause the values reported in
-      the other dimensions to be discarded.
-    rationale: >
-      RM, VFD, EM, PXA and PEC are independent state machines. A value that is
-      unacceptable in one dimension carries no information about the others, so
-      discarding the whole snapshot destroys state the receiver has no grounds
-      to refuse. Liberal accept (ISSUE-2229): accept everything acceptable.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm an unacceptable
-      `rm` value does not discard accepted VFD and PXA values from the same status snapshot.
-    note: >
-      Implemented by `FilterParticipantStatusDimensionsNode` in
-      `vultron/core/behaviors/status/nodes/dimension_filter.py`, wired as a
-      precondition guard of `add_participant_status_tree`. It supersedes and
-      replaced `CheckParticipantRMNotClosedNode` (now removed), whose
-      all-or-nothing RM refusal was the defect reported in ISSUE-2235.
-    stories:
-    - story_2022_045
-    - story_2022_088
-  - id: RSH-05-002
-    priority: MUST
-    kind: protocol
-    statement: >
-      When a dimension is refused, the receiver MUST record the participant's
-      current value for that dimension alongside the accepted values from the
-      other dimensions, as a single `ParticipantStatus`.
-    rationale: >
-      The recorded status must remain a coherent snapshot of the receiver's
-      view of the participant. Omitting the refused dimension would leave it
-      undefined; recording the asserted value would adopt a claim the receiver
-      just refused.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py`
-      confirm the refused dimension is replaced by the current value in the recorded `ParticipantStatus`.
-    stories:
-    - story_2022_045
-    - story_2022_088
-  - id: RSH-05-003
-    priority: MUST
-    kind: protocol
-    statement: >
-      A refused dimension MUST NOT prevent the StatusAdoptionGate and the
-      canonical `CaseStatus` ledger write (RSH-01-003) from running. The
-      canonical write MUST still occur whenever any dimension of the update was
-      accepted.
-    rationale: >
-      EmbargoTeardownAuthorizationGate owns embargo teardown (RSH-01-004). Aborting the StatusAdoptionGate sequence
-      on a refused dimension silently skipped teardown — the concrete failure
-      reported in ISSUE-2235.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py`
-      confirm a refused dimension does not suppress the StatusAdoptionGate or the canonical `CaseStatus` write.
-    stories:
-    - story_2022_023
-    - story_2022_088
-  - id: RSH-05-004
-    priority: MUST
-    kind: protocol
-    statement: >
-      The canonical `CaseLedgerEntry` committed for a partially accepted status
-      MUST snapshot the accepted portion, not the raw assertion.
-    rationale: >
-      The canonical projection is replicated to every participant and bound
-      into the hash chain. Snapshotting the raw assertion would fan out a value
-      the receiver refused, and each replica would apply it. Recording the
-      accepted portion is also what makes the refusal visible: the canonical
-      entry differs from what the sender asserted.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm the canonical
-      `CaseLedgerEntry` contains accepted dimension values, not the raw asserted values.
-    note: >
-      Implemented via the `ledger_payload_object_override` blackboard contract
-      read by `CommitCaseLedgerEntryNode`. The guard runs before
-      `GuardedCommit` per CLP-10-006, so the adjudication is available at
-      commit time. The guard is read-only with respect to the DataLayer.
-
-      The override is a *patch* — `{"object_id": ..., "fields": {...}}` keyed by
-      wire alias — merged onto the snapshot's existing `object`, not a
-      replacement object. See RSH-05-009 for why.
-    stories:
-    - story_2022_045
-    - story_2022_088
-  - id: RSH-05-005
-    priority: MUST
-    kind: protocol
-    statement: >
-      A status update in which every refused dimension leaves the resulting
-      snapshot indistinguishable from the participant's current state MUST be
-      refused in full: nothing is appended and no canonical ledger entry is
-      committed.
-    rationale: >
-      Such an assertion carries no acceptable information. Appending it would
-      grow the participant's status history and the hash chain without
-      recording any state change.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a wholly
-      refused status update is not appended and commits no canonical ledger entry.
-    stories:
-    - story_2022_045
-  - id: RSH-05-006
-    priority: MUST
-    kind: protocol
-    statement: >
-      `RM.CLOSED` MUST be treated as terminal for the `rm` dimension only. A
-      status that reaches `RM.CLOSED` MUST still have its accepted values in
-      other dimensions recorded. A status update from a participant whose
-      closure the case's ledger already records is refused in full instead
-      (CM-23-018).
-    rationale: >
-      A vendor that closes its report management workflow may deploy a fix
-      (VFD) or observe public disclosure (PXA) as it closes. Freezing the whole
-      snapshot at RM closure discards real protocol state. Once its closure is
-      recorded the participant has left the case and may act on nothing
-      further (CM-23-004, CM-23-018), so it reports that progress before it
-      leaves.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a status
-      that reaches `RM.CLOSED` still has its accepted VFD dimension value recorded, and that a later update from a
-      participant already at `RM.CLOSED` is refused in full.
-    stories:
-    - story_2022_088
-    - story_2022_107
-  - id: RSH-05-008
-    priority: SHOULD
-    kind: protocol
-    statement: >
-      The `em` dimension SHOULD NOT be adjudicated at StatusAdoptionGate; embargo state
-      belongs to EmbargoTeardownAuthorizationGate (`add_case_status_tree`).
-    rationale: >
-      EM is per-case rather than per-participant and its authorization gate is
-      the EmbargoTeardownAuthorizationGate (RSH-02-001). Adjudicating it in the StatusAdoptionGate guard
-      would duplicate — and could contradict — EmbargoTeardownAuthorizationGate's decision.
-    note: >
-      EmbargoTeardownAuthorizationGate EM adjudication is tracked in ISSUE-2256.
-  - id: RSH-05-009
-    priority: MUST
-    kind: protocol
-    statement: >
-      Adjudicating a received status MUST NOT change the shape of the
-      `payload_snapshot.object` it records: the entry MUST carry the same wire
-      fields an unadjudicated entry for the same activity would carry, with only
-      the adjudicated dimension values rewritten.
-    rationale: >
-      Every replica and the case-ledger invariant harness read the snapshot's
-      flat wire aliases (`rmState`, `vfdState`, `emConsentState`, `cvdRole`) and
-      its nested `caseStatus` (CLP-07-011, CM-18-006). A whole-object
-      replacement built in `vultron.core` would emit core dimension objects
-      (`rm: {state}`) and silently drop every field the guard never adjudicated,
-      because core MUST NOT import `vultron.wire` to convert (ADR-0009,
-      ADR-0017). Publishing a field patch instead makes shape preservation
-      structural rather than a property the guard has to remember to maintain.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm adjudicated
-      ledger entries retain the same wire field shape as unadjudicated entries, with only dimension values patched.
-    note: >
-      The merge is one level deep, so a patched `caseStatus.pxaState` keeps the
-      nested object's own `id` and remaining fields. A patched alias also drops
-      any stale snake_case twin of the same field, so a consumer that prefers
-      the snake_case spelling cannot read the value the receiver refused.
-    stories:
-    - story_2022_045
-    - story_2022_106
-  - id: RSH-05-010
-    priority: MUST
-    kind: project
-    statement: >
-      A producer of `ledger_payload_object_override` MUST write `None` to the
-      key unconditionally at the start of every tick — before any early return
-      — so that a stale value from a previous execution cannot bleed into the
-      current one.
-    rationale: >
-      The py_trees blackboard is process-global. `BTBridge.execute_with_setup`
-      does not reset application-level keys between runs, so a producer that
-      only writes on its active path leaves the key at its previous value on
-      every no-op tick. `CommitCaseLedgerEntryNode` would then apply that stale
-      patch to a different payload snapshot. BT-17-003.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a stale
-      `ledger_payload_object_override` from a prior tick is cleared before the next tick executes.
-    note: >
-      Pattern: call the unconditional clear (e.g. `self._publish((), None)`) as
-      the first statement in `update()`, before any conditional branch. Once
-      the producer node is migrated to the typed-Ports base class (ISSUE-1808),
-      the base class SHOULD auto-clear declared output ports in `initialise()`,
-      making this obligation structural.
-  - id: RSH-05-011
-    priority: MUST
-    kind: protocol
-    statement: >
-      A producer of `ledger_payload_object_override` MUST include a
-      `producer_type` field in the override dict. The required shape is
-      `{"object_id": <id>, "producer_type": <str>, "fields": {<wire alias>: <value>}}`.
-    rationale: >
-      Multiple producers are anticipated (ISSUE-2256 adds EM adjudication in
-      `EmbargoTeardownAuthorizationGate` as a second producer). Naming the
-      source node in the dict enables targeted audit logging and per-producer
-      diagnostics without out-of-band context. RSH-05-014 uses `producer_type`
-      to emit a warning on unrecognized producers without failing the commit.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm every
-      `ledger_payload_object_override` dict includes a `producer_type` field identifying the source node.
-    stories:
-    - story_2022_074
-  - id: RSH-05-012
-    priority: MUST
-    kind: protocol
-    statement: >
-      The `fields` value of `ledger_payload_object_override` MUST contain only
-      wire alias keys recognized by `CommitCaseLedgerEntryNode`. Publishing an
-      unrecognized key is a protocol error.
-    rationale: >
-      The consumer hard-fails on any unrecognized alias (RSH-05-013). An unknown
-      alias applied to the canonical snapshot would abort the commit, blocking
-      the receive-side BT. Declaring this as a producer obligation means callers
-      can validate at construction time rather than catching a runtime failure.
-    verification: Inspection of `vultron/core/behaviors/case/nodes/lifecycle.py` confirms `CommitCaseLedgerEntryNode`
-      validates `fields` keys against the `_SNAKE_TWINS` dict and hard-fails on unrecognized wire aliases.
-    note: >
-      The recognized aliases are those defined in `_SNAKE_TWINS` in
-      `vultron/core/behaviors/case/nodes/lifecycle.py` — the module-level dict
-      that maps each camelCase wire alias to its snake_case twin for
-      `CommitCaseLedgerEntryNode`.
-    stories:
-    - story_2022_045
-  - id: RSH-05-013
-    priority: MUST
-    kind: protocol
-    statement: >
-      `CommitCaseLedgerEntryNode` MUST raise a hard failure — not a warning —
-      if the `fields` dict of `ledger_payload_object_override` contains a key
-      that is not a recognized wire alias for the snapshot object type.
-    rationale: >
-      An unrecognized alias applied to the canonical snapshot would silently add
-      unexpected content to the hash-chained ledger entry, which every replica
-      and the invariant harness would then apply. Data integrity requires a hard
-      stop; the correct response is to fix the producer (RSH-05-012), not to log
-      and continue.
-    verification: Unit tests in `test/core/behaviors/case/nodes/test_lifecycle.py` confirm `CommitCaseLedgerEntryNode` raises
-      a hard failure (not a warning) when `fields` contains a key not present in `_SNAKE_TWINS`.
-    stories:
-    - story_2022_045
-  - id: RSH-05-014
-    priority: SHOULD
-    kind: protocol
-    statement: >
-      `CommitCaseLedgerEntryNode` SHOULD emit a WARNING when
-      `ledger_payload_object_override` carries an unrecognized `producer_type`
-      value, and MUST NOT fail the commit on that basis alone.
-    rationale: >
-      An unrecognized `producer_type` may indicate a newer node type operating
-      against an older consumer. Logging preserves auditability without
-      blocking a structurally valid override. Field-name validation (RSH-05-013)
-      is the data-integrity guard; `producer_type` is an audit hint only.
-  - id: RSH-05-015
-    priority: MUST
-    kind: protocol
-    statement: >
-      A CASE_MANAGER receiving an `Add(CaseStatus, Case)` MUST adjudicate the EM
-      and PXA dimensions of the reported case status independently. An
-      unacceptable value in one dimension MUST NOT cause the value reported in
-      the other dimension to be discarded.
-    rationale: >
-      EM and PXA are independent state machines within CaseStatus (parallel to
-      RM, VFD, EM, PXA in ParticipantStatus). A value that is unacceptable in
-      EM carries no information about PXA and vice versa. Discarding the whole
-      snapshot destroys state the receiver has no grounds to refuse. Liberal
-      accept (ISSUE-2229): accept everything acceptable.
-    verification: >
-      Unit tests for `add_case_status_tree` confirm that an unacceptable EM
-      value does not discard an accepted PXA value from the same CaseStatus
-      snapshot, and vice versa.
-    note: >
-      Implemented by the three-node sequence `FilterCsEmDimensionNode`,
-      `FilterCsPxaDimensionNode`, and `FinalizeCsFilterNode` in
-      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`, wired as
-      precondition guards of `add_case_status_tree`. See ISSUE-2256.
-      RSH-04-005 refuses an `Add(CaseStatus)` sent to the CASE_MANAGER, so the
-      receiver this requirement names goes away when #4851 implements it;
-      #4851 rescopes or retires this requirement.
-    lint_suppress:
-    - missing_story_reference
-  - id: RSH-05-016
-    priority: MUST
-    kind: protocol
-    statement: >
-      When an EM or PXA dimension of a received `CaseStatus` is refused, the
-      receiver MUST record the case's current value for that dimension alongside
-      the accepted value from the other dimension, as a single `CaseStatus`.
-    rationale: >
-      The recorded status must remain a coherent snapshot of the receiver's
-      view of the case. Omitting the refused dimension would leave it undefined;
-      recording the asserted value would adopt a claim the receiver just refused.
-      This is the CaseStatus parallel to RSH-05-002 for ParticipantStatus.
-    verification: >
-      Unit tests confirm that when the EM dimension is refused, the resulting
-      recorded `CaseStatus` carries the case's current EM state, not the
-      asserted EM state.
-    note: >
-      Implemented by `FilterCsEmDimensionNode` carrying forward `current_em`
-      and `FilterCsPxaDimensionNode` carrying forward `current_pxa` in
-      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`.
-    lint_suppress:
-    - missing_story_reference
-  - id: RSH-05-017
-    priority: MUST
-    kind: protocol
-    statement: >
-      A received `CaseStatus` in which every refused dimension leaves the
-      resulting snapshot indistinguishable from the case's current state MUST
-      be refused in full: nothing is appended and no canonical ledger entry is
-      committed.
-    rationale: >
-      Such an assertion carries no acceptable information. Appending it would
-      grow the case's status history and the hash chain without recording any
-      state change. This is the CaseStatus parallel to RSH-05-005 for
-      ParticipantStatus.
-    verification: >
-      Unit tests confirm that a `CaseStatus` where both EM and PXA are refused
-      and the result is indistinguishable from current state is rejected in full
-      with no ledger entry committed.
-    note: >
-      Implemented by `FinalizeCsFilterNode.update()` returning `Status.FAILURE`
-      when `(filtered.em.state, filtered.pxa.state) == (current.em.state,
-      current.pxa.state)`.
-    lint_suppress:
-    - missing_story_reference
-  - id: RSH-05-023
-    priority: MUST
-    kind: project
-    statement: >
-      When adjudicating the EM dimension of a received `Add(CaseStatus)`, the
-      receiver MUST accept the asserted EM state only when it is identical to
-      the case's EM state derived from its embargo register, and MUST refuse
-      any other asserted EM value, carrying the case's value forward
-      (RSH-05-016).
-    rationale: >
-      EM is derived from the case's embargo register, which changes only
-      through the embargo messages that cause each register step (ADR-0122).
-      A status can report EM but never move it: adopting an asserted EM would
-      make the status copy disagree with the register it is derived from.
-    verification: >
-      Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py`
-      confirm that `FilterCsEmDimensionNode` passes an EM identical to the
-      case's and refuses every other asserted EM value by carrying the
-      case's value forward;
-      `test/core/behaviors/sync/nodes/test_case_status_effect.py` confirms
-      the same of `ApplyCaseStatusFromLedgerNode`.
-    note: >
-      The predicate is `is_em_assertion_acceptable(current_em, asserted_em)` in
-      `vultron/core/states/em.py`, which accepts only `asserted == current`.
-      Two nodes apply it, so the CASE_MANAGER and its replicas adjudicate EM
-      alike: `FilterCsEmDimensionNode` in
-      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py` on a
-      received `Add(CaseStatus)`, comparing with `VulnerabilityCase.em_state`,
-      and `ApplyCaseStatusFromLedgerNode` in
-      `vultron/core/behaviors/sync/nodes/case_status_effect.py` on the
-      `add_case_status_to_case` ledger entry (RSH-08-004).
-    adr:
-    - ADR-0122
-  - id: RSH-05-019
-    priority: MUST
-    kind: protocol
-    statement: >-
-      When adjudicating the PXA dimension of a received `Add(CaseStatus)`, the receiver MUST
-      accept the asserted PXA state if and only if it is identical to the current PXA state
-      or it is a monotone forward move from the current PXA state. Any other asserted PXA
-      value MUST be refused and the current PXA value carried forward (RSH-05-016).
-    rationale: >
-      PXA state is monotone: bits only advance from unaware to aware (p→P,
-      x→X, a→A) and never reverse. The received-side filter uses the weaker
-      `is_monotonic_pxa_forward()` check — not the strict single-step adjacency
-      `is_valid_pxa_transition()` that applies to local write nodes
-      (CSB-16-002) — because a remote peer may have observed multiple PXA
-      events between messages and report a combined advance that skips
-      intermediate steps. Applying the strict check would refuse a valid
-      multi-step advance from a peer that simply missed delivering earlier
-      messages.
-    verification: >
-      Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py`
-      confirm that `FilterCsPxaDimensionNode` accepts PXA states that satisfy
-      `is_monotonic_pxa_forward()` or are identical to the current PXA state,
-      and refuses non-monotone-forward assertions by carrying the current value
-      forward.
-    note: >
-      The predicate is `is_pxa_assertion_acceptable(current_pxa, asserted_pxa)`
-      in `vultron/core/states/cs.py`, applied by `FilterCsPxaDimensionNode` on a
-      received `Add(CaseStatus)` and by `ApplyCaseStatusFromLedgerNode` on the
-      `add_case_status_to_case` ledger entry (RSH-08-004). CSB-16-002 strict
-      single-step adjacency applies only to local write nodes, not to either.
-    stories:
-    - story_2022_045
-    - story_2022_088
-  - id: RSH-05-020
-    priority: MUST
-    kind: protocol
-    statement: >
-      After adjudicating each dimension of a received
-      `Add(ParticipantStatus, CaseParticipant)` independently, the receiver MUST
-      evaluate the cross-machine entailments (RM↔VF and RM↔D per CSB-18-001,
-      VF↔D per CSB-17-001) against the *effective* — post-adjudication — state.
-      For each violated entailment the receiver MUST refuse the dimension whose
-      *asserted* value the sender moved, carrying the participant's current
-      value for it forward (RSH-05-002), and MUST NOT report as refused a
-      dimension the sender omitted or restated unchanged. The receiver MUST
-      evaluate the same entailment set the emit path evaluates.
-    rationale: >
-      Per-dimension adjudication cannot see a claim that is impossible only in
-      combination: a fix that is ready or deployed entails a report the
-      participant has already accepted, and a deployed fix entails a ready one.
-      Before this requirement the receive path composed only VF↔D, so an
-      assertion the actor would have refused to *emit* was accepted, recorded,
-      hash-chained and replicated to every participant when it arrived from a
-      peer instead (ISSUE-2906).
-      Refusing the dimension that *moved* is what makes the refusal effective
-      rather than cosmetic. VF↔D constrains a pair, so either side can be the
-      offending claim; refusing the incumbent side carries its value straight
-      back, which leaves the impossible combination recorded while reporting a
-      refusal that changed nothing.
-      Evaluating against the effective state matters for the `vf`→`d` chain: a
-      refused or carried-forward `vf` must not license the `d` the sender paired
-      it with (ISSUE-2893). It is not a tightening for `rm` — `rm` is refused
-      only when the asserted value is not a forward move, so the carried value
-      always ranks at or above the asserted one on the RM progress scale, and
-      `RM_STATES_CONSISTENT_WITH_FIX` is exactly the top of that scale.
-      Requiring one shared evaluator rather than two equivalent ones is what
-      keeps the emit and receive paths from silently diverging again.
-      This is narrower than refusing a multi-step VF or D advance, which remains
-      legal on the received path (CSB-16-001): the entailments refuse claims
-      that no sequence of events could produce, not claims that skipped an
-      intermediate report.
-    verification: >
-      Unit tests in
-      `test/core/behaviors/status/test_partial_accept_participant_status.py`
-      confirm that `vf=VF` and `d=D` asserted alongside a pre-acceptance
-      effective `rm` are each refused with the current value carried forward;
-      that the same values are accepted once `rm` has reached acceptance; that a
-      VF↔D violation refuses the side that moved, so an asserted `vf` is refused
-      rather than an incumbent `d` carried straight back; that a dimension the
-      sender omitted is never named as refused; that a refusal retiring one
-      violation does not trigger a second on a stale one; that a dimension
-      already refused upstream is not named twice; and that the refusal stays
-      per-dimension. An end-to-end test runs the full tree and confirms the
-      refused value does not reach the committed `payloadSnapshot`.
-    note: >
-      Implemented by `_adjudicate_composite_state_entailments()` in
-      `vultron/core/behaviors/status/nodes/_adjudication.py`. The three rules
-      are composed by `composite_state_violations()` in
-      `vultron/core/states/composite_state_invariants.py`, which is also what
-      `ValidateTriggerTransitionsNode._validate_entailments` calls on the emit
-      path — the shared evaluator this requirement mandates. The shared
-      evaluator reports the candidate dimensions each rule can disqualify, in
-      preference order; choosing among them is the receive path's job, because
-      the emit path refuses the whole snapshot and needs no choice.
-
-      The pass re-evaluates after each refusal rather than acting on a single
-      sweep of the violation list: a refusal changes the effective state and can
-      retire a violation reported alongside it, and acting on the stale entry
-      would refuse a second dimension for a contradiction that no longer exists.
-      Only `vf` and `d` are refusable and neither is refused twice, so the loop
-      terminates.
-
-      The guarantee is conditional: if the participant's *current* state
-      satisfies the entailments, so does the recorded state. When the incumbent
-      state is already impossible no per-dimension refusal can repair it, since
-      every carry-forward writes the offending value back; that case is logged
-      and left alone. It is reachable only through a replica that diverged
-      from the ledger, since the replica-apply path copies each status as
-      carried (CM-23-016, ISSUE-3009).
-
-      A `None` dimension is absent, not at its initial state (ADR-0075), so no
-      entailment applies through it — a non-VENDOR participant asserting `d=D`
-      is unconstrained by VF↔D.
-
-      The RM↔VF and RM↔D halves are sound but not complete, and deliberately so.
-      Their real constraint is that the actor passed through `RM.ACCEPTED` at
-      some point, which a single snapshot cannot establish:
-      `RM_STATES_CONSISTENT_WITH_FIX` is the set of states reachable from
-      `ACCEPTED`, and `DEFERRED` and `CLOSED` are each reachable without it too.
-      Tightening this needs the participant's recorded RM *history* rather than a
-      better predicate over the latest value, and would have to keep accepting a
-      peer that advances through acceptance and reports fix readiness in one
-      message (CSB-16-001). ISSUE-3015 records the analysis.
-
-      The replica-apply path (`ApplyParticipantStatusFromLedgerNode`) copies
-      the entry's status (CM-23-016) and faults on impossible content
-      (RSH-05-021).
-    relationships:
-    - rel_type: refines
-      spec_id: RSH-05-001
-    stories:
-    - story_2022_045
-    - story_2022_088
-  - id: RSH-05-021
-    priority: MUST
-    kind: protocol
-    verification: >-
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceTreeEmitImpossibleStateFault::test_impossible_composite_state_emits_fault_and_blocks_persist`
-      confirms an entailment violation blocks the status update and emits
-      `Create(ProcessingFault)` to the CASE_MANAGER.
-    statement: >-
-      When applying an `Announce(CaseLedgerEntry)` whose entry adds a participant status, a
-      receiver MUST evaluate the composite-state entailments (RM↔VF and RM↔D per CSB-18-001,
-      VF↔D per CSB-17-001) against the effective participant state from the entry. If any
-      entailment is violated the receiver MUST NOT apply the status update, and MUST send
-      `Create(ProcessingFault)` with failure class `StatusAssertionRefused/ImpossibleState`
-      to the CASE_MANAGER.
-    rationale: >
-      A CASE_MANAGER that is buggy or hostile can commit an entry whose participant
-      state violates `composite_state_violations()` — the same entailment set
-      the emit and receive paths already enforce. Without this check, every
-      replica silently adopts an impossible combination: the same actor would
-      have refused to *emit* the value, yet accepts it when the CASE_MANAGER
-      broadcasts it. Silence is the specific problem: the contradiction is
-      only discoverable by reading devlogs.
-      Using `Create(ProcessingFault)` rather than `Reject(CaseLedgerEntry)`
-      avoids triggering a CASE_MANAGER replay loop — the committed entry cannot
-      be uncommitted, so replaying it would produce the same refusal
-      indefinitely. `ProcessingFault` is the right signal for semantic
-      invalidity (ASK-07-001). The failure class
-      `StatusAssertionRefused/ImpossibleState` is a URI sub-path of
-      `StatusAssertionRefused`, so a consumer that understands the parent class
-      recognises this as a narrower form of the same fault.
-      The tree-structural guarantee (rather than node-level fault emission) keeps
-      the apply node a pure domain check (returns FAILURE on violation) and
-      the emission a composable side-effect, consistent with protocol-significant
-      behavior living in the tree (BTND-01).
-    note: >
-      `composite_state_violations()` in `vultron/core/states/composite_state_invariants.py`
-      is the shared evaluator; both the emit path
-      (`ValidateTriggerTransitionsNode._validate_entailments`) and the receive
-      path (`_adjudicate_composite_state_entailments`) already call it.
-      The tree change wraps the inner Sequence in a Selector whose fallback
-      node emits `Create(ProcessingFault)` and then returns FAILURE, so the
-      overall Sequence still fails and `PersistReceivedLogEntry` is blocked
-      (SYNC-12-001 is preserved).
-      The failure class constant
-      `VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE` lives in
-      `vultron/core/models/fault_classes.py` alongside
-      `VULTRON_FAILURE_STATUS_ASSERTION_REFUSED`.
-      The check reads the entry's status as carried; a replica carries none of
-      its own values over it (CM-23-016).
-    relationships:
-    - rel_type: refines
-      spec_id: RSH-05-001
-    lint_suppress:
-    - missing_story_reference
-  - id: RSH-05-024
-    priority: MUST
-    kind: project
-    statement: >-
-      In this codebase the fault RSH-05-021 requires MUST be emitted by the failure path of
-      the behavior tree that applies the entry (a tree-structural guarantee), not as a side
-      effect inside the node that applies the status.
-    rationale: >-
-      How this codebase meets RSH-05-021; split from it so RSH-05-021 states only what other
-      participants observe (MS-12-010).
-    verification: >-
-      Inspection of `vultron/core/behaviors/sync/announce_tree.py` confirms the fault is
-      emitted by `EmitImpossibleStateFaultNode`, the fallback child of the `ApplyOrFault`
-      Selector whose first child is `ApplyParticipantStatusFromLedgerNode`, so the apply
-      node only returns FAILURE and the tree supplies the emission.
-    relationships:
-    - rel_type: implements
-      spec_id: RSH-05-021
-  - id: RSH-05-022
-    priority: MUST
-    kind: project
-    statement: >
-      When `FilterParticipantStatusDimensionsNode` returns `FAILURE` for an
-      `Add(ParticipantStatus, CaseParticipant)` (i.e. the assertion is wholly
-      refused because the filtered status is indistinguishable from the
-      participant's current state), the inbox processing pipeline MUST surface
-      this as a `rejected` `InboxOutcome` rather than `202 Accepted / processed`.
-      Senders MUST be able to distinguish total refusal (`rejected`) from
-      partial accept (`processed`).
-    rationale: >
-      Before ISSUE-3199, a wholly-refused status assertion silently returned
-      `202 Accepted / processed` because `AddParticipantStatusToParticipantReceivedUseCase.execute()`
-      did not raise on BT FAILURE, so the inbox `DispatchNode` saw no exception
-      and wrote `"processed"` to `KEY_OUTCOME_STATUS`. Senders had no way to
-      distinguish a fully-refused assertion from one that was partially accepted.
-      This is the sender-feedback diagnostic gap identified in ISSUE-2255.
-    verification: >
-      Unit tests confirm that `AddParticipantStatusToParticipantReceivedUseCase.execute()`
-      returns `HandlerResult.refused` when `FilterParticipantStatusDimensionsNode`
-      returns FAILURE, which `DispatchNode` maps to a `rejected` `InboxOutcome`
-      (HP-01-003, ADR-0095).
-    note: >
-      A withheld adoption at `StatusAdoptionGate` does NOT produce `rejected`:
-      the claim is recorded on the participant and only its adoption as
-      canonical is withheld, which is not a refusal of the assertion content,
-      so the handler returns `SKIPPED` and emits no fault. A sender that is not
-      a case participant is refused like any other untrusted sender
-      (HP-01-003). `_filter_node_wholly_refused()` and `_adoption_gate_blocked()`
-      in `vultron/core/use_cases/received/status.py` tell these cases apart by
-      walking the tree after execution.
-    relationships:
-    - rel_type: extends
-      spec_id: RSH-05-005
 
 - id: RSH-06
   title: RM Anomaly Notification Policy (non-adjacent jumps and backward regressions)
@@ -1008,11 +401,12 @@ groups:
       non-adjacent forward jump would leave the receiver's replica permanently
       wrong, because the sender will not resend intermediate transitions it
       never reported. Liberal accept (ISSUE-2229): accept everything acceptable.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py`
-      confirm a non-adjacent forward RM jump is accepted (not refused) without any dimension being discarded.
+    verification: Unit tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
+      confirm a non-adjacent forward RM jump is accepted (not refused).
     note: >
-      Implemented by `FilterParticipantStatusDimensionsNode._rm_is_acceptable()`
-      in the production path and by `ValidateRMTransitionNode` in the standalone
+      Implemented by `participant_status_refusals()` in
+      `vultron/core/behaviors/status/nodes/participant_status_acceptance.py` in
+      the production path and by `ValidateRMTransitionNode` in the standalone
       path. Both paths MUST accept with the same policy.
     stories:
     - story_2022_074
@@ -1024,16 +418,14 @@ groups:
       A CASE_MANAGER receiving an `Add(ParticipantStatus, CaseParticipant)` that
       carries a backward RM regression (i.e. the reported `rm` state is earlier
       on the RM progress scale than the receiver's current value) MUST refuse
-      the `rm` dimension and carry the current value forward (RSH-05-002).
+      the whole update (RSH-09-001, RSH-09-003).
     rationale: >
       RM is monotonic: a sender cannot un-validate, un-accept, or un-close a
       report. A backward assertion indicates either a protocol error or a
       divergent replica state; neither should update the receiver's record.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm a backward
-      RM regression refuses only the `rm` dimension while leaving other dimensions unaffected.
-    note: >
-      The refusal is per-dimension only (RSH-05-001). Other dimensions of the
-      same status snapshot are still adjudicated and accepted if valid.
+    verification: Unit tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
+      confirm a backward RM regression refuses the whole status, its forward
+      dimensions included.
     stories:
     - story_2022_074
     - story_2022_088
@@ -1049,8 +441,9 @@ groups:
       Because CVD is inherently asynchronous, protocol anomalies are detected
       at receipt time (t₁ > t₀ when the event occurred). Silent handling makes
       diagnosis impossible for both parties and breaks protocol observability.
-    verification: Unit tests in `test/core/behaviors/status/test_partial_accept_participant_status.py` confirm both anomaly
-      types emit a WARNING log naming the sender, the before/after `rm` states, and the anomaly type.
+    verification: Unit tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
+      confirm both anomaly types emit a WARNING log naming the sender, the
+      before/after `rm` states, and the anomaly type.
     stories:
     - story_2022_074
     - story_2022_077
@@ -1061,10 +454,9 @@ groups:
       On the production `add_participant_status_tree` path (where a case context
       is available), the CASE_MANAGER SHOULD record a note on the case when an
       RM anomaly is detected, requesting the sender to clarify the path it took
-      between the two observed states. This holds for a backward regression
-      that leaves nothing else of the declaration acceptable, so the whole
-      declaration is refused, as well as for an anomaly inside a declaration
-      that is accepted in whole or in part. The note is the CASE_MANAGER's own
+      between the two observed states. This holds whether the declaration
+      that carries the anomaly is accepted or refused. The note is the
+      CASE_MANAGER's own
       act (CLP-10-001): it commits the `Add(Note, VulnerabilityCase)` carrying
       the note inline as an `add_note_to_case` entry and attaches the note to
       the case, and the sender learns of it from the entry's
@@ -1083,10 +475,10 @@ groups:
       production `add_participant_status_tree` path (case context available), the
       CASE_MANAGER commits one `add_note_to_case` entry and attaches its note to
       the case: once per received activity for an accepted-with-anomaly
-      declaration (manager-effects stage) and once for a wholly-refused backward
+      declaration (manager-effects stage) and once for a refused backward
       regression (refusal-effects stage, CLP-10-022). Both paths are asserted —
       the accepted path via the parametrised shared-RM-table tests (covering every
-      declared RM state) and the refusal path via dedicated wholly-refused
+      declared RM state) and the refusal path via dedicated refused
       backward regression tests that confirm the note is the only entry
       committed. `test/core/use_cases/received/test_case_manager_note_replay.py`
       delivers what the CASE_MANAGER queued to the sender's replica and asserts
@@ -1094,8 +486,7 @@ groups:
     note: >
       Implemented by `EmitRMGapNoteNode`, a `_CommitCaseManagerNoteBase`: in the
       CASE_MANAGER-gated effects of `add_participant_status_tree` for an
-      accepted declaration, and in its `refusal_effects` for a wholly refused
-      one, which the shared factory runs only on that refusal, at the
+      accepted declaration, and in its `refusal_effects` for a refused one, which the shared factory runs only on that refusal, at the
       CASE_MANAGER, once per received activity (CLP-10-022). Every active
       participant sees the note, not only the sender. An invitee whose
       full-case reply is refused is not yet active, so the fan-out does not
@@ -1129,8 +520,8 @@ groups:
     kind: protocol
     statement: >-
       The RM acceptance rule of RSH-06-001 through RSH-06-005 (accept a forward move
-      including a non-adjacent one, refuse a backward move and carry the current value
-      forward, log the anomaly, and post the clarification note where a case context exists)
+      including a non-adjacent one, refuse a backward move and keep the recorded state,
+      log the anomaly, and post the clarification note where a case context exists)
       MUST be applied by the CASE_MANAGER to every received write of a participant's RM
       state, whichever wire activity carried the declaration. This includes the report
       activities `Accept(Offer(VulnerabilityReport))` and
@@ -1448,3 +839,268 @@ groups:
       spec_id: RSH-08-003
     adr:
     - ADR-0124
+- id: RSH-09
+  title: Whole Accept or Reject of a Received Status
+  description: >
+    A received `Add(ParticipantStatus, CaseParticipant)` or `Add(CaseStatus,
+    VulnerabilityCase)` states a whole status, so the CASE_MANAGER accepts it
+    as sent or refuses all of it. It never records a status the sender did
+    not send. Derived from ADR-0107 detail 5 and ISSUE-3741.
+  specs:
+  - id: RSH-09-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      A CASE_MANAGER receiving an `Add(ParticipantStatus, CaseParticipant)`
+      MUST either accept the status whole, recording exactly the status it
+      received, or refuse the whole update. It MUST NOT record, commit or
+      replicate a status that differs from the one received, and MUST NOT
+      fill a dimension the sender omitted with a value of its own.
+    rationale: >
+      The case ledger records what each participant asserted, and every
+      replica copies what it records (CLP-07-013, CM-23-016). A status
+      rewritten before it is recorded is one nobody sent: the ledger could
+      then neither show what the sender claimed nor let a replica verify it
+      (ADR-0107). An omitted dimension is absent from the status the sender
+      sent (ADR-0075), so recording it as absent is recording the status as
+      sent.
+    verification: >
+      Tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
+      confirm an accepted status is appended and committed as received, an
+      omitted dimension is recorded as omitted, and a refused one appends
+      nothing and commits nothing;
+      `test/core/behaviors/case/nodes/test_lifecycle.py` confirms the ledger
+      commit records the received object unchanged.
+    stories:
+    - story_2022_045
+    - story_2022_088
+    adr:
+    - ADR-0107
+  - id: RSH-09-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      When any acceptance rule refuses a received status, the CASE_MANAGER
+      MUST refuse the whole update: it appends nothing, commits no ledger
+      entry for it, adopts nothing from it, and its refusal notice to the
+      sender MUST name every refused dimension and the reason for each.
+    rationale: >
+      A sender can correct an update only if it learns everything that is
+      wrong with it in one answer (EH-07-001). Naming one reason at a time
+      would cost a round trip per mistake.
+    verification: >
+      Tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
+      and `test/core/use_cases/received/test_refusal_notice.py` confirm a
+      refused status commits no entry and that the refusal notice names every
+      refused dimension with its reason.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-09-001
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: RSH-09-003
+    priority: MUST
+    kind: protocol
+    statement: >
+      A received `ParticipantStatus` MUST be refused when any of these holds:
+      the participant's recorded RM state is `CLOSED`, which is terminal; its
+      RM state moves backwards (RSH-06-002); it states a fix-readiness value
+      but the sender does not hold the VENDOR role, or a deployment value but
+      the sender does not hold the DEPLOYER role; a stated fix-readiness,
+      deployment or public-state (P/X/A) value is neither the participant's
+      recorded value nor a forward move from it. A dimension the sender omits
+      is not refused. The embargo state the status embeds is not judged
+      against the case: the case derives EM from its embargo register.
+    rationale: >
+      Each rule refuses a claim no sequence of events could produce from the
+      participant's recorded state. A non-adjacent forward move is accepted
+      (RSH-06-001, CSB-16-001): a peer may have advanced several steps between
+      messages. EM belongs to the embargo register (ADR-0122), and the report's
+      P/X/A reaches the case only through the adoption gate (RSH-01-003).
+    verification: >
+      Tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
+      confirm each rule refuses the whole status, that an omitted dimension is
+      not refused, that a non-adjacent forward move is accepted, and that a
+      status from a participant already at `CLOSED` is refused.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-09-001
+    stories:
+    - story_2022_088
+    - story_2022_107
+  - id: RSH-09-004
+    priority: MUST
+    kind: protocol
+    statement: >
+      A CASE_MANAGER MUST evaluate the cross-machine entailments (RM↔VF and
+      RM↔D per CSB-18-001, VF↔D per CSB-17-001) against a received
+      `ParticipantStatus` as received, and MUST refuse the whole update when
+      any is violated. It MUST evaluate the same entailment set the emit path
+      evaluates.
+    rationale: >
+      Each dimension can be acceptable alone while the combination is
+      impossible: a fix that is ready or deployed entails a report the
+      participant has accepted, and a deployed fix entails a ready one. A
+      replica refuses to apply such a status (RSH-09-006), so recording it
+      would commit an entry no replica can apply. One shared evaluator keeps
+      the emit and receive paths from diverging (ISSUE-2906).
+    verification: >
+      Tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
+      confirm a status stating a ready or deployed fix with a pre-acceptance RM,
+      or a deployed fix that is not ready, is refused whole; that the same
+      values are accepted once RM has reached acceptance; and that a batched
+      advance through acceptance in one message is accepted.
+    note: >
+      The evaluator is `composite_state_violations()` in
+      `vultron/core/states/composite_state_invariants.py`, which the emit path
+      reaches through `participant_transition_violations()` and the receive
+      path calls from `participant_status_refusals()` in
+      `vultron/core/behaviors/status/nodes/participant_status_acceptance.py`.
+
+      A `None` dimension is absent, not at its initial state (ADR-0075), so no
+      entailment applies through it.
+
+      The RM↔VF and RM↔D halves are sound but not complete. Their real
+      constraint is that the actor passed through `RM.ACCEPTED` at some point,
+      which one snapshot cannot establish: `RM_STATES_CONSISTENT_WITH_FIX` is
+      the set of states reachable from `ACCEPTED`, and `DEFERRED` and `CLOSED`
+      are each reachable without it too. Tightening this needs the
+      participant's recorded RM history, and would have to keep accepting a
+      peer that advances through acceptance and reports fix readiness in one
+      message (CSB-16-001). ISSUE-3015 records the analysis.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-09-001
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: RSH-09-005
+    priority: MUST
+    kind: protocol
+    statement: >
+      A CASE_MANAGER receiving an `Add(CaseStatus, VulnerabilityCase)` MUST
+      accept the status whole only when its EM state is identical to the EM
+      state the case derives from its embargo register and its P/X/A state is
+      the case's or a monotone forward move from it, and MUST otherwise refuse
+      the whole update.
+    rationale: >
+      EM changes only through the embargo messages that cause each register
+      step (ADR-0122), so a status can report EM but never move it. P/X/A bits
+      only advance, and a remote peer may report a combined advance that skips
+      intermediate steps, so the received path uses the monotone check rather
+      than the single-step adjacency that applies to local writes (CSB-16-002).
+      A status partly accepted would record one nobody sent (RSH-09-001).
+    verification: >
+      Tests in `test/core/behaviors/status/test_add_case_status_bt.py` confirm
+      a status with the case's EM and a forward P/X/A is accepted, and that a
+      status whose EM differs from the case's or whose P/X/A regresses is
+      refused whole with no ledger entry committed.
+    note: >
+      The predicates are `is_em_assertion_acceptable()` in
+      `vultron/core/states/em.py` and `is_pxa_assertion_acceptable()` in
+      `vultron/core/states/cs.py`, applied by `CheckCaseStatusAcceptableNode`.
+      `EmitCaseStatusUpdateNode` applies the same P/X/A predicate when it
+      adopts a report's P/X/A into the case (RSH-01-003). RSH-04-005 refuses an
+      `Add(CaseStatus)` sent to the CASE_MANAGER, so the receiver this
+      requirement names goes away when #4851 implements it; #4851 rescopes or
+      retires this requirement.
+    stories:
+    - story_2022_045
+    - story_2022_088
+    adr:
+    - ADR-0107
+    - ADR-0122
+  - id: RSH-09-006
+    priority: MUST
+    kind: protocol
+    statement: >
+      When applying an `Announce(CaseLedgerEntry)` whose entry adds a
+      participant status, a receiver MUST evaluate the composite-state
+      entailments (RM↔VF and RM↔D per CSB-18-001, VF↔D per CSB-17-001)
+      against the participant state the entry carries. If any entailment is
+      violated the receiver MUST NOT apply the status update, and MUST send
+      `Create(ProcessingFault)` with failure class
+      `StatusAssertionRefused/ImpossibleState` to the CASE_MANAGER.
+    rationale: >
+      A CASE_MANAGER that is buggy or hostile can commit an entry whose
+      participant state violates the entailments the emit and receive paths
+      enforce (RSH-09-004). Without this check every replica silently adopts an
+      impossible combination it would have refused to emit. A
+      `Create(ProcessingFault)` rather than a `Reject(CaseLedgerEntry)` avoids a
+      CASE_MANAGER replay loop: the committed entry cannot be uncommitted, so
+      replaying it would be refused forever (ASK-07-001).
+    verification: >
+      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceTreeEmitImpossibleStateFault::test_impossible_composite_state_emits_fault_and_blocks_persist`
+      confirms an entailment violation blocks the status update and emits
+      `Create(ProcessingFault)` to the CASE_MANAGER.
+    note: >
+      The failure class `StatusAssertionRefused/ImpossibleState` is a URI
+      sub-path of `StatusAssertionRefused`, so a consumer that understands the
+      parent class recognises this as a narrower form of the same fault. Its
+      constant `VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE`
+      lives in `vultron/core/models/fault_classes.py`.
+
+      `composite_state_violations()` in
+      `vultron/core/states/composite_state_invariants.py` is the shared
+      evaluator the emit, receive and replica-apply paths call. The tree wraps
+      the apply step in a Selector whose fallback node emits
+      `Create(ProcessingFault)` and then returns FAILURE, so the overall
+      Sequence still fails and `PersistReceivedLogEntry` is blocked
+      (SYNC-12-001 is preserved). The check reads the entry's status as
+      carried; a replica carries none of its own values over it (CM-23-016).
+    stories:
+    - story_2022_045
+    - story_2022_106
+  - id: RSH-09-007
+    priority: MUST
+    kind: project
+    statement: >
+      In this codebase the fault RSH-09-006 requires MUST be emitted by the
+      failure path of the behavior tree that applies the entry (a
+      tree-structural guarantee), not as a side effect inside the node that
+      applies the status.
+    rationale: >
+      How this codebase meets RSH-09-006; split from it so RSH-09-006 states
+      only what other participants observe (MS-12-010). It keeps the apply
+      node a pure domain check that returns FAILURE on violation and the
+      emission a composable side-effect, consistent with protocol-significant
+      behavior living in the tree (BTND-01).
+    verification: >
+      Inspection of `vultron/core/behaviors/sync/announce_tree.py` confirms the
+      fault is emitted by `EmitImpossibleStateFaultNode`, the fallback child of
+      the `ApplyOrFault` Selector whose first child is
+      `ApplyParticipantStatusFromLedgerNode`, so the apply node only returns
+      FAILURE and the tree supplies the emission.
+    relationships:
+    - rel_type: implements
+      spec_id: RSH-09-006
+  - id: RSH-09-008
+    priority: MUST
+    kind: project
+    statement: >
+      When `CheckParticipantStatusAcceptableNode` refuses an
+      `Add(ParticipantStatus, CaseParticipant)`, the received use case MUST
+      return `HandlerResult.refused`, which the inbox maps to a `rejected`
+      `InboxOutcome` rather than `202 Accepted / processed`.
+    rationale: >
+      Before ISSUE-3199, a refused status assertion returned
+      `202 Accepted / processed` because the use case did not report the BT
+      FAILURE as a refusal, so senders could not tell a refused update from an
+      accepted one (ISSUE-2255).
+    verification: >
+      Unit tests in `test/core/use_cases/received/test_status.py` confirm that
+      `AddParticipantStatusToParticipantReceivedUseCase.execute()` returns
+      `HandlerResult.refused` when `CheckParticipantStatusAcceptableNode`
+      returns FAILURE, which `DispatchNode` maps to a `rejected` `InboxOutcome`
+      (HP-01-003, ADR-0095).
+    note: >
+      A withheld adoption at `StatusAdoptionGate` does NOT produce `rejected`:
+      the status is recorded on the participant and only its adoption as
+      canonical is withheld, so the handler returns `SKIPPED` and emits no
+      fault. `_status_refused()` and `_adoption_gate_blocked()` in
+      `vultron/core/use_cases/received/status.py` tell these cases apart by
+      walking the tree after execution.
+    relationships:
+    - rel_type: implements
+      spec_id: RSH-09-002

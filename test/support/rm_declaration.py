@@ -17,7 +17,7 @@
 
 The CASE_MANAGER applies one RM acceptance rule to every received declaration,
 whichever wire activity carried it (RSH-06-006).  The ``Add(ParticipantStatus)``
-tests (``test/core/behaviors/status/test_partial_accept_participant_status.py``),
+tests (``test/core/behaviors/status/test_participant_status_acceptance.py``),
 the activity-typed handler tests
 (``test/core/behaviors/report/test_rm_declaration_adjudication.py``) and the
 full-case Invite reply tests
@@ -38,7 +38,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
+from vultron.core.behaviors.status.nodes.rm_rule import BB_RM_ANOMALY
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry

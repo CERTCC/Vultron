@@ -95,10 +95,10 @@ How to evaluate:
 
 `CreateParticipantStatusNode` is the sole `ParticipantStatus` writer
 (ADR-0089) and validates the whole rule set itself, because some call sites
-reach it with no upstream guard (BTND-10-003). Where a guard exists it is
-fail-closed on the trigger path (`ValidateTriggerTransitionsNode`) and
-partial-accept on the received path (`FilterParticipantStatusDimensionsNode` +
-`ValidateRMTransitionNode`); the difference is deliberate (ADR-0061; see
+reach it with no upstream guard (BTND-10-003). Where a guard exists it refuses
+the whole status on both paths: `ValidateTriggerTransitionsNode` on the trigger
+path, `CheckParticipantStatusAcceptableNode` on the received path, which admits
+non-adjacent forward moves the trigger path does not (RSH-09-003; see
 [domain-validation.md](domain-validation.md)). The receive path and replica-apply
 path are the only other `ParticipantStatus` write paths.
 `test/architecture/test_vfd_rm_pxa_write_sites.py` fails on any new

@@ -545,6 +545,7 @@ def _notice_for(net: LedgerNetwork, refused_id: str) -> dict[str, Any]:
 @pytest.mark.spec("CLP-02-005")
 @pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("RSH-06-004")
+@pytest.mark.spec("RSH-09-002")
 def test_a_refused_rm_regression_gets_the_notice_and_the_note():
     """The RSH-06-004 note is sent alongside the notice, not instead of it."""
     from vultron.core.states.em import EM
@@ -564,7 +565,8 @@ def test_a_refused_rm_regression_gets_the_notice_and_the_note():
     refused_id = _notices(net, MANAGER, BYSTANDER)[0].in_reply_to
     notice = _notice_for(net, cast(str, refused_id))
     assert notice["object"]["type"] == "Add"
-    assert "refused in full" in str(notice["summary"])
+    # The notice names the refused dimension and why (RSH-09-002).
+    assert "rm: ACCEPTED → VALID moves RM backwards" in str(notice["summary"])
     assert any("backward" in (n.content or "") for n in _notes(net, MANAGER))
     # The notice is the one answer: no ProcessingFault as well (the user's
     # decision on #4756).

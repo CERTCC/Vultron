@@ -123,7 +123,8 @@ REJECTION_VALIDATORS = {
     "CheckCaseStatusIdempotencyNode",
     "CheckCsEphemeralStateNode",
     "CheckCsHistoryPrefixNode",
-    "FinalizeCsFilterNode",
+    "CheckParticipantStatusAcceptableNode",
+    "CheckCaseStatusAcceptableNode",
     "RequireCaseForReport",
 }
 

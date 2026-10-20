@@ -167,7 +167,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0058 Gate Demo Scenario Steps on Causal Preconditions, Not Temporal Order](0058-causal-gating-in-demo-scenarios.md)
 - [ADR-0059 Buffer Pre-Genesis `Announce(CaseLedgerEntry)` and Drain on Case Seed](0059-buffer-pre-genesis-ledger-entries.md)
 - [ADR-0060 Re-express the Legacy Case-State Invariants and Keep the Hypercube as Reference](0060-re-express-legacy-cs-invariants.md)
-- [ADR-0061 Adjudicate Received `ParticipantStatus` Per Dimension, Not as a Unit](0061-per-dimension-partial-accept.md)
 - [ADR-0063 Render Core Objects to Wire JSON Through a Driven Port; Remove `alias_generator` From All Core-Branch Types](0063-wire-rendering-port-for-core-objects.md) — partially superseded by 0099-one-object-model-as2-is-a-serialization.md
 - [ADR-0064 Enforce Post-Construction Type Safety on the Core Branch Only, in Three Ratcheted Steps](0064-core-branch-validate-assignment.md)
 - [ADR-0065 Carry the Embargo Invite RSVP Deadline on `Invite.end_time`](0065-embargo-invite-rsvp-deadline.md)
@@ -209,7 +208,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0104 The Interactive Demo UI Is a React/ReactFlow Operator-Side Ledger Watcher, Fed by a Prototype-Only SSE Stream](0104-interactive-demo-ui-live-ledger-watcher.md)
 - [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md) *(provisional)*
 - [ADR-0106 Version Each Machine-Facing Interface Independently of the Release Tag](0106-versioning-machine-facing-interfaces.md) *(provisional)* — partially supersedes 0069-vultron-namespace-uri.md
-- [ADR-0107 A Case Ledger Entry Is a Postmark on the Received Envelope; References Resolve by Dereference](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md) *(provisional)*
+- [ADR-0107 A Case Ledger Entry Is a Postmark on the Received Envelope; References Resolve by Dereference](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md) *(provisional)* — supersedes 0061-per-dimension-partial-accept.md
 - [ADR-0108 One Move, One Mover: Case State Flows Through the Case Manager and the Ledger, Whatever Message Carried It](0108-one-move-one-mover-case-state-flows-through-the-case-manager-and-the-ledger.md)
 - [ADR-0109 A Container Emits Only as Actors It Hosts; a Participant Asks the CaseActor to Act](0109-a-container-emits-only-as-actors-it-hosts.md) — partially supersedes 0021-caseactor-inbox-routing-canonical-ledger.md, 0042-http-only-inter-actor-delivery.md, 0073-per-actor-storage-isolation.md
 - [ADR-0110 The Trigger Driving Port Is One `trigger()` Method over a Verb Registry, Returning a Typed Result Bound to the Request](0110-trigger-dispatcher-port-over-verb-registry.md)
@@ -271,6 +270,7 @@ Each is listed here with a forward link to its replacement.
 - [ADR-0015 Create VulnerabilityCase at Report Receipt (RM.RECEIVED)](archived/0015-create-case-at-report-receipt.md) — superseded by 0041-caseactor-authoritative-case-initialization.md
 - [ADR-0017 Domain/Wire Object Separation: Shared-Base, Two-Branch Hierarchy](archived/0017-domain-wire-object-separation.md) — superseded by 0099-one-object-model-as2-is-a-serialization.md
 - [ADR-0056 `embargo_adherence` Is a Computed Property Derived from PEC State](archived/0056-embargo-adherence-computed-field.md) — superseded by 0122-per-embargo-participant-consent.md
+- [ADR-0061 Adjudicate Received `ParticipantStatus` Per Dimension, Not as a Unit](archived/0061-per-dimension-partial-accept.md) — superseded by 0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md
 - [ADR-0062 Normalise Wire → Core at Ingress, and Enforce It Again at the Persistence Boundary](archived/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md) — superseded by 0082-wire-core-boundary-pairing-registry.md
 - [ADR-0070 Reuse `validate-report` for Invited Actors; Derive `VultronOfferRecord` from Ledger Backfill](archived/0070-invited-actor-rm-triage-via-ledger-backfill.md) — superseded by 0121-joined-participant-judges-the-case-by-full-case-invite.md
 - [ADR-0082 Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys](archived/0082-wire-core-boundary-pairing-registry.md) — superseded by 0099-one-object-model-as2-is-a-serialization.md; supersedes 0062-normalise-wire-to-core-at-both-ingress-and-persistence.md

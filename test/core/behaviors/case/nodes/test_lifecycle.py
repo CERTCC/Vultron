@@ -25,9 +25,6 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
-from vultron.core.behaviors.case.nodes.lifecycle import (
-    BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
-)
 from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronService
@@ -438,111 +435,81 @@ def test_inner_commit_bt_failure_propagates(bridge):
 
 
 # ---------------------------------------------------------------------------
-# AC-2, AC-3, AC-4: ledger_payload_object_override producer/consumer contract
+# RSH-09-001: the commit records the received object; nothing patches it
 # ---------------------------------------------------------------------------
 
+#: The blackboard key the retired adjudication patch travelled under.
+_RETIRED_OVERRIDE_KEY = "ledger_payload_object_override"
 
-def _run_with_override(
-    bridge: BTBridge,
-    fields: dict,
-    producer_type: str | None,
-    object_id: str = "https://example.org/statuses/status-001",
-) -> Status:
-    """Run CommitCaseLedgerEntryNode with a pre-written ledger override on the blackboard."""
 
-    class _WriteOverride(py_trees.behaviour.Behaviour):
+@pytest.mark.spec("RSH-09-001")
+def test_a_stale_adjudication_patch_on_the_blackboard_changes_nothing(bridge):
+    """A patch left under the retired override key is not merged into the
+    recorded ``object``: a received status is recorded as sent or refused
+    whole, so no guard rewrites what the ledger records (ADR-0107)."""
+    status_id = "https://example.org/statuses/status-001"
+    received_object = {
+        "id": status_id,
+        "type": "ParticipantStatus",
+        "rmState": "RECEIVED",
+    }
+
+    class _WriteStalePatch(py_trees.behaviour.Behaviour):
         def __init__(self):
-            super().__init__(name="_WriteOverride")
+            super().__init__(name="_WriteStalePatch")
 
         def setup(self, **kwargs):
-            self.bb = self.attach_blackboard_client(name="_WriteOverride")
+            self.bb = self.attach_blackboard_client(name="_WriteStalePatch")
             self.bb.register_key(
-                key=BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
-                access=py_trees.common.Access.WRITE,
+                key=_RETIRED_OVERRIDE_KEY, access=py_trees.common.Access.WRITE
             )
 
         def update(self) -> Status:
-            override = {"object_id": object_id, "fields": fields}
-            if producer_type is not None:
-                override["producer_type"] = producer_type
             self.bb.set(
-                BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, override, overwrite=True
+                _RETIRED_OVERRIDE_KEY,
+                {"object_id": status_id, "fields": {"rmState": "VALID"}},
+                overwrite=True,
             )
             return Status.SUCCESS
 
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
     activity = _FakeActivity(
-        activity_id=object_id,
+        activity_id=status_id,
         semantic_type=MessageSemantics.CREATE_CASE,
         activity=_FakeWireActivityWithPayload(
             {
-                "id": object_id,
+                "id": status_id,
                 "type": "Add",
                 "context": CASE_ID,
-                "object": {
-                    "id": object_id,
-                    "type": "ParticipantStatus",
-                    "rmState": "RECEIVED",
-                },
+                "object": dict(received_object),
             }
         ),
     )
     seq = py_trees.composites.Sequence(
-        name="TestOverrideSeq",
+        name="StalePatchSeq",
         memory=False,
-        children=[_WriteOverride(), node],
+        children=[
+            _WriteStalePatch(),
+            CommitCaseLedgerEntryNode(case_id=CASE_ID),
+        ],
     )
-    with patch(_INNER_BRIDGE_PATH) as mock_bridge_cls:
+    with (
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+        patch(
+            "vultron.core.behaviors.case.nodes.lifecycle"
+            ".create_commit_log_entry_tree"
+        ) as mock_tree,
+    ):
         mock_bridge_cls.return_value.execute_with_setup.return_value = (
             BTExecutionResult(status=Status.SUCCESS)
         )
         result = bridge.execute_with_setup(
             tree=seq, actor_id=ACTOR_ID, activity=activity
         )
-    return result.status
 
-
-class TestPayloadObjectOverrideContract:
-    """AC-2, AC-3, AC-4: producer/consumer contract for ledger_payload_object_override."""
-
-    def test_hard_fail_on_unrecognized_alias(self, bridge):
-        """AC-2/AC-4a: FAILURE when fields names a key outside the patchable set.
-
-        The patchable set is
-        :data:`vultron.core.behaviors.ledger_patch.PATCH_KEY_TWINS` (RSH-05-013).
-        """
-        status = _run_with_override(
-            bridge,
-            fields={"rmState": "VALID", "unknownAlias": "oops"},
-            producer_type="FilterParticipantStatusDimensionsNode",
-        )
-        assert status == Status.FAILURE
-
-    def test_warning_on_unknown_producer_type(self, bridge, caplog):
-        """AC-3/AC-4b: WARNING logged but commit proceeds when producer_type is unrecognized (RSH-05-014)."""
-        import logging
-
-        with caplog.at_level(logging.WARNING):
-            status = _run_with_override(
-                bridge,
-                fields={"rmState": "VALID"},
-                producer_type="SomeUnknownProducerNode",
-            )
-        assert status == Status.SUCCESS
-        assert any(
-            "unrecognized" in rec.message
-            and "SomeUnknownProducerNode" in rec.message
-            for rec in caplog.records
-        )
-
-    def test_successful_commit_with_valid_fields(self, bridge):
-        """AC-4c: Commit succeeds when both fields and producer_type are valid."""
-        status = _run_with_override(
-            bridge,
-            fields={"rmState": "VALID", "vfState": "Vf"},
-            producer_type="FilterParticipantStatusDimensionsNode",
-        )
-        assert status == Status.SUCCESS
+    assert result.status == Status.SUCCESS
+    assert _RETIRED_OVERRIDE_KEY not in CommitCaseLedgerEntryNode.INPUT_PORTS
+    recorded = mock_tree.call_args.kwargs["payload_snapshot"]
+    assert recorded["object"] == received_object
 
 
 # ---------------------------------------------------------------------------

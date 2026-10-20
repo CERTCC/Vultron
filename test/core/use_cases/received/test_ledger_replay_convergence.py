@@ -455,7 +455,7 @@ def test_a_replica_follows_the_owners_embargo_removal():
 
 
 @pytest.mark.spec("RSH-08-004")
-@pytest.mark.spec("RSH-05-019")
+@pytest.mark.spec("RSH-09-005")
 @pytest.mark.spec("TB-06-007")
 def test_a_replica_follows_a_participants_case_status():
     """Add(CaseStatus) from the bystander reaches the owner's replica as P set."""
@@ -820,7 +820,7 @@ def test_embargo_removal_writes_nothing_at_an_active_replica():
 
 
 @pytest.mark.spec("RSH-08-003")
-@pytest.mark.spec("RSH-05-019")
+@pytest.mark.spec("RSH-09-005")
 @pytest.mark.spec("TB-06-007")
 def test_case_status_writes_nothing_at_a_replica():
     """Add(CaseStatus) delivered straight to a replica appends no status."""

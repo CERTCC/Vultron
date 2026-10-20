@@ -69,7 +69,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa`` state.
        With ``reported_status_id`` set, the ``pxa`` is instead the adopted
        ``ParticipantStatus``'s reported value when it is acceptable from the
-       case's current one (RSH-01-003, RSH-05-019).
+       case's current one (RSH-01-003, RSH-09-005).
     3. Builds the CASE_MANAGER's ``Add(CaseStatus)`` through the
        trigger-activity port and commits its sealed blob as a CaseLedgerEntry
        via ``create_commit_log_entry_tree`` (VM-08-003).
@@ -105,9 +105,9 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
 
         The case does not move on the participant's report until this
         snapshot, so it is adjudicated here against the case's own value:
-        a regressing report keeps the case's state (RSH-05-019).  The
-        report is read from the stored, dimension-filtered status the
-        append step saved (RSH-05).  A status that embeds no
+        a regressing report keeps the case's state (RSH-09-005).  The
+        report is read from the stored status the append step saved, which
+        is the status as received (RSH-09-001).  A status that embeds no
         ``case_status`` reports no P/X/A, so the case's state is kept.
 
         Raises:

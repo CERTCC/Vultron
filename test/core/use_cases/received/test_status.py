@@ -405,18 +405,18 @@ class TestStatusUseCases:
         mock_trigger.emit_processing_fault.assert_not_called()
 
     @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("RSH-09-008")
     def test_wholly_refused_participant_status_returns_refused(
         self, make_payload
     ):
-        """Wholly-refused BT returns REFUSED (AC-2, ISSUE-3199, #2255).
+        """A refused status returns REFUSED (AC-2, ISSUE-3199, #2255).
 
-        When FilterParticipantStatusDimensionsNode refuses every dimension (the
-        filtered status is indistinguishable from the current state), execute()
+        When CheckParticipantStatusAcceptableNode refuses the status, execute()
         returns ``HandlerResult.refused`` so that the inbox DispatchNode writes
         "rejected" to KEY_OUTCOME_STATUS and surfaces a rejected InboxOutcome
         rather than a silent 202 Accepted / processed (HP-01-003).
         """
-        # The filter runs at the CASE_MANAGER: a replica takes the update
+        # The guard runs at the CASE_MANAGER: a replica takes the update
         # from the CASE_MANAGER alone and refuses this sender first
         # (PCR-03-001).
         receiver_id = "https://example.org/users/case-manager-ps-ac2"
@@ -429,7 +429,7 @@ class TestStatusUseCases:
             context=case_id,
             attributed_to=sender_id,
         )
-        # Seed participant at RM.ACCEPTED: a backward VALID is refused in full
+        # Seed participant at RM.ACCEPTED: a backward VALID is refused
         pstatus = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s1",
             context=case_id,
@@ -448,7 +448,7 @@ class TestStatusUseCases:
         seed_case_manager_participant(dl, case, receiver_id)
         dl.create(case)
 
-        # A backward RM with no other change — filter will refuse it in full
+        # A backward RM — the guard refuses the whole status
         dup_status = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s_dup",
             context=case_id,
@@ -473,7 +473,8 @@ class TestStatusUseCases:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
-        assert "wholly refused" in result.reason
+        assert "ParticipantStatus refused" in result.reason
+        assert "rm: ACCEPTED → VALID moves RM backwards" in result.reason
 
     def test_add_case_status_refuses_an_em_move_the_register_has_not_made(
         self, monkeypatch, make_payload
@@ -481,7 +482,7 @@ class TestStatusUseCases:
         """A status asserting EM other than the case's derived EM is refused.
 
         EM is derived from the embargo register and is never moved by a
-        status (ADR-0122, RSH-05-023): even ``NONE → PROPOSED``, a move the
+        status (ADR-0122, RSH-09-005): even ``NONE → PROPOSED``, a move the
         EM machine once allowed, is refused, and the case's EM is carried
         forward unchanged.
         """
@@ -586,7 +587,7 @@ class TestStatusUseCases:
         ).execute()
         # The default call-out withholds adoption of a non-owner's claim
         # (RSH-07-001).  The append lands, and a withheld adoption is not a
-        # refusal of the assertion (RSH-05-022), so it is SKIPPED (#2255).
+        # refusal of the assertion (RSH-09-008), so it is SKIPPED (#2255).
         assert result.disposition == HandlerDisposition.SKIPPED
         assert result.reason is not None
         assert "CASE_OWNER approval required" in result.reason

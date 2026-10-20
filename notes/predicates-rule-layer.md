@@ -9,7 +9,7 @@ description: >
 related_specs:
   - CSB-15-001
   - CSB-15-002
-  - RSH-05-020
+  - RSH-09-004
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/domain-validation.md
@@ -62,4 +62,4 @@ the set once (e.g. `composite_state_violations()`), have every path call it, and
 add a ratchet test forbidding direct calls to the individual predicates — see
 [domain-validation.md §
 Compose the rule set, don't just share the predicates](domain-validation.md#compose-the-rule-set-dont-just-share-the-predicates);
-the replica-apply rule is RSH-05-020.
+the receive rule is RSH-09-004 and the replica-apply rule RSH-09-006.
