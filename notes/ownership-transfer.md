@@ -243,6 +243,12 @@ CASE_MANAGER inbox receives Reject
 
 ## Replica-side Materialization (SYNC Path)
 
+**Retiring (ADR-0148).** The owner proposes the Offer as `Offer(Offer(VulnerabilityCase))`
+and the CASE_MANAGER makes the one Offer the transferee answers, under its own id. No
+replica then needs a ledger-derived record of the Offer, so this slot and its record are
+deleted rather than re-keyed: until then the record sits under an id the owner chose,
+the shape DL-06-006 rules out (#4911). Do not add a reader of it.
+
 On a replica that learns of an Offer only from the ledger, the Offer never arrives by
 inbox, so there is no archive. Yet `SvcAcceptCaseOwnershipTransferUseCase._prepare`
 must still find it through `read_held_activity`.
