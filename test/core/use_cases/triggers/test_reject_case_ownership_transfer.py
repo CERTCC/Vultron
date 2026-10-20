@@ -174,7 +174,9 @@ def test_reject_of_an_offer_never_received_raises_not_found(actor_store):
     dl.create(offer)
     assert dl.read(offer.id_) is not None
 
-    with pytest.raises(VultronNotFoundError):
+    with pytest.raises(
+        VultronNotFoundError, match=r"Offer\(VulnerabilityCase\)"
+    ):
         _execute(dl, transferee.id_, offer.id_)
     assert dl.outbox_list() == []
 

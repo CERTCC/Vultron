@@ -83,8 +83,15 @@ def case_replica(datalayer) -> as_VulnerabilityCase:
     return case
 
 
-def _offer_entry(offer_id: str, prev_hash: str) -> HashChainLedgerRecord:
-    """The CASE_MANAGER's ``offer_case_ownership_transfer`` entry."""
+def _offer_entry(
+    offer_id: str, case_manager_id: str, prev_hash: str
+) -> HashChainLedgerRecord:
+    """The CASE_MANAGER's ``offer_case_ownership_transfer`` entry.
+
+    The Offer is the CASE_MANAGER's own, made on the owner's behalf
+    (ADR-0148): its ``actor`` is the CASE_MANAGER, its ``attributedTo`` the
+    owner.
+    """
     return HashChainLedgerRecord(
         case_id=CASE_ID,
         log_index=0,
@@ -93,7 +100,8 @@ def _offer_entry(offer_id: str, prev_hash: str) -> HashChainLedgerRecord:
         payload_snapshot={
             "type": "Offer",
             "id": offer_id,
-            "actor": OWNER_ID,
+            "actor": case_manager_id,
+            "attributedTo": OWNER_ID,
             "context": CASE_ID,
             "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
             "target": {"id": TRANSFEREE_ID, "type": "Actor"},
@@ -109,7 +117,7 @@ def test_offer_entry_persists_and_writes_nothing_else(
 ):
     offer_id = f"urn:uuid:{uuid.uuid4()}"
     entry = _to_persistable_entry(
-        _offer_entry(offer_id, case_replica.genesis_hash)
+        _offer_entry(offer_id, case_actor.id_, case_replica.genesis_hash)
     )
     event = _make_event(entry, actor_id=case_actor.id_, to=[REPLICA_ID])
     before = datalayer.count_all()

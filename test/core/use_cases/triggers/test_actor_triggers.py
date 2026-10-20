@@ -1974,7 +1974,9 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             actor_id=transferee.id_,
             offer_id=offer.id_,
         )
-        with pytest.raises(VultronNotFoundError):
+        with pytest.raises(
+            VultronNotFoundError, match=r"Offer\(VulnerabilityCase\)"
+        ):
             SvcAcceptCaseOwnershipTransferUseCase(
                 dl,
                 request,
