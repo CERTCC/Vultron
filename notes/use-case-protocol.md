@@ -98,10 +98,10 @@ Every link from `execute()` to `DispatchNode` returns the `HandlerResult`
 The verdict reaches `InboxOutcome` and the actor log (a `rejected` outcome logs at
 WARNING, UCORG-05-013). It never reaches the sender over HTTP: the inbox returns
 202 before any handler runs. Telling a remote party about processing outcomes is
-a protocol message, not a response code (#2682). The existing
-`Create(ProcessingFault)` on a refused status assertion (`received/status.py`)
-must not regress; a status the adoption gate withholds is `SKIPPED` and emits no
-fault (RSH-05-022).
+a protocol message, not a response code (#2682). A refused status assertion is
+answered by the refusal notice alone, not also a `Create(ProcessingFault)`: the
+user decided on #4756 that the fault duplicated the notice (CLP-05-001). A
+status the adoption gate withholds is `SKIPPED` and gets neither (RSH-05-022).
 
 ---
 

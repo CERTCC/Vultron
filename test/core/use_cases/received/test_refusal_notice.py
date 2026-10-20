@@ -566,6 +566,9 @@ def test_a_refused_rm_regression_gets_the_notice_and_the_note():
     assert notice["object"]["type"] == "Add"
     assert "refused in full" in str(notice["summary"])
     assert any("backward" in (n.content or "") for n in _notes(net, MANAGER))
+    # The notice is the one answer: no ProcessingFault as well (the user's
+    # decision on #4756).
+    assert net.queued(MANAGER, to=BYSTANDER, type_="Create") == []
     # The participant reads the notice and refuses none of what it is sent.
     refused = [
         v.reason
@@ -612,3 +615,33 @@ def test_a_refused_add_note_gets_the_notice_with_the_guards_reason():
     assert second.disposition is HandlerDisposition.REFUSED
     notice = _notice_for(net, second_add.id_)
     assert "HP-08-006" in str(notice["summary"])
+
+
+@pytest.mark.spec("CLP-02-005")
+@pytest.mark.spec("CLP-05-001")
+def test_a_refused_case_status_gets_the_notice_and_no_fault():
+    """A wholly refused Add(CaseStatus) has one answer, the notice."""
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.dimensions import EmDimension
+    from vultron.core.states.em import EM
+    from vultron.wire.as2.factories import add_status_to_case_activity
+
+    net = LedgerNetwork(
+        "https://example.org/cases/refusal-notice-case-status",
+        em_state=EM.NONE,
+    )
+    status = CaseStatus(
+        context=net.case_id,
+        attributed_to=BYSTANDER,
+        # A participant cannot move EM by status, and nothing else is new.
+        em=EmDimension(state=EM.ACTIVE),
+    )
+    activity = add_status_to_case_activity(
+        status, target=net.case_id, actor=BYSTANDER, to=[MANAGER]
+    )
+
+    verdict = net.receive(MANAGER, json.loads(dump_outbound_body(activity)))
+
+    assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
+    _notice_for(net, activity.id_)
+    assert net.queued(MANAGER, to=BYSTANDER, type_="Create") == []

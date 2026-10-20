@@ -31,7 +31,6 @@ An activity and an `Add(ParticipantStatus)` that report the same move record it 
 When the CASE_MANAGER refuses an RM message because a precondition does not hold, such as a backward move, it also sends the sender the [refusal notice](faults_and_acknowledgements.md#refusal-notice) (CLP-02-005, CLP-05-001).
 The notice is a `Reject` of the refused message, with the reason in `summary`, and the CASE_MANAGER records nothing of the refused message in the ledger.
 The note about a refused backward move is recorded alongside the notice, not instead of it (RSH-06-004).
-A wholly refused `Add(ParticipantStatus)` is also reported to its sender with a `Create(ProcessingFault)`.
 The CASE_MANAGER sends no notice when the sender is not a participant of the case, or when the message restates a state already recorded (RSH-08-002).
 
 ## Occasions
