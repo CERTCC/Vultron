@@ -211,6 +211,10 @@ sender check: authorization happened at the gates.
   `CaseStatus` ledger write** through `EmitCaseStatusUpdateNode` (RSH-04-002,
   RSH-04-003); without it every replica stays stale. Wire it after any new EM
   lifecycle node.
+- **Adoption passes the report to the snapshot.** On the participant path the
+  case has not moved when `EmitCaseStatusUpdateNode` runs, so a bare snapshot
+  re-commits the old P/X/A. Pass `reported_status_id`; the node adopts the
+  report's P/X/A unless it regresses the case's (RSH-01-003, RSH-05-019, #4956).
 - **Write directly, never through the inbox.** The CASE_MANAGER records its own
   state change by an inner commit, not by sending `Add(CaseStatus)` to itself
   (RSH-04-004, ADR-0108). The inbox gates exist for *external* suggestions.
