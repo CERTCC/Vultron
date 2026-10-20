@@ -72,7 +72,9 @@ class SemanticEntry:
         ValueError: At construction, when a non-fallback entry declares no
             occasion or no page, or a fallback declares either, or an
             occasion's addressee is a side the use case's declared sender
-            rule states no kinds for (MSM-08-009).
+            rule states no kinds for (MSM-08-009), or two occasions with one
+            addressee are not told apart by distinguishers that differ and
+            do not overlap (MSM-08-011).
     """
 
     semantics: MessageSemantics
@@ -117,6 +119,7 @@ class SemanticEntry:
                 f"{self.semantics.name} names no message page (MSM-06-002)"
             )
         self._addressees_are_sides_of_the_rule()
+        self._same_addressee_siblings_are_distinguished()
 
     def _addressees_are_sides_of_the_rule(self) -> None:
         """Refuse an occasion sent to a side the declared rule leaves empty.
@@ -138,4 +141,39 @@ class SemanticEntry:
                 f"{self.semantics.name}: {self.use_case_class.__name__}'s"
                 " sender rule states no side for the addressee of occasion"
                 f" {', '.join(unmatched)} (MSM-08-009)"
+            )
+
+    def _same_addressee_siblings_are_distinguished(self) -> None:
+        """Refuse same-addressee occasions a receiver could not tell apart.
+
+        Every occasion that shares this entry's addressee with another must
+        declare a distinguisher, and no two such distinguishers may overlap:
+        an equal pair, two state contexts on one machine that share a state,
+        or two standings of one kind held alike (MSM-08-011).  Every
+        violation is reported, not just the first (EH-07-001).
+        """
+        problems: list[str] = []
+        for addressee in dict.fromkeys(o.addressee for o in self.occasions):
+            siblings = [o for o in self.occasions if o.addressee is addressee]
+            if len(siblings) < 2:
+                continue
+            problems.extend(
+                f"occasion {o.anchor!r} shares the addressee"
+                f" {addressee.name} with another and declares no"
+                " distinguisher"
+                for o in siblings
+                if o.distinguisher is None
+            )
+            problems.extend(
+                f"occasions {a.anchor!r} and {b.anchor!r} share the addressee"
+                f" {addressee.name} and their distinguishers overlap"
+                for i, a in enumerate(siblings)
+                for b in siblings[i + 1 :]
+                if a.distinguisher is not None
+                and b.distinguisher is not None
+                and a.distinguisher.overlaps(b.distinguisher)
+            )
+        if problems:
+            raise ValueError(
+                f"{self.semantics.name}: {'; '.join(problems)} (MSM-08-011)"
             )

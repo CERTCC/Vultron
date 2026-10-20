@@ -17,7 +17,10 @@ invite/accept/reject to case, and vulnerability case announcements.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.core.behaviors.sender_entitlement import AddresseeSide
+from vultron.core.behaviors.sender_entitlement import (
+    AddresseeSide,
+    SenderEntitlementKind,
+)
 from vultron.core.models.events.actor import (
     AcceptActorRecommendationReceivedEvent,
     AcceptCaseOwnershipTransferReceivedEvent,
@@ -72,6 +75,7 @@ from vultron.semantic_registry._occasion import (
     MessagePage,
     Occasion,
     ProtocolShorthand,
+    SenderStanding,
 )
 from vultron.wire.as2.extractor import (
     AcceptActorRecommendationPattern,
@@ -148,6 +152,9 @@ ENTRIES: list[SemanticEntry] = [
                     "named by the target."
                 ),
                 example="recommend_actor",
+                distinguisher=SenderStanding(
+                    kind=SenderEntitlementKind.CASE_OWNER, holds=False
+                ),
                 howto=HowToGuide.SUGGEST_ACTOR,
                 shorthand=ProtocolShorthand.GI,
             ),
@@ -165,14 +172,11 @@ ENTRIES: list[SemanticEntry] = [
                     "with an offer to the Case Owner."
                 ),
                 example="request_invite_actor_to_case",
+                distinguisher=SenderStanding(
+                    kind=SenderEntitlementKind.CASE_OWNER, holds=True
+                ),
                 howto=HowToGuide.INVITE_ACTOR,
                 usual_senders=(CVDRole.CASE_OWNER,),
-                notes=(
-                    "The wire form is the suggestion a participant sends; "
-                    "the Case Manager tells this request from a suggestion "
-                    "by whether the sender holds the Case Owner role on the "
-                    "case."
-                ),
             ),
         ),
         page=MessagePage.GENERAL,

@@ -1,7 +1,8 @@
 """Tests for the occasions declared on ``SEMANTIC_REGISTRY`` entries (ADR-0128).
 
-Covers construction-time validation of ``Occasion``, its two distinguisher
-shapes and ``SemanticEntry`` (MSM-08-001, MSM-08-002), and the registry-wide
+Covers construction-time validation of ``Occasion``, its three distinguisher
+shapes and ``SemanticEntry`` (MSM-08-001, MSM-08-002, MSM-08-011), and the
+registry-wide
 facts every declared occasion must satisfy: each entry outside the dispatcher
 fallbacks has at least one, anchors are unique, how-to links resolve, and each
 occasion's example dispatches to its own entry carrying its distinguishing
@@ -28,13 +29,17 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from vultron.core.behaviors.sender_entitlement import AddresseeSide
+from vultron.core.behaviors.sender_entitlement import (
+    AddresseeSide,
+    SenderEntitlementKind,
+)
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import PxaDimension
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.metadata.markdown_tables import iter_tables
@@ -51,6 +56,7 @@ from vultron.semantic_registry._occasion import (
     MessagePage,
     Occasion,
     ProtocolShorthand,
+    SenderStanding,
     StateContext,
     wire_spelling,
 )
@@ -427,6 +433,43 @@ def test_state_context_rejects_a_machine_that_is_not_an_enum():
         StateContext(machine=str, states=(EM.ACTIVE,))  # type: ignore[arg-type]
 
 
+@pytest.mark.spec("MSM-08-002")
+def test_sender_standing_accepts_an_entitlement_kind():
+    standing = SenderStanding(
+        kind=SenderEntitlementKind.CASE_OWNER, holds=False
+    )
+    assert standing.kind is SenderEntitlementKind.CASE_OWNER
+    assert standing.holds is False
+
+
+@pytest.mark.spec("MSM-08-002")
+@pytest.mark.parametrize(
+    "kind",
+    [CVDRole.CASE_OWNER, "CASE_OWNER", SenderEntitlementKind.CASE_OWNER.value],
+    ids=["cvd-role", "name", "value"],
+)
+def test_sender_standing_rejects_a_kind_that_is_not_an_entitlement_kind(
+    kind: object,
+):
+    with pytest.raises(ValidationError, match="kind"):
+        SenderStanding(kind=kind, holds=True)  # type: ignore[arg-type]
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_sender_standing_rejects_a_kind_that_requires_no_standing():
+    with pytest.raises(ValueError, match="ANY_ACTOR requires no standing"):
+        SenderStanding(kind=SenderEntitlementKind.ANY_ACTOR, holds=True)
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_sender_standing_rejects_a_holds_that_is_not_a_bool():
+    with pytest.raises(ValidationError, match="holds"):
+        SenderStanding(
+            kind=SenderEntitlementKind.CASE_OWNER,
+            holds=1,  # type: ignore[arg-type]
+        )
+
+
 # ---------------------------------------------------------------------------
 # SemanticEntry construction (MSM-08-001, MSM-06-002).
 # ---------------------------------------------------------------------------
@@ -475,6 +518,166 @@ def test_dispatcher_fallback_declares_neither_occasion_nor_page(
 ):
     with pytest.raises(ValueError, match="dispatcher fallback"):
         _entry(MessageSemantics.UNKNOWN, **overrides)
+
+
+# ---------------------------------------------------------------------------
+# Same-addressee siblings (MSM-08-011).
+# ---------------------------------------------------------------------------
+
+
+def _siblings(
+    first: object, second: object, **second_overrides: Any
+) -> tuple[Occasion, Occasion]:
+    """Two occasions on one addressee, with the given distinguishers."""
+    return (
+        _occasion(anchor="first-situation", distinguisher=first),
+        _occasion(
+            anchor="second-situation", distinguisher=second, **second_overrides
+        ),
+    )
+
+
+def _owner(holds: bool) -> SenderStanding:
+    return SenderStanding(kind=SenderEntitlementKind.CASE_OWNER, holds=holds)
+
+
+def _register(*states: EmbargoRegisterStatus) -> StateContext:
+    return StateContext(machine=EmbargoRegisterStatus, states=states)
+
+
+def _vf(value: CS_vf) -> FieldValue:
+    return FieldValue(object_type=ParticipantStatus, field="vf", value=value)
+
+
+@pytest.mark.spec("MSM-08-011")
+@pytest.mark.parametrize(
+    ("first", "second", "undistinguished"),
+    [
+        (None, _owner(True), "'first-situation'"),
+        (_owner(True), None, "'second-situation'"),
+        (None, None, "'first-situation'"),
+    ],
+    ids=["first", "second", "both"],
+)
+def test_entry_refuses_a_same_addressee_occasion_without_a_distinguisher(
+    first: object, second: object, undistinguished: str
+):
+    with pytest.raises(
+        ValueError,
+        match=f"occasion {undistinguished} shares the addressee CASE_MANAGER"
+        " with another and declares no distinguisher",
+    ):
+        _entry(occasions=_siblings(first, second))
+
+
+@pytest.mark.spec("MSM-08-011")
+def test_entry_reports_every_undistinguished_sibling():
+    with pytest.raises(ValueError) as caught:
+        _entry(occasions=_siblings(None, None))
+    assert "'first-situation'" in str(caught.value)
+    assert "'second-situation'" in str(caught.value)
+    assert "MSM-08-011" in str(caught.value)
+
+
+@pytest.mark.spec("MSM-08-011")
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        (_owner(True), _owner(True)),
+        (_register(EmbargoRegisterStatus.ACTIVE),) * 2,
+        (_vf(CS_vf.VF), _vf(CS_vf.VF)),
+        (
+            StateContext(machine=EM, states=(EM.NONE, EM.PROPOSED)),
+            StateContext(machine=EM, states=(EM.PROPOSED,)),
+        ),
+    ],
+    ids=[
+        "equal-standings",
+        "equal-contexts",
+        "equal-field-values",
+        "contexts-sharing-a-state",
+    ],
+)
+def test_entry_refuses_same_addressee_siblings_whose_distinguishers_overlap(
+    first: object, second: object
+):
+    with pytest.raises(
+        ValueError,
+        match="'first-situation' and 'second-situation' share the addressee"
+        " CASE_MANAGER and their distinguishers overlap",
+    ):
+        _entry(occasions=_siblings(first, second))
+
+
+@pytest.mark.spec("MSM-08-011")
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        (_owner(True), _owner(False)),
+        (
+            _register(EmbargoRegisterStatus.ACTIVE),
+            _register(EmbargoRegisterStatus.TERMINATED),
+        ),
+        (_vf(CS_vf.Vf), _vf(CS_vf.VF)),
+        # Different fields, machines or kinds are not compared: one
+        # activity may carry both values by design.
+        (
+            _vf(CS_vf.VF),
+            FieldValue(object_type=ParticipantStatus, field="d", value=CS_d.D),
+        ),
+        (
+            StateContext(machine=EM, states=(EM.ACTIVE,)),
+            _register(EmbargoRegisterStatus.ACTIVE),
+        ),
+        (
+            _owner(True),
+            SenderStanding(
+                kind=SenderEntitlementKind.CASE_MANAGER, holds=True
+            ),
+        ),
+        (_owner(True), _register(EmbargoRegisterStatus.ACTIVE)),
+    ],
+    ids=[
+        "standings-held-and-not",
+        "disjoint-contexts",
+        "different-values",
+        "different-fields",
+        "different-machines",
+        "different-kinds",
+        "different-distinguisher-kinds",
+    ],
+)
+def test_entry_accepts_same_addressee_siblings_that_differ(
+    first: object, second: object
+):
+    entry = _entry(occasions=_siblings(first, second))
+    assert len(entry.occasions) == 2
+
+
+@pytest.mark.spec("MSM-08-011")
+def test_entry_does_not_compare_occasions_with_different_addressees():
+    entry = _entry(
+        occasions=_siblings(None, None, addressee=AddresseeSide.PARTICIPANT)
+    )
+    assert len(entry.occasions) == 2
+
+
+@pytest.mark.spec("MSM-08-011")
+def test_registry_same_addressee_siblings_are_distinguished():
+    """The four occasions #4821 found undistinguished now declare one."""
+    declared = {
+        o.anchor: o.distinguisher
+        for e in SEMANTIC_REGISTRY
+        for o in e.occasions
+    }
+    assert declared["request-invite-actor-to-case"] == _owner(True)
+    assert declared["suggest-actor-to-case"] == _owner(False)
+    assert declared["announce-embargo"] == _register(
+        EmbargoRegisterStatus.ACTIVE
+    )
+    assert declared["announce-embargo-termination"] == _register(
+        EmbargoRegisterStatus.TERMINATED
+    )
 
 
 # ---------------------------------------------------------------------------

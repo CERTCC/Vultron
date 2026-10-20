@@ -8,6 +8,7 @@
     - **Send:** `Offer(Actor)[target=VulnerabilityCase]`
     - **Send to:** the case manager
     - **Sent by:** a participant (usually: case owner)
+    - **Distinguished by:** sender is the case owner
     - **Reference:** [Ask the Case Manager to invite an actor](../../general.md#request-invite-actor-to-case)
 
     ??? example "Example activity"

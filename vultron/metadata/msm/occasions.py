@@ -381,7 +381,7 @@ def derive_table(
                 send=wire_summary(entry),
                 send_to=send_to(occasion),
                 sent_by=sent_by(entry, occasion),
-                distinguished_by=distinguished_by(occasion),
+                distinguished_by=distinguished_by(entry, occasion),
                 semantics=entry.semantics,
                 shorthand=occasion.shorthand,
                 status=mapping_status(entry, registry),

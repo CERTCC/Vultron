@@ -1,17 +1,19 @@
 """Occasions: the situations a sender conveys with one registry entry.
 
 An **occasion** is a situation in a case that a sender conveys by sending a
-particular wire activity, sometimes narrowed by a distinguishing field value or
-state context (glossary, ADR-0128).  One ``SemanticEntry`` carries one or more
-occasions: three situations — vendor awareness, fix ready, fix deployed — share
-``Add(ParticipantStatus)``, told apart by its ``vf`` and ``d`` dimensions.
+particular wire activity, sometimes narrowed by a distinguishing field value,
+state context or sender standing (glossary, ADR-0128).  One ``SemanticEntry``
+carries one or more occasions: three situations — vendor awareness, fix ready,
+fix deployed — share ``Add(ParticipantStatus)``, told apart by its ``vf`` and
+``d`` dimensions.
 
 This module holds the value objects only.  An occasion records what only a
 human can supply; everything derivable from it (the mapping status, the
 "Sent by" and "Send to" wording) is derived by ``vultron.metadata.msm``
 (MSM-08-005, MSM-08-006, MSM-08-009).
 
-Spec: MSM-08-001, MSM-08-002, MSM-08-005, MSM-08-007, MSM-08-009.
+Spec: MSM-08-001, MSM-08-002, MSM-08-005, MSM-08-007, MSM-08-009,
+MSM-08-011.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -36,7 +38,10 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from vultron.core.behaviors.sender_entitlement import AddresseeSide
+from vultron.core.behaviors.sender_entitlement import (
+    AddresseeSide,
+    SenderEntitlementKind,
+)
 from vultron.core.models.dimensions import (
     DIMENSION_STATE_FIELD,
     is_dimension_model,
@@ -342,6 +347,17 @@ class FieldValue(BaseModel):
             )
         return self
 
+    def overlaps(self, other: "Distinguisher") -> bool:
+        """Return whether *other* reads this field and holds this value, so
+        one activity could match both (MSM-08-011).  A distinguisher on
+        another field is not compared."""
+        return (
+            isinstance(other, FieldValue)
+            and (other.object_type, other.within, other.field)
+            == (self.object_type, self.within, self.field)
+            and other.value == self.value
+        )
+
     def read(self, carrier: object) -> object:
         """Return the value *carrier* holds in this distinguisher's field.
 
@@ -361,8 +377,11 @@ class FieldValue(BaseModel):
 
 
 class StateContext(BaseModel):
-    """A distinguisher read from the receiver's state, not the payload.
+    """A distinguisher the payload does not carry: a state the case is in.
 
+    The state is one the activity's receiver can look up and the payload
+    does not hold: a case's EM state, or, for ``EmbargoRegisterStatus``, the
+    CASE_MANAGER's register status of the embargo the activity names.
     Construction fails unless every state is a member of *machine*
     (MSM-08-002).  No example can carry a state context (MSM-08-003).
 
@@ -386,8 +405,59 @@ class StateContext(BaseModel):
             )
         return self
 
+    def overlaps(self, other: "Distinguisher") -> bool:
+        """Return whether *other* is a context on this machine that shares a
+        state, so one activity could match both (MSM-08-011).  A context on
+        another machine is not compared."""
+        return (
+            isinstance(other, StateContext)
+            and other.machine is self.machine
+            and not set(other.states).isdisjoint(self.states)
+        )
 
-Distinguisher = FieldValue | StateContext
+
+class SenderStanding(BaseModel):
+    """A distinguisher the payload does not carry: the sender's standing.
+
+    Two occasions can share a wire form and an addressee and differ only in
+    who sends them: the Case Owner's request to invite an actor and a
+    participant's suggestion are one ``Offer(Actor)``.  The standing is typed
+    by the entitlement kinds a receiver checks (HP-01-009), so its wording
+    comes from the kind (MSM-08-010).  Construction fails unless *kind* is a
+    ``SenderEntitlementKind`` member that requires a standing (MSM-08-002).
+    Like a state context, no example can carry it (MSM-08-003).
+
+    Attributes:
+        kind: The entitlement kind, e.g. ``SenderEntitlementKind.CASE_OWNER``.
+        holds: Whether the occasion's sender holds *kind*.
+    """
+
+    model_config = _FROZEN
+
+    kind: SenderEntitlementKind
+    holds: bool
+
+    @model_validator(mode="after")
+    def _kind_requires_a_standing(self) -> "SenderStanding":
+        if self.kind is SenderEntitlementKind.ANY_ACTOR:
+            raise ValueError(
+                "ANY_ACTOR requires no standing, so it cannot tell two"
+                " senders apart (MSM-08-002)"
+            )
+        return self
+
+    def overlaps(self, other: "Distinguisher") -> bool:
+        """Return whether *other* is a standing of this kind that the sender
+        holds or lacks alike, so one activity could match both (MSM-08-011).
+        A standing of another kind is not compared."""
+        return (
+            isinstance(other, SenderStanding)
+            and other.kind is self.kind
+            and other.holds == self.holds
+        )
+
+
+Distinguisher = FieldValue | StateContext | SenderStanding
 
 
 class Occasion(BaseModel):
@@ -419,7 +489,9 @@ class Occasion(BaseModel):
         example: Name of the ``vocab_examples`` function that builds this
             occasion's example (MSM-08-003).
         distinguisher: What tells this occasion apart from the entry's other
-            occasions, when it has any.
+            occasions, when it has any.  It is required when another
+            occasion of the entry has the same addressee, which
+            ``SemanticEntry`` checks (MSM-08-011).
         howto: The how-to guide whose steps send it.  The guide must embed
             the occasion where a step sends it, or ``msm-occasions`` fails;
             the section's "Seen in" lists that guide and every other page
@@ -475,6 +547,7 @@ __all__ = [
     "MessagePage",
     "Occasion",
     "ProtocolShorthand",
+    "SenderStanding",
     "StateContext",
     "wire_spelling",
 ]

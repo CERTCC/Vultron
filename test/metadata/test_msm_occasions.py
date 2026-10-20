@@ -24,12 +24,16 @@ import pytest
 import yaml
 from markdown.extensions import toc  # type: ignore[import-untyped]
 
-from vultron.core.behaviors.sender_entitlement import AddresseeSide
+from vultron.core.behaviors.sender_entitlement import (
+    AddresseeSide,
+    SenderEntitlementKind,
+)
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_pxa, CS_vf
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.metadata.base import excluded_docs_spec, mkdocs_config
 from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.msm import occasions as gen
@@ -42,7 +46,7 @@ from vultron.metadata.msm._mapping import (
     load_occasion_table,
     section_heading,
 )
-from vultron.semantic_registry import SEMANTIC_REGISTRY
+from vultron.semantic_registry import SEMANTIC_REGISTRY, lookup_entry
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
     FieldValue,
@@ -50,6 +54,7 @@ from vultron.semantic_registry._occasion import (
     MessagePage,
     Occasion,
     ProtocolShorthand,
+    SenderStanding,
     StateContext,
 )
 
@@ -445,13 +450,18 @@ def test_own_shorthand_with_a_heading_fails():
         section_heading(occasion, [_entry(occasion)])
 
 
+def _rendered(occasion: Occasion) -> str | None:
+    """Render *occasion*'s distinguisher on a stub entry carrying it."""
+    return distinguished_by(_entry(occasion), occasion)
+
+
 def test_distinguished_by_renders_a_field_value():
     occasion = _occasion(
         distinguisher=FieldValue(
             object_type=ParticipantStatus, field="vf", value=CS_vf.VF
         )
     )
-    assert distinguished_by(occasion) == "`vfState` = `VF`"
+    assert _rendered(occasion) == "`vfState` = `VF`"
 
 
 def test_distinguished_by_names_a_dimension_field_by_its_wire_spelling():
@@ -461,7 +471,7 @@ def test_distinguished_by_names_a_dimension_field_by_its_wire_spelling():
             object_type=CaseStatus, field="pxa", value=CS_pxa.Pxa
         )
     )
-    assert distinguished_by(occasion) == "`pxaState` = `Pxa`"
+    assert _rendered(occasion) == "`pxaState` = `Pxa`"
 
 
 def test_distinguished_by_names_an_embedded_field_by_its_dotted_path():
@@ -474,18 +484,69 @@ def test_distinguished_by_names_an_embedded_field_by_its_dotted_path():
             value=CS_pxa.Pxa,
         )
     )
-    assert distinguished_by(occasion) == "`caseStatus.pxaState` = `Pxa`"
+    assert _rendered(occasion) == "`caseStatus.pxaState` = `Pxa`"
 
 
 def test_distinguished_by_renders_a_state_context():
     occasion = _occasion(
         distinguisher=StateContext(machine=EM, states=(EM.NONE, EM.PROPOSED))
     )
-    assert distinguished_by(occasion) == "EM state `NONE` or `PROPOSED`"
+    assert _rendered(occasion) == "EM state `NONE` or `PROPOSED`"
+
+
+@pytest.mark.spec("MSM-08-002")
+def test_distinguished_by_renders_a_register_status_as_the_named_embargos():
+    """A register status belongs to the embargo the activity names, not to
+    the case, so it is not rendered as a bare machine state (MSM-08-003)."""
+    occasion = _occasion(
+        distinguisher=StateContext(
+            machine=EmbargoRegisterStatus,
+            states=(EmbargoRegisterStatus.TERMINATED,),
+        )
+    )
+    rendered = _rendered(occasion)
+    assert rendered == "register status of the named embargo `TERMINATED`"
+    assert "EmbargoRegisterStatus" not in rendered
+
+
+@pytest.mark.spec("MSM-08-002", "MSM-08-010")
+@pytest.mark.parametrize(
+    ("holds", "expected"),
+    [
+        (True, "sender is the case owner"),
+        (False, "sender is not the case owner"),
+    ],
+    ids=["holds", "lacks"],
+)
+def test_distinguished_by_renders_a_sender_standing_from_its_kind(
+    holds: bool, expected: str
+):
+    occasion = _occasion(
+        distinguisher=SenderStanding(
+            kind=SenderEntitlementKind.CASE_OWNER, holds=holds
+        )
+    )
+    assert _rendered(occasion) == expected
+    assert SenderEntitlementKind.CASE_OWNER.sent_by in expected
+
+
+@pytest.mark.spec("MSM-08-010")
+def test_distinguished_by_fills_a_sender_standing_placeholder_from_the_entry():
+    """A kind held over an object names it from the entry's pattern."""
+    entry = lookup_entry(MessageSemantics.ADD_NOTE_TO_CASE)
+    occasion = _occasion(
+        distinguisher=SenderStanding(
+            kind=SenderEntitlementKind.AUTHOR, holds=False
+        )
+    )
+    rendered = distinguished_by(entry, occasion)
+    assert rendered is not None
+    assert rendered.startswith("sender is not the ")
+    assert "{object}" not in rendered
 
 
 def test_distinguished_by_is_none_without_a_distinguisher():
-    assert distinguished_by(_occasion()) is None
+    assert _rendered(_occasion()) is None
 
 
 # ---------------------------------------------------------------------------

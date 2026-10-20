@@ -8,10 +8,11 @@ Tells the active participants other than the Case Manager and any Closed Partici
 - **Send:** `Announce(Event)[context=VulnerabilityCase]`
 - **Send to:** a participant
 - **Sent by:** the case manager
+- **Distinguished by:** register status of the named embargo `TERMINATED`
 - **Seen in:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)
 - **Mapping status:** [none](../../index.md#mapping-status)
 
-The wire form is the same as the embargo announcement's; the embargo it names, which the case's embargo register records as terminated, makes it a termination announcement. A termination the Case Manager starts itself, or one at the end time, sends no announcement: after the end time, the Case Manager's own end-time check ends the embargo before it applies a Case Owner's termination.
+A termination the Case Manager starts itself, or one at the end time, sends no announcement: after the end time, the Case Manager's own end-time check ends the embargo before it applies a Case Owner's termination.
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

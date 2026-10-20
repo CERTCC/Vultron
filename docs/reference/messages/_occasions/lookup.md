@@ -52,8 +52,8 @@
 |---|---|---|---|---|---|
 | the Case Owner terminates the active embargo | `Remove(Event)` | the case manager | the case manager or the case owner | — | [Embargo Termination (ET)](../em.md#embargo-termination) |
 | the Case Manager ends the active embargo, on its own decision or on the Case Owner's | `Remove(Event)` | a participant | the case manager | — | [Tell a participant the embargo has ended](../em.md#embargo-termination-notice) |
-| the Case Manager states the terms of the embargo in force | `Announce(Event)[context=VulnerabilityCase]` | a participant | the case manager | — | [Announce embargo](../em.md#announce-embargo) |
-| the Case Manager has applied an Embargo Termination a Case Owner sent before the end time | `Announce(Event)[context=VulnerabilityCase]` | a participant | the case manager | — | [Announce embargo termination](../em.md#announce-embargo-termination) |
+| the Case Manager states the terms of the embargo in force | `Announce(Event)[context=VulnerabilityCase]` | a participant | the case manager | register status of the named embargo `ACTIVE` | [Announce embargo](../em.md#announce-embargo) |
+| the Case Manager has applied an Embargo Termination a Case Owner sent before the end time | `Announce(Event)[context=VulnerabilityCase]` | a participant | the case manager | register status of the named embargo `TERMINATED` | [Announce embargo termination](../em.md#announce-embargo-termination) |
 | a Participant proposes embargo terms for a case with no active embargo | `Invite(Event)[context=VulnerabilityCase]` | the case manager | the case manager or an active participant | EM state `NONE` or `PROPOSED` | [Embargo Proposal (EP)](../em.md#embargo-proposal) |
 | a Participant proposes revised terms for the active embargo | `Invite(Event)[context=VulnerabilityCase]` | the case manager | the case manager or an active participant | EM state `ACTIVE` or `REVISE` | [Embargo Revision Proposal (EV)](../em.md#embargo-revision-proposal) |
 | the Case Manager asks a Participant to answer embargo terms another Participant proposed | `Invite(Event)[context=VulnerabilityCase]` | a participant | the case manager | — | [Ask a participant about proposed embargo terms](../em.md#relay-embargo-proposal) |
@@ -83,8 +83,8 @@
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
-| a Participant suggests an actor that the case should include | `Offer(Actor)[target=VulnerabilityCase]` | the case manager | a participant | — | [Suggest actor to case](../general.md#suggest-actor-to-case) |
-| the Case Owner decides to invite an actor to the case | `Offer(Actor)[target=VulnerabilityCase]` | the case manager | a participant (usually: case owner) | — | [Ask the Case Manager to invite an actor](../general.md#request-invite-actor-to-case) |
+| a Participant suggests an actor that the case should include | `Offer(Actor)[target=VulnerabilityCase]` | the case manager | a participant | sender is not the case owner | [Suggest actor to case](../general.md#suggest-actor-to-case) |
+| the Case Owner decides to invite an actor to the case | `Offer(Actor)[target=VulnerabilityCase]` | the case manager | a participant (usually: case owner) | sender is the case owner | [Ask the Case Manager to invite an actor](../general.md#request-invite-actor-to-case) |
 | the Case Manager presents a suggested actor to the Case Owner | `Offer(CaseParticipant)[target=VulnerabilityCase]` | a participant | the case manager | — | [Offer case participant](../general.md#offer-case-participant) |
 | the Case Owner approves a suggested actor | `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])` | the case manager | the case owner | — | [Accept case participant offer](../general.md#accept-case-participant-offer) |
 | the Case Owner declines a suggested actor | `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])` | the case manager | the case owner | — | [Reject case participant offer](../general.md#reject-case-participant-offer) |
