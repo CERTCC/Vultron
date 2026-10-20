@@ -73,6 +73,7 @@ from vultron.core.models.dimensions import (
     VfDimension,
 )
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -286,11 +287,19 @@ def _run_tree(
     return result
 
 
-def _refused(current: Any, asserted: Any, roles: Any = None) -> list[str]:
-    """Return the refused dimension names, in report order."""
+def _refused(
+    current: Any, asserted: Any, roles: Any = None, *, history: Any = ()
+) -> list[str]:
+    """Return the refused dimension names, in report order.
+
+    *history* is any earlier recorded statuses, oldest first; *current* is
+    the latest.
+    """
     return [
         r.dimension
-        for r in participant_status_refusals(current, asserted, roles=roles)
+        for r in participant_status_refusals(
+            [*history, current], asserted, roles=roles
+        )
     ]
 
 
@@ -330,6 +339,8 @@ class TestAcceptedStatusIsRecordedAsSent:
         assert snap["caseStatus"]["pxaState"] == CS_pxa.Pxa.name
         assert snap["caseStatus"].get("id") == f"{ASSERTED_STATUS_ID}/cs"
         assert snap.get("type") == "ParticipantStatus"
+        # Nothing in the recorded object differs from the status as sent.
+        assert snap == As2WireRenderAdapter().render(asserted)
 
     @pytest.mark.spec("RSH-09-001")
     def test_an_omitted_dimension_is_recorded_as_omitted(
@@ -616,6 +627,37 @@ class TestAcceptanceRules:
         )
         asserted = _asserted_status(RM.ACCEPTED, None, None)
         assert _refused(current, asserted, _VENDOR_DEPLOYER) == []
+
+    @pytest.mark.spec("RSH-09-003")
+    def test_an_omission_does_not_reset_the_baseline(self):
+        """``VF`` recorded, then a status without ``vf``: a later ``vf`` is
+        still a backward move from the last recorded ``VF``, and a P/X/A
+        regression likewise reaches past a status that omitted it."""
+        earlier = _current_status(RM.ACCEPTED, CS_vf.VF, CS_pxa.Pxa)
+        latest = _asserted_status(
+            RM.ACCEPTED, None, None, status_id=f"{ASSERTED_STATUS_ID}-0"
+        )
+        assert latest.vf is None and latest.case_status is None
+        asserted = _asserted_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
+        assert _refused(latest, asserted, _VENDOR, history=[earlier]) == [
+            "vf",
+            "pxa",
+        ]
+
+    @pytest.mark.spec("RSH-09-003", "RSH-06-002")
+    def test_a_status_without_rm_states_start_and_is_refused(self):
+        """Every status carries an RM state: one that leaves ``rmState`` out
+        states ``START``, so after acceptance it is a backward move.  Filling
+        in the recorded RM instead would record a status nobody sent, and a
+        replica copying it would read ``START`` (RSH-09-001)."""
+        current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
+        asserted = ParticipantStatus.model_validate(
+            {"id": ASSERTED_STATUS_ID, "context": CASE_ID, "vfState": "VF"}
+        )
+        assert asserted.rm.state is RM.START
+        # The ready fix is refused too: it entails an accepted report, and
+        # the status as received states START (RSH-09-004).
+        assert _refused(current, asserted, _VENDOR) == ["rm", "vf"]
 
     @pytest.mark.spec("RSH-09-003")
     def test_a_first_observation_has_nothing_to_regress_from(self):

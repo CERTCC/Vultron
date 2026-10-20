@@ -15,8 +15,8 @@
 """Replay of ``add_case_status_to_case`` on a participant replica (#3814 AC-2).
 
 The replica copies the committed CaseStatus as carried (CM-23-016, ADR-0124).
-The CASE_MANAGER adjudicated it (RSH-09-005, RSH-09-005); the replica does not
-adjudicate again.  EM is derived from the replica's embargo register, so a
+The CASE_MANAGER judged it whole before committing it (RSH-09-005); the
+replica does not judge it again.  EM is derived from the replica's embargo register, so a
 status never moves it (ADR-0122).
 """
 
@@ -149,7 +149,7 @@ def test_the_committed_status_becomes_the_replicas_current_status(
     assert case.current_status.pxa.state == CS_pxa.Pxa
 
 
-@pytest.mark.spec("RSH-09-005")
+@pytest.mark.spec("CM-23-016")
 def test_a_status_never_moves_the_replicas_em(bridge, datalayer):
     """A snapshot EM the register does not derive is carried forward."""
     current = _seed(datalayer, EM.ACTIVE, CS_pxa.pxa)
@@ -194,7 +194,7 @@ def test_a_multi_step_pxa_advance_is_copied(bridge, datalayer):
     assert _case(datalayer).current_status.pxa.state == CS_pxa.PXA
 
 
-@pytest.mark.spec("RSH-09-005")
+@pytest.mark.spec("CM-23-016")
 def test_an_invalid_em_move_keeps_the_replicas_em(bridge, datalayer):
     """EXITED → ACTIVE is not an EM transition; the P/X/A advance still lands."""
     current = _seed(datalayer, EM.EXITED, CS_pxa.pxa)
@@ -217,7 +217,7 @@ def test_a_status_the_replica_holds_is_not_appended_twice(bridge, datalayer):
 
 
 @pytest.mark.spec("SYNC-12-003")
-@pytest.mark.spec("RSH-09-005")
+@pytest.mark.spec("CM-23-016")
 def test_a_status_with_a_stale_em_is_not_appended_twice(bridge, datalayer):
     """Re-delivery is a no-op: the id is already held."""
     current = _seed(datalayer, EM.EXITED, CS_pxa.pxa)

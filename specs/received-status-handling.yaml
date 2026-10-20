@@ -867,11 +867,10 @@ groups:
       sent.
     verification: >
       Tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
-      confirm an accepted status is appended and committed as received, an
-      omitted dimension is recorded as omitted, and a refused one appends
-      nothing and commits nothing;
-      `test/core/behaviors/case/nodes/test_lifecycle.py` confirms the ledger
-      commit records the received object unchanged.
+      confirm an accepted status is appended as received and its ledger
+      entry records an object identical to the status sent, that an omitted
+      dimension is recorded as omitted, and that a refused one appends
+      nothing and commits nothing.
     stories:
     - story_2022_045
     - story_2022_088
@@ -910,9 +909,12 @@ groups:
       but the sender does not hold the VENDOR role, or a deployment value but
       the sender does not hold the DEPLOYER role; a stated fix-readiness,
       deployment or public-state (P/X/A) value is neither the participant's
-      recorded value nor a forward move from it. A dimension the sender omits
-      is not refused. The embargo state the status embeds is not judged
-      against the case: the case derives EM from its embargo register.
+      most recent recorded value nor a forward move from it. A dimension the
+      sender omits is not refused, and does not reset the recorded value a
+      later status is judged against. Every status states an RM state: one
+      that leaves `rmState` out states the initial `START`. The embargo state
+      the status embeds is not judged against the case: the case derives EM
+      from its embargo register.
     rationale: >
       Each rule refuses a claim no sequence of events could produce from the
       participant's recorded state. A non-adjacent forward move is accepted
@@ -922,8 +924,10 @@ groups:
     verification: >
       Tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
       confirm each rule refuses the whole status, that an omitted dimension is
-      not refused, that a non-adjacent forward move is accepted, and that a
-      status from a participant already at `CLOSED` is refused.
+      not refused and does not reset the baseline, that a status leaving out
+      `rmState` is judged as `START`, that a non-adjacent forward move is
+      accepted, and that a status from a participant already at `CLOSED` is
+      refused.
     relationships:
     - rel_type: refines
       spec_id: RSH-09-001
@@ -1001,6 +1005,9 @@ groups:
       The predicates are `is_em_assertion_acceptable()` in
       `vultron/core/states/em.py` and `is_pxa_assertion_acceptable()` in
       `vultron/core/states/cs.py`, applied by `CheckCaseStatusAcceptableNode`.
+      Every `CaseStatus` states an EM state: one that leaves `emState` out
+      states `NONE`, so while an embargo is in force it is refused like any
+      other EM that differs.
       `EmitCaseStatusUpdateNode` applies the same P/X/A predicate when it
       adopts a report's P/X/A into the case (RSH-01-003). RSH-04-005 refuses an
       `Add(CaseStatus)` sent to the CASE_MANAGER, so the receiver this

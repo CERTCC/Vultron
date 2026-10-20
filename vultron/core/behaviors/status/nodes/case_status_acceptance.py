@@ -26,8 +26,6 @@ read-only precondition guard that decides it before ``GuardedCommit``
 guards, here and in :mod:`.cs_invariant_guards`.
 """
 
-import logging
-
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
@@ -35,8 +33,6 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import CS_pxa, is_pxa_assertion_acceptable
 from vultron.core.states.em import EM, is_em_assertion_acceptable
-
-logger = logging.getLogger(__name__)
 
 
 class _CsStatusGuardBase(DataLayerConditionWithPorts):

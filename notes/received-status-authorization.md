@@ -123,7 +123,11 @@ sent or refuses all of it; `CheckCaseStatusAcceptableNode` does the same for
   and every replica copies it (RSH-09-001, CLP-07-013, CM-23-016).
 - **An omitted dimension is absent, not refused.** A status with no `vf`, `d`
   or `caseStatus` is recorded without them; filling them from the receiver's
-  own state would record a value the sender never sent (ADR-0075).
+  own state would record a value the sender never sent (ADR-0075). Judge each
+  dimension against its most recent recorded value, not the latest status's,
+  or an omission resets the baseline and a later regression passes
+  (`RecordedBaseline`, RSH-09-003). `rm` is never omitted: a status without
+  `rmState` states `START`.
 - **Report every reason.** The refusal notice names each refused dimension and
   why, so the sender fixes the update in one round trip (RSH-09-002,
   EH-07-001).

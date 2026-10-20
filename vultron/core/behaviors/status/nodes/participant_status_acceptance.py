@@ -32,7 +32,7 @@ carries the reasons to the sender (CLP-05-001).
 Per specs/received-status-handling.yaml RSH-09.
 """
 
-import logging
+from collections.abc import Sequence
 from typing import NamedTuple
 
 from py_trees.common import Status
@@ -54,6 +54,9 @@ from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
 from vultron.core.states.cs import (
+    CS_d,
+    CS_pxa,
+    CS_vf,
     is_monotonic_d_forward,
     is_monotonic_vf_forward,
     is_pxa_assertion_acceptable,
@@ -61,14 +64,44 @@ from vultron.core.states.cs import (
 from vultron.core.states.rm import RM, RMDeclaration, classify_rm_declaration
 from vultron.enums.roles import CVDRole
 
-logger = logging.getLogger(__name__)
-
 
 class DimensionRefusal(NamedTuple):
     """One dimension of a received status that its acceptance rule refuses."""
 
     dimension: str
     reason: str
+
+
+class RecordedBaseline(NamedTuple):
+    """The participant's most recent recorded value of each dimension.
+
+    ``rm`` is the latest status's: every status carries an RM state, a status
+    that leaves out ``rmState`` stating the initial ``START``.  ``vf``, ``d``
+    and ``pxa`` are each the latest value any recorded status carries, because
+    a status that omits a dimension records it as absent rather than reset: a
+    later status must still not move it backwards (RSH-09-003).  ``None``
+    means no recorded status has ever carried the dimension.
+    """
+
+    rm: RM
+    vf: CS_vf | None
+    d: CS_d | None
+    pxa: CS_pxa | None
+
+    @classmethod
+    def from_history(
+        cls, history: Sequence[ParticipantStatus]
+    ) -> "RecordedBaseline":
+        """Return the baseline of a non-empty status *history*, oldest first."""
+        vf = d = pxa = None
+        for status in history:
+            if status.vf is not None:
+                vf = status.vf.state
+            if status.d is not None:
+                d = status.d.state
+            if status.case_status is not None:
+                pxa = status.case_status.pxa.state
+        return cls(rm=history[-1].rm.state, vf=vf, d=d, pxa=pxa)
 
 
 def _rm_refusal(current: RM, asserted: RM) -> DimensionRefusal | None:
@@ -96,20 +129,20 @@ def _rm_refusal(current: RM, asserted: RM) -> DimensionRefusal | None:
 
 
 def _path_refusals(
-    current: ParticipantStatus,
+    baseline: RecordedBaseline,
     asserted: ParticipantStatus,
     roles: list[CVDRole] | None,
 ) -> list[DimensionRefusal]:
     """Return the refusals of the asserted fix-readiness and deployment states.
 
     A ``vf`` value needs the VENDOR role and a ``d`` value the DEPLOYER role
-    (ADR-0075, #2965); either must confirm or advance the participant's current
-    value, non-adjacent advances included (CSB-16-001).  A dimension the
-    sender omits is absent from the status it sent, not a claim to refuse
-    (ADR-0075); a first observation has nothing to regress from.
+    (ADR-0075, #2965); either must confirm or advance the participant's most
+    recent recorded value, non-adjacent advances included (CSB-16-001).  A
+    dimension the sender omits is absent from the status it sent, not a claim
+    to refuse (ADR-0075); a first observation has nothing to regress from.
     """
     refusals: list[DimensionRefusal] = []
-    current_vf = None if current.vf is None else current.vf.state
+    current_vf = baseline.vf
     asserted_vf = None if asserted.vf is None else asserted.vf.state
     if asserted_vf is not None:
         if roles is not None and not has_vendor_role(roles):
@@ -130,7 +163,7 @@ def _path_refusals(
                     " move",
                 )
             )
-    current_d = None if current.d is None else current.d.state
+    current_d = baseline.d
     asserted_d = None if asserted.d is None else asserted.d.state
     if asserted_d is not None:
         if roles is not None and not has_deployer_role(roles):
@@ -155,7 +188,7 @@ def _path_refusals(
 
 
 def _pxa_refusal(
-    current: ParticipantStatus, asserted: ParticipantStatus
+    baseline: RecordedBaseline, asserted: ParticipantStatus
 ) -> DimensionRefusal | None:
     """Return the refusal of the asserted P/X/A state, or ``None``.
 
@@ -166,9 +199,9 @@ def _pxa_refusal(
     the report's P/X/A reaches the case only through the adoption gate
     (RSH-01-003).
     """
-    if current.case_status is None or asserted.case_status is None:
+    if baseline.pxa is None or asserted.case_status is None:
         return None
-    current_pxa = current.case_status.pxa.state
+    current_pxa = baseline.pxa
     asserted_pxa = asserted.case_status.pxa.state
     if is_pxa_assertion_acceptable(current_pxa, asserted_pxa):
         return None
@@ -179,11 +212,15 @@ def _pxa_refusal(
 
 
 def participant_status_refusals(
-    current: ParticipantStatus,
+    history: Sequence[ParticipantStatus],
     asserted: ParticipantStatus,
     roles: list[CVDRole] | None = None,
 ) -> list[DimensionRefusal]:
-    """Return every refusal of *asserted* against the participant's *current*.
+    """Return every refusal of *asserted* against the participant's *history*.
+
+    *history* is the participant's recorded statuses, oldest first, and must
+    not be empty; each dimension is judged against its most recent recorded
+    value (:class:`RecordedBaseline`).
 
     An empty list means the status is accepted as sent (RSH-09-001).  Every
     failing rule is reported, not the first (EH-07-001), so the sender learns
@@ -194,10 +231,11 @@ def participant_status_refusals(
     the emit path uses (RSH-09-004): an update describing a state no sequence
     of events could produce is refused whole, whichever dimension moved.
     """
+    baseline = RecordedBaseline.from_history(history)
     refusals: list[DimensionRefusal] = []
-    if (rm := _rm_refusal(current.rm.state, asserted.rm.state)) is not None:
+    if (rm := _rm_refusal(baseline.rm, asserted.rm.state)) is not None:
         refusals.append(rm)
-    refusals.extend(_path_refusals(current, asserted, roles))
+    refusals.extend(_path_refusals(baseline, asserted, roles))
     refusals.extend(
         DimensionRefusal(violation.dimension, violation.message)
         for violation in composite_state_violations(
@@ -206,7 +244,7 @@ def participant_status_refusals(
             None if asserted.d is None else asserted.d.state,
         )
     )
-    if (pxa := _pxa_refusal(current, asserted)) is not None:
+    if (pxa := _pxa_refusal(baseline, asserted)) is not None:
         refusals.append(pxa)
     return refusals
 
@@ -295,7 +333,9 @@ class CheckParticipantStatusAcceptableNode(DataLayerConditionWithPorts):
         self._set_output(BB_RM_ANOMALY, anomaly)
 
         refusals = participant_status_refusals(
-            current, asserted, roles=list(participant.case_roles)
+            participant.participant_statuses,
+            asserted,
+            roles=list(participant.case_roles),
         )
         if not refusals:
             return Status.SUCCESS

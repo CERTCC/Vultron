@@ -274,7 +274,7 @@ RM_DECLARATION_CASES: tuple[RMDeclarationCase, ...] = (
     _C(RM.RECEIVED, RM.DEFERRED, _V.GAP),
     _C(RM.INVALID, RM.ACCEPTED, _V.GAP),
     _C(RM.VALID, RM.CLOSED, _V.GAP),
-    # Backward moves: refused, current carried forward (RSH-06-002).
+    # Backward moves: refused, the recorded state kept (RSH-06-002).
     _C(RM.ACCEPTED, RM.INVALID, _V.REGRESSION),
     _C(RM.ACCEPTED, RM.VALID, _V.REGRESSION),
     _C(RM.DEFERRED, RM.VALID, _V.REGRESSION),

@@ -483,8 +483,8 @@ class TestStatusUseCases:
 
         EM is derived from the embargo register and is never moved by a
         status (ADR-0122, RSH-09-005): even ``NONE → PROPOSED``, a move the
-        EM machine once allowed, is refused, and the case's EM is carried
-        forward unchanged.
+        EM machine once allowed, refuses the whole status, and the case's EM
+        is unchanged.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
