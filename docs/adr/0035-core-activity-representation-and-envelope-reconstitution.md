@@ -7,6 +7,7 @@ revision: 1
 deciders: Vultron maintainers
 consulted: notes/datalayer-design.md, notes/domain-model-separation.md, ADR-0034, ADR-0017
 informed: CERT/CC Vultron contributors
+partially_superseded_by: 0149-the-received-archive-is-the-sealed-received-body-read-through-a-read-only-view.md
 stakeholder_type: [project-contributor]
 ---
 
