@@ -65,9 +65,15 @@ the specific test files it is writing or changing while it works. The gate is
 both suites:
 
 ```bash
-timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
-timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
+timeout -k 30 1800 uv run pytest -n auto --tb=short > "$logs-unit.log" 2>&1; rc=$?; tail -5 "$logs-unit.log"; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$logs-integration.log" 2>&1; rc=$?; tail -5 "$logs-integration.log"; echo "exit: $rc"; (exit $rc)
 ```
+
+Run the block as one shell command, so `logs` is set for each line. The
+log names carry the worktree's directory name because parallel sessions
+share `/tmp`: a fixed name lets one session read, or overwrite, another
+session's run.
 
 The first command covers the unit suite (integration tests excluded by
 `addopts = "-m 'not integration'"`). The second explicitly runs the
@@ -83,9 +89,10 @@ fix commit is gated by the linters plus the **targeted set** for the branch
 diff (PAD-18-002), not by the full suite:
 
 ```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
 git fetch origin <base> || { echo "fetch failed — stop and report"; false; }
 gate=$(PYTHONPATH= uv run targeted-tests --base origin/<base> --pytest); rc=$?
-[ "$rc" -eq 0 ] && { eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; }; echo "exit: $rc"; (exit $rc)
+[ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
 ```
 
 The set always includes `test/architecture/` and `test/metadata/`.
@@ -129,6 +136,6 @@ Phase 5 Step 3 is the canonical caller.
 - Treat all failures as branch-owned by default; clean-base proof is required before
   classifying as pre-existing.
 - **Never re-run the test suite to get more output.** Full pytest output is
-  written to `/tmp/last-test-run.log` (or `/tmp/pytest-unit.log` /
-  `/tmp/pytest-integration.log` when both suites run, `/tmp/pytest-gate.log`
+  written to `/tmp/last-test-run.log` (or `"$logs-unit.log"` /
+  `"$logs-integration.log"` when both suites run, `"$logs-gate.log"`
   for the targeted gate). Read or grep those files instead.
