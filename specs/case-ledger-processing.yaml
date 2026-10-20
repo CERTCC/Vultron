@@ -80,12 +80,17 @@ groups:
   - id: CLP-02-003
     priority: MUST
     kind: protocol
-    statement: '`CaseLedgerEntry` MUST include the asserted activity payload, or a
-      normalized immutable snapshot of it, containing all fields required for deterministic
-      replay'
+    statement: '`CaseLedgerEntry` MUST include the asserted activity payload as its
+      `payloadSnapshot`, containing all fields required for deterministic replay: the
+      received body for an activity the CASE_MANAGER received, or its factory''s sealed
+      blob for one it emits (CLP-07-011, VM-08-003).'
     verification: '`test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that
-      each committed `CaseLedgerEntry` contains a non-empty `payloadSnapshot` that
-      round-trips through `model_validate` on the corresponding wire vocabulary class.'
+      each `CaseLedgerEntry` the CASE_MANAGER authors contains a non-empty `payloadSnapshot`
+      that round-trips through `model_validate` on the corresponding wire vocabulary class,
+      and `test/core/use_cases/received/test_verbatim_received_snapshot.py` confirms the
+      same of a received entry.'
+    adr:
+    - ADR-0107
     stories:
     - story_2022_045
     - story_2022_088
@@ -564,15 +569,30 @@ groups:
   - id: CLP-07-011
     priority: MUST
     kind: protocol
-    statement: The `payloadSnapshot` of a `CaseLedgerEntry` MUST be the verbatim AS2
-      activity that was asserted, or a deterministic canonical normalization of it.
-    rationale: The payload snapshot is the replication substrate; receivers must be
-      able to reconstitute the asserted activity from the snapshot alone without an
-      out-of-band lookup.
-    verification: '`test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that
-      for every committed `CaseLedgerEntry`, the `payloadSnapshot` field contains
-      a valid AS2 activity that revalidates through its wire vocabulary class via
-      `model_validate` without transformation.'
+    statement: >-
+      The `payloadSnapshot` of a `CaseLedgerEntry` MUST be the verbatim AS2 activity that
+      was asserted. For an activity the CASE_MANAGER received, it is the received JSON its
+      parser sealed as the activity's received evidence (VM-08-002); for one the
+      CASE_MANAGER emits, it is the blob its factory sealed, which is also the body
+      delivered (VM-08-003). The CASE_MANAGER MUST NOT drop, re-serialize, inline, patch
+      or merge any field of it; the metadata it adds (index, hashes, commit and receipt
+      times, `case_id`) lives on the entry, outside the snapshot.
+    rationale: >-
+      The payload snapshot is the replication substrate, and the entry hash covers it, so
+      what it holds is what every replica treats as the event. A snapshot rebuilt from the
+      receiver's object graph records the receiver's reconstruction, not what the sender
+      claimed, and every rewrite is one more thing a replica must reproduce exactly to
+      verify a hash (ADR-0107).
+    verification: >-
+      `test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that
+      for every `CaseLedgerEntry` the CASE_MANAGER authors, the `payloadSnapshot` field
+      contains a valid AS2 activity that revalidates through its wire vocabulary class via
+      `model_validate` without transformation.
+      `test/core/use_cases/received/test_verbatim_received_snapshot.py` confirms that a
+      received entry's snapshot equals the received body, key order included, revalidates
+      through its wire class without transformation, and is what a replica records.
+    adr:
+    - ADR-0107
     stories:
     - story_2022_045
   - id: CLP-07-012
@@ -788,26 +808,34 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Nested protocol objects referenced from a `payloadSnapshot` (e.g., `EmbargoEvent`,
-      `VulnerabilityReport`, `Note`, `ParticipantStatus`) MUST be embedded inline as full objects
-      in the snapshot; ID-string substitutions that require an out-of-band DataLayer lookup to
-      resolve MUST NOT be used in canonical snapshots. A `target` equal to the entry's own case
-      URI is not such a substitution — the entry is about that case and every replica holds it —
-      and the commit boundary MUST accept it, at any nesting depth, while refusing every other
-      bare string in an inline-object slot.
+      A `payloadSnapshot` MUST carry each nested object exactly as the asserted activity
+      carried it. An entry the CASE_MANAGER authors carries in full every object it
+      records. A received entry is the received body (CLP-07-011), so an object is inline
+      where its sender inlined it, as a sender does every object its recipient cannot be
+      expected to hold, and bare where its sender named an object the case's replicas
+      already hold (AKM-02-002). The CASE_MANAGER MUST NOT inline, resolve or replace a reference
+      when it records an entry, and the commit boundary MUST NOT refuse a bare reference
+      anywhere but the snapshot's own `object`, whose type is half of the entry's
+      signature. A replica that does not hold an object named by reference dereferences it.
     rationale: >-
       A protocol rule, not this prototype's inline-object shortcut (AKM-03-003): the entry
-      hash covers the `payloadSnapshot` and nothing outside it. An object named by ID alone
-      escapes the hash chain every participant verifies, so its content could differ
-      between replicas or change after commit with nothing to catch it, and replay would
-      depend on a lookup rather than on the ledger alone (CM-23-016). An implementation
-      that dereferences inlines here too.
+      hash covers the `payloadSnapshot` and nothing outside it, so an object carried in
+      full is under the hash every participant verifies, and an object named by id is
+      only identified by it. Filling a reference in at the CASE_MANAGER would put the
+      receiver's reconstruction in place of what was sent, and a replica could not tell
+      the sender's claim from the fill-in (ADR-0107).
     verification: >-
       `test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that nested objects such as
       `EmbargoEvent`, `VulnerabilityReport`, and `Note` appear as fully inlined AS2 objects in
-      committed snapshots. `test/core/behaviors/sync/nodes/test_canonical_entry.py` confirms a
-      bare `target` naming the entry's case is accepted (top level and nested) and a bare `target`
-      naming another case, or a bare `object`, is refused.
+      the snapshots the CASE_MANAGER authors.
+      `test/core/use_cases/received/test_verbatim_received_snapshot.py` confirms that a
+      byte-for-byte change to a received body changes the recorded snapshot and that a
+      change to the receiver's store does not, and that a bare case reference is recorded
+      bare. `test/core/behaviors/sync/nodes/test_canonical_entry.py` confirms a bare
+      `target`, at the top level or nested, and a bare reference nested in the object are
+      accepted, and a bare `object` is refused.
+    adr:
+    - ADR-0107
     stories:
     - story_2022_045
   - id: CLP-07-007
@@ -836,14 +864,15 @@ groups:
   - id: CLP-07-009
     priority: MUST
     kind: project
-    statement: A `payloadSnapshot` — and every object inlined into one under CLP-07-006
-      — MUST be in the wire (AS2) shape, such that the wire vocabulary class for its
-      `type_` can revalidate it without translation. When the object being captured
-      is a core domain object, the wire shape MUST be produced through the core→wire
-      rendering port (ARCH-20-001), never by dumping the core object with `by_alias=True`
-      or by rewriting dumped keys in core. A received activity is such an object, since the
-      extractor rebuilds it as a core-branch `VultronActivity`; its snapshot is
-      rendered through the port too.
+    statement: >-
+      A `payloadSnapshot` — and every object inlined into one under CLP-07-006 — MUST be
+      in the wire (AS2) shape, such that the wire vocabulary class for its `type_` can
+      revalidate it without translation. When the object being captured is a core domain
+      object, the wire shape MUST be produced through the core→wire rendering port
+      (ARCH-20-001), never by dumping the core object with `by_alias=True` or by rewriting
+      dumped keys in core. A received activity's snapshot is no such capture. It is the
+      received body itself (CLP-07-011), already in the wire shape, and nothing renders
+      it.
     rationale: 'CLP-07-011 requires the snapshot to be reconstitutable by receivers,
       and CLP-01-003/CLP-01-004 make it the replication substrate. Two distinct failure
       modes existed: core objects with no `alias_generator` were inlined in snake_case

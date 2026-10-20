@@ -62,6 +62,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -121,7 +122,6 @@ from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     accept_case_participant_offer_activity,
@@ -591,7 +591,7 @@ def test_recommendation_accept_from_non_owner_is_refused():
         to=[RECOMMEND_CASE_MANAGER_ID],
     )
     event = cast(
-        AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
     )
 
     result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -631,7 +631,7 @@ def test_recommendation_reject_from_non_owner_is_refused():
         to=[RECOMMEND_CASE_MANAGER_ID],
     )
     event = cast(
-        RejectOfferCaseParticipantReceivedEvent, extract_event(reject)
+        RejectOfferCaseParticipantReceivedEvent, received_event(reject)
     )
 
     result = RejectOfferCaseParticipantReceivedUseCase(
@@ -669,7 +669,7 @@ def test_offer_case_participant_from_non_case_manager_is_refused():
     offer = _build_offer_activity(
         actor=_IMPOSTOR_ID, to=[RECOMMEND_CASE_OWNER_ID]
     )
-    event = cast(OfferCaseParticipantReceivedEvent, extract_event(offer))
+    event = cast(OfferCaseParticipantReceivedEvent, received_event(offer))
 
     result = OfferCaseParticipantReceivedUseCase(
         dl,

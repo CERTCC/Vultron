@@ -161,9 +161,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             else getattr(activity, "activity_type", "case_event")
             or "case_event"
         )
-        payload_snapshot = _extract_payload_snapshot(
-            activity, self.datalayer, self._require_wire_render_port()
-        )
+        payload_snapshot = _extract_payload_snapshot(activity)
         return object_id, semantic_type, payload_snapshot
 
     def update(self) -> Status:
@@ -193,12 +191,11 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             activity, case_id
         )
 
-        # Normalize context to case_id for activities that predate the case
-        # (e.g., Offer(VulnerabilityReport) submitted before the case existed).
-        if payload_snapshot and payload_snapshot.get("context") != case_id:
-            payload_snapshot = dict(payload_snapshot)
-            payload_snapshot["context"] = case_id
-
+        # The snapshot is the received body as it arrived, so its ``context``
+        # is the sender's: absent on an activity that predates the case, such
+        # as the Offer(VulnerabilityReport) that opened it.  The entry names
+        # its case on the envelope (``case_id``), which is what the commit
+        # boundary checks (CLP-07-011).
         _assert_actor_identity(semantic_type, payload_snapshot, activity)
 
         tree = create_commit_log_entry_tree(

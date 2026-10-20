@@ -1062,10 +1062,11 @@ def test_make_dispatcher_gives_embargo_ending_paths_the_trigger_port(
 def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
     """Every received use case is constructed with a ``WireRenderPort``.
 
-    Every received tree ends in a guarded ledger commit, and its payload
-    snapshot is an AS2 rendering core cannot produce itself (CLP-07-009).  So a
-    semantic with no other port still needs this one, and the use case must
-    accept it: the dispatcher calls ``use_case_class(dl, event, **kwargs)``.
+    A received tree may write and commit records the CASE_MANAGER authors,
+    whose snapshots are AS2 renderings core cannot produce itself
+    (CLP-07-009, CLP-07-013).  So a semantic with no other port still gets
+    this one, and the use case must accept it: the dispatcher calls
+    ``use_case_class(dl, event, **kwargs)``.
     """
     import inspect
 

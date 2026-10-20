@@ -27,6 +27,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.received import with_evidence
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     MakeOwnershipTransferOfferNode,
 )
@@ -117,8 +118,10 @@ def _proposal_event() -> ProposeCaseOwnershipTransferReceivedEvent:
         published=now_utc(),
         object_=inner,
     )
-    return ProposeCaseOwnershipTransferReceivedEvent(
-        activity_id=PROPOSAL_ID, actor_id=VENDOR_ID, activity=activity
+    return with_evidence(
+        ProposeCaseOwnershipTransferReceivedEvent(
+            activity_id=PROPOSAL_ID, actor_id=VENDOR_ID, activity=activity
+        )
     )
 
 

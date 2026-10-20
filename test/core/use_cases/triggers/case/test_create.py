@@ -29,6 +29,7 @@ from test.support.ledger import (
     fail_commits,
     ledger_entries,
 )
+from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -67,7 +68,6 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -403,7 +403,7 @@ class TestSvcCreateCaseUseCase:
         assert sent.activity_id is not None
         sent_activity = self.dl.read(sent.activity_id)
         assert isinstance(sent_activity, as_Activity)
-        event = extract_event(sent_activity).model_copy(
+        event = received_event(sent_activity).model_copy(
             update={"receiving_actor_id": self.actor.id_}
         )
         assert isinstance(

@@ -277,9 +277,10 @@ As ActivityStreams 2.0 allows, an Activity MAY carry an object inline or name it
 An actor that names by reference an object its recipient cannot be expected to hold MUST use a reference the recipient can dereference ([AKM-02-002](../specs/protocol.md#akm-02-002), [§4.7 Knowledge Model and Actor Isolation](layers.md#47-knowledge-model-and-actor-isolation)).
 A production implementation MUST be able to fetch an object named by a URI it holds no record of ([AKM-05-004](../specs/protocol.md#akm-05-004)).
 
-One place requires the inline form.
-A case ledger entry's payload snapshot MUST carry the objects nested in it in full, because the entry hash covers the snapshot and nothing outside it ([CLP-07-006](../specs/protocol.md#clp-07-006)).
-An object named there by identifier alone would escape the hash chain every participant verifies.
+A case ledger entry records the asserted activity as it was sent.
+Its payload snapshot is the received body of an activity the Case Manager received, or the sealed body of one it sent itself ([CLP-07-011](../specs/protocol.md#clp-07-011)).
+Each nested object stays as the asserting activity carried it: inline where its sender inlined it, by reference where its sender named an object every replica already holds ([CLP-07-006](../specs/protocol.md#clp-07-006)).
+The Case Manager never fills a reference in, because the entry hash covers the snapshot and nothing outside it, so a filled-in snapshot would record the Case Manager's reconstruction rather than what was sent.
 
 !!! note "The reference implementation inlines every object"
     The reference implementation does not yet dereference, so it carries every object inline and refuses a bare URI where it needs the object ([AKM-03-003](../specs/project.md#akm-03-003)).

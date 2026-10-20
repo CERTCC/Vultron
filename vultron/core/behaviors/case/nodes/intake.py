@@ -35,8 +35,9 @@ event carries, and only after the guards passed.  Writing the inlined objects
 here would let any sender seed a replica ahead of the trust checks
 (PCR-03-004, CBT-01-005), because a stored case row *is* the replica.  So
 intake never writes them.  The faithful copy of what arrived is the received
-evidence ``parse_activity`` seals onto the activity; #3742 persists it beside
-the archived row, and this node is where.
+evidence ``parse_activity`` seals onto the activity, which the event carries
+(``VultronEvent.received_evidence``) and a received ledger entry records
+verbatim (CLP-07-011); archiving it beside the row is #4943.
 
 ``create_receive_activity_tree`` supplies this node as the first child of
 every tree it builds, so no handler opts out and no handler needs a store node

@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.received import received_event
 from test.support.rm_declaration import (
     ACTOR_ID,
     CASE_ID,
@@ -82,7 +83,6 @@ from vultron.core.use_cases.received.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
     announce_log_entry_activity,
@@ -904,7 +904,7 @@ def _announce_event(
     activity = announce_log_entry_activity(
         entry=wire_entry, actor=CASE_MANAGER_ID
     )
-    return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+    return cast(AnnounceLogEntryReceivedEvent, received_event(activity))
 
 
 class TestLedgerApplyCopiesTheStatus:

@@ -39,6 +39,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.embargo_register import activate, write_consent_rows
+from test.support.received import received_event
 from test.support.rm_declaration import (
     ACTOR_ID,
     CASE_ID,
@@ -71,7 +72,6 @@ from vultron.core.use_cases.received.actor.full_case_invite import (
     RejectInviteActorToFullCaseReceivedUseCase,
     TentativeRejectInviteActorToFullCaseReceivedUseCase,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     rm_accept_full_case_invite_activity,
     rm_invite_to_full_case_activity,
@@ -138,7 +138,7 @@ def _deliver(
     activity = builders[declared](
         invite, tail, actor=sender, to=[CASE_MANAGER_ID]
     )
-    event = extract_event(activity)
+    event = received_event(activity)
     return use_cases[declared](
         dl,
         event,

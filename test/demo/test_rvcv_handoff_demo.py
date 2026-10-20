@@ -771,6 +771,7 @@ def _otc_make_offer(dl, proposal, case_manager_id: str) -> Any:
     The CASE_MANAGER ledgers the proposal and makes the Offer (ADR-0148);
     returns that Offer, the one the transferee answers.
     """
+    from test.support.received import received_event
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
@@ -786,11 +787,8 @@ def _otc_make_offer(dl, proposal, case_manager_id: str) -> Any:
     from vultron.core.use_cases.received.actor.ownership import (
         ProposeCaseOwnershipTransferReceivedUseCase,
     )
-    from vultron.semantic_registry import extract_event
 
-    event = extract_event(proposal).model_copy(
-        update={"receiving_actor_id": case_manager_id}
-    )
+    event = received_event(proposal, receiving_actor_id=case_manager_id)
     assert isinstance(event, ProposeCaseOwnershipTransferReceivedEvent)
     result = ProposeCaseOwnershipTransferReceivedUseCase(
         dl,

@@ -11,7 +11,7 @@ related_specs:
   - specs/architecture.yaml (ARCH-12-001, ARCH-21-002, ARCH-25-003)
   - specs/vocabulary-model.yaml (VM-08-002, VM-08-003)
   - specs/outbox.yaml (OX-07-001)
-  - specs/case-ledger-processing.yaml (CLP-07-011)
+  - specs/case-ledger-processing.yaml (CLP-07-006, CLP-07-011)
   - specs/case-management.yaml (CM-17-002)
   - specs/message-validation.yaml (MV-10-001)
 related_notes:
@@ -65,12 +65,14 @@ class reachable in a parsed example tree, so a new vocabulary class is checked
 the first time an example carries it. A test asserting
 `model_config["frozen"]` kept passing after the guarantee was gone.
 
-The evidence does not reach core: the extractor builds the `VultronEvent`, which
-has no evidence field. The receive-side ledger snapshot is a rendering of the
-extractor's rebuilt `VultronActivity`, the "canonical normalization" branch of
-CLP-07-011, not the verbatim body; an emitted entry records the factory's sealed
-blob. Recording received evidence verbatim, and persisting it for replay, is
-ADR-0107 (#3742).
+**Carry the evidence onto the event; core reads it there.** Core sees only the
+`VultronEvent`, so `extract_intent` copies the sealed text onto
+`VultronEvent.received_evidence`, and the received entry records
+`received_body()` unchanged (CLP-07-011, CLP-07-006). Never rebuild the snapshot
+from `request.activity` or the store: that is the extractor's summary and the
+receiver's view, not what was sent. An event with no evidence (a resend under a
+held id, an activity built in process) has no received body to record, which is
+a wiring fault (`VultronWiringError`), never a fallback rendering.
 
 ## Clearing a Field: `model_copy`, Not a Cast-Silenced Assignment
 
@@ -95,7 +97,7 @@ To clear or override a field on a frozen wire object, build a new one with
   the sealed body.
 - **B, the hydrated routing copy**: built independently from A with references
   resolved, used for dispatch and use-case execution, never stored in the
-  ledger.
+  ledger; the entry records A's evidence, carried on the event.
 
 A is never modified to produce B; if rehydration fails, A is intact. Replicas
 receive A via `Announce(CaseLedgerEntry)` and build their own B, so mutating A

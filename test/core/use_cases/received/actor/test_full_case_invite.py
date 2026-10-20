@@ -29,6 +29,7 @@ from test.core.use_cases.received.actor.test_case_joining_replies import (  # no
     joining_case,
     route_received,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events.actor import (
     InviteActorToFullCaseReceivedEvent,
@@ -45,7 +46,7 @@ from vultron.core.sync_helpers import (
     ledger_tail_position,
 )
 from vultron.errors import VultronWiringError  # noqa: F401
-from vultron.semantic_registry import extract_event, find_matching_semantics
+from vultron.semantic_registry import find_matching_semantics
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
     ledger_position_content,
@@ -147,7 +148,7 @@ def test_full_case_invite_and_reply_carry_the_position_json_in_content() -> (
     assert json.loads(content) == {"logIndex": 3, "entryHash": _HASH}
     assert content == ledger_position_content(position)
     assert LedgerPosition.model_validate_json(content) == position
-    event = extract_event(invite)
+    event = received_event(invite)
     assert isinstance(event, InviteActorToFullCaseReceivedEvent)
     assert event.ledger_tail == position
 
@@ -329,7 +330,7 @@ def test_a_reply_with_unparseable_content_is_refused_at_the_edge(
         actor=joining_case.invitee_id, object_=invite, content="{}"
     )
     with pytest.raises(VultronParseValidationError, match="unparseable"):
-        extract_event(reply)
+        received_event(reply)
 
 
 @pytest.mark.spec("RSH-06-006")

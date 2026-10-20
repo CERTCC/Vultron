@@ -14,6 +14,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     PARTICIPANT_ACTOR_ID,
     _make_entry,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.nodes import (
@@ -28,7 +29,6 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -130,7 +130,7 @@ def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
                 },
                 "context": CASE_ID,
             },
-            "non-empty URI",
+            "actor URI",
         ),
         (
             {
@@ -152,7 +152,7 @@ def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
                 },
                 "context": "https://example.org/cases/other",
             },
-            "case URI",
+            "not the entry's case",
         ),
     ],
 )
@@ -352,7 +352,7 @@ def _reject_event(
     activity = reject_log_entry_activity(
         wire_entry, context=last_accepted_hash, actor=peer_id
     )
-    return cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    return cast(RejectLogEntryReceivedEvent, received_event(activity))
 
 
 def _replication_state_id(peer_id: str) -> str:

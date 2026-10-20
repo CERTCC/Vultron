@@ -181,10 +181,11 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
             acted upon.
         semantic_type: The entry's semantic type, hashed under that key
             (e.g. ``"invite_actor_to_case"``; CLP-02-014).
-        payload_snapshot: Normalized immutable snapshot of the asserted
-            activity payload — sufficient for deterministic replay
-            (CLP-02-003, SYNC-08-002).  Stored as a plain dict so that it
-            survives DataLayer serialisation without wire-type coupling.
+        payload_snapshot: The asserted activity payload verbatim, the
+            received body or the sealed blob sent — sufficient for
+            deterministic replay (CLP-02-003, CLP-07-011, SYNC-08-002).
+            Stored as a plain dict so that it survives DataLayer
+            serialisation without wire-type coupling.
         prev_log_hash: SHA-256 hex hash of the immediate predecessor entry's
             canonical content.  Per-case genesis hash (see
             :func:`compute_genesis_hash`) for the first entry in a case
@@ -477,8 +478,8 @@ class CaseLedger:
         Args:
             object_id: Full URI of the asserted activity or primary object.
             semantic_type: The entry's semantic type (CLP-02-014).
-            payload_snapshot: Normalised snapshot of the asserted activity
-                payload for deterministic replay (CLP-02-003).
+            payload_snapshot: The asserted activity payload verbatim, for
+                deterministic replay (CLP-02-003, CLP-07-011).
             term: Raft cluster term; ``None`` for single-node deployments.
 
         Returns:

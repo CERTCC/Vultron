@@ -30,6 +30,7 @@ import pytest
 
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
     StoredActivityIngressAdapter,
@@ -106,6 +107,29 @@ def test_by_id_rehydration_carries_the_evidence_as_received(
     assert artifact.received_evidence == received
 
 
+@pytest.mark.spec("VM-08-002")
+def test_the_dispatched_event_carries_the_evidence_as_received(
+    dl: SqliteDataLayer,
+):
+    """Core sees only the event, so the parse edge carries the evidence onto it.
+
+    It is the artifact's text, not a rendering of the routing copy: the bare
+    report id the routing copy hydrated is still bare (ADR-0107).
+    """
+    body = _offer_of_stored_report(dl)
+    received = copy.deepcopy(body)
+    adapter = FastAPIIngressAdapter(dl=dl)
+    artifact = adapter.parse(body)
+    assert artifact is not None
+    routed = adapter.rehydrate(artifact)
+
+    event = prepare_for_dispatch(routed)
+
+    assert event.received_evidence == artifact.received_evidence_json
+    assert event.received_body() == received
+    assert event.received_body() is not event.received_body()
+
+
 def _defer(dl: SqliteDataLayer, body: dict[str, Any]) -> None:
     """Deliver *body* and hold it, as the inbox does for an unknown case."""
     staging = InlineObjectStaging(dl)
@@ -139,6 +163,7 @@ def test_resend_under_a_held_id_routes_without_this_body_evidence(
 
     assert routed.summary == "first", "precondition: held copy routed"
     assert routed.received_evidence is None
+    assert prepare_for_dispatch(routed).received_evidence is None
     assert artifact.received_evidence == second
     held = dl.read(DeferredInboxActivity.build_id(first["id"]))
     assert isinstance(held, DeferredInboxActivity), "kept for its replay"
@@ -173,6 +198,7 @@ def test_resend_of_an_archived_activity_routes_without_its_evidence(
 
     assert routed.id_ == body["id"]
     assert routed.received_evidence is None
+    assert prepare_for_dispatch(routed).received_evidence is None
     assert artifact.received_evidence == body
     assert dl.count_all() == before
 
@@ -189,6 +215,7 @@ def test_replay_of_a_deferred_activity_carries_its_own_evidence(
 
     assert replayed is not None, "precondition: held activity replayed"
     assert replayed.received_evidence == body
+    assert prepare_for_dispatch(replayed).received_body() == body
 
 
 @pytest.mark.spec("VM-08-002")

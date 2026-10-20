@@ -33,6 +33,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -63,7 +64,6 @@ from vultron.core.use_cases.received.actor.offer_case_participant import (
     RejectOfferCaseParticipantReceivedUseCase,
 )
 from vultron.errors import VultronBTInternalError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     accept_case_participant_offer_activity,
     offer_case_participant_activity,
@@ -254,7 +254,9 @@ def _build_offer_activity(
 class TestOfferCaseParticipantReceivedUseCase:
     def _event(self) -> OfferCaseParticipantReceivedEvent:
         activity = _build_offer_activity()
-        return cast(OfferCaseParticipantReceivedEvent, extract_event(activity))
+        return cast(
+            OfferCaseParticipantReceivedEvent, received_event(activity)
+        )
 
     @pytest.mark.spec("HP-01-005")
     def test_case_owner_receipt_is_applied(self):
@@ -308,7 +310,7 @@ class TestOfferCaseParticipantReceivedUseCase:
         dl, _ = _seed_dl_for_case_actor()
         activity = _build_offer_activity(to=[CASE_ACTOR_ID])
         event = cast(
-            OfferCaseParticipantReceivedEvent, extract_event(activity)
+            OfferCaseParticipantReceivedEvent, received_event(activity)
         )
 
         result = OfferCaseParticipantReceivedUseCase(
@@ -387,7 +389,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         return cast(
-            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
         )
 
     def _event_with_stored_offer(
@@ -428,7 +430,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         return cast(
-            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
         )
 
     def test_executes_without_error(self):
@@ -537,7 +539,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
         )
 
         result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -584,7 +586,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
         )
 
         result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -659,7 +661,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
         )
         with caplog.at_level(logging.WARNING):
             result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -872,7 +874,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         return cast(
-            RejectOfferCaseParticipantReceivedEvent, extract_event(reject)
+            RejectOfferCaseParticipantReceivedEvent, received_event(reject)
         )
 
     def test_executes_without_error(self):
@@ -953,7 +955,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            RejectOfferCaseParticipantReceivedEvent, extract_event(reject)
+            RejectOfferCaseParticipantReceivedEvent, received_event(reject)
         )
         result = RejectOfferCaseParticipantReceivedUseCase(
             dl,
@@ -976,7 +978,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            RejectOfferCaseParticipantReceivedEvent, extract_event(reject)
+            RejectOfferCaseParticipantReceivedEvent, received_event(reject)
         )
 
         result = RejectOfferCaseParticipantReceivedUseCase(
@@ -1123,7 +1125,7 @@ def test_with_both_unrecorded_each_answer_reports_its_first_lookup(
     activity = _answer_to_an_unrecorded_offer(verb)
     result = _ANSWER_USE_CASES[verb](
         dl,
-        extract_event(activity),  # type: ignore[arg-type]
+        received_event(activity),  # type: ignore[arg-type]
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
@@ -1153,7 +1155,7 @@ def test_the_lookup_fails_for_a_case_this_store_does_not_hold(
                 verb=verb, answer_id=answer_id, case_id=CASE_ID
             ),
             actor_id=CASE_ACTOR_ID,
-            activity=extract_event(activity),
+            activity=received_event(activity),
         )
     finally:
         dl.close()
@@ -1253,7 +1255,7 @@ class TestRolesFromStoredOffer:
             to=[AC1_CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
         )
         return dl, event
 
@@ -1342,7 +1344,7 @@ class TestRolesFromStoredOffer:
             cast(as_Invite, invite_obj), actor=AC1_INVITEE_ID
         )
         accept_invite_event = cast(
-            AcceptInviteActorToCaseReceivedEvent, extract_event(accept_invite)
+            AcceptInviteActorToCaseReceivedEvent, received_event(accept_invite)
         )
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1418,7 +1420,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             to=[AC1_CASE_ACTOR_ID],
         )
         return cast(
-            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
         )
 
     @pytest.mark.spec("CM-16-019")
@@ -1489,7 +1491,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             to=[AC1_CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
         )
 
         result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -1564,7 +1566,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             cast(as_Invite, invite_obj), actor=AC1_INVITEE_ID
         )
         accept_invite_event = cast(
-            AcceptInviteActorToCaseReceivedEvent, extract_event(accept_invite)
+            AcceptInviteActorToCaseReceivedEvent, received_event(accept_invite)
         )
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1620,7 +1622,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
         )
 
         result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -1650,7 +1652,7 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            RejectOfferCaseParticipantReceivedEvent, extract_event(reject)
+            RejectOfferCaseParticipantReceivedEvent, received_event(reject)
         )
 
         result = RejectOfferCaseParticipantReceivedUseCase(
@@ -1703,7 +1705,7 @@ def _seed_a_recommendation_at_the_case_manager() -> tuple[
         to=[CASE_ACTOR_ID],
         suggested_roles=["vendor"],
     )
-    return dl, extract_event(recommendation)
+    return dl, received_event(recommendation)
 
 
 def _assert_each_send_follows_its_queueing(

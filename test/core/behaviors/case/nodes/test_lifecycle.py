@@ -15,6 +15,8 @@
 
 """Unit tests for CommitCaseLedgerEntryNode."""
 
+import json
+from typing import Any
 from unittest.mock import patch
 
 import py_trees
@@ -22,14 +24,10 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
-from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
-from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronService
-from vultron.core.models.events.base import MessageSemantics
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 _FACTORY_PATH = (
     "vultron.core.behaviors.case.nodes.lifecycle.create_commit_log_entry_tree"
@@ -57,65 +55,33 @@ def datalayer():
     return dl
 
 
-class _ScriptedRenderPort:
-    """Render port that returns a fake activity's scripted AS2 form.
-
-    The fakes below stand in for the received activity; this port renders
-    them as their scripted payload and delegates every other object — the
-    stored objects the snapshot inlines — to the real adapter.  The node
-    under test only ever sees what the port returns (ARCH-20-001).
-    """
-
-    def __init__(self) -> None:
-        self._real = As2WireRenderAdapter()
-
-    def render(self, obj: object) -> dict[str, object]:
-        scripted = getattr(obj, "as2", None)
-        if isinstance(scripted, dict):
-            return dict(scripted)
-        return self._real.render(obj)
-
-
 @pytest.fixture
 def bridge(datalayer):
-    return BTBridge(
-        datalayer=datalayer, wire_render_port=_ScriptedRenderPort()
+    # No wire render port: a received entry records the received body, so
+    # the node renders nothing (ADR-0107).
+    return BTBridge(datalayer=datalayer)
+
+
+# ---------------------------------------------------------------------------
+# Helper: a received event carrying its received body
+# ---------------------------------------------------------------------------
+
+
+_CREATE_BODY: dict[str, Any] = {"id": ACTIVITY_ID, "type": "Create"}
+
+
+def _received(
+    body: dict[str, Any] | None = None,
+    semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE,
+    actor_id: str = ACTOR_ID,
+) -> VultronEvent:
+    """A received event whose evidence is *body*, as the parser sealed it."""
+    return VultronEvent(
+        semantic_type=semantic_type,
+        activity_id=ACTIVITY_ID,
+        actor_id=actor_id,
+        received_evidence=json.dumps(_CREATE_BODY if body is None else body),
     )
-
-
-# ---------------------------------------------------------------------------
-# Helper: minimal VultronEvent-like object for blackboard
-# ---------------------------------------------------------------------------
-
-
-class _FakeActivity:
-    """Minimal stand-in for a VultronEvent on the blackboard."""
-
-    def __init__(
-        self,
-        activity_id: str = ACTIVITY_ID,
-        semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE,
-        activity: object | None = None,
-        actor_id: str | None = None,
-    ):
-        self.activity_id = activity_id
-        self.semantic_type = semantic_type
-        self.activity = activity
-        self.actor_id = actor_id
-
-
-class _FakeWireActivityWithPayload:
-    """Minimal stand-in whose AS2 form ``_ScriptedRenderPort`` returns."""
-
-    def __init__(self, payload: dict[str, object]):
-        self.as2 = payload
-
-    def model_dump(self, **_: object) -> dict[str, object]:
-        raise AssertionError("core must not dump the activity itself")
-
-
-def _FakeWireActivity() -> _FakeWireActivityWithPayload:
-    return _FakeWireActivityWithPayload({"id": ACTIVITY_ID, "type": "Create"})
 
 
 # ---------------------------------------------------------------------------
@@ -156,9 +122,7 @@ def test_no_case_id_returns_failure_without_building_inner_tree(bridge):
 
 def test_constructor_case_id_builds_inner_commit_tree(bridge):
     """Node composes CommitLogEntryBT when case_id is given at build."""
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID, semantic_type=MessageSemantics.CREATE_CASE
-    )
+    activity = _received()
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
     with (
         patch(_FACTORY_PATH) as mock_factory,
@@ -174,7 +138,7 @@ def test_constructor_case_id_builds_inner_commit_tree(bridge):
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
         semantic_type=MessageSemantics.CREATE_CASE.value,
-        payload_snapshot={},
+        payload_snapshot=_CREATE_BODY,
     )
     execute_kwargs = (
         mock_bridge_cls.return_value.execute_with_setup.call_args.kwargs
@@ -185,9 +149,7 @@ def test_constructor_case_id_builds_inner_commit_tree(bridge):
 def test_blackboard_case_id_builds_inner_commit_tree(bridge, datalayer):
     """Node reads case_id from blackboard written by a prior node."""
     node = CommitCaseLedgerEntryNode()  # no constructor param
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID, semantic_type=MessageSemantics.CREATE_CASE
-    )
+    activity = _received()
 
     # Manually write case_id to the blackboard via a helper sequence node
     class _WriteCaseId(py_trees.behaviour.Behaviour):
@@ -225,7 +187,7 @@ def test_blackboard_case_id_builds_inner_commit_tree(bridge, datalayer):
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
         semantic_type=MessageSemantics.CREATE_CASE.value,
-        payload_snapshot={},
+        payload_snapshot=_CREATE_BODY,
     )
 
 
@@ -233,10 +195,7 @@ def test_activity_on_blackboard_semantics_become_the_entry_semantic_type(
     bridge,
 ):
     """The entry's semantic_type is derived from activity.semantic_type.value."""
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID,
-        semantic_type=MessageSemantics.CREATE_CASE,
-    )
+    activity = _received()
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
     with (
         patch(_FACTORY_PATH) as mock_factory,
@@ -252,139 +211,89 @@ def test_activity_on_blackboard_semantics_become_the_entry_semantic_type(
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
         semantic_type=MessageSemantics.CREATE_CASE.value,
-        payload_snapshot={},
+        payload_snapshot=_CREATE_BODY,
     )
 
 
-def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID,
-        semantic_type=MessageSemantics.CREATE_CASE,
-        activity=_FakeWireActivity(),
-    )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    with (
-        patch(_FACTORY_PATH) as mock_factory,
-        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
-    ):
-        mock_bridge_cls.return_value.execute_with_setup.return_value = (
-            BTExecutionResult(status=Status.SUCCESS)
-        )
-        bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=activity
-        )
-    mock_factory.assert_called_once_with(
-        case_id=CASE_ID,
-        object_id=ACTIVITY_ID,
-        semantic_type=MessageSemantics.CREATE_CASE.value,
-        payload_snapshot={
-            "id": ACTIVITY_ID,
-            "type": "Create",
-            "context": CASE_ID,
-        },
-    )
+@pytest.mark.spec("CLP-07-011")
+def test_received_body_is_forwarded_as_payload_snapshot_unchanged(bridge):
+    """The snapshot is the received body as it arrived (ADR-0107).
 
-
-@pytest.mark.spec("ARCH-20-001")
-@pytest.mark.spec("CLP-07-009")
-def test_missing_render_port_is_a_wiring_fault(datalayer):
-    """Without the port the node cannot build an AS2 snapshot, so it stops.
-
-    It does not fall back to a core-side dump: the failure is a composition
-    fault, reported as an internal error rather than a refusal of the sender.
+    It names no case, as the Offer that opened a case does not, and the node
+    writes none in: the entry names its case on the envelope.
     """
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID,
+    body = {
+        "id": ACTIVITY_ID,
+        "type": "Create",
+        "actor": ACTOR_ID,
+        # Bare references stay bare: a replica dereferences them, the
+        # receiver does not fill them in from its store.
+        "object": "https://example.org/notes/held",
+        "unknownExtension": {"kept": True},
+    }
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
+        bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=_received(body)
+        )
+    mock_factory.assert_called_once_with(
+        case_id=CASE_ID,
+        object_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.CREATE_CASE.value,
+        payload_snapshot=body,
+    )
+
+
+@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("ARCH-15-001")
+def test_event_without_received_evidence_is_a_wiring_fault(bridge):
+    """An event with no received body has nothing to record.
+
+    It is not rebuilt from the event's objects: the failure is a
+    composition fault, reported as an internal error rather than a refusal
+    of the sender.
+    """
+    event = VultronEvent(
         semantic_type=MessageSemantics.CREATE_CASE,
-        activity=_FakeWireActivity(),
+        activity_id=ACTIVITY_ID,
+        actor_id=ACTOR_ID,
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
-        result = BTBridge(datalayer=datalayer).execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=activity
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=event
         )
 
     assert result.status == Status.FAILURE
     assert result.internal_error is True
-    assert WIRE_RENDER_PORT_UNAVAILABLE in (result.feedback_message or "")
+    assert "carries no received evidence" in (result.feedback_message or "")
     mock_factory.assert_not_called()
 
 
 @pytest.mark.spec("ARCH-15-001")
-@pytest.mark.spec("ARCH-20-003")
-def test_event_without_activity_is_a_wiring_fault_not_a_refusal(bridge):
-    """An event carrying no activity has no AS2 snapshot to record.
+def test_blackboard_activity_that_is_not_an_event_is_a_wiring_fault(bridge):
+    """Only a received event carries a received body to record."""
 
-    The port would refuse the event itself, which a received handler reports
-    as the sender's fault; the node names the composition fault instead.
-    """
-    from pydantic import BaseModel
-
-    class _ActivitylessEvent(BaseModel):
-        activity_id: str = ACTIVITY_ID
-        semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE
-        activity: None = None
+    class _NotAnEvent:
+        activity_id = ACTIVITY_ID
+        semantic_type = MessageSemantics.CREATE_CASE
 
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
     with patch(_FACTORY_PATH) as mock_factory:
         result = bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=_ActivitylessEvent()
+            tree=node, actor_id=ACTOR_ID, activity=_NotAnEvent()
         )
 
     assert result.status == Status.FAILURE
     assert result.internal_error is True
-    assert "carries no activity" in (result.feedback_message or "")
+    assert "is not a received event" in (result.feedback_message or "")
     mock_factory.assert_not_called()
-
-
-def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
-    embargo = as_EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(45))
-    revision = as_EmbargoEvent(context=CASE_ID, end_time=days_from_now_utc(60))
-    datalayer.save(embargo)
-    datalayer.save(revision)
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID,
-        semantic_type=MessageSemantics.CREATE_CASE,
-        activity=_FakeWireActivityWithPayload(
-            {
-                "id": ACTIVITY_ID,
-                "type": "Join",
-                "context": CASE_ID,
-                "object": {
-                    "id": "https://example.org/statuses/status-001",
-                    "type": "ParticipantStatus",
-                    # Each register entry's embargo is a reference
-                    # (ADR-0122).
-                    "embargoRegister": [
-                        {"embargo": embargo.id_, "status": "ACTIVE"},
-                        {"embargo": revision.id_, "status": "PROPOSED"},
-                    ],
-                },
-            }
-        ),
-    )
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-
-    with (
-        patch(_FACTORY_PATH) as mock_factory,
-        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
-    ):
-        mock_bridge_cls.return_value.execute_with_setup.return_value = (
-            BTExecutionResult(status=Status.SUCCESS)
-        )
-        bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID, activity=activity
-        )
-
-    payload_snapshot = mock_factory.call_args.kwargs["payload_snapshot"]
-    status_obj = payload_snapshot["object"]
-    assert payload_snapshot["context"] == CASE_ID
-    active, proposed = status_obj["embargoRegister"]
-    assert isinstance(active["embargo"], dict)
-    assert active["embargo"]["id"] == embargo.id_
-    assert active["status"] == "ACTIVE"
-    assert isinstance(proposed["embargo"], dict)
-    assert proposed["embargo"]["id"] == revision.id_
 
 
 def test_no_activity_returns_failure(bridge):
@@ -459,10 +368,9 @@ def test_actor_identity_mismatch_returns_failure(bridge):
         "context": CASE_ID_CLP,
         "published": "2026-01-01T12:00:00+00:00",
     }
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID,
+    activity = _received(
+        payload,
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
-        activity=_FakeWireActivityWithPayload(payload),
         actor_id=ACTOR_ID,
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
@@ -492,10 +400,9 @@ def test_case_manager_as_participant_commits_without_error(bridge):
         "context": CASE_ID_CLP,
         "published": "2026-01-01T12:00:00+00:00",
     }
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID,
+    activity = _received(
+        payload,
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
-        activity=_FakeWireActivityWithPayload(payload),
         actor_id=CASE_MANAGER_ID,
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
@@ -533,12 +440,9 @@ def test_slash_spelled_snapshot_actor_commits(bridge):
     """CLP-07-003: the snapshot keeps the sender's trailing slash while the
     event's ``actor_id`` is normalised; the two name one actor, so the entry
     commits (``same_actor_id``)."""
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID,
+    activity = _received(
+        _note_payload(ACTOR_ID + "/", "https://example.org/notes/n3"),
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
-        activity=_FakeWireActivityWithPayload(
-            _note_payload(ACTOR_ID + "/", "https://example.org/notes/n3")
-        ),
         actor_id=ACTOR_ID,
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
@@ -560,14 +464,9 @@ def test_slash_spelled_snapshot_actor_commits(bridge):
 def test_slash_spelled_different_actor_still_refused(bridge):
     """CLP-07-003: the trailing-slash tolerance does not admit a different
     actor — a slash-spelled impostor in the snapshot is still refused."""
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID,
+    activity = _received(
+        _note_payload(DIFFERENT_ACTOR + "/", "https://example.org/notes/n4"),
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
-        activity=_FakeWireActivityWithPayload(
-            _note_payload(
-                DIFFERENT_ACTOR + "/", "https://example.org/notes/n4"
-            )
-        ),
         actor_id=ACTOR_ID,
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
@@ -587,15 +486,12 @@ def test_inline_slash_spelled_snapshot_actor_passes_the_identity_check(
 ):
     """An inline actor object is read by its id, normalised, not by its
     ``str()``: an inline sender profile spelled with a trailing slash passes
-    the CLP-07-003 identity check and reaches the commit.  The commit tree is
-    mocked; the canonical-entry validation refuses a non-string snapshot
-    actor further on, which this test does not cover."""
+    the CLP-07-003 identity check and reaches the commit."""
     payload = _note_payload(ACTOR_ID, "https://example.org/notes/n5")
     payload["actor"] = {"id": ACTOR_ID + "/", "type": "Person"}
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID,
+    activity = _received(
+        payload,
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
-        activity=_FakeWireActivityWithPayload(payload),
         actor_id=ACTOR_ID,
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
@@ -620,10 +516,9 @@ def test_snapshot_actor_naming_no_id_is_refused(bridge):
     so the entry is refused rather than compared as text."""
     payload = _note_payload(ACTOR_ID, "https://example.org/notes/n6")
     payload["actor"] = {"type": "Person", "name": ACTOR_ID}
-    activity = _FakeActivity(
-        activity_id=ACTIVITY_ID,
+    activity = _received(
+        payload,
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
-        activity=_FakeWireActivityWithPayload(payload),
         actor_id=ACTOR_ID,
     )
     node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)

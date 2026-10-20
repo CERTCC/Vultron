@@ -168,16 +168,14 @@ class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
         self._event = self._try_get_input("activity")
 
     def _late_accept(self) -> dict[str, Any]:
-        """The received Accept, rendered as it is recorded when received."""
+        """The received Accept, as it arrived and as its entry records it."""
         event = self._event
         if not isinstance(event, VultronEvent) or event.activity is None:
             raise VultronWiringError(
                 f"{self.name}: no received Accept on the blackboard to"
                 " acknowledge (ARCH-15-001)"
             )
-        return _extract_payload_snapshot(
-            event, self.datalayer, self._require_wire_render_port()
-        )
+        return _extract_payload_snapshot(event)
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None

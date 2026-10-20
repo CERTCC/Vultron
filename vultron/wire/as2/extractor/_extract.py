@@ -183,6 +183,9 @@ def extract_intent(
             inner_target=_to_domain_obj(inner_target),
             inner_context=_to_domain_obj(inner_context),
             in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
+            # Carried, never re-derived: core records it in the ledger as
+            # received (VM-08-002, CLP-07-011, ADR-0107).
+            received_evidence=activity.received_evidence_json,
             **extra_kwargs,
         ),
     )

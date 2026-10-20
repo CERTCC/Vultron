@@ -24,22 +24,11 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
-# Canonical payload-snapshot construction moved to ``_snapshot_helpers`` (#3515)
-# when this module passed the CS-18-001 500-line cap.  Re-imported here so every
-# existing importer — and any ``monkeypatch`` that targets this module path —
-# keeps resolving.
 # The held-activity readers live in ``core/services`` so BT nodes may use them
 # too (BTND-04-003).  Re-exported here for every existing importer.
 from vultron.core.services.received_activity import (  # noqa: E402,F401
     read_held_activity,
     read_received_activity,
-)
-from vultron.core.use_cases._snapshot_helpers import (  # noqa: E402,F401
-    _SNAPSHOT_INLINE_DEPTH_LIMIT,
-    _SNAPSHOT_REFERENCE_CORE_FIELDS,
-    _SNAPSHOT_REFERENCE_FIELDS,
-    _inline_snapshot_reference_value,
-    build_activity_payload_snapshot,
 )
 
 

@@ -37,6 +37,7 @@ import pytest
 
 from test.support.embargo_register import register, terminate
 from test.support.ledger import committed_semantic_types, fail_commits
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -68,7 +69,6 @@ from vultron.core.models.use_case_result import (
 )
 from vultron.core.states.em import EM
 from vultron.errors import VultronBTInternalError
-from vultron.semantic_registry import extract_event
 
 # imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
@@ -79,15 +79,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 
 @pytest.fixture
 def make_payload():
-    """Return a helper that extracts a VultronEvent from an AS2 activity."""
-
-    def _make_payload(activity, **extra_fields):
-        event = extract_event(activity)
-        if extra_fields:
-            return event.model_copy(update=extra_fields)
-        return event
-
-    return _make_payload
+    """Return a helper that extracts the received event for an AS2 activity."""
+    return received_event
 
 
 _CASE_ACTOR_URI = "https://example.org/case-actors/svc-1"
@@ -1242,7 +1235,7 @@ class TestCLP08002GenesisHashAnchoredToTheOwner:
             assert sent != case.genesis_hash
         inline_case["genesisHash"] = sent
 
-        event = extract_event(parse_activity(body))
+        event = received_event(parse_activity(body))
         replica = getattr(event, "object_", None)
 
         assert isinstance(replica, VulnerabilityCase)

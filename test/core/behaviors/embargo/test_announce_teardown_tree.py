@@ -31,6 +31,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     make_case_with_manager,
 )
+from test.support.received import with_evidence
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
@@ -97,25 +98,27 @@ def _make_remove_event(
     CASE_MANAGER role holder were aligned the commit began executing, and the gap
     surfaced as a bare ``Status.FAILURE``.
     """
-    return RemoveEmbargoEventFromCaseReceivedEvent(
-        activity_id=activity_id,
-        actor_id=sender,
-        object_=CoreObject(id_=embargo.id_),
-        origin=CoreObject(id_=case.id_),
-        receiving_actor_id=receiver,
-        termination_reason=TerminationReason.EARLY,
-        activity=VultronActivity(
-            id_=activity_id,
-            type_="Remove",
-            actor=sender,
-            # Addressed to the receiver, so the addressee door guard admits
-            # it (HP-01-005).
-            to=[receiver],
-            object_=embargo.id_,
-            origin=case.id_,
-            context=case.id_,
-            content=TerminationReason.EARLY.value,
-        ),
+    return with_evidence(
+        RemoveEmbargoEventFromCaseReceivedEvent(
+            activity_id=activity_id,
+            actor_id=sender,
+            object_=CoreObject(id_=embargo.id_),
+            origin=CoreObject(id_=case.id_),
+            receiving_actor_id=receiver,
+            termination_reason=TerminationReason.EARLY,
+            activity=VultronActivity(
+                id_=activity_id,
+                type_="Remove",
+                actor=sender,
+                # Addressed to the receiver, so the addressee door guard admits
+                # it (HP-01-005).
+                to=[receiver],
+                object_=embargo,
+                origin=case.id_,
+                context=case.id_,
+                content=TerminationReason.EARLY.value,
+            ),
+        )
     )
 
 

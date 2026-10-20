@@ -50,6 +50,7 @@ from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
 )
+from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -97,7 +98,6 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -179,7 +179,7 @@ def _send_stub_invite(
     already_queued = set(dl.outbox_list())
     stored_offer = dl.read(offer["id"])
     assert isinstance(stored_offer, as_Activity)
-    event = extract_event(stored_offer).model_copy(
+    event = received_event(stored_offer).model_copy(
         update={"receiving_actor_id": actor_id}
     )
     assert isinstance(event, OfferActorToCaseReceivedEvent)
