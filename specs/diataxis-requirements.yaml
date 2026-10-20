@@ -845,7 +845,8 @@ groups:
     The Protocol Specification presents the `protocol` and `foundation` requirement
     tiers of `specs/*.yaml` as rendered content, never as restated prose, so the
     specification cannot state a requirement differently from the YAML and presents
-    every one of them (ADR-0136, ADR-0147).
+    every one of them; the normative banner marks exactly the normative set
+    (ADR-0136, ADR-0147).
   specs:
   - id: DF-12-001
     priority: MUST
@@ -960,3 +961,52 @@ groups:
       placement table, or appears in it twice for one tier. Not yet written; owned by
       #4895.
     tracking_issue: '#4895'
+  - id: DF-12-006
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+      - ADR-0147
+    statement: >-
+      Every page of the normative set — the Protocol Specification's body section
+      pages and the `protocol` and `foundation` requirement-tier pages, but not the
+      specification's landing page, its single-page full view, its annexes or its
+      open-questions page — MUST include the shared normative banner
+      (`docs/includes/normative.md`) in the page itself, not through a shared
+      fragment, and every other page MUST NOT include it except the page that
+      documents the banners. The normative-set pages MUST be declared once, in the
+      check that enforces this, and the check MUST fail when a declared page does
+      not exist.
+    rationale: >-
+      A banner a reader trusts must be true. Hand-placed banners drifted: 19 pages
+      outside the normative set still called themselves normative after ADR-0136
+      and ADR-0147 fixed what the set is. Failing on a missing declared page keeps
+      the list current when the Requirements Catalog replaces the per-tier pages.
+    verification: >-
+      A check over the `include-markdown` directives in `docs/` fails, naming
+      `path:line`, when a declared page does not include the banner, when any other
+      page or a shared fragment includes it, when a declared page is missing, or
+      when it resolves no targets. Not yet written; owned by #4945.
+    tracking_issue: '#4945'
+  - id: DF-12-007
+    priority: SHOULD
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      An informative page that explains the protocol's design SHOULD carry the shared
+      "specification governs" banner, which states that the page is informative and
+      that where it differs from the Protocol Specification the specification
+      governs, instead of the not-normative banner, which says a page is not part of
+      the protocol.
+    rationale: >-
+      Pages such as Formal Protocol and the RM, EM and CS process models still
+      explain how the protocol is defined, but they predate the specification and
+      may lag it. Neither the normative banner nor the not-normative banner is true
+      of them; a precedence statement keeps their standing and names the tiebreaker.
+    verification: >-
+      Not yet checked: no review step inspects banners today. #4945 places the
+      banner on the known protocol-design pages; #4946 adds the check that
+      requires it on informative protocol-design pages, which a `subject: protocol`
+      key alone does not single out from the protocol-floor companions.
+    tracking_issue: '#4945'
