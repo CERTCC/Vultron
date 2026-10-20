@@ -36,7 +36,8 @@ import inspect
 import pkgutil
 import types
 import typing
-from collections.abc import Callable
+from collections.abc import Callable, Hashable, Sequence
+from dataclasses import dataclass
 from typing import Any, cast
 
 import pytest
@@ -207,58 +208,85 @@ BUILDS_WHAT_IT_INTRODUCES: dict[str, tuple[Callable[[], as_Activity], str]] = {
     ),
 }
 
+
+@dataclass(frozen=True)
+class NoIntroduction:
+    """Why a factory introduces no object, and the parameter its ``object`` is.
+
+    ``object_parameter`` names the argument that becomes the activity's
+    ``object`` when that object is an activity it answers or an object the
+    receiver holds; it is ``None`` when the factory carries neither.
+    """
+
+    reason: str
+    object_parameter: str | None = None
+
+
 _ANSWERS = "answers an activity, which it embeds inline"
-_HELD = "acts on an object the receiver already holds (AC-3 of #3740)"
-_ACTOR_REF = (
+_HELD = "acts on an object the receiver already holds (AKM-02-004)"
+
+
+def _answers(object_parameter: str) -> NoIntroduction:
+    return NoIntroduction(_ANSWERS, object_parameter)
+
+
+def _held(object_parameter: str) -> NoIntroduction:
+    return NoIntroduction(_HELD, object_parameter)
+
+
+_ACTOR_REF = NoIntroduction(
     "names an actor, which exists apart from the case and is addressed by"
     " its URI (AKM-05-001)"
 )
 
 #: Factories that introduce no object, and why.
-INTRODUCES_NOTHING: dict[str, str] = {
-    "accept_actor_recommendation_activity": _ANSWERS,
-    "reject_actor_recommendation_activity": _ANSWERS,
-    "accept_case_participant_offer_activity": _ANSWERS,
-    "reject_case_participant_offer_activity": _ANSWERS,
-    "accept_case_participant_role_activity": _ANSWERS,
-    "reject_case_participant_role_activity": _ANSWERS,
-    "accept_case_ownership_transfer_activity": _ANSWERS,
-    "reject_case_ownership_transfer_activity": _ANSWERS,
-    "undo_case_ownership_transfer_activity": _ANSWERS,
-    "accept_case_proposal_activity": _ANSWERS,
-    "reject_case_proposal_activity": _ANSWERS,
-    "reject_close_case_activity": _ANSWERS,
-    "rm_accept_invite_to_case_activity": _ANSWERS,
-    "rm_reject_invite_to_case_activity": _ANSWERS,
-    "rm_accept_full_case_invite_activity": _ANSWERS,
-    "rm_tentative_reject_full_case_invite_activity": _ANSWERS,
-    "rm_reject_full_case_invite_activity": _ANSWERS,
-    "em_accept_embargo_activity": _ANSWERS,
-    "em_reject_embargo_activity": _ANSWERS,
-    "ignore_late_embargo_accept_activity": _ANSWERS,
-    "rm_read_report_activity": _ANSWERS,
-    "rm_validate_report_activity": _ANSWERS,
-    "rm_invalidate_report_activity": _ANSWERS,
-    "rm_close_report_activity": _ANSWERS,
-    "reject_log_entry_activity": _ANSWERS,
-    "refusal_notice_activity": _ANSWERS,
-    "update_case_activity": _HELD,
-    "update_participant_activity": _HELD,
-    "update_embargo_consent_activity": _HELD,
-    "rm_engage_case_activity": _HELD,
-    "rm_defer_case_activity": _HELD,
-    "rm_close_case_activity": _HELD,
-    "offer_case_ownership_transfer_activity": _HELD,
-    "remove_participant_from_case_activity": _HELD,
-    "remove_embargo_from_case_activity": _HELD,
-    "withdraw_from_embargo_activity": _HELD,
-    "activate_embargo_activity": _HELD,
-    "reject_embargo_proposal_activity": _HELD,
-    "announce_embargo_activity": _HELD,
+INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
+    "accept_actor_recommendation_activity": _answers("offer"),
+    "reject_actor_recommendation_activity": _answers("offer"),
+    "accept_case_participant_offer_activity": _answers("offer"),
+    "reject_case_participant_offer_activity": _answers("offer"),
+    "accept_case_participant_role_activity": _answers("offer"),
+    "reject_case_participant_role_activity": _answers("offer"),
+    "accept_case_ownership_transfer_activity": _answers("offer"),
+    "reject_case_ownership_transfer_activity": _answers("offer"),
+    "undo_case_ownership_transfer_activity": _answers("offer"),
+    "accept_case_proposal_activity": _answers("proposal"),
+    "reject_case_proposal_activity": _answers("proposal"),
+    "reject_close_case_activity": _answers("leave"),
+    "rm_accept_invite_to_case_activity": _answers("invite"),
+    "rm_reject_invite_to_case_activity": _answers("invite"),
+    "rm_accept_full_case_invite_activity": _answers("invite"),
+    "rm_tentative_reject_full_case_invite_activity": _answers("invite"),
+    "rm_reject_full_case_invite_activity": _answers("invite"),
+    "em_accept_embargo_activity": _answers("proposal"),
+    "em_reject_embargo_activity": _answers("proposal"),
+    "ignore_late_embargo_accept_activity": _answers("late_accept"),
+    "rm_read_report_activity": _answers("offer"),
+    "rm_validate_report_activity": _answers("offer"),
+    "rm_invalidate_report_activity": _answers("offer"),
+    "rm_close_report_activity": _answers("offer"),
+    # The entry it refuses is one the CASE_MANAGER holds.
+    "reject_log_entry_activity": _held("entry"),
+    "refusal_notice_activity": _answers("refused"),
+    "update_case_activity": _held("case"),
+    "update_participant_activity": _held("participant"),
+    "update_embargo_consent_activity": _held("row"),
+    "rm_engage_case_activity": _held("case"),
+    "rm_defer_case_activity": _held("case"),
+    "rm_close_case_activity": _held("case"),
+    "offer_case_ownership_transfer_activity": _held("case"),
+    "remove_participant_from_case_activity": _held("participant"),
+    "remove_embargo_from_case_activity": _held("embargo"),
+    "withdraw_from_embargo_activity": _held("embargo"),
+    "activate_embargo_activity": _held("embargo"),
+    "reject_embargo_proposal_activity": _held("embargo"),
+    "announce_embargo_activity": _held("embargo"),
     "recommend_actor_activity": _ACTOR_REF,
     # The invitee already holds the case from the Announce (AKM-02-003).
     "rm_invite_to_full_case_activity": _ACTOR_REF,
-    "bootstrap_replay_question_activity": "a Question, which carries no object",
+    "bootstrap_replay_question_activity": NoIntroduction(
+        "a Question, which carries no object"
+    ),
 }
 
 
@@ -295,7 +323,7 @@ def test_every_factory_is_classified():
     assert set(classified) == _factory_names()
 
 
-@pytest.mark.spec("AKM-03-003")
+@pytest.mark.spec("AKM-02-004", "AKM-03-003")
 @pytest.mark.parametrize("factory", sorted(INTRODUCES))
 def test_an_introducing_factory_refuses_a_bare_id(factory):
     build, _ = INTRODUCES[factory]
@@ -322,7 +350,7 @@ def _carried_inline(
     return cast(dict[str, Any], value)
 
 
-@pytest.mark.spec("AKM-03-003")
+@pytest.mark.spec("AKM-02-004", "AKM-03-003")
 @pytest.mark.parametrize("factory", sorted(INTRODUCES))
 def test_an_introducing_factory_carries_the_object_inline(factory):
     build, inline = INTRODUCES[factory]
@@ -331,40 +359,85 @@ def test_an_introducing_factory_carries_the_object_inline(factory):
     assert obj["id"] == introduced.id_
 
 
-@pytest.mark.spec("AKM-03-003")
+@pytest.mark.spec("AKM-02-004", "AKM-03-003")
 @pytest.mark.parametrize("factory", sorted(BUILDS_WHAT_IT_INTRODUCES))
 def test_a_factory_that_builds_its_object_carries_it_inline(factory):
     build, slot = BUILDS_WHAT_IT_INTRODUCES[factory]
     _carried_inline(wire_body(build()), slot)
 
 
-#: The parameter of an answering or acting factory that holds the activity it
-#: answers or the object it acts on, by name.
-_OBJECT_PARAMETERS = frozenset(
-    {
-        "offer",
-        "leave",
-        "invite",
-        "proposal",
-        "late_accept",
-        "entry",
-        "refused",
-        "case",
-        "participant",
-        "row",
-        "embargo",
-    }
-)
-
-
 def _admits_a_bare_string(annotation: object) -> bool:
-    if annotation is str or annotation in (Any, object):
+    """Whether a parameter annotated *annotation* would take a bare ``str`` id.
+
+    Sees through the forms that hide a ``str``: ``type`` aliases, ``NewType``,
+    ``str`` subclasses, ``Literal`` strings, type variables, and the abstract
+    collections a ``str`` satisfies (``Sequence``, ``Hashable``, ...).
+    ``typing.get_type_hints`` has already stripped ``Annotated``.
+    """
+    if isinstance(annotation, typing.TypeAliasType):
+        return _admits_a_bare_string(annotation.__value__)
+    supertype = getattr(annotation, "__supertype__", None)
+    if supertype is not None:
+        return _admits_a_bare_string(supertype)
+    if isinstance(annotation, typing.TypeVar):
+        if annotation.__constraints__:
+            return any(
+                _admits_a_bare_string(c) for c in annotation.__constraints__
+            )
+        bound = annotation.__bound__
+        return bound is None or _admits_a_bare_string(bound)
+    if annotation in (Any, object, typing.LiteralString):
         return True
-    if typing.get_origin(annotation) in (typing.Union, types.UnionType):
+    origin = typing.get_origin(annotation)
+    if origin in (typing.Union, types.UnionType):
         return any(
             _admits_a_bare_string(a) for a in typing.get_args(annotation)
         )
-    return False
+    if origin is typing.Literal:
+        return any(isinstance(a, str) for a in typing.get_args(annotation))
+    cls = origin if origin is not None else annotation
+    return isinstance(cls, type) and (
+        issubclass(cls, str) or isinstance("bare-id", cls)
+    )
+
+
+_StrAlias = typing.NewType("_StrAlias", str)
+_Free = typing.TypeVar("_Free")
+_BoundToActor = typing.TypeVar("_BoundToActor", bound=as_Actor)
+type _AliasOfStr = str | as_Actor
+type _AliasOfActor = as_Actor | None
+
+
+class _StrSubclass(str):
+    pass
+
+
+@pytest.mark.parametrize(
+    ("annotation", "admits"),
+    [
+        (str, True),
+        (str | None, True),
+        (Any, True),
+        (object, True),
+        (_AliasOfStr, True),
+        (_StrAlias, True),
+        (_StrSubclass, True),
+        (typing.Literal["urn:x"], True),
+        (typing.LiteralString, True),
+        (_Free, True),
+        (Sequence[Any], True),
+        (Hashable, True),
+        (as_Actor, False),
+        (as_Actor | None, False),
+        (_AliasOfActor, False),
+        (_BoundToActor, False),
+        (list[str], False),
+        (typing.Literal[1], False),
+    ],
+)
+def test_the_bare_string_check_sees_through_a_hidden_str(annotation, admits):
+    """The typed-object check below is only as good as this predicate."""
+    assert _admits_a_bare_string(annotation) is admits
 
 
 def _factory(name: str) -> Callable[..., Any]:
@@ -374,34 +447,33 @@ def _factory(name: str) -> Callable[..., Any]:
     raise LookupError(name)
 
 
-@pytest.mark.spec("AKM-03-003")
+@pytest.mark.spec("AKM-02-004", "AKM-03-003")
 @pytest.mark.parametrize(
     "factory",
     sorted(
         name
-        for name, reason in INTRODUCES_NOTHING.items()
-        if reason in (_ANSWERS, _HELD)
+        for name, why in INTRODUCES_NOTHING.items()
+        if why.reason in (_ANSWERS, _HELD)
     ),
 )
 def test_an_answering_or_acting_factory_takes_its_object_typed(factory):
     """What such a factory carries is typed, so it cannot start taking an id.
 
     The classification says why it introduces nothing; this keeps the reason
-    true, since a parameter annotated to admit ``str`` would let a bare id
-    through to ``object`` unexamined.
+    true, since the parameter that becomes ``object``, annotated to admit a
+    ``str``, would let a bare id through unexamined.
     """
+    parameter = INTRODUCES_NOTHING[factory].object_parameter
+    assert parameter is not None, f"{factory} names no object parameter"
     function = _factory(factory)
-    hints = typing.get_type_hints(function)
-    held = [
-        p
-        for p in inspect.signature(function).parameters
-        if p in _OBJECT_PARAMETERS
-    ]
-    assert held, (
-        f"{factory} names no parameter in {sorted(_OBJECT_PARAMETERS)}"
+    assert parameter in inspect.signature(function).parameters, (
+        f"{factory} has no parameter {parameter!r}"
     )
-    admits = [p for p in held if _admits_a_bare_string(hints.get(p, Any))]
-    assert not admits, f"{factory} takes {admits} as a bare string"
+    annotation = typing.get_type_hints(function).get(parameter, Any)
+    assert not _admits_a_bare_string(annotation), (
+        f"{factory} takes {parameter!r} as {annotation!r}, which admits a"
+        " bare string id"
+    )
 
 
 #: Activity types whose example introduces its ``object``.

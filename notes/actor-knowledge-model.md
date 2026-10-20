@@ -65,7 +65,8 @@ too, because the hash chain must cover it (CLP-07-006).
   `require_inline` (`vultron/wire/as2/factories/_inline.py`).
 
 The ratchet `test/architecture/test_introduced_objects_inline.py` classifies every
-factory by what it introduces and checks every example activity, so a new
+factory by what it introduces and checks every example activity of an
+introducing type (`Create`, `Add`, `Offer`, `Invite`, `Announce`), so a new
 factory or example that sends a bare id fails it. Activities built outside the
 factories escape it: grep demo and adapter code for a raw `as_*(` activity
 constructor or a bare-ID `"object"` literal.

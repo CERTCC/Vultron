@@ -76,9 +76,10 @@ groups:
       resolved. Carrying the object inline instead is a shortcut of this prototype
       reference implementation, not a protocol rule.
     verification: >-
-      Inspection of the outbound activity factories confirms each embeds inline the
-      objects a recipient cannot be expected to hold already, and uses a bare reference
-      only for an object the recipient already has, such as the case it participates in.
+      `test/architecture/test_introduced_objects_inline.py` classifies every outbound
+      activity factory: each one introducing an object refuses it as a bare id and
+      carries it inline, and each one carrying an object the recipient already holds
+      takes it through a parameter typed to refuse a bare id.
     relationships:
     - rel_type: implements
       spec_id: AKM-02-002
