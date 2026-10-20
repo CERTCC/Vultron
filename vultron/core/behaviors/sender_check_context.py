@@ -40,6 +40,7 @@ __all__ = [
     "LedgerActivityContext",
     "OwnershipOfferRequest",
     "ReportOfferRequest",
+    "RoleOfferRequest",
     "SenderCheckContext",
     "SenderContext",
     "embargo_sender_context",
@@ -90,6 +91,22 @@ class OwnershipOfferRequest:
 
 
 @dataclass(frozen=True)
+class RoleOfferRequest:
+    """The request is a role ``Offer(CaseParticipantRole)``, recorded in the
+    case ledger by the CASE_MANAGER of :attr:`SenderCheckContext.case_id`.
+
+    A ``NAMED_ACTOR`` sender must be its target (CM-33-005).
+
+    Attributes:
+        offer_id: The Offer the answer names, the recorded Offer or the
+            CASE_MANAGER's forward of it; ``None`` when it names none, which
+            refuses.
+    """
+
+    offer_id: str | None
+
+
+@dataclass(frozen=True)
 class CaseBootstrapRequest:
     """The request is the one that asked for a case, recorded on this
     store's report case links.
@@ -110,6 +127,7 @@ AddresseeRequest = (
     CaseProposalRequest
     | ReportOfferRequest
     | OwnershipOfferRequest
+    | RoleOfferRequest
     | CaseBootstrapRequest
 )
 

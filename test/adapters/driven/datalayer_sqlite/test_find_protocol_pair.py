@@ -54,7 +54,12 @@ _ledger_counter: dict[str, int] = {}
 
 
 def _seed_ledger_entry(
-    dl, case_id, object_id, semantic_type, actor_id=ACTOR_ID
+    dl,
+    case_id,
+    object_id,
+    semantic_type,
+    actor_id=ACTOR_ID,
+    payload_snapshot=None,
 ):
     """Insert a CaseLedgerEntry directly without traversing the hash chain.
 
@@ -71,7 +76,7 @@ def _seed_ledger_entry(
         log_index=index,
         log_object_id=object_id,
         semantic_type=semantic_type,
-        payload_snapshot={},
+        payload_snapshot=payload_snapshot or {},
         prev_log_hash="",
         entry_hash="",
     )
@@ -365,3 +370,66 @@ class TestFindProtocolPairOrdering:
         )
 
         assert pair.is_pending()
+
+
+def _seed_reply(dl, reply_id: str, answered: object) -> None:
+    """A reply entry whose snapshot carries *answered* as its ``object``."""
+    _seed_ledger_entry(
+        dl,
+        CASE_ID,
+        reply_id,
+        "accept_offer_case_participant",
+        ACTOR_ID,
+        payload_snapshot={"object": answered},
+    )
+
+
+@pytest.mark.spec("CLP-11-001")
+@pytest.mark.spec("CM-33-005")
+class TestFindProtocolPairAnswering:
+    """With ``answering``, only a reply to one of those ids closes the pair."""
+
+    def _pair(self, dl, object_id: str, answering: frozenset[str]):
+        return dl.find_protocol_pair(
+            case_id=CASE_ID,
+            request_semantic_type=REQUEST_TYPE,
+            object_id=object_id,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            answering=answering,
+        )
+
+    def test_a_reply_to_another_request_leaves_the_pair_open(self, dl):
+        _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_A, REQUEST_TYPE)
+        _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_B, REQUEST_TYPE)
+        _seed_reply(dl, REPLY_ID_A, {"id": OBJECT_ID_A})
+
+        assert self._pair(dl, OBJECT_ID_B, frozenset({OBJECT_ID_B})).is_open()
+        closed = self._pair(dl, OBJECT_ID_A, frozenset({OBJECT_ID_A}))
+        assert closed.reply_object_id == REPLY_ID_A
+
+    def test_a_reply_naming_another_id_of_the_request_closes_it(self, dl):
+        """A reply to the request's forward, by id, closes the request."""
+        forward_id = f"{OBJECT_ID_A}/forward"
+        _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_A, REQUEST_TYPE)
+        _seed_reply(dl, REPLY_ID_A, forward_id)
+
+        pair = self._pair(
+            dl, OBJECT_ID_A, frozenset({OBJECT_ID_A, forward_id})
+        )
+
+        assert pair.reply_object_id == REPLY_ID_A
+
+    def test_without_answering_any_later_reply_closes_it(self, dl):
+        """The default reading is unchanged."""
+        _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_A, REQUEST_TYPE)
+        _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_B, REQUEST_TYPE)
+        _seed_reply(dl, REPLY_ID_A, {"id": OBJECT_ID_A})
+
+        pair = dl.find_protocol_pair(
+            case_id=CASE_ID,
+            request_semantic_type=REQUEST_TYPE,
+            object_id=OBJECT_ID_B,
+            reply_semantic_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+        )
+
+        assert pair.reply_object_id == REPLY_ID_A

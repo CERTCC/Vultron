@@ -862,7 +862,6 @@ def test_the_rule_scan_admits_a_declaration() -> None:
 #: an issue no exemption names any more.  That each is still open is checked
 #: when an entry is added or reviewed, since the suite runs offline.
 OPEN_EXEMPTION_ISSUES: dict[str, str] = {
-    "#4703": "Accept and Reject of a role offer (NAMED_ACTOR)",
     "#4799": "Create(ProcessingFault), once a case-diverged fault re-seeds",
 }
 

@@ -261,13 +261,13 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
             "SenderIsCaseManagerNode.update",
         ),
         # lenient — sender-verification gate: a reply to an ownership-transfer
-        # Offer for a case this store does not hold names nothing to check
-        # the sender's standing against. That is a refusal of the sender,
-        # logged at warning, not a Regime 1 local anomaly logged at error
-        # (CM-21-011, CM-21-015).
+        # or role Offer for a case this store does not hold names nothing to
+        # check the sender's standing against. That is a refusal of the
+        # sender, logged at warning, not a Regime 1 local anomaly logged at
+        # error (CM-21-011, CM-21-015, CM-33-005).
         (
             "vultron/core/behaviors/sender_entitlement.py",
-            "SenderIsOwnershipOfferPartyNode._recorded_offer",
+            "_case_and_manager",
         ),
         # LEN — post-RM-close PEC step in Reject-Invite effects. By the time
         # this read_case fires the participant's RM transition has already

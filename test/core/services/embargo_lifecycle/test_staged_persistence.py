@@ -212,6 +212,31 @@ def test_a_query_is_refused_while_writes_are_staged_and_delegated_otherwise(
         getattr(staged, method)(*args)
 
 
+def test_find_protocol_pair_passes_its_answering_set_through(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ``answering`` set reaches the store, so the pair stays per request."""
+    calls: list[frozenset[str] | None] = []
+    inner = dl.find_protocol_pair
+
+    def spy(
+        *args: str | frozenset[str], answering: frozenset[str] | None = None
+    ) -> object:
+        calls.append(answering)
+        return inner(*args, answering=answering)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(dl, "find_protocol_pair", spy)
+    answering = frozenset({"https://example.org/offers/o"})
+    StagedCasePersistence(dl).find_protocol_pair(
+        "https://example.org/cases/c",
+        "Offer",
+        "https://example.org/offers/o",
+        frozenset({"Accept"}),
+        answering=answering,
+    )
+    assert calls == [answering]
+
+
 def test_delete_and_a_store_switch_are_refused(dl: SqliteDataLayer) -> None:
     case = _case(dl)
     staged = StagedCasePersistence(dl)
