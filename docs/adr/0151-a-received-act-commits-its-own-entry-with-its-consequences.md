@@ -78,7 +78,8 @@ Chosen option: **A, one transaction for the act's own entry and its consequences
    Whether other received trees do is decided per tree, with the case trees that still commit an embargo consequence after their act (#4959).
 7. **The sender of a failed act gets no notice.**
    A received act that fails on an internal error sends nothing to its sender, and no new protocol message is added for it.
-   The inbox logs the failure once at ERROR, with the activity id, the sender's actor id and the receiving actor's id, and keeps the outcome as rejected.
+   The inbox logs the failed act once at ERROR, with the activity id and the sender's actor id, and keeps the outcome as rejected, which it logs at WARNING with the receiving actor's id.
+   The bridge that ran the tree keeps its own ERROR record of the node that raised, as it does for every internal error, so that record names the failing node and the inbox's names the failed act.
    The reason: the failure is the receiver's internal error, not a verdict on the sender's activity, and the act left no trace, so a retry is safe.
    A later delivery of the same activity arrives as a redelivery, because intake archived the first one, and the inbox rebuilds it and runs it as a first delivery: no entry of the act exists for the idempotency guards to find (IE-10-001).
    A redelivery of an act that committed is still answered as a repeat, `SKIPPED`, and commits nothing new.
@@ -104,7 +105,7 @@ The rest of ADR-0111 stands.
 
 - A test fails a received withdrawal's consent-row commit and asserts that no row is saved and the `Leave`'s own entry is not kept.
 - A test fails a received proposal's relay part-way and asserts that the proposal keeps no entry, no row, no relayed Invite and no register step, and that a redelivery is applied and relayed.
-- `test/adapters/driving/fastapi/test_failed_act_redelivery.py` posts a received proposal through the FastAPI inbox while its relay fails, then posts the same body again, and asserts that the first post kept nothing, sent nothing and logged one ERROR, that the second applied and relayed the act, and that a replica copies the same consent rows; a redelivery of the applied act is `SKIPPED`.
+- `test/adapters/driving/fastapi/test_failed_act_redelivery.py` posts a received proposal through the FastAPI inbox while its relay fails, then posts the same body again, and asserts that the first post kept nothing, sent nothing, was rejected and logged one ERROR record naming the act, that the second applied and relayed the act, and that a replica copies the same consent rows; a redelivery of the applied act is `SKIPPED`.
 - `test/architecture/test_embargo_consequences_in_one_act.py` asserts that every received embargo tree commits its own entry inside an `ActTransaction`.
 - `test/core/behaviors/case/test_receive_activity_tree.py` asserts the factory puts the commit, the replica effects and the CASE_MANAGER gate in one `ActTransaction`, and refuses the option on a tree with no commit.
 - `test/core/behaviors/test_act_transaction.py` asserts that at a participant replica a failing replica effect keeps none of the replica effects' writes.

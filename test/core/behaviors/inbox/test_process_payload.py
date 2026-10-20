@@ -595,6 +595,7 @@ class TestDispatchNodeFaults:
         assert len(replay_errors) == 1
         assert replay_errors[0].exc_info is not None
 
+    @pytest.mark.spec("HP-06-003")
     def test_dispatch_raise_is_logged_with_its_traceback(
         self, report_activity, caplog
     ):

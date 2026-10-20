@@ -167,8 +167,10 @@ def _fail_the_relay(client: TestClient, body: dict[str, Any]) -> None:
 
 
 @pytest.mark.spec("CLP-07-015")
+@pytest.mark.spec("CLP-10-017")
 @pytest.mark.spec("IE-10-001")
 @pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("HP-06-003")
 def test_a_failed_proposal_is_applied_when_posted_again(
     served_manager, caplog: pytest.LogCaptureFixture
 ):
@@ -189,7 +191,8 @@ def test_a_failed_proposal_is_applied_when_posted_again(
     assert [
         e.id_ for e in ledger_entries(manager_dl, net.case_id)
     ] == entries_before
-    assert _held_rows(net, MANAGER, revision_id) == [None] * 4
+    participants = len(net.case(MANAGER).actor_participant_index)
+    assert _held_rows(net, MANAGER, revision_id) == [None] * participants
     assert net.case(MANAGER).em_state == EM.ACTIVE
     # The sender gets no notice, and nobody else gets anything (ADR-0151).
     assert emitter.sent == []
@@ -198,8 +201,19 @@ def test_a_failed_proposal_is_applied_when_posted_again(
         for r in caplog.records
         if r.levelno >= logging.ERROR and body["id"] in r.getMessage()
     ]
+    # One ERROR record names the failed act and its sender (HP-06-003); the
+    # bridge's own record of the raising node names neither (ADR-0151).
     assert len(errors) == 1, [r.getMessage() for r in errors]
     assert PROPOSER in errors[0].getMessage()
+    assert errors[0].exc_info is not None
+    # The outcome is rejected, and that is logged with the receiver's id.
+    assert any(
+        r.levelno == logging.WARNING
+        and "Inbox activity rejected" in r.getMessage()
+        and body["id"] in r.getMessage()
+        and MANAGER in r.getMessage()
+        for r in caplog.records
+    ), "the failed act's outcome is rejected"
 
     caplog.clear()
     with caplog.at_level(logging.INFO):

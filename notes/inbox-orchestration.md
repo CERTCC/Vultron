@@ -145,8 +145,8 @@ gets the same comparison, and only a same-body repeat reaches SYNC-12-003's gate
 entry, so the idempotency guards do not see it and its redelivery runs as a first
 delivery; a committed act's redelivery is still `SKIPPED`. Add no repair pass and no
 "redelivered, so skip" shortcut at ingress. A raised dispatch is an internal error:
-`DispatchNode` logs it once at ERROR with the activity, sender and receiver ids, and
-the sender gets no notice (ADR-0151, `test_failed_act_redelivery.py`).
+`DispatchNode` logs it once at ERROR with the activity and sender ids, and the
+sender gets no notice (ADR-0151, `test_failed_act_redelivery.py`).
 
 ---
 

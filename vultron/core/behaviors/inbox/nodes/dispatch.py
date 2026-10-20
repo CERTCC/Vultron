@@ -120,18 +120,18 @@ class DispatchNode(_InboxNodeWithPorts):
         try:
             result = dispatch.dispatch(event)
         except Exception as exc:
-            # A raise is not a verdict but an internal error (HP-06-003): log
-            # it here, once, at ERROR with the traceback, so a programming
-            # error stays distinguishable from a handler's REFUSED.  Its
+            # A raise is not a verdict but an internal error (HP-06-003): this
+            # is the one ERROR record naming the failed act and its sender,
+            # with the traceback, so a programming error stays
+            # distinguishable from a handler's REFUSED.  The driving adapter
+            # names the receiver when it logs the rejected outcome.  The
             # sender is sent nothing; an act that kept nothing runs again on
             # a redelivery (ADR-0151).
             self.logger.exception(
-                "%s: dispatch raised for activity_id=%s actor_id=%s"
-                " receiving_actor_id=%s",
+                "%s: dispatch raised for activity_id=%s actor_id=%s",
                 self.name,
                 getattr(event, "activity_id", None),
                 getattr(event, "actor_id", None),
-                getattr(event, "receiving_actor_id", None),
             )
             return self._reject(f"Dispatch raised exception: {exc}")
 
