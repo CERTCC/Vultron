@@ -110,9 +110,8 @@ from vultron.core.behaviors.case.nodes.post_close import (
     PostCloseExemption,
 )
 from vultron.core.behaviors.case.nodes.refusal_notice import (
-    REFUSAL_NOTICE_EXEMPTIONS,
     RefusalNoticeExemption,
-    refusal_notice,
+    refusal_effects_with_notice,
 )
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
@@ -126,6 +125,7 @@ from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
+from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.note.case_manager_note import (
     _CommitCaseManagerNoteBase,
 )
@@ -241,19 +241,21 @@ def _check_replica_effects(
     """
     where = f"create_receive_activity_tree({name})"
     emitted = {type(n).__name__ for n in ungated_emitters(replica_effects)}
-    if exemption is None:
-        covered: frozenset[str] = frozenset()
-    elif REPLICA_EMIT_EXEMPTIONS.get(exemption.name) != exemption:
-        raise VultronWiringError(
-            f"{where}: replica emit exemption {exemption.name!r} is not"
-            " registered in REPLICA_EMIT_EXEMPTIONS (BT-17-008)"
+    covered: frozenset[str] = frozenset()
+    if exemption is not None:
+        require_registered(
+            exemption,
+            REPLICA_EMIT_EXEMPTIONS,
+            where=where,
+            kind="replica emit",
+            registry_name="REPLICA_EMIT_EXEMPTIONS",
+            spec_id="BT-17-008",
         )
-    elif not emitted & exemption.covers:
-        raise VultronWiringError(
-            f"{where}: replica emit exemption {exemption.name!r} covers"
-            " none of the tree's ungated emitters; drop it (BT-17-008)"
-        )
-    else:
+        if not emitted & exemption.covers:
+            raise VultronWiringError(
+                f"{where}: replica emit exemption {exemption.name!r} covers"
+                " none of the tree's ungated emitters; drop it (BT-17-008)"
+            )
         covered = exemption.covers
     if uncovered := sorted(emitted - covered):
         raise VultronWiringError(
@@ -277,12 +279,14 @@ def _addressee_stage(
     """
     if exemption is None:
         return [ActivityAddressedToReceiverNode(label=name)]
-    if ADDRESSEE_EXEMPTIONS.get(exemption.name) != exemption:
-        raise VultronWiringError(
-            f"create_receive_activity_tree({name}): addressee exemption"
-            f" {exemption.name!r} is not registered in ADDRESSEE_EXEMPTIONS"
-            " (HP-01-005)"
-        )
+    require_registered(
+        exemption,
+        ADDRESSEE_EXEMPTIONS,
+        where=f"create_receive_activity_tree({name})",
+        kind="addressee",
+        registry_name="ADDRESSEE_EXEMPTIONS",
+        spec_id="HP-01-005",
+    )
     return []
 
 
@@ -391,57 +395,6 @@ def _refusal_stage(
         refusal=RefusalEffectsBestEffort(name="RefusalEffects", child=gate),
         intake=intake,
     )
-
-
-def _refusal_effects_with_notice(
-    name: str,
-    case_id: str | None,
-    guards: Sequence[py_trees.behaviour.Behaviour | Diversion],
-    refusal_effects: list[py_trees.behaviour.Behaviour],
-    exemption: RefusalNoticeExemption | None,
-) -> list[py_trees.behaviour.Behaviour]:
-    """The tree's refusal effects, the refusal notice first (CLP-02-005).
-
-    A tree that commits to *case_id* and has precondition *guards* answers
-    their refusal with the refusal notice to the asserter
-    (CLP-05-001), ahead of the tree's own *refusal_effects*.  An exempt tree
-    keeps only its own; so does a tree with no guards or no case, which
-    refuses no assertion at the CASE_MANAGER before a commit.
-
-    Raises:
-        VultronWiringError: *exemption* is not registered in
-            ``REFUSAL_NOTICE_EXEMPTIONS``, or the tree would send no notice
-            without it (no case or no guards), so it exempts nothing, or a
-            tree with a :class:`Diversion` names no exemption: a diverted
-            delivery answers itself, so the notice would answer it twice
-            (CLP-10-026), and the tree must say how its other refusals are
-            answered.
-    """
-    guarded = bool(guards)
-    if exemption is None:
-        if case_id is None or not guarded:
-            return refusal_effects
-        if any(isinstance(g, Diversion) for g in guards):
-            raise VultronWiringError(
-                f"create_receive_activity_tree({name}): a tree with a"
-                " diversion answers its diverted deliveries in place, so it"
-                " takes no refusal notice; name a registered"
-                " refusal_notice_exemption (CLP-02-005, CLP-10-026)"
-            )
-        return [refusal_notice(case_id), *refusal_effects]
-    if REFUSAL_NOTICE_EXEMPTIONS.get(exemption.name) != exemption:
-        raise VultronWiringError(
-            f"create_receive_activity_tree({name}): refusal-notice exemption"
-            f" {exemption.name!r} is not registered in"
-            " REFUSAL_NOTICE_EXEMPTIONS (CLP-02-005)"
-        )
-    if case_id is None or not guarded:
-        raise VultronWiringError(
-            f"create_receive_activity_tree({name}): refusal-notice exemption"
-            f" {exemption.name!r} exempts nothing — the tree has no"
-            " precondition guards or no case to commit to (CLP-02-005)"
-        )
-    return refusal_effects
 
 
 def _post_close_stage(
@@ -1189,7 +1142,7 @@ def create_receive_activity_tree(
                 post_close_exemption=post_close_exemption,
             )
         )
-    effects = _refusal_effects_with_notice(
+    effects = refusal_effects_with_notice(
         name,
         case_id,
         precondition_guards,

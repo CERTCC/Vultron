@@ -133,8 +133,9 @@ def _deliver_offer(
 ) -> Any:
     """Deliver *offer*; with *drop_role* its ``CaseParticipantRole`` has no role.
 
-    The factory cannot build a role-less Offer, so the role object is rebuilt
-    without its ``role`` after extraction: the shape a peer could send.
+    Neither the factory nor the wire parser admits a role-less Offer (the
+    parser refuses one as malformed), so the role object is rebuilt without
+    its ``role`` after extraction to reach the use case's defensive guard.
     """
     request = make_payload(offer, receiving_actor_id=dl.actor_id)
     if drop_role:
@@ -470,9 +471,10 @@ def test_offer_the_case_manager_must_refuse(make_payload, role, target):
     """Each refused shape leaves no entry and is answered by the notice.
 
     A missing role must not be read as any default role, as the received use
-    case once read it as CASE_MANAGER.  An Offer whose role object is
-    malformed cannot be carried inline in the notice, so that one refusal
-    goes unanswered and is logged (CLP-05-001).
+    case once read it as CASE_MANAGER.  A role-less Offer never reaches the
+    guard from the inbox, whose parser refuses it as malformed; built past
+    the parser, it cannot be carried inline in the notice either, so the
+    guard's refusal stands with nothing queued.
     """
     dl = _store(_CASE_MANAGER_ID)
 

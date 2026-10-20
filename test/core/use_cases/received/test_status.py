@@ -18,6 +18,7 @@ from typing import cast
 import pytest
 
 from test.core.use_cases.received.conftest import (
+    queued_bodies,
     seed_case_manager_participant,
     seed_case_participant,
     seed_store_owner_as_case_manager,
@@ -176,10 +177,11 @@ class TestStatusUseCases:
 
     @pytest.mark.spec("CLP-05-001")
     def test_refused_case_status_emits_no_processing_fault(self, make_payload):
-        """A refused CaseStatus is answered by the refusal notice alone.
+        """A refused CaseStatus is answered by no ProcessingFault.
 
-        The user decided on #4756 that the ProcessingFault this path once
-        sent duplicated the notice (CLP-05-001, MSM-05-001).
+        A guard's refusal is "received and understood but declined", so its
+        one answer is the refusal notice (CLP-05-001, MSM-05-001); the
+        notice itself is driven end to end in ``test_refusal_notice.py``.
         """
         from unittest.mock import MagicMock
 
@@ -219,19 +221,20 @@ class TestStatusUseCases:
         mock_trigger = MagicMock()
         mock_trigger.emit_processing_fault.return_value = "urn:uuid:fault-1"
 
-        AddCaseStatusToCaseReceivedUseCase(
+        result = AddCaseStatusToCaseReceivedUseCase(
             dl,
             event,
             trigger_activity=mock_trigger,
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
+        assert result.disposition == HandlerDisposition.REFUSED
         mock_trigger.emit_processing_fault.assert_not_called()
 
-    def test_refused_case_status_no_fault_without_trigger_activity(
+    def test_refused_case_status_without_trigger_activity_queues_nothing(
         self, make_payload
     ):
-        """No error when trigger_activity is None (fault is silently skipped)."""
+        """With no trigger port the refusal still stands and nothing is queued."""
         receiver_id = "https://test.example/api/v2/actors/test-actor"
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -264,21 +267,24 @@ class TestStatusUseCases:
         )
         event = make_payload(activity)
 
-        AddCaseStatusToCaseReceivedUseCase(
+        result = AddCaseStatusToCaseReceivedUseCase(
             dl,
             event,
             trigger_activity=None,
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert queued_bodies(dl) == []
+
     @pytest.mark.spec("CLP-05-001")
     def test_refused_participant_status_emits_no_processing_fault(
         self, make_payload
     ):
-        """A refused ParticipantStatus is answered by the refusal notice alone.
+        """A refused ParticipantStatus is answered by no ProcessingFault.
 
-        The user decided on #4756 that the ProcessingFault this path once
-        sent duplicated the notice (CLP-05-001, MSM-05-001).
+        A guard's refusal is "received and understood but declined", so its
+        one answer is the refusal notice (CLP-05-001, MSM-05-001).
         """
         from unittest.mock import MagicMock
 

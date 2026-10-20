@@ -97,10 +97,9 @@ def test_late_answer_to_an_old_forward_does_not_close_a_same_second_offer(
     assert result.disposition is HandlerDisposition.REFUSED
     assert result.reason is not None and "already closed" in result.reason
     assert _semantic_types(dl) == entries_before
-    # Nothing is sent but the refusal notice (CLP-05-001); the Reject
-    # harness wires no trigger-activity port, so it has none to send.
+    # The answer to a closed Offer gets the refusal notice (CLP-05-001).
     notices = refusal_notices_since(dl, outbox_before, _COORDINATOR_ID)
-    assert len(notices) == (1 if late_answer is _accept else 0)
+    assert len(notices) == 1
     still_open = open_ownership_offer(dl, case_id)
     assert still_open is not None and still_open.offer_id == offer_b_id
     assert _owner(dl, case_id) == _VENDOR_ID

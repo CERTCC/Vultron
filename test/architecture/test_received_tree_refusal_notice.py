@@ -26,7 +26,9 @@ only way out, and keep the exception set closed and reasoned:
    ``EMBARGO_REFUSAL_ANSWERS_BACKLOG``: which tree passes each exemption, held
    to equality in both directions (ARCH-18-001, ARCH-18-002), and every
    registered exemption is used by some tree.  The ratchet holds the embargo
-   trees, whose answers #4755 gives; it ends empty.
+   trees, whose answers #4755 gives; it ends empty, a diverting embargo tree
+   moving to an exemption of its own, since the factory cannot give a tree
+   with a diversion the notice (CLP-10-026).
 2. The registry is the module's whole list: every ``RefusalNoticeExemption``
    constant in ``refusal_notice.py`` is registered, each with its own reason.
 3. Every received tree, built as it runs, that commits to a case and has a
@@ -53,6 +55,9 @@ from test.architecture.test_received_tree_case_manager_gate import (
 from vultron.core.behaviors.case.nodes import refusal_notice
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     ClockDecisionStage,
+)
+from vultron.core.behaviors.case.nodes.intake import (
+    IntakeReceivedActivityNode,
 )
 from vultron.core.behaviors.case.nodes.leave.decline import (
     EmitRejectCloseCaseNode,
@@ -347,28 +352,45 @@ def test_the_exemption_set_is_closed_and_reasoned() -> None:
     )
 
 
+def _classify(
+    trees: dict[str, py_trees.behaviour.Behaviour],
+) -> tuple[list[str], list[str], list[str]]:
+    """Sort the guarded commit trees in *trees* that break the rule.
+
+    Returns the labels of trees that send no notice and name no exemption,
+    of trees that send more than one, and of exempt trees that send one.
+    """
+    unanswered: list[str] = []
+    doubled: list[str] = []
+    exempt_with_notice: list[str] = []
+    for label, tree in sorted(trees.items()):
+        for received in _received_trees(tree):
+            if not _commits(received) or not _guards(received):
+                continue
+            where = f"{label} [{received.name}]"
+            notices = len(_notices(received))
+            if received.refusal_notice_exemption is not None:
+                if notices:
+                    exempt_with_notice.append(where)
+            elif notices == 0:
+                unanswered.append(where)
+            elif notices > 1:
+                doubled.append(where)
+    return unanswered, doubled, exempt_with_notice
+
+
 @pytest.mark.spec("CLP-02-005")
 @pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("CLP-10-022")
 def test_every_guarded_commit_tree_answers_a_refusal_unless_exempt() -> None:
     """A tree that can refuse before its commit holds one notice, or none
     and the exemption that says why."""
-    unanswered: list[str] = []
-    doubled: list[str] = []
-    exempt_with_notice: list[str] = []
-    for (rel, scope), tree in sorted(built_received_trees().items()):
-        for received in _received_trees(tree):
-            if not _commits(received) or not _guards(received):
-                continue
-            label = f"{rel}:{scope} [{received.name}]"
-            notices = len(_notices(received))
-            if received.refusal_notice_exemption is not None:
-                if notices:
-                    exempt_with_notice.append(label)
-            elif notices == 0:
-                unanswered.append(label)
-            elif notices > 1:
-                doubled.append(label)
+    unanswered, doubled, exempt_with_notice = _classify(
+        {
+            f"{rel}:{scope}": tree
+            for (rel, scope), tree in built_received_trees().items()
+        }
+    )
     assert unanswered == [], (
         f"trees whose precondition refusals send no refusal notice:"
         f" {unanswered}; pass a registered refusal_notice_exemption that"
@@ -416,17 +438,55 @@ def test_every_tree_that_commits_nothing_is_pinned_with_its_reason() -> None:
     )
 
 
-@pytest.mark.spec("CLP-02-005")
-def test_the_scan_sees_a_guarded_tree_with_no_notice() -> None:
-    """A tree built around the factory, guard and commit but no notice."""
+def _hand_built(
+    name: str,
+    *,
+    notices: int = 0,
+    exemption: RefusalNoticeExemption | None = None,
+) -> ReceivedActivityTree:
+    """A tree shaped like the factory's: a guard stage, then the commit."""
     from py_trees.behaviours import Success
+    from py_trees.composites import Sequence
 
-    hand_built = ReceivedActivityTree(
-        name="HandBuilt",
-        children=[Success(name="Guard"), Success(name=_COMMIT)],
+    stage = PreconditionGuardStage(
+        name=f"{name}Guards",
+        guards=Sequence(
+            name=f"{name}GuardSeq", memory=False, children=[Success("Guard")]
+        ),
+        refusal=Sequence(
+            name=f"{name}Refusal",
+            memory=False,
+            children=[
+                EmitRefusalNoticeNode(case_id="urn:case", name=f"Notice{i}")
+                for i in range(notices)
+            ],
+        ),
+        intake=IntakeReceivedActivityNode(),
+    )
+    return ReceivedActivityTree(
+        name=name,
+        children=[stage, Success(name=_COMMIT)],
         door_guards=[],
+        refusal_notice_exemption=exemption,
     )
 
-    assert _commits(hand_built)
-    assert [g.name for g in _guards(hand_built)] == ["Guard"]
-    assert _notices(hand_built) == []
+
+@pytest.mark.spec("CLP-02-005")
+def test_the_scan_sees_a_tree_that_breaks_the_rule() -> None:
+    """The check sorts a silent, a doubled and an exempt-but-noisy tree."""
+    exemption = next(iter(REFUSAL_NOTICE_EXEMPTIONS.values()))
+    unanswered, doubled, exempt_with_notice = _classify(
+        {
+            "silent": _hand_built("Silent"),
+            "answered": _hand_built("Answered", notices=1),
+            "doubled": _hand_built("Doubled", notices=2),
+            "exempt": _hand_built("Exempt", exemption=exemption),
+            "exempt-noisy": _hand_built(
+                "ExemptNoisy", notices=1, exemption=exemption
+            ),
+        }
+    )
+
+    assert unanswered == ["silent [Silent]"]
+    assert doubled == ["doubled [Doubled]"]
+    assert exempt_with_notice == ["exempt-noisy [ExemptNoisy]"]

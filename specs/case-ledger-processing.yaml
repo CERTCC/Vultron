@@ -451,12 +451,10 @@ groups:
       need not differ.
     note: >-
       The notice is the refusal's one answer. A refused `Add(CaseStatus)` or
-      `Add(ParticipantStatus)` gets no `Create(ProcessingFault)` beside it: the
-      user decided on #4756 that the fault the status handlers once sent
-      duplicated the notice, since a guard's refusal is "received and
-      understood but declined" (MSM-05-001). The replica's ImpossibleState
-      fault for a ledger entry it cannot apply (RSH-05-021) is a different
-      failure and stays.
+      `Add(ParticipantStatus)` gets no `Create(ProcessingFault)` beside it,
+      since a guard's refusal is "received and understood but declined"
+      (MSM-05-001; #4756). The replica's ImpossibleState fault for a ledger
+      entry it cannot apply (RSH-05-021) is a different failure and stays.
     adr:
     - ADR-0141
     stories:

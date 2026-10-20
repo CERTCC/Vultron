@@ -322,7 +322,9 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
     At the CASE_MANAGER the sender must be the transferee named in an open
     ownership-transfer Offer it recorded for the case; at any other replica
     it must be the CASE_MANAGER (CM-21-011, PCR-03-001).  Anyone else is
-    ``REFUSED`` with ownership unchanged, nothing committed and nothing sent.
+    ``REFUSED`` with ownership unchanged, nothing committed and nothing sent
+    (HP-01-006).  An Accept of an Offer already closed is ``REFUSED`` the
+    same way and answered with the refusal notice (CM-21-018, CLP-05-001).
     The new owner is read from the recorded Offer, never from the sender.
     A redelivery of the Accept that already closed the Offer changes nothing
     and is ``SKIPPED`` (HP-01-003).
@@ -383,7 +385,9 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     sender must be the transferee named in an open ownership-transfer Offer
     it recorded for the case; at any other replica it must be the
     CASE_MANAGER.  Anyone else is ``REFUSED`` with nothing committed and
-    nothing sent, and the Offer stays open.
+    nothing sent, and the Offer stays open (HP-01-006).  A Reject of an Offer
+    already closed is ``REFUSED`` the same way and answered with the refusal
+    notice (CM-21-018, CLP-05-001).
 
     An admitted Reject commits a ``reject_case_ownership_transfer`` entry and
     broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every

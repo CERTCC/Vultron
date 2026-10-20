@@ -46,19 +46,22 @@ Blackboard contract (BTND-03-003):
   (CLP-07-009); its sender is the asserter.
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 from typing import Final
 
+import py_trees
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
+from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
 from vultron.core.behaviors.case.nodes.ledger_payload import (
     _extract_payload_snapshot,
 )
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     enclosing_refusal_reason,
 )
+from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -79,6 +82,7 @@ __all__ = [
     "OWNER_CLOSE_DECLINE",
     "REFUSAL_NOTICE_EXEMPTIONS",
     "RefusalNoticeExemption",
+    "refusal_effects_with_notice",
     "refusal_notice",
 ]
 
@@ -116,8 +120,10 @@ EMBARGO_REFUSAL_ANSWERS: Final = RefusalNoticeExemption(
         " CASE_MANAGER answers and how (MSM-07-003, MSM-07-004, MSM-07-008,"
         " MSM-07-010): several already answer in place through a diversion"
         " (CLP-10-026), and a repeated answer to an embargo is reported"
-        " SKIPPED (CM-13-005).  #4755 gives each embargo tree its refusal"
-        " notice and retires this exemption."
+        " SKIPPED (CM-13-005).  #4755 retires this exemption: the notice"
+        " answers each embargo tree it can, and a tree with a diversion,"
+        " which the factory cannot give the notice (CLP-10-026), names an"
+        " exemption of its own that says how its refusals are answered."
     ),
 )
 
@@ -130,6 +136,61 @@ REFUSAL_NOTICE_EXEMPTIONS: Final[Mapping[str, RefusalNoticeExemption]] = (
         }
     )
 )
+
+
+def refusal_effects_with_notice(
+    name: str,
+    case_id: str | None,
+    guards: Sequence[py_trees.behaviour.Behaviour | Diversion],
+    refusal_effects: list[py_trees.behaviour.Behaviour],
+    exemption: RefusalNoticeExemption | None,
+) -> list[py_trees.behaviour.Behaviour]:
+    """A received tree's refusal effects, the refusal notice first (CLP-02-005).
+
+    A tree that commits to *case_id* and has precondition *guards* answers
+    their refusal with the refusal notice to the asserter (CLP-05-001), ahead
+    of the tree's own *refusal_effects*.  An exempt tree keeps only its own;
+    so does a tree with no guards or no case, which refuses no assertion at
+    the CASE_MANAGER before a commit.
+    :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
+    calls it with the tree's *name*.
+
+    Raises:
+        VultronWiringError: *exemption* is not registered in
+            :data:`REFUSAL_NOTICE_EXEMPTIONS`, or the tree would send no
+            notice without it (no case or no guards), so it exempts nothing,
+            or a tree with a :class:`Diversion` names no exemption: a
+            diverted delivery answers itself, so the notice would answer it
+            twice (CLP-10-026), and the tree must say how its other refusals
+            are answered.
+    """
+    where = f"create_receive_activity_tree({name})"
+    guarded = bool(guards)
+    if exemption is None:
+        if case_id is None or not guarded:
+            return refusal_effects
+        if any(isinstance(g, Diversion) for g in guards):
+            raise VultronWiringError(
+                f"{where}: a tree with a diversion answers its diverted"
+                " deliveries in place, so it takes no refusal notice; name a"
+                " registered refusal_notice_exemption (CLP-02-005, CLP-10-026)"
+            )
+        return [refusal_notice(case_id), *refusal_effects]
+    require_registered(
+        exemption,
+        REFUSAL_NOTICE_EXEMPTIONS,
+        where=where,
+        kind="refusal-notice",
+        registry_name="REFUSAL_NOTICE_EXEMPTIONS",
+        spec_id="CLP-02-005",
+    )
+    if case_id is None or not guarded:
+        raise VultronWiringError(
+            f"{where}: refusal-notice exemption {exemption.name!r} exempts"
+            " nothing — the tree has no precondition guards or no case to"
+            " commit to (CLP-02-005)"
+        )
+    return refusal_effects
 
 
 class EmitRefusalNoticeNode(_EmitSingleActivityBase):
