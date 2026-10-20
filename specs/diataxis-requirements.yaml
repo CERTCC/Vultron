@@ -839,6 +839,79 @@ groups:
       The generator's `--check` mode runs as a pre-commit hook and in CI, failing when the
       committed fragment differs from what the schema implies. Per DF-09-009 the check fails
       rather than passes when it resolves no targets.
+  - id: DF-11-013
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A reading-path thread MUST be declared once, as data in the frontmatter of the
+      start page that opens it, as an ordered list of stages, where each stage is either
+      an unordered set of reader-facing pages or an ordered chain of them.
+    rationale: >-
+      A reader's route through the site is a partial order: at some points order
+      matters, and at others any of several pages will do. Ordered stages of sets or
+      chains express that directly without forcing a sequence, and cannot contain a
+      cycle. Declaring the thread once is what lets the start-page listing and every
+      member page's directions be renders of one source (DF-10-002) instead of copies
+      that drift.
+    verification: >-
+      The frontmatter validator parses each start page's thread declaration against the
+      stage schema and reports a malformed stage, an empty stage, or a member that is not
+      a page path as a finding.
+  - id: DF-11-014
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A start page's listing of its thread MUST be generated from the thread's data and
+      gated by a check mode, and MUST NOT be hand-maintained; framing prose outside the
+      generated block stays hand-written.
+    rationale: >-
+      The listing is an enumeration of the thread, the defect class DF-11-005 exists to
+      remove when it is hand-maintained. Generating it into the committed source keeps
+      the diff showing what readers will see, the way generated landing pages do.
+    verification: >-
+      The generator's check mode runs as a pre-commit hook and in CI, failing when a
+      start page's committed generated block differs from what its thread data implies.
+  - id: DF-11-015
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      Every page that is a member of a thread MUST show, for each thread it belongs to,
+      the set of thread pages before it, the set after it, and a link to the thread's
+      start page, titled by the reader's situation rather than by `stakeholder_type`
+      (DF-11-009), and the rendered page MUST be the same for every reader.
+    rationale: >-
+      A reader who followed a thread into a page needs directions onward without being
+      forced down one next page, so predecessors and successors are sets. A page on
+      several threads lists each, so it never needs to know which thread a reader is
+      on: no query parameter, script or referrer is involved, the page renders the same
+      on a deep link, and it still stands alone (DF-11-007).
+    verification: >-
+      A test builds a fixture tree with a page on two threads and confirms the rendered
+      page carries one entry per thread with the expected before and after sets, no
+      `stakeholder_type` value, and no reader-dependent markup.
+  - id: DF-11-016
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A thread check MUST fail when a thread lists a page that does not exist or is not
+      reader-facing (DF-11-001), when a page appears more than once in one thread, or
+      when it resolves no threads at all (DF-09-009).
+    rationale: >-
+      A thread that routes a reader to a missing or working-record page is a broken
+      route, and a page listed twice in one thread has two places in a partial order.
+      The build's broken-link check catches only the first, and only on the start page.
+    verification: >-
+      Unit tests cover each failure — a missing page, a working-record page, a duplicate
+      member, and an empty set of threads — and the check runs as a pre-commit hook and
+      in CI.
 - id: DF-12
   title: Protocol Specification normative text rendered from the requirement tiers
   description: >-
