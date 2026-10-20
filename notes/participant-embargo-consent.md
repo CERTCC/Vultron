@@ -266,9 +266,10 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
 - **The CASE_MANAGER side** is `commit_and_apply_embargo_entries()`
   (`vultron/core/behaviors/embargo/copy_commit.py`): in one `transaction()` it
   trial-applies every planned entry, commits them in order, then saves the
-  result; a refused trial or a failed commit writes nothing, except the change
-  of an entry intake already committed (ADR-0146, #4933). `consent_row_entry()`
-  builds the planned entry for one row.
+  result; a refused trial or a failed commit writes nothing. In a received
+  tree the act's own entry commits in the same transaction, so it is not kept
+  either (ADR-0146, ADR-0151). `consent_row_entry()` builds the planned entry
+  for one row.
 - **The replica side** subclasses `ApplyEmbargoChangeFromLedgerNode`
   (`sync/nodes/embargo_copy_effect.py`) and names its entry's change in
   `_change()`; a refused entry is held in `LedgerGapBuffer` and the announce is

@@ -314,12 +314,13 @@ class TestReceivedActivation:
     def test_a_failed_carry_over_commit_writes_no_carry_over(
         self, monkeypatch
     ):
-        """The Accept is committed by intake, so its step and the owner's
-        row it carries stand; the second carry-over commit fails, and the
-        carry-overs are one transaction (ADR-0146), so neither row is
-        written."""
+        """The second carry-over commit fails.  The Accept's own entry, its
+        step, the owner's row it carries and the carry-overs are one
+        transaction (ADR-0146, ADR-0151), so none of them is kept."""
         net = LedgerNetwork("https://example.org/cases/ac-received-fail")
         revision_id = _propose(net, "short", 30)
+        owner_before = _state(net, MANAGER, OWNER, revision_id)
+        since = _count(net)
         failed = fail_commits(
             monkeypatch,
             commit_tree,
@@ -334,9 +335,10 @@ class TestReceivedActivation:
             _owner_activates(net, revision_id)
 
         assert len(failed) == 2
+        assert _embargo_entries(net, since) == []
         case = net.case(MANAGER)
-        assert case.active_embargo_id == revision_id
-        assert _state(net, MANAGER, OWNER, revision_id) is _S.AGREED
+        assert case.active_embargo_id == net.initial_embargo_id
+        assert _state(net, MANAGER, OWNER, revision_id) is owner_before
         assert _carried_over(net, revision_id) == set()
 
 

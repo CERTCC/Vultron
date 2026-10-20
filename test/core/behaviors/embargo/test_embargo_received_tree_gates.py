@@ -25,6 +25,7 @@ from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
 from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
+from vultron.core.behaviors.case.receive_activity_tree import received_stages
 from vultron.core.behaviors.embargo.announce_teardown_tree import (
     invite_to_embargo_on_case_tree,
 )
@@ -69,7 +70,7 @@ def _invite_tree() -> py_trees.behaviour.Behaviour:
 def test_invite_tree_gate_is_last_and_ends_with_the_index() -> None:
     tree = _invite_tree()
 
-    gate = tree.children[-1]
+    gate = received_stages(tree)[-1]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "AdjudicateEmbargoProposal"
     assert isinstance(
@@ -80,7 +81,9 @@ def test_invite_tree_gate_is_last_and_ends_with_the_index() -> None:
 def test_invite_tree_replica_arm_ends_with_the_index() -> None:
     tree = _invite_tree()
 
-    (arm,) = [c for c in tree.children if c.name == "AnswerInviteOnReplica"]
+    (arm,) = [
+        c for c in received_stages(tree) if c.name == "AnswerInviteOnReplica"
+    ]
     body = arm.children[-1]
     assert body.name == "AnswerInviteOnReplicaBody"
     assert isinstance(body.children[-1], IndexReceivedEmbargoProposalNode)
@@ -105,7 +108,7 @@ def test_activate_embargo_backfill_is_the_factory_gate() -> None:
         sender_rule=ActivateEmbargoOnCaseReceivedUseCase.sender_entitlement,
     )
 
-    gate = tree.children[-1]
+    gate = received_stages(tree)[-1]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "ActivateEmbargoOnCaseBTIfCaseManager"
     # The owner's activation is gated to the CASE_MANAGER (RSH-08-003): capture

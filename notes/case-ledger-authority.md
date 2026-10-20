@@ -195,9 +195,10 @@ a consequence of the act (the stub re-issue, a proposal's relay) runs in the
 same transaction: compose the act's commit node and it into one `ActTransaction`
 (`vultron/core/behaviors/act_transaction.py`), through
 `create_case_manager_gated_tree(as_one_act=True)` or
-`create_receive_activity_tree(manager_effects_as_one_act=True)` (#4949). Known
-gap: intake commits a received act's own entry in its own transaction first
-(ADR-0111, #4933).
+`create_receive_activity_tree(as_one_act=True)` (#4949). In a received tree the
+act block also holds the guarded commit of the act's own entry, so a failed
+received act keeps no entry, and a later delivery is not stopped as a repeat
+(ADR-0151).
 
 ### Two Meanings of "Reject"
 

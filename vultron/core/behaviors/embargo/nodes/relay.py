@@ -187,9 +187,8 @@ class RelayEmbargoInviteToEachNode(
     participant is sent an Invite the ledger does not record (CLP-07-013)
     and nothing is left for a later run.  The idempotency latch
     (``pending_embargo_proposal_index``) is written only after the whole
-    tree succeeded (ID-04-005).  The one known gap is the received
-    proposal's own entry, which intake commits before the act's transaction
-    opens (ADR-0111, #4933).
+    tree succeeded (ID-04-005).  A received proposal's own entry commits in
+    the same transaction, so it is not kept either (ADR-0151).
     """
 
     def __init__(

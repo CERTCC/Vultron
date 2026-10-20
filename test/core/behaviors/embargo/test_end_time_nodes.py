@@ -136,7 +136,7 @@ def test_timely_guard_trial_applies_the_step_the_remove_names(
     trial_refuses: bool,
 ) -> None:
     """With the named embargo in force, the guard runs the ``TERMINATE``
-    step through the one apply function before intake commits (ADR-0124):
+    step through the one apply function before the guarded commit (ADR-0124):
     a refused step refuses the act."""
     from unittest.mock import patch
 

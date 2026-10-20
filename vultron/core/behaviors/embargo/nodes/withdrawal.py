@@ -27,7 +27,7 @@ everyone else (VP-13-017).  It is not an answer to an Invite, so a
   refuses a Reject reading as a withdrawal.
 - :class:`EmbargoWithdrawalAppliesNode` — the received tree's decision
   guard: the CASE_MANAGER decides the withdrawal on a staged store before
-  intake commits the Leave (ADR-0124).
+  the guarded commit of the Leave (ADR-0124).
 - :class:`RecordParticipantWithdrawalNode` — the CASE_MANAGER's effect.
 - :class:`WithdrawEmbargoLifecycleNode` — the trigger's CASE_MANAGER arm.
 - :class:`ApplyEmbargoWithdrawalFromLedgerNode` — the replica slot
@@ -247,7 +247,7 @@ class EmbargoWithdrawalAppliesNode(EmbargoDecisionAppliesNode):
 
     Runs :func:`decide_withdrawal` and writes nothing, so a Leave the
     lifecycle would refuse, or whose row entries would not apply, is refused
-    before intake commits it (ADR-0122: for a received act the trial runs
+    before the guarded commit (ADR-0122: for a received act the trial runs
     among its guards).  A decision fault raises.
     """
 
@@ -295,7 +295,8 @@ def case_manager_admits_withdrawal_guard(
 class RecordParticipantWithdrawalNode(_RecordReceivedConsentNode):
     """Record a participant's withdrawal from the embargo in force.
 
-    Intake has committed the ``Leave`` (ADR-0111).  The node decides the
+    The guarded commit has committed the ``Leave``, in the same act's
+    transaction (ADR-0151).  The node decides the
     withdrawal for *withdrawing_actor_id*, the message's actor (the tree
     executes as the receiving CASE_MANAGER, ADR-0022), with
     :func:`decide_withdrawal`: its ``AGREED`` row for the embargo in force

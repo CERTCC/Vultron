@@ -159,7 +159,7 @@ def test_an_answer_node_with_no_received_answer_raises(
 def test_an_answer_node_records_the_row_on_the_answers_own_entry(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """Applying an answer intake committed adds no entry (ADR-0122)."""
+    """Applying an answer the guarded commit committed adds no entry (ADR-0122)."""
     case_id = _seed(bt_scenario, "copy-answer", EM.PROPOSED)
     before = committed_semantic_types(bt_scenario.dl, case_id)
 

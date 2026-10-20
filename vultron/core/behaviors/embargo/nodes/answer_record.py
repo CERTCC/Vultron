@@ -22,8 +22,8 @@ it (CLP-07-013).  The CASE_MANAGER decides it with the lifecycle operation
 on a staged store (:func:`decide_answer`), and the decision must write
 exactly that row, or nothing when the row already holds it.
 
-A received answer's entry is committed by intake before the effects run
-(ADR-0111), so :class:`EmbargoAnswerAppliesNode` makes the same decision
+A received answer's entry is committed by the guarded commit before the
+effects run (ADR-0111), so :class:`EmbargoAnswerAppliesNode` makes the same decision
 among the tree's guards: an answer that would record nothing the case can
 take is refused before it is committed, and no replica is sent an entry it
 could not apply (ADR-0124, SYNC-12-001).
@@ -84,8 +84,8 @@ def decide_answer(
 class EmbargoDecisionAppliesNode(DataLayerConditionWithPorts):
     """Shared frame: a received act's decision records what the case can take.
 
-    A received act's entry is committed by intake before its effects run
-    (ADR-0111), so the CASE_MANAGER makes the act's decision among the
+    A received act's entry is committed by the guarded commit before its
+    effects run (ADR-0111), so the CASE_MANAGER makes the act's decision among the
     tree's guards too, on a staged store, and writes nothing: an act whose
     decision the lifecycle refuses, or whose entries would not apply, is
     refused before it is committed (ADR-0124, SYNC-12-001).  A subclass

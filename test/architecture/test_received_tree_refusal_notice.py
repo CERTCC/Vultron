@@ -72,6 +72,7 @@ from vultron.core.behaviors.case.nodes.refusal_stage import (
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
+    received_stages,
 )
 
 _KEYWORD = "refusal_notice_exemption"
@@ -286,7 +287,7 @@ def _received_trees(
 
 
 def _commits(tree: ReceivedActivityTree) -> bool:
-    return any(child.name == _COMMIT for child in tree.children)
+    return any(child.name == _COMMIT for child in received_stages(tree))
 
 
 def _guards(tree: ReceivedActivityTree) -> list[py_trees.behaviour.Behaviour]:
@@ -297,7 +298,7 @@ def _guards(tree: ReceivedActivityTree) -> list[py_trees.behaviour.Behaviour]:
     """
     doors = {id(guard) for guard in tree.door_guards}
     guards: list[py_trees.behaviour.Behaviour] = []
-    for child in tree.children:
+    for child in received_stages(tree):
         if child.name == _COMMIT:
             break
         if id(child) in doors or any(
