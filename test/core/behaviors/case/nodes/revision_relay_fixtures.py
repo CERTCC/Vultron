@@ -137,8 +137,6 @@ def seed(
 def marker(
     losing_source: EmbargoDurationSource = EmbargoDurationSource.ACTOR_DEFAULT,
     report_id: str = REPORT_ID,
-    *,
-    invite_queued: bool = False,
 ) -> PendingCreationTimeRevisionRelay:
     return PendingCreationTimeRevisionRelay(
         case_id=CASE_ID,
@@ -147,7 +145,6 @@ def marker(
         losing_source=cast(LosingSource, losing_source.value),
         report_id=report_id,
         case_actor_id=MANAGER,
-        invite_queued=invite_queued,
     )
 
 
@@ -155,13 +152,9 @@ def owe(
     scenario: BTTestScenario,
     losing_source: EmbargoDurationSource = EmbargoDurationSource.ACTOR_DEFAULT,
     report_id: str = REPORT_ID,
-    *,
-    invite_queued: bool = False,
 ) -> None:
     """Record the relay obligation the registration would write."""
-    scenario.dl.save(
-        marker(losing_source, report_id, invite_queued=invite_queued)
-    )
+    scenario.dl.save(marker(losing_source, report_id))
 
 
 def relay(

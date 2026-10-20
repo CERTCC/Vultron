@@ -33,6 +33,7 @@ See also:
 """
 
 from collections.abc import Iterable
+from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Protocol
 
 from vultron.core.models.protocol_pair import ProtocolPair
@@ -74,6 +75,20 @@ class CasePersistence(Protocol):
         The only way to reach a store other than this one, and deliberately
         explicit: ADR-0073 makes cross-actor access something a caller must
         name rather than something a forgotten filter grants by accident.
+        """
+        ...
+
+    def transaction(self) -> AbstractContextManager[None]:
+        """Commit every write inside the block together, or none of them.
+
+        Use as ``with store.transaction(): ...``.  Every call on this store
+        inside the block reads the block's own writes; when the block ends
+        they all commit at once, and when it raises they are all rolled back
+        and the exception propagates.  A block opened inside another is
+        part of it: when the inner block raises, only its own writes are
+        rolled back, and otherwise they commit or roll back with the outer
+        block's.  This is how an act and its consequences commit as one: no
+        failure part-way leaves some of them written (CLP-07-015, ADR-0146).
         """
         ...
 

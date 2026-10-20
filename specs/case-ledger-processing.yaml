@@ -676,33 +676,35 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When an embargo act's own entry is committed and an entry the act's
-      consequences require is not, the CASE_MANAGER MUST commit the entries it
-      still owes, unchanged from what it decided before the act's first commit and
-      in that order, before any later embargo act on the case reads a consent row.
-      An act whose own entry is not committed owes nothing.
+      The CASE_MANAGER MUST commit an embargo act's entries, and the case-file
+      changes those entries carry, in one DataLayer transaction, so that when any
+      of them fails none of them is written. It MUST trial-apply every entry
+      before the first commit, so an entry that will not apply refuses the act
+      before anything is written.
     rationale: >-
-      The entries after an act's own are committed one at a time, so a failed commit
-      leaves the act committed without its consent rows, a state no single act
-      produces: a proposal in the register that some participant holds no row for,
-      or an invitee whose row never moved to its invitation (ADR-0122). Nothing else
-      re-commits them, because a repeated trigger starts a new act and a redelivered
-      act is stopped by its idempotency guard (#4764). Re-deciding the entries later
-      could decide a different row once the clock or local policy has moved, so the
-      entries are the ones already decided (ADR-0146). The stored plan is case
-      bookkeeping read only to commit those entries unchanged, never to decide a
-      case-file value, so CLP-07-014 still holds.
+      An act commits its own entry and then one entry per consent row it changes
+      (CLP-07-013). Committed one at a time, a failure part-way left the act
+      committed without its rows, a state no single act produces: a proposal in
+      the register that some participant holds no row for, or an invitee whose row
+      never moved to its invitation (ADR-0122). Nothing re-commits them, because a
+      repeated trigger starts a new act and a redelivered act is stopped by its
+      idempotency guard (#4764). An act succeeds or fails as a whole, so no later
+      run finishes it and no repair pass re-decides its rows (ADR-0146). Known
+      atomicity gaps: a received act's own entry is committed by intake before its
+      consequences (ADR-0111, #4933), and consequences a later node commits, such
+      as the stub re-issue (CM-11-016) and a proposal's relay (EP-09-002), commit
+      after the act (#4949).
     verification: >-
-      A test fails an act's second commit, then runs a CASE_MANAGER embargo tree for
-      the case, and asserts the owed entries are committed in their planned order and
-      the case file equals the one a run with no failure produces; a test stores a
-      plan whose act's own entry did not commit, runs the finishing step, and asserts
-      it commits nothing and discards the plan.
+      A test fails the second commit of a two-entry act and asserts the
+      CASE_MANAGER keeps no entry, no queued activity and no row change from it; a
+      test fails the case-file save after the commits and asserts no entry is kept;
+      a test commits a two-entry act and asserts a replica that copies its
+      announcements holds the CASE_MANAGER's rows. Two strict-xfail tests record
+      the known gaps: a received act whose consequence fails keeps no entry for
+      it (#4933), and a termination whose stub re-issue fails is not kept (#4949).
     relationships:
     - rel_type: refines
       spec_id: CLP-07-013
-    - rel_type: depends_on
-      spec_id: CLP-07-014
     adr:
     - ADR-0146
     stories:
