@@ -207,8 +207,9 @@ a URL an earlier build served and this one dropped. `uv run docs-legacy-urls`
   `vultron/metadata/docs/legacy_urls_baseline.txt` only grows (`--snapshot
   <ref>` adds a ref's pages, drops none): a URL cited once can be cited forever.
 - **Snapshot the incoming publish, not the outgoing one.** A pull request to
-  `publish` fails until every page its head builds is recorded (DOCBW-03-012):
-  run `--snapshot origin/main` on `main` and commit it. Recording each publish as
+  `publish` fails until every page its merge result builds is recorded
+  (DOCBW-03-012), whatever paths the pull request changes: run
+  `--snapshot origin/main` on `main` and commit it. Recording each publish as
   it ships covers every earlier one, and the check reuses the snapshot's
   definition of a built page, so the two cannot disagree.
 - **A snapshot records what the ref built, not what it held** — it applies that

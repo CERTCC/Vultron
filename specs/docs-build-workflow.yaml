@@ -266,25 +266,32 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          On a pull request whose base branch is `publish`, the review workflow
-          MUST fail when a page the checked-out commit builds is absent from the
-          DOCBW-03-008 record of served URLs, deciding which pages are built by
-          the same rule that extends the record. The step MUST fail when that
-          commit builds no pages, and MUST NOT run on pull requests to any other
-          base branch.
+          On every pull request whose base branch is `publish`, whatever paths it
+          changes, the review workflow MUST fail when a page its merge result
+          builds is absent from the DOCBW-03-008 record of served URLs, deciding
+          which pages are built by the same rule that extends the record. The
+          step MUST fail when the merge result builds no pages, and MUST NOT run
+          on pull requests to any other base branch.
         rationale: >-
           The record stays complete only if each publish is recorded before it
           ships, and nothing enforced that (#3728); recording every incoming
-          publish covers all earlier ones. On a pull request to `main` a new page
-          is not yet due, so the step would fail every page addition. `publish`
-          advances by pull request, so leaving a direct push or manual deploy
-          unchecked is an accepted gap. See `notes/documentation-strategy.md`.
+          publish covers all earlier ones. The merge result is checked because
+          it is what `publish` will serve once the pull request merges. A path
+          filter would skip a release that changes no docs while pages from an
+          earlier unchecked publish are still unrecorded. On a pull request to
+          `main` a new page is not yet due, so the step would fail every page
+          addition. `publish` has no required status checks, so the gate holds
+          through the rule that a pull request never merges on a red check; a
+          direct push or manual deploy goes unchecked, an accepted gap. See
+          `notes/documentation-strategy.md`.
         verification: >-
           A `docs-legacy-urls` mode (`vultron/metadata/docs/legacy_urls.py`)
           exits non-zero on an unrecorded built page and on an empty built-page
           set, covered by `test/metadata/docs/test_legacy_urls.py`;
-          `test/ci/test_publication_gates_in_workflows.py` asserts the step in
-          `docs-build-check.yml` is conditioned on a `publish` base branch.
+          `test/ci/test_publication_gates_in_workflows.py` asserts that
+          `docs-build-check.yml` triggers on pull requests to `publish` with no
+          path filter, and that the step is conditioned on a `publish` base
+          branch and does not set `continue-on-error`.
         relationships:
           - rel_type: depends_on
             spec_id: DOCBW-03-008
