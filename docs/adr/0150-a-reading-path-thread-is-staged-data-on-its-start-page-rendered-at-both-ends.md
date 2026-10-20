@@ -113,4 +113,4 @@ The agent usability test that gates the navigation change has a "follow your thr
 
 Explicit page-to-page edges can be added inside or across stages if a real thread needs an order that stages cannot express; that extends this decision rather than replacing it.
 
-Generated spec requirements: `diataxis-requirements.yaml` DF-11-013 through DF-11-016.
+Generated spec requirements: `diataxis-requirements.yaml` DF-11-013 through DF-11-017.

@@ -421,9 +421,11 @@ every tab is an entry.
 A thread is a partial order, not a sequence: a progression where order matters
 at some points and not at others (ADR-0150).
 
-- **Shape.** An ordered list of **stages**, each an unordered set ("read any of
-  these") or a short ordered chain. Stages are the start page's goal-named
-  sections; a chain is a numbered list, a set a bulleted one (DF-11-013). Add
+- **Shape.** One thread per start page: an ordered list of **stages**, each
+  with a goal-named title and an optional stopping-point mark, and each an
+  unordered set ("read any of these") or a short ordered chain of pages with a
+  blurb apiece. Stages are the start page's sections; a chain is a numbered
+  list, a set a bulleted one (DF-11-013). Add
   explicit page-to-page edges only when a real thread needs an order stages
   cannot express; nobody has yet.
 - **One source.** The thread lives in its start page's frontmatter. The start
@@ -431,16 +433,19 @@ at some points and not at others (ADR-0150).
   edit the listing by hand: edit the data.
 - **Member pages.** A build hook adds a box per thread the page is on: the
   pages before it and after it, both as sets, and a link back to the start
-  page (DF-11-015). It is titled by situation, never by `stakeholder_type`, and
-  is the same for every reader, so no query parameter or referrer is needed.
-  The theme's nav-order footer is suppressed on member pages so two "next"
-  links never disagree.
+  page (DF-11-015). The sets are the adjacent ones: the neighbor in a chain,
+  or else the whole neighboring set stage (or the near end of a neighboring
+  chain). It is titled by situation, never by `stakeholder_type`, and is the
+  same for every reader, so no query parameter or referrer is needed. The
+  theme's nav-order footer is suppressed on member pages so two "next" links
+  never disagree (DF-11-017).
 - **Not a level sort.** The level rule forbids depending upward; it does not
   require a thread to climb in level. Order a thread by what the reader needs
   first.
 - **More threads, not more tabs.** The practitioner start page already serves
   someone deciding whether to adopt and someone working cases; splitting them
-  adds a thread, with no frontmatter change.
+  adds a start page with its own thread, and no page's `stakeholder_type`
+  changes.
 
 Authoring practice:
 

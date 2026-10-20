@@ -846,8 +846,10 @@ groups:
       - ADR-0150
     statement: >-
       A reading-path thread MUST be declared once, as data in the frontmatter of the
-      start page that opens it, as an ordered list of stages, where each stage is either
-      an unordered set of reader-facing pages or an ordered chain of them.
+      start page that opens it, one thread per start page, as an ordered list of stages,
+      where each stage has a title naming the reader's goal, may be marked as a stopping
+      point, and is either an unordered set of reader-facing pages or an ordered chain of
+      them, each member carrying its page path and a blurb written for this thread.
     rationale: >-
       A reader's route through the site is a partial order: at some points order
       matters, and at others any of several pages will do. Ordered stages of sets or
@@ -857,8 +859,8 @@ groups:
       that drift.
     verification: >-
       The frontmatter validator parses each start page's thread declaration against the
-      stage schema and reports a malformed stage, an empty stage, or a member that is not
-      a page path as a finding.
+      stage schema and reports a malformed stage, an empty stage, a stage with no title,
+      a member with no blurb, or a member that is not a page path as a finding.
   - id: DF-11-014
     priority: MUST
     kind: process
@@ -882,9 +884,13 @@ groups:
       - ADR-0150
     statement: >-
       Every page that is a member of a thread MUST show, for each thread it belongs to,
-      the set of thread pages before it, the set after it, and a link to the thread's
-      start page, titled by the reader's situation rather than by `stakeholder_type`
-      (DF-11-009), and the rendered page MUST be the same for every reader.
+      the set of thread pages immediately before it, the set immediately after it, and a
+      link to the thread's start page, titled by the reader's situation rather than by
+      `stakeholder_type` (DF-11-009), and the rendered page MUST be the same for every
+      reader. The set before a page is the preceding member of its chain, or else the
+      previous stage's exit pages; the set after it is the next member of its chain, or
+      else the next stage's entry pages. A set stage's entry and exit pages are all its
+      members; a chain's entry page is its first member and its exit page its last.
     rationale: >-
       A reader who followed a thread into a page needs directions onward without being
       forced down one next page, so predecessors and successors are sets. A page on
@@ -892,9 +898,11 @@ groups:
       on: no query parameter, script or referrer is involved, the page renders the same
       on a deep link, and it still stands alone (DF-11-007).
     verification: >-
-      A test builds a fixture tree with a page on two threads and confirms the rendered
-      page carries one entry per thread with the expected before and after sets, no
-      `stakeholder_type` value, and no reader-dependent markup.
+      A test builds a fixture tree with a page on two threads, one in a chain and one in
+      a set stage, and confirms the rendered page carries one entry per thread with the
+      expected before and after sets, a title taken from the start page's situation, a
+      link to each start page, no `stakeholder_type` or `level` value, no script
+      element, and no link carrying a query string.
   - id: DF-11-016
     priority: MUST
     kind: process
@@ -912,6 +920,21 @@ groups:
       Unit tests cover each failure — a missing page, a working-record page, a duplicate
       member, and an empty set of threads — and the check runs as a pre-commit hook and
       in CI.
+  - id: DF-11-017
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A page that is a member of a thread MUST NOT show the theme's navigation-order
+      previous and next footer.
+    rationale: >-
+      The footer follows navigation order, not the thread, so on a member page it would
+      offer a second "next" link that can disagree with the thread's own directions
+      (DF-11-015).
+    verification: >-
+      The DF-11-015 fixture test confirms the rendered member page carries no
+      navigation-order footer, and that a page on no thread still carries it.
 - id: DF-12
   title: Protocol Specification normative text rendered from the requirement tiers
   description: >-

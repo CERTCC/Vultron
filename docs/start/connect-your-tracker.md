@@ -11,7 +11,7 @@ level: 100
 You build or run the system where vulnerability reports and cases live: a tracker, a coordination platform, a disclosure portal, or an internal tool.
 Today your partners reach it through accounts on your system, or you reach theirs through accounts on theirs.
 This page is a reading path through the parts of this site that describe what your system sends, when it sends it, and where your own logic plugs in.
-Each step builds on the one before it.
+Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
 
 ## Understand the shape of the integration
 
