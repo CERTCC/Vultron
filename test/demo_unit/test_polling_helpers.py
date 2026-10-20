@@ -598,9 +598,8 @@ def test_shared_budget_hands_out_what_is_left_and_never_goes_negative(
 
 # ---------------------------------------------------------------------------
 # find_case_invite_for_actor (#3821): the invitee holds the CASE_MANAGER's
-# Invite as intake's ReceivedActivityRecord (CLP-10-017, ADR-0111), or bare
-# under the sender's id while the inbox defers it until the case bootstrap --
-# the one bare row a demo finder still reads (DL-06-006).
+# Invite as intake's ReceivedActivityRecord (CLP-10-017, ADR-0111), archived on
+# arrival (PCR-06-005); a row under the sender's id is never read (DL-06-006).
 # ---------------------------------------------------------------------------
 
 _MANAGER = "http://example.com/actors/case-actor"
@@ -661,18 +660,20 @@ class TestFindCaseInviteForActor:
 
         assert found == _INVITE_ID
 
-    def test_finds_the_invite_held_only_under_the_senders_id(
-        self,
-    ):
-        """With no intake record, the bare row ingress keeps is read (#4871)."""
+    @pytest.mark.spec("DL-06-006")
+    def test_an_invite_held_only_under_the_senders_id_is_not_found(self):
+        """A bare row is not a received activity, even a stub Invite (#4871)."""
         _, record = _archived_invite_entry()
         client = _dl_client({_INVITE_ID: record["activity"]})
 
-        found = find_case_invite_for_actor(
-            client, CASE_ID, ACTOR_B, timeout_seconds=1.0, poll_interval=0.01
-        )
-
-        assert found == _INVITE_ID
+        with pytest.raises(AssertionError, match="Timed out"):
+            find_case_invite_for_actor(
+                client,
+                CASE_ID,
+                ACTOR_B,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
+            )
 
     @pytest.mark.parametrize(
         ("case_id", "invitee_id"),
@@ -751,15 +752,6 @@ class TestAssertReceivedFrom:
             _INVITE_ID,
             _MANAGER,
             "consequence",
-        )
-
-    def test_reads_an_invite_the_inbox_defers_when_told_its_type(self):
-        """The invitee holds no case yet, so only the inbox holds the Invite."""
-        _, record = _archived_invite_entry()
-        client = _dl_client({_INVITE_ID: record["activity"]})
-
-        assert_received_from(
-            client, _INVITE_ID, _MANAGER, "consequence", deferred_type="Invite"
         )
 
     @pytest.mark.spec("DL-06-006")
@@ -848,10 +840,10 @@ class TestMalformedReceivedRecord:
                 },
             )
 
-    def test_a_bare_activity_is_known_by_its_storage_id(self):
-        assert _received_activity_id("urn:uuid:a", {"type": "Invite"}) == (
-            "urn:uuid:a"
-        )
+    @pytest.mark.spec("DL-06-006")
+    def test_a_bare_activity_is_not_a_received_one(self):
+        with pytest.raises(AssertionError, match="wraps no activity"):
+            _received_activity_id("urn:uuid:a", {"type": "Invite"})
 
 
 # ---------------------------------------------------------------------------
@@ -1158,8 +1150,7 @@ _RECEIVED_TYPES = ["ReceivedActivityRecord"]
 _STORE_SCAN_FINDERS = [
     pytest.param(
         lambda c, **kw: find_case_invite_for_actor(c, CASE_ID, ACTOR_B, **kw),
-        # A stub Invite is also read bare while the inbox defers it.
-        ["ReceivedActivityRecord", "Invite"],
+        _RECEIVED_TYPES,
         id="case-invite",
     ),
     pytest.param(

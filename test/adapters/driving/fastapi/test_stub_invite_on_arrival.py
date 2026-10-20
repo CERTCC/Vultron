@@ -228,19 +228,14 @@ def test_stub_invite_is_processed_on_arrival_and_archived(
     assert pending.activity_ids == [], "nothing is held back for replay"
     assert pending.case_actor_id == _CASE_ACTOR_ID
     assert pending.invite_anchored
-    # PCR-06-005: the intake archive and the anchor are the only writes.  The
-    # inbox's sender-keyed ``Invite`` ingress row is still written until
-    # #4871 removes it.
+    # PCR-06-005: the intake archive and the anchor are the only writes;
+    # ingress holds nothing under the sender's id (DL-06-006).
     stored = {
         type_: count
         for type_, count in invitee_dl.count_all().items()
         if count
     }
-    assert stored == {
-        "ReceivedActivityRecord": 1,
-        "PendingCaseInbox": 1,
-        "Invite": 1,
-    }
+    assert stored == {"ReceivedActivityRecord": 1, "PendingCaseInbox": 1}
 
 
 @pytest.mark.spec("PCR-06-005", "DL-06-006")
@@ -251,9 +246,8 @@ def test_accept_reads_the_invite_from_the_receiver_keyed_record(
     invite_id, body = _stub_invite_body(case_actor_dl)
     assert _deliver(invitee_dl, body).status is InboxOutcomeStatus.PROCESSED
 
-    # The inbox's sender-keyed ingress row goes with #4871; without it the
-    # receiver-keyed archive is the only copy.
-    invitee_dl.delete("Invite", invite_id)
+    # Ingress holds nothing under the sender's id, so the receiver-keyed
+    # archive is the only copy (DL-06-006).
     assert invitee_dl.read(invite_id) is None
 
     accept_id, _ = TriggerActivityAdapter(invitee_dl).accept_case_invite(

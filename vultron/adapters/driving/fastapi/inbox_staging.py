@@ -1,27 +1,31 @@
 #!/usr/bin/env python
-"""Staging for the inline objects of an inbound activity (#3763).
+"""Staging for an inbound activity and its inline objects (#3763, #4871).
 
-A received activity is archived as it arrived (``inbox_storage``), but the
-objects it carries inline are not the receiver's records: a case, note or
-embargo a sender inlines is a claim, and only the handler, after its guards,
-writes the core record it gives rise to (CLP-10-017, CLP-10-019; ADR-0111 as
-amended).  Writing them at receipt let a sender seed a case replica ahead of
-the trust check that should refuse it (PCR-03-004, CBT-01-011).
+The receiver keeps no copy of a received activity under the id its sender
+chose (DL-06-006), and no record of an object the activity carries inline: a
+case, note or embargo a sender inlines is a claim, and only the handler, after
+its guards, writes the core record it gives rise to (CLP-10-017, CLP-10-019;
+ADR-0111 as amended).  Writing them at receipt let a sender seed a case
+replica ahead of the trust check that should refuse it (PCR-03-004,
+CBT-01-011), and let a received ``Create`` read as one the receiver sent
+(#4866).
 
-Routing still needs them.  The by-id re-read that rebuilds the routed
-activity (``FastAPIIngressAdapter.rehydrate``) resolves ``object_`` from the
-store it reads, and the stored activity holds that object as an id.  So each
-delivery's inline objects are staged in a :class:`_StagingStore`: an
-in-memory store, emptied before and after each use, that answers a read from
-the receiver's own store first and from the staged rows only when that store
-holds nothing under the id.  The re-read runs against it, and nothing staged
-reaches the receiver's store.
+Routing still needs the activity rebuilt through the store's read pipeline
+(``_from_row`` → field expansion → semantic coercion), which is what turns
+the parsed wire graph into the shape the patterns match.  So each delivery is
+staged in a :class:`_StagingStore`: an in-memory store, emptied before and
+after each use, that holds the activity's row and its inline objects' rows,
+and answers any other read from the receiver's own store, so an object the
+receiver already holds is always the one routing sees.  The rebuild reads the
+activity from it, and nothing staged reaches the receiver's store.
 
 An activity deferred until its case is known is replayed later, by id, after
-the staging store has been emptied.  Its staged rows are held for that replay
-in a :class:`~vultron.core.models.pending_inline_objects.PendingInlineObjects`
-record (:meth:`InlineObjectStaging.hold_for_replay`), which the replay stages
-again and deletes.
+the staging store has been emptied.  It is held for that replay in one
+:class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`
+record (:meth:`InlineObjectStaging.hold_for_replay`), keyed by the receiver:
+the received body the parser sealed, beside the staged inline rows
+(IO-03-004).  The replay parses that body again, stages it with the held rows
+and deletes the record (:meth:`InlineObjectStaging.rehydrate_deferred`).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -41,6 +45,7 @@ import json
 import logging
 import threading
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, cast
 
 from pydantic import ValidationError
@@ -52,8 +57,9 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.adapters.driven.datalayer_sqlite.engine import scratch_memory_url
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.pending_inline_objects import PendingInlineObjects
+from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.services.carried_embargo import store_carried_embargo
@@ -62,6 +68,7 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
 )
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
@@ -80,8 +87,9 @@ class _StagingStore(SqliteDataLayer):
     Reads of anything but the activity being rebuilt go to *held* first, so
     an object the receiver already holds is always the one routing sees, as it
     was when ingress wrote inline objects and a duplicate was skipped.  The
-    activity itself is read from the copy staged here, because the read that
-    rebuilds it resolves its references through the store that returned it.
+    activity itself is read only from the copy staged here: the receiver holds
+    none under its sender's id (DL-06-006), and the read that rebuilds it
+    resolves its references through the store that returned it.
     """
 
     def __init__(self, held: DataLayer, activity_id: str) -> None:
@@ -106,18 +114,19 @@ class _StagingStore(SqliteDataLayer):
                 return held
         return super().read(object_id, raise_on_missing)
 
-    def staged_rows(self) -> list[dict[str, object]]:
-        """Return every row staged here except the activity's own."""
+    def staged_rows(
+        self,
+    ) -> tuple[dict[str, object] | None, list[dict[str, object]]]:
+        """Return the activity's staged row and every other row staged here."""
         with self._session() as session:
-            rows = session.exec(
-                select(VultronObjectRecord).where(
-                    VultronObjectRecord.id_ != self._activity_id
-                )
-            ).all()
-            return [
+            rows = session.exec(select(VultronObjectRecord)).all()
+            as_dicts: list[dict[str, object]] = [
                 {"id_": row.id_, "type_": row.type_, "data_": row.data}
                 for row in rows
             ]
+        own = [row for row in as_dicts if row["id_"] == self._activity_id]
+        inline = [row for row in as_dicts if row["id_"] != self._activity_id]
+        return (own[0] if own else None), inline
 
 
 def _stage_inline_object(store: DataLayer, activity: as_Activity) -> None:
@@ -217,25 +226,28 @@ def _stage_inline_object(store: DataLayer, activity: as_Activity) -> None:
         )
 
 
-def _stored_activity_row(
-    held: DataLayer, activity_id: str
-) -> StorableRecord | None:
-    """Return the receiver's stored row for *activity_id*, as stored."""
-    stored = held.read(activity_id)
-    type_ = getattr(stored, "type_", None)
-    if not isinstance(stored, as_Activity) or not isinstance(type_, str):
-        return None
-    row = held.get(table=type_, id_=activity_id)
-    if not isinstance(row, dict):
-        return None
-    return StorableRecord(id_=activity_id, type_=type_, data_=row["data_"])
+def _row_record(row: dict[str, Any]) -> StorableRecord:
+    """A held storage row, as the record ``create`` accepts."""
+    return StorableRecord(
+        id_=str(row["id_"]), type_=str(row["type_"]), data_=row["data_"]
+    )
+
+
+@dataclass(frozen=True)
+class _Staged:
+    """What one rebuild staged, kept so a deferral can hold it."""
+
+    received_body: str | None
+    activity_row: dict[str, object] | None
+    inline_rows: list[dict[str, object]]
+    activity: VultronActivity | None = None
 
 
 class InlineObjectStaging:
     """One actor's inbox staging: rebuild, hold for replay, release.
 
     Shared by the ingress adapters and the pending-case queue port of one
-    inbox run, so a delivery the queue defers can hand its staged rows to the
+    inbox run, so a delivery the queue defers can hand what it staged to the
     replay that later routes it.
 
     Args:
@@ -244,77 +256,230 @@ class InlineObjectStaging:
 
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
-        self._staged: dict[str, list[dict[str, object]]] = {}
+        self._staged: dict[str, _Staged] = {}
+        self._routed_in_place: dict[str, as_Activity] = {}
+        self._released: dict[str, DeferredInboxActivity] = {}
+
+    def note_routed_in_place(self, activity: as_Activity) -> None:
+        """Remember a parsed *activity* routed without a staged rebuild.
+
+        An ``Announce(CaseLedgerEntry)`` is hydrated in place, not rebuilt
+        here (SYNC-13-003), but the inbox may still defer it; this keeps it
+        so :meth:`hold_for_replay` can hold it whole.
+        """
+        self._routed_in_place[activity.id_] = activity
 
     def rehydrate_parsed(self, activity: as_Activity) -> as_Activity | None:
-        """Rebuild the stored *activity* with its own inline objects staged."""
+        """Rebuild the parsed *activity* with its own inline objects staged.
+
+        The rebuilt copy carries no received evidence; the caller decides
+        whether this delivery's evidence is the one to carry (VM-08-002).
+        """
+
+        def _stage(store: DataLayer) -> None:
+            store.create(object_to_record(activity))
+            _stage_inline_object(store, activity)
+
         return self._rehydrate(
-            activity.id_, lambda store: _stage_inline_object(store, activity)
+            activity.id_,
+            _stage,
+            received_body=activity.received_evidence_json,
         )
+
+    def held(self, activity_id: str) -> DeferredInboxActivity | None:
+        """The record holding *activity_id* for its replay, if any."""
+        record = self._dl.read(DeferredInboxActivity.build_id(activity_id))
+        return record if isinstance(record, DeferredInboxActivity) else None
+
+    def rehydrate_held(self, activity_id: str) -> as_Activity | None:
+        """Rebuild a held deferred activity, keeping the record.
+
+        For a redelivery of an activity still waiting on its case: the held
+        copy is routed (IE-10-001), with no received evidence, because the
+        delivery being processed is not the one held (VM-08-002).
+        """
+        pending = self.held(activity_id)
+        if pending is None:
+            return None
+        return self._rebuild_from(pending)[0]
 
     def rehydrate_deferred(self, activity_id: str) -> as_Activity | None:
-        """Rebuild a deferred activity with the rows held for its replay.
+        """Rebuild a deferred activity from its record, and release it.
 
-        The held rows are released once staged: a replay the queue defers
-        again holds them afresh (:meth:`hold_for_replay`).
+        A held received body is parsed again, so the replay carries the
+        evidence the first delivery did (VM-08-002); an activity held as its
+        row carries none.  The record is deleted once read: a replay the
+        queue defers again holds it afresh (:meth:`hold_for_replay`).
+
+        Returns ``None`` when nothing is held for *activity_id*: the receiver
+        keeps no other copy of a received activity (DL-06-006).
         """
-        held_id = PendingInlineObjects.build_id(activity_id)
-        pending = self._dl.read(held_id)
-        rows: list[dict[str, Any]] = (
-            json.loads(pending.rows_json)
-            if isinstance(pending, PendingInlineObjects)
-            else []
-        )
-
-        def _restage(store: DataLayer) -> None:
-            for row in rows:
-                store.create(
-                    StorableRecord(
-                        id_=str(row["id_"]),
-                        type_=str(row["type_"]),
-                        data_=row["data_"],
-                    )
-                )
-
+        pending = self.held(activity_id)
+        if pending is None:
+            logger.warning(
+                "No deferred record holds activity %s; nothing to replay"
+                " (DL-06-006).",
+                activity_id,
+            )
+            return None
         # The replay has already taken the activity off the pending queue,
-        # so the held rows are released even when the rebuild raises: no
-        # later replay or queue expiry could reach them (CBT-03-003).
+        # so the record is released even when the rebuild raises: no later
+        # replay or queue expiry could reach it (CBT-03-003).  A caller that
+        # queues it again holds it again (:meth:`hold_for_replay`), from the
+        # record as it was read.
+        self._released[activity_id] = pending
         try:
-            return self._rehydrate(activity_id, _restage)
+            result, parsed = self._rebuild_from(pending)
         finally:
-            if isinstance(pending, PendingInlineObjects):
-                self._dl.delete(pending.type_, held_id)
+            self._dl.delete(pending.type_, pending.id_)
+        if result is not None and parsed is not None:
+            evidence = parsed.received_evidence_json
+            if evidence is not None:
+                result.seal_received_evidence(evidence)
+        return result
 
-    def hold_for_replay(self, activity_id: str) -> None:
-        """Keep *activity_id*'s staged rows until its deferred replay."""
-        rows = self._staged.get(activity_id)
-        if not rows:
-            return
-        self._dl.save(
-            PendingInlineObjects(
-                activity_id=activity_id, rows_json=json.dumps(rows)
+    def hold_for_replay(
+        self, activity_id: str, activity: VultronActivity | None = None
+    ) -> bool:
+        """Hold *activity_id* whole until its deferred replay.
+
+        Writes one :class:`DeferredInboxActivity` from what this run staged
+        for it: the sealed received body (or, with none, the activity's row),
+        the inline rows, and *activity*, the core summary the event carried.
+        A record already held is kept as it is, so a redelivery of a deferred
+        activity is not held again (IE-10-001).
+
+        An activity this staging rebuilt from its record and released
+        (:meth:`rehydrate_deferred`) is held again as that record was, so a
+        replay deferred again, or re-queued after a failure, keeps the body it
+        was first held with.
+
+        Returns whether this call wrote the record.
+        """
+        released = self._released.pop(activity_id, None)
+        if released is not None:
+            if activity is not None:
+                released = released.model_copy(update={"activity": activity})
+            return self._create(released)
+        staged = self._staged.get(activity_id)
+        if staged is None and activity_id in self._routed_in_place:
+            self.rehydrate_parsed(self._routed_in_place.pop(activity_id))
+            staged = self._staged.get(activity_id)
+        if staged is None:
+            logger.warning(
+                "Nothing staged for deferred activity %s in this inbox run;"
+                " its replay will find nothing to rebuild.",
+                activity_id,
+            )
+            return False
+        activity_row_json = (
+            json.dumps(staged.activity_row)
+            if staged.received_body is None and staged.activity_row is not None
+            else None
+        )
+        if staged.received_body is None and activity_row_json is None:
+            logger.warning(
+                "Deferred activity %s has neither a received body nor a"
+                " staged row; nothing to hold for its replay.",
+                activity_id,
+            )
+            return False
+        return self._create(
+            DeferredInboxActivity(
+                activity_id=activity_id,
+                received_body=staged.received_body,
+                activity_row_json=activity_row_json,
+                rows_json=json.dumps(staged.inline_rows),
+                activity=activity if activity is not None else staged.activity,
             )
         )
+
+    def _create(self, record: DeferredInboxActivity) -> bool:
+        """Write *record* unless one is already held; return whether written."""
+        try:
+            self._dl.create(record)
+        except VultronAlreadyExistsError:
+            logger.debug(
+                "Deferred activity %s is already held; keeping the held copy.",
+                record.activity_id,
+            )
+            return False
+        return True
+
+    def _rebuild_from(
+        self, pending: DeferredInboxActivity
+    ) -> tuple[as_Activity | None, as_Activity | None]:
+        """Rebuild *pending*'s activity; also return the body's parse."""
+        inline_rows: list[dict[str, Any]] = json.loads(pending.rows_json)
+        parsed: as_Activity | None = None
+        if pending.received_body is not None:
+            parsed = parse_activity(json.loads(pending.received_body))
+            activity_record: StorableRecord | PersistableModel = (
+                object_to_record(parsed)
+            )
+        else:
+            assert pending.activity_row_json is not None  # validator
+            activity_record = _row_record(
+                json.loads(pending.activity_row_json)
+            )
+
+        def _restage(store: DataLayer) -> None:
+            store.create(activity_record)
+            for row in inline_rows:
+                store.create(_row_record(row))
+
+        result = self._rehydrate(
+            pending.activity_id,
+            _restage,
+            received_body=pending.received_body,
+            activity=pending.activity,
+        )
+        return result, parsed
 
     def _rehydrate(
         self,
         activity_id: str,
         stage: Callable[[DataLayer], None],
+        *,
+        received_body: str | None,
+        activity: VultronActivity | None = None,
     ) -> as_Activity | None:
-        activity_row = _stored_activity_row(self._dl, activity_id)
-        if activity_row is None:
-            # Nothing stored to rebuild: the plain re-read reports that as it
-            # always has.
-            plain = rehydrate(activity_id, dl=self._dl)
-            return plain if isinstance(plain, as_Activity) else None
         with _STAGING_LOCK:
             store = _StagingStore(self._dl, activity_id)
             store.clear_all()
             try:
-                store.create(activity_row)
                 stage(store)
-                self._staged[activity_id] = store.staged_rows()
+                activity_row, inline_rows = store.staged_rows()
+                self._staged[activity_id] = _Staged(
+                    received_body=received_body,
+                    activity_row=activity_row,
+                    inline_rows=inline_rows,
+                    activity=activity,
+                )
                 result = rehydrate(activity_id, dl=store)
             finally:
                 store.clear_all()
         return result if isinstance(result, as_Activity) else None
+
+
+def hold_activity(
+    dl: DataLayer,
+    activity: as_Activity,
+    snapshot: VultronActivity | None = None,
+) -> bool:
+    """Hold *activity* in *dl* for a replay through the inbox queue.
+
+    For a caller that queues an activity by id outside a delivery (the
+    ledger-entry hand-back, SYNC-14-009): the activity is held as a deferred
+    record would hold it, never under its own id (DL-06-006), and the inbox
+    replay rebuilds it from there.
+
+    Returns whether this call held it; ``False`` when a record for the same
+    id is already held, and so already waiting on the inbox queue.
+    """
+    staging = InlineObjectStaging(dl)
+    staging.rehydrate_parsed(activity)
+    return staging.hold_for_replay(activity.id_, snapshot)
+
+
+__all__ = ["InlineObjectStaging", "hold_activity"]

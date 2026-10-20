@@ -34,6 +34,9 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
     StoredActivityIngressAdapter,
 )
+from vultron.adapters.driving.fastapi.inbox_staging import (
+    InlineObjectStaging,
+)
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import find_matching_semantics
 from vultron.wire.as2.factories import announce_log_entry_activity
@@ -122,21 +125,29 @@ def test_replayed_ledger_entry_announce_routes_and_keeps_fields(
 ) -> None:
     """A deferred Announce(CaseLedgerEntry) replayed by ID keeps its fields.
 
-    #1472 AC-4: the replay path (StoredActivityIngressAdapter) reads the stored
-    Announce by ID.  The inline entry is not stored as its own record
-    (SYNC-13-002), so the full typed entry must survive inside the stored
-    Announce and route to ANNOUNCE_CASE_LEDGER_ENTRY on replay.
+    #1472 AC-4: the replay path (StoredActivityIngressAdapter) rebuilds the
+    deferred Announce from the record holding it (DL-06-006).  The inline
+    entry is not stored as its own record (SYNC-13-002), so the full typed
+    entry must survive inside the held Announce and route to
+    ANNOUNCE_CASE_LEDGER_ENTRY on replay, with its delivery's evidence.
     """
     body = _make_announce_body()
-    ingress = FastAPIIngressAdapter(dl=dl)
+    staging = InlineObjectStaging(dl)
+    ingress = FastAPIIngressAdapter(dl=dl, staging=staging)
     activity = ingress.parse(body)
     assert activity is not None
+    ingress.rehydrate(activity)
+    # The inbox defers it, as DeferCheckNode does for an unknown case.
+    assert staging.hold_for_replay(activity.id_)
 
-    # The entry itself is not an independent record...
+    # The entry itself is not an independent record, nor is the Announce...
     assert dl.read(_ENTRY_ID) is None
+    assert dl.read(activity.id_) is None
 
-    # ...but replaying the stored Announce by ID reconstructs the typed entry.
+    # ...but replaying the held Announce reconstructs the typed entry.
     replayed = StoredActivityIngressAdapter(dl=dl).parse(activity.id_)
+    assert replayed is not None
+    assert replayed.received_evidence == body
     assert replayed is not None
     replayed_object = getattr(replayed, "object_", None)
     assert isinstance(replayed_object, CaseLedgerEntry), (

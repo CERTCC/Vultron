@@ -28,6 +28,9 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
+from vultron.adapters.driving.fastapi.inbox_staging import (
+    InlineObjectStaging,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import (
     VultronEvent,
@@ -40,7 +43,6 @@ from vultron.errors import (
     VultronProtocolViolationError,
     VultronValidationError,
 )
-from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
@@ -86,8 +88,12 @@ class InboxPipeline:
         activity_id: str,
         queue_dl: DataLayer | None,
         actor_id: str | None,
+        staging: InlineObjectStaging,
     ) -> bool:
         """Re-queue *activity_id* unless its retry budget is spent.
+
+        The rebuild released the record holding the activity, so a re-queued
+        item is held again first, or the retry would find nothing.
 
         Returns ``True`` when the item was re-queued, ``False`` when it had
         already been re-queued :data:`MAX_REQUEUE_ATTEMPTS` times and is
@@ -104,6 +110,7 @@ class InboxPipeline:
             )
             return False
         self._requeue_counts[activity_id] = attempts
+        staging.hold_for_replay(activity_id)
         (queue_dl if queue_dl is not None else self._dl).inbox_append(
             activity_id
         )
@@ -119,6 +126,10 @@ class InboxPipeline:
     def process(self, activity_id: str) -> VultronEvent | None:
         """Process one queued activity ID.
 
+        The activity is rebuilt from the record that holds it for the inbox
+        replay (``DeferredInboxActivity``), never read under its own id: the
+        receiver keeps no copy of a received activity there (DL-06-006).
+
         Returns the dispatched ``VultronEvent`` or ``None`` when processing is
         deferred or an error prevents dispatch.  A protocol violation is
         dropped at once; any other error re-queues the item, up to
@@ -129,13 +140,13 @@ class InboxPipeline:
         queue_dl: DataLayer | None = None
         receiving_actor_id: str | None = None
         requeued = False
+        staging = InlineObjectStaging(self._dl)
         try:
-            obj = rehydrate(activity_id, dl=self._dl)
+            obj = staging.rehydrate_deferred(activity_id)
             if not isinstance(obj, as_Activity):
                 logger.error(
-                    "Rehydrated inbox item %s is not an Activity: %s",
+                    "Inbox item %s holds no activity to rebuild",
                     activity_id,
-                    type(obj).__name__,
                 )
                 return None
 
@@ -175,6 +186,7 @@ class InboxPipeline:
                     activity_id=event.activity_id,
                     case_actor_id=event.actor_id,
                 )
+                staging.hold_for_replay(event.activity_id, event.activity)
                 return None
 
             result = dispatch(
@@ -205,14 +217,18 @@ class InboxPipeline:
                 activity_id,
                 exc_info=True,
             )
-            requeued = self._requeue(activity_id, queue_dl, receiving_actor_id)
+            requeued = self._requeue(
+                activity_id, queue_dl, receiving_actor_id, staging
+            )
             return None
         except Exception:
             logger.exception(
                 "Error processing inbox item '%s' in InboxPipeline",
                 activity_id,
             )
-            requeued = self._requeue(activity_id, queue_dl, receiving_actor_id)
+            requeued = self._requeue(
+                activity_id, queue_dl, receiving_actor_id, staging
+            )
             return None
         finally:
             if not requeued:

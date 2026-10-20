@@ -853,48 +853,29 @@ def _poll_datalayer_for(
 #: type under the sender's id is never read as a received one (DL-06-006).
 _RECEIVED_ACTIVITY_TYPES: tuple[str, ...] = (RECEIVED_ACTIVITY_RECORD_TYPE,)
 
-#: The stored type of the row ingress keeps for a stub Invite under the
-#: sender's id, until #4871 retires it.  The invitee processes the Invite on
-#: arrival, though it holds no case (PCR-06-005), so intake's archive record
-#: is normally there first; the row is read only while no record exists yet
-#: (see :func:`_received_activity`).
-_DEFERRED_INVITE_TYPE = "Invite"
-
-#: The stored types a received stub Invite can be held as.
-_RECEIVED_OR_DEFERRED_INVITE_TYPES: tuple[str, ...] = (
-    *_RECEIVED_ACTIVITY_TYPES,
-    _DEFERRED_INVITE_TYPE,
-)
-
 
 def _received_activity(obj_data: dict) -> dict:
-    """The received activity *obj_data* holds, as the receiver keeps it.
+    """The received activity the archive record *obj_data* wraps.
 
     Intake archives a dispatched activity as a ``ReceivedActivityRecord``
-    (CLP-10-017, ADR-0111), which wraps it.  An activity the inbox deferred
-    until its case is known is held bare under the sender's id instead.
-    Mirrors
+    (CLP-10-017, ADR-0111), which wraps it.  Mirrors
     :func:`vultron.core.services.received_activity.read_received_activity`.
 
     Raises:
-        AssertionError: when a ``ReceivedActivityRecord`` wraps no activity.
+        AssertionError: when the record wraps no activity.
     """
-    if obj_data.get("type") != RECEIVED_ACTIVITY_RECORD_TYPE:
-        return obj_data
     return received_activity_in(obj_data)
 
 
 def _received_activity_id(raw_id: str, obj_data: dict) -> str:
-    """The sender's id for the received activity *obj_data* holds.
+    """The sender's id for the received activity the record *obj_data* holds.
 
-    A bare activity is stored under the sender's id (*raw_id*); a record is
-    stored under its own id and names the activity's id inside.
+    The record is stored under the receiver's own id (*raw_id*) and names
+    the activity's id inside.
 
     Raises:
-        AssertionError: when a record's activity carries no id.
+        AssertionError: when the record's activity carries no id.
     """
-    if obj_data.get("type") != RECEIVED_ACTIVITY_RECORD_TYPE:
-        return raw_id
     activity_id = _received_activity(obj_data).get("id")
     if not activity_id:
         raise AssertionError(
@@ -907,8 +888,8 @@ def _stub_case_id(stub: dict) -> object:
     """The case a served ``VulnerabilityCaseStub`` names (CM-11-013).
 
     The archive record serves the objects nested in its activity under their
-    field names (``case_id``); a bare activity row serves them under their
-    wire names (``caseId``).
+    field names (``case_id``); the wire name (``caseId``) is read first, as
+    every served object is (:func:`served_field`).
     """
     return served_field(stub, "caseId", "case_id")
 
@@ -947,36 +928,18 @@ def _is_case_invite_for(
     return inner_id == invitee_id
 
 
-def _read_deferred_activity(
-    client: DataLayerClient, activity_id: str, deferred_type: str
-) -> dict | None:
-    """The *deferred_type* activity *activity_id* the inbox holds for replay.
-
-    ``None`` when the inbox holds no such activity.
-    """
-    row = read_stored_of_types(client, [deferred_type]).get(activity_id)
-    return row if isinstance(row, dict) else None
-
-
 def read_received_activity_for(
-    client: DataLayerClient,
-    activity_id: str,
-    *,
-    deferred_type: str | None = None,
+    client: DataLayerClient, activity_id: str
 ) -> dict:
     """The activity *activity_id* as the actor behind *client* received it.
 
-    Reads intake's archive record (:func:`read_received_activity`).  A caller
-    that names *deferred_type*, the activity's type, also reads the row
-    ingress keeps under the sender's id when no record exists yet, as
-    :data:`_DEFERRED_INVITE_TYPE` describes.
+    Reads intake's archive record (:func:`read_received_activity`), the only
+    copy of a received activity the actor keeps (DL-06-006).
 
     Raises:
         AssertionError: If the actor holds no activity *activity_id*.
     """
     activity = read_received_activity(client, activity_id)
-    if activity is None and deferred_type is not None:
-        activity = _read_deferred_activity(client, activity_id, deferred_type)
     if activity is None:
         raise not_received_error(client, activity_id)
     return activity
@@ -987,8 +950,6 @@ def assert_received_from(
     activity_id: str,
     sender_id: str,
     consequence: str,
-    *,
-    deferred_type: str | None = None,
 ) -> None:
     """Assert the actor behind *client* received *activity_id* from *sender_id*.
 
@@ -997,15 +958,11 @@ def assert_received_from(
         activity_id: The sender's id for the received activity.
         sender_id: The actor the activity must have been emitted as.
         consequence: What goes wrong when it was not, for the failure message.
-        deferred_type: The activity's type, when the inbox may still be
-            deferring it (:func:`read_received_activity_for`).
 
     Raises:
         AssertionError: If the activity is not held, or another actor sent it.
     """
-    actor = read_received_activity_for(
-        client, activity_id, deferred_type=deferred_type
-    ).get("actor")
+    actor = read_received_activity_for(client, activity_id).get("actor")
     emitted_as = actor.get("id") if isinstance(actor, dict) else actor
     assert emitted_as == sender_id, (
         f"'{activity_id}' was emitted as '{emitted_as}', not as"
@@ -1027,9 +984,8 @@ def find_case_invite_for_actor(
     (CM-17-007, ADR-0109); the invitee must then send Accept(Invite) to
     trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
     replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
-    for that Invite — archived by intake on arrival (PCR-06-005), or, until
-    #4871, the row ingress keeps under the sender's id — so the demo can drive
-    the accept step.
+    for that Invite, archived by intake on arrival (PCR-06-005), so the demo
+    can drive the accept step.
 
     Args:
         client: DataLayerClient connected to the invitee container.
@@ -1046,7 +1002,7 @@ def find_case_invite_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=_RECEIVED_OR_DEFERRED_INVITE_TYPES,
+        object_types=_RECEIVED_ACTIVITY_TYPES,
         discriminator_fn=lambda obj: _is_case_invite_for(
             obj, case_id, invitee_id
         ),

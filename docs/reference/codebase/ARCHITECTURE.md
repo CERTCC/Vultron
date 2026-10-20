@@ -46,9 +46,9 @@ HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
   -> HTTP 202 Accepted; work continues in a BackgroundTasks task
   -> inbox orchestration           `vultron/adapters/driving/fastapi/inbox_orchestration.py`
      (BT work runs in a worker thread via asyncio.to_thread, IE-06-003)
-  -> stores the activity only      `vultron/adapters/driving/fastapi/inbox_storage.py`
   -> rehydrate() via staging       `vultron/adapters/driving/fastapi/inbox_staging.py`, `vultron/wire/as2/rehydration.py`
-     (inline objects staged in a throwaway store, never stored; effect nodes write records, IO-03-004)
+     (activity and inline objects staged in a throwaway store; ingress writes nothing, DL-06-006, IO-03-004;
+      a deferred activity is held whole in a `DeferredInboxActivity` for its replay)
   -> semantic extraction           `vultron/wire/as2/extractor/`
      (AS2 pattern -> MessageSemantics + VultronEvent)
   -> dispatcher                    `vultron/core/dispatcher.py` (port: `vultron/core/ports/dispatcher.py`)

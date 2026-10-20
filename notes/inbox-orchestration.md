@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Rules for the core BT-backed inbox orchestration module: orchestration
   belongs in core/, the narrow route-level guard exception, the two-adapter
-  seam and verdict mapping, the path from receipt to permanent storage,
+  seam and verdict mapping, the path from receipt to permanent storage (ingress
+  writes nothing; a deferred activity is held whole), redelivery detection,
   pending-queue port injection, and the test surface.
 related_specs:
   - specs/inbox-orchestration.yaml
@@ -14,6 +15,8 @@ related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
   - specs/inbox-endpoint.yaml
+  - specs/datalayer.yaml
+  - specs/idempotency.yaml
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/use-case-protocol.md
@@ -92,26 +95,40 @@ into `rejected` (MV-01-007).
 An inbound activity reaches the receiver's permanent store in three steps, and only
 the last one writes what it carries:
 
-1. **Ingress stores the activity, never its inline objects** (CLP-10-017). A stored
-   inline object *is* the receiver's record: a stored case is its replica, and a
-   trust check that reads it trusts the sender's own snapshot (PCR-03-004, #4674).
-2. **Routing reads through a staging store.** The stored activity names its inline
-   object by id, so the by-id re-read that rebuilds the routed activity runs against
+1. **Ingress writes nothing** (DL-06-006, CLP-10-017). Not the activity: a row under
+   the id its sender chose is read as one of the receiver's own by every "did I send
+   it" scan (`case_is_announced`, `recorded_stub_invites`, #4866). Not its inline
+   objects: a stored inline object *is* the receiver's record, so a stored case is a
+   replica whose trust check trusts the sender's own snapshot (PCR-03-004, #4674).
+2. **Routing reads through a staging store.** The routed activity is rebuilt by the
+   store's read pipeline, which is what turns the parsed graph into the shape the
+   patterns match, so the activity's row and its inline objects are staged in
    `InlineObjectStaging` (`vultron/adapters/driving/fastapi/inbox_staging.py`): an
-   in-memory store holding this delivery's inline objects, read only after the
-   receiver's own store, and emptied around each use. Without it the bare id
-   mis-routes, because permissive patterns accept a string `object_`: `Create(id)`
-   routes as a report.
-3. **The handler writes the core record, after its guards** (CLP-10-019). There is no
-   promote step: an effect node writes the record from the copy the event carries
-   (the add-note tree's `StoreReceivedObjectNode`, `SeedCaseReplicaNode`). A refusal
-   writes nothing, so nothing is left to remove.
+   in-memory store read after the receiver's own store for every other id, and
+   emptied around each use. Without the staged object the bare id mis-routes,
+   because permissive patterns accept a string `object_`: `Create(id)` routes as a
+   report.
+3. **The handler writes the core record, after its guards** (CLP-10-019). Intake
+   archives the activity as a `ReceivedActivityRecord` under the receiver's key, and
+   an effect node writes any record from the copy the event carries (the add-note
+   tree's `StoreReceivedObjectNode`, `SeedCaseReplicaNode`). A refusal writes nothing
+   past the archive, so nothing is left to remove.
 
-A reader that needs a received activity's inline object later reads the intake
-archive through `read_received_activity`, never the stored activity row, whose
-`object_` is only an id. An activity deferred until its case is known keeps its staged
-rows in `PendingInlineObjects` until its replay stages them again; the replay, or the
-queue's expiry, deletes them.
+A reader that needs a received activity later reads it through
+`read_received_activity`, never under the sender's id. An activity deferred until
+its case is known is held whole in one `DeferredInboxActivity` (IO-03-004): the
+sealed received body, its staged inline rows, and the event's core summary for core
+readers. Its replay parses the body again, so it carries the first delivery's
+evidence (VM-08-002); the replay, or the queue's expiry, deletes the record. A
+caller that queues an activity outside a delivery (the ledger hand-back, SYNC-14-009)
+holds it the same way, as its row, since no body arrived.
+
+**A redelivery is detected from the receiver's own key** (IE-10-001): a deferred
+record routes the held copy and keeps it for the replay; an intake archive only
+tells ingress the activity arrived, since it keeps the core summary rather than a
+routable body, so the redelivery is rebuilt from its own body. Either way it is
+routed without its received evidence and the handler's idempotency answers it
+(ID-02-003).
 
 ---
 

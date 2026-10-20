@@ -212,10 +212,12 @@ class TestNoteUseCases:
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
 
     @pytest.mark.spec("HP-08-006")
+    @pytest.mark.spec("DL-06-006")
     def test_add_note_through_ingress_keeps_the_stored_note(self):
         """The conflicting Add of the test above, sent through the inbox
-        ingress: ingress keeps the stored note and the rehydrated Add holds
-        it, so the stored note is never replaced (#4706)."""
+        ingress: the staged rebuild reads the stored note first, so the
+        rehydrated Add holds it and the stored note is never replaced (#4706).
+        Ingress holds nothing under the Add's own id (DL-06-006)."""
         case_actor_id = "https://example.org/cases/case_n1d/actor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
         case_id = "https://example.org/cases/case_n1d"
@@ -246,6 +248,7 @@ class TestNoteUseCases:
         ).execute()
 
         assert getattr(dl.read(note_id), "content", None) == "Original"
+        assert dl.read(activity.id_) is None
 
     @pytest.mark.spec("HP-08-006")
     @pytest.mark.spec("VAM-01-010")
@@ -294,6 +297,7 @@ class TestNoteUseCases:
         )
         refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
         assert note_id in refreshed.notes
+        assert dl.read(activity.id_) is None, "held only as received"
 
     @pytest.mark.spec("HP-01-005")
     def test_add_note_without_an_inline_note_is_refused(self, make_payload):

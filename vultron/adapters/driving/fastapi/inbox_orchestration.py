@@ -5,8 +5,8 @@ Provides concrete adapter classes that implement the
 :mod:`vultron.core.behaviors.inbox` protocols using the FastAPI
 DataLayer and dispatcher infrastructure:
 
-- :class:`FastAPIIngressAdapter` — parse (wire) + rehydrate (DataLayer)
-- :class:`StoredActivityIngressAdapter` — rehydrate only (stored by ID)
+- :class:`FastAPIIngressAdapter` — parse (wire) + rehydrate (staged)
+- :class:`StoredActivityIngressAdapter` — replay of a held deferred activity
 - :class:`FastAPIDispatchAdapter` — wraps the dispatcher port
 - :class:`FastAPIQueuePort` — wraps pending-case queue helpers
 
@@ -42,17 +42,18 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 from vultron.adapters.driving.fastapi.inbox_staging import (
     InlineObjectStaging,
 )
-from vultron.adapters.driving.fastapi.inbox_storage import (
-    _store_inbox_activity,
-)
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.behaviors.inbox import (
     InboxOutcome,
     InboxOutcomeStatus,
     process_payload,
 )
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
@@ -96,9 +97,10 @@ def _carry_received_evidence(
 ) -> as_Activity:
     """Give the hydrated routing copy (B) its artifact's (A) received evidence.
 
-    The by-ID re-read builds B from storage, which never kept the body, so
-    without this the evidence sealed at parse would stop at the first pipeline
-    step and core would only ever see the rebuilt form (VM-08-002, ISSUE-3584).
+    The rebuild reads B back through the store's read pipeline, which never
+    keeps the body, so without this the evidence sealed at parse would stop at
+    the first pipeline step and core would only ever see the rebuilt form
+    (VM-08-002, ISSUE-3584).
     The evidence is the artifact's; B only carries it, which is why the text is
     copied rather than re-derived from B.
     """
@@ -112,27 +114,23 @@ class FastAPIIngressAdapter:
     """Ingress adapter for the FastAPI driving adapter.
 
     ``parse`` parses a raw JSON request-body dict into a typed
-    ``as_Activity`` and stores the activity in the *receiving actor's* store so
-    later rehydration can resolve references (ADR-0073: there is no shared
-    DataLayer; the ``dl`` handed in is already one actor's own).  It stores
-    nothing from the objects the activity carries inline: only the handler,
-    after its guards, writes a record from those (CLP-10-017, #3763).
-    ``rehydrate`` rebuilds the stored activity with those inline objects
-    staged in a throwaway store (:mod:`.inbox_staging`).
+    ``as_Activity``.  It writes nothing to the receiving actor's DataLayer
+    (ADR-0073: the ``dl`` handed in is already one actor's own): not the
+    activity, which the receiver never holds under the id its sender chose
+    (DL-06-006), and not the objects it carries inline, from which only the
+    handler, after its guards, writes a record (CLP-10-017, #3763).  Intake
+    archives the activity under the receiver's key once it is routed.
 
-    ``rehydrate`` intentionally hydrates the in-memory activity rather than
-    re-reading it by ID from the DataLayer.  A by-ID re-read would collapse an
-    inline ``object_`` to a bare ID string whenever that object was not
-    pre-stored — and per SYNC-13-002 a ``CaseLedgerEntry`` is deliberately not
-    pre-stored by ingress.  Carrying the typed inline object forward in-memory
-    (SYNC-13-003) keeps semantic routing of ``Announce(CaseLedgerEntry)``
-    unambiguous on first delivery (SYNC-13-004) without the adapter ever
-    writing the ledger.
+    ``rehydrate`` rebuilds the parsed activity with it and its inline objects
+    staged in a throwaway store (:mod:`.inbox_staging`).  A redelivery is
+    detected there, from what the receiver holds under a key it derives from
+    the activity id (IE-10-001): the deferred record when the first delivery
+    is still waiting on its case, else intake's ``ReceivedActivityRecord``.
 
     Args:
-        dl: Shared DataLayer (for storing activities and rehydration).
+        dl: The receiving actor's own DataLayer, read to rebuild the activity.
         staging: The inbox run's inline-object staging, shared with its queue
-            port so a deferred delivery keeps its inline objects for replay.
+            port so a deferred delivery is held whole for replay.
     """
 
     def __init__(
@@ -140,22 +138,17 @@ class FastAPIIngressAdapter:
     ) -> None:
         self._dl = dl
         self._staging = staging or InlineObjectStaging(dl)
-        # Whether ``parse`` wrote this delivery, or found the id already held.
-        self._stored_this_delivery = False
 
     def parse(
         self,
         payload: dict[str, Any] | bytes | str | Any,
     ) -> as_Activity | None:
-        """Parse *payload* as an AS2 activity and store to DataLayer.
+        """Parse *payload* as an AS2 activity, writing nothing.
 
         Returns ``None`` on parse failure; never raises.
         """
         if isinstance(payload, as_Activity):
             # Already parsed (e.g., passed directly from the router DI).
-            self._stored_this_delivery = _store_inbox_activity(
-                self._dl, payload
-            )
             return payload
 
         if not isinstance(payload, dict):
@@ -166,43 +159,51 @@ class FastAPIIngressAdapter:
             return None
 
         try:
-            activity = _parse_activity(payload)
+            return _parse_activity(payload)
         except VultronParseError as exc:
             logger.warning(
                 "FastAPIIngressAdapter.parse: parse failed — %s", exc
             )
             return None
 
-        self._stored_this_delivery = _store_inbox_activity(self._dl, activity)
-        return activity
-
     def rehydrate(self, activity: as_Activity) -> as_Activity:
         """Resolve nested object references for the activity.
 
-        For most activities this re-reads the stored activity by ID through the
-        canonical DataLayer pipeline (``_from_row`` → field expansion → semantic
-        coercion), preserving established behavior.  The stored activity names
-        its inline objects by id, and ingress stores none of them, so the
-        re-read runs against a staging store that holds this delivery's inline
-        objects and reads through to the receiver's own (#3763,
-        :class:`~.inbox_staging.InlineObjectStaging`).
+        For most activities this stages the parsed activity's row and its
+        inline objects in a throwaway store and reads the activity back by id
+        through the canonical DataLayer pipeline (``_from_row`` → field
+        expansion → semantic coercion).  The staging store reads through to
+        the receiver's own store for every other id, so an object the
+        receiver already holds is the one routing sees
+        (:class:`~.inbox_staging.InlineObjectStaging`).  Nothing staged
+        reaches the receiver's store (DL-06-006, IO-03-004).
 
-        An ``Announce(CaseLedgerEntry)`` is the exception: per SYNC-13-002 the
-        inline entry is deliberately NOT pre-stored, so a by-ID re-read would
-        collapse ``object_`` to a bare ID string and mis-route the message
-        (SYNC-13-004).  For that case the already-typed in-memory activity is
-        hydrated in place (:meth:`DataLayer.hydrate` expands any scalar/list ID
-        references) and returned, so routing sees the typed ``CaseLedgerEntry``
-        without the adapter ever writing the ledger.
+        A redelivery is routed without this body's received evidence, because
+        the copy routed may not be this body (VM-08-002, IE-10-001):
+
+        - when the first delivery is still deferred, its held copy is routed,
+          and the record holding it is kept for the replay;
+        - when intake already archived it, this delivery is rebuilt: the
+          archive keeps the core summary, not a routable activity, and the
+          handlers' own idempotency guards answer the repeat (ID-04).
+
+        An ``Announce(CaseLedgerEntry)`` is the exception to the staged
+        rebuild: per SYNC-13-002 the inline entry is deliberately NOT staged,
+        so a by-ID re-read would collapse ``object_`` to a bare ID string and
+        mis-route the message (SYNC-13-004).  For that case the already-typed
+        in-memory activity is hydrated in place (:meth:`DataLayer.hydrate`
+        expands any scalar/list ID references) and returned, so routing sees
+        the typed ``CaseLedgerEntry`` without the adapter ever writing the
+        ledger.
 
         The same hazard bit ``Create(CaseProposal)``, which inlines the
         vulnerability report inside the proposal (CP-01-004): the report was never
-        pre-stored, so the by-ID re-read collapsed it and the receiver had no report
+        staged, so the by-ID re-read collapsed it and the receiver had no report
         (#2482). That is fixed neither here nor at ingress, but in *storage*: the
         proposal declares ``object_`` in ``inline_required_refs``, so persistence
         keeps the report inline instead of dehydrating it to an id that nothing
-        could resolve. The re-read is correct once the store is faithful to what
-        the sender inlined.
+        could resolve. The re-read is correct once the staged row is faithful to
+        what the sender inlined.
 
         Resist adding activity types to the exception above. An in-place hydration
         skips the wire→core normalisation the by-ID path performs, so routing
@@ -211,26 +212,50 @@ class FastAPIIngressAdapter:
         the read.
         """
         if _is_inline_ledger_entry_announce(activity):
+            # A repeat entry is the SYNC-12-003 already-stored gate's to
+            # answer, not this adapter's (SYNC-13-004).  The inbox may still
+            # defer it, so the staging keeps it to hold for the replay.
+            self._staging.note_routed_in_place(activity)
             return _carry_received_evidence(
                 activity, self._hydrate_in_place(activity)
             )
 
+        redelivery = self._held_copy_kind(activity.id_)
+        if redelivery == "deferred":
+            held = self._staging.rehydrate_held(activity.id_)
+            if held is not None:
+                self._log_redelivery(activity, redelivery)
+                return held
+
         result = self._staging.rehydrate_parsed(activity)
         if result is None:
             return activity
-        if not self._stored_this_delivery:
-            # The by-id read rebuilt an *earlier* delivery under this id, so
-            # this body's evidence would describe a different activity than
-            # the one routed (VM-08-002).
-            logger.info(
-                "FastAPIIngressAdapter.rehydrate: activity %s (actor %s) was"
-                " already stored; routing the stored copy without this"
-                " delivery's received evidence.",
-                activity.id_,
-                getattr(activity.actor, "id_", activity.actor),
-            )
+        if redelivery is not None:
+            self._log_redelivery(activity, redelivery)
             return result
         return _carry_received_evidence(activity, result)
+
+    def _held_copy_kind(self, activity_id: str) -> str | None:
+        """Which receiver-keyed copy of *activity_id* is held, if any."""
+        if self._staging.held(activity_id) is not None:
+            return "deferred"
+        if isinstance(
+            self._dl.read(ReceivedActivityRecord.build_id(activity_id)),
+            ReceivedActivityRecord,
+        ):
+            return "archived"
+        return None
+
+    @staticmethod
+    def _log_redelivery(activity: as_Activity, kind: str) -> None:
+        logger.info(
+            "FastAPIIngressAdapter.rehydrate: activity %s (actor %s) is"
+            " already held (%s); routing it without this delivery's received"
+            " evidence (IE-10-001, VM-08-002).",
+            activity.id_,
+            getattr(activity.actor, "id_", activity.actor),
+            kind,
+        )
 
     def _hydrate_in_place(self, activity: as_Activity) -> as_Activity:
         """Expand reference fields on the *parsed* activity, without a re-read."""
@@ -249,18 +274,21 @@ class FastAPIIngressAdapter:
 
 
 class StoredActivityIngressAdapter:
-    """Ingress adapter for replay of already-stored activities.
+    """Ingress adapter for the replay of a held activity.
 
-    Used when the payload is an activity-ID string (e.g., when
-    replaying activities that were deferred pending case bootstrap).
+    Used when the payload is an activity-ID string popped from the inbox
+    queue: an activity deferred pending its case, or a ledger entry handed
+    back to the inbox (SYNC-14-009).  Either is held whole in a
+    :class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`,
+    never under its own id (DL-06-006).
 
-    ``parse`` reads and rehydrates the stored activity by ID.
+    ``parse`` rebuilds the held activity and releases its record.
     ``rehydrate`` is a no-op (parse already returns the rehydrated form).
 
     Args:
-        dl: Shared DataLayer for activity lookup and rehydration.
+        dl: The receiving actor's own DataLayer, which holds the records.
         staging: The inbox run's inline-object staging, which holds each
-            deferred activity's inline objects for its replay.
+            deferred activity for its replay.
     """
 
     def __init__(
@@ -273,9 +301,9 @@ class StoredActivityIngressAdapter:
         self,
         payload: dict[str, Any] | bytes | str | Any,
     ) -> as_Activity | None:
-        """Read and rehydrate a stored activity by ID.
+        """Rebuild the held activity *payload* names.
 
-        Returns ``None`` when the ID does not resolve to an Activity.
+        Returns ``None`` when nothing is held for the id.
         """
         if isinstance(payload, as_Activity):
             return payload
@@ -285,16 +313,8 @@ class StoredActivityIngressAdapter:
             logger.warning("StoredActivityIngressAdapter.parse: empty payload")
             return None
 
-        result = self._staging.rehydrate_deferred(activity_id)
-        if result is not None:
-            return result
-
-        logger.warning(
-            "StoredActivityIngressAdapter.parse: rehydrate('%s') returned %s",
-            activity_id,
-            type(result).__name__,
-        )
-        return None
+        # ``None`` when nothing is held; the staging logs why.
+        return self._staging.rehydrate_deferred(activity_id)
 
     def rehydrate(self, activity: as_Activity) -> as_Activity:
         """No-op: parse already returns the rehydrated activity."""
@@ -367,11 +387,14 @@ class FastAPIQueuePort:
         activity_id: str,
         case_id: str,
         case_actor_id: str | None = None,
+        activity: VultronActivity | None = None,
     ) -> None:
         """Persist *activity_id* in the deferred queue for *case_id*.
 
-        The activity's staged inline objects are held with it, because the
-        replay rebuilds it by id after this delivery's staging is gone.
+        The activity is held whole with its staged inline objects, because
+        the replay rebuilds it after this delivery's staging is gone, and the
+        receiver keeps no copy under its id (DL-06-006).  *activity* is the
+        event's core summary, held for core readers until intake archives it.
         """
         _queue_pending_case_activity(
             queue_dl=self._actor_dl,
@@ -379,7 +402,7 @@ class FastAPIQueuePort:
             activity_id=activity_id,
             case_actor_id=case_actor_id,
         )
-        self._staging.hold_for_replay(activity_id)
+        self._staging.hold_for_replay(activity_id, activity)
 
     def check_and_expire(self, case_id: str) -> bool:
         """Check expiry; drop queue and return ``True`` when expired."""

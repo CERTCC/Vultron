@@ -59,6 +59,9 @@ from vultron.core.behaviors.inbox import (
     process_payload,
 )
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.wire.as2.factories import rm_create_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -215,10 +218,13 @@ def test_second_delivery_leaves_store_and_outbox_unchanged(actor_client):
     client.post(f"{_API_PREFIX}/actors/{_ACTOR_SLUG}/inbox/", json=body)
     state_after_first = _store_snapshot(store)
 
-    # Precondition: activity stored by first post.
-    assert activity_id in state_after_first["object_ids"], (
-        "Precondition failed: activity was not stored on first delivery"
-    )
+    # Precondition: the first post was archived by intake, under the
+    # receiver's key and never under the sender's id (DL-06-006).
+    assert (
+        ReceivedActivityRecord.build_id(activity_id)
+        in state_after_first["object_ids"]
+    ), "Precondition failed: activity was not archived on first delivery"
+    assert activity_id not in state_after_first["object_ids"]
 
     client.post(f"{_API_PREFIX}/actors/{_ACTOR_SLUG}/inbox/", json=body)
     state_after_second = _store_snapshot(store)
@@ -242,8 +248,8 @@ def test_second_delivery_logged_at_info_no_warning(
     The ingress adapter already logs the redelivery at INFO with the activity
     id and the sender's actor id (IE-10-001, #3638).  No WARNING or above
     should be emitted as a consequence of the duplicate itself — only the
-    natural processing of the second copy (which routes the stored body, not
-    the redelivered one) is allowed.
+    natural processing of the second copy (routed without its received
+    evidence) is allowed.
     """
     client, _ = actor_client
     body = _create_report_body()
@@ -261,20 +267,20 @@ def test_second_delivery_logged_at_info_no_warning(
         client.post(f"{_API_PREFIX}/actors/{_ACTOR_SLUG}/inbox/", json=body)
 
     # The INFO redelivery notice names the activity id, the sender actor id,
-    # and "already stored" (IE-10-001, AC-4 of issue #3867).
-    # Log format: "activity <activity_id> (actor <sender_id>) was already stored..."
+    # and "already held" (IE-10-001, AC-4 of issue #3867).
+    # Log format: "activity <activity_id> (actor <sender_id>) is already held..."
     redelivery_records = [
         r
         for r in caplog.records
         if r.levelno == logging.INFO
         and activity_id in r.getMessage()
         and _SENDER_ID in r.getMessage()
-        and "already stored" in r.getMessage()
+        and "already held" in r.getMessage()
     ]
     assert redelivery_records, (
         "Expected at least one INFO record naming the activity id, the sender "
-        f"actor id ({_SENDER_ID!r}), and 'already stored' to confirm the "
-        "redelivered body was not re-stored (IE-10-001)."
+        f"actor id ({_SENDER_ID!r}), and 'already held' to confirm the "
+        "redelivery was detected from the receiver-keyed record (IE-10-001)."
     )
 
     # No new WARNING+ for this activity id introduced by the second post.

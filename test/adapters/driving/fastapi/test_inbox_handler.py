@@ -106,9 +106,9 @@ def test_inbox_handler_failing_item_dead_lettered_on_exhaustion(monkeypatch):
     mock_dl.get_inbox_attempt_count.return_value = 11  # default max = 12
 
     monkeypatch.setattr(
-        ih,
-        "rehydrate",
-        lambda x, dl=None: (_ for _ in ()).throw(RuntimeError("always fails")),
+        ih.InlineObjectStaging,
+        "rehydrate_deferred",
+        lambda self, x: (_ for _ in ()).throw(RuntimeError("always fails")),
     )
 
     asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
@@ -134,9 +134,9 @@ def test_inbox_handler_rehydrate_protocol_violation_does_not_propagate(
     mock_dl.outbox_list.return_value = []
 
     monkeypatch.setattr(
-        ih,
-        "rehydrate",
-        lambda x, dl=None: (_ for _ in ()).throw(
+        ih.InlineObjectStaging,
+        "rehydrate_deferred",
+        lambda self, x: (_ for _ in ()).throw(
             VultronProtocolViolationError("perm rehydrate failure")
         ),
     )
@@ -175,9 +175,9 @@ def test_inbox_handler_rehydrate_transient_error_requeues_item(monkeypatch):
     mock_dl.get_inbox_attempt_count.return_value = 0
 
     monkeypatch.setattr(
-        ih,
-        "rehydrate",
-        lambda x, dl=None: (_ for _ in ()).throw(
+        ih.InlineObjectStaging,
+        "rehydrate_deferred",
+        lambda self, x: (_ for _ in ()).throw(
             RuntimeError("transient rehydrate failure")
         ),
     )
@@ -562,7 +562,9 @@ def test_inbox_handler_replays_deferred_items_after_case_announce(
     monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
     monkeypatch.setattr(ih, "prepare_for_dispatch", fake_prepare)
     monkeypatch.setattr(
-        ih, "rehydrate", lambda item_id, dl=None: items[item_id]
+        ih.InlineObjectStaging,
+        "rehydrate_deferred",
+        lambda self, item_id: items[item_id],
     )
     monkeypatch.setattr(ih, "outbox_handler", fake_outbox_handler)
 
@@ -708,11 +710,13 @@ def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
     )
     rehydrate_dl_args: list = []
 
-    def capture_rehydrate(item_id, dl=None):
-        rehydrate_dl_args.append(dl)
+    def capture_rehydrate(self, item_id):
+        rehydrate_dl_args.append(self._dl)
         return item
 
-    monkeypatch.setattr(ih, "rehydrate", capture_rehydrate)
+    monkeypatch.setattr(
+        ih.InlineObjectStaging, "rehydrate_deferred", capture_rehydrate
+    )
 
     fake_event = VultronEvent(
         semantic_type=MessageSemantics.UNKNOWN,
