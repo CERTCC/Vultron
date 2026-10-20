@@ -10,7 +10,9 @@ description: >
 related_specs:
   - specs/actor-knowledge-model.yaml
   - specs/testability.yaml
+  - specs/case-bootstrap-trust.yaml
 relevant_packages:
+  - vultron/wire/as2/factories
   - vultron/core/behaviors
   - vultron/core/use_cases
   - vultron/adapters/driving/fastapi
@@ -57,8 +59,17 @@ too, because the hash chain must cover it (CLP-07-006).
 - Test fixtures that construct activities use full domain objects as `object_`
   (TB-05-004).
 
-To audit, grep activity construction for `object_=.*\.id_` and `target=.*\.id_`,
-and check demo dict literals for bare-ID `"object"` values.
+- An activity that introduces an object carries it inline (AKM-02-004).
+  A factory whose activity class would accept an id there (a generic `as_Create`,
+  or a class that admits a URI for received activities) guards it with
+  `require_inline` (`vultron/wire/as2/factories/_inline.py`).
+
+The ratchet `test/architecture/test_introduced_objects_inline.py` classifies every
+factory by what it introduces and checks every example activity of an
+introducing type (`Create`, `Add`, `Offer`, `Invite`, `Announce`), so a new
+factory or example that sends a bare id fails it. Activities built outside the
+factories escape it: grep demo and adapter code for a raw `as_*(` activity
+constructor or a bare-ID `"object"` literal.
 
 ## The Outbox Guard Is a Last Resort, Not a Bridge
 

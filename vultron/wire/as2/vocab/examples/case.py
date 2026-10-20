@@ -61,6 +61,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 
 def create_case() -> as_Create:
+    """The bootstrap ``Create(VulnerabilityCase)``, every object it introduces inline.
+
+    A receiver seeds its replica from this one activity, so the report and the
+    participant travel as objects, not ids (CBT-01-012, AKM-02-004).
+    """
     participant = as_CaseParticipant(
         case_roles=[CVDRole.VENDOR],
         attributed_to=_VENDOR.id_,
@@ -68,7 +73,7 @@ def create_case() -> as_Create:
     )
     _case = case(
         random_id=True,
-        vulnerability_reports=[_REPORT.id_],
+        vulnerability_reports=[_REPORT],
         case_participants=[participant],
     )
 
