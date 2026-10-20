@@ -27,6 +27,10 @@ such node with no ``ActTransaction`` ancestor.  The **pinned exemption set**
 embargo act, each with its reason; it is held to equality in both
 directions (ARCH-18-001), so a new unwrapped later node fails, and so does
 a row the code no longer needs.
+
+A received embargo act's own entry is one of its act's writes too: every
+received embargo tree that commits runs its guarded commit under the same
+``ActTransaction`` (ADR-0151), with no exemption.
 """
 
 from collections.abc import Iterator
@@ -116,7 +120,7 @@ def test_received_later_nodes_run_in_their_acts_transaction() -> None:
         actual,
         frozenset(OUTSIDE_AN_ACT),
         "run the act and the node in one ActTransaction"
-        " (manager_effects_as_one_act=True, CLP-07-015)",
+        " (as_one_act=True, CLP-07-015)",
     )
 
 
@@ -156,3 +160,60 @@ def test_the_walk_finds_later_nodes_inside_an_act() -> None:
         (f"{_B}/embargo/answer_trees.py", "accept_invite_to_embargo_tree"),
     ):
         assert wrapped in inside, wrapped
+
+
+_GUARDED_COMMIT = "GuardedCommitCaseLedgerEntryBT"
+
+
+def _commits_in_an_act(
+    tree: py_trees.behaviour.Behaviour,
+) -> list[bool]:
+    """For each guarded commit in *tree*, whether an ActTransaction holds it."""
+    return [
+        any(isinstance(a, ActTransaction) for a in _ancestors(node))
+        for node in tree.iterate()
+        if node.name == _GUARDED_COMMIT
+    ]
+
+
+@pytest.mark.spec("CLP-07-015")
+def test_a_received_embargo_act_commits_its_own_entry_in_its_act() -> None:
+    """A received embargo act's own entry commits in the same transaction as
+    its consequences, so the act succeeds or fails as a whole (ADR-0151)."""
+    embargo_trees = {
+        key: _commits_in_an_act(tree)
+        for key, tree in built_received_trees().items()
+        if key[0].startswith(f"{_B}/embargo/")
+    }
+    committing = {key for key, found in embargo_trees.items() if found}
+    outside = {key for key, found in embargo_trees.items() if not all(found)}
+
+    assert outside == set(), (
+        "received embargo trees whose own entry commits outside the act's"
+        f" transaction: {sorted(outside)}; pass as_one_act=True"
+    )
+    # Guard against a vacuous walk: every committing embargo tree is seen.
+    assert {
+        (
+            f"{_B}/embargo/withdrawal_tree.py",
+            "withdraw_from_embargo_on_case_tree",
+        ),
+        (f"{_B}/embargo/answer_trees.py", "accept_invite_to_embargo_tree"),
+        (f"{_B}/embargo/answer_trees.py", "reject_invite_to_embargo_tree"),
+        (
+            f"{_B}/embargo/announce_teardown_tree.py",
+            "invite_to_embargo_on_case_tree",
+        ),
+        (
+            f"{_B}/embargo/announce_teardown_tree.py",
+            "remove_embargo_from_case_tree",
+        ),
+        (
+            f"{_B}/embargo/owner_decision_tree.py",
+            "activate_embargo_on_case_tree",
+        ),
+        (
+            f"{_B}/embargo/owner_decision_tree.py",
+            "reject_embargo_proposal_on_case_tree",
+        ),
+    } <= committing

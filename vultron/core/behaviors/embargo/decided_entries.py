@@ -324,8 +324,9 @@ def commit_and_apply_decision(
 ) -> EmbargoCaseFile:
     """Commit the act's entry, then each consent-row entry; apply by copying.
 
-    *act_commit* commits the act's own entry; ``None`` when intake already
-    committed it (a received act, ADR-0111) or when the act has no entry of
+    *act_commit* commits the act's own entry; ``None`` when the guarded
+    commit already committed it in the act's transaction (a received act,
+    ADR-0151) or when the act has no entry of
     its own (the CASE_MANAGER's policy consent is its row's entry alone).
     *cause_id* names the act each consent-row ``Update`` follows; its id is
     derived from it and the row (ID-04-004).  *actor_id* is the executing

@@ -385,7 +385,7 @@ class TestActivationCommitFaults:
             EmbargoLifecycle,
         )
 
-        case, _active_id, revision_id, _owner_pid = _case_with_owner(
+        case, active_id, revision_id, _owner_pid = _case_with_owner(
             dl, "act-no-cause", em_state=EM.ACTIVE
         )
         real = EmbargoLifecycle.decide_activation
@@ -416,9 +416,9 @@ class TestActivationCommitFaults:
 
         assert result.internal_error
         assert "VultronWiringError" in (result.feedback_message or "")
-        # Intake committed the Accept, so its step stands; the row whose
-        # entry never committed is not written (CLP-07-013).
-        assert _case(dl, case.id_).active_embargo_id == revision_id
+        # Nothing the node wrote is kept, and no change is applied again
+        # after the rollback (CLP-07-015, ADR-0151).
+        assert _case(dl, case.id_).active_embargo_id == active_id
         owner_p = cast(CaseParticipant, dl.read(_owner_pid))
         assert (
             owner_p.consent_for(revision_id) is EmbargoConsentState.UNINVITED

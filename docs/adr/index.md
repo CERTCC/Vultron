@@ -213,7 +213,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0108 One Move, One Mover: Case State Flows Through the Case Manager and the Ledger, Whatever Message Carried It](0108-one-move-one-mover-case-state-flows-through-the-case-manager-and-the-ledger.md)
 - [ADR-0109 A Container Emits Only as Actors It Hosts; a Participant Asks the CaseActor to Act](0109-a-container-emits-only-as-actors-it-hosts.md) — partially supersedes 0021-caseactor-inbox-routing-canonical-ledger.md, 0042-http-only-inter-actor-delivery.md, 0073-per-actor-storage-isolation.md
 - [ADR-0110 The Trigger Driving Port Is One `trigger()` Method over a Verb Registry, Returning a Typed Result Bound to the Request](0110-trigger-dispatcher-port-over-verb-registry.md)
-- [ADR-0111 Intake Is the First Stage of a Received-Side Tree: Record What Arrived Before Judging It](0111-intake-is-the-first-received-side-stage.md) — partially superseded by 0135-compose-received-trees-never-chain-them.md
+- [ADR-0111 Intake Is the First Stage of a Received-Side Tree: Record What Arrived Before Judging It](0111-intake-is-the-first-received-side-stage.md) — partially superseded by 0135-compose-received-trees-never-chain-them.md, 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
 - [ADR-0112 Per-Recipient Ordered Outbox Delivery: One Drain per Actor, One In-Flight Row per Recipient](0112-per-recipient-ordered-outbox-delivery.md)
 - [ADR-0113 Embargo Negotiation Relays Through the CASE_MANAGER; the Ledger Carries State but Never Asks](0113-embargo-revision-negotiation-relays-through-the-case-manager.md)
 - [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md) *(revision 2)*
@@ -251,11 +251,12 @@ General information about architectural decision records is available at <https:
 - [ADR-0139 A Fresh Agent Reviews the Branch Before Its First Push](0139-a-fresh-agent-reviews-the-branch-before-its-first-push.md)
 - [ADR-0140 A Ledger Entry's Semantic Type Is the Registry Label of Its AS2 Payload](0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md)
 - [ADR-0143 A Fix Commit's Local Gate Escalates Only for Shared Test Infrastructure](0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
-- [ADR-0146 One Atomic Commit per Embargo Act](0146-one-atomic-commit-per-embargo-act.md) *(revision 3)*
+- [ADR-0146 One Atomic Commit per Embargo Act](0146-one-atomic-commit-per-embargo-act.md) *(revision 4)*
 - [ADR-0147 The Protocol Specification Renders Its Normative Text from the YAML Requirements](0147-the-protocol-specification-renders-its-normative-text-from-the-yaml-requirements.md)
 - [ADR-0148 An Owner Proposes an Ownership-Transfer Offer and the CASE_MANAGER Makes It](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md) — partially supersedes 0053-ownership-transfer-routed-via-caseactor.md
 - [ADR-0149 The Received Archive Is the Sealed Received Body, Read Through a Read-Only View Parsed on Load](0149-the-received-archive-is-the-sealed-received-body-read-through-a-read-only-view.md) — partially supersedes 0035-core-activity-representation-and-envelope-reconstitution.md
 - [ADR-0150 A Reading-Path Thread Is Staged Data on Its Start Page, Rendered at Both Ends](0150-a-reading-path-thread-is-staged-data-on-its-start-page-rendered-at-both-ends.md)
+- [ADR-0151 A Received Act Commits Its Own Entry with Its Consequences](0151-a-received-act-commits-its-own-entry-with-its-consequences.md) — partially supersedes 0111-intake-is-the-first-received-side-stage.md
 
 ## Rejected ADRs
 

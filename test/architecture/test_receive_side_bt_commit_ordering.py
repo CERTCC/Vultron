@@ -392,14 +392,19 @@ def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
     from vultron.core.behaviors.case.nodes.refusal_stage import (
         RefusalEffectsBestEffort,
     )
+    from vultron.core.behaviors.case.receive_activity_tree import (
+        received_stages,
+    )
     from vultron.core.behaviors.note.case_manager_note import (
         _CommitCaseManagerNoteBase,
     )
 
-    names = [child.name for child in root.children]
+    # An act block (as_one_act) holds the guarded commit; read its stages.
+    stages = received_stages(root)
+    names = [child.name for child in stages]
     if GUARDED_COMMIT_NAME not in names:
         return []
-    ahead = root.children[: names.index(GUARDED_COMMIT_NAME)]
+    ahead = stages[: names.index(GUARDED_COMMIT_NAME)]
     commits = _commit_node_types()
     found: list[str] = []
 

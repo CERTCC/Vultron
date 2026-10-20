@@ -67,9 +67,10 @@ def withdraw_from_embargo_on_case_tree(
         ├─ IsWithdrawableEmbargoNode             # read-only guard (CLP-10-009)
         │                                        # and redelivery (HP-01-003)
         ├─ EmbargoWithdrawalApplies (CASE_MANAGER gate)  # staged decision
-        ├─ GuardedCommitCaseLedgerEntryBT        # the Leave's own entry
-        └─ RecordEmbargoWithdrawal (CASE_MANAGER gate)
-           └─ RecordParticipantWithdrawalNode    # each declined row's entry
+        └─ WithdrawFromEmbargoOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
+           ├─ GuardedCommitCaseLedgerEntryBT        # the Leave's own entry
+           └─ RecordEmbargoWithdrawal (CASE_MANAGER gate)
+              └─ RecordParticipantWithdrawalNode    # each declined row's entry
 
     The guard refuses, with the reason, a Leave of an embargo that is not
     the one in force, from a row that is not ``AGREED``, or from the case
@@ -128,6 +129,9 @@ def withdraw_from_embargo_on_case_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="RecordEmbargoWithdrawal",
+        # The Leave's own entry and the rows it declines are one act
+        # (CLP-07-015, ADR-0151).
+        as_one_act=True,
     )
     logger.info(
         "Created WithdrawFromEmbargoOnCaseBT for case=%s embargo=%s"

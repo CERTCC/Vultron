@@ -114,7 +114,7 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
 
     With *embargo_id* (the embargo the ``Remove`` names) in force, the
     ``TERMINATE`` step is also trial-applied through the one apply function
-    (ADR-0124): a step it refuses refuses the act before intake commits its
+    (ADR-0124): a step it refuses refuses the act before the guarded commit of its
     entry, so no entry is ledgered for a change that cannot be applied.
     """
 

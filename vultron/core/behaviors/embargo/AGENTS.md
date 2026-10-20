@@ -134,8 +134,8 @@ policy), then hands the result to `commit_and_apply_embargo_entries()`
    for a participant's `Accept`/`Reject(Invite(EmbargoEvent))`, the row the
    answer states (`ConsentRowChange.answer()`: that entry is the row's entry,
    and no second one records it, ADR-0122), and
-   whose `commit` queues and commits the act; `commit=None` when intake
-   already committed it (a received act).
+   whose `commit` queues and commits the act; `commit=None` when the guarded
+   commit already committed it (a received act, same transaction).
 2. One `consent_row_entry()` per consent row the act changes.
 
 For a received act, also run `trial_apply()` among the tree's guards, before
@@ -150,7 +150,8 @@ node that commits a consequence of the act (`ReissueStubInvitesNode`, a
 `RelayEmbargoInviteToEachNode`) must run with the act's commit node in one
 `ActTransaction` (`core/behaviors/act_transaction.py`): pass `as_one_act=True`
 to `create_case_manager_gated_tree` (every `_by_role` arm does) or
-`manager_effects_as_one_act=True` to `create_receive_activity_tree` (#4949).
+`as_one_act=True` to `create_receive_activity_tree`, which adds the
+received act's own commit (ADR-0151).
 Call it from a node's `update()`, never from `execute()`. The replica slot
 for the same entry subclasses `ApplyEmbargoChangeFromLedgerNode`
 (`sync/nodes/embargo_copy_effect.py`) and only names the change (`_change()`).
@@ -162,7 +163,7 @@ re-derive its row changes by hand: run it on a staged store and let
 `decided_entries.py` turn what it would have written into the entries. A
 lifecycle node takes `.deciding()` (the arm's `CommitEmbargoDecisionNode`,
 given `decision_from=result_out`, commits the act first) or
-`.applying_after(cause_id)` (intake already committed a received act);
+`.applying_after(cause_id)` (a received act's guarded commit ran first);
 other nodes call `decide_commit_and_apply()`. A received answer's entry is
 committed before its effects, so its tree runs the same decision among its
 guards (`EmbargoAnswerAppliesNode`, `nodes/answer_record.py`) and refuses an
