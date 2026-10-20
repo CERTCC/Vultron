@@ -51,7 +51,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.errors import VultronValidationError, VultronWiringError
+from vultron.errors import VultronWiringError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -663,7 +663,7 @@ def test_an_activity_with_no_sealed_body_is_held_as_its_row(dl):
 
 def test_a_stage_that_stages_no_activity_row_fails_loudly(dl):
     """A rebuild with no row for the activity itself is a wiring fault."""
-    with pytest.raises(VultronValidationError, match="staged no row"):
+    with pytest.raises(VultronWiringError, match="staged no row"):
         InlineObjectStaging(dl)._rehydrate(
             "urn:uuid:unstaged", lambda _store: None, received_body=None
         )
@@ -679,6 +679,24 @@ def test_holding_what_was_never_staged_is_a_wiring_fault(dl):
     with pytest.raises(VultronWiringError, match="share one"):
         staging.hold_for_replay("urn:uuid:x")
     assert sum(dl.count_all().values()) == 0
+
+
+@pytest.mark.spec("DL-06-006")
+def test_hold_again_holds_only_what_this_staging_released(dl):
+    """A re-queue holds the released record again, and is a no-op for an id
+    this staging never rebuilt."""
+    parsed = parse_activity(_add_note_body())
+    holder = InlineObjectStaging(dl)
+    holder.rehydrate_parsed(parsed)
+    holder.hold_for_replay(parsed.id_)
+    staging = InlineObjectStaging(dl)
+
+    assert staging.hold_again(parsed.id_) is False
+    assert staging.rehydrate_deferred(parsed.id_) is not None
+    assert staging.held(parsed.id_) is None, "precondition: released"
+
+    assert staging.hold_again(parsed.id_) is True
+    assert staging.held(parsed.id_) is not None
 
 
 @pytest.mark.spec("DL-06-006", "CBT-03-001")

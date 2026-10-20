@@ -210,6 +210,7 @@ def _process_item_raising(
         ),
         dl=MagicMock(),
         queue_dl=queue_dl,
+        staging=ih.InlineObjectStaging(MagicMock()),
     )
 
 
@@ -447,6 +448,21 @@ def test_init_dispatcher_sets_dispatcher(monkeypatch):
     assert ih._DISPATCHER_SLOT.value is mock_dispatcher
 
 
+def _add_note_activity(activity_id: str, case_id: str, to: str) -> as_Activity:
+    """A rebuildable ``Add(Note)`` the legacy worker can hold for replay."""
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    return add_note_to_case_activity(
+        as_Note(content="queued", context=case_id),
+        target=case_id,
+        context=case_id,
+        actor="https://example.org/actors/case-actor",
+        to=[to],
+        id_=activity_id,
+    )
+
+
 def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
     actor_id = "https://example.org/actors/participant"
     case_id = "https://example.org/cases/case-unknown"
@@ -456,13 +472,7 @@ def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
     queue_dl = shared_dl.clone_for_actor(actor_id)
-    item = as_Activity(
-        id_=item_id,
-        type_="Add",
-        actor="https://example.org/actors/case-actor",
-        context=case_id,
-        name="queued-note",
-    )
+    item = _add_note_activity(item_id, case_id, actor_id)
     fake_event = VultronEvent(
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         activity_id=item_id,
@@ -475,18 +485,67 @@ def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
     mock_dispatcher = Mock()
     monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
+    staging = ih.InlineObjectStaging(shared_dl)
+    staging.rehydrate_parsed(item)
+
     result = ih._dispatch_or_defer_inbox_item(
         actor_id=actor_id,
         obj=item,
         dl=shared_dl,
         queue_dl=queue_dl,
+        staging=staging,
     )
 
     assert result is None
     pending = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
     assert isinstance(pending, VultronPendingCaseInbox)
     assert pending.activity_ids == [item_id]
+    assert staging.held(item_id) is not None, (
+        "the deferred item is held for its replay (DL-06-006)"
+    )
     mock_dispatcher.dispatch.assert_not_called()
+
+
+@pytest.mark.spec("DL-06-006", "CBT-03-001")
+def test_dispatch_or_defer_a_failed_hold_queues_nothing(monkeypatch):
+    """The legacy worker holds the record before queueing the id, so a hold
+    that raises leaves no queued id with nothing behind it."""
+    from vultron.errors import VultronWiringError
+
+    actor_id = "https://example.org/actors/participant"
+    case_id = "https://example.org/cases/case-unheld"
+    item_id = "https://example.org/activities/add-note-unheld"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    item = as_Activity(
+        id_=item_id,
+        type_="Add",
+        actor="https://example.org/actors/case-actor",
+        context=case_id,
+    )
+    fake_event = VultronEvent(
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity_id=item_id,
+        actor_id="https://example.org/actors/case-actor",
+    )
+    monkeypatch.setattr(
+        ih, "prepare_for_dispatch", lambda activity: fake_event
+    )
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", Mock())
+
+    with pytest.raises(VultronWiringError):
+        ih._dispatch_or_defer_inbox_item(
+            actor_id=actor_id,
+            obj=item,
+            dl=shared_dl,
+            queue_dl=queue_dl,
+            staging=ih.InlineObjectStaging(shared_dl),
+        )
+
+    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
 
 
 @pytest.mark.parametrize(
@@ -606,13 +665,7 @@ def test_pre_bootstrap_activity_queued_not_dispatched(monkeypatch):
     )
     queue_dl = shared_dl.clone_for_actor(actor_id)
 
-    item = as_Activity(
-        id_=activity_id,
-        type_="Add",
-        actor="https://example.org/actors/case-actor",
-        context=case_id,
-        name="pre-bootstrap-note",
-    )
+    item = _add_note_activity(activity_id, case_id, actor_id)
     fake_event = VultronEvent(
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         activity_id=activity_id,
@@ -624,11 +677,15 @@ def test_pre_bootstrap_activity_queued_not_dispatched(monkeypatch):
     mock_dispatcher = Mock()
     monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
+    staging = ih.InlineObjectStaging(shared_dl)
+    staging.rehydrate_parsed(item)
+
     result = ih._dispatch_or_defer_inbox_item(
         actor_id=actor_id,
         obj=item,
         dl=shared_dl,
         queue_dl=queue_dl,
+        staging=staging,
     )
 
     assert result is None, (
@@ -1479,6 +1536,7 @@ def test_dispatch_or_defer_inbox_item_dispatches_stub_invite_for_unknown_case(
         obj=item,
         dl=shared_dl,
         queue_dl=queue_dl,
+        staging=ih.InlineObjectStaging(shared_dl),
     )
 
     assert result is not None

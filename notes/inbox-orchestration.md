@@ -121,7 +121,9 @@ sealed received body, its staged inline rows, and the event's core summary for c
 readers. Its replay parses the body again, so it carries the first delivery's
 evidence (VM-08-002); the replay, or the queue's expiry, deletes the record. A
 caller that queues an activity outside a delivery (the ledger hand-back, SYNC-14-009)
-holds it the same way, as its row, since no body arrived.
+holds it the same way, as its row, since no body arrived. **Hold before you queue**:
+the record is the activity's only copy, so an id queued with nothing held behind it
+is lost, and `hold_for_replay` raises rather than queue one (DL-06-006).
 
 **A redelivery is detected from the receiver's own key** (IE-10-001): a deferred
 record routes the held copy and keeps it for the replay; an intake archive only

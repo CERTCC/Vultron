@@ -295,6 +295,18 @@ class InlineObjectStaging:
             or activity_id in self._routed_in_place
         )
 
+    def hold_again(self, activity_id: str) -> bool:
+        """Hold *activity_id* again before it is re-queued, if this staging
+        can (:meth:`can_hold`).
+
+        A retry or a dead letter needs the record the rebuild released, or
+        the retry finds nothing to rebuild (DL-06-006).  Returns whether a
+        record was written.
+        """
+        if not self.can_hold(activity_id):
+            return False
+        return self.hold_for_replay(activity_id)
+
     def held(self, activity_id: str) -> DeferredInboxActivity | None:
         """The record holding *activity_id* for its replay, if any."""
         record = self._dl.read(DeferredInboxActivity.build_id(activity_id))
@@ -459,7 +471,7 @@ class InlineObjectStaging:
                 stage(store)
                 activity_row, inline_rows = store.staged_rows()
                 if activity_row is None:
-                    raise VultronValidationError(
+                    raise VultronWiringError(
                         f"Staging for {activity_id!r} staged no row for the"
                         " activity itself, so there is nothing to rebuild"
                     )

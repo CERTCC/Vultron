@@ -279,7 +279,8 @@ def _dispatch_or_defer_inbox_item(
     dl: DataLayer,
     queue_dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
-    staging: InlineObjectStaging | None = None,
+    *,
+    staging: InlineObjectStaging,
 ) -> VultronEvent | None:
     """Dispatch an inbox item or defer it until its case replica exists.
 
@@ -326,8 +327,7 @@ def _dispatch_or_defer_inbox_item(
             event.activity_id,
         )
         # Held before it is queued: the record is its only copy (DL-06-006).
-        if staging is not None:
-            staging.hold_for_replay(event.activity_id, event.activity)
+        staging.hold_for_replay(event.activity_id, event.activity)
         _queue_pending_case_activity(
             queue_dl,
             case_id,
@@ -364,7 +364,7 @@ def _inbox_retry_or_dead_letter(
     queue_dl: DataLayer,
     retry: RetryStore,
     max_attempts: int,
-    staging: InlineObjectStaging | None = None,
+    staging: InlineObjectStaging,
 ) -> None:
     """Increment the attempt counter; dead-letter on exhaustion, requeue otherwise.
 
@@ -386,10 +386,9 @@ def _inbox_retry_or_dead_letter(
             nothing to rebuild (DL-06-006).
     """
     total = retry.get_inbox_attempt_count(item_id) + 1
-    if staging is not None and staging.can_hold(item_id):
-        # The rebuild released the record, and the retry, or an operator
-        # reading the dead letter, needs the activity it held (DL-06-006).
-        staging.hold_for_replay(item_id)
+    # The rebuild released the record, and the retry, or an operator reading
+    # the dead letter, needs the activity it held (DL-06-006).
+    staging.hold_again(item_id)
     if total >= max_attempts:
         retry.inbox_dead_letter_append(
             item_id,
@@ -467,8 +466,7 @@ def _rehydrate_inbox_item(
                 staging,
             )
         else:
-            if staging.can_hold(item_id):
-                staging.hold_for_replay(item_id)
+            staging.hold_again(item_id)
             queue_dl.inbox_append(item_id)
         return None
     if not isinstance(obj, as_Activity):
@@ -490,7 +488,8 @@ def _process_inbox_item(
     dispatcher: ActivityDispatcher | None = None,
     retry: RetryStore | None = None,
     max_attempts: int = 12,
-    staging: InlineObjectStaging | None = None,
+    *,
+    staging: InlineObjectStaging,
 ) -> bool:
     """Dispatch one inbox activity and return ``True`` on success.
 
@@ -550,8 +549,7 @@ def _process_inbox_item(
                 staging,
             )
         else:
-            if staging is not None and staging.can_hold(item_id):
-                staging.hold_for_replay(item_id)
+            staging.hold_again(item_id)
             queue_dl.inbox_append(item_id)
         return False
 

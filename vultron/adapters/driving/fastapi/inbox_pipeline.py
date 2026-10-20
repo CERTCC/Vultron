@@ -110,8 +110,7 @@ class InboxPipeline:
             )
             return False
         self._requeue_counts[activity_id] = attempts
-        if staging.can_hold(activity_id):
-            staging.hold_for_replay(activity_id)
+        staging.hold_again(activity_id)
         (queue_dl if queue_dl is not None else self._dl).inbox_append(
             activity_id
         )
