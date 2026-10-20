@@ -103,6 +103,13 @@ itself as CASE_MANAGER of a case the receiver lacks. Read it as an anchor only w
 the flag is set, and let a stub Invite replace an unconfirmed sender
 (PCR-03-004, #4931).
 
+An Invite-anchored record stays replaceable until the invitee accepts the Invite that
+set it: `RecordInviteTrustAnchorNode` stores `anchor_invite_id`, and the accept
+trigger's `FixInviteTrustAnchorNode` sets `invite_accepted` on the record it names.
+Fixing the anchor any earlier would let a forged stub Invite lock out the real
+CASE_MANAGER's until the bootstrap; a forgery the invitee accepts first still wins
+until signatures (#2841, PCR-03-004).
+
 ## Layer Rules
 
 - Trust-establishment rules live in core use cases and behaviors, not FastAPI

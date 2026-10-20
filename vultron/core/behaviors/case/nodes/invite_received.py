@@ -21,6 +21,10 @@ the narrative milestone (SL-04-006) and the trust anchor that lets it admit the
 inviting CASE_MANAGER's later ``Announce`` before its replica exists
 (PCR-03-004).  Composed by ``create_invite_actor_to_case_received_tree``
 behind ``create_participant_replica_gated_tree`` (BTND-07-003).
+
+:class:`FixInviteTrustAnchorNode` closes the anchor's life cycle from the
+invitee's own Accept: ``accept_case_invite_trigger_bt`` runs it once the
+Accept is queued, after which the anchor can no longer be replaced.
 """
 
 import logging
@@ -78,12 +82,18 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
       (``case_actor_id``); the transport-level delivering sender is never
       consulted — the caller must supply the Invite's own ``actor`` field.
     - **AC-3**: A later Invite for the same case naming a *different*
-      CaseActor is REFUSED: the existing anchor is unchanged and a WARNING
-      names both ids.
+      CaseActor replaces the anchor while the invitee has not accepted the
+      Invite that set it, and is REFUSED once it has (``invite_accepted``,
+      set by :class:`FixInviteTrustAnchorNode`): the fixed anchor is
+      unchanged and a WARNING names both ids.  A forged Invite therefore
+      cannot lock out the real CASE_MANAGER's Invite, though it can still
+      win if the invitee accepts it first (#2841).
 
-    Idempotent on an exact duplicate (same ``case_actor_id``).  A record no
-    Invite has anchored yet — created by the pre-bootstrap queue for an
-    earlier activity, whose sender it records only as its replay target
+    Idempotent on an exact duplicate (same ``case_actor_id``); a re-Invite
+    from the same CaseActor that no Accept has fixed moves
+    ``anchor_invite_id`` to the newer Invite.  A record no Invite has
+    anchored yet — created by the pre-bootstrap queue for an earlier
+    activity, whose sender it records only as its replay target
     (CBT-03-004) — takes the Invite's CaseActor in place of that sender: it
     is not a second Invite (#4931).  Every record the node writes or confirms
     is marked ``invite_anchored``, so the anchored CASE_MANAGER check trusts
@@ -99,12 +109,14 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
         case_id: str,
         invitee_id: str,
         case_actor_id: str,
+        invite_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.invitee_id = invitee_id
         self.case_actor_id = case_actor_id
+        self.invite_id = invite_id
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -131,6 +143,7 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
                     case_id=self.case_id,
                     case_actor_id=self.case_actor_id,
                     invite_anchored=True,
+                    anchor_invite_id=self.invite_id,
                 )
             )
             self.logger.info(
@@ -139,52 +152,160 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
                 self.case_id,
                 self.case_actor_id,
             )
-        elif not existing.invite_anchored or existing.case_actor_id is None:
-            # The pre-bootstrap queue wrote the record; the sender it may
-            # name is a replay target, not an anchor — the Invite sets one.
-            self.datalayer.save(
-                existing.model_copy(
-                    update={
-                        "case_actor_id": self.case_actor_id,
-                        "invite_anchored": True,
-                    }
-                )
+        elif existing.invite_anchored and self._names_this_case_actor(
+            existing
+        ):
+            self._repeat_from_anchored_case_actor(existing)
+        elif existing.invite_anchored and existing.invite_accepted:
+            # AC-3: the invitee accepted the anchoring Invite — refuse.
+            self.feedback_message = (
+                f"Trust anchor conflict for case '{self.case_id}':"
+                f" existing CaseActor '{existing.case_actor_id}', whose"
+                f" Invite was accepted, new Invite's actor"
+                f" '{self.case_actor_id}' — refusing (PCR-03-004 path b)"
             )
-            if existing.case_actor_id is not None and same_actor_id(
-                existing.case_actor_id, self.case_actor_id
-            ):
-                self.logger.info(
-                    "%s: queue's sender for case '%s' confirmed as trust"
-                    " anchor (CaseActor '%s')",
-                    self.name,
-                    self.case_id,
-                    self.case_actor_id,
-                )
-            else:
-                self.logger.info(
-                    "%s: trust anchor recorded for case '%s' (CaseActor"
-                    " '%s'), replacing queue-recorded sender '%s'",
-                    self.name,
-                    self.case_id,
-                    self.case_actor_id,
-                    existing.case_actor_id,
-                )
-        elif same_actor_id(existing.case_actor_id, self.case_actor_id):
-            # Idempotent re-delivery of the same Invite — no action.
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        else:
+            self._replace_unfixed_anchor(existing)
+
+        return Status.SUCCESS
+
+    def _names_this_case_actor(self, record: VultronPendingCaseInbox) -> bool:
+        return record.case_actor_id is not None and same_actor_id(
+            record.case_actor_id, self.case_actor_id
+        )
+
+    def _repeat_from_anchored_case_actor(
+        self, existing: VultronPendingCaseInbox
+    ) -> None:
+        """Keep the anchor; follow a newer Invite no Accept has fixed yet."""
+        assert self.datalayer is not None
+        if existing.invite_accepted or existing.anchor_invite_id in (
+            None,
+            self.invite_id,
+        ):
+            # Idempotent re-delivery, or the anchor is already fixed.
             self.logger.debug(
                 "%s: trust anchor already set for case '%s' (idempotent)",
                 self.name,
                 self.case_id,
             )
-        else:
-            # AC-3: Conflicting anchor — refuse and leave the existing one.
-            self.feedback_message = (
-                f"Trust anchor conflict for case '{self.case_id}':"
-                f" existing CaseActor '{existing.case_actor_id}',"
-                f" new Invite's actor '{self.case_actor_id}'"
-                f" — refusing (PCR-03-004 path b)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+            return
+        self.datalayer.save(
+            existing.model_copy(update={"anchor_invite_id": self.invite_id})
+        )
+        self.logger.debug(
+            "%s: trust anchor for case '%s' now awaits the Accept of Invite"
+            " '%s' (CaseActor '%s')",
+            self.name,
+            self.case_id,
+            self.invite_id,
+            self.case_actor_id,
+        )
 
+    def _replace_unfixed_anchor(
+        self, existing: VultronPendingCaseInbox
+    ) -> None:
+        """Anchor this Invite in place of a sender no Accept has fixed.
+
+        The record was written by the pre-bootstrap queue, whose sender is a
+        replay target and no anchor (#4931), or by an Invite the invitee has
+        not accepted, which a later Invite replaces (PCR-03-004).  The
+        queue's replay ``Question`` on expiry (CBT-03-004) then goes to this
+        Invite's CaseActor too.
+        """
+        assert self.datalayer is not None
+        self.datalayer.save(
+            existing.model_copy(
+                update={
+                    "case_actor_id": self.case_actor_id,
+                    "invite_anchored": True,
+                    "anchor_invite_id": self.invite_id,
+                    "invite_accepted": False,
+                }
+            )
+        )
+        if existing.invite_anchored:
+            self.logger.info(
+                "%s: trust anchor for case '%s' replaced: Invite from"
+                " CaseActor '%s' supersedes unaccepted Invite from '%s'"
+                " (PCR-03-004)",
+                self.name,
+                self.case_id,
+                self.case_actor_id,
+                existing.case_actor_id,
+            )
+        elif existing.case_actor_id is None:
+            self.logger.info(
+                "%s: trust anchor recorded for case '%s' (CaseActor '%s')",
+                self.name,
+                self.case_id,
+                self.case_actor_id,
+            )
+        elif self._names_this_case_actor(existing):
+            self.logger.info(
+                "%s: queue's sender for case '%s' confirmed as trust"
+                " anchor (CaseActor '%s')",
+                self.name,
+                self.case_id,
+                self.case_actor_id,
+            )
+        else:
+            self.logger.info(
+                "%s: trust anchor recorded for case '%s' (CaseActor"
+                " '%s'), replacing queue-recorded sender '%s'",
+                self.name,
+                self.case_id,
+                self.case_actor_id,
+                existing.case_actor_id,
+            )
+
+
+class FixInviteTrustAnchorNode(DataLayerAction):
+    """Fix the trust anchor an accepted stub Invite set (PCR-03-004 path b).
+
+    Runs after the invitee's ``Accept(Invite)`` is queued.  The anchor record
+    whose ``anchor_invite_id`` is the accepted Invite is marked
+    ``invite_accepted``, after which a later Invite naming another CaseActor
+    is refused instead of replacing it (:class:`RecordInviteTrustAnchorNode`).
+    An Invite that anchors nothing — superseded by a later Invite, or its
+    record already removed by the case bootstrap — fixes nothing.
+    """
+
+    def __init__(self, invite_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.invite_id = invite_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        for record in self.datalayer.list_objects("PendingCaseInbox"):
+            if not (
+                isinstance(record, VultronPendingCaseInbox)
+                and record.invite_anchored
+                and record.anchor_invite_id == self.invite_id
+            ):
+                continue
+            if not record.invite_accepted:
+                self.datalayer.save(
+                    record.model_copy(update={"invite_accepted": True})
+                )
+                self.logger.info(
+                    "%s: trust anchor for case '%s' fixed by the Accept of"
+                    " Invite '%s' (CaseActor '%s')",
+                    self.name,
+                    record.case_id,
+                    self.invite_id,
+                    record.case_actor_id,
+                )
+            return Status.SUCCESS
+
+        self.logger.debug(
+            "%s: Invite '%s' anchors no pending case record — nothing to fix",
+            self.name,
+            self.invite_id,
+        )
         return Status.SUCCESS

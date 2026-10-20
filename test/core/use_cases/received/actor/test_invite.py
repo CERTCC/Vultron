@@ -418,15 +418,23 @@ class TestInviteActorUseCases:
         )
 
     @pytest.mark.spec("PCR-03-004")
-    def test_invite_trust_anchor_is_first_invite_wins(self, make_payload):
-        """A second invite naming a different CaseActor is refused; anchor unchanged.
+    def test_an_accepted_invite_anchor_refuses_another_case_actor(
+        self, make_payload
+    ):
+        """Once the invitee accepts, an Invite naming another CaseActor is refused.
 
-        AC-3 (PCR-03-004 path b): the existing anchor is never overwritten.
+        AC-3 (PCR-03-004 path b): the accepted anchor is never overwritten.
         The second Invite disposition is REFUSED, naming both CaseActor ids.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.pending_case_inbox import (
             VultronPendingCaseInbox,
+        )
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseInviteUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseInviteTriggerRequest,
         )
 
         case_id = "https://example.org/cases/case-trust-2"
@@ -457,6 +465,17 @@ class TestInviteActorUseCases:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        dl.create(as_Actor(id_=invitee_id, name="invitee"))
+        accepted = SvcAcceptCaseInviteUseCase(
+            dl,
+            AcceptCaseInviteTriggerRequest(
+                actor_id=invitee_id, invite_id=invite1.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        assert accepted.activity is not None
         second_result = InviteActorToCaseReceivedUseCase(
             dl,
             make_payload(invite2),
@@ -475,7 +494,7 @@ class TestInviteActorUseCases:
         pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
         assert isinstance(pending, VultronPendingCaseInbox)
         assert pending.case_actor_id == first_sender, (
-            "First-invite-wins: trust anchor MUST NOT be overwritten by a second invite"
+            "An accepted trust anchor MUST NOT be overwritten by a second invite"
         )
 
     @pytest.mark.spec("HP-01-003")

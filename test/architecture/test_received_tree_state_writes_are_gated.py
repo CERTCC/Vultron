@@ -283,6 +283,10 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         "RecordInviteTrustAnchorNode",
     ): _LOCAL,
     (
+        f"{_B}.case.nodes.invite_received",
+        "FixInviteTrustAnchorNode",
+    ): _LOCAL,
+    (
         f"{_B}.case.nodes.proposal",
         "RequeuePendingCreateCaseActivityNode",
     ): _LOCAL,

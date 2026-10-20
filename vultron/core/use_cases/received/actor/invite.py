@@ -114,6 +114,7 @@ class InviteActorToCaseReceivedUseCase:
             case_id=case_id,
             invitee_id=invitee_id,
             inviter_id=request.actor_id,
+            invite_id=request.activity_id,
             sender_rule=self.sender_entitlement,
         )
         result = BTBridge(

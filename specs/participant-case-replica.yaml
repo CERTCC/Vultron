@@ -210,11 +210,13 @@ groups:
       from an unauthenticated or unexpected sender as a bootstrap signal is not permitted.
       For path (b), the pending-expectation record MUST be created only when the Invite's
       `object` is the receiving actor; the record MUST bind to the Invite's `actor` id (the
-      named CaseActor), not to the transport-level delivering sender; and a second Invite for
-      the same case naming a different CaseActor MUST be refused — the existing anchor is
-      unchanged. Whether the named CaseActor is genuine cannot be verified without actor
-      identity and signatures (#2841); this requirement records the structural rules that
-      apply before that verification is available.
+      named CaseActor), not to the transport-level delivering sender; and a later
+      Invite for the same case naming a different CaseActor MUST replace the anchor
+      while the receiver has not accepted the Invite that set it, and MUST be refused,
+      leaving the anchor unchanged, once the receiver has accepted that Invite.
+      Whether the named CaseActor is genuine cannot be verified without actor identity
+      and signatures (#2841); this requirement records the structural rules that apply
+      before that verification is available.
     rationale: >-
       An `Announce(VulnerabilityCase)` roster is supplied by the sender; a fabricated case
       naming the sender as its own CASE_MANAGER passes a roster-only check. Permitting a
@@ -223,8 +225,11 @@ groups:
       closed). No legitimate protocol sequence delivers an unsolicited first-contact Announce
       without a preceding `Create(VulnerabilityCase)` or `InviteActorToCase`.
       The path (b) sub-rules prevent a misaddressed Invite from anchoring trust on behalf of
-      a different actor and prevent a second Invite from silently replacing or shadowing the
-      first-established anchor.
+      a different actor and prevent a second Invite from replacing the anchor the receiver
+      has accepted. Until the receiver accepts, a later Invite replaces the anchor, so a
+      forged stub Invite cannot lock out the real CASE_MANAGER's Invite until the bootstrap;
+      a forged Invite the receiver accepts first still wins, a residual risk accepted until
+      signatures (#2841).
     verification: >-
       A unit test confirms that `Announce(VulnerabilityCase)` from an actor with no prior
       local trust record — no matching `VultronReportCaseLink` and no invite trust anchor for
@@ -235,8 +240,10 @@ groups:
       Unit tests for `RecordInviteTrustAnchorNode` confirm: (path b, rule 1) a node whose
       `invitee_id` differs from the receiving actor returns FAILURE and writes no record;
       (path b, rule 2) the anchor records the Invite's `actor` id, not the transport sender;
-      (path b, rule 3) a second invocation naming a different CaseActor returns FAILURE at
-      WARNING level and leaves the original anchor unchanged.
+      (path b, rule 3) after `FixInviteTrustAnchorNode` records the receiver's Accept, a
+      second invocation naming a different CaseActor returns FAILURE at WARNING level and
+      leaves the original anchor unchanged, while before it the second invocation replaces
+      the anchor and logs both CaseActor ids at INFO.
     relationships:
     - rel_type: refines
       spec_id: PCR-03-001

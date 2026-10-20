@@ -37,6 +37,8 @@ class VultronPendingCaseInbox(CoreRecord):
     b): the CASE_MANAGER the Invite named, in ``case_actor_id``, with
     ``invite_anchored`` set.  An anchored record outlives the expiry of its
     queue, since the anchor is what admits the case's later ``Announce``.
+    The anchor is fixed only once the invitee accepts the Invite that set it
+    (``invite_accepted``); until then a later stub Invite replaces it.
     """
 
     type_: Literal["PendingCaseInbox"] = Field(  # type: ignore[assignment]
@@ -68,6 +70,21 @@ class VultronPendingCaseInbox(CoreRecord):
             "anchor (PCR-03-004 path b).  Until then ``case_actor_id`` is "
             "only a replay target and admits no sender; queue expiry keeps "
             "an anchored record."
+        ),
+    )
+    anchor_invite_id: UriString | None = Field(
+        default=None,
+        description=(
+            "The sender's id for the stub Invite that set the anchor; the "
+            "invitee's Accept of that Invite fixes it (PCR-03-004 path b)."
+        ),
+    )
+    invite_accepted: bool = Field(
+        default=False,
+        description=(
+            "True once the invitee sent ``Accept`` for ``anchor_invite_id``.  "
+            "Until then a later stub Invite naming another CaseActor replaces "
+            "the anchor; after it, such an Invite is refused (PCR-03-004)."
         ),
     )
 

@@ -192,7 +192,9 @@ def test_pre_genesis_entries_converge_through_the_hand_back(dl, dispatcher):
     # The receiver was invited by the CASE_MANAGER, so it trusts that
     # actor's case Announce before it holds the case (PCR-03-004).
     dl.save(
-        VultronPendingCaseInbox(case_id=_CASE_ID, case_actor_id=_CASE_MANAGER)
+        VultronPendingCaseInbox(
+            case_id=_CASE_ID, case_actor_id=_CASE_MANAGER, invite_anchored=True
+        )
     )
 
     # Both entries arrive before the case is seeded (SYNC-15-004).

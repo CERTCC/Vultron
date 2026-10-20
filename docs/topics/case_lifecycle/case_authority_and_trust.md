@@ -281,6 +281,11 @@ The invitee records the CASE_MANAGER that the invitation names and replies to it
 When it accepts, the CASE_MANAGER sends the case snapshot and the earlier ledger entries without waiting for anything else ([CM-11-008](../../reference/specs/protocol.md#cm-11-008)).
 No separate `Create` bootstrap is needed, because the invitation already did that job ([CBT-04-003](../../reference/specs/protocol.md#cbt-04-003)).
 
+Until the invitee accepts, a later invitation for the same case that names a different CASE_MANAGER replaces the recorded one.
+After the invitee accepts, the invitee refuses such an invitation and keeps the CASE_MANAGER it accepted ([PCR-03-004](../../reference/specs/protocol.md#pcr-03-004)).
+So a forged invitation cannot stop the invitee from joining when the real invitation follows.
+The invitee cannot yet tell a forged invitation from a real one, so if it accepts a forged invitation first, the forger stays recorded.
+
 The hash chain then lets the joiner check that it received an unbroken history.
 That is a check against tampering and gaps, not a second source of trust.
 

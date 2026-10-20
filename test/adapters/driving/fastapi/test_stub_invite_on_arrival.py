@@ -46,9 +46,11 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIDispatchAdapter,
@@ -66,10 +68,15 @@ from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
+from vultron.core.use_cases.triggers.actor import SvcAcceptCaseInviteUseCase
+from vultron.core.use_cases.triggers.requests import (
+    AcceptCaseInviteTriggerRequest,
+)
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     announce_vulnerability_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -121,13 +128,18 @@ def invitee_dl() -> Iterator[SqliteDataLayer]:
     dl.close()
 
 
-def _stub_invite_body(case_actor_dl: SqliteDataLayer) -> tuple[str, dict]:
-    """The sealed stub Invite the CASE_MANAGER's outbox delivers."""
+def _stub_invite_body(
+    case_actor_dl: SqliteDataLayer,
+    actor: str = _CASE_ACTOR_ID,
+    id_: str | None = None,
+) -> tuple[str, dict]:
+    """The sealed stub Invite *actor*'s outbox delivers."""
     invite_id, _ = TriggerActivityAdapter(case_actor_dl).invite_actor_to_case(
         invitee_id=_INVITEE_ID,
         case_id=_CASE_ID,
-        actor=_CASE_ACTOR_ID,
+        actor=actor,
         to=[_INVITEE_ID],
+        id_=id_,
     )
     body = read_sealed_body_dict(case_actor_dl, invite_id)
     assert body is not None
@@ -377,33 +389,37 @@ def test_a_bootstrap_after_queue_expiry_drops_the_anchored_record(
     assert invitee_dl.read(_PENDING_ID) is None
 
 
+@pytest.fixture
+def imposter_dl() -> Iterator[SqliteDataLayer]:
+    """A forger's store: a copy of the case naming the forger CASE_MANAGER."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_IMPOSTER_ID)
+    case = _case()
+    seed_case_manager_participant(dl, case, _IMPOSTER_ID)
+    dl.create(case)
+    yield dl
+    dl.close()
+
+
 @pytest.mark.spec("PCR-03-004", "CBT-03-004", "PCR-06-002")
-def test_announce_from_queue_recorded_sender_is_refused(invitee_dl):
+def test_announce_from_queue_recorded_sender_is_refused(
+    imposter_dl, invitee_dl
+):
     """#4931 AC-1: a deferred activity's sender is no trust anchor.
 
     The queue records the sender of the first deferred activity as its
     replay target (CBT-03-004).  An imposter that sends one first must not
     then be admitted as CASE_MANAGER of a case it announces.
     """
-    imposter_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_IMPOSTER_ID)
-    try:
-        case = _case()
-        seed_case_manager_participant(imposter_dl, case, _IMPOSTER_ID)
-        imposter_dl.create(case)
-        assert (
-            _deliver(
-                invitee_dl,
-                _note_body("https://example.org/notes/n9", _IMPOSTER_ID),
-            ).status
-            is InboxOutcomeStatus.DEFERRED
-        )
-        assert _pending(invitee_dl).case_actor_id == _IMPOSTER_ID
+    assert (
+        _deliver(
+            invitee_dl,
+            _note_body("https://example.org/notes/n9", _IMPOSTER_ID),
+        ).status
+        is InboxOutcomeStatus.DEFERRED
+    )
+    assert _pending(invitee_dl).case_actor_id == _IMPOSTER_ID
 
-        outcome = _deliver(
-            invitee_dl, _announce_body(imposter_dl, _IMPOSTER_ID)
-        )
-    finally:
-        imposter_dl.close()
+    outcome = _deliver(invitee_dl, _announce_body(imposter_dl, _IMPOSTER_ID))
 
     assert outcome.status is not InboxOutcomeStatus.PROCESSED
     assert invitee_dl.read(_CASE_ID) is None
@@ -440,3 +456,89 @@ def test_stub_invite_anchors_after_another_senders_deferred_activity(
         outcome.failure_reason
     )
     assert isinstance(invitee_dl.read(_CASE_ID), VulnerabilityCase)
+
+
+def _forged_invite_body(imposter_dl: SqliteDataLayer) -> dict:
+    """A stub Invite to the case, forged by an actor naming itself."""
+    _, body = _stub_invite_body(
+        imposter_dl,
+        actor=_IMPOSTER_ID,
+        id_="https://example.org/activities/forged-invite-4931",
+    )
+    return body
+
+
+def _accept_invite(invitee_dl: SqliteDataLayer, invite_id: str) -> None:
+    """The invitee accepts *invite_id* through the trigger use case."""
+    if invitee_dl.read(_INVITEE_ID) is None:
+        invitee_dl.create(as_Actor(id_=_INVITEE_ID, name="invitee"))
+    accepted = SvcAcceptCaseInviteUseCase(
+        invitee_dl,
+        AcceptCaseInviteTriggerRequest(
+            actor_id=_INVITEE_ID, invite_id=invite_id
+        ),
+        trigger_activity=TriggerActivityAdapter(invitee_dl),
+        sync_port=SyncActivityAdapter(invitee_dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+    assert accepted.activity is not None
+
+
+@pytest.mark.spec("PCR-03-004")
+def test_the_real_invite_replaces_a_forged_unaccepted_anchor(
+    case_actor_dl, imposter_dl, invitee_dl
+):
+    """A forged stub Invite does not lock out the real CASE_MANAGER (#4931).
+
+    Its anchor is replaced by the real Invite, which no Accept had followed;
+    the invitee's Accept then fixes the real anchor, so the forger's
+    Announce is refused and the CASE_MANAGER's is admitted.
+    """
+    forged = _deliver(invitee_dl, _forged_invite_body(imposter_dl))
+    assert forged.status is InboxOutcomeStatus.PROCESSED, forged.failure_reason
+    assert _pending(invitee_dl).case_actor_id == _IMPOSTER_ID
+
+    invite_id, body = _stub_invite_body(case_actor_dl)
+    invited = _deliver(invitee_dl, body)
+
+    assert invited.status is InboxOutcomeStatus.PROCESSED, (
+        invited.failure_reason
+    )
+    pending = _pending(invitee_dl)
+    assert pending.case_actor_id == _CASE_ACTOR_ID
+    assert not pending.invite_accepted
+
+    _accept_invite(invitee_dl, invite_id)
+    assert _pending(invitee_dl).invite_accepted
+
+    forged_announce = _deliver(
+        invitee_dl, _announce_body(imposter_dl, _IMPOSTER_ID)
+    )
+    assert forged_announce.status is not InboxOutcomeStatus.PROCESSED
+    assert invitee_dl.read(_CASE_ID) is None
+
+    announced = _deliver(
+        invitee_dl, _announce_body(case_actor_dl, _CASE_ACTOR_ID)
+    )
+    assert announced.status is InboxOutcomeStatus.PROCESSED, (
+        announced.failure_reason
+    )
+    case = invitee_dl.read(_CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+
+
+@pytest.mark.spec("PCR-03-004")
+def test_an_invite_after_the_accept_cannot_replace_the_anchor(
+    case_actor_dl, imposter_dl, invitee_dl
+):
+    """Once the invitee accepts, a conflicting Invite is refused."""
+    invite_id, body = _stub_invite_body(case_actor_dl)
+    assert _deliver(invitee_dl, body).status is InboxOutcomeStatus.PROCESSED
+    _accept_invite(invitee_dl, invite_id)
+
+    forged = _deliver(invitee_dl, _forged_invite_body(imposter_dl))
+
+    assert forged.status is not InboxOutcomeStatus.PROCESSED
+    pending = _pending(invitee_dl)
+    assert pending.case_actor_id == _CASE_ACTOR_ID
+    assert pending.invite_accepted
