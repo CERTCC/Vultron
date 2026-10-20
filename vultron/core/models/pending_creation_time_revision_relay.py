@@ -27,18 +27,26 @@ be asked.
 This record carries what the relay needs across executions, in the shape of
 the ``PendingCreateCaseActivity`` marker (CP-05-005): committed in the same
 write that registers the revision (#4142), so no failure leaves a revision
-nobody owes (#4156); deleted once the relay is discharged; and found by a later delivery's relay or by the startup retry
-runner while it remains.
+nobody owes (#4156); deleted once the relay is discharged; and found by a
+later delivery's relay or by the startup retry runner while it remains.
+
+A stored marker that still carries the retired ``invite_queued`` key is refused
+on load (#4950); the store must be reset.
 
 Spec: ``specs/embargo-policy.yaml`` EP-04-011.
 """
 
 import urllib.parse
-from typing import Any, Literal
+from collections.abc import Mapping
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import CoreRecord, UriString, with_record_id
+from vultron.core.models.base import UriString, with_record_id
+from vultron.core.models.retired_stored_fields import (
+    RetiredFieldsRecord,
+    RetiredStoredField,
+)
 
 #: Whose terms lost shortest-wins: the values of
 #: ``EmbargoDurationSource.SENDER_PROPOSAL`` (the reporter's) and
@@ -47,7 +55,7 @@ from vultron.core.models.base import CoreRecord, UriString, with_record_id
 LosingSource = Literal["sender_proposal", "actor_default"]
 
 
-class PendingCreationTimeRevisionRelay(CoreRecord):
+class PendingCreationTimeRevisionRelay(RetiredFieldsRecord):
     """A creation-time revision registered but not yet relayed (EP-04-011).
 
     Attributes:
@@ -63,10 +71,6 @@ class PendingCreationTimeRevisionRelay(CoreRecord):
             is its author.  Required: a revision with no report could never
             be relayed, so its writer raises instead of recording it.
         case_actor_id: URI of the CASE_MANAGER that owes the relay.
-        invite_queued: No longer written or read: the relay sends, commits,
-            indexes and deletes this marker in one transaction (ADR-0146), so
-            no retry needs a queue receipt.  Kept only because removing a
-            stored field is a stored-shape change (#4950).
 
     Spec: EP-04-011.
     """
@@ -92,10 +96,10 @@ class PendingCreationTimeRevisionRelay(CoreRecord):
     case_actor_id: UriString = Field(
         ..., description="URI of the CASE_MANAGER that owes the relay"
     )
-    invite_queued: bool = Field(
-        default=False,
-        description="Unused; retired by #4950",
-    )
+
+    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+        "invite_queued": RetiredStoredField(None, "#4950"),
+    }
 
     @classmethod
     def build_id(cls, case_id: str) -> str:
