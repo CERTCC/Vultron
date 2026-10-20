@@ -143,7 +143,7 @@ The active and inactive sets are defined in the [RM state subsets](../rm/formal_
 The diagram below shows the revision cycle running while the report is valid yet unclosed.
 Accepting a revision returns the case to *Active* under the new terms.
 Rejecting a revision normally keeps the prior terms in force and returns to *Active*.
-When CS is already public, exploited, or attacked, the Case Owner's rejection of the last open revision also terminates the embargo in the same act, so EM ends *Exited* rather than *Active* (MSM-07-009, EMB-04-002).
+When CS is already public, exploited, or attacked, the Case Manager follows the Case Owner's rejection of the last open revision with a termination in the same act, so EM ends *eXited* rather than *Active* (MSM-07-009, EMB-04-002).
 
 ```mermaid
 ---
