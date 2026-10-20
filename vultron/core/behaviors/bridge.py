@@ -53,9 +53,8 @@ from vultron.core.behaviors.blackboard_scope import (
 from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import (
-    VultronBTInternalError,
+    INTERNAL_FAULTS,
     VultronError,
-    VultronWiringError,
 )
 
 if TYPE_CHECKING:
@@ -451,9 +450,7 @@ class BTBridge:
             A FAILURE ``BTExecutionResult`` carrying the composed message as
             both ``feedback_message`` and the sole entry in ``errors``.
         """
-        internal_error = internal_error or isinstance(
-            e, (VultronWiringError, VultronBTInternalError)
-        )
+        internal_error = internal_error or isinstance(e, INTERNAL_FAULTS)
         if internal_error:
             error_msg = (
                 f"{prefix} with internal error: {type(e).__name__}: {e}"

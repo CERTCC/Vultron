@@ -350,7 +350,11 @@ guards, commit, effects.
    gate, and skips them on a
    redelivery whose intake was already archived and on a failed guard whose
    `failed_as_repeat` is set (`ReportsIdempotentRepeat`, the repeat a handler
-   reports `SKIPPED`). The stage then fails with the guard's reason, so nothing
+   reports `SKIPPED`), and on a delivery a `Diversion` among the guards took,
+   which its diversion already answered (CLP-10-026). A guard that turns a
+   `VultronError` into a refusal re-raises `INTERNAL_FAULTS` first
+   (`vultron/errors.py`): an internal failure is never answered with a
+   notice. The stage then fails with the guard's reason, so nothing
    of the assertion commits and the handler reads `REFUSED`. A refusal effect
    must be `EmitCapable` and hold no `StateWriteCapable` node, except the
    CASE_MANAGER's own note (`_CommitCaseManagerNoteBase`, RSH-06-004), which

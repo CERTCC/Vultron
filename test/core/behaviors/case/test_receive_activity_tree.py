@@ -709,19 +709,22 @@ class TestRefusalNotice:
 
     @pytest.mark.spec("CLP-02-005")
     @pytest.mark.spec("CLP-10-026")
-    def test_a_diverting_tree_must_name_an_exemption(self) -> None:
+    def test_a_diverting_tree_takes_the_notice(self) -> None:
+        """Its guards' refusals are answered; the refusal stage skips the
+        notice for a diverted delivery, which its diversion answered."""
         from vultron.core.behaviors.case.nodes.diversion_stage import (
             Diversion,
         )
 
-        with pytest.raises(VultronWiringError, match="diverted deliveries"):
-            create_receive_activity_tree(
-                name="SampleBT",
-                case_id=CASE_ID,
-                precondition_guards=[
-                    Diversion(name="D", condition=_effect("Condition"))
-                ],
-            )
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[
+                Diversion(name="D", condition=_effect("Condition"))
+            ],
+        )
+
+        assert len(self._notices(tree)) == 1
 
     def test_an_exemption_needs_a_reason(self) -> None:
         from vultron.core.behaviors.case.nodes.refusal_notice import (

@@ -1894,8 +1894,9 @@ groups:
       the delivery MUST write no case or participant state (RSH-08-003) — it
       MAY store the activity it answers so its answer can be built from it —
       and every emit in it MUST be covered by a named exemption (BT-17-008). A
-      tree with diversions MUST NOT take refusal effects (CLP-10-022): a
-      diverted delivery has already been answered.
+      diverted delivery has already been answered, so the factory MUST run no
+      refusal effect for it (CLP-10-022); a tree with diversions still answers
+      the refusals its guards make with the refusal notice (CLP-02-005).
     rationale: >-
       The late-Accept routing and the P/X/A refusal were alternative trees the
       use case chose and ran after or before the main one, which the one-tree
@@ -1909,10 +1910,14 @@ groups:
       diversion that does not hold lets the tree continue, one that holds runs
       its effects and ends the tree before the commit, a CASE_MANAGER
       diversion never diverts at another store, and the factory refuses an
-      ill-formed diversion; `test_receive_side_bt_commit_ordering.py` accepts a
-      commit ahead of the guarded commit only inside the clock-decision stage
-      or a CASE_MANAGER diversion; the embargo Accept and Invite handler tests
-      assert each diverted delivery's verdict and effects.
+      ill-formed diversion; `test_refusal_stage.py` asserts a diverted
+      delivery runs no refusal effect and a guard's refusal after a diversion
+      that does not hold runs them; `test_receive_side_bt_commit_ordering.py`
+      accepts a commit ahead of the guarded commit only inside the
+      clock-decision stage or a CASE_MANAGER diversion; the embargo Accept and
+      Invite handler tests assert each diverted delivery's verdict and
+      effects, and `test_embargo_refusal_notice.py` that an Accept answered
+      with ER gets no refusal notice.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005

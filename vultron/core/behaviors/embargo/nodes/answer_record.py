@@ -43,7 +43,7 @@ from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.embargo_apply import ConsentRowChange
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-from vultron.errors import VultronBTInternalError, VultronError
+from vultron.errors import INTERNAL_FAULTS, VultronError
 
 
 def decide_answer(
@@ -90,7 +90,8 @@ class EmbargoDecisionAppliesNode(DataLayerConditionWithPorts):
     decision the lifecycle refuses, or whose entries would not apply, is
     refused before it is committed (ADR-0124, SYNC-12-001).  A subclass
     names the decision (:meth:`_decide`) and the act (:meth:`_act`).  A
-    decision fault (``VultronBTInternalError``) raises.
+    decision fault or a composition fault (``INTERNAL_FAULTS``) raises: it
+    is no refusal, so it is never answered with the refusal notice.
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
@@ -111,8 +112,8 @@ class EmbargoDecisionAppliesNode(DataLayerConditionWithPorts):
         assert self.datalayer is not None
         try:
             self._decide(self.datalayer)
-        except VultronBTInternalError:
-            raise
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
         except VultronError as exc:
             self.feedback_message = (
                 f"{self._act()} records nothing on case '{self.case_id}':"

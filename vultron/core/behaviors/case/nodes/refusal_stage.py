@@ -28,7 +28,10 @@ guards' refusal, so the root Sequence still stops before the commit and the
 handler still reports ``REFUSED`` for the guard's reason.  A guard failure
 that is an idempotent repeat the handler reports ``SKIPPED``
 (:class:`~vultron.core.behaviors.idempotency.ReportsIdempotentRepeat`) is not
-a refusal, so it runs no refusal effect either.
+a refusal, so it runs no refusal effect either.  Nor is a delivery a
+:class:`~vultron.core.behaviors.case.nodes.diversion_stage.DiversionStage`
+among the guards diverted: its diversion has already answered it
+(CLP-10-026).
 
 While the refusal effects run, the stage holds the guards' reason in
 :attr:`PreconditionGuardStage.refusal_reason`; an effect reads it through
@@ -44,6 +47,9 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.diversion_stage import (
+    DiversionStage,
+)
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -97,14 +103,16 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         FAILURE when a guard refuses, after running the refusal effects once. A
         guard whose failure is an idempotent repeat (``failed_as_repeat``) was
         not refused, so the refusal effects are skipped (CLP-10-022,
-        CLP-05-001).  On a redelivery — intake found the activity already
-        archived — the refusal effects are skipped, so a refused activity is
-        answered at most once.  The skip keys on the archive, not on a record
-        that the effects ran: a refusal effect writes no state (CLP-10-022), so
-        no such record exists.  A redelivery whose first delivery never reached
-        the refusal effects (its sender guard refused, this actor was not the
-        CASE_MANAGER yet, or the effect failed) is therefore not answered
-        either.
+        CLP-05-001).  A delivery a diversion among the guards took
+        (``skipped_as_diversion``) has been answered by that diversion, so
+        the refusal effects are skipped too (CLP-10-026).  On a redelivery —
+        intake found the activity already archived — the refusal effects are
+        skipped, so a refused activity is answered at most once.  The skip
+        keys on the archive, not on a record that the effects ran: a refusal
+        effect writes no state (CLP-10-022), so no such record exists.  A
+        redelivery whose first delivery never reached the refusal effects
+        (its sender guard refused, this actor was not the CASE_MANAGER yet,
+        or the effect failed) is therefore not answered either.
 
         RUNNING while the guards or the refusal effects are running.
     """
@@ -120,6 +128,7 @@ class PreconditionGuardStage(py_trees.composites.Composite):
         self._intake = intake
         self.skipped_as_redelivery = False
         self.skipped_as_repeat = False
+        self.skipped_as_diversion = False
         self.refusal_reason = ""
         """The guards' reason, set when they refuse; empty otherwise."""
 
@@ -146,6 +155,7 @@ class PreconditionGuardStage(py_trees.composites.Composite):
                     child.stop(Status.INVALID)
             self.skipped_as_redelivery = False
             self.skipped_as_repeat = False
+            self.skipped_as_diversion = False
             self.refusal_reason = ""
             self.initialise()
         elif self.refusal.status == Status.RUNNING:
@@ -165,6 +175,20 @@ class PreconditionGuardStage(py_trees.composites.Composite):
             yield self
             return
 
+        if self._skips_refusal_effects():
+            self._fail()
+            yield self
+            return
+        self.refusal_reason = BTBridge.get_failure_reason(self.guards)
+        yield from self._tick_refusal()
+
+    def _skips_refusal_effects(self) -> bool:
+        """True, with its flag set, when the guards' failure is no refusal.
+
+        A repeat (``skipped_as_repeat``), a diverted delivery
+        (``skipped_as_diversion``) and a redelivery (``skipped_as_redelivery``)
+        are each already answered, or owe no answer (CLP-10-022, CLP-10-026).
+        """
         if self._failed_as_repeat():
             self.skipped_as_repeat = True
             logger.debug(
@@ -172,9 +196,15 @@ class PreconditionGuardStage(py_trees.composites.Composite):
                 " skipped (CLP-10-022)",
                 self.name,
             )
-            self._fail()
-            yield self
-            return
+            return True
+        if self._diverted():
+            self.skipped_as_diversion = True
+            logger.debug(
+                "%s: the delivery was diverted — its diversion answered it,"
+                " so refusal effects skipped (CLP-10-026)",
+                self.name,
+            )
+            return True
         if self._intake.found_ids:
             self.skipped_as_redelivery = True
             logger.debug(
@@ -182,11 +212,8 @@ class PreconditionGuardStage(py_trees.composites.Composite):
                 self.name,
                 self._intake.found_ids[0],
             )
-            self._fail()
-            yield self
-            return
-        self.refusal_reason = BTBridge.get_failure_reason(self.guards)
-        yield from self._tick_refusal()
+            return True
+        return False
 
     def _tick_refusal(self) -> Iterator[py_trees.behaviour.Behaviour]:
         """Tick the refusal effects; fail with the guards' refusal when done."""
@@ -220,6 +247,13 @@ class PreconditionGuardStage(py_trees.composites.Composite):
                 return False
             node = failed[-1]
         return False
+
+    def _diverted(self) -> bool:
+        """True when a diversion among the guards took the delivery."""
+        return any(
+            isinstance(node, DiversionStage) and node.taken
+            for node in self.guards.iterate()
+        )
 
     def _fail(self) -> None:
         """End FAILURE, pointing at the guards so their reason is reported."""

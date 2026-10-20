@@ -34,6 +34,7 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from test.support.received import received_record
+from test.support.refusal_notice import assert_refusal_notice
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -177,19 +178,18 @@ def test_a_precondition_refusal_queues_one_refusal_notice():
     assert BTBridge.get_failure_reason(tree) == REFUSAL
     notices = _notices(net, MANAGER, BYSTANDER)
     assert len(notices) == 1
-    notice_id = notices[0].id_
-    assert notice_id == derived_activity_id(
+    assert notices[0].id_ == derived_activity_id(
         "refusal-notice", MANAGER, event.activity_id
     )
-    body = read_sealed_body_dict(net.stores[MANAGER], notice_id)
-    assert body is not None
-    assert body["type"] == "Reject"
-    assert body["actor"] == MANAGER
-    assert body["to"] == [BYSTANDER]
-    assert body["inReplyTo"] == event.activity_id
+    body = assert_refusal_notice(
+        net.stores[MANAGER],
+        manager=MANAGER,
+        refused_id=event.activity_id,
+        asserter=BYSTANDER,
+        reason=REFUSAL,
+        case_id=net.case_id,
+    )
     assert body["summary"] == REFUSAL
-    assert body["context"] == net.case_id
-    assert body["object"]["id"] == event.activity_id
     assert body["object"]["type"] == "Accept"
 
 

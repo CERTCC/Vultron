@@ -442,6 +442,18 @@ class VultronBTInternalError(VultronError):
     """
 
 
+#: The ``VultronError`` subclasses that are our own fault, never a protocol
+#: outcome: a composition fault and an internal error carried across a
+#: nested bridge.  ``BTBridge`` flags both as ``internal_error``, so a node
+#: that turns a ``VultronError`` into a refusal re-raises these first: a
+#: refusal is answered to the sender (CLP-05-001), an internal failure never
+#: is (ADR-0095).
+INTERNAL_FAULTS: tuple[type[VultronError], ...] = (
+    VultronWiringError,
+    VultronBTInternalError,
+)
+
+
 class DemoScenarioRegistryError(VultronError):
     """Raised when a demo scenario's self-registration is invalid.
 
