@@ -1074,6 +1074,27 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def propose_case_ownership_transfer(
+        self,
+        case_id: str,
+        transferee_id: str,
+        actor: str,
+        content: str | None = None,
+        to: list[str] | None = None,
+        end_time: datetime | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the Case Owner's ownership-transfer proposal.
+
+        ``Offer(Offer(VulnerabilityCase))`` with the case as its ``context``
+        (ADR-0148): the inner Offer names the case, *transferee_id* as its
+        ``target`` and, when given, *end_time* as its ``end_time``, the
+        deadline to answer it (TRIG-11-007, CM-21-016).  The owner sends it
+        to the CASE_MANAGER (*to*), which makes the Offer itself.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-001).
+        """
+        ...
+
     def offer_case_ownership_transfer(
         self,
         case_id: str,
@@ -1083,17 +1104,19 @@ class TriggerActivityPort(Protocol):
         to: list[str] | None = None,
         attributed_to: str | None = None,
         end_time: datetime | None = None,
-        in_reply_to: str | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
 
-        *end_time*, when given, is the Offer's activity-level ``end_time``:
-        the deadline to answer it (TRIG-11-007, CM-21-016).  *in_reply_to*,
-        when given, is the id of the recorded Offer this one forwards: the
-        CASE_MANAGER's forward to the transferee carries it (CM-21-018); the
-        Case Owner's own Offer carries none.
+        The one Offer of a transfer, which the CASE_MANAGER makes from the
+        owner's proposal (ADR-0148, CM-21-005), with *attributed_to* the
+        owner.  *end_time*, when given, is the Offer's activity-level
+        ``end_time``: the deadline to answer it (CM-21-016).  *id_*, when
+        given, is the Offer's id, which the CASE_MANAGER derives from the
+        proposal (OX-06-002); an id the store already holds hands back the
+        body sealed then.
 
-        Returns ``(activity_id, activity_dict)`` (TRIG-11-001).
+        Returns ``(activity_id, activity_dict)``.
         """
         ...
 
@@ -1127,7 +1150,11 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Undo(Offer(VulnerabilityCase))`` ownership-transfer withdrawal.
+        """Create and persist the owner's withdrawal of its proposal.
+
+        ``Undo(Offer(Offer(VulnerabilityCase)))``: *offer_id* names the
+        proposal this actor sent, which the CASE_MANAGER made its Offer from
+        (CM-21-015, ADR-0148).
 
         Returns ``(activity_id, activity_dict)`` (TRIG-11-006).
         """

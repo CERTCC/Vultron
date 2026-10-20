@@ -327,6 +327,7 @@ def test_an_offer_reusing_a_recorded_id_for_another_offer_is_refused(
     assert dl.outbox_list() == queued
 
 
+@pytest.mark.spec("CM-24-007")
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("CLP-10-006")
 def test_a_forward_that_fails_after_the_commit_is_sent_on_redelivery(

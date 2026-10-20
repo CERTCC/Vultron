@@ -870,7 +870,9 @@ def test_offer_case_ownership_transfer_route_passes_end_time(
         },
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    end_time = resp.json()["activity"]["endTime"]
+    # The activity is the owner's proposal; the deadline is on the inner
+    # Offer it asks the CASE_MANAGER to make (ADR-0148).
+    end_time = resp.json()["activity"]["object"]["endTime"]
     assert datetime.fromisoformat(end_time) == deadline
 
 

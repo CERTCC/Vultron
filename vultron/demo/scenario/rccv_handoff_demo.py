@@ -395,13 +395,13 @@ def _phase_ownership_handoff(
                 )
             ).activity
             logger.info(
-                "C1 sent Offer(VulnerabilityCase) ownership transfer: %s",
+                "C1 proposed an ownership transfer: %s",
                 ownership_offer.id_,
             )
 
             with demo_gate(
-                "CaseActor-forwarded Offer(VulnerabilityCase) delivered to C2"
-                " (TRIG-11-001)"
+                "CaseActor's Offer(VulnerabilityCase) delivered to C2"
+                " (TRIG-11-001, CM-21-005)"
             ):
                 ownership_offer_id = find_ownership_transfer_offer_for_actor(
                     client=c2_client,

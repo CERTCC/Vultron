@@ -396,19 +396,18 @@ def _phase_ownership_handoff(
                 )
             ).activity
             logger.info(
-                "Vendor1 sent Offer(VulnerabilityCase) ownership transfer: %s",
+                "Vendor1 proposed an ownership transfer: %s",
                 ownership_offer.id_,
             )
 
-            # Wait for the FORWARDED offer (CM-21-005).
-            # OfferCaseOwnershipTransferReceivedUseCase creates a NEW Offer
-            # (forwarded_id) when the CaseActor processes Vendor1's Offer.  The
-            # forwarded Offer lands in Coordinator's DataLayer under a
-            # different ID; the original Offer only exists in the CaseActor's
-            # DataLayer.  Polling for the original ID would never match.
+            # Wait for the CaseActor's Offer (CM-21-005, ADR-0148).  Vendor1
+            # sends a proposal, Offer(Offer(VulnerabilityCase)); the CaseActor
+            # makes the one Offer of the transfer under an id of its own and
+            # sends it to the Coordinator.  Polling for the proposal's id would
+            # never match: only Vendor1 and the CaseActor hold it.
             with demo_gate(
-                "Forwarded Offer(VulnerabilityCase) delivered to Coordinator's"
-                " DataLayer (CM-21-005)"
+                "CaseActor's Offer(VulnerabilityCase) delivered to"
+                " Coordinator's DataLayer (CM-21-005)"
             ):
                 ownership_offer_id = find_ownership_transfer_offer_for_actor(
                     client=coordinator_client,
@@ -417,7 +416,7 @@ def _phase_ownership_handoff(
                     timeout_seconds=90.0,
                 )
                 logger.info(
-                    "Forwarded ownership transfer offer ID: %s",
+                    "CaseActor's ownership transfer offer ID: %s",
                     ownership_offer_id,
                 )
 

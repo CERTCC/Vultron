@@ -29,9 +29,10 @@ in the local DataLayer.  This makes the offer readable by
 
 Per ADR-0035 DL-06-002, SYNC-02-002, SYNC-12-001, CM-21-005, ISSUE-2195.
 
-(CM-21-005 governs the offer hop this slot materializes — the offer is addressed
-to the CaseActor inbox and forwarded by it.  CM-21-007, which covers the ledger
-commit and broadcast that follow a successful *accept*, is a different hop.)
+(CM-21-005 governs the offer hop this slot materializes — the owner proposes to
+the CaseActor, which makes the Offer and ledgers it (ADR-0148).  CM-21-007,
+which covers the ledger commit and broadcast that follow a successful
+*accept*, is a different hop.)
 """
 
 from __future__ import annotations

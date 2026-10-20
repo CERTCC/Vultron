@@ -13,14 +13,18 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The CASE_MANAGER's open-Offer guards for ownership transfer (CM-21-014).
+"""The CASE_MANAGER's guards for ownership transfer (CM-21-005, CM-21-014).
 
 Provides:
 
+- :class:`OwnershipProposalAdmissibleNode` — precondition guard that refuses
+  a proposal whose inner Offer names another case or no actor the
+  CASE_MANAGER can address (ADR-0148).
 - :class:`NoOpenOwnershipOfferNode` — precondition guard that refuses a new
-  ownership-transfer Offer while an earlier one for the case is open.
-- :func:`case_manager_admits_ownership_offer_guard` — the guard behind the
-  CASE_MANAGER gate, for the received Offer tree's ``precondition_guards``.
+  proposal while an earlier ownership-transfer Offer for the case is open.
+- :func:`case_manager_admits_ownership_proposal_guard` — both behind the
+  CASE_MANAGER gate, for the received proposal tree's
+  ``precondition_guards``.
 - :class:`OwnershipOfferOpenNode` — precondition guard that refuses a reply
   to an ownership-transfer Offer that is no longer open, and recognises a
   redelivery of the reply that closed it.
@@ -42,15 +46,87 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.ownership_offer import (
     RecordedOwnershipOffer,
-    is_recorded_ownership_offer,
+    offer_made_from_proposal,
     open_ownership_offer,
     recorded_ownership_offer,
 )
+from vultron.core.predicates.addressing import same_actor_id
 from vultron.errors import VultronBTInternalError, VultronNotFoundError
+
+
+class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
+    """Guard: the proposal's inner Offer is one the CASE_MANAGER can make.
+
+    The CASE_MANAGER validates the inner Offer rather than copying it
+    (ADR-0148): its object must be the case the proposal names, and its
+    ``target`` an actor the CASE_MANAGER can address — present, and not the
+    CASE_MANAGER itself, since a received tree emits nothing whose only
+    recipient is the executing actor (BT-17-008, ADR-0109; CM-33-003 refuses
+    the role offer on the same ground), nor the proposing owner, who already
+    owns the case.  Anything else in the inner
+    Offer (its id, ``actor`` and ``to``) is the sender's and is never read,
+    so the Offer the CASE_MANAGER makes carries its own id (CM-21-005).
+
+    Read-only, so it runs in ``precondition_guards`` behind the CASE_MANAGER
+    gate (:func:`case_manager_admits_ownership_proposal_guard`): a refused
+    proposal leaves no entry and sends nothing.
+
+    Spec: CM-21-005, CM-21-019, BT-17-008.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        proposed_case_id: str | None,
+        transferee_id: str | None,
+        proposer_id: str,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case the proposal names (its ``context``).
+            proposed_case_id: The case the inner Offer names as its object.
+            transferee_id: The inner Offer's ``target``.
+            proposer_id: The proposal's sender.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._proposed_case_id = proposed_case_id
+        self._transferee_id = transferee_id
+        self._proposer_id = proposer_id
+
+    def _refuse(self, reason: str) -> Status:
+        self.feedback_message = f"{reason} — REFUSED (CM-21-005, ADR-0148)"
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.actor_id is not None
+        if self._proposed_case_id != self._case_id:
+            return self._refuse(
+                f"the inner Offer names case '{self._proposed_case_id}', not"
+                f" the proposal's case '{self._case_id}'"
+            )
+        transferee = self._transferee_id
+        if not transferee:
+            return self._refuse("the inner Offer names no transferee")
+        if same_actor_id(transferee, self.actor_id):
+            return self._refuse(
+                f"the inner Offer names the CASE_MANAGER '{transferee}' as"
+                " the transferee; it sends itself no Offer (BT-17-008)"
+            )
+        if same_actor_id(transferee, self._proposer_id):
+            return self._refuse(
+                f"the inner Offer names the proposer '{transferee}', which"
+                f" already owns case '{self._case_id}'"
+            )
+        return Status.SUCCESS
 
 
 class NoOpenOwnershipOfferNode(
@@ -58,53 +134,62 @@ class NoOpenOwnershipOfferNode(
 ):
     """Guard: the case has no earlier ownership-transfer Offer still open.
 
-    The CASE_MANAGER refuses a new ownership-transfer Offer while an earlier
-    one for the case is open, because two pending Offers would let two
-    transferees accept the same case (CM-21-014, CM-21-001).  "Open" is read
-    from the case ledger through
+    The CASE_MANAGER refuses a new proposal while an earlier Offer for the
+    case is open, because two pending Offers would let two transferees
+    accept the same case (CM-21-014, CM-21-001).  "Open" is read from the
+    case ledger through
     :func:`~vultron.core.participants.ownership_offer.open_ownership_offer`
-    (CLP-11-001): an Offer stays open until the ledger holds an answer
-    recorded after it.  Once it is closed, a new Offer is admitted to any
-    transferee, including the one that declined.
+    (CLP-11-001): an Offer stays open until the ledger holds an answer,
+    withdrawal or expiry recorded after it.  Once it is closed, a new
+    proposal is admitted for any transferee, including the one that
+    declined.
 
-    A **redelivery** of an Offer the ledger already records is not a new
-    Offer and not a refusal (HP-01-003), but it must change nothing: the
-    commit would add nothing and the forward would re-send an Offer that may
-    since have been answered.  The guard sets :attr:`is_redelivery` and fails,
-    so nothing downstream runs, and the handler reports the run as
-    ``SKIPPED``.
+    A **redelivery** of a proposal the CASE_MANAGER already made its Offer
+    from is not a new proposal and not a refusal (HP-01-003), but it must
+    change nothing: the Offer is ledgered only once it was queued
+    (SYNC-09-002), so it was sent, and it may since have been answered.  The
+    guard sets :attr:`is_redelivery` and fails, so nothing downstream runs,
+    and the handler reports the run as ``SKIPPED``.  A proposal whose Offer
+    the ledger does not hold is judged as new, so a redelivery after a fault
+    between the proposal's entry and the Offer's send makes the Offer then,
+    under the same derived id.
 
     Read-only, so it runs in ``precondition_guards`` behind the CASE_MANAGER
-    gate (:func:`case_manager_admits_ownership_offer_guard`): the transferee
-    holds the replicated entries too, and the forward it receives must not be
-    judged against the Offer it stands for.
+    gate (:func:`case_manager_admits_ownership_proposal_guard`).
     """
 
     _REPEAT_FLAG = "is_redelivery"
 
     def __init__(
-        self, case_id: str, offer_id: str, name: str | None = None
+        self,
+        case_id: str,
+        proposal_id: str,
+        proposer_id: str,
+        name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
-        self.offer_id = offer_id
+        self.proposal_id = proposal_id
+        self.proposer_id = proposer_id
         self.is_redelivery = False
-        """``True`` when the last run found this Offer already ledgered: a
-        benign no-op, not a refusal."""
+        """``True`` when the last run found the Offer made from this
+        proposal already ledgered: a benign no-op, not a refusal."""
 
     def update(self) -> Status:
         self.is_redelivery = False
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        if is_recorded_ownership_offer(
-            self.datalayer, self.case_id, self.offer_id
-        ):
+        made = offer_made_from_proposal(
+            self.datalayer, self.case_id, self.proposal_id, self.proposer_id
+        )
+        if made is not None:
             self.is_redelivery = True
             self.feedback_message = (
-                f"ownership-transfer Offer '{self.offer_id}' is already"
-                f" recorded for case '{self.case_id}' — redelivery, nothing"
-                " to apply (HP-01-003)"
+                f"ownership-transfer proposal '{self.proposal_id}' was"
+                f" already made into Offer '{made.offer_id}' for case"
+                f" '{self.case_id}' — redelivery, nothing to apply"
+                " (HP-01-003)"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -121,21 +206,38 @@ class NoOpenOwnershipOfferNode(
         return Status.FAILURE
 
 
-def case_manager_admits_ownership_offer_guard(
-    case_id: str, offer_id: str
+def case_manager_admits_ownership_proposal_guard(
+    case_id: str,
+    proposal_id: str,
+    proposed_case_id: str | None,
+    transferee_id: str | None,
+    proposer_id: str,
 ) -> py_trees.behaviour.Behaviour:
-    """Precondition guard: at the CASE_MANAGER, no earlier Offer is open.
+    """Precondition guards: at the CASE_MANAGER, the proposal is admissible.
 
-    A replica (the transferee receiving the forward) skips it as
-    ``SUCCESS``; the CASE_MANAGER runs :class:`NoOpenOwnershipOfferNode`, so
-    a refused Offer is neither committed nor forwarded (CM-21-014).
+    The open-Offer check runs first, so a redelivery is recognised as such
+    before its inner Offer is judged again; then the inner Offer is checked
+    (:class:`OwnershipProposalAdmissibleNode`).  A refused proposal is
+    neither committed nor made into an Offer (CM-21-005, CM-21-014).  A
+    replica never receives a proposal (its sender guard admits no one); it
+    skips the guards as ``SUCCESS``.
     """
     return create_case_manager_gated_tree(
-        name="NoOpenOwnershipOfferIfCaseManager",
+        name="OwnershipProposalAdmissibleIfCaseManager",
         case_id=case_id,
-        body_name="NoOpenOwnershipOffer",
+        body_name="OwnershipProposalAdmissible",
         children=[
-            NoOpenOwnershipOfferNode(case_id=case_id, offer_id=offer_id)
+            NoOpenOwnershipOfferNode(
+                case_id=case_id,
+                proposal_id=proposal_id,
+                proposer_id=proposer_id,
+            ),
+            OwnershipProposalAdmissibleNode(
+                case_id=case_id,
+                proposed_case_id=proposed_case_id,
+                transferee_id=transferee_id,
+                proposer_id=proposer_id,
+            ),
         ],
     )
 
@@ -242,25 +344,20 @@ class OwnershipOfferOpenNode(
             _LATE_SPEC[self._party],
         )
 
-    def _recorded_offer(
-        self, case: VulnerabilityCase
-    ) -> RecordedOwnershipOffer:
+    def _recorded_offer(self) -> RecordedOwnershipOffer:
         """The Offer the reply names, as the CASE_MANAGER recorded it.
 
         Raises:
-            VultronNotFoundError: The case names no CASE_MANAGER, the reply
-                names no Offer, or the CASE_MANAGER recorded no such Offer.
+            VultronNotFoundError: The reply names no Offer, or the
+                CASE_MANAGER recorded no such Offer.
         """
         assert self.datalayer is not None
-        manager_id = resolve_case_manager_id(case, self.datalayer)
-        if manager_id is None or self._offer_id is None:
+        if self._offer_id is None:
             raise VultronNotFoundError(
-                "ownership-transfer Offer",
-                f"{self._offer_id} (case '{self._case_id}',"
-                f" manager {manager_id})",
+                "ownership-transfer Offer", f"None (case '{self._case_id}')"
             )
         return recorded_ownership_offer(
-            self.datalayer, self._case_id, self._offer_id, manager_id
+            self.datalayer, self._case_id, self._offer_id
         )
 
     def update(self) -> Status:
@@ -273,11 +370,11 @@ class OwnershipOfferOpenNode(
         self.is_redelivery = False
         if (f := self._require_datalayer()) is not None:
             return f
-        case, failure = self._require_case(self._case_id)
+        _case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1: the gate found this store's case
         try:
-            offer = self._recorded_offer(case)
+            offer = self._recorded_offer()
         except VultronNotFoundError as exc:
             # The sender check ran first and found this Offer, so its absence
             # now is a local anomaly, not the sender's refusal: raise, so the

@@ -906,7 +906,9 @@ groups:
     - order: 1
       actor: vendor1
       action: POST offer-case-ownership-transfer trigger targeting Coordinator
-      expected: Offer(VulnerabilityCase) queued for Coordinator inbox
+      expected: >-
+        Vendor1's proposal queued for the CASE_MANAGER, which queues its
+        Offer(VulnerabilityCase) for the Coordinator inbox
     - order: 2
       actor: demo-script
       action: Poll Coordinator DataLayer until Offer(VulnerabilityCase) is visible

@@ -18,6 +18,7 @@ CASE_MANAGER delegation.
 """
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 
@@ -815,17 +816,74 @@ class TestAnswerReceivedOwnershipOffer:
                 offer_id="urn:uuid:never-received", actor=_INVITEE
             )
 
-    def test_the_offerer_withdraws_the_offer_it_sent(self, adapter, dl):
-        """The offerer's own Offer is held under its own id, and read there."""
+    @pytest.mark.spec("CM-21-015")
+    def test_the_owner_withdraws_the_proposal_it_sent(self, adapter, dl):
+        """The owner's own proposal is held under its own id, and read there;
+        the Undo names the proposal (ADR-0148)."""
         case = _make_case(dl)
-        offer_id, _ = adapter.offer_case_ownership_transfer(
+        proposal_id, _ = adapter.propose_case_ownership_transfer(
             case_id=case.id_, transferee_id=_INVITEE, actor=_OWNER, to=[_ACTOR]
         )
 
         _, blob = adapter.withdraw_case_ownership_transfer(
-            offer_id=offer_id, actor=_OWNER, to=[_ACTOR]
+            offer_id=proposal_id, actor=_OWNER, to=[_ACTOR]
         )
 
         body = json.loads(blob)
         assert body["type"] == "Undo"
-        assert body["object"]["id"] == offer_id
+        assert body["object"]["id"] == proposal_id
+        assert body["object"]["object"]["type"] == "Offer"
+        assert body["to"] == [_ACTOR]
+
+    @pytest.mark.spec("CM-21-005")
+    @pytest.mark.spec("CM-21-016")
+    def test_the_proposal_nests_the_offer_it_asks_for(self, adapter, dl):
+        case = _make_case(dl)
+        deadline = datetime(2030, 1, 1, tzinfo=UTC)
+
+        _, blob = adapter.propose_case_ownership_transfer(
+            case_id=case.id_,
+            transferee_id=_INVITEE,
+            actor=_OWNER,
+            to=[_ACTOR],
+            end_time=deadline,
+        )
+
+        body = json.loads(blob)
+        assert body["type"] == "Offer"
+        assert body["context"] == case.id_
+        assert body["to"] == [_ACTOR]
+        inner = body["object"]
+        assert inner["type"] == "Offer"
+        assert inner["object"]["id"] == case.id_
+        assert inner["target"]["id"] == _INVITEE
+        assert inner["endTime"].startswith("2030-01-01")
+
+    @pytest.mark.spec("CM-21-005")
+    def test_the_offer_built_under_a_derived_id_is_built_once(
+        self, adapter, dl
+    ):
+        """A retry under the same id hands back the sealed first build."""
+        case = _make_case(dl)
+        given_id = "urn:uuid:derived-ownership-offer"
+
+        first = adapter.offer_case_ownership_transfer(
+            case_id=case.id_,
+            transferee_id=_INVITEE,
+            actor=_ACTOR,
+            attributed_to=_OWNER,
+            id_=given_id,
+        )
+        again = adapter.offer_case_ownership_transfer(
+            case_id=case.id_,
+            transferee_id=_INVITEE,
+            actor=_ACTOR,
+            attributed_to=_OWNER,
+            id_=given_id,
+        )
+
+        assert first == again
+        body = json.loads(first[1])
+        assert body["id"] == given_id
+        assert body["context"] == case.id_
+        assert body["attributedTo"] == _OWNER

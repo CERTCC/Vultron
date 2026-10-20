@@ -264,6 +264,25 @@ class TestVocabCaseNoteExamples(unittest.TestCase):
 
 
 class TestVocabCaseOwnershipExamples(unittest.TestCase):
+    def test_propose_case_ownership_transfer(self):
+        """The owner's proposal nests the Offer it asks for (ADR-0148)."""
+        activity = examples.propose_case_ownership_transfer()
+        vendor = examples.vendor()
+        coordinator = examples.coordinator()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Offer)
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.context, case.id_)
+        self.assertEqual(activity.to, [examples.case_actor().id_])
+        inner = activity.object_
+        assert isinstance(inner, as_Offer)
+        self.assertIsInstance(inner.target, as_Actor)
+        self.assertEqual(cast(as_Actor, inner.target).id_, coordinator.id_)
+        self.assertEqual(
+            cast(as_VulnerabilityCase, inner.object_).id_, case.id_
+        )
+
     def test_offer_case_ownership_transfer(self):
         activity = examples.offer_case_ownership_transfer()
         self.assertIsInstance(activity, as_Activity)
@@ -274,7 +293,10 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
         self.assertIsInstance(activity, as_Offer)
         self.assertEqual(activity.type_, "Offer")
 
-        self.assertEqual(activity.actor, vendor.id_)
+        # The CASE_MANAGER makes the Offer on the owner's behalf (CM-24-001,
+        # CM-24-002, ADR-0148).
+        self.assertEqual(activity.actor, examples.case_actor().id_)
+        self.assertEqual(activity.attributed_to, vendor.id_)
         # DL-08-003: the transferee travels inline, not as a bare id.
         self.assertIsInstance(activity.target, as_Actor)
         self.assertEqual(cast(as_Actor, activity.target).id_, coordinator.id_)
@@ -313,11 +335,12 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
         vendor = examples.vendor()
 
         self.assertEqual(activity.type_, "Undo")
-        # The offerer withdraws its own Offer (CM-21-015).
+        # The owner withdraws its own proposal (CM-21-015, ADR-0148).
         self.assertEqual(activity.actor, vendor.id_)
-        offer = activity.object_
-        assert isinstance(offer, as_Offer)
-        self.assertEqual(offer.actor, vendor.id_)
+        proposal = activity.object_
+        assert isinstance(proposal, as_Offer)
+        self.assertEqual(proposal.actor, vendor.id_)
+        self.assertIsInstance(proposal.object_, as_Offer)
 
     def test_announce_case(self):
         activity = examples.announce_case()

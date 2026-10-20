@@ -25,6 +25,7 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 import json
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any, TypeVar, cast
 
 from pydantic import ValidationError
@@ -56,6 +57,7 @@ from vultron.wire.as2.vocab.activities.case import (
     _CreateCaseActivity,
     _OfferCaseOwnershipTransferActivity,
     _OfferCaseParticipantRoleActivity,
+    _ProposeCaseOwnershipTransferActivity,
     _RejectCaseOwnershipTransferActivity,
     _RejectCaseParticipantRoleActivity,
     _RmAcceptFullCaseInviteActivity,
@@ -640,6 +642,62 @@ def offer_case_ownership_transfer_activity(
         ) from exc
 
 
+def propose_case_ownership_transfer_activity(
+    case: as_VulnerabilityCase,
+    target: as_ActorRef,
+    end_time: datetime | None = None,
+    **kwargs,
+) -> as_Offer:
+    """Build Offer(Offer(VulnerabilityCase), context=case): the owner's proposal.
+
+    The Case Owner sends it to the CASE_MANAGER, which makes the one
+    ``Offer(VulnerabilityCase)`` the transferee answers (ADR-0148,
+    CM-21-005).  The inner Offer carries what the owner decides: the case as
+    its object, the transferee as its ``target`` and, when given, the
+    deadline to answer as its ``end_time`` (CM-21-016).  It is built with
+    :func:`offer_case_ownership_transfer_activity`, so it has the shape of
+    the Offer the CASE_MANAGER will make; the proposal's ``context`` names
+    the case by its URI.
+
+    Args:
+        case: The ``as_VulnerabilityCase`` whose ownership is proposed.
+        target: The actor (or actor URI) the owner proposes as the new owner.
+        end_time: Optional deadline to answer the Offer, carried on the
+            inner Offer.
+        **kwargs: Optional AS2 fields for the proposal itself (e.g.
+            ``actor``, ``to``, ``content``).
+
+    Returns:
+        An ``as_Offer`` whose ``object_`` is the inner ownership-transfer
+        Offer and whose ``context`` is the case URI.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    inner_kwargs: dict[str, Any] = {}
+    if end_time is not None:
+        inner_kwargs["end_time"] = end_time
+    if (actor := kwargs.get("actor")) is not None:
+        inner_kwargs["actor"] = actor
+    inner = offer_case_ownership_transfer_activity(
+        case, target=target, **inner_kwargs
+    )
+    try:
+        return _ProposeCaseOwnershipTransferActivity(
+            object_=cast(_OfferCaseOwnershipTransferActivity, inner),
+            context=case_uri_of(case) or case.id_,
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "propose_case_ownership_transfer_activity: invalid arguments: %s",
+            exc,
+        )
+        raise VultronActivityConstructionError(
+            "propose_case_ownership_transfer_activity: invalid arguments"
+        ) from exc
+
+
 _OwnershipReply = TypeVar("_OwnershipReply")
 
 
@@ -734,35 +792,43 @@ def reject_case_ownership_transfer_activity(
 
 
 def undo_case_ownership_transfer_activity(
-    offer: as_Offer,
+    proposal: as_Offer,
     **kwargs,
 ) -> as_Undo:
-    """Build an Undo(_OfferCaseOwnershipTransferActivity): a withdrawal.
+    """Build an Undo(_ProposeCaseOwnershipTransferActivity): a withdrawal.
 
-    The Case Owner that made the Offer withdraws it while it is open,
-    addressing the Undo to the CASE_MANAGER (CM-21-015).  The ``offer`` MUST
-    be an ``_OfferCaseOwnershipTransferActivity`` (i.e., the value returned
-    by :func:`offer_case_ownership_transfer_activity`).  A plain ``as_Offer``
-    will fail Pydantic validation and raise
+    The Case Owner withdraws its own proposal while the Offer the
+    CASE_MANAGER made from it is open, addressing the Undo to the
+    CASE_MANAGER (CM-21-015, ADR-0148).  The ``proposal`` MUST be a
+    ``_ProposeCaseOwnershipTransferActivity`` (i.e., the value returned by
+    :func:`propose_case_ownership_transfer_activity`), or its core form as
+    the owner holds it.  Anything else fails Pydantic validation and raises
     :exc:`VultronActivityConstructionError`.
 
     Args:
-        offer: The ``_OfferCaseOwnershipTransferActivity`` being withdrawn.
+        proposal: The ``_ProposeCaseOwnershipTransferActivity`` withdrawn.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
     Returns:
-        An ``as_Undo`` whose ``object_`` is the offer.
+        An ``as_Undo`` whose ``object_`` is the proposal.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    return _ownership_offer_reply(
-        _UndoCaseOwnershipTransferActivity,
-        "undo_case_ownership_transfer_activity",
-        offer,
-        kwargs,
-    )
+    label = "undo_case_ownership_transfer_activity"
+    try:
+        return _UndoCaseOwnershipTransferActivity(
+            object_=as_answered(
+                _ProposeCaseOwnershipTransferActivity, proposal
+            ),
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning("%s: invalid arguments: %s", label, exc)
+        raise VultronActivityConstructionError(
+            f"{label}: invalid arguments"
+        ) from exc
 
 
 def rm_invite_to_case_activity(

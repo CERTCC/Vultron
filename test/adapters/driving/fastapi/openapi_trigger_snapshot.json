@@ -548,7 +548,7 @@
         "type": "object"
       },
       "OfferCaseOwnershipTransferRequest": {
-        "description": "Request body for the offer-case-ownership-transfer trigger endpoint.\n\nEmits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the\nrequesting actor to the specified transferee (TRIG-11-001).\n\nTRIG-03-001: Must include case_id and transferee_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nTRIG-11-007: Optional end_time, timezone-aware and in the future, is the\ndeadline to answer the Offer (CM-21-016); it is held in UTC.",
+        "description": "Request body for the offer-case-ownership-transfer trigger endpoint.\n\nEmits the requesting Case Owner's proposal,\n``Offer(Offer(VulnerabilityCase))``, to the case's CASE_MANAGER, which\noffers the case to the specified transferee (TRIG-11-001, ADR-0148).\n\nTRIG-03-001: Must include case_id and transferee_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").\nTRIG-11-007: Optional end_time, timezone-aware and in the future, is the\ndeadline to answer the Offer (CM-21-016); it is held in UTC.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -1052,7 +1052,7 @@
         "type": "object"
       },
       "WithdrawCaseOwnershipTransferRequest": {
-        "description": "Request body for the withdraw-case-ownership-transfer trigger endpoint.\n\nEmits ``Undo(Offer(VulnerabilityCase))`` from the requesting actor \u2014 the\nCase Owner that made the Offer \u2014 addressed to the case's CASE_MANAGER\n(TRIG-11-006, CM-21-015).\n\nTRIG-03-001: Must include offer_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
+        "description": "Request body for the withdraw-case-ownership-transfer trigger endpoint.\n\nEmits ``Undo(Offer(Offer(VulnerabilityCase)))`` from the requesting\nactor \u2014 the Case Owner that made the proposal \u2014 addressed to the case's\nCASE_MANAGER (TRIG-11-006, CM-21-015).  ``offer_id`` names that\nproposal, the activity the offer trigger returned (ADR-0148).\n\nTRIG-03-001: Must include offer_id.\nTRIG-03-002: Unknown fields are silently ignored (extra=\"ignore\").",
         "properties": {
           "offer_id": {
             "title": "Offer Id",
@@ -2412,7 +2412,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/offer-case-ownership-transfer": {
       "post": {
-        "description": "Emits an Offer(VulnerabilityCase) (ownership transfer variant) from the requesting actor to the specified transferee.  The case must exist in the actor's DataLayer.  The transferee must also be known (TRIG-11-001).",
+        "description": "Emits the requesting Case Owner's proposal, an Offer(Offer(VulnerabilityCase)), to the case's CASE_MANAGER, which offers the case to the specified transferee on the owner's behalf.  The case must exist in the actor's DataLayer.  The transferee must also be known.  The returned activity is the proposal, which the withdraw trigger names (TRIG-11-001).",
         "operationId": "actors_trigger_offer_case_ownership_transfer",
         "parameters": [
           {
@@ -3154,7 +3154,7 @@
     },
     "/api/v2/actors/{actor_id}/trigger/withdraw-case-ownership-transfer": {
       "post": {
-        "description": "Emits an Undo(Offer(VulnerabilityCase)) from the offering Case Owner to the case's CASE_MANAGER, which ledgers and broadcasts the withdrawal if the offer is still open.  The ownership transfer offer must already exist in the actor's DataLayer (TRIG-11-006, CM-21-015).",
+        "description": "Emits an Undo of the Case Owner's own ownership-transfer proposal to the case's CASE_MANAGER, which withdraws the offer it made from it, and ledgers and broadcasts the withdrawal, if the offer is still open.  offer_id names the proposal, which must already exist in the actor's DataLayer (TRIG-11-006, CM-21-015).",
         "operationId": "actors_trigger_withdraw_case_ownership_transfer",
         "parameters": [
           {

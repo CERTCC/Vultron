@@ -396,18 +396,19 @@ def ownership_offer_verdict(
     tree: py_trees.behaviour.Behaviour | _HasRoot,
     verdict: HandlerResult,
 ) -> HandlerResult:
-    """Report a redelivered ownership-transfer Offer as ``SKIPPED``.
+    """Report a redelivered ownership-transfer proposal as ``SKIPPED``.
 
     :class:`~vultron.core.behaviors.case.nodes.ownership_offer_guard.NoOpenOwnershipOfferNode`
     fails with ``is_redelivery`` set when the CASE_MANAGER's ledger already
-    records the Offer, so it is neither judged against a newer open Offer nor
-    committed or forwarded again (HP-01-003, CM-21-014).
+    records the Offer it made from the proposal, so the proposal is neither
+    judged against a newer open Offer nor committed or made into an Offer
+    again (HP-01-003, CM-21-014).
     """
     return _redelivery_verdict(
         tree,
         NoOpenOwnershipOfferNode,
         verdict,
-        "ownership-transfer Offer redelivered",
+        "ownership-transfer proposal redelivered",
     )
 
 

@@ -63,7 +63,7 @@ from vultron.core.use_cases.received.actor.offer_case_participant import (
     RejectOfferCaseParticipantReceivedUseCase,
 )
 from vultron.core.use_cases.received.actor.ownership import (
-    OfferCaseOwnershipTransferReceivedUseCase,
+    ProposeCaseOwnershipTransferReceivedUseCase,
     UndoCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.core.use_cases.received.case.lifecycle import (
@@ -93,11 +93,11 @@ UNDO_ID = f"{CASE_ID}/activities/ownership-undo"
 ContextFor = Callable[[str], SenderCheckContext]
 
 
-def _new_ownership_offer(sender: str) -> SenderCheckContext:
+def _new_ownership_proposal(sender: str) -> SenderCheckContext:
     return SenderCheckContext(
         sender_id=sender,
         case_id=CASE_ID,
-        offered_ownership_id=OFFER_ID,
+        ownership_proposal_id=OFFER_ID,
         case_manager_required=True,
     )
 
@@ -131,9 +131,9 @@ CASE_OWNER_USE_CASES: dict[str, tuple[type, ContextFor, bool]] = {
         True,
     ),
     "remove-note": (RemoveNoteFromCaseReceivedUseCase, _note, True),
-    "offer-ownership": (
-        OfferCaseOwnershipTransferReceivedUseCase,
-        _new_ownership_offer,
+    "propose-ownership": (
+        ProposeCaseOwnershipTransferReceivedUseCase,
+        _new_ownership_proposal,
         True,
     ),
     "undo-ownership": (
