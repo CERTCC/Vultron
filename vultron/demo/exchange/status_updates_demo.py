@@ -50,7 +50,10 @@ from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.verification import _fetch_participant
+from vultron.demo.helpers.verification import (
+    _fetch_participant,
+    verify_participant_status_appended,
+)
 from vultron.demo.helpers.workflow import setup_initialized_case
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -234,7 +237,7 @@ def demo_status_workflow(
         "Step 2: Vendor adds a new ParticipantStatus to participant"
     ):
         participant_status = as_ParticipantStatus(
-            context=participant.id_,
+            context=case.id_,
             rm=RmDimension(state=RM.RECEIVED),
             attributed_to=reporter.id_,
             cvd_role=[CVDRole.REPORTER],
@@ -244,6 +247,10 @@ def demo_status_workflow(
             participant_status, actor=vendor.id_, target=participant.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, add_pstatus_activity)
+        with demo_check("ParticipantStatus appended to participant"):
+            verify_participant_status_appended(
+                client, case.id_, reporter.id_, participant_status.id_
+            )
         with demo_check("Final case state"):
             log_case_state(client, case.id_, "final state")
 

@@ -23,7 +23,7 @@
       "id": "https://vultron.example/cases/1/participants/vendor/status/3",
       "type": "ParticipantStatus",
       "name": "ACCEPTED VF NONE pxa",
-      "context": "https://vultron.example/cases/1/participants/vendor",
+      "context": "https://vultron.example/cases/1",
       "published": "2026-06-01T19:12:00+00:00",
       "updated": "2026-06-01T19:12:00+00:00",
       "attributedTo": "https://vultron.example/organizations/vendor",

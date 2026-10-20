@@ -99,7 +99,12 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Add")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.target, status.context)
+        self.assertEqual(
+            activity.target,
+            "https://vultron.example/cases/1/participants/vendor",
+        )
+        # The status names its case, not the participant (HP-08-008).
+        self.assertEqual(status.context, examples.case().id_)
         self.assertEqual(activity.object_, status)
 
     def test_add_status_to_participant2(self):

@@ -725,8 +725,61 @@ class TestStatusUseCases:
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "holds no case" in result.reason
         assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
         assert dl.read(unheld.id_) is None
+
+    @pytest.mark.spec("HP-08-008")
+    def test_add_participant_status_to_a_record_naming_no_case_is_refused(
+        self, make_payload
+    ):
+        """A held participant record whose ``context`` names no case leaves
+        no case to act on, whatever case the status and the activity name,
+        so the Add is refused with no entry and no appended status
+        (#4961)."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        sender = "https://example.org/users/vendor"
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ps6",
+            name="Case",
+            attributed_to=dl.actor_id,
+        )
+        seed_store_owner_as_case_manager(dl, case)
+        target = seed_case_participant(dl, case, sender)
+        dl.create(case)
+        target.context = None
+        dl.save(target)
+        status_id = f"{target.id_}/statuses/s1"
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            make_payload(
+                add_status_to_participant_activity(
+                    as_ParticipantStatus(id_=status_id, context=case.id_),
+                    target=as_CaseParticipant.model_validate(
+                        target.model_dump(by_alias=True, mode="json")
+                    ),
+                    actor=sender,
+                    to=[dl.actor_id],
+                    context=case.id_,
+                ),
+                receiving_actor_id=dl.actor_id,
+            ),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "holds no case" in result.reason
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+        stored = cast(as_CaseParticipant, dl.read(target.id_))
+        assert status_id not in [
+            getattr(s, "id_", s) for s in stored.participant_statuses
+        ]
 
     def test_add_participant_status_uses_store_owner_when_no_receiving_actor(
         self, make_payload

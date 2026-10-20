@@ -31,7 +31,7 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
     ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)
     ├─ SenderIsParticipantNode                # Sender guard from the declared rule (HP-01-008)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
-    │   ├─ CarriedObjectInTargetCaseNode       # Guard: status of this case (HP-08-007)
+    │   ├─ CarriedObjectInTargetCaseNode      # Guard: status of this case (HP-08-007)
     │   ├─ FilterParticipantStatusDimensionsNode  # Guard: adjudicate rm/vfd/pxa separately (RSH-05)
     │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)
     ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
@@ -126,10 +126,11 @@ def add_participant_status_tree(
 
     When ``case_id`` is provided, a guarded-commit subtree is inserted
     after precondition guards so the canonical ledger records receipt of the
-    triggering activity before any protocol effects run (CLP-10-006).  Running the tree with
-    ``actor_id=receiving_actor_id`` (ADR-0022 single-BT shape) means
-    ``CheckIsCaseManagerNode`` in that subtree correctly fires only when
-    the receiving actor holds ``CVDRole.CASE_MANAGER``.
+    triggering activity before any protocol effects run (CLP-10-006).
+    Running the tree with ``actor_id=receiving_actor_id`` (ADR-0022
+    single-BT shape) means ``CheckIsCaseManagerNode`` in that subtree
+    correctly fires only when the receiving actor holds
+    ``CVDRole.CASE_MANAGER``.
 
     The *case_id* for the commit and all children is the target
     participant's own case, which the use case reads from the receiver's
