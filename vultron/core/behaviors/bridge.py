@@ -729,24 +729,13 @@ class BTBridge:
                 "sync_port",
                 "is_leader",
                 "wire_render_port",
-                # Owned by FinalizeCsFilterNode (add_case_status_tree), which
-                # clears it on its own no-op path.  But an earlier node in that
-                # memory=False Sequence can FAILURE-short-circuit before
-                # Finalize ever ticks (e.g. FilterCsEmDimensionNode aborting on
-                # a case that vanished mid-coordination), leaving the override
-                # stranded on the process-global blackboard for the next
-                # execution to misread (#3101).  Resetting it here at the
-                # execution boundary is the role-neutral backstop: no single
-                # node owns "clean up when the Sequence aborts", so the bridge
-                # does, exactly once, for every outcome.
-                "ledger_payload_object_override",
                 # Published by ResolveCreationTimeRevisionNode, read by
                 # InitializeCreationEmbargoNode (EP-04-011).  The writer ticks
                 # only on the creation arm, so a redelivery that skips that arm
                 # would otherwise hand the reader the previous execution's value.
                 "creation_time_revision_candidate",
                 # Published by the RM adjudication guards
-                # (FilterParticipantStatusDimensionsNode,
+                # (CheckParticipantStatusAcceptableNode,
                 # AdjudicateRMDeclarationNode), read by EmitRMGapNoteNode.
                 # The note runs as a refusal effect (CLP-10-022) whenever any
                 # precondition guard refuses, including one ahead of the
@@ -850,7 +839,7 @@ class BTBridge:
                 #     9.1.0+).
                 #
                 #  2. Cross-execution state hygiene.  A node-written key such as
-                #     ledger_payload_object_override can be left stranded when a
+                #     rm_transition_anomaly can be left stranded when a
                 #     Sequence FAILURE-short-circuits before its owning node
                 #     ticks (#3101).  Resetting it here guarantees no stale
                 #     hand-off state bleeds into the next execution, no matter

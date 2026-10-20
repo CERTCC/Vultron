@@ -74,7 +74,7 @@ from vultron.core.behaviors.status.nodes import (
     ResolveAndPersistStatusObjectNode,
     ValidateRMTransitionNode,
 )
-from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
+from vultron.core.behaviors.status.nodes.rm_rule import BB_RM_ANOMALY
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
 )
@@ -1429,13 +1429,12 @@ class TestRejectionValidatorBeforeCommit:
 
     ValidateRMTransitionNode must NOT fire after GuardedCommit in the
     receive-side path.  Before the fix it did, causing canonical/replica
-    divergence for a participant at RM.CLOSED whose update was partially
-    accepted (vfd or other dimension advanced).
+    divergence when it refused a status the ledger had already recorded.
 
     The fix is validate_rm=False in add_participant_status_tree, delegating
-    rm adjudication entirely to FilterParticipantStatusDimensionsNode
-    (precondition guard).  The _rm_was_carried_forward() workaround was
-    removed; this test proves it is not needed.
+    rm judgment entirely to CheckParticipantStatusAcceptableNode
+    (precondition guard), which refuses the whole status before the commit
+    (RSH-09-001).
     """
 
     def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
@@ -1446,24 +1445,16 @@ class TestRejectionValidatorBeforeCommit:
             sync_port=SyncActivityAdapter(dl),
         )
 
-    @pytest.mark.spec("CLP-10-009")
-    def test_partial_accept_with_backward_rm_succeeds_and_produces_ledger_entry(
+    @pytest.mark.spec("CLP-10-009", "RSH-09-002")
+    def test_backward_rm_with_vf_advance_is_refused_before_the_commit(
         self, make_payload
     ):
-        """Participant is RM.ACCEPTED; incoming status advances vfd but asserts
+        """Participant is RM.ACCEPTED; incoming status advances vf but asserts
         a backwards rm (VALID ≺ ACCEPTED).
 
-        FilterParticipantStatusDimensionsNode refuses rm and carries ACCEPTED
-        forward; vfd advance is accepted (partial accept → SUCCESS).  The
-        sender is not at RM.CLOSED: a closed sender is refused before any
-        dimension is filtered (CM-23-018).
-        GuardedCommit fires and produces one CaseLedgerEntry.
-        ValidateRMTransitionNode is SKIPPED (validate_rm=False), so the
-        carried-forward ACCEPTED rm no longer causes a post-commit FAILURE.
-
-        This test FAILS on pre-fix code where ValidateRMTransitionNode ran
-        after GuardedCommit and the _rm_was_carried_forward() workaround had
-        been removed (demonstrating the latent divergence risk).
+        The whole status is refused in the precondition guard, so no receipt
+        entry is committed and the vf advance is not recorded either: the
+        ledger never records a status the sender did not send (RSH-09-001).
         """
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
         from vultron.core.states.cs import CS_vf
@@ -1530,9 +1521,8 @@ class TestRejectionValidatorBeforeCommit:
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
-        assert result.status == Status.SUCCESS, (
-            "Partial accept (rm refused, vfd accepted) must succeed — "
-            "ValidateRMTransitionNode must NOT abort after GuardedCommit (CLP-10-009)"
+        assert result.status == Status.FAILURE, (
+            "a backward rm refuses the whole status before GuardedCommit"
         )
 
         receipt_entries = [
@@ -1542,16 +1532,15 @@ class TestRejectionValidatorBeforeCommit:
             and getattr(e, "semantic_type", None)
             == "add_participant_status_to_participant"
         ]
-        assert len(receipt_entries) == 1, (
-            "One receipt CaseLedgerEntry must be committed for the partial accept "
-            "(rm refused → carried forward, vfd accepted)"
+        assert receipt_entries == [], (
+            "a refused status commits no receipt entry (CLP-10-009)"
         )
 
     @pytest.mark.spec("CLP-10-009")
     def test_fully_rejected_update_produces_no_ledger_entry(
         self, make_payload
     ):
-        """All dimensions refused by FilterParticipantStatusDimensionsNode →
+        """A status refused by CheckParticipantStatusAcceptableNode →
         FAILURE before GuardedCommit → zero CaseLedgerEntries (CLP-10-009).
         """
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -1688,7 +1677,7 @@ class TestEmitRMGapNoteNode:
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
-        # Pre-populate anomaly flag as if FilterParticipantStatusDimensionsNode ran
+        # Pre-populate anomaly flag as if CheckParticipantStatusAcceptableNode ran
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
 
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
@@ -1983,7 +1972,7 @@ REPORTER_PARTICIPANT_ID = (
 class TestReportedPxaAdoption:
     """The committed ``CaseStatus`` carries the adopted report's P/X/A.
 
-    RSH-01-003 requires the *post-adoption* status; RSH-05-019 and SM-09-001
+    RSH-01-003 requires the *post-adoption* status; RSH-09-005 and SM-09-001
     decide what adoption takes from the report (#4956)."""
 
     def _run(
@@ -2073,7 +2062,7 @@ class TestReportedPxaAdoption:
         )
         assert self._case_pxa(populated_dl) is CS_pxa.PXa
 
-    @pytest.mark.spec("RSH-05-019")
+    @pytest.mark.spec("RSH-09-005")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_regressing_pxa_report_leaves_case_status_unchanged(
         self, populated_dl, make_payload

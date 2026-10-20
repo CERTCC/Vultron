@@ -22,8 +22,7 @@ spelling** — it names ``in_reply_to``, never ``inReplyTo``.
 A handful of core code nevertheless has to *key* an AS2-spelled mapping.  The
 ledger payload snapshot is the case that matters: CLP-07-011 requires it to be
 the AS2 serialization of the inbound activity as it arrived, so its keys are
-AS2-spelled by definition, and RSH-05-009 requires an adjudication patch to
-leave that shape byte-for-byte identical to an unadjudicated entry's.  Such code
+AS2-spelled by definition.  Such code
 names the *core* field and asks here for the AS2 spelling, so the camelCase
 never appears in core logic.
 
@@ -41,7 +40,7 @@ hand-writing it.  It is a derivation, not a translation table: there is nothing
 to keep in sync.
 
 Spec: ARCH-20-001 (core MUST NOT produce a wire shape for a core object);
-CLP-07-011; RSH-05-009; ARCH-25-002, ARCH-25-005 (ADR-0099).
+CLP-07-011; ARCH-25-002, ARCH-25-005 (ADR-0099).
 """
 
 from collections.abc import Iterable
@@ -66,12 +65,10 @@ def wire_key(field_name: str, model: type[BaseModel] | None = None) -> str:
     Raises:
         KeyError: If *model* is given and does not declare *field_name*.  Falling
             back to ``to_camel`` there would invent a plausible-looking key for a
-            field that does not exist, which is worse than failing: the callers
-            build patch-key and twin tables from string field names
-            (:mod:`vultron.core.behaviors.ledger_patch`) and filter a rendered
-            snapshot with ``if key in rendered``, so a wrong key silently drops
-            the dimension it was supposed to carry.  A core field rename must
-            break loudly here rather than quietly downstream.
+            field that does not exist, which is worse than failing: a caller
+            that reads a snapshot with ``snapshot.get(key)`` would silently
+            find nothing.  A core field rename must break loudly here rather
+            than quietly downstream.
     """
     if model is not None:
         field = model.model_fields.get(field_name)

@@ -16,8 +16,8 @@ from vultron.core.behaviors.status.add_participant_status_tree import (
 from vultron.core.behaviors.status.nodes import (
     CASE_STATUS_ALREADY_PRESENT,
 )
-from vultron.core.behaviors.status.nodes.dimension_filter import (
-    FilterParticipantStatusDimensionsNode,
+from vultron.core.behaviors.status.nodes.participant_status_acceptance import (
+    CheckParticipantStatusAcceptableNode,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
@@ -57,16 +57,15 @@ from vultron.core.behaviors.sender_entitlement import (
 logger = logging.getLogger(__name__)
 
 
-def _filter_node_wholly_refused(tree: py_trees.behaviour.Behaviour) -> bool:
-    """Return True if FilterParticipantStatusDimensionsNode returned FAILURE.
+def _status_refused(tree: py_trees.behaviour.Behaviour) -> bool:
+    """Return True if CheckParticipantStatusAcceptableNode refused the status.
 
-    Used by AddParticipantStatusToParticipantReceivedUseCase to distinguish a
-    wholly-refused dimension-filter from other BT failure causes (ISSUE-3199,
-    AC-2).  Only the filter's total-refusal path warrants a refusal;
-    sender-not-a-participant or authorization failures are
-    different failure modes that do not indicate the assertion was wholly refused.
+    Used by AddParticipantStatusToParticipantReceivedUseCase to tell a refused
+    status from other BT failure causes (RSH-09-008, ISSUE-3199): a
+    sender-not-a-participant or authorization failure does not say the status
+    itself was refused.
     """
-    return node_failed(tree, FilterParticipantStatusDimensionsNode)
+    return node_failed(tree, CheckParticipantStatusAcceptableNode)
 
 
 def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
@@ -79,10 +78,10 @@ class AddCaseStatusToCaseReceivedUseCase:
     """Process a received ``Add(CaseStatus, VulnerabilityCase)`` (CP, CX, CA).
 
     A participant reports case-level evidence (public awareness, a public
-    exploit, observed attacks) to the CASE_MANAGER, which adjudicates each
-    dimension and adopts what it accepts (RSH-05-015).  At the CASE_MANAGER
-    the sender must hold a participant record on the case whose closure is
-    not recorded, as for ``Add(ParticipantStatus)``.  A participant replica
+    exploit, observed attacks) to the CASE_MANAGER, which accepts the status
+    as sent or refuses it whole (RSH-09-005).  At the CASE_MANAGER the sender
+    must hold a participant record on the case whose closure is not
+    recorded, as for ``Add(ParticipantStatus)``.  A participant replica
     takes case state from the CASE_MANAGER alone (PCR-03-001), which alone
     emits ``Add(CaseStatus)`` (RSH-04-001), and a participant sends its
     case-scoped messages only to the CASE_MANAGER (PCR-08-001).  An
@@ -91,7 +90,7 @@ class AddCaseStatusToCaseReceivedUseCase:
     """
 
     # A participant reports to the CASE_MANAGER; a replica takes the status
-    # from the CASE_MANAGER alone (RSH-05-015, RSH-04-001, PCR-03-001).
+    # from the CASE_MANAGER alone (RSH-09-005, RSH-04-001, PCR-03-001).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.PARTICIPANT
     )
@@ -268,7 +267,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         ):
             # The raw claim is on the participant record; only its adoption as
             # canonical was withheld (RSH-01-001, RSH-01-002).  That is not a
-            # refusal of the assertion's content (RSH-05-022), so no fault.
+            # refusal of the assertion's content (RSH-09-008), so no fault.
             return HandlerResult.skipped(
                 f"ParticipantStatus '{request.status_id}' recorded but not"
                 " adopted: CASE_OWNER approval required (RSH-01-002)"
@@ -281,9 +280,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             )
             # The tree's refusal notice is the one answer (CLP-05-001); no
             # ProcessingFault is sent as well (#4756).
-            if _filter_node_wholly_refused(tree):
+            if _status_refused(tree):
                 return HandlerResult.refused(
-                    f"ParticipantStatus assertion wholly refused for activity"
+                    f"ParticipantStatus refused for activity"
                     f" '{request.activity_id}': {verdict.reason}"
                 )
         return verdict

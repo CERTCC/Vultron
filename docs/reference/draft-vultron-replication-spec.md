@@ -269,7 +269,7 @@ while still preventing amplification.
 ### 5.5 Divergence Recovery
 
 A participant can refuse an entry whose predecessor it already holds, because the entry's starting state does not match its case.
-An entry whose content is invalid in itself, such as an impossible participant status, takes its own fault instead (RSH-05-021).
+An entry whose content is invalid in itself, such as an impossible participant status, takes its own fault instead (RSH-09-006).
 No replay fills that gap: the participant's case has diverged from the CASE_MANAGER's, and a replay resends the same refused entry.
 
 - The participant MUST send `Create(ProcessingFault)` with failure class `LedgerEntryRefused/CaseDiverged` to the CASE_MANAGER, and MUST keep holding the refused entry. (SYNC-16-001)

@@ -25,9 +25,6 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
-from vultron.core.behaviors.case.nodes.lifecycle import (
-    BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
-)
 from vultron.core.behaviors.helpers import WIRE_RENDER_PORT_UNAVAILABLE
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronService
@@ -435,114 +432,6 @@ def test_inner_commit_bt_failure_propagates(bridge):
 # (e.g., SvcAddNoteToCaseUseCase) after the activity is successfully
 # enqueued, and cleared in AnnounceLedgerEntryReceivedUseCase when the
 # matching Announce(CaseLedgerEntry) arrives — see SYNC-11-002/003.
-
-
-# ---------------------------------------------------------------------------
-# AC-2, AC-3, AC-4: ledger_payload_object_override producer/consumer contract
-# ---------------------------------------------------------------------------
-
-
-def _run_with_override(
-    bridge: BTBridge,
-    fields: dict,
-    producer_type: str | None,
-    object_id: str = "https://example.org/statuses/status-001",
-) -> Status:
-    """Run CommitCaseLedgerEntryNode with a pre-written ledger override on the blackboard."""
-
-    class _WriteOverride(py_trees.behaviour.Behaviour):
-        def __init__(self):
-            super().__init__(name="_WriteOverride")
-
-        def setup(self, **kwargs):
-            self.bb = self.attach_blackboard_client(name="_WriteOverride")
-            self.bb.register_key(
-                key=BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
-                access=py_trees.common.Access.WRITE,
-            )
-
-        def update(self) -> Status:
-            override = {"object_id": object_id, "fields": fields}
-            if producer_type is not None:
-                override["producer_type"] = producer_type
-            self.bb.set(
-                BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, override, overwrite=True
-            )
-            return Status.SUCCESS
-
-    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
-    activity = _FakeActivity(
-        activity_id=object_id,
-        semantic_type=MessageSemantics.CREATE_CASE,
-        activity=_FakeWireActivityWithPayload(
-            {
-                "id": object_id,
-                "type": "Add",
-                "context": CASE_ID,
-                "object": {
-                    "id": object_id,
-                    "type": "ParticipantStatus",
-                    "rmState": "RECEIVED",
-                },
-            }
-        ),
-    )
-    seq = py_trees.composites.Sequence(
-        name="TestOverrideSeq",
-        memory=False,
-        children=[_WriteOverride(), node],
-    )
-    with patch(_INNER_BRIDGE_PATH) as mock_bridge_cls:
-        mock_bridge_cls.return_value.execute_with_setup.return_value = (
-            BTExecutionResult(status=Status.SUCCESS)
-        )
-        result = bridge.execute_with_setup(
-            tree=seq, actor_id=ACTOR_ID, activity=activity
-        )
-    return result.status
-
-
-class TestPayloadObjectOverrideContract:
-    """AC-2, AC-3, AC-4: producer/consumer contract for ledger_payload_object_override."""
-
-    def test_hard_fail_on_unrecognized_alias(self, bridge):
-        """AC-2/AC-4a: FAILURE when fields names a key outside the patchable set.
-
-        The patchable set is
-        :data:`vultron.core.behaviors.ledger_patch.PATCH_KEY_TWINS` (RSH-05-013).
-        """
-        status = _run_with_override(
-            bridge,
-            fields={"rmState": "VALID", "unknownAlias": "oops"},
-            producer_type="FilterParticipantStatusDimensionsNode",
-        )
-        assert status == Status.FAILURE
-
-    def test_warning_on_unknown_producer_type(self, bridge, caplog):
-        """AC-3/AC-4b: WARNING logged but commit proceeds when producer_type is unrecognized (RSH-05-014)."""
-        import logging
-
-        with caplog.at_level(logging.WARNING):
-            status = _run_with_override(
-                bridge,
-                fields={"rmState": "VALID"},
-                producer_type="SomeUnknownProducerNode",
-            )
-        assert status == Status.SUCCESS
-        assert any(
-            "unrecognized" in rec.message
-            and "SomeUnknownProducerNode" in rec.message
-            for rec in caplog.records
-        )
-
-    def test_successful_commit_with_valid_fields(self, bridge):
-        """AC-4c: Commit succeeds when both fields and producer_type are valid."""
-        status = _run_with_override(
-            bridge,
-            fields={"rmState": "VALID", "vfState": "Vf"},
-            producer_type="FilterParticipantStatusDimensionsNode",
-        )
-        assert status == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------

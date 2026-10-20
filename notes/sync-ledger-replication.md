@@ -111,7 +111,7 @@ Invariants every component touching state, messaging or storage must preserve:
    diverged replica disagree further.
    - An entry whose composite state violates the RM↔VF, RM↔D or VF↔D entailments
      is not applied; the replica emits `Create(ProcessingFault)`
-     `StatusAssertionRefused/ImpossibleState` to the CASE_MANAGER (RSH-05-021).
+     `StatusAssertionRefused/ImpossibleState` to the CASE_MANAGER (RSH-09-006).
    - The carried status is saved even when an object with its id is already
      stored, so the CASE_MANAGER's copy replaces one a trigger stored without
      attaching it (RSH-08-006).
@@ -278,7 +278,7 @@ same entry forever (ADR-0142).
   register, or a backfill after a re-seed refuses it again. That includes the held
   refused entry, which the seed drains before any replay arrives (SYNC-16-007).
 - **Divergence is a starting-state mismatch, not invalid content.** An entry that is
-  wrong in itself, like an impossible participant status, takes RSH-05-021's fault:
+  wrong in itself, like an impossible participant status, takes RSH-09-006's fault:
   a fresh copy cannot repair it (SYNC-16-001).
 
 ## Genesis-Unavailable Buffer-and-Reject (SYNC-15)

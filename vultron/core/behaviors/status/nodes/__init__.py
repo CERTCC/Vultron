@@ -25,8 +25,10 @@ Submodules:
   and close-not-yet-emitted idempotency guard nodes
 - ``broadcast``: (removed — case-manager lookup consolidated into
   ``_resolve_case_manager_id`` in ``vultron.core.use_cases._helpers``)
-- ``dimension_filter``: Per-dimension partial-accept guard for inbound
-  ParticipantStatus (FilterParticipantStatusDimensionsNode, RSH-05)
+- ``participant_status_acceptance``: Whole accept-or-reject guard for an
+  inbound ParticipantStatus (CheckParticipantStatusAcceptableNode, RSH-09)
+- ``case_status_acceptance``: Whole accept-or-reject guard for an inbound
+  CaseStatus (CheckCaseStatusAcceptableNode, RSH-09-005)
 - ``append``: Load, resolve and append action nodes
   (SkipIfIdempotentNode, LoadParticipantNode,
   CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode,
@@ -60,15 +62,12 @@ from vultron.core.behaviors.status.nodes.case_status import (
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
 )
+from vultron.core.behaviors.status.nodes.case_status_acceptance import (
+    CheckCaseStatusAcceptableNode,
+)
 from vultron.core.behaviors.status.nodes.conditions import (
     AllParticipantsRMClosedConditionNode,
     CloseNotYetEmittedConditionNode,
-)
-from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
-    BB_CASE_STATUS_DIM_FILTER,
-    FilterCsEmDimensionNode,
-    FilterCsPxaDimensionNode,
-    FinalizeCsFilterNode,
 )
 from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
     PxaEmInvariantDiagnosticNode,
@@ -77,13 +76,12 @@ from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
     CheckCsEphemeralStateNode,
     CheckCsHistoryPrefixNode,
 )
-from vultron.core.behaviors.status.nodes.dimension_filter import (
-    BB_DIMENSION_FILTER,
-    FilterParticipantStatusDimensionsNode,
-)
 from vultron.core.behaviors.status.nodes.lifecycle import (
     EmitCloseCaseNode,
     ThreatTerminationBranchNode,
+)
+from vultron.core.behaviors.status.nodes.participant_status_acceptance import (
+    CheckParticipantStatusAcceptableNode,
 )
 from vultron.core.behaviors.status.nodes.rm_anomaly import (
     EmitRMGapNoteNode,
@@ -97,9 +95,8 @@ __all__ = [
     # conditions
     "AllParticipantsRMClosedConditionNode",
     "CloseNotYetEmittedConditionNode",
-    # dimension_filter
-    "BB_DIMENSION_FILTER",
-    "FilterParticipantStatusDimensionsNode",
+    # participant_status_acceptance
+    "CheckParticipantStatusAcceptableNode",
     # append
     "LoadParticipantNode",
     "CheckStatusNotAlreadyAppendedNode",
@@ -116,12 +113,10 @@ __all__ = [
     # cs_invariant_diagnostic
     "PxaEmInvariantDiagnosticNode",
     # case_status
-    "BB_CASE_STATUS_DIM_FILTER",
     "CASE_STATUS_ALREADY_PRESENT",
     "CheckCaseStatusIdempotencyNode",
-    "FilterCsEmDimensionNode",
-    "FilterCsPxaDimensionNode",
-    "FinalizeCsFilterNode",
+    # case_status_acceptance
+    "CheckCaseStatusAcceptableNode",
     "AppendCaseStatusToCaseNode",
     # cs_invariant_guards
     "CheckCsEphemeralStateNode",

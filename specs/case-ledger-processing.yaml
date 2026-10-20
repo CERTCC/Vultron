@@ -454,7 +454,7 @@ groups:
       `Add(ParticipantStatus)` gets no `Create(ProcessingFault)` beside it,
       since a guard's refusal is "received and understood but declined"
       (MSM-05-001; #4756). The replica's ImpossibleState fault for a ledger
-      entry it cannot apply (RSH-05-021) is a different failure and stays.
+      entry it cannot apply (RSH-09-006) is a different failure and stays.
     adr:
     - ADR-0141
     stories:
@@ -1390,8 +1390,8 @@ groups:
     verification_debt: '#2575'
     statement: A separate `ValidateRMTransitionNode` in an effect stage
       (`replica_effects` or `manager_effects`) MUST NOT be
-      used in the receive-side path; `FilterParticipantStatusDimensionsNode` satisfies
-      the per-dimension adjudication requirement for an inbound `ParticipantStatus`
+      used in the receive-side path; `CheckParticipantStatusAcceptableNode` judges
+      an inbound `ParticipantStatus` before the commit (RSH-09-001)
       and a redundant validator after the commit creates divergence.
     rationale: '`add_participant_status_tree` previously contained `ValidateRMTransitionNode`
       after `GuardedCommit`, masked by a `_rm_was_carried_forward()` workaround. Both

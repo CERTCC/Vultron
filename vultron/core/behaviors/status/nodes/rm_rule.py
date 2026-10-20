@@ -17,9 +17,10 @@
 
 One function, :func:`rm_anomaly`, judges whether a received RM declaration is
 anomalous, logs it, and returns the record the RSH-06-004 note emitter reads.
-Both the ``Add(ParticipantStatus)`` filter and the activity-typed RM handlers
-call it, so the two paths cannot drift apart.  It sits in its own leaf module
-because both of its callers' modules import each other's neighbours.
+Both the ``Add(ParticipantStatus)`` acceptance guard and the activity-typed RM
+handlers call it, so the two paths cannot drift apart.  It sits in its own leaf
+module because both of its callers' modules import each other's neighbours, and
+the blackboard key its record travels under lives here for the same reason.
 """
 
 import logging
@@ -30,6 +31,13 @@ from vultron.core.states.rm import (
     RMDeclaration,
     classify_rm_declaration,
 )
+
+#: Blackboard key for the RM anomaly record (:class:`RMAnomaly`) published by
+#: the received-side RM guards — ``CheckParticipantStatusAcceptableNode``,
+#: ``AdjudicateRMDeclarationNode`` and, on the standalone append path,
+#: ``ValidateRMTransitionNode`` — and read by ``EmitRMGapNoteNode``.  ``None``
+#: when there is no anomaly.
+BB_RM_ANOMALY = "rm_transition_anomaly"
 
 
 class RMAnomaly(TypedDict):
@@ -56,7 +64,7 @@ def rm_anomaly(
     """Return the RSH-06 anomaly record for an RM declaration, or ``None``.
 
     The single place a received-side RM declaration is judged anomalous, shared
-    by the ``Add(ParticipantStatus)`` filter and the activity-typed RM handlers
+    by the ``Add(ParticipantStatus)`` guard and the activity-typed RM handlers
     so the two cannot drift (RSH-06-006).  A non-adjacent forward move is a
     ``gap`` and a refused move a ``regression``; each is logged at WARNING
     naming the sender, the state before and after, and the anomaly type

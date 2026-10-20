@@ -26,10 +26,10 @@ invariants (CSB-17-012, CSB-17-005):
    derives the single CS event implied by a current-to-asserted PXA state
    change and verifies it produces a valid CS history prefix.  Multi-event
    advances (remote peers that skip states) are deferred to
-   :class:`FilterCsPxaDimensionNode` (RSH-05).  Returns FAILURE when the
-   derived event would create an invalid prefix.
+   :class:`CheckCaseStatusAcceptableNode` (RSH-09-005).  Returns FAILURE when
+   the derived event would create an invalid prefix.
 
-Both nodes are placed before :class:`FilterCsEmDimensionNode` in
+Both nodes are placed before :class:`CheckCaseStatusAcceptableNode` in
 ``precondition_guards`` and return FAILURE to abort the Sequence before any
 ledger write (CLP-10-009).
 """
@@ -38,7 +38,7 @@ import logging
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
+from vultron.core.behaviors.status.nodes.case_status_acceptance import (
     _CsStatusGuardBase,
 )
 from vultron.core.states.cs import (
@@ -75,7 +75,7 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
 
     - No materialized :class:`CaseStatus` exists yet (first-ever status).
     - The asserted status is unresolvable (deferred to
-      :class:`FilterCsEmDimensionNode`, which will abort with FAILURE).
+      :class:`CheckCaseStatusAcceptableNode`, which will abort with FAILURE).
     - The current state is not ephemeral.
     - The asserted state satisfies the required-next-event constraint.
 
@@ -83,7 +83,7 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
     not have P=True, or when the referenced case cannot be resolved
     (Regime 1, ADR-0087; ``case_id`` absent is still a no-op SUCCESS).
 
-    Must run before :class:`FilterCsEmDimensionNode` in ``precondition_guards``.
+    Must run before :class:`CheckCaseStatusAcceptableNode` in ``precondition_guards``.
     Per issue #2524 AC-1, CSB-17-012.
     """
 
@@ -106,7 +106,7 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
 
         asserted = self._resolve_asserted()
         if asserted is None:
-            # Unresolvable assertion: FilterCsEmDimensionNode will abort.
+            # Unresolvable assertion: CheckCaseStatusAcceptableNode will abort.
             return Status.SUCCESS
 
         current_pxa = current.pxa.state
@@ -141,9 +141,9 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
     :func:`~vultron.core.states.cs_invariants.is_valid_cs_history_prefix`.
 
     Multi-event advances (``cs_transition_event`` returns ``None``) are
-    returned as SUCCESS: remote peers may skip states, and the monotone filter
-    (:class:`FilterCsPxaDimensionNode`) handles partial-accept for those
-    (RSH-05, CSB-16-002).
+    returned as SUCCESS: remote peers may skip states, and the monotone check
+    in :class:`CheckCaseStatusAcceptableNode` judges those (RSH-09-005,
+    CSB-16-002).
 
     The VFD dimension is not present in CaseStatus; a VFD-complete baseline
     (``CS_vf.VF + CS_d.D``) is used to avoid vP false positives (same
@@ -153,7 +153,7 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
     history prefix (e.g. A from pXa violates CSB-17-012).
     Returns SUCCESS in all other cases (no change, multi-event, or valid step).
 
-    Must run before :class:`FilterCsEmDimensionNode` in ``precondition_guards``.
+    Must run before :class:`CheckCaseStatusAcceptableNode` in ``precondition_guards``.
     Per issue #2524 AC-2, CSB-17-005.
     """
 
@@ -181,7 +181,7 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
         if current_pxa == asserted_pxa or not is_monotonic_pxa_forward(
             current_pxa, asserted_pxa
         ):
-            # No PXA change or regression: deferred to FilterCsPxaDimensionNode (RSH-05).
+            # No PXA change or regression: deferred to CheckCaseStatusAcceptableNode (RSH-09-005).
             return Status.SUCCESS
 
         # VFD-complete baseline: only PXA bits can change between these two states.
@@ -190,7 +190,7 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
 
         event = cs_transition_event(current_cs, asserted_cs)
         if event is None:
-            # Multi-event skip: deferred to FilterCsPxaDimensionNode (RSH-05).
+            # Multi-event skip: deferred to CheckCaseStatusAcceptableNode (RSH-09-005).
             return Status.SUCCESS
 
         if not is_valid_cs_history_prefix([event], start=current_cs):

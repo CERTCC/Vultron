@@ -16,7 +16,7 @@ The behavioral requirements for these trees are specified in the
 - [RSH-02](../specs/protocol.md#rsh-02) — EmbargoTeardownAuthorizationGate
 - [RSH-03](../specs/protocol.md#rsh-03) — ThreatTerminationBranchNode (embargo teardown)
 - [RSH-04](../specs/protocol.md#rsh-04) — CaseStatus emission authority and outbound emit invariant
-- [RSH-05](../specs/protocol.md#rsh-05) — Per-dimension partial accept (liberal accept)
+- [RSH-09](../specs/protocol.md#rsh-09) — Whole accept or reject of a received status
 - [CSB-17](../specs/protocol.md#csb-17) — CS compound state and history validity
 - [CSB-18](../specs/protocol.md#csb-18) — Cross-machine state entailments
 
@@ -24,7 +24,7 @@ The behavioral requirements for these trees are specified in the
 
 Handles receipt of an `Add(CaseStatus, VulnerabilityCase)` activity. Applies the
 two-gate authorization model (ADR-0046): idempotency check, ephemeral-state guard,
-history-prefix guard, per-dimension EM/PXA adjudication, and optional embargo teardown.
+history-prefix guard, a whole accept-or-reject check of EM and P/X/A, and optional embargo teardown.
 Constructed from
 `vultron.core.behaviors.status.add_case_status_tree.add_case_status_tree`.
 

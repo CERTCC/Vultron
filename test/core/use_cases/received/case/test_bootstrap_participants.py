@@ -30,10 +30,12 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.dimensions import (
+    RmDimension,
     VfDimension,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.cs import CS_vf
+from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
@@ -337,9 +339,12 @@ class TestM4AddParticipantStatusAfterBootstrap:
         # The status is NOT pre-created — it arrives inline in the activity, so
         # AppendParticipantStatusNode must resolve it from the fallback and
         # persist it independently.
+        # A ready fix entails an accepted report (CSB-18-001), and the status
+        # is accepted whole or refused whole (RSH-09-004).
         status = WireParticipantStatus(
             id_=_vfd_status_id,
             context=_CASE_ID,
+            rm=RmDimension(state=RM.ACCEPTED),
             vf=VfDimension(state=CS_vf.VF),
         )
         activity = add_status_to_participant_activity(

@@ -244,7 +244,7 @@ def _entailment_violations(
 
     Delegates to :func:`composite_state_violations`, which is the single place
     the RM↔VF, RM↔D and VF↔D rules are composed, so the emit and receive paths
-    cannot enforce different subsets of them (#2906, RSH-05-020).
+    cannot enforce different subsets of them (#2906, RSH-09-004).
     """
     return [
         Violation(entailment.message, dimensions=entailment.reads)
@@ -288,8 +288,8 @@ def _compound_violations(
         current_cs = cs_from_dimensions(current_vf, cur_d, current_pxa)
     except KeyError:
         # The incumbent pair has no compound spelling, so there is no valid
-        # source state to measure the move from.  Repairing that is the
-        # receive path's problem (RSH-05-020); refusing this write would only
+        # source state to measure the move from.  The receive path refuses a
+        # status that states it (RSH-09-004); refusing this write would only
         # strand the participant.
         return []
     if is_valid_cs_transition(current_cs, effective_cs, allow_null=True):
