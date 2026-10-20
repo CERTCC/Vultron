@@ -66,15 +66,17 @@ class _CsStatusGuardBase(DataLayerConditionWithPorts):
 
 
 def case_status_refusals(
-    case_em: EM, current_pxa: CS_pxa, asserted: CaseStatus
+    case_em: EM, current_pxa: CS_pxa | None, asserted: CaseStatus
 ) -> list[str]:
     """Return every reason to refuse *asserted*, or ``[]`` to accept it.
 
     EM is derived from the case's embargo register, which only embargo
     messages change (ADR-0122), so a status may carry the case's EM but never
-    move it.  P/X/A must be the case's or a monotone forward move from it;
-    multi-step advances are legal on the received path (CSB-16-002 applies
-    only to local writes).  Every failing rule is reported (EH-07-001).
+    move it; this holds for the case's first status too.  P/X/A must be the
+    case's or a monotone forward move from it; multi-step advances are legal
+    on the received path (CSB-16-002 applies only to local writes).  A case
+    holding no status yet (*current_pxa* ``None``) has no P/X/A to regress
+    from.  Every failing rule is reported (EH-07-001).
     """
     reasons: list[str] = []
     if not is_em_assertion_acceptable(case_em, asserted.em.state):
@@ -82,7 +84,9 @@ def case_status_refusals(
             f"em: {asserted.em.state.name} differs from the case's"
             f" {case_em.name}, which only the embargo register moves"
         )
-    if not is_pxa_assertion_acceptable(current_pxa, asserted.pxa.state):
+    if current_pxa is not None and not is_pxa_assertion_acceptable(
+        current_pxa, asserted.pxa.state
+    ):
         reasons.append(
             f"pxa: {current_pxa.name} → {asserted.pxa.state.name} is not a"
             " forward move"
@@ -96,8 +100,9 @@ class CheckCaseStatusAcceptableNode(_CsStatusGuardBase):
     Read-only precondition guard (CLP-10-006).
 
     Returns:
-        SUCCESS when the tree has no case, when the case holds no status yet
-        (nothing to judge against), and when every rule accepts the status.
+        SUCCESS when the tree has no case and when every rule accepts the
+        status.  A case holding no status yet has no P/X/A to judge against,
+        but its first status must still carry the register-derived EM.
 
         FAILURE when the case is not in the DataLayer or the asserted status
         cannot be resolved — the tree must not commit a ledger entry for
@@ -116,11 +121,6 @@ class CheckCaseStatusAcceptableNode(_CsStatusGuardBase):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        try:
-            current = case.current_status
-        except ValueError:
-            return Status.SUCCESS  # first CaseStatus ever
-
         asserted = self._resolve_asserted()
         if asserted is None:
             self.feedback_message = (
@@ -134,9 +134,12 @@ class CheckCaseStatusAcceptableNode(_CsStatusGuardBase):
             )
             return Status.FAILURE
 
-        reasons = case_status_refusals(
-            case.em_state, current.pxa.state, asserted
-        )
+        try:
+            current_pxa: CS_pxa | None = case.current_status.pxa.state
+        except ValueError:
+            current_pxa = None  # first CaseStatus ever: no P/X/A baseline
+
+        reasons = case_status_refusals(case.em_state, current_pxa, asserted)
         if not reasons:
             return Status.SUCCESS
 

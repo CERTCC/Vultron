@@ -24,6 +24,7 @@ Per specs/received-status-handling.yaml RSH-09.
 """
 
 import dataclasses
+import logging
 from typing import Any, cast
 
 import pytest
@@ -37,7 +38,7 @@ from test.support.rm_declaration import (
     STRANGER_ID,
     RMAnomalyProbe,
     RMDeclarationCase,
-    assert_note_owed,
+    assert_anomaly_flagged_and_noted,
     current_status as _current_status,
     received_cases,
     recorded_rm,
@@ -288,7 +289,7 @@ def _run_tree(
 
 
 def _refused(
-    current: Any, asserted: Any, roles: Any = None, *, history: Any = ()
+    current: Any, asserted: Any, roles: Any = (), *, history: Any = ()
 ) -> list[str]:
     """Return the refused dimension names, in report order.
 
@@ -298,7 +299,7 @@ def _refused(
     return [
         r.dimension
         for r in participant_status_refusals(
-            [*history, current], asserted, roles=roles
+            [*history, current], asserted, roles=list(roles)
         )
     ]
 
@@ -644,6 +645,31 @@ class TestAcceptanceRules:
             "pxa",
         ]
 
+    @pytest.mark.spec("RSH-09-003")
+    def test_an_omitted_deployment_does_not_reset_the_baseline(self):
+        """``D`` recorded, then a status without ``d``: a later ``d`` is still
+        a backward move from the last recorded ``D``."""
+        earlier = _asserted_status(
+            RM.ACCEPTED,
+            CS_vf.VF,
+            CS_pxa.pxa,
+            status_id=f"{ASSERTED_STATUS_ID}-earlier",
+            d_state=CS_d.D,
+        )
+        latest = _asserted_status(
+            RM.ACCEPTED,
+            CS_vf.VF,
+            CS_pxa.pxa,
+            status_id=f"{ASSERTED_STATUS_ID}-0",
+        )
+        assert latest.d is None
+        asserted = _asserted_status(
+            RM.ACCEPTED, CS_vf.VF, CS_pxa.pxa, d_state=CS_d.d
+        )
+        assert _refused(
+            latest, asserted, _VENDOR_DEPLOYER, history=[earlier]
+        ) == ["d"]
+
     @pytest.mark.spec("RSH-09-003", "RSH-06-002")
     def test_a_status_without_rm_states_start_and_is_refused(self):
         """Every status carries an RM state: one that leaves ``rmState`` out
@@ -820,7 +846,7 @@ class TestSharedRMAcceptanceRule:
     @pytest.mark.spec("RSH-06-006")
     @pytest.mark.parametrize("case", received_cases())
     def test_status_path_applies_the_shared_rule(
-        self, case: RMDeclarationCase, store_for, make_payload
+        self, case: RMDeclarationCase, store_for, make_payload, caplog
     ):
         dl = store_for(CASE_MANAGER_ID)
         current = _current_status(case.current, CS_vf.Vf, CS_pxa.pxa)
@@ -828,14 +854,17 @@ class TestSharedRMAcceptanceRule:
         _seed_case(dl, current, asserted)
 
         seen: dict = {}
-        _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload, anomaly=seen)
+        with caplog.at_level(logging.WARNING):
+            _run_tree(
+                dl, asserted, CASE_MANAGER_ID, make_payload, anomaly=seen
+            )
 
         assert recorded_rm(dl) == case.expected_rm
         assert (seen["anomaly"] or {}).get("anomaly_type") == case.anomaly
-        # The note follows an accepted gap from the effect stage, and a
-        # refused regression from the refusal-effects stage (RSH-06-004,
-        # CLP-10-022).
-        assert_note_owed(case, dl)
+        # The anomaly is logged at WARNING (RSH-06-003), and the note follows
+        # an accepted gap from the effect stage and a refused regression from
+        # the refusal-effects stage (RSH-06-004, CLP-10-022).
+        assert_anomaly_flagged_and_noted(case, dl, caplog.records)
 
 
 # ---------------------------------------------------------------------------

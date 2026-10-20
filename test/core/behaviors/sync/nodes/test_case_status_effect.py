@@ -16,8 +16,8 @@
 
 The replica copies the committed CaseStatus as carried (CM-23-016, ADR-0124).
 The CASE_MANAGER judged it whole before committing it (RSH-09-005); the
-replica does not judge it again.  EM is derived from the replica's embargo register, so a
-status never moves it (ADR-0122).
+replica does not judge it again.  EM is derived from the replica's embargo
+register, so a status never moves it (ADR-0122).
 """
 
 from datetime import timedelta

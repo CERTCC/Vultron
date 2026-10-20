@@ -477,17 +477,35 @@ class TestCheckCaseStatusAcceptableNode:
         return result.status, node.feedback_message
 
     @pytest.mark.spec("RSH-09-005")
-    def test_the_first_case_status_has_nothing_to_judge_against(
+    def test_the_first_case_status_with_the_cases_em_is_accepted(
         self, bridge, dl
     ):
-        """A case holding no status yet accepts the first one as sent."""
+        """A case holding no status yet has no P/X/A to regress from."""
         case = as_VulnerabilityCase(id_=CASE_ID, name="No Status Yet")
         assert case.case_statuses == []
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=case.em_state),
+            pxa=PxaDimension(state=CS_pxa.PXA),
         )
         status, _ = self._run(bridge, dl, case, asserted)
         assert status == Status.SUCCESS
+
+    @pytest.mark.spec("RSH-09-005")
+    def test_the_first_case_status_must_still_carry_the_cases_em(
+        self, bridge, dl
+    ):
+        """The EM rule needs no prior status: the register derives it."""
+        case = as_VulnerabilityCase(id_=CASE_ID, name="No Status Yet")
+        assert case.case_statuses == []
+        assert case.em_state == EM.NONE
+        asserted = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
+        )
+        status, message = self._run(bridge, dl, case, asserted)
+        assert status == Status.FAILURE
+        assert "em: ACTIVE differs from the case's NONE" in message
 
     @pytest.mark.spec("RSH-09-005")
     def test_the_cases_em_with_a_forward_pxa_is_accepted(self, bridge, dl):

@@ -131,7 +131,7 @@ def _rm_refusal(current: RM, asserted: RM) -> DimensionRefusal | None:
 def _path_refusals(
     baseline: RecordedBaseline,
     asserted: ParticipantStatus,
-    roles: list[CVDRole] | None,
+    roles: list[CVDRole],
 ) -> list[DimensionRefusal]:
     """Return the refusals of the asserted fix-readiness and deployment states.
 
@@ -145,7 +145,7 @@ def _path_refusals(
     current_vf = baseline.vf
     asserted_vf = None if asserted.vf is None else asserted.vf.state
     if asserted_vf is not None:
-        if roles is not None and not has_vendor_role(roles):
+        if not has_vendor_role(roles):
             refusals.append(
                 DimensionRefusal(
                     "vf", "the sender does not hold the VENDOR role"
@@ -166,7 +166,7 @@ def _path_refusals(
     current_d = baseline.d
     asserted_d = None if asserted.d is None else asserted.d.state
     if asserted_d is not None:
-        if roles is not None and not has_deployer_role(roles):
+        if not has_deployer_role(roles):
             refusals.append(
                 DimensionRefusal(
                     "d", "the sender does not hold the DEPLOYER role"
@@ -214,7 +214,7 @@ def _pxa_refusal(
 def participant_status_refusals(
     history: Sequence[ParticipantStatus],
     asserted: ParticipantStatus,
-    roles: list[CVDRole] | None = None,
+    roles: list[CVDRole],
 ) -> list[DimensionRefusal]:
     """Return every refusal of *asserted* against the participant's *history*.
 
