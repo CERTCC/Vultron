@@ -238,9 +238,8 @@ class _Staged:
     """What one rebuild staged, kept so a deferral can hold it."""
 
     received_body: str | None
-    activity_row: dict[str, object] | None
+    activity_row: dict[str, object]
     inline_rows: list[dict[str, object]]
-    activity: VultronActivity | None = None
 
 
 class InlineObjectStaging:
@@ -374,23 +373,16 @@ class InlineObjectStaging:
             return False
         activity_row_json = (
             json.dumps(staged.activity_row)
-            if staged.received_body is None and staged.activity_row is not None
+            if staged.received_body is None
             else None
         )
-        if staged.received_body is None and activity_row_json is None:
-            logger.warning(
-                "Deferred activity %s has neither a received body nor a"
-                " staged row; nothing to hold for its replay.",
-                activity_id,
-            )
-            return False
         return self._create(
             DeferredInboxActivity(
                 activity_id=activity_id,
                 received_body=staged.received_body,
                 activity_row_json=activity_row_json,
                 rows_json=json.dumps(staged.inline_rows),
-                activity=activity if activity is not None else staged.activity,
+                activity=activity,
             )
         )
 
@@ -432,7 +424,6 @@ class InlineObjectStaging:
             pending.activity_id,
             _restage,
             received_body=pending.received_body,
-            activity=pending.activity,
         )
         return result, parsed
 
@@ -442,7 +433,6 @@ class InlineObjectStaging:
         stage: Callable[[DataLayer], None],
         *,
         received_body: str | None,
-        activity: VultronActivity | None = None,
     ) -> as_Activity | None:
         with _STAGING_LOCK:
             store = _StagingStore(self._dl, activity_id)
@@ -450,11 +440,15 @@ class InlineObjectStaging:
             try:
                 stage(store)
                 activity_row, inline_rows = store.staged_rows()
+                if activity_row is None:
+                    raise VultronValidationError(
+                        f"Staging for {activity_id!r} staged no row for the"
+                        " activity itself, so there is nothing to rebuild"
+                    )
                 self._staged[activity_id] = _Staged(
                     received_body=received_body,
                     activity_row=activity_row,
                     inline_rows=inline_rows,
-                    activity=activity,
                 )
                 result = rehydrate(activity_id, dl=store)
             finally:

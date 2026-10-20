@@ -51,6 +51,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -658,6 +659,15 @@ def test_an_activity_with_no_sealed_body_is_held_as_its_row(dl):
     assert getattr(getattr(replayed, "object_", None), "content", None) == (
         "staged"
     )
+
+
+def test_a_stage_that_stages_no_activity_row_fails_loudly(dl):
+    """A rebuild with no row for the activity itself is a wiring fault."""
+    with pytest.raises(VultronValidationError, match="staged no row"):
+        InlineObjectStaging(dl)._rehydrate(
+            "urn:uuid:unstaged", lambda _store: None, received_body=None
+        )
+    assert _StagingStore(dl, "urn:uuid:next").read("urn:uuid:unstaged") is None
 
 
 def test_holding_what_was_never_staged_writes_nothing(dl, caplog):
