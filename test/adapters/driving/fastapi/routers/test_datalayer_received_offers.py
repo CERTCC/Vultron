@@ -14,18 +14,17 @@
 """The Offer routes answer for a received Offer from its archive record.
 
 A receiver holds a received activity only under the key it derives from the
-activity's id, its ``ReceivedActivityRecord`` (DL-06-006).  Inbox ingress
-still writes a row under the sender's id today; the follow-on inbox change
-stops it.  Each route must answer the same with and without that row.
+activity's id, its ``ReceivedActivityRecord`` (DL-06-006), and inbox
+ingress writes no row under the sender's id (#4871).  Each route must answer
+the same with and without such a row (the one ingress used to write), so no
+route depends on it.
 """
 
 import pytest
 from fastapi import status
 
 from test.support.received import archive_received
-from vultron.adapters.driving.fastapi.inbox_storage import (
-    _store_inbox_activity,
-)
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.wire.as2.factories import (
     rm_invite_to_case_activity,
     rm_submit_report_activity,
@@ -65,7 +64,7 @@ def receive(datalayer, dl_actor_id):
 
     def _receive(*, ingress_row: bool):
         if ingress_row:
-            assert _store_inbox_activity(datalayer, offer)
+            datalayer.create(object_to_record(offer))
         archive_received(datalayer, offer)
         return offer
 
@@ -110,7 +109,8 @@ def test_a_received_offer_is_served_from_its_record(
 
     assert body["id"] == OFFER_ID
     assert body["actor"] == FINDER
-    # The record keeps the report inline; ingress stores it by id only.
+    # The record keeps the report inline; a row under the sender's id holds
+    # it by id only.
     assert body["object"]["id"] == REPORT_ID
 
 
@@ -154,7 +154,7 @@ def test_a_received_activity_of_another_type_is_not_an_offer(
         id_=OFFER_ID,
     )
     if ingress_row:
-        assert _store_inbox_activity(datalayer, invite)
+        datalayer.create(object_to_record(invite))
     archive_received(datalayer, invite)
     prefix = f"/actors/{dl_route_key}/datalayer"
 

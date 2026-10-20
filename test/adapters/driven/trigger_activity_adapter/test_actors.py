@@ -333,15 +333,15 @@ class TestAcceptCaseInvite:
         assert target["type"] == "VulnerabilityCaseStub"
         assert target["caseId"] == _CASE_ID
 
-    @pytest.mark.spec("AKM-02-003")
-    def test_an_invite_held_only_under_the_senders_id_is_answered(
+    @pytest.mark.spec("DL-06-006")
+    def test_an_invite_held_only_under_the_senders_id_is_not_answered(
         self, adapter, dl
     ):
-        """An Invite with no intake record is answered from the bare row.
+        """A row under the sender's id is not a received Invite.
 
-        Intake archives a stub Invite on arrival (PCR-06-005), but until #4871
-        retires it, ingress also keeps the Invite under the sender's id.  With
-        no archive record, that copy is the one the invitee answers.
+        Intake archives a stub Invite on arrival (PCR-06-005) and nothing
+        holds it under the sender's id (#4871), so a bare row there is no
+        Invite the invitee received.
         """
         invite = rm_invite_to_case_activity(
             _INVITEE,
@@ -351,13 +351,8 @@ class TestAcceptCaseInvite:
         )
         dl.create(invite)
 
-        _, activity_dict = adapter.accept_case_invite(
-            invite_id=invite.id_, actor=_INVITEE
-        )
-
-        accept = json.loads(activity_dict)
-        assert accept["object"]["id"] == invite.id_
-        assert accept["object"]["target"]["caseId"] == _CASE_ID
+        with pytest.raises(VultronNotFoundError):
+            adapter.accept_case_invite(invite_id=invite.id_, actor=_INVITEE)
 
     def test_an_invite_this_store_never_received_is_not_found(
         self, adapter, dl
@@ -614,9 +609,9 @@ class TestAcceptCaseParticipantOffer:
     ):
         """#3763: the Offer the owner received keeps its inline participant.
 
-        Ingress stores the received Offer with its participant as an id and
-        stores no participant record, so the Accept reads the Offer from the
-        intake archive, which holds it as the event carried it.
+        Ingress stores neither the received Offer nor a participant record
+        (DL-06-006), so the Accept reads the Offer from the intake archive,
+        which holds it as the event carried it.
         """
         from vultron.adapters.driving.fastapi.inbox_orchestration import (
             FastAPIIngressAdapter,

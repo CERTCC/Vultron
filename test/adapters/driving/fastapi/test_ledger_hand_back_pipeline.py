@@ -51,6 +51,9 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.ledger_gap_buffer import get_ledger_gap_buffer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
@@ -142,10 +145,19 @@ def _stored(dl: SqliteDataLayer, entries: list[CaseLedgerEntry]) -> list[bool]:
 def _assert_handed_back_from_case_manager(
     dl: SqliteDataLayer, entries: list[CaseLedgerEntry]
 ) -> None:
-    """Each entry reached the store in an Announce from the CASE_MANAGER."""
+    """Each entry reached the store in an Announce from the CASE_MANAGER.
+
+    The Announce is held as received, archived by intake, and never under
+    its own id (DL-06-006).
+    """
     for entry in entries:
-        announce = dl.read(hand_back_activity_id(_RECEIVER, entry.id_))
-        assert announce is not None, f"{entry.id_} was not handed back"
+        announce_id = hand_back_activity_id(_RECEIVER, entry.id_)
+        assert dl.read(announce_id) is None
+        record = dl.read(ReceivedActivityRecord.build_id(announce_id))
+        assert isinstance(record, ReceivedActivityRecord), (
+            f"{entry.id_} was not handed back"
+        )
+        announce = record.activity
         assert _as_id(getattr(announce, "actor", None)) == _CASE_MANAGER
         assert _as_id(getattr(announce, "object_", None)) == entry.id_
 

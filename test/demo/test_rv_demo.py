@@ -51,7 +51,11 @@ from vultron.demo.helpers.polling import (
     wait_for_case_em_state,
 )
 from vultron.demo.helpers.sync import verify_replica_state
-from vultron.demo.utils import case_actor_id_on
+from vultron.demo.utils import (
+    case_actor_id_on,
+    read_received_activity,
+    verify_received_activity_stored,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -117,8 +121,12 @@ def patch_datalayer_call(client: TestClient, base: str):
 def _extract_offer_ids(
     client: "demo.DataLayerClient", offer: as_Offer
 ) -> tuple[str | None, str | None]:
-    """Return (report_id, reporter_id) extracted from *offer*'s raw data."""
-    offer_data = client.get(client.dl_path(offer.id_))
+    """Return (report_id, reporter_id) extracted from *offer*'s raw data.
+
+    The Offer is read from the receiver's archive record, the only copy it
+    keeps of a received activity (DL-06-006).
+    """
+    offer_data = read_received_activity(client, offer.id_)
     if not offer_data:
         return None, None
     report_id = None
@@ -421,7 +429,7 @@ class TestReporterSubmitsReport:
         assert offer.id_ is not None
         # Both should be fetchable from the vendor container.
         demo.verify_object_stored(vendor_client, report.id_)
-        demo.verify_object_stored(vendor_client, offer.id_)
+        verify_received_activity_stored(vendor_client, offer.id_)
 
 
 class TestVendorValidatesReport:
@@ -500,7 +508,7 @@ class TestVendorValidatesReport:
         # server (same netloc) so the round-trip completes synchronously, and
         # the VulnerabilityCase may already exist.  What matters is that the
         # VultronReportCaseLink was written (proposal was sent per CP-04-001).
-        offer_data = vendor_client.get(vendor_client.dl_path(offer.id_))
+        offer_data = read_received_activity(vendor_client, offer.id_)
         obj_ = (
             offer_data.get("object_") or offer_data.get("object")
             if offer_data

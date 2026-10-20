@@ -215,20 +215,22 @@ groups:
       id, on receipt or for a deferred replay. To rebuild the routed activity it MAY
       stage the inline objects in a holding area outside that DataLayer that answers a
       read only when the DataLayer holds nothing under the id and keeps nothing past the
-      delivery. For an activity the inbox defers, it MAY keep the staged rows in one
+      delivery. For an activity the inbox defers, it MAY keep the activity itself, as
+      the received body the parser sealed (VM-08-002), beside the staged rows in one
       opaque record keyed by the activity, deleted by the replay or by the queue's
       expiry.
     rationale: >-
       A stored inline object is the receiver's own record of it: a stored case is the
       receiver's replica, so storing one at receipt let a sender's snapshot name the
       sender as CASE_MANAGER and pass the trust check that should refuse it (PCR-03-004,
-      CBT-01-011). Routing still needs the inline object, because the stored activity
-      names it by id and a bare id matches the wrong pattern.
+      CBT-01-011). Routing still needs the inline object, because the rebuilt activity
+      names it by id and a bare id matches the wrong pattern. The deferred record holds
+      the activity too: no copy under its sender's id remains to replay (DL-06-006).
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that the routed
       activity carries its inline object while the receiver's store holds none, that the
-      receiver's own copy wins over the staged one, and that a deferred activity's rows
-      are held for its replay and deleted by the replay or by expiry.
+      receiver's own copy wins over the staged one, and that a deferred activity is held
+      whole, its body and rows, for its replay and deleted by the replay or by expiry.
       `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` drives an untrusted
       `Announce(VulnerabilityCase)` and retired `Create`s through the real inbox and
       asserts nothing from the inline object is stored.

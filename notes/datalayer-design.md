@@ -135,11 +135,11 @@ its Activity type from the DL-05-004 exemption set (DL-06-005).
 **A type table holds only what this actor authored (DL-06-006).** A scan over
 `list_objects("Create")` filtered on `actor == self` or on `context` answers "did
 I send it" only while no received activity sits in that table under the sender's
-id. A received copy must live in a receiver-keyed `ReceivedActivityRecord` or an
-opaque deferred record, never under the sender's id: not at ingress, not in an
-effect node. A `StoreReceivedObjectNode` or `idempotent_store` of the received
-activity itself breaks every such scan at once, and the sender controls both the
-id and the unsigned `actor`. Source: #4866; work: #4869, #4870, #4871.
+id. A received copy must live in a receiver-keyed `ReceivedActivityRecord` or the
+opaque `DeferredInboxActivity` holding it for replay, never under the sender's id:
+not at ingress, not in an effect node. A `StoreReceivedObjectNode` or
+`idempotent_store` of the received activity itself breaks every such scan at once,
+and the sender controls both the id and the unsigned `actor`. Source: #4866.
 
 **The received archive is the sealed received body.** Store the body the parser
 sealed and nothing derived from it; each load reparses it through the inbox's

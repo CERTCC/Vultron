@@ -643,13 +643,14 @@ def read_received_activity(
     Reads the actor's ``ReceivedActivityRecord`` rows only and looks the record
     up by the key the receiver derives from the sender's id
     (:meth:`ReceivedActivityRecord.build_id`).  A row stored under the sender's
-    id is never read: ingress writes one today, but a receiver holds no
-    received activity under the sender's id (DL-06-006).
+    id is never read: a receiver holds no received activity under the
+    sender's id (DL-06-006).
 
     Unlike the core
     :func:`~vultron.core.use_cases._helpers.read_received_activity`, which
-    falls back to that row for an activity the inbox deferred and raises when
-    nothing is held, this reads the record only and returns ``None``.
+    falls back to the record holding an activity the inbox deferred and
+    raises when nothing is held, this reads the archive only and returns
+    ``None``.
 
     Args:
         client: DataLayerClient for the receiving actor's container.
@@ -764,8 +765,8 @@ def get_offer_from_datalayer(
     """Retrieve an Offer the vendor received, from its DataLayer store.
 
     The Offer is read from the vendor's archive record for it
-    (:func:`require_received_activity`), so the read does not depend on the
-    row inbox ingress keeps under the sender's id (DL-06-006).
+    (:func:`require_received_activity`): the vendor holds nothing under the
+    sender's id (DL-06-006).
 
     Args:
         client: DataLayerClient instance.
