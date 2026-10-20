@@ -7,8 +7,8 @@ description: >
   Rules for the DataLayer port contract, CasePersistence narrowing, the
   write/read shape boundary, activity read-back, the received archive as the
   sealed body, received-activity keying, received-artifact snapshots, per-actor
-  stores, shared-record writes, and stored-shape changes. Operating rules live
-  in vultron/core/ports/AGENTS.md.
+  stores, shared-record writes, multi-call transactions, and stored-shape
+  changes. Operating rules live in vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
@@ -17,8 +17,10 @@ related_specs:
   - specs/outbox.yaml (OX-06-002)
   - specs/inbox-endpoint.yaml (IE-10-001)
   - specs/vocabulary-model.yaml (VM-08-002)
+  - specs/case-ledger-processing.yaml (CLP-07-015)
 related_notes:
   - notes/architecture-hexagonal.md
+  - notes/case-ledger-authority.md
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
   - notes/testing-pitfalls.md
@@ -285,6 +287,30 @@ are in `test/adapters/driven/test_sqlite_save_if_unchanged.py`.
   read-modify-write of the actor profile MUST go through `save_if_unchanged`; a
   plain `save()` by a new profile writer reopens the lost-write window (#4102).
   `POST /actors/` uses `create()`, which refuses an existing record.
+
+---
+
+## Writes That Must Land Together Use `transaction()`
+
+`with dl.transaction():` makes every call on that store, from that thread, one
+SQLite transaction: it commits once at the end, or rolls everything back when the
+block raises (DL-02-004, ADR-0146, CLP-07-015). The rules that keep it sound:
+
+- **Every session goes through `SqliteDataLayer._session()`.** Inside the block
+  that seam binds the session to the block's connection and joins it by
+  SAVEPOINT, so a helper's `commit()` commits nothing early and its `rollback()`
+  undoes only its own writes. A raw `engine.connect()` inside the block bypasses
+  it; on an in-memory store it shares the one connection and its close rolls the
+  whole block back (#3602).
+- **Side effects outside the store wait for the commit.** The outbox enqueue
+  callback runs through `run_after_commit()`; anything else that tells another
+  thread a row exists does the same, or it signals a row that may roll back.
+- **One store only.** The block covers the store it was opened on; a write to
+  another actor's store inside it commits on its own.
+- **Keep it short.** It takes the write lock (`BEGIN IMMEDIATE`) and, in memory,
+  the session lock, so other writers wait for the whole block. A waiter can be
+  the event loop (the outbox drain writes synchronously), and on a file store a
+  wait past SQLite's busy timeout (5 s by default) raises `database is locked`.
 
 ---
 

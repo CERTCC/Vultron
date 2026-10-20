@@ -144,10 +144,10 @@ The losing terms are a revision like any other and follow the relay in
   (`vultron/adapters/driving/fastapi/pending_retry.py`). The runner is
   CASE_MANAGER-gated (BT-17-001) and skips, at WARNING, a marker whose
   `case_actor_id` is not the store's actor (DL-07-004). The node classifies the
-  marker first: no genesis entry yet → keep it; proposal closed → delete it;
-  Invite already committed → re-apply, index, and queue again only if the
-  `invite_queued` receipt is missing (the outbox empties on delivery, so it
-  cannot answer); otherwise send.
+  marker first: no genesis entry yet → keep it; proposal closed or Invite
+  already committed → delete it; otherwise send. The send, the winner's row,
+  the index and the marker's deletion are one `transaction()`, so a failure
+  keeps only the marker and never a half-relayed Invite (ADR-0146).
 - **Replicas learn the revision from two places**: the `Create(VulnerabilityCase)`
   snapshot carries it as a `PROPOSED` register entry (ADR-0122), and only the
   proposer indexes it, when `ApplyEmbargoInviteFromLedgerNode` replays the

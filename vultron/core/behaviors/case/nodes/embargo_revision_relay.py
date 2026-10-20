@@ -36,7 +36,7 @@ cycle.  Import it from here.
 
 import logging
 from enum import Enum, auto
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
@@ -52,7 +52,6 @@ from vultron.core.behaviors.embargo.nodes.relay import (
 from vultron.core.behaviors.embargo.proposal_index import (
     record_embargo_proposal_index,
 )
-from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -63,7 +62,6 @@ from vultron.core.models.pending_creation_time_revision_relay import (
     PendingCreationTimeRevisionRelay,
 )
 from vultron.core.participants.recipients import invitation_recipients
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_duration import EmbargoDurationSource
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import BtNodePreconditionError, VultronError
@@ -124,17 +122,11 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
       creation (CM-14-007, CM-14-011);
     - the revision is no longer an open proposal: nothing to relay, the
       marker is deleted;
-    - its Invite is already in the ledger (a relay that failed after its
-      commit): it is not built or committed again.  It is queued again unless
-      the marker carries the receipt the send wrote right after queueing it
-      (``invite_queued``) — delivery empties the outbox, so the outbox itself
-      cannot say — then the winner's PEC INVITE is applied where still legal,
-      the Invite indexed, and the marker deleted (#4156).  The send queues
-      and receipts the Invite before it commits it, so a committed Invite
-      without a receipt is one an older order committed first;
-    - the marker carries the receipt but the ledger has no entry (a relay
-      whose commit failed after the send): the Invite is rebuilt under the
-      marker's id, not queued again, and committed;
+    - its Invite is already in the ledger: nothing is sent again, and the
+      marker is deleted.  The send, the winner's row, the index and the
+      marker's deletion commit in one transaction (ADR-0146), so a failure
+      leaves the marker and nothing else, and a committed Invite is always
+      indexed and discharged with it;
     - a reporter that is itself the CASE_OWNER: nobody to invite, nothing is
       indexed, the marker is deleted;
     - otherwise the Invite is sent, indexed, and the marker deleted.
@@ -190,30 +182,6 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
             )
         return self._marker.proposal_id
 
-    def _queue(self, activity_id: str) -> None:
-        """Queue the Invite unless the marker's receipt says it already was.
-
-        Delivery empties the outbox, so a send whose commit failed may no
-        longer be pending there; the receipt is what tells a retry that the
-        Invite was sent (#4156).
-        """
-        assert self._marker is not None
-        if self._marker.invite_queued:
-            self.logger.info(
-                "%s: Invite '%s' was already queued — committing it only",
-                self.name,
-                activity_id,
-            )
-            return
-        super()._queue(activity_id)
-
-    def _record_queued(self, activity_id: str) -> None:
-        """Write the receipt that the Invite reached the outbox (#4156)."""
-        assert self.datalayer is not None
-        assert self._marker is not None
-        self._marker = self._marker.model_copy(update={"invite_queued": True})
-        self.datalayer.save(self._marker)
-
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -234,7 +202,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
         state = self._relay_state(case, marker, entries)
         if state is _RelayState.NOT_YET:
             return Status.SUCCESS  # kept: a later run relays it
-        if state is _RelayState.CLOSED:
+        if state in (_RelayState.CLOSED, _RelayState.COMMITTED):
             self._discharge(marker)
             return Status.SUCCESS
         try:
@@ -250,14 +218,15 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
                 f"{self.name}: cannot relay creation-time revision"
                 f" '{self._embargo_id}' on case '{self._case_id}': {exc}"
             ) from exc
-        if state is _RelayState.COMMITTED:
-            self._complete_committed(marker, entries)
-        elif self._recipients:
-            if (status := super().update()) is not Status.SUCCESS:
-                return status
-            self._index_relayed(marker)
-        # else: the owner reported to itself, so there is nobody to invite.
-        self._discharge(marker)
+        # The send, the index and the marker's deletion land together or not
+        # at all (ADR-0146); the base relay's own block nests inside this one.
+        with self.datalayer.transaction():
+            if self._recipients:
+                if (status := super().update()) is not Status.SUCCESS:
+                    return status
+                self._index_relayed(marker)
+            # else: the owner reported to itself, so there is nobody to invite.
+            self._discharge(marker)
         return Status.SUCCESS
 
     def _pending_marker(self) -> PendingCreationTimeRevisionRelay | None:
@@ -323,42 +292,6 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return state
-
-    def _complete_committed(
-        self,
-        marker: PendingCreationTimeRevisionRelay,
-        entries: list[CaseLedgerEntry],
-    ) -> None:
-        """Finish a relay that failed after committing its Invite.
-
-        Queues the Invite unless the marker holds its queued receipt.  The PEC
-        INVITE is legality-gated, so applying it again changes nothing
-        it already changed (EP-09-004); the index follows the send (EP-08-002).
-        """
-        entry = next(
-            e for e in entries if e.log_object_id == marker.proposal_id
-        )
-        deadline = invite_rsvp_deadline(entry.payload_snapshot)
-        dl = cast(CaseOutboxPersistence, self.datalayer)
-        if not marker.invite_queued:
-            # Committed but never receipted as queued: the outbox write
-            # failed, or the run stopped before the receipt.  Queue the sealed
-            # Invite again; an Invite delivered twice under one id is one
-            # Invite to its receiver.
-            queued = dl.outbox_append(marker.proposal_id)
-            self._record_queued(marker.proposal_id)
-            self.logger.info(
-                "%s: %s committed Invite '%s' for revision '%s'",
-                self.name,
-                "re-queued" if queued else "found already pending (OX-06-002)",
-                marker.proposal_id,
-                marker.embargo_id,
-            )
-        for recipient_id in self._recipients:
-            self._invite_where_legal(
-                dl, recipient_id, deadline, cause_id=marker.proposal_id
-            )
-        self._index_relayed(marker)
 
     def _resolve_parties(
         self, case: VulnerabilityCase, marker: PendingCreationTimeRevisionRelay

@@ -45,6 +45,7 @@ See also: ``vultron/core/ports/AGENTS.md`` "Core Port Taxonomy".
 """
 
 from collections.abc import Iterable
+from contextlib import AbstractContextManager
 from typing import Any, Protocol
 
 from pydantic import BaseModel
@@ -119,6 +120,20 @@ class DataLayer(Protocol):
         ...
 
     def save_many(self, objs: list[PersistableModel]) -> None: ...
+
+    def transaction(self) -> AbstractContextManager[None]:
+        """Commit every write inside the block together, or none of them.
+
+        Use as ``with store.transaction(): ...``.  Every call on this store
+        inside the block reads the block's own writes; when the block ends
+        they all commit at once, and when it raises they are all rolled back
+        and the exception propagates.  A block opened inside another is
+        part of it: when the inner block raises, only its own writes are
+        rolled back, and otherwise they commit or roll back with the outer
+        block's.  This is how an act and its consequences commit as one: no
+        failure part-way leaves some of them written (CLP-07-015, ADR-0146).
+        """
+        ...
 
     def hydrate(self, obj: PersistableModel) -> PersistableModel: ...
 

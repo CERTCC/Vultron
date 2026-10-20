@@ -31,6 +31,7 @@ from the underlying store as if the staged writes were not there.
 """
 
 from collections.abc import Iterable
+from contextlib import AbstractContextManager
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocol_pair import ProtocolPair
@@ -93,6 +94,12 @@ class StagedCasePersistence:
         raise StagedPersistenceError(
             f"cannot switch to actor {actor_id!r}'s store: its writes would"
             " bypass the staged commit"
+        )
+
+    def transaction(self) -> AbstractContextManager[None]:
+        raise StagedPersistenceError(
+            "cannot open a transaction on a staged store: it already holds"
+            " every write back until flush()"
         )
 
     def create(self, record: StorableRecord | PersistableModel) -> None:
