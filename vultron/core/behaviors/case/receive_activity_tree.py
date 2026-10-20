@@ -237,8 +237,8 @@ def _check_replica_effects(
 
     Raises:
         VultronWiringError: *exemption* is not registered, covers none of the
-            ungated emitters (a stale exemption), or an ungated emitter in
-            *replica_effects* is not covered (BT-17-008).
+            ungated emitters when emitters are present (a stale exemption), or
+            an ungated emitter in *replica_effects* is not covered (BT-17-008).
     """
     where = f"create_receive_activity_tree({name})"
     emitted = {type(n).__name__ for n in ungated_emitters(replica_effects)}
@@ -252,7 +252,11 @@ def _check_replica_effects(
             registry_name="REPLICA_EMIT_EXEMPTIONS",
             spec_id="BT-17-008",
         )
-        if not emitted & exemption.covers:
+        # When there are no ungated emitters the exemption is not stale — the
+        # tree is a reduced build (e.g. no case_id) where the emitters it
+        # pre-declares simply do not appear.  Only raise when emitters exist
+        # but none are covered by the exemption (a genuinely stale exemption).
+        if emitted and not emitted & exemption.covers:
             raise VultronWiringError(
                 f"{where}: replica emit exemption {exemption.name!r} covers"
                 " none of the tree's ungated emitters; drop it (BT-17-008)"
