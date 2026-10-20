@@ -36,7 +36,8 @@ a sender conveys with a wire activity, sometimes narrowed by a distinguishing
 field value, state context or sender standing (glossary, Messaging and Protocol).
 One semantic type has one or more occasions (`Add(CaseStatus)` has three), so the
 table has one row per (occasion, wire activity): When… | Send | Send to |
-Sent by | Distinguished by | Details. The formal shorthand is only the Details link text.
+Sent by | Distinguished by | Details. The formal shorthand is only the Details
+link text.
 
 ## Where each fact lives
 

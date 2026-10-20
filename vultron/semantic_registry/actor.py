@@ -68,7 +68,6 @@ from vultron.core.use_cases.received.actor import (
     TentativeRejectInviteActorToFullCaseReceivedUseCase,
     UndoCaseOwnershipTransferReceivedUseCase,
 )
-from vultron.enums.roles import CVDRole
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
     HowToGuide,
@@ -176,7 +175,6 @@ ENTRIES: list[SemanticEntry] = [
                     kind=SenderEntitlementKind.CASE_OWNER, holds=True
                 ),
                 howto=HowToGuide.INVITE_ACTOR,
-                usual_senders=(CVDRole.CASE_OWNER,),
             ),
         ),
         page=MessagePage.GENERAL,

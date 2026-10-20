@@ -7,7 +7,7 @@
     - **When…** the Case Owner decides to invite an actor to the case
     - **Send:** `Offer(Actor)[target=VulnerabilityCase]`
     - **Send to:** the case manager
-    - **Sent by:** a participant (usually: case owner)
+    - **Sent by:** a participant
     - **Distinguished by:** sender is the case owner
     - **Reference:** [Ask the Case Manager to invite an actor](../../general.md#request-invite-actor-to-case)
 

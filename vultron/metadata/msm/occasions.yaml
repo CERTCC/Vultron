@@ -864,7 +864,7 @@ groups:
     when: the Case Owner decides to invite an actor to the case
     send: Offer(Actor)[target=VulnerabilityCase]
     send_to: the case manager
-    sent_by: 'a participant (usually: case owner)'
+    sent_by: a participant
     distinguished_by: sender is the case owner
     semantics: offer_actor_to_case
     status: expansion

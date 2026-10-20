@@ -377,11 +377,12 @@ class FieldValue(BaseModel):
 
 
 class StateContext(BaseModel):
-    """A distinguisher the payload does not carry: a state the case is in.
+    """A distinguisher the payload does not carry: a state of a machine.
 
-    The state is one the activity's receiver can look up and the payload
-    does not hold: a case's EM state, or, for ``EmbargoRegisterStatus``, the
-    CASE_MANAGER's register status of the embargo the activity names.
+    The state is held outside the activity: the case's EM state, or, for
+    ``EmbargoRegisterStatus``, the CASE_MANAGER's register status of the
+    embargo the activity names, which belongs to that embargo, not to the
+    case, and to the CASE_MANAGER's register, not the receiver's.
     Construction fails unless every state is a member of *machine*
     (MSM-08-002).  No example can carry a state context (MSM-08-003).
 
