@@ -661,10 +661,10 @@ class TestFindCaseInviteForActor:
 
         assert found == _INVITE_ID
 
-    def test_finds_the_invite_the_inbox_holds_until_the_case_bootstrap(
+    def test_finds_the_invite_held_only_under_the_senders_id(
         self,
     ):
-        """A deferred Invite has not reached intake; the inbox holds it bare."""
+        """With no intake record, the bare row ingress keeps is read (#4871)."""
         _, record = _archived_invite_entry()
         client = _dl_client({_INVITE_ID: record["activity"]})
 

@@ -853,11 +853,11 @@ def _poll_datalayer_for(
 #: type under the sender's id is never read as a received one (DL-06-006).
 _RECEIVED_ACTIVITY_TYPES: tuple[str, ...] = (RECEIVED_ACTIVITY_RECORD_TYPE,)
 
-#: The stored type of an activity the inbox defers until its case is known.
-#: A stub Invite is the one the demo waits on: the invitee holds no case until
-#: its Accept brings the bootstrap Announce (MV-10-003), so the Invite has not
-#: reached intake, and the row ingress keeps under the sender's id is the only
-#: copy the invitee holds until the replay (see :func:`_received_activity`).
+#: The stored type of the row ingress keeps for a stub Invite under the
+#: sender's id, until #4871 retires it.  The invitee processes the Invite on
+#: arrival, though it holds no case (PCR-06-005), so intake's archive record
+#: is normally there first; the row is read only while no record exists yet
+#: (see :func:`_received_activity`).
 _DEFERRED_INVITE_TYPE = "Invite"
 
 #: The stored types a received stub Invite can be held as.
@@ -872,9 +872,9 @@ def _received_activity(obj_data: dict) -> dict:
 
     Intake archives a dispatched activity as a ``ReceivedActivityRecord``
     (CLP-10-017, ADR-0111), which wraps it.  An activity the inbox deferred
-    until its case is known — an invitee's Invite, usually — is held bare
-    under the sender's id instead.  Mirrors
-    :func:`vultron.core.use_cases._helpers.read_received_activity`.
+    until its case is known is held bare under the sender's id instead.
+    Mirrors
+    :func:`vultron.core.services.received_activity.read_received_activity`.
 
     Raises:
         AssertionError: when a ``ReceivedActivityRecord`` wraps no activity.
@@ -966,10 +966,10 @@ def read_received_activity_for(
 ) -> dict:
     """The activity *activity_id* as the actor behind *client* received it.
 
-    Reads intake's archive record (:func:`read_received_activity`).  Only a
-    caller waiting on an activity the inbox defers names *deferred_type*, the
-    activity's type; the inbox's copy is then read when no record exists yet,
-    as :data:`_DEFERRED_INVITE_TYPE` describes.
+    Reads intake's archive record (:func:`read_received_activity`).  A caller
+    that names *deferred_type*, the activity's type, also reads the row
+    ingress keeps under the sender's id when no record exists yet, as
+    :data:`_DEFERRED_INVITE_TYPE` describes.
 
     Raises:
         AssertionError: If the actor holds no activity *activity_id*.
@@ -1027,8 +1027,9 @@ def find_case_invite_for_actor(
     (CM-17-007, ADR-0109); the invitee must then send Accept(Invite) to
     trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
     replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
-    for that Invite — archived by intake, or held by the inbox until the case
-    bootstrap — so the demo can drive the accept step.
+    for that Invite — archived by intake on arrival (PCR-06-005), or, until
+    #4871, the row ingress keeps under the sender's id — so the demo can drive
+    the accept step.
 
     Args:
         client: DataLayerClient connected to the invitee container.

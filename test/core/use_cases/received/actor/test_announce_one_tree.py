@@ -69,7 +69,11 @@ def event(make_payload) -> Any:
 def _anchor(dl: SqliteDataLayer) -> None:
     """Record the invite trust anchor naming the case actor (PCR-03-004)."""
     dl.save(
-        VultronPendingCaseInbox(case_id=_CASE_ID, case_actor_id=_CASE_ACTOR_ID)
+        VultronPendingCaseInbox(
+            case_id=_CASE_ID,
+            case_actor_id=_CASE_ACTOR_ID,
+            invite_anchored=True,
+        )
     )
 
 

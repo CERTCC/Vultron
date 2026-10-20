@@ -180,10 +180,11 @@ Reject(Invite(stub)) instead of Accept → RM.CLOSED on the kept, inert record
 - The Invite's `actor` is the CASE_MANAGER; `attributedTo` MAY carry the case owner
   (PCR-08-007).
 - The invitee's `Accept` goes **to the CASE_MANAGER**, not the case owner
-  (PCR-08-008). The invitee holds no case yet, so its inbox usually defers the Invite;
-  the accept and reject triggers read it through `read_received_activity()`
-  (`core/use_cases/_helpers.py`), which finds the archive record or the deferred copy
-  (CLP-10-017; [inbox-orchestration](inbox-orchestration.md)).
+  (PCR-08-008). The invitee holds no case yet, but its inbox processes the stub Invite
+  on arrival rather than deferring it (`is_deferral_exempt()`, PCR-06-005), so the
+  accept and reject triggers read intake's archive record through
+  `read_received_activity()` (`core/services/received_activity.py`; CLP-10-017,
+  [inbox-orchestration](inbox-orchestration.md)).
 - The CASE_MANAGER processes the Accept (PCR-08-009). The same handler runs on any
   actor holding a copy, so its effects sit behind the role gate, and a receiver the gate
   turns away reports `REFUSED` through `not_case_manager_refusal()`, never `SKIPPED`

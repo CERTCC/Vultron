@@ -29,8 +29,16 @@ from vultron.core.models.base import CoreRecord, UriString, with_record_id
 class VultronPendingCaseInbox(CoreRecord):
     """Store deferred inbox activity IDs keyed by case ID.
 
-    Tracks when the queue was created (``queued_at``) so that a bounded
-    expiry window can be enforced (CBT-03-001, CBT-03-003).
+    Tracks when the first activity waiting in the queue was queued
+    (``queued_at``) so that a bounded expiry window can be enforced
+    (CBT-03-001, CBT-03-003).
+
+    The same record carries the stub Invite's trust anchor (PCR-03-004 path
+    b): the CASE_MANAGER the Invite named, in ``case_actor_id``, with
+    ``invite_anchored`` set.  An anchored record outlives the expiry of its
+    queue, since the anchor is what admits the case's later ``Announce``.
+    The anchor is fixed only once the invitee accepts the Invite that set it
+    (``invite_accepted``); until then a later stub Invite replaces it.
     """
 
     type_: Literal["PendingCaseInbox"] = Field(  # type: ignore[assignment]
@@ -53,6 +61,30 @@ class VultronPendingCaseInbox(CoreRecord):
             "URI of the actor that sent the first pre-bootstrap activity. "
             "Used as the replay-request target when bootstrap times out "
             "(CBT-03-004)."
+        ),
+    )
+    invite_anchored: bool = Field(
+        default=False,
+        description=(
+            "True once a stub Invite recorded ``case_actor_id`` as its trust "
+            "anchor (PCR-03-004 path b).  Until then ``case_actor_id`` is "
+            "only a replay target and admits no sender; queue expiry keeps "
+            "an anchored record."
+        ),
+    )
+    anchor_invite_id: UriString | None = Field(
+        default=None,
+        description=(
+            "The sender's id for the stub Invite that set the anchor; the "
+            "invitee's Accept of that Invite fixes it (PCR-03-004 path b)."
+        ),
+    )
+    invite_accepted: bool = Field(
+        default=False,
+        description=(
+            "True once the invitee sent ``Accept`` for ``anchor_invite_id``.  "
+            "Until then a later stub Invite naming another CaseActor replaces "
+            "the anchor; after it, such an Invite is refused (PCR-03-004)."
         ),
     )
 

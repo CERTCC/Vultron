@@ -49,7 +49,9 @@ from vultron.core.models.events.case import (
 )
 from vultron.core.models.events.case_context import (
     CASE_BOOTSTRAP_SEMANTICS,
+    CASE_PRECEDING_SEMANTICS,
     is_case_bootstrap,
+    is_deferral_exempt,
     resolve_case_context_id,
 )
 from vultron.core.models.events.case_participant import (
@@ -185,7 +187,9 @@ __all__ = [
     "AnyReceivedEvent",
     # case-context resolution
     "CASE_BOOTSTRAP_SEMANTICS",
+    "CASE_PRECEDING_SEMANTICS",
     "is_case_bootstrap",
+    "is_deferral_exempt",
     "resolve_case_context_id",
     # report
     "CreateReportReceivedEvent",

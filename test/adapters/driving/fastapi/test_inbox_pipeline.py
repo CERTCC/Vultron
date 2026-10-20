@@ -15,6 +15,7 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.use_cases.received.actor import (
     AnnounceVulnerabilityCaseReceivedUseCase,
+    InviteActorToCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.case import CreateCaseReceivedUseCase
 from vultron.core.use_cases.received.embargo import (
@@ -40,6 +41,7 @@ from vultron.wire.as2.factories import (
     create_case_activity,
     em_propose_embargo_activity,
     rm_create_report_activity,
+    rm_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
@@ -288,6 +290,44 @@ def test_process_defers_unknown_case_activity(test_pipeline):
     pending = queue_dl.read(VultronPendingCaseInbox.build_id(UNKNOWN_CASE_ID))
     assert isinstance(pending, VultronPendingCaseInbox)
     assert activity.id_ in pending.activity_ids
+
+
+@pytest.mark.spec("PCR-06-005")
+def test_stub_invite_for_unknown_case_is_dispatched_not_deferred(
+    test_pipeline, monkeypatch
+):
+    """The stub Invite precedes its case, so the pipeline dispatches it (#4915).
+
+    The invitee holds no replica until it answers the Invite (MV-10-005), so
+    the Invite is processed on arrival while the case stays unknown.
+    """
+    marker_id = "https://example.org/markers/stub-invite-4915"
+    _patch_execute_with_marker(
+        monkeypatch, InviteActorToCaseReceivedUseCase, marker_id
+    )
+    case = as_VulnerabilityCase(
+        id_=UNKNOWN_CASE_ID, name="CASE-IBP", stub_summary="A vul in a widget"
+    )
+    activity = rm_invite_to_case_activity(
+        RECEIVER_ID,
+        target=case,
+        actor=SENDER_ID,
+        to=[RECEIVER_ID],
+    )
+    pipeline, dl = test_pipeline
+    dl.save(activity)
+
+    result = pipeline.process(activity.id_)
+
+    assert result is not None, "the stub Invite must not be deferred"
+    assert result.semantic_type.name == "INVITE_ACTOR_TO_CASE"
+    assert dl.read(marker_id) is not None
+    assert not isinstance(dl.read(UNKNOWN_CASE_ID), as_VulnerabilityCase)
+    queue_dl = dl.clone_for_actor(RECEIVER_ID)
+    assert (
+        queue_dl.read(VultronPendingCaseInbox.build_id(UNKNOWN_CASE_ID))
+        is None
+    )
 
 
 def test_create_case_with_correct_context_not_deferred(

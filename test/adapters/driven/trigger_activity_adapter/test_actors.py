@@ -334,14 +334,14 @@ class TestAcceptCaseInvite:
         assert target["caseId"] == _CASE_ID
 
     @pytest.mark.spec("AKM-02-003")
-    def test_an_invite_the_inbox_holds_until_the_case_bootstrap_is_answered(
+    def test_an_invite_held_only_under_the_senders_id_is_answered(
         self, adapter, dl
     ):
-        """A deferred Invite has not reached intake; the inbox holds it bare.
+        """An Invite with no intake record is answered from the bare row.
 
-        The invitee holds no case before its Accept brings the bootstrap, so
-        the inbox defers the Invite and keeps it under the sender's id.  That
-        copy is the one the invitee answers.
+        Intake archives a stub Invite on arrival (PCR-06-005), but until #4871
+        retires it, ingress also keeps the Invite under the sender's id.  With
+        no archive record, that copy is the one the invitee answers.
         """
         invite = rm_invite_to_case_activity(
             _INVITEE,

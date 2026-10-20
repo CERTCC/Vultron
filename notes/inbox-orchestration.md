@@ -75,6 +75,10 @@ raise" is not a verdict), and an unroutable activity gets a synthesized `REFUSED
 and activity ids (UCORG-05-013); the BT nodes log their own outcome writes at INFO, so
 a refusal is not reported twice.
 
+Every deferral gate asks `is_deferral_exempt()` (`core/models/events/case_context.py`),
+never `is_case_bootstrap()`: a stub Invite is exempt because it precedes its case by
+design, but it seeds no case, so only a bootstrap triggers the replay (PCR-06-005, #4915).
+
 Activities held pending a case bootstrap are replayed only when the bootstrap's verdict
 maps to `processed` (the legacy adapter paths gate on `HandlerResult.took_effect`): a
 refused or deferred bootstrap has not made the case available, so replay would only
