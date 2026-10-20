@@ -118,6 +118,9 @@ Nodes
 - ``SenderIsOwnershipTransfereeNode`` — guards that the sender of an answer
   to an ownership-transfer Offer is the transferee of the Offer the
   CASE_MANAGER recorded (``NAMED_ACTOR`` kind; CM-21-011, CM-21-013)
+- ``SenderIsRoleOfferTargetNode`` — guards that the sender of an answer to
+  a role Offer is the target of the Offer the CASE_MANAGER recorded
+  (``NAMED_ACTOR`` kind; CM-33-005)
 - ``SenderIsOwnershipOffererNode`` — guards that the sender of a withdrawal
   is the Case Owner that made the Offer the CASE_MANAGER recorded
   (``CASE_OWNER`` kind; CM-21-015).  Whether that Offer is still open is a
@@ -190,6 +193,7 @@ from vultron.core.participants.recipients import (
     is_case_content_recipient,
     may_act_on_case,
 )
+from vultron.core.participants.role_offer import answered_role_offer
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
     distinct_recipients,
@@ -1515,6 +1519,137 @@ class SenderIsInviteeNode(SenderEntitlementConditionNode):
 
 
 # ---------------------------------------------------------------------------
+# Condition nodes: the answerer of an Offer the CASE_MANAGER recorded
+# ---------------------------------------------------------------------------
+
+
+def _case_and_manager(
+    dl: CasePersistence, case_id: str, sender: str
+) -> tuple[VulnerabilityCase, str]:
+    """The case a reply names and its CASE_MANAGER, as this store holds them.
+
+    Raises:
+        NoStandingError: This store holds no such case, or the case names no
+            CASE_MANAGER: there is nothing to establish the sender's standing
+            against, which is a refusal and not a local anomaly.
+    """
+    case = dl.read_case(case_id)
+    if case is None:
+        raise NoStandingError(
+            f"Sender '{sender}' has no standing: this store holds no"
+            f" case '{case_id}'"
+        )
+    manager_id = resolve_case_manager_id(case, dl)
+    if manager_id is None:
+        raise NoStandingError(
+            f"Sender '{sender}' has no standing: case '{case_id}'"
+            " names no CASE_MANAGER"
+        )
+    return case, manager_id
+
+
+def _refuse_if_closed(
+    dl: CasePersistence, case: VulnerabilityCase, sender: str, position: str
+) -> None:
+    """Refuse an answerer whose closure the case records (CM-23-018).
+
+    Raises:
+        NoStandingError: *sender* has left the case (RM ``CLOSED``).
+    """
+    if closure_recorded(case, dl, sender):
+        raise NoStandingError(
+            f"{position} '{sender}' has left case '{case.id_}' (RM CLOSED)"
+            " and may answer nothing further (CM-23-018)"
+        )
+
+
+class SenderIsRoleOfferTargetNode(SenderIsRequestAddresseeNode):
+    """Guard: sender is the target of the role Offer its answer names.
+
+    The target is the addressee of the request, so the kind is
+    ``NAMED_ACTOR`` (ADR-0129).  The receive-tree factory composes it on the
+    CASE_MANAGER's side of the declared rule (CM-33-005).
+
+    It checks standing only: the sender is the target of a role Offer the
+    CASE_MANAGER recorded for the case.  The Offer the answer names is the
+    recorded Offer or the CASE_MANAGER's forward of it, resolved through the
+    forward's ``inReplyTo`` as this store holds it
+    (:func:`~vultron.core.participants.role_offer.answered_role_offer`),
+    never through the copy the answer embeds, which the sender wrote.
+    Whether the Offer is still open, and whether the answer is a redelivery
+    of the one that closed it, is the precondition guard that runs right
+    after the sender check
+    (:class:`~vultron.core.behaviors.case.nodes.role_offer_guard.RoleOfferOpenNode`).
+
+    A case this store does not hold, one that names no CASE_MANAGER, an
+    Offer the CASE_MANAGER never recorded, or a target whose closure the
+    case records (CM-23-018) leaves the sender with no standing.
+
+    Spec: CM-33-005, CM-23-018, HP-01-006.
+    """
+
+    _spec = "CM-33-005"
+
+    def __init__(
+        self,
+        case_id: str,
+        offer_id: str | None,
+        sender_actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case the answer names.
+            offer_id: The Offer the answer names (``None`` when it names
+                none, which refuses).
+            sender_actor_id: The answer's sender.
+            name: Optional node name.
+        """
+        super().__init__(sender_actor_id=sender_actor_id, name=name)
+        self._case_id = case_id
+        self._offer_id = offer_id
+        self._case: VulnerabilityCase | None = None
+        """The case :meth:`_recorded_request` last read."""
+
+    def _recorded_request(self) -> RecordedRequest:
+        assert self.datalayer is not None
+        sender = self.sender_actor_id
+        case, manager_id = _case_and_manager(
+            self.datalayer, self._case_id, sender
+        )
+        if self._offer_id is None:
+            raise NoStandingError(f"Sender '{sender}' names no role Offer")
+        try:
+            offer = answered_role_offer(
+                self.datalayer, self._case_id, self._offer_id, manager_id
+            )
+        except VultronNotFoundError as exc:
+            raise NoStandingError(
+                f"Sender '{sender}' names Offer '{self._offer_id}', which"
+                f" this CASE_MANAGER never recorded as a role Offer for case"
+                f" '{self._case_id}' ({exc})"
+            ) from exc
+        self._case = case
+        return RecordedRequest(
+            description=f"role Offer '{offer.offer_id}'",
+            position="the target",
+            addressees=(offer.target_id,),
+        )
+
+    def _confirm_standing(self, request: RecordedRequest) -> None:
+        """Refuse a target whose closure the case records (CM-23-018).
+
+        Raises:
+            NoStandingError: The target has left the case (RM ``CLOSED``).
+        """
+        assert self.datalayer is not None and self._case is not None
+        _refuse_if_closed(
+            self.datalayer, self._case, self.sender_actor_id, "Target"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Condition nodes: the parties to a recorded ownership-transfer Offer
 # ---------------------------------------------------------------------------
 
@@ -1580,20 +1715,9 @@ class SenderIsOwnershipOfferPartyNode(SenderIsRequestAddresseeNode):
         """
         assert self.datalayer is not None
         sender = self.sender_actor_id
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            # The sender's case, not ours: nothing to establish its standing
-            # against, which is a refusal and not a local anomaly.
-            raise NoStandingError(
-                f"Sender '{sender}' has no standing: this store holds no"
-                f" case '{self._case_id}'"
-            )
-        manager_id = resolve_case_manager_id(case, self.datalayer)
-        if manager_id is None:
-            raise NoStandingError(
-                f"Sender '{sender}' has no standing: case '{self._case_id}'"
-                " names no CASE_MANAGER"
-            )
+        case, manager_id = _case_and_manager(
+            self.datalayer, self._case_id, sender
+        )
         if self._offer_id is None:
             raise NoStandingError(
                 f"Sender '{sender}' names no ownership-transfer Offer"
@@ -1643,12 +1767,9 @@ class SenderIsOwnershipTransfereeNode(SenderIsOwnershipOfferPartyNode):
             NoStandingError: The transferee has left the case (RM ``CLOSED``).
         """
         assert self.datalayer is not None and self._case is not None
-        if closure_recorded(self._case, self.datalayer, self.sender_actor_id):
-            raise NoStandingError(
-                f"Transferee '{self.sender_actor_id}' has left case"
-                f" '{self._case_id}' (RM CLOSED) and may answer nothing"
-                " further (CM-23-018)"
-            )
+        _refuse_if_closed(
+            self.datalayer, self._case, self.sender_actor_id, "Transferee"
+        )
 
 
 class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
@@ -2193,6 +2314,7 @@ __all__ = [
     "SenderIsProposalAddresseeNode",
     "SenderIsOwnershipOfferPartyNode",
     "SenderIsOwnershipTransfereeNode",
+    "SenderIsRoleOfferTargetNode",
     "SenderIsOfferingCaseOwnerNode",
     "SenderIsOwnershipOffererNode",
     "SenderIsInviteeNode",

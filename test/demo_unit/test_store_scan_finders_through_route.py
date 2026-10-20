@@ -16,12 +16,11 @@
 The demo reads a received activity only from the receiver's
 ``ReceivedActivityRecord``, kept under a key the receiver derives from the
 activity's id (CLP-10-017, ADR-0111): a receiver holds no received activity
-under the sender's id (DL-06-006).  Inbox ingress still writes such a row
-today (``_store_inbox_activity``); the follow-on inbox change stops it.  These
-tests archive an activity the way intake does, with and without the ingress
-row beside it, and serve every read through the real route function, so a
-read that depends on the ingress row fails here instead of in a Docker demo
-once the row is gone.
+under the sender's id (DL-06-006), and inbox ingress writes no such row
+(#4871).  These tests archive an activity the way intake does, with and
+without a row of the activity's type under the sender's id beside it (the row
+ingress used to write), and serve every read through the real route function,
+so a read that would count such a row fails here instead of in a Docker demo.
 """
 
 from typing import Any
@@ -31,9 +30,7 @@ import pytest
 
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driving.fastapi.inbox_storage import (
-    _store_inbox_activity,
-)
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.routers.datalayer import (
     get_datalayer_contents,
     get_objects,
@@ -76,7 +73,7 @@ MANAGER = "http://example.com/actors/case-actor"
 FINDER = "http://example.com/actors/finder"
 REPORT_ID = "http://example.com/reports/report-1"
 
-#: Whether ingress's row under the sender's id sits beside intake's record.
+#: Whether a row under the sender's id sits beside intake's record.
 WITH_AND_WITHOUT_INGRESS_ROW = pytest.mark.parametrize(
     "ingress_row", [True, False], ids=["with-ingress-row", "record-only"]
 )
@@ -102,23 +99,28 @@ def _route_client(dl: SqliteDataLayer) -> MagicMock:
     return client
 
 
+def _row_under_senders_id(dl: SqliteDataLayer, activity: Any) -> None:
+    """Write *activity* under its sender's id, as inbox ingress once did."""
+    dl.create(object_to_record(activity))
+
+
 def _receive(activity: Any, *, ingress_row: bool) -> SqliteDataLayer:
     """The invitee's store after receiving *activity*.
 
-    Intake's record is always written; *ingress_row* adds the row inbox
-    ingress keeps under the sender's id.
+    Intake's record is always written; *ingress_row* adds a row under the
+    sender's id beside it.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
     if ingress_row:
-        assert _store_inbox_activity(dl, activity)
+        _row_under_senders_id(dl, activity)
     archive_received(dl, activity)
     return dl
 
 
 def _ingress_only(activity: Any) -> SqliteDataLayer:
-    """The invitee's store holding *activity* only as ingress's row."""
+    """The invitee's store holding *activity* only under the sender's id."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
-    assert _store_inbox_activity(dl, activity)
+    _row_under_senders_id(dl, activity)
     return dl
 
 
@@ -220,17 +222,17 @@ def test_a_row_under_the_senders_id_alone_is_not_found(make, find):
         find(client)
 
 
-def test_a_stub_invite_the_inbox_defers_is_found_before_intake():
-    """The invitee has no case yet, so only the inbox holds its Invite."""
+@pytest.mark.spec("DL-06-006")
+def test_a_stub_invite_under_the_senders_id_alone_is_not_found():
+    """Intake archives a stub Invite on arrival (PCR-06-005), so a row under
+    the sender's id is never read as the Invite received (#4870 AC-1)."""
     invite = _stub_invite()
     client = _route_client(_ingress_only(invite))
 
-    assert find_case_invite_for_actor(client, CASE_ID, INVITEE, **_QUICK) == (
-        invite.id_
-    )
-    assert_received_from(
-        client, invite.id_, MANAGER, "consequence", deferred_type="Invite"
-    )
+    with pytest.raises(AssertionError, match="Timed out"):
+        find_case_invite_for_actor(client, CASE_ID, INVITEE, **_QUICK)
+    with pytest.raises(AssertionError):
+        assert_received_from(client, invite.id_, MANAGER, "consequence")
 
 
 @WITH_AND_WITHOUT_INGRESS_ROW
@@ -336,7 +338,7 @@ def test_read_received_activities_lists_one_type_from_the_records(ingress_row):
     offer, invite = _report_offer(), _stub_invite()
     dl = _receive(offer, ingress_row=ingress_row)
     if ingress_row:
-        assert _store_inbox_activity(dl, invite)
+        _row_under_senders_id(dl, invite)
     archive_received(dl, invite)
     client = _route_client(dl)
 

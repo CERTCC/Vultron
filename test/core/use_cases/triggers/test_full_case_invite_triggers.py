@@ -33,7 +33,11 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.use_cases.triggers.full_case_invite import (
     SvcAcceptFullCaseInviteUseCase,
     SvcRejectFullCaseInviteUseCase,
@@ -180,7 +184,15 @@ def test_reply_to_something_that_is_not_a_full_case_invite_is_refused(
         actor=_MANAGER,
     )
     stub_like = stub_like.model_copy(update={"content": None})
-    dl.create(stub_like)
+    # It would not extract, so it is archived from its own dump, as a record
+    # whose activity is not a full-case Invite.
+    dl.create(
+        ReceivedActivityRecord.for_activity(
+            VultronActivity.model_validate(
+                stub_like.model_dump(by_alias=True, exclude_none=True)
+            )
+        )
+    )
 
     with pytest.raises(VultronValidationError, match="full-case Invite"):
         _run(

@@ -54,6 +54,9 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (
     _status_auth_trigger_port_factory,
     _trigger_activity_with_actor_config_port_factory,
 )
+from vultron.adapters.driving.fastapi.inbox_staging import (
+    InlineObjectStaging,
+)
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
 from vultron.adapters.outbox_dead_letter import RetryStore
@@ -74,7 +77,6 @@ from vultron.semantic_registry import (
     extract_event,
     use_case_map as _use_case_map,
 )
-from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
@@ -277,6 +279,8 @@ def _dispatch_or_defer_inbox_item(
     dl: DataLayer,
     queue_dl: DataLayer,
     dispatcher: ActivityDispatcher | None = None,
+    *,
+    staging: InlineObjectStaging,
 ) -> VultronEvent | None:
     """Dispatch an inbox item or defer it until its case replica exists.
 
@@ -290,7 +294,8 @@ def _dispatch_or_defer_inbox_item(
     this case has expired.  If the queue has expired, the existing items
     are dropped, a replay ``Question`` is emitted, and the new item is
     also dropped (resend-required semantics, CBT-03-003).  If within the
-    window, the item is appended to the existing queue as before.
+    window, the item is appended to the existing queue as before, and held
+    again through *staging*, whose rebuild released its record.
     """
     event = prepare_for_dispatch(activity=obj)
     event = event.model_copy(update={"receiving_actor_id": actor_id})
@@ -321,6 +326,8 @@ def _dispatch_or_defer_inbox_item(
             case_id,
             event.activity_id,
         )
+        # Held before it is queued: the record is its only copy (DL-06-006).
+        staging.hold_for_replay(event.activity_id, event.activity)
         _queue_pending_case_activity(
             queue_dl,
             case_id,
@@ -357,6 +364,7 @@ def _inbox_retry_or_dead_letter(
     queue_dl: DataLayer,
     retry: RetryStore,
     max_attempts: int,
+    staging: InlineObjectStaging,
 ) -> None:
     """Increment the attempt counter; dead-letter on exhaustion, requeue otherwise.
 
@@ -373,8 +381,14 @@ def _inbox_retry_or_dead_letter(
         retry: ``RetryStore`` port used to persist attempt counts and dead letters.
         max_attempts: Maximum cumulative attempts before dead-lettering
             (``AppConfig.max_inbox_retry_attempts``).
+        staging: The staging whose rebuild released the item's record; a
+            re-queued item is held again through it, or the retry would find
+            nothing to rebuild (DL-06-006).
     """
     total = retry.get_inbox_attempt_count(item_id) + 1
+    # The rebuild released the record, and the retry, or an operator reading
+    # the dead letter, needs the activity it held (DL-06-006).
+    staging.hold_again(item_id)
     if total >= max_attempts:
         retry.inbox_dead_letter_append(
             item_id,
@@ -410,9 +424,13 @@ def _rehydrate_inbox_item(
     retry: RetryStore | None = None,
     max_attempts: int = 12,
     actor_id: str = "",
+    staging: InlineObjectStaging | None = None,
 ) -> as_Activity | None:
     """Rehydrate one inbox item, routing errors through the permanent/transient
     classification instead of letting them escape (AC-1 of #3044, IE-06-004).
+
+    The item is rebuilt from the record that holds it for the inbox replay
+    (``DeferredInboxActivity``), never read under its own id (DL-06-006).
 
     Returns the rehydrated ``as_Activity`` or ``None`` on any error.
     On a permanent failure (``VultronProtocolViolationError``) the item is
@@ -421,8 +439,9 @@ def _rehydrate_inbox_item(
       either re-queues or dead-letters the item (IE-06-004).
     - When *retry* is ``None`` (legacy callers), re-queues unconditionally.
     """
+    staging = staging or InlineObjectStaging(dl)
     try:
-        obj = rehydrate(item_id, dl=dl)
+        obj = staging.rehydrate_deferred(item_id)
     except VultronProtocolViolationError:
         logger.exception(
             "Protocol violation rehydrating inbox item %s"
@@ -444,15 +463,16 @@ def _rehydrate_inbox_item(
                 queue_dl,
                 retry,
                 max_attempts,
+                staging,
             )
         else:
+            staging.hold_again(item_id)
             queue_dl.inbox_append(item_id)
         return None
     if not isinstance(obj, as_Activity):
         logger.error(
-            "Rehydrated inbox item %s is not an Activity: %s",
+            "Inbox item %s holds no activity to rebuild",
             item_id,
-            type(obj).__name__,
         )
         return None
     return obj
@@ -468,6 +488,8 @@ def _process_inbox_item(
     dispatcher: ActivityDispatcher | None = None,
     retry: RetryStore | None = None,
     max_attempts: int = 12,
+    *,
+    staging: InlineObjectStaging,
 ) -> bool:
     """Dispatch one inbox activity and return ``True`` on success.
 
@@ -486,6 +508,7 @@ def _process_inbox_item(
             dl=dl,
             queue_dl=queue_dl,
             dispatcher=dispatcher,
+            staging=staging,
         )
         if event is not None:
             case_id = _activity_context_id(item, event)
@@ -523,8 +546,10 @@ def _process_inbox_item(
                 queue_dl,
                 retry,
                 max_attempts,
+                staging,
             )
         else:
+            staging.hold_again(item_id)
             queue_dl.inbox_append(item_id)
         return False
 
@@ -538,8 +563,9 @@ async def inbox_handler(
 ) -> None:
     """Process the inbox for the given actor.
 
-    Reads pending activity IDs from the actor's inbox queue, rehydrates each one
-    into a full AS2 Activity object, and dispatches it.
+    Reads pending activity IDs from the actor's inbox queue, rebuilds each one
+    from the record holding it for replay into a full AS2 Activity object, and
+    dispatches it.
 
     After processing, triggers outbox delivery for any outbound activities
     created during dispatch, using *emitter* when provided.
@@ -588,6 +614,7 @@ async def inbox_handler(
     retry: RetryStore = cast(RetryStore, queue_dl)
     max_attempts = get_config().max_inbox_retry_attempts
 
+    staging = InlineObjectStaging(dl)
     while queue_dl.inbox_list():
         item_id = queue_dl.inbox_pop()
         if item_id is None:
@@ -600,6 +627,7 @@ async def inbox_handler(
             retry=retry,
             max_attempts=max_attempts,
             actor_id=canonical_actor_id,
+            staging=staging,
         )
         if item is None:
             continue
@@ -614,6 +642,7 @@ async def inbox_handler(
             dispatcher=dispatcher,
             retry=retry,
             max_attempts=max_attempts,
+            staging=staging,
         )
 
     # OX-1.2 / OX-03-002: trigger outbox delivery after inbox processing completes

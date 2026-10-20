@@ -218,8 +218,8 @@ CASE_MANAGER inbox receives Reject
 
 - **The Reject reuses the Accept's helper and guard** (CM-21-013):
   `create_reject_ownership_transfer_tree` is the Accept's tree with no effects, and
-  `_run_ownership_answer` in `core/use_cases/received/actor/ownership.py` reads both
-  verdicts.
+  `run_offer_reply_tree` in `core/use_cases/received/_offer_reply.py` runs either and
+  reads its verdict.
 - **The offerer learns of the decline from the broadcast.** It is not a recipient of
   the Reject (CM-21-010).
 - **Replicas change no state.** `attributed_to` and every `CASE_OWNER` role stay; the

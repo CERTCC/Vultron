@@ -143,9 +143,11 @@ received", and do not add receipt bookkeeping to the actor record to feed one:
   tests only because those tests supplied an inbox with an `.items` list — a
   wire `as_Organization` in one file, a hand-rolled stub actor in another.
   A test of an actor-record helper must build a `CoreActor`.
-- **The activity itself is already stored.** Ingress writes the received
-  activity into the actor's store under its activity type; ingress storage is
-  also where redelivery is detected (IE-10-001).
+- **The activity itself is already archived.** Intake keeps the received
+  activity as a `ReceivedActivityRecord` under the receiver's key; ingress
+  writes nothing, never a row under the sender's id (DL-06-006). Redelivery is
+  detected at ingress from that record or a deferred activity's
+  `DeferredInboxActivity` (IE-10-001).
 - **Who may look, and where.** Reading an actor's received mail is an operator
   concern, served by the datalayer router over that actor's own store
   (`/actors/{id}/datalayer/...`). A sender learns what became of what it posted

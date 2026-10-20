@@ -169,6 +169,8 @@ class DataLayer(Protocol):
         request_semantic_type: str,
         object_id: str,
         reply_semantic_types: frozenset[str],
+        *,
+        answering: frozenset[str] | None = None,
     ) -> ProtocolPair: ...
 
     def clone_for_actor(self, actor_id: str) -> "DataLayer": ...

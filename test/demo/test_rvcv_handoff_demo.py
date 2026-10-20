@@ -42,6 +42,7 @@ from test.demo.conftest import (
     _TestClientRouter,
     create_isolated_actor_app,
 )
+from test.support.received import received_of_type
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
 from vultron.demo.helpers import invite_chain
@@ -1008,15 +1009,9 @@ class TestOwnershipTransferAnnounceReachesReporterAC5c:
             # The TestClient processes BackgroundTasks synchronously;
             # the outbox drains during the POST and _TestClientRouter
             # delivers Announce(CaseLedgerEntry) to Reporter's inbox.
-            # by_type returns a dict keyed by ID; values are model
-            # dicts with type_ / object_ fields (SQLite DataLayer
-            # row format).
-            announces = reporter_iso.dl.by_type("Announce")
-            announce_values = (
-                list(announces.values())
-                if isinstance(announces, dict)
-                else list(announces)
-            )
+            # A received Announce is held only as intake archived it
+            # (DL-06-006).
+            announce_values = received_of_type(reporter_iso.dl, "Announce")
 
             def _is_ot_announce(a: object) -> bool:
                 obj = (

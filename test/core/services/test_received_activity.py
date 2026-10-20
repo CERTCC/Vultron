@@ -15,7 +15,7 @@
 
 import pytest
 
-from test.support.received import archive_received
+from test.support.received import archive_received, hold_deferred
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.activity import VultronActivity
 from vultron.core.services.received_activity import (
@@ -23,7 +23,11 @@ from vultron.core.services.received_activity import (
     read_received_activity,
 )
 from vultron.errors import VultronNotFoundError
-from vultron.wire.as2.factories import rm_invite_to_case_activity
+from vultron.wire.as2.factories import (
+    add_note_to_case_activity,
+    rm_invite_to_case_activity,
+)
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 _ME = "https://example.org/actors/me"
 _PEER = "https://example.org/actors/peer"
@@ -72,3 +76,37 @@ def test_an_activity_this_actor_sent_is_read_under_its_own_id(dl) -> None:
 def test_an_activity_this_store_does_not_hold_is_not_found(dl, reader) -> None:
     with pytest.raises(VultronNotFoundError, match="Invite"):
         reader(dl, "urn:uuid:never-held", "Invite")
+
+
+@pytest.mark.spec("DL-06-006")
+@pytest.mark.parametrize(
+    "reader", [read_held_activity, read_received_activity]
+)
+def test_a_deferred_activity_is_read_from_the_record_holding_it(
+    dl, reader
+) -> None:
+    """Before intake archives it, the inbox's deferred record is read."""
+    add = add_note_to_case_activity(
+        as_Note(content="waiting on its case", context=_CASE),
+        target=_CASE,
+        context=_CASE,
+        actor=_PEER,
+        to=[_ME],
+    )
+    hold_deferred(dl, add)
+    assert dl.read(add.id_) is None
+
+    held = reader(dl, add.id_)
+
+    assert isinstance(held, VultronActivity)
+    assert held.id_ == add.id_
+
+
+@pytest.mark.spec("DL-06-006")
+def test_a_received_read_never_falls_back_to_the_senders_id(dl) -> None:
+    """A row under the activity's own id is not a received activity."""
+    invite = _invite(_PEER, _ME)
+    dl.create(invite)
+
+    with pytest.raises(VultronNotFoundError):
+        read_received_activity(dl, invite.id_, "Invite")

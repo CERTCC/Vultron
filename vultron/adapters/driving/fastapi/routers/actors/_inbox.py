@@ -4,10 +4,11 @@ Inbox processing helpers for the Vultron FastAPI actors router.
 
 Provides the ``parse_activity`` HTTP adapter and the private addressing
 helpers the inbox route uses to gate an activity. No route handlers here.
-Storing the activity and its inline object is ingress work, done in
-``vultron.adapters.driving.fastapi.inbox_storage`` (#3705), and that is also
-where a redelivered activity is detected (IE-10-001); the route keeps no
-receipt bookkeeping of its own (IE-02-004).
+Rebuilding the activity for routing is ingress work, done in
+``vultron.adapters.driving.fastapi.inbox_orchestration`` with
+``inbox_staging``, which writes nothing to the receiver's store (DL-06-006),
+and that is also where a redelivered activity is detected (IE-10-001); the
+route keeps no receipt bookkeeping of its own (IE-02-004).
 """
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.

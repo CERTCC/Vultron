@@ -106,9 +106,9 @@ def test_inbox_handler_failing_item_dead_lettered_on_exhaustion(monkeypatch):
     mock_dl.get_inbox_attempt_count.return_value = 11  # default max = 12
 
     monkeypatch.setattr(
-        ih,
-        "rehydrate",
-        lambda x, dl=None: (_ for _ in ()).throw(RuntimeError("always fails")),
+        ih.InlineObjectStaging,
+        "rehydrate_deferred",
+        lambda self, x: (_ for _ in ()).throw(RuntimeError("always fails")),
     )
 
     asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
@@ -134,9 +134,9 @@ def test_inbox_handler_rehydrate_protocol_violation_does_not_propagate(
     mock_dl.outbox_list.return_value = []
 
     monkeypatch.setattr(
-        ih,
-        "rehydrate",
-        lambda x, dl=None: (_ for _ in ()).throw(
+        ih.InlineObjectStaging,
+        "rehydrate_deferred",
+        lambda self, x: (_ for _ in ()).throw(
             VultronProtocolViolationError("perm rehydrate failure")
         ),
     )
@@ -175,9 +175,9 @@ def test_inbox_handler_rehydrate_transient_error_requeues_item(monkeypatch):
     mock_dl.get_inbox_attempt_count.return_value = 0
 
     monkeypatch.setattr(
-        ih,
-        "rehydrate",
-        lambda x, dl=None: (_ for _ in ()).throw(
+        ih.InlineObjectStaging,
+        "rehydrate_deferred",
+        lambda self, x: (_ for _ in ()).throw(
             RuntimeError("transient rehydrate failure")
         ),
     )
@@ -210,6 +210,7 @@ def _process_item_raising(
         ),
         dl=MagicMock(),
         queue_dl=queue_dl,
+        staging=ih.InlineObjectStaging(MagicMock()),
     )
 
 
@@ -447,6 +448,21 @@ def test_init_dispatcher_sets_dispatcher(monkeypatch):
     assert ih._DISPATCHER_SLOT.value is mock_dispatcher
 
 
+def _add_note_activity(activity_id: str, case_id: str, to: str) -> as_Activity:
+    """A rebuildable ``Add(Note)`` the legacy worker can hold for replay."""
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    return add_note_to_case_activity(
+        as_Note(content="queued", context=case_id),
+        target=case_id,
+        context=case_id,
+        actor="https://example.org/actors/case-actor",
+        to=[to],
+        id_=activity_id,
+    )
+
+
 def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
     actor_id = "https://example.org/actors/participant"
     case_id = "https://example.org/cases/case-unknown"
@@ -456,13 +472,7 @@ def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
     queue_dl = shared_dl.clone_for_actor(actor_id)
-    item = as_Activity(
-        id_=item_id,
-        type_="Add",
-        actor="https://example.org/actors/case-actor",
-        context=case_id,
-        name="queued-note",
-    )
+    item = _add_note_activity(item_id, case_id, actor_id)
     fake_event = VultronEvent(
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         activity_id=item_id,
@@ -475,18 +485,67 @@ def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
     mock_dispatcher = Mock()
     monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
+    staging = ih.InlineObjectStaging(shared_dl)
+    staging.rehydrate_parsed(item)
+
     result = ih._dispatch_or_defer_inbox_item(
         actor_id=actor_id,
         obj=item,
         dl=shared_dl,
         queue_dl=queue_dl,
+        staging=staging,
     )
 
     assert result is None
     pending = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
     assert isinstance(pending, VultronPendingCaseInbox)
     assert pending.activity_ids == [item_id]
+    assert staging.held(item_id) is not None, (
+        "the deferred item is held for its replay (DL-06-006)"
+    )
     mock_dispatcher.dispatch.assert_not_called()
+
+
+@pytest.mark.spec("DL-06-006", "CBT-03-001")
+def test_dispatch_or_defer_a_failed_hold_queues_nothing(monkeypatch):
+    """The legacy worker holds the record before queueing the id, so a hold
+    that raises leaves no queued id with nothing behind it."""
+    from vultron.errors import VultronWiringError
+
+    actor_id = "https://example.org/actors/participant"
+    case_id = "https://example.org/cases/case-unheld"
+    item_id = "https://example.org/activities/add-note-unheld"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    item = as_Activity(
+        id_=item_id,
+        type_="Add",
+        actor="https://example.org/actors/case-actor",
+        context=case_id,
+    )
+    fake_event = VultronEvent(
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity_id=item_id,
+        actor_id="https://example.org/actors/case-actor",
+    )
+    monkeypatch.setattr(
+        ih, "prepare_for_dispatch", lambda activity: fake_event
+    )
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", Mock())
+
+    with pytest.raises(VultronWiringError):
+        ih._dispatch_or_defer_inbox_item(
+            actor_id=actor_id,
+            obj=item,
+            dl=shared_dl,
+            queue_dl=queue_dl,
+            staging=ih.InlineObjectStaging(shared_dl),
+        )
+
+    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
 
 
 @pytest.mark.parametrize(
@@ -561,8 +620,17 @@ def test_inbox_handler_replays_deferred_items_after_case_announce(
     mock_dispatcher.dispatch.side_effect = fake_dispatch
     monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
     monkeypatch.setattr(ih, "prepare_for_dispatch", fake_prepare)
+    # The verdict decides the replay; holding and rebuilding the queued items
+    # are the staging's, tested in test_inbox_staging.py.
     monkeypatch.setattr(
-        ih, "rehydrate", lambda item_id, dl=None: items[item_id]
+        ih.InlineObjectStaging,
+        "rehydrate_deferred",
+        lambda self, item_id: items[item_id],
+    )
+    monkeypatch.setattr(
+        ih.InlineObjectStaging,
+        "hold_for_replay",
+        lambda self, activity_id, activity=None: True,
     )
     monkeypatch.setattr(ih, "outbox_handler", fake_outbox_handler)
 
@@ -597,13 +665,7 @@ def test_pre_bootstrap_activity_queued_not_dispatched(monkeypatch):
     )
     queue_dl = shared_dl.clone_for_actor(actor_id)
 
-    item = as_Activity(
-        id_=activity_id,
-        type_="Add",
-        actor="https://example.org/actors/case-actor",
-        context=case_id,
-        name="pre-bootstrap-note",
-    )
+    item = _add_note_activity(activity_id, case_id, actor_id)
     fake_event = VultronEvent(
         semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
         activity_id=activity_id,
@@ -615,11 +677,15 @@ def test_pre_bootstrap_activity_queued_not_dispatched(monkeypatch):
     mock_dispatcher = Mock()
     monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
 
+    staging = ih.InlineObjectStaging(shared_dl)
+    staging.rehydrate_parsed(item)
+
     result = ih._dispatch_or_defer_inbox_item(
         actor_id=actor_id,
         obj=item,
         dl=shared_dl,
         queue_dl=queue_dl,
+        staging=staging,
     )
 
     assert result is None, (
@@ -708,11 +774,13 @@ def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
     )
     rehydrate_dl_args: list = []
 
-    def capture_rehydrate(item_id, dl=None):
-        rehydrate_dl_args.append(dl)
+    def capture_rehydrate(self, item_id):
+        rehydrate_dl_args.append(self._dl)
         return item
 
-    monkeypatch.setattr(ih, "rehydrate", capture_rehydrate)
+    monkeypatch.setattr(
+        ih.InlineObjectStaging, "rehydrate_deferred", capture_rehydrate
+    )
 
     fake_event = VultronEvent(
         semantic_type=MessageSemantics.UNKNOWN,
@@ -1468,6 +1536,7 @@ def test_dispatch_or_defer_inbox_item_dispatches_stub_invite_for_unknown_case(
         obj=item,
         dl=shared_dl,
         queue_dl=queue_dl,
+        staging=ih.InlineObjectStaging(shared_dl),
     )
 
     assert result is not None
@@ -1542,3 +1611,47 @@ def test_a_queue_holding_no_activity_does_not_expire():
         timeout_seconds=60,
     )
     assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is not None
+
+
+@pytest.mark.spec("IE-06-004", "DL-06-006")
+@pytest.mark.parametrize("max_attempts", [1, 12], ids=["dead-letter", "retry"])
+def test_a_failed_item_stays_held_whether_retried_or_dead_lettered(
+    max_attempts: int,
+) -> None:
+    """The rebuild released the item's record; the failure path holds it
+    again, so neither the retry nor the dead letter loses the activity."""
+    from vultron.adapters.driving.fastapi.inbox_staging import (
+        InlineObjectStaging,
+        hold_activity,
+    )
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    actor_id = "https://example.org/actors/participant"
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+    case_id = "https://example.org/cases/case-held"
+    activity = add_note_to_case_activity(
+        as_Note(content="held", context=case_id),
+        target=case_id,
+        context=case_id,
+        actor="https://example.org/actors/case-actor",
+        to=[actor_id],
+    )
+    hold_activity(dl, activity)
+    staging = InlineObjectStaging(dl)
+    assert staging.rehydrate_deferred(activity.id_) is not None
+    assert staging.held(activity.id_) is None, "precondition: released"
+
+    ih._inbox_retry_or_dead_letter(
+        activity.id_,
+        actor_id,
+        "processing_error",
+        "boom",
+        dl,
+        dl,
+        max_attempts,
+        staging,
+    )
+
+    assert staging.held(activity.id_) is not None
+    assert dl.read(activity.id_) is None
