@@ -262,6 +262,32 @@ groups:
           and that a strict build of a synthetic two-page site carrying the
           project's `validation` block fails on each defect and passes a clean
           control.
+      - id: DOCBW-03-012
+        priority: MUST
+        kind: project
+        statement: >-
+          On a pull request whose base branch is `publish`, the review workflow
+          MUST fail when a page the checked-out commit builds is absent from the
+          DOCBW-03-008 record of served URLs, deciding which pages are built by
+          the same rule that extends the record. The step MUST fail when that
+          commit builds no pages, and MUST NOT run on pull requests to any other
+          base branch.
+        rationale: >-
+          The record stays complete only if each publish is recorded before it
+          ships, and nothing enforced that (#3728); recording every incoming
+          publish covers all earlier ones. On a pull request to `main` a new page
+          is not yet due, so the step would fail every page addition. `publish`
+          advances by pull request, so leaving a direct push or manual deploy
+          unchecked is an accepted gap. See `notes/documentation-strategy.md`.
+        verification: >-
+          A `docs-legacy-urls` mode (`vultron/metadata/docs/legacy_urls.py`)
+          exits non-zero on an unrecorded built page and on an empty built-page
+          set, covered by `test/metadata/docs/test_legacy_urls.py`;
+          `test/ci/test_publication_gates_in_workflows.py` asserts the step in
+          `docs-build-check.yml` is conditioned on a `publish` base branch.
+        relationships:
+          - rel_type: depends_on
+            spec_id: DOCBW-03-008
 
   - id: DOCBW-05
     title: Security Compliance
