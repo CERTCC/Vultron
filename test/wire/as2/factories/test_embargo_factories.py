@@ -116,7 +116,7 @@ def test_em_propose_embargo_refuses_terms_by_uri():
             embargo="https://example.org/embargoes/1",  # type: ignore[arg-type]
             actor=_ACTOR_URI,
         )
-    assert "as_EmbargoEvent" in str(exc_info.value)
+    assert "EmbargoEvent" in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------

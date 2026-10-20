@@ -37,6 +37,9 @@ from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
 
 
 class TestVocabCaseObjectExamples(unittest.TestCase):
@@ -77,8 +80,12 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
         # Each call to create_case() uses a fresh random-ID case, so we assert
         # the id is non-empty rather than equal to the shared singleton.
         self.assertTrue(case_from_activity.id_)
+        # The report travels inline too: the receiver seeds its replica from
+        # this one activity (CBT-01-012, ADR-0107 detail 4).
+        carried_report = case_from_activity.vulnerability_reports[0]
+        self.assertIsInstance(carried_report, as_VulnerabilityReport)
         self.assertEqual(
-            case_from_activity.vulnerability_reports[0], report.id_
+            cast(as_VulnerabilityReport, carried_report).id_, report.id_
         )
         # Inline participants, not bare URIs: CBT-01-012 says a bare URI "MUST
         # NOT be used" here, and use_cases/received/case/create.py refuses one.

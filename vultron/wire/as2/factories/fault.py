@@ -26,6 +26,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from vultron.wire.as2.errors import VultronParseError
+from vultron.wire.as2.factories._inline import require_inline
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.activities.fault import _RefusalNoticeActivity
@@ -55,7 +56,14 @@ def create_processing_fault_activity(
 
     Returns:
         An ``as_Create`` activity wrapping the ``as_ProcessingFault``.
+
+    Raises:
+        VultronActivityConstructionError: If *fault* is not an inline
+            ``as_ProcessingFault`` (ADR-0107 detail 4).
     """
+    fault = require_inline(
+        fault, as_ProcessingFault, factory="create_processing_fault_activity"
+    )
     id_kwargs: dict[str, Any] = {} if id_ is None else {"id_": id_}
     return as_Create(actor=actor, object_=fault, to=to, **id_kwargs)
 

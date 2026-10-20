@@ -154,7 +154,9 @@ groups:
       include a fully serialized `object` field rather than a bare URI reference.
       `vultron/adapters/driving/fastapi/outbox_delivery.py` raises
       `VultronValidationError` when `object_` is a bare string URI rather than a typed
-      object.
+      object. `test/architecture/test_introduced_objects_inline.py` classifies every
+      activity factory, and checks that each one introducing an object refuses it as a
+      bare id and carries it inline, and that every example activity does the same.
     relationships:
     - rel_type: implements
       spec_id: AKM-03-001

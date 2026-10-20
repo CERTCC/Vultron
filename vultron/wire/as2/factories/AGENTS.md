@@ -40,5 +40,13 @@ collapses, or patches it. So:
 - An initiating activity's `object` MUST be the full inline object
   (AKM-03-001); the outbox refuses a bare reference, it no longer repairs one.
 
-Ratchet: `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py`
-exercises every trigger-port method against these three rules.
+- An activity that introduces an object (a `Create` or `Add` of a new object, or
+  its first delivery) MUST carry it inline (ADR-0107 detail 4). When the
+  activity class does not refuse a bare id itself (a generic `as_Create`, or a
+  class that admits a URI for *received* activities), guard the argument with
+  `require_inline` (`_inline.py`).
+
+Ratchets: `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py`
+exercises every trigger-port method against these rules;
+`test/architecture/test_introduced_objects_inline.py` classifies every factory
+by what it introduces, so a new one cannot be added unexamined.

@@ -67,7 +67,6 @@ from vultron.wire.as2.factories import (
     announce_embargo_activity,
     em_propose_embargo_activity,
 )
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 logger = logging.getLogger(__name__)
@@ -102,13 +101,6 @@ def demo_propose_embargo_accept(
     embargo = proposal = None
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = make_embargo_event(case, days=90)
-        create_embargo = as_Create(
-            actor=vendor.id_,
-            object_=embargo,
-            context=case.id_,
-        )
-        post_to_inbox_and_wait(client, vendor.id_, create_embargo)
-
         proposal = em_propose_embargo_activity(
             embargo,
             id_=f"{case.id_}/embargo_proposals/1",
@@ -185,13 +177,6 @@ def demo_propose_embargo_reject(
     embargo = proposal = None
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = make_embargo_event(case, days=45)
-        create_embargo = as_Create(
-            actor=vendor.id_,
-            object_=embargo,
-            context=case.id_,
-        )
-        post_to_inbox_and_wait(client, vendor.id_, create_embargo)
-
         proposal = em_propose_embargo_activity(
             embargo,
             id_=f"{case.id_}/embargo_proposals/1",

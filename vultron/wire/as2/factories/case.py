@@ -44,6 +44,7 @@ from vultron.wire.as2.factories._context import (
     with_case_context,
 )
 from vultron.wire.as2.factories._held import as_answered
+from vultron.wire.as2.factories._inline import require_inline
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case import (
     _AcceptCaseOwnershipTransferActivity,
@@ -1288,9 +1289,13 @@ def create_case_proposal_activity(
         An ``as_Create`` whose ``object_`` is the ``as_CaseProposal``.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails, or
-            *actor* is not the proposal's ``attributed_to``.
+        VultronActivityConstructionError: If Pydantic validation fails,
+            *proposal* is not an inline ``as_CaseProposal`` (ADR-0107
+            detail 4), or *actor* is not the proposal's ``attributed_to``.
     """
+    proposal = require_inline(
+        proposal, as_CaseProposal, factory="create_case_proposal_activity"
+    )
     if actor.id_ != proposal.attributed_to:
         raise VultronActivityConstructionError(
             f"create_case_proposal_activity: actor {actor.id_!r} is not the"
