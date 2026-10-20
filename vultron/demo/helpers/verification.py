@@ -161,6 +161,49 @@ def _require_case_participant_id(
     return participant_id
 
 
+def verify_participant_status_appended(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    status_id: str,
+    dl_actor_id: str | None = None,
+) -> None:
+    """Raise unless *actor_id*'s participant record carries *status_id*.
+
+    A received ``Add(ParticipantStatus)`` that is refused leaves the record
+    unchanged and logs only a WARNING, so a demo step that sends one checks
+    the append here (HP-08-008, #4999).
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor whose participant record to check.
+        status_id: Full URI of the ``ParticipantStatus`` the ``Add`` carried.
+        dl_actor_id: Full URI of the actor whose *store* to read — see
+            :func:`_fetch_participant`.
+
+    Raises:
+        ValueError: If the participant record is missing or does not carry
+            *status_id*.
+    """
+    participant = _fetch_participant(
+        client, case_id, actor_id, dl_actor_id=dl_actor_id
+    )
+    if participant is None:
+        raise ValueError(
+            f"Participant record for '{actor_id}' not found in case"
+            f" '{case_id}'"
+        )
+    status_ids = [
+        ref_id(s) or str(s) for s in participant.participant_statuses or []
+    ]
+    if status_id not in status_ids:
+        raise ValueError(
+            f"ParticipantStatus '{status_id}' not appended to participant"
+            f" '{participant.id_}'; it carries {status_ids}"
+        )
+
+
 def _assert_vendor_participant_state(
     vendor_client: DataLayerClient,
     participant_id: str,

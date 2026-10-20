@@ -125,8 +125,11 @@ class _RegisterCreatorParticipantNode(
         assert self.datalayer is not None
         assert self.actor_id is not None
 
+        # The record names its case, as every participant record does: a
+        # received Add(ParticipantStatus) acts on that case (HP-08-008).
         participant = CaseParticipant(
             attributed_to=self.actor_id,
+            context=case_id,
             case_roles=[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER],
         )
         case = _create_and_attach_participant(

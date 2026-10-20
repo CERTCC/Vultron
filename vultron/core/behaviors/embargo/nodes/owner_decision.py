@@ -122,8 +122,9 @@ class RejectEmbargoProposalLifecycleNode(_EmbargoLifecycleNode):
     """Apply the owner's ``STRICT`` rejection of a proposal (ADR-0122).
 
     ``EmbargoLifecycle.reject_embargo_proposal``: ``REJECT`` the proposal's
-    register entry and write no consent.  Refused when it would return the
-    case to the prior terms with P/X/A set (EMB-04-002).
+    register entry and write no consent.  With P/X/A set, a rejection of the
+    last revision is followed in the same act by the CASE_MANAGER's
+    termination (``end_embargo_outliving_disclosure_bt``, EMB-04-002).
     """
 
     def __init__(

@@ -67,21 +67,43 @@ def pxa_is_embargo_eligible(pxa_state: CS_pxa) -> bool:
 
 
 def rejection_ends_embargo(case: "VulnerabilityCase", embargo_id: str) -> bool:
-    """True when rejecting *embargo_id* must end the embargo instead (EMB-04-002).
+    """True when rejecting *embargo_id* must also end the embargo (EMB-04-002).
 
     The case is in ``REVISE`` (an embargo is in force and *embargo_id* is
     its last open revision, EP-08-001) and CS is public, exploited or
-    attacked.  Rejecting the revision would return the case to the prior
-    terms, which is not allowed then: the rejection is answered with ET,
-    whose ``TERMINATE`` step cancels the revision (EP-08-004).  The one
-    condition the CASE_MANAGER's decision, its lifecycle refusal and the
-    replica slot all read (MSM-07-009).
+    attacked.  Rejecting the revision returns the case to the prior terms,
+    which no act may end in then: the CASE_MANAGER records the ``REJECT``
+    step and then terminates the embargo in the same act (MSM-07-009).  The
+    CASE_MANAGER reads this before the rejection, among the guards that
+    trial-apply both steps; replicas never read it, they copy both entries
+    (CM-23-016).
     """
-    return (
-        case.proposed_embargo_ids == [embargo_id]
-        and case.active_embargo_id is not None
-        and not pxa_is_embargo_eligible(case.current_status.pxa.state)
+    return case.proposed_embargo_ids == [embargo_id] and _in_force_disclosed(
+        case
     )
 
 
-__all__ = ["pxa_is_embargo_eligible", "rejection_ends_embargo"]
+def embargo_outlives_disclosure(case: "VulnerabilityCase") -> bool:
+    """True when the prior terms stand after CS went public (EMB-04-002).
+
+    An embargo is in force, no proposal is open, and CS is public, exploited
+    or attacked.  This is the case the owner's rejection of the last
+    revision leaves when :func:`rejection_ends_embargo` held before it: the
+    CASE_MANAGER's rejection trees read it after the ``REJECT`` step and
+    terminate the embargo in the same act (MSM-07-009).
+    """
+    return not case.proposed_embargo_ids and _in_force_disclosed(case)
+
+
+def _in_force_disclosed(case: "VulnerabilityCase") -> bool:
+    """An embargo is in force and CS is public, exploited or attacked."""
+    return case.active_embargo_id is not None and not pxa_is_embargo_eligible(
+        case.current_status.pxa.state
+    )
+
+
+__all__ = [
+    "embargo_outlives_disclosure",
+    "pxa_is_embargo_eligible",
+    "rejection_ends_embargo",
+]

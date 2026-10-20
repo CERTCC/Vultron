@@ -229,7 +229,10 @@ def add_case_status_tree(
                 ),
             ),
         ],
-        replica_emit_exemption=CASE_STATUS,
+        # Without a case_id, ThreatTerminationBranchNode builds no teardown
+        # emit, so the tree has no ungated emitter for CASE_STATUS to cover
+        # and naming it would be a stale exemption (BT-17-008, #4978).
+        replica_emit_exemption=CASE_STATUS if case_id else None,
     )
     logger.debug(
         "Created AddCaseStatusToCaseBT for status=%s case=%s actor=%s"

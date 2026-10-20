@@ -19,6 +19,8 @@ from vultron.core.behaviors.status.nodes import (
 from vultron.core.behaviors.status.nodes.participant_status_acceptance import (
     CheckParticipantStatusAcceptableNode,
 )
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
@@ -232,8 +234,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        # Resolve case_id for the guarded-commit subtree (pre-flight lookup).
-        case_id = self._resolve_case_id_for_log_cascade()
+        # The case is the target participant's own (HP-08-008); the tree
+        # refuses a status of any other case before the commit (HP-08-007).
+        case_id = self._target_participant_case_id()
 
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}
@@ -284,21 +287,18 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 )
         return verdict
 
-    def _resolve_case_id_for_log_cascade(self) -> str | None:
-        request = self._request
+    def _target_participant_case_id(self) -> str | None:
+        """The case the target participant's own record names (HP-08-008).
 
-        if request.status is not None:
-            context = getattr(request.status, "context", None)
-            if context:
-                return str(context)
-
-        if request.context_id is not None:
-            return request.context_id
-
-        if request.status_id:
-            stored_status = self._dl.read(request.status_id)
-            if stored_status is not None:
-                context = getattr(stored_status, "context", None)
-                if context:
-                    return str(context)
-        return None
+        The receiver's stored record of the participant decides the case,
+        never the status's ``context`` or the activity's: the sender chooses
+        those, while the status is appended to whichever case owns the
+        participant.  A participant the receiver does not hold, or whose
+        record names no case, leaves no case, and the sender guard refuses
+        (HP-01-008).
+        """
+        participant_id = self._request.participant_id
+        stored = self._dl.read(participant_id) if participant_id else None
+        if not isinstance(stored, CaseParticipant):
+            return None
+        return _as_id(stored.context)

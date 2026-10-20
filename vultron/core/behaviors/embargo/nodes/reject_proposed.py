@@ -15,12 +15,14 @@
 
 """The case owner's Reject of an open embargo proposal (EP-08-003).
 
-:class:`DecideRejectedEmbargoProposalNode` applies the owner's
-``Reject(EmbargoEvent, target=Case)`` (ER or EJ, ADR-0122) on the received
-path, as the CASE_MANAGER (a replica copies the committed ``REJECT`` step,
-``activation_effect.py``);
-:class:`OwnerRejectsRevisionAfterDisclosureNode` tells when that Reject must
-end the embargo instead (EMB-04-002).  The P/X/A abandonment of open
+:class:`OwnerRejectionAppliesNode` trial-applies the owner's
+``Reject(EmbargoEvent, target=Case)`` (ER or EJ, ADR-0122) among the
+received tree's guards, with the termination it causes after disclosure
+(EMB-04-002); :class:`DecideRejectedEmbargoProposalNode` applies the
+``REJECT`` step as the CASE_MANAGER (a replica copies the committed step,
+``activation_effect.py``); :class:`EmbargoOutlivesDisclosureNode` tells,
+after that step, that the CASE_MANAGER must now terminate the embargo in
+the same act (MSM-07-009).  The P/X/A abandonment of open
 proposals (EMB-16-001) is the CASE_MANAGER's decision, not an owner's
 Reject, and lives in :mod:`.abandon`.
 
@@ -30,15 +32,30 @@ Extracted from lifecycle.py to keep that module under the BTND-07-004
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.copy_commit import (
+    read_embargo_case_file,
+    trial_apply,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import _as_id
-from vultron.core.predicates.embargo import rejection_ends_embargo
-from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
+from vultron.core.models.embargo_apply import (
+    EmbargoChange,
+    RegisterStep,
+    RegisterStepKind,
+)
+from vultron.core.models.embargo_termination import ThreatSignalTermination
+from vultron.core.predicates.embargo import (
+    embargo_outlives_disclosure,
+    rejection_ends_embargo,
+)
+from vultron.core.services.embargo_lifecycle import (
+    EmbargoLifecycle,
+    decide_termination,
+)
 from vultron.errors import VultronError
 
 
@@ -57,11 +74,14 @@ class DecideRejectedEmbargoProposalNode(
     CASE_MANAGER's store; a replica copies the committed entry instead
     (CM-23-016, ADR-0124).
 
+    With P/X/A set, rejecting the last revision leaves the prior terms in
+    force only until :class:`EmbargoOutlivesDisclosureNode`'s termination
+    later in the same act (EMB-04-002, MSM-07-009).
+
     Returns SUCCESS and changes nothing when the embargo is no longer an
-    open proposal (already decided, or ended by the EMB-04-002 termination
-    that ran first), so a repeated Reject is idempotent.  Returns FAILURE
-    when the case cannot be read or the lifecycle refuses the transition
-    (for example EJ with P/X/A set, EMB-04-002).
+    open proposal (already decided), so a repeated Reject is idempotent.
+    Returns FAILURE when the case cannot be read or the lifecycle refuses
+    the transition.
     """
 
     def __init__(
@@ -117,49 +137,84 @@ class DecideRejectedEmbargoProposalNode(
         return Status.SUCCESS
 
 
-class OwnerRejectsRevisionAfterDisclosureNode(DataLayerConditionWithPorts):
-    """True when the owner's Reject must end the embargo, not keep it (EMB-04-002).
+class OwnerRejectionAppliesNode(DataLayerConditionWithPorts):
+    """Guard: the owner's rejection, and any termination it causes, apply.
 
-    SUCCESS when ``rejecting_actor_id`` is the case owner, the case is in
-    ``REVISE``, ``embargo_id`` is the last open proposal (so the Reject would
-    decide the revision, EP-08-001) and CS is already public, exploited or
-    attacked (:func:`~vultron.core.predicates.embargo.rejection_ends_embargo`).
-    Returning to the prior terms is then not allowed: the EJ must be
-    answered with ET.  FAILURE in every other case, so the owner's Reject
-    is decided by :class:`DecideRejectedEmbargoProposalNode` as usual.
-    Read-only.
+    The CASE_MANAGER decides the act among the guards, before the guarded
+    commit (ADR-0124, SYNC-12-001): the ``REJECT`` step of ``embargo_id``,
+    then, when :func:`~vultron.core.predicates.embargo.rejection_ends_embargo`
+    holds, the ``TERMINATE`` step its own ``Remove`` will carry, decided by
+    :func:`~vultron.core.services.embargo_lifecycle.decide_termination` with
+    the threat signals the case carries (EMB-04-002, EMB-13-005).  Both are
+    applied in order to a copy of the case file through the one apply
+    function.  FAILURE when the decision or either step is refused, so the
+    act is refused before its entry is committed and a refused termination
+    commits neither entry (MSM-07-009).  Read-only.
     """
 
     def __init__(
-        self,
-        case_id: str,
-        embargo_id: str,
-        rejecting_actor_id: str,
-        name: str | None = None,
+        self, case_id: str, embargo_id: str, name: str | None = None
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.embargo_id = embargo_id
-        self.rejecting_actor_id = rejecting_actor_id
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
-
-        if _as_id(
-            case.attributed_to
-        ) == self.rejecting_actor_id and rejection_ends_embargo(
-            case, self.embargo_id
-        ):
+        changes: list[EmbargoChange] = [
+            RegisterStep(kind=RegisterStepKind.REJECT, embargo=self.embargo_id)
+        ]
+        try:
+            if rejection_ends_embargo(case, self.embargo_id):
+                changes.append(
+                    decide_termination(
+                        self.datalayer, case, ThreatSignalTermination(), None
+                    )
+                )
+            trial_apply(
+                read_embargo_case_file(self.datalayer, self.case_id), changes
+            )
+        except VultronError as exc:
             self.feedback_message = (
-                f"Owner rejected revision '{self.embargo_id}' of case"
-                f" '{self.case_id}' with P/X/A set: the embargo ends (ET)"
-                " rather than returning to its prior terms (EMB-04-002)"
+                f"the owner's rejection of embargo '{self.embargo_id}'"
+                f" records nothing on case '{self.case_id}': {exc}"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return Status.SUCCESS
+
+
+class EmbargoOutlivesDisclosureNode(DataLayerConditionWithPorts):
+    """True when the prior terms stand with P/X/A set (EMB-04-002).
+
+    Read after the owner's ``REJECT`` step, in the same act: SUCCESS when
+    an embargo is in force, no proposal is open and CS is public, exploited
+    or attacked (:func:`~vultron.core.predicates.embargo.embargo_outlives_disclosure`).
+    The rejection then decided the last revision after disclosure, and
+    returning to the prior terms is not allowed, so the CASE_MANAGER
+    terminates the embargo before the act ends (MSM-07-009).  FAILURE in
+    every other case.  Read-only.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+        if embargo_outlives_disclosure(case):
+            self.feedback_message = (
+                f"the prior terms of case '{self.case_id}' stand with P/X/A"
+                " set: the embargo ends (ET) in the same act (EMB-04-002)"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
