@@ -355,7 +355,7 @@ class AcceptRecordedOwnershipOfferNode(_TransferCaseOwnershipNode):
                 "Ownership-transfer Offer", str(self.offer_id)
             )
         return recorded_ownership_offer(
-            self.datalayer, self.case_id, self.offer_id, self.actor_id
+            self.datalayer, self.case_id, self.offer_id
         ).transferee_id
 
     def _cause_id(self) -> str:

@@ -1,4 +1,4 @@
-"""Use cases for case actor/participant invitation and suggestion activities."""
+"""Use cases for the ownership-transfer activities (CM-21, ADR-0148)."""
 
 import logging
 from typing import TYPE_CHECKING, ClassVar
@@ -7,6 +7,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
     create_offer_ownership_transfer_tree,
+    create_propose_ownership_transfer_tree,
     create_reject_ownership_transfer_tree,
     create_undo_ownership_transfer_tree,
 )
@@ -14,6 +15,7 @@ from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
+    ProposeCaseOwnershipTransferReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     UndoCaseOwnershipTransferReceivedEvent,
 )
@@ -21,7 +23,7 @@ from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
-from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.ownership_offer import ownership_offer_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.predicates.addressing import normalise_actor_id
@@ -29,9 +31,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
-    applied_or_raise,
     intake_verdict,
-    not_case_manager,
     ownership_answer_verdict,
     ownership_offer_verdict,
     verdict_from_bt,
@@ -47,28 +47,120 @@ if TYPE_CHECKING:
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
+    any_of,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class OfferCaseOwnershipTransferReceivedUseCase:
-    """The CASE_MANAGER records and forwards an ownership-transfer Offer.
+class ProposeCaseOwnershipTransferReceivedUseCase:
+    """The CASE_MANAGER makes the ownership-transfer Offer the owner proposed.
 
-    At the CASE_MANAGER the sender must hold ``CVDRole.CASE_OWNER`` on the
-    case; at any other replica, the transferee's, it must be the CASE_MANAGER
-    forwarding it (CM-21-019, PCR-03-001).  Anyone else is ``REFUSED`` by the
-    tree's sender guard before anything but intake's archive is written
-    (CLP-10-018): no expiry, no ledger entry, no forward, the Offer not
-    stored and the owner unchanged.  A redelivery of an Offer the
-    CASE_MANAGER recorded from its sender is ``SKIPPED`` (HP-01-003).
+    The Case Owner proposes a transfer as ``Offer(Offer(VulnerabilityCase))``
+    (ADR-0148).  The CASE_MANAGER admits it only from the Case Owner and only
+    while no Offer for the case is open (CM-21-019, CM-21-014), validates the
+    inner Offer — this case, a transferee it can address — ledgers the
+    proposal, and makes the one ``Offer(VulnerabilityCase)`` of the transfer
+    under an id it derives, with ``attributedTo`` the owner, and ledgers that
+    Offer (CM-21-005).  Anyone else is ``REFUSED`` by the tree's sender
+    guard before anything but intake's archive is written (CLP-10-018): no
+    expiry, no ledger entry, no Offer.  A redelivery of a proposal the
+    CASE_MANAGER already made its Offer from is ``SKIPPED`` (HP-01-003).
     """
 
-    # Only the Case Owner offers the case; the CASE_MANAGER never sends itself
-    # one, and a replica takes the forward from the CASE_MANAGER alone
+    # Only the Case Owner proposes; a participant never receives a proposal,
+    # so no sender is admitted there (CM-21-019, ADR-0129).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_case_manager=any_of(SenderEntitlementKind.CASE_OWNER)
+    )
+
+    def __init__(
+        self,
+        dl: CaseOutboxPersistence,
+        request: ProposeCaseOwnershipTransferReceivedEvent,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
+    ) -> None:
+        self._dl = dl
+        self._wire_render_port = wire_render_port
+        self._request: ProposeCaseOwnershipTransferReceivedEvent = request
+        self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
+
+    def execute(self) -> HandlerResult:
+        request = self._request
+        case_id = request.case_id
+        # The transferee becomes the case owner if it accepts, so it is
+        # normalised where it is extracted (OID-01-006).
+        transferee_id = request.transferee_id
+        if transferee_id is not None:
+            transferee_id = normalise_actor_id(transferee_id)
+
+        # The received tree, run once (CLP-10-005).  Its sender guard
+        # refuses a sender that is not the Case Owner before anything is
+        # written (CM-21-019, HP-01-006).  A new proposal is one of the
+        # moments the CASE_MANAGER checks the open Offer's deadline
+        # (CM-21-017): the tree's clock decision closes an expired one
+        # before this proposal is judged against it (CM-21-014,
+        # CLP-10-025).  The CASE_MANAGER-gated MakeOwnershipTransferOfferNode
+        # makes, queues and ledgers the Offer — no procedural outbox write
+        # here.
+        tree = create_propose_ownership_transfer_tree(
+            case_id=case_id,
+            proposed_case_id=request.proposed_case_id,
+            transferee_id=transferee_id,
+            proposal_id=request.activity_id,
+            answer_deadline=request.proposed_answer_deadline,
+            now=now_utc(),
+            sender_rule=self.sender_entitlement,
+            sender_id=request.actor_id,
+        )
+        result = self._bridge().execute_with_setup(
+            tree=tree,
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
+            activity=request,
+        )
+        verdict = ownership_offer_verdict(
+            tree,
+            verdict_from_bt(tree, result, label="ProposeOwnershipTransferBT"),
+        )
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "ProposeOwnershipTransferBT refused for case '%s': %s",
+                case_id,
+                verdict.reason,
+            )
+        return verdict
+
+    def _bridge(self) -> BTBridge:
+        return BTBridge(
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        )
+
+
+class OfferCaseOwnershipTransferReceivedUseCase:
+    """The transferee receives the CASE_MANAGER's ownership-transfer Offer.
+
+    The one ``Offer(VulnerabilityCase)`` of a transfer, which the
+    CASE_MANAGER made from the Case Owner's proposal (ADR-0148).  A
+    participant takes it from the case's CASE_MANAGER alone (CM-21-019,
+    PCR-03-001); intake's archive is the copy it answers, never stored under
+    the id its sender chose (DL-06-006).  At the CASE_MANAGER no sender is
+    admitted: an owner proposes, it does not offer.  Anyone else is
+    ``REFUSED`` with nothing but intake's archive written (CLP-10-018).  A
+    redelivery is ``SKIPPED`` (HP-01-003).
+    """
+
+    # Only the CASE_MANAGER makes the Offer; nobody sends it one
     # (CM-21-019, PCR-03-001, ADR-0129).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
-        SenderEntitlementKind.CASE_OWNER
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER)
     )
 
     def __init__(
@@ -85,151 +177,41 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
 
-    def _resolve_offering_actor_id(self, case_id: str) -> str | None:
-        """Return the actor whose intent the forwarded Offer should carry.
-
-        Two shapes arrive.  At the CASE_MANAGER, the Offer is the Case Owner's
-        own: the owner is its `actor` and it carries no `attributed_to`
-        (CM-21-005, CM-24-004), so the sender is the offerer.  At the
-        transferee, it is the CASE_MANAGER's forward, a *delegated* message:
-        the CaseActor is its `actor` and the owner who asked for the transfer
-        is in `attributed_to` (CM-24-001, CM-24-002).  Reading `actor_id` alone
-        there would attribute the owner's intent to the CaseActor, leaving no
-        receiver able to recover who offered.
-
-        `attributed_to` is honoured **only** in that delegated shape — when the
-        sender is this case's CaseActor.  A peer that sets `attributed_to` on an
-        Offer it sends under its own identity is claiming to speak for someone
-        else, and relaying that unchecked would let any participant forge the
-        offerer of record; nothing downstream re-checks it, because
-        CLP-07-003 validates `payloadSnapshot.actor` and not `attributed_to`.
-        Outside the delegated shape the sender is the offerer, which is also the
-        correct answer when the case has no CaseActor at all (the retired
-        send-directly arm; see CM-24-006).
-        """
-        request = self._request
-        delegated_author = _as_id(request.activity.attributed_to)
-        if delegated_author is None:
-            return request.actor_id
-        # Recorded as the offerer, so normalised where it is extracted, like
-        # the sender id (OID-01-006).
-        delegated_author = normalise_actor_id(delegated_author)
-        case = self._dl.read_case(case_id)
-        case_actor_id = (
-            resolve_case_manager_id(case, self._dl)
-            if case is not None
-            else None
-        )
-        if case_actor_id is not None and request.actor_id == case_actor_id:
-            return delegated_author
-        logger.warning(
-            "OfferCaseOwnershipTransferReceived: ignoring attributed_to '%s'"
-            " on an Offer sent by '%s', which is not case '%s''s CaseActor"
-            " ('%s') — only a delegated Offer may name another actor as the"
-            " offerer (CM-24-001, CM-24-002)",
-            delegated_author,
-            request.actor_id,
-            case_id,
-            case_actor_id,
-        )
-        return request.actor_id
-
     def execute(self) -> HandlerResult:
         request = self._request
-        # Resolve the receiver before any write: it raises when no actor owns
-        # this store, and a refusal must not leave the Offer behind (#2667).
-        receiving_actor_id = resolve_receiving_actor_id(
-            self._dl, request.receiving_actor_id
-        )
-
-        # Two receivers are entitled to this Offer: the CASE_MANAGER it is
-        # addressed to (CM-21-005) and the transferee the CASE_MANAGER forwards
-        # it to.  The tree's addressee door guard refuses a copy not addressed
-        # to this store before it stores anything (HP-01-005, #3752); the
-        # sender guard then refuses a sender's own copy at a replica, which
-        # takes the Offer from the CASE_MANAGER alone (PCR-03-001).
-        case_id = _as_id(request.activity.object_)
-        # The transferee becomes the case owner if it accepts, so it is
-        # normalised where it is extracted (OID-01-006).
-        transferee_id = _as_id(request.activity.target)
-        if transferee_id is not None:
-            transferee_id = normalise_actor_id(transferee_id)
-        original_actor_id = (
-            self._resolve_offering_actor_id(case_id)
-            if case_id is not None
-            else None
-        )
-
-        # The received tree, run once (CLP-10-005).  Its sender guard
-        # refuses a sender that is not the Case Owner before anything is
-        # written (CM-21-019, HP-01-006).  A new Offer for the case is one of
-        # the moments the CASE_MANAGER checks the open Offer's deadline
-        # (CM-21-017): the tree's clock decision closes an expired one before
-        # this Offer is judged against it (CM-21-014, CLP-10-025).  The
-        # guarded commit fires only when receiving_actor_id is the CaseActor
-        # (CheckIsCaseManagerNode gate), and the CM-gated
-        # ForwardOfferToTransfereeNode in the effect section does the
-        # CM-21-005 forward — no procedural outbox write here.
+        # The tree's addressee door guard refuses a copy not addressed to
+        # this store before it stores anything (HP-01-005, #3752); the sender
+        # guard then admits the CASE_MANAGER alone (PCR-03-001).
         tree = create_offer_ownership_transfer_tree(
-            case_id=case_id,
-            transferee_id=transferee_id,
-            original_actor_id=original_actor_id,
-            answer_deadline=request.answer_deadline,
-            offer_id=request.activity_id,
-            now=now_utc(),
+            case_id=_as_id(request.activity.object_),
             sender_rule=self.sender_entitlement,
             sender_id=request.actor_id,
         )
-        bridge = BTBridge(
+        result = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
             wire_render_port=self._wire_render_port,
             sync_port=self._sync_port,
-        )
-        result = bridge.execute_with_setup(
+        ).execute_with_setup(
             tree=tree,
-            actor_id=receiving_actor_id,
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
             activity=request,
         )
-        if case_id is None:
-            # Intake archived the Offer; there is no case to act on.  A door
-            # guard's refusal (an unaddressed copy, HP-01-005) is its own.
-            verdict = applied_or_raise(
-                tree, result, label="OfferOwnershipTransferBT"
-            )
-            if verdict.disposition is HandlerDisposition.REFUSED:
-                return verdict
-            logger.warning(
-                "OfferCaseOwnershipTransferReceived: missing case_id"
-                " on offer '%s' — refusing",
-                request.activity_id,
-            )
-            return HandlerResult.refused(
-                "Offer(ownership transfer) names no case"
-            )
-        verdict = ownership_offer_verdict(
-            tree,
-            verdict_from_bt(tree, result, label="OfferOwnershipTransferBT"),
+        verdict = verdict_from_bt(
+            tree, result, label="OfferOwnershipTransferBT"
         )
-        if verdict.disposition is HandlerDisposition.SKIPPED:
-            return verdict
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
-                "OfferOwnershipTransferBT refused for case '%s': %s",
-                case_id,
+                "OfferOwnershipTransferBT refused Offer '%s': %s",
+                request.activity_id,
                 verdict.reason,
             )
             return verdict
-        if not_case_manager(tree):
-            # The cascade is the CASE_MANAGER's; the transferee (admitted by
-            # the tree's door and sender guards) only keeps the forwarded
-            # Offer, which intake archived, so what it did is what intake did
-            # (HP-01-003).  The transferee answers it from that archive; it
-            # is never stored under the id its sender chose (DL-06-006).
-            return intake_verdict(
-                tree, result, label="OfferOwnershipTransferBT"
-            )
-        return verdict
+        # The transferee keeps the Offer, which intake archived, so what it
+        # did is what intake did (HP-01-003).
+        return intake_verdict(tree, result, label="OfferOwnershipTransferBT")
 
 
 class AcceptCaseOwnershipTransferReceivedUseCase:
@@ -240,7 +222,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
     it must be the CASE_MANAGER (CM-21-011, PCR-03-001).  Anyone else is
     ``REFUSED`` with ownership unchanged, nothing committed and nothing sent
     (HP-01-006).  An Accept of an Offer already closed is ``REFUSED`` the
-    same way and answered with the refusal notice (CM-21-018, CLP-05-001).
+    same way and answered with the refusal notice (CM-21-014, CLP-05-001).
     The new owner is read from the recorded Offer, never from the sender.
     A redelivery of the Accept that already closed the Offer changes nothing
     and is ``SKIPPED`` (HP-01-003).
@@ -305,7 +287,7 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     CASE_MANAGER.  Anyone else is ``REFUSED`` with nothing committed and
     nothing sent, and the Offer stays open (HP-01-006).  A Reject of an Offer
     already closed is ``REFUSED`` the same way and answered with the refusal
-    notice (CM-21-018, CLP-05-001).
+    notice (CM-21-014, CLP-05-001).
 
     An admitted Reject commits a ``reject_case_ownership_transfer`` entry and
     broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every
@@ -364,12 +346,13 @@ class RejectCaseOwnershipTransferReceivedUseCase:
 class UndoCaseOwnershipTransferReceivedUseCase:
     """The CASE_MANAGER ledgers a withdrawn ownership-transfer Offer (CM-21-015).
 
-    At the CASE_MANAGER the sender must be the Case Owner that made an open
-    ownership-transfer Offer it recorded for the case; at any other replica
-    it must be the CASE_MANAGER.  Anyone else, or a withdrawal of an Offer
-    already answered or withdrawn, is ``REFUSED`` with nothing committed; the
-    withdrawal of a closed Offer is answered with the refusal notice, anyone
-    else with nothing (CLP-05-001, HP-01-006).
+    The Case Owner sends ``Undo`` of its own proposal; the CASE_MANAGER
+    withdraws the Offer it made from that proposal (ADR-0148).  At the
+    CASE_MANAGER the sender must be the Case Owner that Offer was made for;
+    at any other replica it must be the CASE_MANAGER.  Anyone else, or a
+    withdrawal of an Offer already answered or withdrawn, is ``REFUSED`` with
+    nothing committed; the withdrawal of a closed Offer is answered with the
+    refusal notice, anyone else with nothing (CLP-05-001, HP-01-006).
 
     An admitted Undo commits an ``undo_case_ownership_transfer`` entry and
     broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every
@@ -403,10 +386,27 @@ class UndoCaseOwnershipTransferReceivedUseCase:
         request = self._request
         case_id = request.case_id
         now = now_utc()
+        proposal_id = request.proposal_id
+        # The Undo names the owner's proposal; the CASE_MANAGER withdraws the
+        # Offer it made from it, whose id it derives the way it did when it
+        # made it (CM-21-015, ADR-0148).  At a replica the derivation names
+        # no Offer it holds, but its sender guard admits the CASE_MANAGER
+        # alone, so nothing is read for it.
+        offer_id = (
+            ownership_offer_id(
+                resolve_receiving_actor_id(
+                    self._dl, request.receiving_actor_id
+                ),
+                case_id,
+                proposal_id,
+            )
+            if case_id is not None and proposal_id is not None
+            else None
+        )
 
         tree = create_undo_ownership_transfer_tree(
             case_id=case_id,
-            offer_id=request.object_id,
+            offer_id=offer_id,
             sender_id=request.actor_id,
             undo_id=request.activity_id,
             now=now,

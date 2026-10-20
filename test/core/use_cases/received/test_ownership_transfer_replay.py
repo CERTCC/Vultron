@@ -34,10 +34,11 @@ from vultron.core.models.participant_semantic_types import (
     UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.participants.ownership_offer import ownership_offer_id
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
-    offer_case_ownership_transfer_activity,
+    propose_case_ownership_transfer_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -56,21 +57,26 @@ def _send(net: LedgerNetwork, activity: Any) -> None:
 
 
 def _transferred(case_id: str) -> LedgerNetwork:
-    """OWNER offers the case to BYSTANDER, who accepts, at the CASE_MANAGER."""
+    """OWNER proposes the case to BYSTANDER; the CASE_MANAGER makes the
+    Offer, and BYSTANDER accepts it (ADR-0148)."""
     net = LedgerNetwork(case_id)
     case = as_VulnerabilityCase(id_=case_id, name="Ownership replay")
-    offer = offer_case_ownership_transfer_activity(
+    proposal = propose_case_ownership_transfer_activity(
         case,
         target=as_Service(id_=BYSTANDER, name="Transferee"),
         actor=OWNER,
         to=[MANAGER],
-        id_=f"{case_id}/offers/1",
+        id_=f"{case_id}/proposals/1",
     )
-    _send(net, offer)
+    _send(net, proposal)
+    offer = net.stores[MANAGER].read(
+        ownership_offer_id(MANAGER, case_id, proposal.id_)
+    )
+    assert offer is not None
     _send(
         net,
         accept_case_ownership_transfer_activity(
-            offer, actor=BYSTANDER, to=[MANAGER]
+            cast(Any, offer), actor=BYSTANDER, to=[MANAGER]
         ),
     )
     return net

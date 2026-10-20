@@ -64,8 +64,9 @@ causal_edges:
     consequent: accept_case_ownership_transfer
     consequent_actor: coordinator
     note: >
-      The Case Actor records C1's ownership offer before forwarding it to C2
-      (ADR-0053); C2's acceptance follows the recorded offer.
+      The Case Actor makes and records the ownership offer C1 proposed
+      before it reaches C2 (ADR-0148); C2's acceptance follows the recorded
+      offer.
   - antecedent: report_submitted
     consequent: validate_report
     consequent_actor: vendor
@@ -130,7 +131,8 @@ C2 joins the case.  An `accept_invite_actor_to_case` entry is recorded.
 ### 6. C1 offers case ownership to C2
 
 C1 decides to transfer the case to C2 and initiates the ownership-transfer protocol.
-The offer is addressed to the **Case Actor**, not to C2 (ADR-0053): the Case Actor records it as an `offer_case_ownership_transfer` entry, so every participant learns that a transfer is on offer, and then forwards an offer of its own to C2.
+C1 proposes the transfer to the **Case Actor**, not to C2 (ADR-0053, ADR-0148).
+The Case Actor makes the offer itself, under its own identity, and records it as an `offer_case_ownership_transfer` entry, so every participant learns that a transfer is on offer.
 
 *Antecedent:* C2's `accept_invite_actor_to_case` entry is in the ledger.
 
@@ -140,7 +142,7 @@ C2 formally accepts the ownership transfer.
 An `accept_case_ownership_transfer` entry is recorded.
 The `CASE_OWNER` role moves to C2 and the case's `attributed_to` field is updated to C2, each change recorded as its own `update_case_participant` or `update_case_owner` entry.
 
-*Antecedent:* the Case Actor's forwarded ownership offer has reached C2.
+*Antecedent:* the Case Actor's ownership offer has reached C2.
 
 ### 8. C2 invites the Vendor
 
@@ -190,4 +192,4 @@ A departure sent after the owner's is not recorded, so every other participant's
 | Reporter submits report to C1 | Report submission precedes the case. |
 
 The ownership offer is not an unobservable step.
-The Case Actor records it as `offer_case_ownership_transfer` before it forwards the offer, and C2's `accept_case_ownership_transfer` follows it, which is the edge declared above.
+The Case Actor records it as `offer_case_ownership_transfer` once it sends the offer, and C2's `accept_case_ownership_transfer` follows it, which is the edge declared above.

@@ -90,8 +90,66 @@ class RejectCaseParticipantRoleReceivedEvent(VultronEvent):
         return cast("VultronActivity | None", self.object_)
 
 
+def _deadline_in_utc(v: datetime | None, field: str) -> datetime | None:
+    """Hold an answer deadline in UTC (CM-21-016, CS-13-001).
+
+    The wire edge already attached UTC to a naive value; an aware one in
+    another offset is converted, so core compares and reports one zone.
+    """
+    if v is None:
+        return None
+    if v.tzinfo is None:
+        raise ValueError(f"{field} must be timezone-aware (CM-21-016)")
+    return v.astimezone(UTC)
+
+
+class ProposeCaseOwnershipTransferReceivedEvent(VultronEvent):
+    """The Case Owner proposed an ownership transfer to the CASE_MANAGER.
+
+    ``Offer(Offer(VulnerabilityCase))`` with the case as its ``context``
+    (ADR-0148).  The inner Offer is the template of the one the CASE_MANAGER
+    makes: its object names the case, its ``target`` the transferee, and its
+    ``end_time`` the deadline to answer.  The CASE_MANAGER takes only those
+    three from it; the inner id, ``actor`` and ``to`` are the sender's and
+    are ignored (CM-21-005).
+
+    ``proposed_answer_deadline`` is the inner Offer's ``end_time``, normalised
+    to UTC at the wire edge (CM-21-016); ``None`` when it carries none.
+    """
+
+    semantic_type: Literal[
+        MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER
+    ] = MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+    proposed_answer_deadline: datetime | None = None
+
+    @field_validator("proposed_answer_deadline")
+    @classmethod
+    def _proposed_deadline_is_utc(cls, v: datetime | None) -> datetime | None:
+        return _deadline_in_utc(v, "proposed_answer_deadline")
+
+    @property
+    def case_id(self) -> str | None:
+        """The case the proposal is about: its ``context``."""
+        return self.context_id
+
+    @property
+    def proposed_case_id(self) -> str | None:
+        """The case the inner Offer names as its object."""
+        return self.inner_object_id
+
+    @property
+    def transferee_id(self) -> str | None:
+        """The actor the inner Offer names as its ``target``."""
+        return self.inner_target_id
+
+
 class OfferCaseOwnershipTransferReceivedEvent(VultronEvent):
-    """Actor offered ownership of a VulnerabilityCase to another actor.
+    """The CASE_MANAGER offered ownership of a VulnerabilityCase to an actor.
+
+    The one ``Offer(VulnerabilityCase)`` of a transfer, which the
+    CASE_MANAGER makes on the Case Owner's behalf and the transferee answers
+    (ADR-0148, CM-21-005).
 
     ``answer_deadline`` is the Offer's activity-level ``end_time``, the
     deadline to answer it (CM-21-016), normalised to UTC at the wire edge;
@@ -107,18 +165,8 @@ class OfferCaseOwnershipTransferReceivedEvent(VultronEvent):
     @field_validator("answer_deadline")
     @classmethod
     def _answer_deadline_is_utc(cls, v: datetime | None) -> datetime | None:
-        """Hold the deadline in UTC (CM-21-016, CS-13-001).
-
-        The wire edge already attached UTC to a naive value; an aware one in
-        another offset is converted, so core compares and reports one zone.
-        """
-        if v is None:
-            return None
-        if v.tzinfo is None:
-            raise ValueError(
-                "answer_deadline must be timezone-aware (CM-21-016)"
-            )
-        return v.astimezone(UTC)
+        """Hold the deadline in UTC (CM-21-016, CS-13-001)."""
+        return _deadline_in_utc(v, "answer_deadline")
 
 
 class AcceptCaseOwnershipTransferReceivedEvent(VultronEvent):
@@ -159,10 +207,11 @@ class RejectCaseOwnershipTransferReceivedEvent(VultronEvent):
 
 
 class UndoCaseOwnershipTransferReceivedEvent(VultronEvent):
-    """The offerer withdrew its offer to transfer ownership of a case.
+    """The Case Owner withdrew its ownership-transfer proposal.
 
-    ``Undo(Offer(VulnerabilityCase))``, sent by the Case Owner that made the
-    Offer and addressed to the CASE_MANAGER (CM-21-015).
+    ``Undo(Offer(Offer(VulnerabilityCase)))``, sent by the Case Owner that
+    made the proposal and addressed to the CASE_MANAGER, which withdraws the
+    Offer it made from that proposal (CM-21-015, ADR-0148).
     """
 
     semantic_type: Literal[MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER] = (
@@ -170,18 +219,18 @@ class UndoCaseOwnershipTransferReceivedEvent(VultronEvent):
     )
 
     @property
-    def offer_id(self) -> str | None:
-        """The Offer withdrawn."""
+    def proposal_id(self) -> str | None:
+        """The proposal withdrawn."""
         return self.object_id
 
     @property
-    def offer(self) -> "VultronActivity | None":
+    def proposal(self) -> "VultronActivity | None":
         return cast("VultronActivity | None", self.object_)
 
     @property
     def case_id(self) -> str | None:
-        """The case the withdrawn Offer would have transferred."""
-        return self.inner_object_id
+        """The case the withdrawn proposal names: the proposal's ``context``."""
+        return self.inner_context_id
 
 
 class InviteActorToCaseReceivedEvent(VultronEvent):

@@ -163,7 +163,7 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         ),
         (
             f"{_C}/nodes/ownership_offer_guard.py",
-            "case_manager_admits_ownership_offer_guard",
+            "case_manager_admits_ownership_proposal_guard",
         ),
         (
             f"{_C}/nodes/ownership_offer_guard.py",

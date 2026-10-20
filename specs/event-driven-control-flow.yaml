@@ -278,12 +278,13 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: When a received-side use case creates a new activity in response to a received one (the forwarding pattern),
+    statement: When a received-side use case creates a new activity in response to a received one (the forwarding or propose-then-execute pattern),
       the harness MUST discover the derived object by scanning the recipient's state for its semantic properties (activity
       type, target, and object), and MUST NOT poll for the identifier of the sender's original activity.
-    rationale: 'Bug #2178: the demo polled the Coordinator''s DataLayer for the original Vendor1 Offer ID, but
-      `OfferCaseOwnershipTransferReceivedUseCase` creates a *new* forwarded Offer with a different ID (CM-21-005). Polling
-      for the antecedent''s identity can never observe the consequent.'
+    rationale: 'Bug #2178: the demo polled the Coordinator''s DataLayer for the id of the activity Vendor1 sent, but the
+      CASE_MANAGER answers Vendor1''s ownership-transfer proposal by making its own `Offer(VulnerabilityCase)` under an id it
+      derives (CM-21-005, ADR-0148), and that Offer is what reaches the Coordinator. Polling for the antecedent''s identity
+      can never observe the consequent.'
     adr:
     - ADR-0058
     tags:

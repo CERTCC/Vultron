@@ -488,7 +488,7 @@ def test_case_owner_for_a_new_ownership_offer_is_the_offering_owner_check() -> (
     guard = compose_sender_guard(
         SenderRule.in_case(Kind.CASE_OWNER),
         SenderCheckContext(
-            sender_id=OWNER, case_id=CASE_ID, offered_ownership_id=OFFER_ID
+            sender_id=OWNER, case_id=CASE_ID, ownership_proposal_id=OFFER_ID
         ),
     )
     role = _owner_role_check(guard)
@@ -1025,7 +1025,7 @@ def _close_owner(scenario: BTTestScenario) -> BTTestScenario:
 _OWNER_CONTEXTS = {
     "role": SenderCheckContext(sender_id=OWNER, case_id=CASE_ID),
     "new-ownership-offer": SenderCheckContext(
-        sender_id=OWNER, case_id=CASE_ID, offered_ownership_id=OFFER_ID
+        sender_id=OWNER, case_id=CASE_ID, ownership_proposal_id=OFFER_ID
     ),
     "ownership-offer-withdrawal": SenderCheckContext(
         sender_id=OWNER,

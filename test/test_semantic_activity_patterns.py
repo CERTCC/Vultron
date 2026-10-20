@@ -11,6 +11,7 @@ from vultron.semantic_registry import (
 from vultron.wire.as2.extractor import (
     ActivityPattern,
     OfferCaseOwnershipTransferActivityPattern,
+    ProposeCaseOwnershipTransferActivityPattern,
     UndoCaseOwnershipTransferActivityPattern,
 )
 from vultron.wire.as2.extractor._instances import RefusalNoticePattern
@@ -19,6 +20,7 @@ from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
+    propose_case_ownership_transfer_activity,
     reject_case_participant_role_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -1034,32 +1036,58 @@ def test_leave_of_the_case_is_not_a_withdrawal_from_the_embargo() -> None:
 
 
 # ---------------------------------------------------------------------------
-# VAM-04-015 — the ownership-transfer withdrawal, Undo(Offer(VulnerabilityCase))
+# VAM-04-015 — the ownership-transfer withdrawal, an Undo of the proposal
 # ---------------------------------------------------------------------------
+
+
+def _proposal():
+    return propose_case_ownership_transfer_activity(
+        as_VulnerabilityCase(name="Proposed"),
+        target="https://example.org/coordinator",
+        actor="https://example.org/vendor",
+        to=["https://example.org/case-actor"],
+    )
 
 
 @pytest.mark.spec("VAM-04-015")
 @pytest.mark.spec("CM-21-015")
-def test_undo_of_ownership_offer_matches_the_withdrawal_pattern():
-    case = as_VulnerabilityCase(name="Withdrawn")
-    offer = offer_case_ownership_transfer_activity(
-        case,
-        target="https://example.org/coordinator",
-        actor="https://example.org/vendor",
-    )
+def test_undo_of_ownership_proposal_matches_the_withdrawal_pattern():
     undo = undo_case_ownership_transfer_activity(
-        offer, actor="https://example.org/vendor"
+        _proposal(), actor="https://example.org/vendor"
     )
 
     assert (
         UndoCaseOwnershipTransferActivityPattern.object_
-        is OfferCaseOwnershipTransferActivityPattern
+        is ProposeCaseOwnershipTransferActivityPattern
     )
     assert UndoCaseOwnershipTransferActivityPattern.match(undo)
     assert (
         find_matching_semantics(undo)
         == MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER
     )
+
+
+@pytest.mark.spec("VAM-04-018")
+@pytest.mark.spec("CM-21-005")
+def test_ownership_proposal_is_told_apart_from_the_offer_by_shape():
+    """Offer(Offer(Case)) and Offer(Case) each match one pattern (ADR-0148)."""
+    proposal = _proposal()
+    offer = cast(Any, proposal.object_)
+
+    assert (
+        ProposeCaseOwnershipTransferActivityPattern.object_
+        is OfferCaseOwnershipTransferActivityPattern
+    )
+    assert (
+        find_matching_semantics(proposal)
+        == MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER
+    )
+    assert not OfferCaseOwnershipTransferActivityPattern.match(proposal)
+    assert (
+        find_matching_semantics(offer)
+        == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
+    )
+    assert not ProposeCaseOwnershipTransferActivityPattern.match(offer)
 
 
 @pytest.mark.spec("CLP-05-001")

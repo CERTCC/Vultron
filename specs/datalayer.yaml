@@ -901,9 +901,9 @@ groups:
       `inline_required_refs`, that each still coerces back to its semantic class after
       storage, and that an ownership-transfer Offer keeps its transferee inline when
       stored as built and as received.
-      `test/adapters/driving/fastapi/test_ownership_offer_inbox.py` drives the Offer
-      through the real inbox at a CASE_MANAGER holding no transferee profile and asserts
-      the ledger commit carries the transferee inline.
+      `test/adapters/driving/fastapi/test_ownership_offer_inbox.py` drives the owner's
+      ownership-transfer proposal through the real inbox at a CASE_MANAGER holding no
+      transferee profile and asserts the ledger commits carry the transferee inline.
     tags:
     - persistence
     adr:

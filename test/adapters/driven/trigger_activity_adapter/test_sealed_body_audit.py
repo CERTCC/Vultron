@@ -235,6 +235,15 @@ class _World:
         )
         return offer_id
 
+    def ownership_proposal_id(self) -> str:
+        proposal_id, _ = self.adapter.propose_case_ownership_transfer(
+            case_id=self.case_id,
+            transferee_id=_PEER,
+            actor=_ACTOR,
+            to=[_CASE_ACTOR],
+        )
+        return proposal_id
+
     def prepared_create_case(self) -> dict[str, Any]:
         # Mirrors ``WriteCreateCaseMarkerNode._build_case_object``: the
         # marker's payload carries the participants and reports as objects
@@ -579,6 +588,14 @@ RECIPES: dict[str, Recipe] = {
             to=[_ACTOR],
         )
     ),
+    "propose_case_ownership_transfer": lambda w: (
+        w.adapter.propose_case_ownership_transfer(
+            case_id=w.case_id,
+            transferee_id=_PEER,
+            actor=_ACTOR,
+            to=[_CASE_ACTOR],
+        )
+    ),
     "offer_case_ownership_transfer": lambda w: (
         w.adapter.offer_case_ownership_transfer(
             case_id=w.case_id, transferee_id=_PEER, actor=_ACTOR, to=[_PEER]
@@ -596,7 +613,7 @@ RECIPES: dict[str, Recipe] = {
     ),
     "withdraw_case_ownership_transfer": lambda w: (
         w.adapter.withdraw_case_ownership_transfer(
-            offer_id=w.ownership_offer_id(), actor=_PEER, to=[_ACTOR]
+            offer_id=w.ownership_proposal_id(), actor=_ACTOR, to=[_CASE_ACTOR]
         )
     ),
     # faults

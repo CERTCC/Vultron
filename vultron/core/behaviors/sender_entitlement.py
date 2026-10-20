@@ -185,8 +185,8 @@ from vultron.core.participants.authority import (
 )
 from vultron.core.participants.ownership_offer import (
     RecordedOwnershipOffer,
+    offer_made_from_proposal,
     recorded_ownership_offer,
-    recorded_ownership_offer_sender,
 )
 from vultron.core.participants.recipients import (
     closure_recorded,
@@ -1724,7 +1724,7 @@ class SenderIsOwnershipOfferPartyNode(SenderIsRequestAddresseeNode):
             )
         try:
             offer = recorded_ownership_offer(
-                self.datalayer, self._case_id, self._offer_id, manager_id
+                self.datalayer, self._case_id, self._offer_id
             )
         except VultronNotFoundError as exc:
             raise NoStandingError(
@@ -1850,18 +1850,19 @@ class SenderIsOwnershipOffererNode(SenderIsOwnershipOfferPartyNode):
 
 
 class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
-    """Guard: the sender of a new ownership-transfer Offer is the Case Owner.
+    """Guard: the sender of an ownership-transfer proposal is the Case Owner.
 
     At the CASE_MANAGER only the actor holding ``CVDRole.CASE_OWNER`` on the
-    case may offer it (CM-21-019); the kind is ``CASE_OWNER``.  It runs on
-    the CASE_MANAGER's side of the rule, which holds the case (Regime 1).
+    case may propose to offer it (CM-21-019); the kind is ``CASE_OWNER``.  It
+    runs on the CASE_MANAGER's side of the rule, which holds the case
+    (Regime 1).
 
-    A redelivery of an Offer the CASE_MANAGER already ledgered from this
-    sender is a duplicate, not a new Offer: its standing was established when
-    it was admitted, and the sender may since have handed ownership on, so
-    the role is not re-checked and the open-Offer guard reports it
-    ``SKIPPED`` (HP-01-003).  The same Offer id from any other sender is
-    judged as a new Offer.
+    A redelivery of a proposal the CASE_MANAGER already made its Offer from,
+    on this sender's behalf, is a duplicate, not a new proposal: its standing
+    was established when it was admitted, and the sender may since have
+    handed ownership on, so the role is not re-checked and the open-Offer
+    guard reports it ``SKIPPED`` (HP-01-003).  The same proposal id from any
+    other sender is judged as a new proposal.
 
     Spec: CM-21-019, HP-01-003, HP-01-006.
     """
@@ -1873,21 +1874,22 @@ class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
     def __init__(
         self,
         case_id: str,
-        offer_id: str,
+        proposal_id: str,
         sender_actor_id: str,
         name: str | None = None,
     ) -> None:
         """Create the guard.
 
         Args:
-            case_id: The case the Offer names.
-            offer_id: The Offer's own id, so a redelivery is recognised.
-            sender_actor_id: The Offer's sender.
+            case_id: The case the proposal names.
+            proposal_id: The proposal's own id, so a redelivery is
+                recognised.
+            sender_actor_id: The proposal's sender.
             name: Optional node name.
         """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
-        self._offer_id = offer_id
+        self._proposal_id = proposal_id
         self._sender_actor_id = sender_actor_id
 
     def update(self) -> Status:
@@ -1900,23 +1902,29 @@ class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
             return failure  # Regime 1: the CASE_MANAGER holds its case
         if _holds_case_owner_role(self.datalayer, case, sender):
             return Status.SUCCESS
-        recorded_sender = recorded_ownership_offer_sender(
-            self.datalayer, self._case_id, self._offer_id
+        made = offer_made_from_proposal(
+            self.datalayer, self._case_id, self._proposal_id
         )
-        if recorded_sender is not None and same_actor_id(
-            recorded_sender, sender
-        ):
+        manager_id = resolve_case_manager_id(case, self.datalayer)
+        offerer = (
+            made.offerer_id(manager_id)
+            if made is not None and manager_id is not None
+            else None
+        )
+        if offerer is not None and same_actor_id(offerer, sender):
             self.logger.debug(
-                "%s: Offer '%s' was recorded from '%s' — redelivery"
-                " (HP-01-003)",
+                "%s: proposal '%s' was made into Offer '%s' for '%s'"
+                " — redelivery (HP-01-003)",
                 self.name,
-                self._offer_id,
+                self._proposal_id,
+                made.offer_id if made is not None else None,
                 sender,
             )
             return Status.SUCCESS
         return self._refuse(
             f"Sender '{sender}' is not the Case Owner of case"
-            f" '{self._case_id}', so it may not offer its ownership"
+            f" '{self._case_id}', so it may not propose to offer its"
+            " ownership"
         )
 
     def _refuse(self, reason: str) -> Status:

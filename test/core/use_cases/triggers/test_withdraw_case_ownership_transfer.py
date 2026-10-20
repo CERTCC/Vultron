@@ -15,11 +15,12 @@
 
 """Tests for ``SvcWithdrawCaseOwnershipTransferUseCase`` (TRIG-11-006).
 
-The Case Owner withdraws an ownership-transfer Offer it made: the trigger
-emits ``Undo(Offer(VulnerabilityCase))`` from the owner, addressed to the
-case's CASE_MANAGER (CM-21-015), and queues it in the owner's own outbox.
-What the CASE_MANAGER does with it (admit only from the offerer of an open
-Offer, ledger it, close the Offer) is tested with the received use case in
+The Case Owner withdraws its ownership-transfer proposal: the trigger emits
+``Undo(Offer(Offer(VulnerabilityCase)))`` from the owner, addressed to the
+case's CASE_MANAGER (CM-21-015, ADR-0148), and queues it in the owner's own
+outbox.  What the CASE_MANAGER does with it (admit only from the owner of an
+open Offer it made from the proposal, ledger it, close the Offer) is tested
+with the received use case in
 ``test/core/use_cases/received/actor/test_ownership.py``.
 """
 
@@ -43,7 +44,7 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories.case import (
-    offer_case_ownership_transfer_activity,
+    propose_case_ownership_transfer_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -70,25 +71,30 @@ def _seed_case(dl: Any, owner_id: str, case_manager_id: str):
     return case
 
 
+def _proposal(case_id: str, name: str, owner_id: str, to: list[str] | None):
+    """The owner's proposal, as the offer trigger builds it (ADR-0148)."""
+    return propose_case_ownership_transfer_activity(
+        as_VulnerabilityCase.model_validate({"id": case_id, "name": name}),
+        target="https://example.org/actors/coordinator",
+        actor=owner_id,
+        to=to,
+    )
+
+
 def _owners_offer(
     dl: Any, case, case_manager_id: str, owner_id: str, transferee_id: str
 ):
-    """The Offer as the offer trigger stored it in the owner's store.
-
-    The CASE_MANAGER is its ``actor`` and the owner its ``attributed_to``
-    (CM-24-001, CM-24-002).
-    """
-    offer = offer_case_ownership_transfer_activity(
-        case=as_VulnerabilityCase.model_validate(
+    """The proposal as the offer trigger stored it in the owner's store."""
+    proposal = propose_case_ownership_transfer_activity(
+        as_VulnerabilityCase.model_validate(
             {"id": case.id_, "name": case.name}
         ),
         target=transferee_id,
-        actor=case_manager_id,
-        attributed_to=owner_id,
+        actor=owner_id,
         to=[case_manager_id],
     )
-    dl.create(offer)
-    return offer
+    dl.create(proposal)
+    return proposal
 
 
 def _execute(dl: Any, actor_id: str, offer_id: str):
@@ -105,10 +111,10 @@ def _execute(dl: Any, actor_id: str, offer_id: str):
 
 @pytest.fixture
 def owner_world(actor_store):
-    """The owner's own store, holding the case and the Offer it made.
+    """The owner's own store, holding the case and the proposal it sent.
 
     The trigger runs as the owner against its own store (ADR-0073,
-    DL-07-009): that is where the offer trigger stored the Offer.
+    DL-07-009): that is where the offer trigger stored the proposal.
     """
     owner, dl = actor_store("Vendor")
     transferee, _ = actor_store("Coordinator")
@@ -138,6 +144,8 @@ def test_withdrawal_is_addressed_to_the_case_manager(owner_world):
     assert (withdrawn["id"] if isinstance(withdrawn, dict) else withdrawn) == (
         offer.id_
     )
+    # The proposal is what the owner withdraws (ADR-0148).
+    assert withdrawn["object"]["type"] == "Offer"
 
 
 @pytest.mark.spec("TRIG-11-006")
@@ -167,14 +175,13 @@ def test_raises_when_actor_not_found(owner_world):
     assert dl.outbox_list() == []
 
 
-def test_raises_when_offer_names_no_case():
-    """Neither stored shape of the Offer yields a case id."""
+def test_raises_when_proposal_names_no_case():
+    """A held proposal with no ``context`` yields no case id."""
     actor_id = "https://example.org/actors/owner-nocase"
     actor = MagicMock()
     actor.id_ = actor_id
     offer = MagicMock()
-    offer.case_id = None
-    offer.object_ = None
+    offer.context = None
     dl = MagicMock()
     dl.read.side_effect = lambda id_: actor if id_ == actor_id else offer
 
@@ -187,18 +194,12 @@ def test_raises_when_offer_names_no_case():
 def test_withdrawal_of_an_offer_for_a_case_not_held_is_not_sent(actor_store):
     """A store that does not hold the case cannot name its CASE_MANAGER.
 
-    The Offer the owner sent directly names the owner as ``actor``; falling
-    back to it would address the withdrawal to its own sender.
+    The proposal names the owner as ``actor``; falling back to it would
+    address the withdrawal to its own sender.
     """
     owner, dl = actor_store("Vendor")
     case_id = "https://example.org/cases/withdraw-no-case-held"
-    offer = offer_case_ownership_transfer_activity(
-        case=as_VulnerabilityCase.model_validate(
-            {"id": case_id, "name": "Not held"}
-        ),
-        target="https://example.org/actors/coordinator",
-        actor=owner.id_,
-    )
+    offer = _proposal(case_id, "Not held", owner.id_, None)
     dl.create(offer)
 
     with pytest.raises(VultronNotFoundError, match="VulnerabilityCase"):
@@ -225,13 +226,7 @@ def test_withdrawal_with_no_case_manager_to_address_is_not_sent(actor_store):
     case.case_participants.append(participant.id_)
     dl.create(participant)
     dl.create(case)
-    offer = offer_case_ownership_transfer_activity(
-        case=as_VulnerabilityCase.model_validate(
-            {"id": case.id_, "name": case.name}
-        ),
-        target="https://example.org/actors/coordinator",
-        actor=owner.id_,
-    )
+    offer = _proposal(case.id_, case.name or "No manager", owner.id_, None)
     dl.create(offer)
 
     with pytest.raises(VultronNotFoundError, match="CASE_MANAGER"):

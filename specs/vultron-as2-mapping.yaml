@@ -460,7 +460,8 @@ groups:
   - id: VAM-04-007
     priority: MUST
     kind: protocol
-    statement: '`OFFER_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Offer(VulnerabilityCase)`'
+    statement: '`OFFER_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Offer(VulnerabilityCase)`: the one
+      Offer of a transfer, which the CASE_MANAGER makes from the Case Owner''s proposal (CM-21-005).'
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `OfferCaseOwnershipTransferPattern` uses `TAtype.OFFER` and `AOtype.VULNERABILITY_CASE`; integration
       tests in `test/demo/test_transfer_ownership_demo.py` exercise this flow.
@@ -590,13 +591,14 @@ groups:
     kind: protocol
     statement: >-
       `UNDO_CASE_OWNERSHIP_TRANSFER` MUST be represented as
-      `Undo(Offer(VulnerabilityCase))`: the Case Owner's withdrawal of an open
-      ownership-transfer Offer (CM-21-015).
+      `Undo(Offer(Offer(VulnerabilityCase)))`: the Case Owner's withdrawal of its
+      own proposal, and with it of the open Offer the CASE_MANAGER made from it
+      (CM-21-015).
     verification: >-
-      A unit test confirms that `Undo(Offer(VulnerabilityCase))` matches
+      A unit test confirms that `Undo(Offer(Offer(VulnerabilityCase)))` matches
       `UndoCaseOwnershipTransferActivityPattern`, which wraps
-      `OfferCaseOwnershipTransferActivityPattern` inside an `Undo` outer pattern,
-      and resolves to `UNDO_CASE_OWNERSHIP_TRANSFER`.
+      `ProposeCaseOwnershipTransferActivityPattern` inside an `Undo` outer
+      pattern, and resolves to `UNDO_CASE_OWNERSHIP_TRANSFER`.
     relationships:
     - rel_type: refines
       spec_id: CM-21-015
@@ -643,6 +645,33 @@ groups:
       spec_id: CM-16-007
     stories:
     - story_2022_054
+  - id: VAM-04-018
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `PROPOSE_CASE_OWNERSHIP_TRANSFER` MUST be represented as
+      `Offer(Offer(VulnerabilityCase))` with the case as the proposal's
+      `context`: the Case Owner's proposal to the CASE_MANAGER, whose inner Offer
+      is the template of the Offer the CASE_MANAGER makes (CM-21-005).
+    rationale: >-
+      The proposal and the CASE_MANAGER's `Offer(VulnerabilityCase)` (VAM-04-007)
+      are told apart by shape, an Offer of an Offer against an Offer of a case,
+      so neither pattern needs a sender check and no new vocabulary type is
+      needed (ADR-0148).
+    verification: >-
+      A unit test confirms that a proposal matches
+      `ProposeCaseOwnershipTransferActivityPattern`, which wraps
+      `OfferCaseOwnershipTransferActivityPattern` inside an `Offer` outer
+      pattern, and resolves to `PROPOSE_CASE_OWNERSHIP_TRANSFER`, while its inner
+      Offer alone resolves to `OFFER_CASE_OWNERSHIP_TRANSFER` and neither matches
+      the other's pattern.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-005
+    adr:
+    - ADR-0148
+    stories:
+    - story_2022_050
 - id: VAM-05
   title: Embargo Management Messages
   specs:

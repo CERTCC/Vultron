@@ -237,7 +237,7 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
             return "the reply names no Offer"
         try:
             named = recorded_ownership_offer(
-                self.datalayer, self._case_id, prompt.offer_id, self.actor_id
+                self.datalayer, self._case_id, prompt.offer_id
             )
         except VultronNotFoundError:
             return f"the reply names Offer '{prompt.offer_id}', never recorded"

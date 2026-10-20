@@ -34,24 +34,23 @@ open?" reader uses, so a new closing entry needs no other change to close the Of
 One open Offer per case would let a silent transferee block every later transfer, so
 an Offer can also close without an answer (#4490):
 
-- **Withdrawal (CM-21-015, TRIG-11-006) — implemented.** The owner that made an
-  open Offer sends `Undo(Offer(VulnerabilityCase))` to the CASE_MANAGER through the
-  `withdraw-case-ownership-transfer` trigger, from its own identity (not
-  delegated), naming the Offer it made. The trigger refuses, as not found, a case
-  the owner does not hold or one with no CASE_MANAGER: a withdrawal goes to the
-  CASE_MANAGER or nowhere (PCR-08-011). The CASE_MANAGER ledgers it as
+- **Withdrawal (CM-21-015, TRIG-11-006) — implemented.** The owner sends `Undo` of
+  its own proposal, `Undo(Offer(Offer(VulnerabilityCase)))`, to the CASE_MANAGER
+  through the `withdraw-case-ownership-transfer` trigger, from its own identity
+  (not delegated). The CASE_MANAGER withdraws the Offer it made from that proposal,
+  whose id it derives (`ownership_offer_id`, ADR-0148). The trigger refuses, as not
+  found, a case the owner does not hold or one with no CASE_MANAGER: a withdrawal
+  goes to the CASE_MANAGER or nowhere (PCR-08-011). The CASE_MANAGER ledgers it as
   `undo_case_ownership_transfer` and broadcasts it like a Reject
   (`UndoCaseOwnershipTransferReceivedUseCase`,
   `create_undo_ownership_transfer_tree`); ownership is unchanged.
   - **Who may withdraw.** The rule is `CASE_OWNER` at the CASE_MANAGER, which the
     factory checks against the recorded Offer with `SenderIsOwnershipOffererNode`:
-    the sender must be the participant the Offer speaks for: its `actor`, since
-    the CASE_MANAGER records only the Case Owner's own Offer (CM-21-019). Its
-    `attributedTo` counts only when the CASE_MANAGER is its `actor` (the delegated
-    shape, CM-24-002), which only an Offer recorded before CM-21-019 can have.
-    An `attributedTo` on an Offer a participant sent
-    itself is an unchecked claim, ignored as the Offer handler ignores it when
-    forwarding (`RecordedOwnershipOffer.offerer_id`). The offerer must still hold
+    the sender must be the participant the Offer speaks for: its `attributedTo`,
+    since the CASE_MANAGER is the `actor` of every Offer it makes (CM-24-002,
+    ADR-0148). An `attributedTo` on an Offer the CASE_MANAGER did not send is an
+    unchecked claim and is ignored (`RecordedOwnershipOffer.offerer_id`). The
+    offerer must still hold
     `CASE_OWNER`; that is standing too, so an offerer whose Offer an Accept closed
     is refused for it before the Offer's state is read (#4437). A redelivery of the
     Undo that closed the Offer is a duplicate, so the role is not re-checked for
@@ -70,10 +69,12 @@ an Offer can also close without an answer (#4490):
   (aware, in the future, held in UTC). Unlike an embargo `Invite.end_time`
   (CM-28-001), it is binding: an Accept or Reject processed after it is refused.
   - **Where it is read.** The wire edge puts it on the event in UTC
-    (`OfferCaseOwnershipTransferReceivedEvent.answer_deadline`) and on the
-    activity snapshot with the offset it arrived with (CS-13-005), so the
+    (`ProposeCaseOwnershipTransferReceivedEvent.proposed_answer_deadline`, from
+    the inner Offer, and `OfferCaseOwnershipTransferReceivedEvent.answer_deadline`)
+    and on the activity snapshot with the offset it arrived with (CS-13-005), so the
     ledgered Offer carries it; `RecordedOwnershipOffer.end_time` reads it back in
-    UTC. The CASE_MANAGER's forward carries it to the transferee.
+    UTC. The owner sets it on the proposal's inner Offer, and the Offer the
+    CASE_MANAGER makes carries it to the transferee (CM-21-016).
   - **Two readers, one deadline.** `OwnershipOfferOpenNode` refuses a
     reply at or after `end_time` even when no expiry entry exists, so a lost
     expiry commit never admits a late answer; the expiry step runs first and
@@ -81,7 +82,7 @@ an Offer can also close without an answer (#4490):
     the same `now`, read once per delivery from `now_utc()`.
 - **Expiry (CM-21-017) — implemented.** The CASE_MANAGER finds an expired Offer
   lazily, when it next processes an Accept, Reject or Undo of the Offer or a new
-  Offer for the case, and commits a distinct
+  proposal for the case, and commits a distinct
   `offer_case_ownership_transfer_expired` entry before acting
   (`ExpireOverdueOwnershipOfferNode`, a clock decision). The
   snapshot is the CASE_MANAGER's own `Expire(Offer)`, stamped with its clock; its
@@ -91,7 +92,7 @@ an Offer can also close without an answer (#4490):
   - **Why a clock decision.** The expiry is the CASE_MANAGER's own decision
     from its clock, committed as its own entry before the activity is judged
     (CLP-07-013), and ledgered even when that activity is then admitted (a new
-    Offer, CM-21-014). So each of the four received trees passes it as a
+    proposal, CM-21-014). So each of the four received trees passes it as a
     clock decision, which the factory runs after the door guards and before
     the open-Offer guards (CLP-10-025, ADR-0135; [bt-integration](bt-integration.md)
     § "The Received-Side Stages"); after `case_fully_closed`

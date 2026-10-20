@@ -1120,33 +1120,34 @@ def setup_canonical_case(
     return case, case_actor_id
 
 
-def await_forwarded_ownership_transfer_offer(
+def await_ownership_transfer_offer(
     client: DataLayerClient,
     case: as_VulnerabilityCase,
     transferee: as_Actor,
     timeout_seconds: float = 90.0,
 ) -> str:
-    """Gate on the CaseActor's forwarded ownership-transfer Offer; return its id.
+    """Gate on the CaseActor's ownership-transfer Offer; return its id.
 
-    Under ADR-0053 the offering actor addresses its ``Offer(VulnerabilityCase)``
-    to the CaseActor, which records it and then emits a **new** Offer of its own
-    to the transferee (CM-21-005).  The consequent therefore has a new identity:
-    polling the transferee's store for the *original* offer id never matches
-    (EDF-06-004, issue #2178).  This helper discovers the forwarded Offer by its
-    properties instead.  The transferee answers it through its accept or reject
-    trigger, which takes the forwarded id (TRIG-11-002, TRIG-11-005).
+    The owner addresses its proposal, ``Offer(Offer(VulnerabilityCase))``, to
+    the CaseActor, which makes the one ``Offer(VulnerabilityCase)`` of the
+    transfer under an id of its own and sends it to the transferee (CM-21-005,
+    ADR-0148).  The consequent therefore has a new identity: polling the
+    transferee's store for the proposal's id never matches (EDF-06-004, issue
+    #2178).  This helper discovers the CaseActor's Offer by its properties
+    instead.  The transferee answers it through its accept or reject trigger,
+    which takes that Offer's id (TRIG-11-002, TRIG-11-005).
 
     Args:
         client: DataLayerClient for the container hosting the actors.
         case: The case whose ownership is being transferred.
         transferee: The actor being offered ownership.
-        timeout_seconds: Maximum time to wait for the forwarded Offer.
+        timeout_seconds: Maximum time to wait for the CaseActor's Offer.
 
     Returns:
-        The **forwarded** Offer's activity id, as the transferee holds it.
+        The CaseActor's Offer's activity id, as the transferee holds it.
 
     Raises:
-        AssertionError: If no forwarded Offer arrives within *timeout_seconds*.
+        AssertionError: If no such Offer arrives within *timeout_seconds*.
     """
     transferee_client = client.model_copy(update={"actor_id": transferee.id_})
     return find_ownership_transfer_offer_for_actor(

@@ -415,8 +415,9 @@ class OfferCaseParticipantRoleRequest(CaseTriggerRequest):
 class OfferCaseOwnershipTransferRequest(CaseTriggerRequest):
     """Request body for the offer-case-ownership-transfer trigger endpoint.
 
-    Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
-    requesting actor to the specified transferee (TRIG-11-001).
+    Emits the requesting Case Owner's proposal,
+    ``Offer(Offer(VulnerabilityCase))``, to the case's CASE_MANAGER, which
+    offers the case to the specified transferee (TRIG-11-001, ADR-0148).
 
     TRIG-03-001: Must include case_id and transferee_id.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").
@@ -476,9 +477,10 @@ class RejectCaseOwnershipTransferRequest(_OwnershipTransferAnswerRequest):
 class WithdrawCaseOwnershipTransferRequest(_OwnershipTransferAnswerRequest):
     """Request body for the withdraw-case-ownership-transfer trigger endpoint.
 
-    Emits ``Undo(Offer(VulnerabilityCase))`` from the requesting actor — the
-    Case Owner that made the Offer — addressed to the case's CASE_MANAGER
-    (TRIG-11-006, CM-21-015).
+    Emits ``Undo(Offer(Offer(VulnerabilityCase)))`` from the requesting
+    actor — the Case Owner that made the proposal — addressed to the case's
+    CASE_MANAGER (TRIG-11-006, CM-21-015).  ``offer_id`` names that
+    proposal, the activity the offer trigger returned (ADR-0148).
 
     TRIG-03-001: Must include offer_id.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").

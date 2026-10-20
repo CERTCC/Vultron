@@ -1,0 +1,75 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Offer",
+  "id": "urn:uuid:33939bda-2fa0-4d59-a863-4bb73bb01dd8",
+  "name": "https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer VendorCo Case #32995788 to https://vultron.example/organizations/coordinator",
+  "context": "urn:uuid:81de97ce-c5bf-4a16-becf-74455af0b338",
+  "content": "Please offer ownership of case VendorCo Case #32995788 to the coordinator.",
+  "to": [
+    "https://vultron.example/case-actors/vendorco-case-actor"
+  ],
+  "actor": "https://vultron.example/organizations/vendorco",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Offer",
+    "id": "urn:uuid:a03e7661-269e-4414-849d-bf97b8c8d96c",
+    "name": "https://vultron.example/organizations/vendorco Offer VendorCo Case #32995788 to https://vultron.example/organizations/coordinator",
+    "published": "2026-10-20T20:07:22+00:00",
+    "updated": "2026-10-20T20:07:22+00:00",
+    "actor": "https://vultron.example/organizations/vendorco",
+    "target": {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "Actor",
+      "id": "https://vultron.example/organizations/coordinator",
+      "published": "2026-10-20T20:07:22+00:00",
+      "updated": "2026-10-20T20:07:22+00:00",
+      "inbox": {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "OrderedCollection",
+        "id": "https://vultron.example/organizations/coordinator/inbox",
+        "items": []
+      },
+      "outbox": {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "OrderedCollection",
+        "id": "https://vultron.example/organizations/coordinator/outbox",
+        "items": []
+      }
+    },
+    "object": {
+      "id": "urn:uuid:81de97ce-c5bf-4a16-becf-74455af0b338",
+      "type": "VulnerabilityCase",
+      "name": "VendorCo Case #32995788",
+      "published": "2026-10-20T20:07:21+00:00",
+      "updated": "2026-10-20T20:07:21+00:00",
+      "attributedTo": "https://vultron.example/organizations/vendorco",
+      "caseParticipants": [],
+      "actorParticipantIndex": {},
+      "vulnerabilityReports": [],
+      "caseStatuses": [
+        {
+          "id": "urn:uuid:e7274eb2-3dce-4bed-b7c5-57f154b833f2",
+          "type": "CaseStatus",
+          "name": "NONE pxa",
+          "context": "urn:uuid:81de97ce-c5bf-4a16-becf-74455af0b338",
+          "published": "2026-10-20T20:07:21+00:00",
+          "updated": "2026-10-20T20:07:21+00:00",
+          "attributedTo": "https://vultron.example/organizations/vendorco",
+          "emState": "NONE",
+          "pxaState": "pxa",
+          "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        }
+      ],
+      "notes": [],
+      "embargoRegister": [],
+      "pendingEmbargoProposalIndex": {},
+      "caseActivity": [],
+      "genesisHash": "e1d7c394cb78c048febef7870a780112492365474a665a6e5923574ba8de270b",
+      "parentCases": [],
+      "childCases": [],
+      "siblingCases": [],
+      "activeParticipants": [],
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    }
+  }
+}
