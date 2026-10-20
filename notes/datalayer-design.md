@@ -7,7 +7,8 @@ description: >
   Rules for the DataLayer port contract, CasePersistence narrowing, the
   write/read shape boundary, activity read-back, the received archive as the
   sealed body, received-activity keying, received-artifact snapshots, per-actor
-  stores, shared-record writes, and stored-shape changes. Operating rules live in vultron/core/ports/AGENTS.md.
+  stores, shared-record writes, and stored-shape changes. Operating rules live
+  in vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)

@@ -73,7 +73,7 @@ The view is read-only: an attempt to change it, or any object nested in it, fail
 Core changes only its own records, which effect nodes already write from the event.
 
 Core may read a received activity's facts from this view, and only from this view.
-This changes three of ADR-0035's decision details.
+This changes four of ADR-0035's five decision details.
 Its second detail forbade core reading a stored activity for its meaning, and its first forbade core reconstructing a fact by re-reading one later; both now admit reads of this view.
 Its fourth detail treated the stored payload as opaque, read only to embed it in a reply; the reply seam now parses the sealed body, and core reads the view the parse yields.
 Its fifth detail named the reply seam as the only sanctioned activity read; reads of this view are sanctioned too, and every other core read of a stored activity still leaves the ratchet.
