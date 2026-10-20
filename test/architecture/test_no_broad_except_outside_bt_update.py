@@ -153,13 +153,6 @@ _DECLARED_EXCLUSIONS: dict[str, tuple[int, str]] = {
         " re-queuing a Create(VulnerabilityCase) obligation must fail the node,"
         " not crash server startup.",
     ),
-    "vultron/core/behaviors/sync/nodes/ownership_offer_effect.py": (
-        1,
-        "SYNC-12-001: a write that could not persist a well-formed"
-        " ownership-offer record IS a failed effect — return FAILURE so the"
-        " Selector blocks PersistReceivedLogEntry.  Malformed snapshots are"
-        " handled separately by a narrow ValidationError catch.",
-    ),
 }
 
 

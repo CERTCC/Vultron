@@ -1936,17 +1936,68 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
-    def test_accept_raises_when_offer_has_no_case_reference(self):
-        """VultronNotFoundError raised when the Offer names no case.
+    @pytest.mark.spec("DL-06-006")
+    def test_accept_of_an_offer_never_received_raises_not_found(self):
+        """Only the Offer intake archived can be accepted (ADR-0148).
 
-        ``_prepare`` accepts either shape of stored offer — the SYNC replica's
-        ``VultronOwnershipTransferOfferRecord`` (case URI in ``case_id``) or an
-        Offer activity, archived or the actor's own (case in ``object_``) — and raises
-        only when neither yields an id.  Both attributes must therefore be
-        cleared on the mock; a bare ``MagicMock`` would auto-create a truthy
-        ``case_id`` and silently satisfy the guard.
+        The transferee's store holds the case and a copy of the Offer under
+        the id its sender chose, but no intake archive of it: nothing stored
+        under that id stands in for the Offer this actor received, so the
+        trigger raises not-found and queues nothing.
+        """
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseOwnershipTransferTriggerRequest,
+        )
+        from vultron.wire.as2.factories.case import (
+            offer_case_ownership_transfer_activity,
+        )
+
+        owner, _ = _make_actor_dl("Vendor")
+        transferee, dl = _make_actor_dl("Coordinator")
+        case_actor, _ = _make_actor_dl("CaseActor")
+        case = _make_case_with_case_manager(dl, owner.id_, case_actor.id_)
+        offer = offer_case_ownership_transfer_activity(
+            case=as_VulnerabilityCase.model_validate(
+                {"id": case.id_, "name": case.name or "Test"}
+            ),
+            target=transferee.id_,
+            actor=case_actor.id_,
+            to=[transferee.id_],
+        )
+        dl.create(offer)
+        assert dl.read(offer.id_) is not None
+
+        request = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=transferee.id_,
+            offer_id=offer.id_,
+        )
+        with pytest.raises(
+            VultronNotFoundError, match=r"Offer\(VulnerabilityCase\)"
+        ):
+            SvcAcceptCaseOwnershipTransferUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
+        assert dl.outbox_list() == []
+
+    def test_accept_raises_when_offer_has_no_case_reference(self):
+        """VultronNotFoundError raised when the received Offer names no case.
+
+        ``_prepare`` reads the case from the archived Offer's ``object_`` and
+        raises when it yields no id.  The archive is a spec'd mock so the
+        reader takes it as the intake record; its activity's ``object_`` is
+        cleared, since a bare ``MagicMock`` would auto-create a truthy one.
         """
 
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
         from vultron.core.use_cases.triggers.actor import (
             SvcAcceptCaseOwnershipTransferUseCase,
         )
@@ -1960,20 +2011,20 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         actor_mock = MagicMock()
         actor_mock.id_ = actor_id
 
-        offer_mock = MagicMock()
-        offer_mock.case_id = None
-        offer_mock.object_ = None
-
+        archived = MagicMock(spec=ReceivedActivityRecord)
+        archived.activity = MagicMock(object_=None)
+        held = {
+            actor_id: actor_mock,
+            ReceivedActivityRecord.build_id(offer_id): archived,
+        }
         mock_dl = MagicMock()
-        mock_dl.read.side_effect = lambda id_: (
-            actor_mock if id_ == actor_id else offer_mock
-        )
+        mock_dl.read.side_effect = held.get
 
         request = AcceptCaseOwnershipTransferTriggerRequest(
             actor_id=actor_id,
             offer_id=offer_id,
         )
-        with pytest.raises(VultronNotFoundError):
+        with pytest.raises(VultronNotFoundError, match="case reference"):
             SvcAcceptCaseOwnershipTransferUseCase(
                 mock_dl,
                 request,

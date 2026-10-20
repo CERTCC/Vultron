@@ -206,15 +206,6 @@
     "type": "Organization",
     "updated": "2026-01-02T03:04:05+00:00"
   },
-  "VultronOwnershipTransferOfferRecord": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
-    "caseId": "urn:test:case_id:1",
-    "id": "urn:test:offer_id:1",
-    "offerId": "urn:test:offer_id:1",
-    "published": "2026-01-02T03:04:05+00:00",
-    "type": "VultronOwnershipTransferOfferRecord",
-    "updated": "2026-01-02T03:04:05+00:00"
-  },
   "VultronPerson": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "id": "urn:test:vultronperson:golden",

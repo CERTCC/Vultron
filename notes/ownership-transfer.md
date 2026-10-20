@@ -7,9 +7,8 @@ description: >
   by ADR-0148, proposed): the owner proposes Offer(Offer(Case)) to the
   CASE_MANAGER, which makes the one Offer the transferee answers, and every step
   routes through the CASE_MANAGER so every participant receives the
-  CaseLedgerEntry broadcast; what each component must preserve; replica-side
-  materialization of the Offer from the ledger (retiring, #4940); and the demo
-  preconditions.
+  CaseLedgerEntry broadcast; what each component must preserve, including that
+  the transferee answers only the Offer it received; and the demo preconditions.
 related_specs:
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
@@ -193,6 +192,13 @@ Runs at the transferee: intake keeps the CASE_MANAGER's Offer only as its
 `ReceivedActivityRecord`, never under the id its sender chose (DL-06-006), and the
 sender guard admits the CASE_MANAGER alone. Nothing is committed there.
 
+- **Answer only the Offer intake archived.** The accept and reject triggers and the
+  adapter read it with `read_received_activity`, so an actor that never received
+  the Offer gets a not-found, whatever is stored under the Offer's id (DL-06-006).
+  The `offer_case_ownership_transfer` entry has no replay effect: the transferee
+  holds the Offer, the owner its proposal, and a bystander never answers
+  (ADR-0148). Do not add a ledger-derived record of the Offer.
+
 - **At the transferee, take the offerer from `attributed_to`, not `actor_id`**
   (#3012): the Offer is delegated, so its `actor` is the CASE_MANAGER. Honour
   `attributed_to` only when the sender is the case's CASE_MANAGER
@@ -243,9 +249,7 @@ CASE_MANAGER inbox receives Reject
   it has no replay effect (RSH-08-004).
 - **"Open" is read from the ledger.** An Offer is open until the ledger holds an
   answer, withdrawal or expiry entry for it, found through `find_protocol_pair()`
-  with `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES` (CLP-11-001, CLP-11-003). The
-  replica's `VultronOwnershipTransferOfferRecord` is bookkeeping (CLP-07-014), never
-  the answer.
+  with `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES` (CLP-11-001, CLP-11-003).
 - **One open Offer per case (CM-21-014).** The CASE_MANAGER refuses a new proposal
   while an Offer is open; once closed, the owner may propose again to anyone, the
   decliner included. The check is `NoOpenOwnershipOfferNode`
@@ -257,47 +261,6 @@ CASE_MANAGER inbox receives Reject
 - **Withdrawal is an `Undo` of the proposal (CM-21-015).** The CASE_MANAGER derives
   the Offer id from the proposal id and its own id, so the owner needs nothing it
   learned from the ledger; the ledgered Undo is a reply that closes the Offer.
-
----
-
-## Replica-side Materialization (SYNC Path)
-
-**Retiring (ADR-0148).** The owner proposes the Offer as
-`Offer(Offer(VulnerabilityCase))` and the CASE_MANAGER makes the one Offer the
-transferee answers, under its own id. No replica then needs a ledger-derived record of
-the Offer, so this slot and its record are deleted rather than re-keyed: until then
-the record sits under an id the owner chose, the shape DL-06-006 rules out for
-received activities (#4911). Do not add a reader of it.
-
-On a replica that learns of an Offer only from the ledger, the Offer never arrives by
-inbox, so there is no archive. Yet `SvcAcceptCaseOwnershipTransferUseCase._prepare`
-must still find it through `read_held_activity`.
-The announce tree's `OfferOwnershipTransferEffects` slot
-(`IsOfferOwnershipTransferEventNode`, `ApplyOfferOwnershipTransferFromLedgerNode`)
-materializes a `VultronOwnershipTransferOfferRecord` from the entry's snapshot.
-
-- **Store a full record or none.** `case_id` is a required `UriString`; a half-record
-  satisfies the read and fails on the case lookup one line later.
-- **Name the field `case_id`, not `object_`.** The DataLayer rehydrates AS2 reference
-  fields (`object_`, `target`, `origin`, `result`, `instrument`) into typed objects on
-  read. `_prepare` reads `case_id`, then falls back to `object_` for an Offer activity
-  (the archived Offer the transferee received).
-- **Status (SYNC-12-001):** SUCCESS when there is nothing to apply; FAILURE only when a
-  well-formed record could not be written, which blocks `PersistReceivedLogEntry`.
-
-### Two consumers, one key
-
-| Consumer | Needs |
-|---|---|
-| `SvcAcceptCaseOwnershipTransferUseCase._prepare` | anything from which a case id is recoverable |
-| `TriggerActivityAdapter.accept_case_ownership_transfer` | an `_OfferCaseOwnershipTransferActivity` |
-
-The adapter rebuilds the wire Offer from the core record (`_offer_from_core_record`)
-with the same `offer_case_ownership_transfer_activity` factory the offerer uses, so
-both paths produce an identical Accept. It lives in the adapter because core may not
-import wire (ARCH-03-001). So the record also carries `actor_id` and `target_id`
-(DL-06-002), and `object_` is the inline case read from the replica and projected with
-`as_VulnerabilityCase.from_core`; a bare URI fails the factory with a 422.
 
 ---
 

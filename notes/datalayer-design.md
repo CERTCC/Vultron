@@ -346,6 +346,12 @@ row as absent, so `dl.read()` returning `None` always has a logged cause.
 Every PR that retires a stored field carries an operator note saying a file-backed
 store must be reset (`docker compose down -v`); an in-memory store is unaffected.
 
+A deleted stored *type* needs no marker, only that operator note.
+There is no model left to hold a retirement table, and keeping the name alive
+for old rows is the shim PROTO-08-003 forbids.
+The read is already legible: the vocabulary miss logs a WARNING naming the
+type and the row reads as absent (`test_sqlite_core_roundtrip.py`, #4940).
+
 ## Changing a Table's Shape
 
 A store written before a table gains a constraint or index is refused when it

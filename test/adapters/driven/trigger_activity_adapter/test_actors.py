@@ -816,6 +816,29 @@ class TestAnswerReceivedOwnershipOffer:
                 offer_id="urn:uuid:never-received", actor=_INVITEE
             )
 
+    @pytest.mark.spec("DL-06-006")
+    @pytest.mark.parametrize(("method", "verb"), _OWNERSHIP_ANSWERS)
+    def test_an_offer_held_only_under_its_own_id_is_not_found(
+        self, adapter, dl, method, verb
+    ):
+        """Only the archived Offer is answered, never one under its id (ADR-0148)."""
+        case = _make_case(dl)
+        offer = offer_case_ownership_transfer_activity(
+            case=case,
+            target=_INVITEE,
+            actor=_ACTOR,
+            attributed_to=_OWNER,
+            to=[_INVITEE],
+        )
+        dl.create(offer)
+        assert dl.read(offer.id_) is not None
+
+        with pytest.raises(
+            VultronNotFoundError, match=r"Offer\(VulnerabilityCase\)"
+        ):
+            getattr(adapter, method)(offer_id=offer.id_, actor=_INVITEE)
+        assert dl.outbox_list() == []
+
     @pytest.mark.spec("CM-21-015")
     def test_the_owner_withdraws_the_proposal_it_sent(self, adapter, dl):
         """The owner's own proposal is held under its own id, and read there;

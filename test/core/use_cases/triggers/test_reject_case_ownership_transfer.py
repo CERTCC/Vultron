@@ -35,8 +35,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models.ownership_transfer_offer_record import (
-    VultronOwnershipTransferOfferRecord,
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
 )
 from vultron.core.use_cases.triggers.actor import (
     SvcRejectCaseOwnershipTransferUseCase,
@@ -151,32 +151,34 @@ def test_reject_is_persisted_and_queued(transferee_world):
     assert reject_id in dl.outbox_list()
 
 
-@pytest.mark.spec("TRIG-11-005")
-def test_reject_of_an_offer_known_only_from_the_ledger(actor_store):
-    """A replica that learned of the Offer from the ledger holds only its record.
+@pytest.mark.spec("DL-06-006")
+def test_reject_of_an_offer_never_received_raises_not_found(actor_store):
+    """Only the Offer intake archived can be declined (ADR-0148).
 
-    The adapter rebuilds the wire Offer from the record, as for the Accept
-    (#2225), so the Reject names the same Offer either way.
+    The store holds the case and a copy of the Offer under the id its sender
+    chose, but no intake archive of it: nothing under that id stands in for
+    the Offer this actor received, so the trigger refuses and queues nothing.
     """
     transferee, dl = actor_store("Coordinator")
     owner, _ = actor_store("Vendor")
     case_manager, _ = actor_store("CaseActor")
     case = _seed_case(dl, owner.id_, case_manager.id_)
-    offer_id = "https://example.org/activities/offer-known-from-ledger"
-    dl.create(
-        VultronOwnershipTransferOfferRecord(
-            offer_id=offer_id,
-            case_id=case.id_,
-            actor_id=owner.id_,
-            target_id=transferee.id_,
-        )
+    offer = offer_case_ownership_transfer_activity(
+        case=as_VulnerabilityCase.model_validate(
+            {"id": case.id_, "name": case.name}
+        ),
+        target=transferee.id_,
+        actor=case_manager.id_,
+        to=[transferee.id_],
     )
+    dl.create(offer)
+    assert dl.read(offer.id_) is not None
 
-    result = _execute(dl, transferee.id_, offer_id)
-
-    activity = activity_of(result)
-    assert activity["type"] == "Reject"
-    assert activity["to"] == [case_manager.id_]
+    with pytest.raises(
+        VultronNotFoundError, match=r"Offer\(VulnerabilityCase\)"
+    ):
+        _execute(dl, transferee.id_, offer.id_)
+    assert dl.outbox_list() == []
 
 
 def test_raises_when_offer_not_held(actor_store):
@@ -196,15 +198,19 @@ def test_raises_when_actor_not_found(transferee_world):
 
 
 def test_raises_when_offer_names_no_case():
-    """Neither stored shape of the Offer yields a case id."""
+    """A received Offer whose ``object_`` names no case is refused."""
     actor_id = "https://example.org/actors/transferee-nocase"
+    offer_id = "https://example.org/activities/offer-nocase"
     actor = MagicMock()
     actor.id_ = actor_id
-    offer = MagicMock()
-    offer.case_id = None
-    offer.object_ = None
+    archived = MagicMock(spec=ReceivedActivityRecord)
+    archived.activity = MagicMock(object_=None)
+    held = {
+        actor_id: actor,
+        ReceivedActivityRecord.build_id(offer_id): archived,
+    }
     dl = MagicMock()
-    dl.read.side_effect = lambda id_: actor if id_ == actor_id else offer
+    dl.read.side_effect = held.get
 
-    with pytest.raises(VultronNotFoundError):
-        _execute(dl, actor_id, "https://example.org/activities/offer-nocase")
+    with pytest.raises(VultronNotFoundError, match="case reference"):
+        _execute(dl, actor_id, offer_id)

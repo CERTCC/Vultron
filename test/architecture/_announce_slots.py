@@ -55,9 +55,8 @@ def effect_slot_conditions() -> list[py_trees.behaviour.Behaviour]:
     Found by position, not by class: each slot is
     ``Selector(Sequence(IsX, ApplyX), Inverter(IsX))`` under
     ``LogEntryEventEffects``, and ``IsX`` may be any condition class in any
-    module (``IsOfferOwnershipTransferEventNode`` is not an
-    ``_ActivityEventNode``).  The condition under the ``Inverter`` is the
-    slot's skip arm, not its match.
+    module, not only an ``_ActivityEventNode``.  The condition under the
+    ``Inverter`` is the slot's skip arm, not its match.
     """
     (effects,) = [
         node

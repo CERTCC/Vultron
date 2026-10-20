@@ -45,9 +45,6 @@ from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
     SendLogEntryToEachNode,
 )
-from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
-    IsOfferOwnershipTransferEventNode,
-)
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
 )
@@ -222,29 +219,6 @@ class TestApplyParticipantStatusFromLedgerNodePorts:
     def test_missing_activity_raises_no_data_available(self) -> None:
         node = ApplyParticipantStatusFromLedgerNode(
             name="ApplyParticipantStatusFromLedger"
-        )
-        node.setup_ports()
-        with pytest.raises(NoDataAvailable):
-            node.get_input("activity")
-
-
-# ---------------------------------------------------------------------------
-# ownership_offer_effect.py — IsOfferOwnershipTransferEventNode
-# ---------------------------------------------------------------------------
-
-
-class TestIsOfferOwnershipTransferEventNodePorts:
-    def test_missing_datalayer_raises_no_data_available(self) -> None:
-        node = IsOfferOwnershipTransferEventNode(
-            name="IsOfferOwnershipTransferEvent"
-        )
-        node.setup_ports()
-        with pytest.raises(NoDataAvailable):
-            node.get_input("datalayer")
-
-    def test_missing_activity_raises_no_data_available(self) -> None:
-        node = IsOfferOwnershipTransferEventNode(
-            name="IsOfferOwnershipTransferEvent"
         )
         node.setup_ports()
         with pytest.raises(NoDataAvailable):

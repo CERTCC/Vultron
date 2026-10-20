@@ -30,9 +30,6 @@ from pydantic import BaseModel, ValidationError
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.core.models.ownership_transfer_offer_record import (
-    VultronOwnershipTransferOfferRecord,
-)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.received_activity import (
     read_held_activity,
@@ -81,9 +78,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 from ._base import (
     _addressing,
@@ -900,25 +894,15 @@ class _ActorsMixin:
         """Build, persist and seal a reply to an ownership-transfer Offer.
 
         The reply is the transferee's answer (Accept or Reject).  Reads the
-        offer as this actor holds it (:func:`read_held_activity`): the
+        offer as this actor received it (:func:`read_received_activity`): the
         CASE_MANAGER's Offer from the transferee's intake archive, never a
-        received Offer under the id its sender chose (DL-06-006).  Derives
+        record under the id its sender chose (DL-06-006, ADR-0148).  Derives
         the ``to:`` field from the offer's ``actor`` when not supplied, and
         persists the reply that *factory* builds from it.
-
-        On a replica whose only source for the Offer was the replicated
-        ``offer_case_ownership_transfer`` ledger entry, what is stored at
-        ``offer_id`` is a core ``VultronOwnershipTransferOfferRecord`` rather
-        than the wire activity — the SYNC path cannot construct wire objects
-        (ARCH-03-001).  Rebuild the wire Offer from that record here, where wire
-        imports are allowed, so both delivery paths converge on the same answer
-        (#2225, ADR-0035 DL-06-002).
         """
-        raw = read_held_activity(
+        raw = read_received_activity(
             self._dl, offer_id, "Offer(VulnerabilityCase)"
         )
-        if isinstance(raw, VultronOwnershipTransferOfferRecord):
-            raw = self._offer_from_core_record(raw)
         offer = cast(as_Offer, raw)
         if to is None:
             # Last resort, used only when the emit node found no local case
@@ -929,35 +913,3 @@ class _ActorsMixin:
                 to = [offer_actor_id]
         activity = factory(offer=offer, actor=actor, to=to)
         return _create_and_seal(self._dl, activity, label)
-
-    def _offer_from_core_record(
-        self, record: "VultronOwnershipTransferOfferRecord"
-    ) -> Any:
-        """Rebuild the wire ownership-transfer Offer from its core record.
-
-        ``_OfferCaseOwnershipTransferActivity.object_`` MUST be an inline
-        ``as_VulnerabilityCase`` — a bare URI is rejected at construction and
-        would also make the activity indistinguishable from a SUBMIT_REPORT
-        Offer during semantic dispatch.  The case itself is already on the
-        replica (the SYNC path seeds it before the offer entry is applied), so
-        read it and project it to its wire form.
-        """
-        case = self._dl.read(record.case_id)
-        if case is None:
-            raise VultronNotFoundError("VulnerabilityCase", record.case_id)
-        if not isinstance(case, as_VulnerabilityCase):
-            raise VultronValidationError(
-                f"Record '{record.case_id}' is a {type(case).__name__},"
-                " not a VulnerabilityCase"
-            )
-        wire_case = case
-        # Reuse the same factory the offering side calls, so the rebuilt Offer
-        # is constructed exactly the way the wire path would have built it
-        # (test/architecture/test_activity_factory_imports.py forbids adapters
-        # from reaching into vultron.wire.as2.vocab.activities directly).
-        return offer_case_ownership_transfer_activity(
-            case=wire_case,
-            target=record.target_id,
-            id_=record.offer_id,
-            actor=record.actor_id,
-        )

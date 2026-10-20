@@ -230,9 +230,12 @@ class _World:
         return proposal
 
     def ownership_offer_id(self) -> str:
+        """The CASE_MANAGER's Offer as the transferee holds it (archived)."""
         offer_id, _ = self.adapter.offer_case_ownership_transfer(
             case_id=self.case_id, transferee_id=_PEER, actor=_ACTOR, to=[_PEER]
         )
+        # The transferee answers the Offer it received (DL-06-006, ADR-0148).
+        archive_received(self.dl, self.dl.read(offer_id))
         return offer_id
 
     def ownership_proposal_id(self) -> str:

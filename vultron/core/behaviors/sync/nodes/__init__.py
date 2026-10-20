@@ -35,7 +35,7 @@ Submodules:
 - ``effects``: Ledger-apply side-effect nodes (note, invite-accept)
 - ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, copying
   the status the entry carries (CM-23-016)
-- ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``,
+- ``offer_report_effect``, ``ownership_effects``,
   ``participant_removal_effect``: per-effect ledger-apply nodes
 - ``case_status_effect``: Ledger-apply of ``add_case_status_to_case``, copying
   the status the entry carries (CM-23-016)
@@ -115,10 +115,6 @@ from vultron.core.behaviors.sync.nodes.offer_report_effect import (
 )
 from vultron.core.behaviors.sync.nodes.ownership_effects import (
     ApplyOwnershipTransferFromLedgerNode,
-)
-from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
-    ApplyOfferOwnershipTransferFromLedgerNode,
-    IsOfferOwnershipTransferEventNode,
 )
 from vultron.core.behaviors.sync.nodes.participant_record_effect import (
     ApplyCaseParticipantUpdateFromLedgerNode,
@@ -203,9 +199,7 @@ __all__ = [
     # per-effect ledger-apply modules
     "ApplyOfferReportFromLedgerNode",
     "ApplyOwnershipTransferFromLedgerNode",
-    "ApplyOfferOwnershipTransferFromLedgerNode",
     "IsAcceptCaseParticipantRoleEventNode",
-    "IsOfferOwnershipTransferEventNode",
     # participant_removal_effect (CM-31-007, CM-31-011)
     "ApplyReinstateCaseParticipantFromLedgerNode",
     "ApplyRemoveCaseParticipantFromLedgerNode",
