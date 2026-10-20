@@ -56,13 +56,17 @@ def store_carried_embargo(
 
     An inline embargo whose ``context`` is not *case_obj* is refused before
     anything is written: a first write wins, so a sender must not be able to
-    plant another case's embargo under an id that case will later name.
+    plant another case's embargo under an id that case will later name.  The
+    record *store* already holds under the named id is checked the same way,
+    whether the case carries the embargo inline or names it by bare id
+    (EMB-18-004).
 
     Raises:
         VultronNotFoundError: If the case names, by bare reference, an
             embargo *store* does not hold.
         VultronValidationError: If the named record is not an
-            ``EmbargoEvent``, or an inline embargo belongs to another case.
+            ``EmbargoEvent``, or the inline embargo or the held record
+            belongs to another case.
     """
     # A received event's ``case`` property is a cast, so the object handed
     # in may be a bare reference stub with no case fields.
@@ -71,18 +75,67 @@ def store_carried_embargo(
     embargo_ref = case_obj.active_embargo
     if embargo_ref is None:
         return
-    if isinstance(embargo_ref, EmbargoEvent):
-        embargo_id = embargo_ref.id_
-        if embargo_ref.context != case_obj.id_:
-            raise VultronValidationError(
-                f"Case '{case_obj.id_}' carries embargo '{embargo_id}' whose"
-                f" context is '{embargo_ref.context}', not this case."
-            )
+    hold_embargo_for_case(
+        store,
+        case_obj.id_,
+        embargo_ref
+        if isinstance(embargo_ref, EmbargoEvent)
+        else str(embargo_ref),
+    )
+
+
+def hold_embargo_for_case(
+    store: CasePersistence | DataLayer,
+    case_id: str,
+    embargo: EmbargoEvent | str,
+) -> EmbargoEvent:
+    """Hold *embargo* in *store* as *case_id*'s, and return the held record.
+
+    An inline ``EmbargoEvent`` is stored when *store* lacks it; a bare id
+    must already resolve.  The ``context`` of the inline copy and of the
+    held record must both be *case_id* (EMB-18-004), and the inline copy is
+    checked before anything is written.
+
+    Raises:
+        VultronNotFoundError: *embargo* is a bare id *store* does not hold.
+        VultronValidationError: the inline copy or the held record belongs
+            to another case, or the held record is not an ``EmbargoEvent``.
+    """
+    if isinstance(embargo, EmbargoEvent):
+        embargo_id = embargo.id_
+        _require_this_case(case_id, embargo_id, embargo.context)
         if store.read(embargo_id) is None:
-            store.save(embargo_ref)
+            store.save(embargo)
     else:
-        embargo_id = str(embargo_ref)
-    read_embargo_event(store, embargo_id)
+        embargo_id = embargo
+    return held_embargo_of_case(store, case_id, embargo_id)
+
+
+def _require_this_case(case_id: str, embargo_id: str, context: object) -> None:
+    if context != case_id:
+        raise VultronValidationError(
+            f"Case '{case_id}' names embargo '{embargo_id}' whose context is"
+            f" '{context}', not this case."
+        )
+
+
+def held_embargo_of_case(
+    store: CasePersistence | DataLayer, case_id: str, embargo_id: str
+) -> EmbargoEvent:
+    """The ``EmbargoEvent`` *store* holds under *embargo_id*, for *case_id*.
+
+    The record a case would name is the stored one, so its ``context`` is
+    checked as an inline copy's is (EMB-18-004): an id *store* already holds
+    for another case's embargo is refused.  Writes nothing.
+
+    Raises:
+        VultronNotFoundError: *store* holds no record under *embargo_id*.
+        VultronValidationError: the held record is not an ``EmbargoEvent``,
+            or its ``context`` is not *case_id*.
+    """
+    embargo = read_embargo_event(store, embargo_id)
+    _require_this_case(case_id, embargo_id, embargo.context)
+    return embargo
 
 
 def _entry_embargo_id(case_id: str, embargo_data: object) -> str:
@@ -109,12 +162,7 @@ def _inline_entry_embargo(
         raise VultronValidationError(
             f"Embargo '{embargo_id}' in the entry is malformed: {exc}"
         ) from exc
-    if embargo.context != case_id:
-        raise VultronValidationError(
-            f"Ledger entry on case '{case_id}' carries embargo"
-            f" '{embargo_id}' whose context is '{embargo.context}', not this"
-            " case."
-        )
+    _require_this_case(case_id, embargo_id, embargo.context)
     return embargo
 
 
@@ -126,19 +174,23 @@ def entry_embargo(
     For a replica slot that copies the embargo into the register: an inline
     copy is the CASE_MANAGER's record, so it is returned as carried (never
     the copy *store* may already hold); a bare id names a record *store*
-    must hold (EMB-18-003).  Writes nothing.
+    must hold (EMB-18-003).  A record *store* holds under the id must be
+    this case's, as the inline copy must (EMB-18-004).  Writes nothing.
 
     Raises:
         VultronNotFoundError: the entry names, by bare reference, an embargo
             *store* does not hold.
         VultronValidationError: the entry names no embargo, the inline copy
             is malformed or belongs to another case, or the held record is
-            not an ``EmbargoEvent``.
+            not an ``EmbargoEvent`` or belongs to another case.
     """
     embargo_id = _entry_embargo_id(case_id, embargo_data)
-    if isinstance(embargo_data, dict):
-        return _inline_entry_embargo(case_id, embargo_id, embargo_data)
-    return read_embargo_event(store, embargo_id)
+    if not isinstance(embargo_data, dict):
+        return held_embargo_of_case(store, case_id, embargo_id)
+    embargo = _inline_entry_embargo(case_id, embargo_id, embargo_data)
+    if store.read(embargo_id) is not None:
+        held_embargo_of_case(store, case_id, embargo_id)
+    return embargo
 
 
 def carried_entry_embargo(
@@ -150,21 +202,29 @@ def carried_entry_embargo(
     record must be held in the same store (EMB-18-003).  Returns ``None``
     when *store* already holds it, else the validated inline copy for the
     caller to store once the entry has applied, so a refused entry stores
-    nothing.  Writes nothing.
+    nothing.  A held record must be this case's, as the inline copy must
+    (EMB-18-004).  Writes nothing.
 
     Raises:
         VultronNotFoundError: the entry names, by bare reference, an embargo
             *store* does not hold.
-        VultronValidationError: the inline copy is malformed, or belongs to
-            another case.
+        VultronValidationError: the inline copy is malformed, or it or the
+            held record belongs to another case, or the held record is not
+            an ``EmbargoEvent``.
     """
     embargo_id = _entry_embargo_id(case_id, embargo_data)
     if store.read(embargo_id) is not None:
-        read_embargo_event(store, embargo_id)  # held, and an EmbargoEvent
+        held_embargo_of_case(store, case_id, embargo_id)
         return None
     if not isinstance(embargo_data, dict):
         raise VultronNotFoundError("EmbargoEvent", embargo_id)
     return _inline_entry_embargo(case_id, embargo_id, embargo_data)
 
 
-__all__ = ["carried_entry_embargo", "entry_embargo", "store_carried_embargo"]
+__all__ = [
+    "carried_entry_embargo",
+    "entry_embargo",
+    "held_embargo_of_case",
+    "hold_embargo_for_case",
+    "store_carried_embargo",
+]

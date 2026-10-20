@@ -292,3 +292,60 @@ def test_an_entrys_copied_embargo_of_another_case_is_refused(
 
     with pytest.raises(VultronValidationError, match=other_case):
         entry_embargo(dl, _CASE, _snapshot(context=other_case))
+
+
+_OTHER_CASE = "https://example.org/cases/other"
+
+
+def _held_for_other_case(dl: SqliteDataLayer) -> EmbargoEvent:
+    """Store, under this case's embargo id, a record of another case."""
+    foreign = EmbargoEvent(
+        id_=_embargo().id_,
+        context=_OTHER_CASE,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(foreign)
+    return foreign
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_a_case_naming_a_held_embargo_of_another_case_is_refused_unwritten(
+    dl: SqliteDataLayer, as_reference: bool
+) -> None:
+    """A bare id, or an inline copy, whose held record is another case's."""
+    foreign = _held_for_other_case(dl)
+    active: EmbargoEvent | str = foreign.id_ if as_reference else _embargo()
+    case = VulnerabilityCase(
+        id_=_CASE, name="c", embargo_register=register(active=active)
+    )
+
+    with pytest.raises(VultronValidationError, match=_OTHER_CASE):
+        store_carried_embargo(case, dl)
+
+    assert read_embargo_event(dl, foreign.id_).context == _OTHER_CASE
+    assert len(dl.list_objects("EmbargoEvent")) == 1
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_an_entry_naming_a_held_embargo_of_another_case_is_refused(
+    dl: SqliteDataLayer, as_reference: bool
+) -> None:
+    foreign = _held_for_other_case(dl)
+    data: object = foreign.id_ if as_reference else _snapshot()
+
+    with pytest.raises(VultronValidationError, match=_OTHER_CASE):
+        carried_entry_embargo(dl, _CASE, data)
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_an_entrys_copied_held_embargo_of_another_case_is_refused(
+    dl: SqliteDataLayer, as_reference: bool
+) -> None:
+    foreign = _held_for_other_case(dl)
+    data: object = foreign.id_ if as_reference else _snapshot()
+
+    with pytest.raises(VultronValidationError, match=_OTHER_CASE):
+        entry_embargo(dl, _CASE, data)

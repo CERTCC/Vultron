@@ -43,11 +43,11 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.participants.recipients import awaits_embargo_ending_notice
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.carried_embargo import hold_embargo_for_case
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import VultronError
 
 
@@ -133,21 +133,13 @@ class ApplyAnnouncedEmbargoRevisionNode(
 
         The case check covers the stored record as well as the inline copy:
         an id the replica already holds for another case's embargo is
-        refused too.
+        refused too (EMB-18-004).
         """
-        if self._embargo is not None:
-            self._require_this_case(self._embargo.context)
-            if datalayer.read(self.embargo_id) is None:
-                datalayer.save(self._embargo)
-        stored = read_embargo_event(datalayer, self.embargo_id)
-        self._require_this_case(stored.context)
-
-    def _require_this_case(self, context: object) -> None:
-        if context != self.case_id:
-            raise VultronError(
-                f"Announced embargo '{self.embargo_id}' belongs to"
-                f" '{context}', not case '{self.case_id}'"
-            )
+        hold_embargo_for_case(
+            datalayer,
+            self.case_id,
+            self._embargo if self._embargo is not None else self.embargo_id,
+        )
 
     def update(self) -> Status:
         self.applied = False
