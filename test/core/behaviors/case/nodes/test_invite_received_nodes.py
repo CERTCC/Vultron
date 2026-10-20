@@ -254,8 +254,9 @@ class TestRecordInviteTrustAnchorNodeMarksTheAnchor:
         assert isinstance(record, VultronPendingCaseInbox)
         assert record.invite_anchored
 
-    def test_a_queue_record_from_the_same_sender_is_marked(self):
+    def test_a_queue_record_from_the_same_sender_is_marked(self, caplog):
         """The queue recorded the sender first; the Invite confirms it."""
+        caplog.set_level(logging.INFO)
         scenario = BTTestScenario(actor_id=INVITEE_ID)
         scenario.dl.create(
             VultronPendingCaseInbox(
@@ -269,6 +270,11 @@ class TestRecordInviteTrustAnchorNodeMarksTheAnchor:
         assert isinstance(record, VultronPendingCaseInbox)
         assert record.invite_anchored
         assert record.activity_ids == ["https://example.org/activities/a1"]
+        assert any(
+            r.levelno == logging.INFO
+            and "confirmed as trust anchor" in r.message
+            for r in caplog.records
+        ), "promoting the queue's sender to the anchor is a state change"
 
     def test_a_conflicting_invite_marks_nothing(self):
         scenario = BTTestScenario(actor_id=INVITEE_ID)

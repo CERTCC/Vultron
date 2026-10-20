@@ -405,7 +405,8 @@ groups:
       `test/adapters/driving/fastapi/test_stub_invite_on_arrival.py` delivers the
       CASE_MANAGER's sealed stub Invite through the real inbox to an invitee holding no
       case and asserts it is processed, archived as a `ReceivedActivityRecord`, anchored,
-      and answerable with no sender-keyed copy present.
+      that the archive and the anchor are its only writes besides the ingress row #4871
+      retires, and that it is answerable with no sender-keyed copy present.
     stories:
     - story_2022_088
     - story_2022_023

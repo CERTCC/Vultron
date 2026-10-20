@@ -159,12 +159,20 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
                 self.datalayer.save(
                     existing.model_copy(update={"invite_anchored": True})
                 )
-            # Idempotent re-delivery of the same Invite — no other action.
-            self.logger.debug(
-                "%s: trust anchor already set for case '%s' (idempotent)",
-                self.name,
-                self.case_id,
-            )
+                self.logger.info(
+                    "%s: queue's sender for case '%s' confirmed as trust"
+                    " anchor (CaseActor '%s')",
+                    self.name,
+                    self.case_id,
+                    self.case_actor_id,
+                )
+            else:
+                # Idempotent re-delivery of the same Invite — no action.
+                self.logger.debug(
+                    "%s: trust anchor already set for case '%s' (idempotent)",
+                    self.name,
+                    self.case_id,
+                )
         else:
             # AC-3: Conflicting anchor — refuse and leave the existing one.
             self.feedback_message = (

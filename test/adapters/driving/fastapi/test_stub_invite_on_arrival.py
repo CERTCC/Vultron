@@ -202,6 +202,19 @@ def test_stub_invite_is_processed_on_arrival_and_archived(
     assert pending.activity_ids == [], "nothing is held back for replay"
     assert pending.case_actor_id == _CASE_ACTOR_ID
     assert pending.invite_anchored
+    # PCR-06-005: the intake archive and the anchor are the only writes.  The
+    # inbox's sender-keyed ``Invite`` ingress row is still written until
+    # #4871 removes it.
+    stored = {
+        type_: count
+        for type_, count in invitee_dl.count_all().items()
+        if count
+    }
+    assert stored == {
+        "ReceivedActivityRecord": 1,
+        "PendingCaseInbox": 1,
+        "Invite": 1,
+    }
 
 
 @pytest.mark.spec("PCR-06-005", "DL-06-006")
@@ -310,4 +323,41 @@ def test_an_expired_queue_without_an_invite_anchor_is_deleted(invitee_dl):
     outcome = _deliver(invitee_dl, _note_body("https://example.org/notes/n6"))
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
+    assert invitee_dl.read(_PENDING_ID) is None
+
+
+@pytest.mark.spec("CBT-03-003", "PCR-03-004")
+def test_a_bootstrap_after_queue_expiry_drops_the_anchored_record(
+    case_actor_dl, invitee_dl
+):
+    """Once the case is held, the anchor has done its job and goes.
+
+    The bootstrap finds the queue expired: what was queued is dropped, and
+    the anchored record goes with it, since the case now names its
+    CASE_MANAGER itself.
+    """
+    _, body = _stub_invite_body(case_actor_dl)
+    assert _deliver(invitee_dl, body).status is InboxOutcomeStatus.PROCESSED
+    assert (
+        _deliver(invitee_dl, _note_body("https://example.org/notes/n7")).status
+        is InboxOutcomeStatus.DEFERRED
+    )
+    _age_queue(invitee_dl, _LONG_AGO)
+
+    case = case_actor_dl.read(_CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    seed_case_participant(case_actor_dl, case, _INVITEE_ID)
+    case_actor_dl.save(case)
+    announce = announce_vulnerability_case_activity(
+        case_actor_dl.read(_CASE_ID),
+        actor=_CASE_ACTOR_ID,
+        to=[_INVITEE_ID],
+    )
+
+    outcome = _deliver(invitee_dl, _wire_body(announce))
+
+    assert outcome.status is InboxOutcomeStatus.PROCESSED, (
+        outcome.failure_reason
+    )
+    assert isinstance(invitee_dl.read(_CASE_ID), VulnerabilityCase)
     assert invitee_dl.read(_PENDING_ID) is None
