@@ -354,6 +354,9 @@ def remove_embargo_from_case_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="TeardownAndAnnounceIfCaseManager",
+        # The teardown, the ending notices, the backfill and the stub
+        # re-issue are one act (CLP-07-015, ADR-0146).
+        manager_effects_as_one_act=True,
     )
     logger.info(
         "Created RemoveEmbargoFromCaseBT for case=%s embargo=%s",
@@ -501,7 +504,8 @@ def invite_to_embargo_on_case_tree(
             embargo_id=embargo_id,
             proposer_id=proposer_id,
             actor_config=actor_config,
-            # A redelivery of the same proposal rebuilds the same Invites.
+            # Each relayed Invite's id derives from the proposal it
+            # answers (ID-04-004).
             answers=invite_id,
         ),
         # EP-09-002: the relay skips the manager, so it writes its own row.
@@ -634,6 +638,9 @@ def invite_to_embargo_on_case_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="AdjudicateEmbargoProposal",
+        # The proposal's rows, its relay and the manager's own consent are
+        # one act (CLP-07-015, ADR-0146).
+        manager_effects_as_one_act=True,
     )
     logger.info(
         "Created InviteToEmbargoOnCaseBT for case=%s invitee=%s invite=%s"

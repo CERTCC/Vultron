@@ -29,6 +29,7 @@ only when the executing actor is *not* the CASE_MANAGER (RSH-08-003).
 
 import py_trees
 
+from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
@@ -62,8 +63,18 @@ def _wrap_children(
     name: str,
     children: list[py_trees.behaviour.Behaviour],
     body_name: str | None,
+    as_one_act: bool = False,
 ) -> py_trees.behaviour.Behaviour:
-    """One child runs bare; several become a Sequence so a mid-run FAILURE propagates."""
+    """One child runs bare; several become a Sequence so a mid-run FAILURE propagates.
+
+    With *as_one_act* the body is always an :class:`ActTransaction`, so
+    everything the children write commits together or not at all
+    (CLP-07-015).
+    """
+    if as_one_act:
+        return ActTransaction(
+            name=body_name or f"{name}Body", children=children
+        )
     if len(children) == 1:
         return children[0]
     return py_trees.composites.Sequence(
@@ -79,6 +90,7 @@ def create_case_manager_gated_tree(
     children: list[py_trees.behaviour.Behaviour],
     body_name: str | None = None,
     case_may_be_absent: bool = False,
+    as_one_act: bool = False,
 ) -> CaseManagerGate:
     """Run *children* only when the executing actor holds ``CVDRole.CASE_MANAGER``.
 
@@ -118,11 +130,15 @@ def create_case_manager_gated_tree(
         case_may_be_absent: Read a case the executing actor does not hold as
             "not the CASE_MANAGER" instead of an anomaly; see
             :class:`CheckIsCaseManagerNode`.
+        as_one_act: Run *children* in one
+            :class:`~vultron.core.behaviors.act_transaction.ActTransaction`:
+            an act and the consequences its later nodes commit succeed or
+            fail as one (CLP-07-015, ADR-0146).
 
     Returns:
         The gated root :class:`CaseManagerGate` Selector.
     """
-    gated = _wrap_children(name, children, body_name)
+    gated = _wrap_children(name, children, body_name, as_one_act)
 
     return CaseManagerGate(
         name=name,

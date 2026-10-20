@@ -181,6 +181,38 @@ class TestStageOrder:
         assert isinstance(gate, CaseManagerGate)
         assert gate.gated_branch.name == "EmitEffects"
 
+    @pytest.mark.spec("CLP-07-015")
+    def test_manager_effects_can_run_as_one_act(self) -> None:
+        from vultron.core.behaviors.act_transaction import ActTransaction
+
+        first, second = _Emitter("First"), _Emitter("Second")
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            manager_effects=[first, second],
+            manager_case_id=CASE_ID,
+            manager_gate_name="EmitIfCaseManager",
+            manager_effects_as_one_act=True,
+        )
+
+        gate = tree.children[-1]
+        assert isinstance(gate, CaseManagerGate)
+        assert isinstance(gate.gated_branch, ActTransaction)
+        assert gate.gated_branch.name == "EmitIfCaseManagerBody"
+        assert list(gate.gated_branch.children) == [first, second]
+
+    def test_one_act_without_manager_effects_is_a_wiring_error(self) -> None:
+        with pytest.raises(
+            VultronWiringError, match="manager_effects_as_one_act"
+        ):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[],
+                manager_effects_as_one_act=True,
+            )
+
     def test_the_gate_takes_its_own_case_id_when_the_commit_is_omitted(
         self,
     ) -> None:

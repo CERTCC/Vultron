@@ -676,11 +676,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST commit an embargo act's entries, and the case-file
-      changes those entries carry, in one DataLayer transaction, so that when any
-      of them fails none of them is written. It MUST trial-apply every entry
-      before the first commit, so an entry that will not apply refuses the act
-      before anything is written.
+      The CASE_MANAGER MUST commit an embargo act's entries, the case-file changes
+      those entries carry, and every consequence a later node in the act's tree
+      commits, such as a re-issued stub Invite or a relayed Invite with its
+      invitee's row, in one DataLayer transaction, so that when any of them fails
+      none of them is written. It MUST trial-apply every entry before the first
+      commit, so an entry that will not apply refuses the act before anything is
+      written.
     rationale: >-
       An act commits its own entry and then one entry per consent row it changes
       (CLP-07-013). Committed one at a time, a failure part-way left the act
@@ -689,19 +691,25 @@ groups:
       never moved to its invitation (ADR-0122). Nothing re-commits them, because a
       repeated trigger starts a new act and a redelivered act is stopped by its
       idempotency guard (#4764). An act succeeds or fails as a whole, so no later
-      run finishes it and no repair pass re-decides its rows (ADR-0146). Known
-      atomicity gaps: a received act's own entry is committed by intake before its
-      consequences (ADR-0111, #4933), and consequences a later node commits, such
-      as the stub re-issue (CM-11-016) and a proposal's relay (EP-09-002), commit
-      after the act (#4949).
+      run finishes it and no repair pass re-decides its rows (ADR-0146). The same
+      holds for the consequences a later node commits, such as the stub re-issue
+      (CM-11-016) and a proposal's relay (EP-09-002): they run in the act's
+      transaction, so a failed relay or re-issue keeps none of the act's
+      consequences, and a trigger act keeps nothing at all (#4949). Known
+      atomicity gap: a received act's own entry is committed by intake before its
+      consequences, and the change it carries stands with it, so a received
+      proposal whose relay fails stays in the register with no consent rows and
+      no Invites, and nothing relays it (ADR-0111, #4933).
     verification: >-
       A test fails the second commit of a two-entry act and asserts the
       CASE_MANAGER keeps no entry, no queued activity and no row change from it; a
       test fails the case-file save after the commits and asserts no entry is kept;
       a test commits a two-entry act and asserts a replica that copies its
-      announcements holds the CASE_MANAGER's rows. Two strict-xfail tests record
-      the known gaps: a received act whose consequence fails keeps no entry for
-      it (#4933), and a termination whose stub re-issue fails is not kept (#4949).
+      announcements holds the CASE_MANAGER's rows; tests fail the stub re-issue
+      after a termination and an accept, and the relay after the CASE_MANAGER's
+      own proposal and a received one, and assert the act keeps none of its
+      consequences. A strict-xfail test records the known gap: a received act
+      whose consequence fails keeps no entry for it (#4933).
     relationships:
     - rel_type: refines
       spec_id: CLP-07-013
