@@ -31,6 +31,7 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
     ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)
     ├─ SenderIsParticipantNode                # Sender guard from the declared rule (HP-01-008)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
+    │   ├─ CarriedObjectInTargetCaseNode       # Guard: status of this case (HP-08-007)
     │   ├─ FilterParticipantStatusDimensionsNode  # Guard: adjudicate rm/vfd/pxa separately (RSH-05)
     │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)
     ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
@@ -79,6 +80,9 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
 )
+from vultron.core.behaviors.case.nodes.carried_object_case import (
+    CarriedObjectInTargetCaseNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -120,19 +124,21 @@ def add_participant_status_tree(
     activity.  Implements the DEMOMA-07-003 workflow with StatusAdoptionGate
     authorization (ADR-0046, RSH-01-001 to RSH-01-004).
 
-    When ``case_id`` is provided (or derived from the inline status object),
-    a guarded-commit subtree is inserted after precondition guards so the
-    canonical ledger records receipt of the triggering activity before any
-    protocol effects run (CLP-10-006).  Running the tree with
+    When ``case_id`` is provided, a guarded-commit subtree is inserted
+    after precondition guards so the canonical ledger records receipt of the
+    triggering activity before any protocol effects run (CLP-10-006).  Running the tree with
     ``actor_id=receiving_actor_id`` (ADR-0022 single-BT shape) means
     ``CheckIsCaseManagerNode`` in that subtree correctly fires only when
     the receiving actor holds ``CVDRole.CASE_MANAGER``.
 
-    The *case_id* for the commit and all children is derived from the inline
-    ``request.status.context`` field when not supplied explicitly.  The use
-    case also resolves it from the stored status before building the tree;
-    with no case known, the sender guard refuses, because the declared rule
-    states no side for an activity outside any case (HP-01-008).
+    The *case_id* for the commit and all children is the target
+    participant's own case, which the use case reads from the receiver's
+    record of the participant (HP-08-008); the status's ``context`` never
+    chooses it.  ``CarriedObjectInTargetCaseNode`` refuses, before the
+    commit, a status whose ``context`` names another case or none
+    (HP-08-007).  With no case known, the sender guard refuses, because the
+    declared rule states no side for an activity outside any case
+    (HP-01-008).
 
     After ``AppendParticipantStatusNode`` records the raw peer update, a
     ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
@@ -157,11 +163,11 @@ def add_participant_status_tree(
 
     Args:
         request: The parsed inbound domain event.
-        case_id: ID of the VulnerabilityCase.  When provided (or derivable
-            from the inline status object), a guarded-commit subtree is
+        case_id: ID of the target participant's VulnerabilityCase
+            (HP-08-008).  When provided, a guarded-commit subtree is
             inserted after precondition guards so the receiving CaseActor
-            writes a canonical ledger entry (CLP-10-005).  Pass ``None``
-            (with no derivable context) to skip the commit.
+            writes a canonical ledger entry (CLP-10-005).  ``None`` leaves
+            no case, and the sender guard refuses (HP-01-008).
         call_out: Call-out backend bundle for ``StatusAdoptionGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
             approves all non-CASE_OWNER updates (historical behavior).
@@ -176,12 +182,9 @@ def add_participant_status_tree(
     actor_id = request.actor_id
     status_obj = request.status
 
-    # Derive case_id from the inline status object when not supplied explicitly.
+    # The case is the target participant's own, resolved by the use case
+    # from the receiver's record (HP-08-008); the status never chooses it.
     tree_case_id: str | None = case_id
-    if tree_case_id is None and status_obj is not None:
-        context_field = getattr(status_obj, "context", None)
-        if context_field:
-            tree_case_id = str(context_field)
 
     # StatusAdoptionGate (RSH-01-002): CASE_OWNER gospel bypass first; all
     # others route through the CaseOwnerApprovesStatusUpdate call-out.
@@ -212,6 +215,18 @@ def add_participant_status_tree(
             case_manager_required=True,
         ),
         precondition_guards=[
+            # HP-08-007: a status of another case never joins this one.
+            *(
+                [
+                    CarriedObjectInTargetCaseNode(
+                        object_id=status_id,
+                        carried=status_obj,
+                        case_id=tree_case_id,
+                    )
+                ]
+                if tree_case_id
+                else []
+            ),
             FilterParticipantStatusDimensionsNode(
                 participant_id=participant_id,
                 status_id=status_id,
