@@ -393,7 +393,7 @@ def _refusal_stage(
     )
 
 
-def _refusal_notice_stage(
+def _refusal_effects_with_notice(
     name: str,
     case_id: str | None,
     guards: Sequence[py_trees.behaviour.Behaviour | Diversion],
@@ -616,7 +616,9 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
         self.door_guards: tuple[py_trees.behaviour.Behaviour, ...] = tuple(
             door_guards
         )
-        self.refusal_notice_exemption = refusal_notice_exemption
+        self.refusal_notice_exemption: RefusalNoticeExemption | None = (
+            refusal_notice_exemption
+        )
 
     @property
     def door_guards_admitted(self) -> bool:
@@ -1187,7 +1189,7 @@ def create_receive_activity_tree(
                 post_close_exemption=post_close_exemption,
             )
         )
-    effects = _refusal_notice_stage(
+    effects = _refusal_effects_with_notice(
         name,
         case_id,
         precondition_guards,

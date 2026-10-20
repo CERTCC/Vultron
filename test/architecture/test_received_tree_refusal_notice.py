@@ -22,9 +22,11 @@ and has precondition guards; a tree goes without it only by passing a
 registered ``RefusalNoticeExemption`` (#4756).  These checks keep that the
 only way out, and keep the exception set closed and reasoned:
 
-1. **Pinned exemption set** ``REFUSAL_NOTICE_EXEMPTION_USES``: which tree
-   passes each exemption, held to equality in both directions (ARCH-18-001,
-   ARCH-18-002), and every registered exemption is used by some tree.
+1. **Pinned exemption set** ``REFUSAL_NOTICE_EXEMPTION_USES`` and **ratchet**
+   ``EMBARGO_REFUSAL_ANSWERS_BACKLOG``: which tree passes each exemption, held
+   to equality in both directions (ARCH-18-001, ARCH-18-002), and every
+   registered exemption is used by some tree.  The ratchet holds the embargo
+   trees, whose answers #4755 gives; it ends empty.
 2. The registry is the module's whole list: every ``RefusalNoticeExemption``
    constant in ``refusal_notice.py`` is registered, each with its own reason.
 3. Every received tree, built as it runs, that commits to a case and has a
@@ -78,16 +80,21 @@ _Site = tuple[str, str]
 # ---------------------------------------------------------------------------
 # 1. Which tree passes which exemption: (constant, module, top-level function).
 # ---------------------------------------------------------------------------
-# permanent: CLP-02-005 (each entry is a recorded exemption decision, #4756)
+# permanent: CM-23-011 (the decline arm's Reject(Leave) answers the close arm)
 REFUSAL_NOTICE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
     {
-        # CM-23-011: the decline arm's Reject(Leave) answers the close arm.
         (
             "OWNER_CLOSE_DECLINE",
             f"{_C}/receive_close_case_tree.py",
             "create_close_case_received_tree",
         ),
-        # MSM-07: each embargo tree's refusal answers are #4755's to give.
+    }
+)
+
+# Each embargo tree's refusal answers are decided per message under MSM-07.
+# owner: #4755
+EMBARGO_REFUSAL_ANSWERS_BACKLOG: frozenset[tuple[str, str, str]] = frozenset(
+    {
         (
             "EMBARGO_REFUSAL_ANSWERS",
             f"{_E}/announce_teardown_tree.py",
@@ -125,6 +132,8 @@ REFUSAL_NOTICE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
         ),
     }
 )
+
+_ALL_USES = REFUSAL_NOTICE_EXEMPTION_USES | EMBARGO_REFUSAL_ANSWERS_BACKLOG
 
 #: The exemptions whose reason names a node that answers the refusal instead,
 #: and that node: the built tree must hold it.
@@ -312,11 +321,11 @@ def _notices(tree: ReceivedActivityTree) -> list[EmitRefusalNoticeNode]:
 @pytest.mark.spec("ARCH-18-001")
 def test_refusal_notice_exemption_uses_are_pinned() -> None:
     actual = _exemption_uses()
-    assert actual == REFUSAL_NOTICE_EXEMPTION_USES, (
-        f"NEW: {sorted(actual - REFUSAL_NOTICE_EXEMPTION_USES)}; a new"
-        " exemption use is a decision — pin it here with its reason."
-        f" STALE: {sorted(REFUSAL_NOTICE_EXEMPTION_USES - actual)}; remove it"
-        " (ARCH-18-002)"
+    expected = _ALL_USES
+    assert actual == expected, (
+        f"NEW: {sorted(actual - expected)}; a new exemption use is a"
+        " decision — pin it here with its reason."
+        f" STALE: {sorted(expected - actual)}; remove it (ARCH-18-002)"
     )
 
 
@@ -331,7 +340,7 @@ def test_the_exemption_set_is_closed_and_reasoned() -> None:
         assert REFUSAL_NOTICE_EXEMPTIONS[exemption.name] is exemption
     reasons = [c.reason for c in constants.values()]
     assert len(set(reasons)) == len(reasons), "each exemption has its reason"
-    used = {constant for constant, _, _ in REFUSAL_NOTICE_EXEMPTION_USES}
+    used = {constant for constant, _, _ in _ALL_USES}
     assert used == set(constants), (
         f"registered but unused: {sorted(set(constants) - used)};"
         f" used but not registered: {sorted(used - set(constants))}"
