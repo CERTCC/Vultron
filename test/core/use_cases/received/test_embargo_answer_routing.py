@@ -136,6 +136,10 @@ def _deliver_all(net: _Network, to: str) -> None:
         )
 
 
+# Integration tier, with the rest of the LedgerNetwork replay group
+# (#4917): about 9s idle plus a 2s teardown rebuild, so under the
+# full unit run's load it can pass the 30s ceiling.
+@pytest.mark.integration
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("SYNC-12-001")
 def test_a_late_reject_is_refused_uncommitted_and_the_replica_keeps_up():
@@ -159,6 +163,10 @@ def test_a_late_reject_is_refused_uncommitted_and_the_replica_keeps_up():
         assert first not in case.proposed_embargo_ids, actor_id
 
 
+# Integration tier, with the rest of the LedgerNetwork replay group
+# (#4917): about 9s idle plus a 2s teardown rebuild, so under the
+# full unit run's load it can pass the 30s ceiling.
+@pytest.mark.integration
 @pytest.mark.spec("EP-08-001")
 @pytest.mark.spec("EP-08-003")
 def test_the_owner_rejecting_one_of_two_revisions_keeps_the_other_open():

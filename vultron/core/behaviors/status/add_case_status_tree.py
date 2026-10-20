@@ -29,7 +29,7 @@ the embargo trees (RSH-01-003, RSH-04-004).
     AddCaseStatusToCaseBT (Sequence)
     ├─ <intake, post-close guard, sender guard, clock decisions>  # factory
     ├─ CheckCaseStatusIdempotencyNode              # precondition guard (CLP-10-009)
-    ├─ CarriedObjectInTargetCaseNode               # status of this case only (HP-08-007, #4831)
+    ├─ CarriedObjectInTargetCaseNode               # this case only (HP-08-007)
     ├─ CheckCsEphemeralStateNode                   # pX ephemeral guard (CSB-17-012, ISSUE-2524)
     ├─ CheckCsHistoryPrefixNode                    # history prefix guard (CSB-17-005, ISSUE-2524)
     ├─ FilterCsEmDimensionNode                     # per-dim EM adjudication (RSH-05, ISSUE-2256)
