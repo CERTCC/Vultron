@@ -1424,3 +1424,121 @@ def test_make_dispatcher_gives_ledger_hand_back_semantics_the_inbox_port(
             assert "inbox_hand_back" in inspect.signature(use_case).parameters
         else:
             assert port is None, f"{sem.name} was given an inbox hand-back"
+
+
+@pytest.mark.spec("PCR-06-005")
+def test_dispatch_or_defer_inbox_item_dispatches_stub_invite_for_unknown_case(
+    monkeypatch,
+):
+    """The stub Invite precedes its case, so it is dispatched, not queued.
+
+    The invitee holds no replica until it answers the Invite (MV-10-005);
+    deferring it until the case is known would hold it until the Announce its
+    own Accept brings (#4915).
+    """
+    actor_id = "https://example.org/actors/invitee"
+    case_id = "https://example.org/cases/case-not-held"
+    item_id = "https://example.org/activities/stub-invite-1"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    item = as_Activity(
+        id_=item_id,
+        type_="Invite",
+        actor="https://example.org/actors/case-actor",
+        context=case_id,
+        name="stub-invite",
+    )
+    fake_event = VultronEvent(
+        semantic_type=MessageSemantics.INVITE_ACTOR_TO_CASE,
+        activity_id=item_id,
+        actor_id="https://example.org/actors/case-actor",
+    )
+    monkeypatch.setattr(
+        ih, "prepare_for_dispatch", lambda activity: fake_event
+    )
+    mock_dispatcher = Mock()
+    mock_dispatcher.dispatch.return_value = HandlerResult.applied()
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
+
+    result = ih._dispatch_or_defer_inbox_item(
+        actor_id=actor_id,
+        obj=item,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+    )
+
+    assert result is not None
+    mock_dispatcher.dispatch.assert_called_once()
+    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
+
+
+@pytest.mark.spec("CBT-03-003", "PCR-03-004")
+def test_expired_queue_keeps_a_stub_invite_trust_anchor():
+    """Expiry drops what was queued but keeps the Invite's anchor (#4915)."""
+    from datetime import datetime, timedelta
+
+    actor_id = "https://example.org/actors/invitee"
+    case_id = "https://example.org/cases/anchored"
+    activity_id = "https://example.org/activities/anchored-note"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    pending = VultronPendingCaseInbox(
+        case_id=case_id,
+        activity_ids=[activity_id],
+        case_actor_id="https://example.org/actors/case-actor",
+        invite_anchored=True,
+        queued_at=datetime.now(UTC) - timedelta(minutes=10),
+    )
+    queue_dl.save(pending)
+
+    expired = ih._expire_pending_case_activities(
+        case_id=case_id,
+        actor_id=actor_id,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+        timeout_seconds=60,
+    )
+
+    assert expired is True
+    kept = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
+    assert isinstance(kept, VultronPendingCaseInbox)
+    assert kept.activity_ids == []
+    assert kept.case_actor_id == "https://example.org/actors/case-actor"
+    assert kept.invite_anchored
+
+
+@pytest.mark.spec("CBT-03-001")
+def test_a_queue_holding_no_activity_does_not_expire():
+    """A stub Invite's anchor alone queues nothing, so nothing expires."""
+    from datetime import datetime, timedelta
+
+    actor_id = "https://example.org/actors/invitee"
+    case_id = "https://example.org/cases/anchor-only"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    queue_dl.save(
+        VultronPendingCaseInbox(
+            case_id=case_id,
+            case_actor_id="https://example.org/actors/case-actor",
+            invite_anchored=True,
+            queued_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+    )
+
+    assert not ih._expire_pending_case_activities(
+        case_id=case_id,
+        actor_id=actor_id,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+        timeout_seconds=60,
+    )
+    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is not None

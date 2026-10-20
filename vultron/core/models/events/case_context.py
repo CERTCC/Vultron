@@ -13,12 +13,14 @@
 
 """Case-context resolution for inbound activities.
 
-Single authoritative answer to two questions the inbox path asks of every
+Single authoritative answer to three questions the inbox path asks of every
 inbound activity:
 
 1. *Which case does this activity belong to?* — :func:`resolve_case_context_id`
 2. *Is this activity the one that bootstraps that case locally?* —
    :func:`is_case_bootstrap`
+3. *Is it processed on arrival even though that case is not held locally?* —
+   :func:`is_deferral_exempt`
 
 Both the core behavior-tree inbox pipeline
 (``vultron.core.behaviors.inbox.nodes``) and the FastAPI inbox
@@ -54,6 +56,17 @@ CASE_BOOTSTRAP_SEMANTICS: frozenset[MessageSemantics] = frozenset(
     }
 )
 
+#: Semantics whose activity precedes its case by design: the receiver holds
+#: no replica of the case it names and is not meant to until it answers.  The
+#: stub Invite is the one such activity — an invitee decides whether to join
+#: before the case is delivered to it (MV-10-005, PCR-06-005).  These are never
+#: deferred, but they establish no case, so they trigger no replay.
+CASE_PRECEDING_SEMANTICS: frozenset[MessageSemantics] = frozenset(
+    {
+        MessageSemantics.INVITE_ACTOR_TO_CASE,
+    }
+)
+
 #: AS2 ``@context`` values live under the W3C namespace and are never case IDs.
 _AS2_NAMESPACE_PREFIX = "https://www.w3.org/ns/"
 
@@ -61,6 +74,21 @@ _AS2_NAMESPACE_PREFIX = "https://www.w3.org/ns/"
 def is_case_bootstrap(event: VultronEvent) -> bool:
     """Return ``True`` when *event* establishes a local case replica."""
     return event.semantic_type in CASE_BOOTSTRAP_SEMANTICS
+
+
+def is_deferral_exempt(event: VultronEvent) -> bool:
+    """Return ``True`` when *event* is processed without its case held locally.
+
+    True for a bootstrap (:data:`CASE_BOOTSTRAP_SEMANTICS`), which would
+    deadlock if deferred, and for an activity that precedes its case
+    (:data:`CASE_PRECEDING_SEMANTICS`).  Every deferral gate asks this; only
+    :func:`is_case_bootstrap` decides whether a processed activity triggers
+    the replay of what was deferred.
+    """
+    return (
+        is_case_bootstrap(event)
+        or event.semantic_type in CASE_PRECEDING_SEMANTICS
+    )
 
 
 def resolve_case_context_id(

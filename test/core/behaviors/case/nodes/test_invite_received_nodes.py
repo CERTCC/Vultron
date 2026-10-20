@@ -227,3 +227,57 @@ class TestRecordInviteTrustAnchorNodeIdempotency:
         record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
         assert isinstance(record, VultronPendingCaseInbox)
         assert record.case_actor_id == CASE_ACTOR_ID
+
+
+@pytest.mark.spec("PCR-03-004", "CBT-03-003")
+class TestRecordInviteTrustAnchorNodeMarksTheAnchor:
+    """Every anchor the node writes or confirms is ``invite_anchored``.
+
+    The pre-bootstrap queue shares the record, and its expiry keeps only an
+    anchored one (#4915).
+    """
+
+    def test_a_new_anchor_is_marked(self):
+        scenario = BTTestScenario(actor_id=INVITEE_ID)
+        scenario.assert_success(scenario.run(_anchor_node()))
+        record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
+        assert isinstance(record, VultronPendingCaseInbox)
+        assert record.invite_anchored
+
+    def test_a_filled_in_anchor_is_marked(self):
+        scenario = BTTestScenario(actor_id=INVITEE_ID)
+        scenario.dl.create(
+            VultronPendingCaseInbox(case_id=CASE_ID, case_actor_id=None)
+        )
+        scenario.assert_success(scenario.run(_anchor_node()))
+        record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
+        assert isinstance(record, VultronPendingCaseInbox)
+        assert record.invite_anchored
+
+    def test_a_queue_record_from_the_same_sender_is_marked(self):
+        """The queue recorded the sender first; the Invite confirms it."""
+        scenario = BTTestScenario(actor_id=INVITEE_ID)
+        scenario.dl.create(
+            VultronPendingCaseInbox(
+                case_id=CASE_ID,
+                activity_ids=["https://example.org/activities/a1"],
+                case_actor_id=CASE_ACTOR_ID,
+            )
+        )
+        scenario.assert_success(scenario.run(_anchor_node()))
+        record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
+        assert isinstance(record, VultronPendingCaseInbox)
+        assert record.invite_anchored
+        assert record.activity_ids == ["https://example.org/activities/a1"]
+
+    def test_a_conflicting_invite_marks_nothing(self):
+        scenario = BTTestScenario(actor_id=INVITEE_ID)
+        scenario.dl.create(
+            VultronPendingCaseInbox(
+                case_id=CASE_ID, case_actor_id=OTHER_CASE_ACTOR_ID
+            )
+        )
+        scenario.run(_anchor_node())
+        record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
+        assert isinstance(record, VultronPendingCaseInbox)
+        assert not record.invite_anchored

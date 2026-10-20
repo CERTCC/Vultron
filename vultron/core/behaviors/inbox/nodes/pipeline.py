@@ -54,7 +54,7 @@ from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.inbox.models import InboxOutcomeStatus
 from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
 from vultron.core.models.events import (
-    is_case_bootstrap,
+    is_deferral_exempt,
     resolve_case_context_id,
 )
 from vultron.semantic_registry import extract_event
@@ -337,9 +337,9 @@ class ExtractSemanticsNode(_InboxNodeWithPorts):
 class DeferCheckNode(_InboxNodeWithPorts):
     """Step 4: defer activity when its case context is not yet known.
 
-    If a case context ID is present, the activity semantic is not one of
-    the case-bootstrap semantics (see
-    :data:`~vultron.core.models.events.case_context.CASE_BOOTSTRAP_SEMANTICS`),
+    If a case context ID is present, the activity is not exempt from
+    deferral (a case bootstrap, or the stub Invite that precedes its case;
+    see :func:`~vultron.core.models.events.case_context.is_deferral_exempt`),
     and the case is not yet locally available, the activity is either
     queued for later replay (``deferred`` outcome) or dropped when the
     queue has expired (``rejected`` outcome).
@@ -378,11 +378,12 @@ class DeferCheckNode(_InboxNodeWithPorts):
         except (NotImplementedError, NoDataAvailable, KeyError):
             queue = None
 
-        # No deferral needed when there is no case context, when
-        # processing a bootstrap itself, or when no queue port is
-        # available.  Deferring a bootstrap would deadlock: nothing else
-        # can make its case known locally.
-        if context_id is None or is_case_bootstrap(event) or queue is None:
+        # No deferral needed when there is no case context, when the
+        # activity is exempt, or when no queue port is available.  Deferring
+        # a bootstrap would deadlock: nothing else can make its case known
+        # locally.  The stub Invite precedes its case by design: the invitee
+        # gets the case only after answering it (MV-10-005, PCR-06-005).
+        if context_id is None or is_deferral_exempt(event) or queue is None:
             return Status.SUCCESS
 
         # Non-URI context_id (e.g. a genesis hash from Reject(CaseLedgerEntry))

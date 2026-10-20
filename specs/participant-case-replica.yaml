@@ -369,6 +369,46 @@ groups:
     statement: >-
       Activities with unknown case context MUST NOT update any local state until a valid case
       replica has been established.
+    note: >-
+      The stub Invite is the one exception: it precedes its case by design, and PCR-06-005
+      bounds what it may write.
+    relationships:
+    - rel_type: depends_on
+      spec_id: PCR-06-005
+  - id: PCR-06-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A stub Invite (CM-11-013) MUST be processed on arrival, not queued under PCR-06-002,
+      even though its receiver holds no replica of the case it names. Processing it MUST
+      write nothing but the intake archive of the Invite (CLP-10-017) and the trust anchor
+      of PCR-03-004 path (b). Every other activity naming a case the receiver does not hold
+      is still queued.
+    rationale: >-
+      An invitee decides whether to join a case before the case is delivered to it
+      (MV-10-005): the case arrives in an `Announce` only after it accepts. Queuing the
+      Invite until the case is known held it back until the very `Announce` its own Accept
+      brings, so it reached no use case, intake never archived it, and the invitee could
+      answer it only from a copy held under the sender's id, which DL-06-006 forbids
+      (#4915).
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-06-002
+    - rel_type: depends_on
+      spec_id: PCR-03-004
+    adr:
+    - ADR-0114
+    verification: >-
+      `test/core/behaviors/inbox/nodes/test_defer_check_node.py` asserts the deferral gate
+      passes a stub Invite for an unknown case and still defers a full-case Invite, an
+      Accept of the stub Invite and a ledger-entry Announce.
+      `test/adapters/driving/fastapi/test_stub_invite_on_arrival.py` delivers the
+      CASE_MANAGER's sealed stub Invite through the real inbox to an invitee holding no
+      case and asserts it is processed, archived as a `ReceivedActivityRecord`, anchored,
+      and answerable with no sender-keyed copy present.
+    stories:
+    - story_2022_088
+    - story_2022_023
   - id: PCR-06-004
     priority: MUST
     kind: project

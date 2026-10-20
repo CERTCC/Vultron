@@ -60,14 +60,27 @@ def _queue_pending_case_activity(
 
     Records *case_actor_id* on the first write so that the expiry
     handler knows where to send a replay ``Question`` (CBT-03-004).
+
+    The expiry window opens with the first activity queued (CBT-03-001).  A
+    record that holds no activity yet — a stub Invite's trust anchor, written
+    when the Invite was processed — restarts ``queued_at`` here, so the time
+    an invitee took to answer its Invite is not charged to the queue.
     """
     pending_id = VultronPendingCaseInbox.build_id(case_id)
     pending = queue_dl.read(pending_id)
     if isinstance(pending, VultronPendingCaseInbox):
         if activity_id in pending.activity_ids:
             return
-        pending.activity_ids.append(activity_id)
-        queue_dl.save(pending)
+        update: dict[str, object] = {
+            "activity_ids": [*pending.activity_ids, activity_id]
+        }
+        if not pending.activity_ids:
+            update["queued_at"] = datetime.now(UTC)
+        queue_dl.save(
+            VultronPendingCaseInbox.model_validate(
+                {**pending.model_dump(), **update}
+            )
+        )
         return
 
     queue_dl.save(
@@ -89,12 +102,16 @@ def _expire_pending_case_activities(
     """Drop an expired pre-bootstrap queue and emit a replay ``Question``.
 
     Checks whether the ``VultronPendingCaseInbox`` for *case_id* has
-    been held for longer than *timeout_seconds* (defaults to
-    ``AppConfig.pre_bootstrap_queue_timeout_seconds``).  When expired:
+    held queued activities for longer than *timeout_seconds* (defaults to
+    ``AppConfig.pre_bootstrap_queue_timeout_seconds``).  A record holding no
+    activity — a stub Invite's trust anchor alone — has nothing to expire.
+    When expired:
 
     1. Logs a WARNING for each dropped activity ID (CBT-03-003).
-    2. Deletes the queue record, and the inline objects held for each
-       activity's replay.
+    2. Deletes the inline objects held for each activity's replay, and the
+       queue record — unless a stub Invite anchored it (``invite_anchored``,
+       PCR-03-004 path b), in which case only its queue is emptied: the
+       anchor is what admits the case's later ``Announce``.
     3. Emits a ``Question`` to the recorded ``case_actor_id`` asking
        for the bootstrap ``Create(VulnerabilityCase)`` to be resent
        (CBT-03-004, SHOULD).
@@ -124,6 +141,8 @@ def _expire_pending_case_activities(
     pending = queue_dl.read(pending_id)
     if not isinstance(pending, VultronPendingCaseInbox):
         return False
+    if not pending.activity_ids:
+        return False
 
     now = datetime.now(UTC)
     queued_at = pending.queued_at
@@ -147,7 +166,15 @@ def _expire_pending_case_activities(
         queue_dl.delete(
             "PendingInlineObjects", PendingInlineObjects.build_id(activity_id)
         )
-    queue_dl.delete("PendingCaseInbox", pending_id)
+    if pending.invite_anchored:
+        # Keep the stub Invite's trust anchor; drop only what was queued.
+        queue_dl.save(
+            VultronPendingCaseInbox.model_validate(
+                {**pending.model_dump(), "activity_ids": []}
+            )
+        )
+    else:
+        queue_dl.delete("PendingCaseInbox", pending_id)
     logger.warning(
         "Pre-bootstrap queue for case '%s' expired after %.0fs; "
         "%d activity ID(s) dropped",

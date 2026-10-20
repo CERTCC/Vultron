@@ -90,6 +90,11 @@ interval (`AppConfig.pre_bootstrap_queue_timeout_seconds`); on expiry drop it,
 warn, and send an `as_Question` asking the **report receiver** — the only actor
 already trusted — to resend the bootstrap.
 
+The queue record also carries the stub Invite's trust anchor (`invite_anchored`,
+PCR-03-004 path b), so expiry empties an anchored record but keeps it, and the window
+opens with the first activity queued, not with the Invite: the time an invitee takes
+to answer must not cost it the anchor that admits the case's `Announce` (#4915).
+
 ## Layer Rules
 
 - Trust-establishment rules live in core use cases and behaviors, not FastAPI

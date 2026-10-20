@@ -68,10 +68,11 @@ def read_received_activity(
     ADR-0111), so that record is read first.
 
     An activity the inbox deferred until its case is known has not reached
-    intake yet.  An Invite to a case is usually in that state: the invitee
-    holds no case until its Accept brings the bootstrap Announce (MV-10-003).
-    The inbox holds such an activity under the sender's id for replay, and
-    that copy is then the only one the receiver has, so it is read next.
+    intake yet.  The inbox holds such an activity under the sender's id for
+    replay, and that copy is then the only one the receiver has, so it is
+    read next.  A stub Invite is never in that state: it precedes its case by
+    design, so the invitee processes it on arrival and intake archives it
+    (PCR-06-005).
 
     Args:
         dl: The receiver's DataLayer.

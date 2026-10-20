@@ -29,8 +29,14 @@ from vultron.core.models.base import CoreRecord, UriString, with_record_id
 class VultronPendingCaseInbox(CoreRecord):
     """Store deferred inbox activity IDs keyed by case ID.
 
-    Tracks when the queue was created (``queued_at``) so that a bounded
-    expiry window can be enforced (CBT-03-001, CBT-03-003).
+    Tracks when the first activity waiting in the queue was queued
+    (``queued_at``) so that a bounded expiry window can be enforced
+    (CBT-03-001, CBT-03-003).
+
+    The same record carries the stub Invite's trust anchor (PCR-03-004 path
+    b): the CASE_MANAGER the Invite named, in ``case_actor_id``, with
+    ``invite_anchored`` set.  An anchored record outlives the expiry of its
+    queue, since the anchor is what admits the case's later ``Announce``.
     """
 
     type_: Literal["PendingCaseInbox"] = Field(  # type: ignore[assignment]
@@ -53,6 +59,13 @@ class VultronPendingCaseInbox(CoreRecord):
             "URI of the actor that sent the first pre-bootstrap activity. "
             "Used as the replay-request target when bootstrap times out "
             "(CBT-03-004)."
+        ),
+    )
+    invite_anchored: bool = Field(
+        default=False,
+        description=(
+            "True once a stub Invite recorded ``case_actor_id`` as its trust "
+            "anchor (PCR-03-004 path b); queue expiry then keeps the record."
         ),
     )
 

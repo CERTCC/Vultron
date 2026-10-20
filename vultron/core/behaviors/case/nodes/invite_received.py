@@ -83,7 +83,9 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
 
     Idempotent on an exact duplicate (same ``case_actor_id``).  A record with
     ``case_actor_id=None`` — created by the pre-bootstrap queue for an earlier
-    ledger entry — gains the sender (first-write semantics).
+    ledger entry — gains the sender (first-write semantics).  Every record
+    the node writes or confirms is marked ``invite_anchored``, so the
+    pre-bootstrap queue's expiry keeps the anchor (PCR-03-004, CBT-03-003).
 
     Note: whether the named CaseActor is genuine cannot be verified until
     actor identity and signatures are in place (#2841).
@@ -125,6 +127,7 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
                 VultronPendingCaseInbox(
                     case_id=self.case_id,
                     case_actor_id=self.case_actor_id,
+                    invite_anchored=True,
                 )
             )
             self.logger.info(
@@ -137,7 +140,10 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
             # Pre-bootstrap queue had no actor yet — fill it in.
             self.datalayer.save(
                 existing.model_copy(
-                    update={"case_actor_id": self.case_actor_id}
+                    update={
+                        "case_actor_id": self.case_actor_id,
+                        "invite_anchored": True,
+                    }
                 )
             )
             self.logger.info(
@@ -147,7 +153,13 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
                 self.case_actor_id,
             )
         elif same_actor_id(existing.case_actor_id, self.case_actor_id):
-            # Idempotent re-delivery of the same Invite — no action.
+            if not existing.invite_anchored:
+                # The queue recorded this sender first; the Invite makes it
+                # the anchor, which then outlives the queue's expiry.
+                self.datalayer.save(
+                    existing.model_copy(update={"invite_anchored": True})
+                )
+            # Idempotent re-delivery of the same Invite — no other action.
             self.logger.debug(
                 "%s: trust anchor already set for case '%s' (idempotent)",
                 self.name,

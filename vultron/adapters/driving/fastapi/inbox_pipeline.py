@@ -29,7 +29,11 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _replay_pending_case_activities,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.events import VultronEvent, is_case_bootstrap
+from vultron.core.models.events import (
+    VultronEvent,
+    is_case_bootstrap,
+    is_deferral_exempt,
+)
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.errors import (
@@ -155,7 +159,7 @@ class InboxPipeline:
 
             if (
                 case_id is not None
-                and not is_case_bootstrap(event)
+                and not is_deferral_exempt(event)
                 and not isinstance(self._dl.read(case_id), VulnerabilityCase)
             ):
                 if _expire_pending_case_activities(
