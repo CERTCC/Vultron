@@ -611,6 +611,10 @@ class TestDispatchNodeFaults:
             r for r in caplog.records if "dispatch raised" in r.getMessage()
         ]
         assert len(raised) == 1
+        # An internal error, logged once at ERROR (HP-06-003, ADR-0151).
+        assert raised[0].levelno == logging.ERROR
+        assert report_activity.id_ in raised[0].getMessage()
+        assert SENDER_ID in raised[0].getMessage()
         assert raised[0].exc_info is not None
         assert raised[0].exc_info[0] is RuntimeError
 
