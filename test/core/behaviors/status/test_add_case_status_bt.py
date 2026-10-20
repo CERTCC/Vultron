@@ -2443,3 +2443,27 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
         assert updated.current_status.em.state == EM.ACTIVE
         assert dl.outbox_list() == []
+
+
+# ---------------------------------------------------------------------------
+# Regression: add_case_status_tree must build without a case_id (Bug #4978)
+# ---------------------------------------------------------------------------
+
+
+class TestAddCaseStatusTreeNoCaseId:
+    """Without a case_id the factory names no replica emit exemption.
+
+    ``ThreatTerminationBranchNode`` builds no teardown emit when it has no
+    ``case_id``, so the tree has no ungated emitter for ``CASE_STATUS`` to
+    cover; naming the exemption anyway is the stale case
+    ``create_receive_activity_tree`` refuses (BT-17-008, #4978).
+    """
+
+    @pytest.mark.spec("BT-17-008")
+    def test_tree_builds_without_case_id(self):
+        request = AddCaseStatusToCaseReceivedEvent(
+            activity_id="a1", actor_id="https://example.org/actors/vendor"
+        )
+        tree = add_case_status_tree(request, sender_rule=_CASE_STATUS_RULE)
+        rendered = py_trees.display.unicode_tree(tree)
+        assert "TerminateEmbargoSkipped" in rendered
