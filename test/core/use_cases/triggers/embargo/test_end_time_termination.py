@@ -47,7 +47,7 @@ from vultron.core.models.case_participant import (
     ReporterParticipant,
     VendorParticipant,
 )
-from vultron.core.models.dimensions import PxaDimension
+from vultron.core.models.dimensions import PxaDimension, RmDimension
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     ThreatSignal,
@@ -169,8 +169,14 @@ class _World:
     def status_from(self, sender_id: str):
         """A received ``Add(ParticipantStatus)`` from *sender_id* to the
         CASE_MANAGER (PCR-08), handled by its real received use case."""
+        # Restate the finder's recorded RM: a status is accepted whole or
+        # refused whole, so a regression would refuse it outright (RSH-09-001).
+        current = self.finder_participant.participant_status
+        assert current is not None
         status = as_ParticipantStatus(
-            context=self.case_id, attributed_to=sender_id
+            context=self.case_id,
+            attributed_to=sender_id,
+            rm=RmDimension(state=current.rm.state),
         )
         self.dl.create(status)
         activity = add_status_to_participant_activity(

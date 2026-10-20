@@ -2011,14 +2011,14 @@ class TestReplicaAppliesTheClosureSteps:
             ), actor_id
 
     @pytest.mark.spec("CM-23-001")
-    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("RSH-09-006")
     def test_replica_refusing_a_step_writes_no_step_of_its_own(
         self, monkeypatch, caplog
     ):
         """A refused step entry is logged and the replica invents nothing.
 
         The replica's participant-status effect refuses the CLOSED entry (a
-        stand-in for an impossible composite state, RSH-05-021).  It logs a
+        stand-in for an impossible composite state, RSH-09-006).  It logs a
         WARNING, keeps the steps it did apply, and writes no CLOSED of its
         own: nothing else on the ledger moves the leaver (CM-23-001).
         """

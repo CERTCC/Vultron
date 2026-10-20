@@ -44,10 +44,10 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.behaviors.status.nodes.dimension_filter import (
+from vultron.core.behaviors.status.nodes.rm_rule import (
     BB_RM_ANOMALY,
+    rm_anomaly,
 )
-from vultron.core.behaviors.status.nodes.rm_rule import rm_anomaly
 from vultron.core.states.rm import (
     RM,
     RMDeclaration,

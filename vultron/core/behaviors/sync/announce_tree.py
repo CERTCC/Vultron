@@ -96,7 +96,7 @@ def _event_effect_slot(
 
     *label* names the slot (``"<label>Effects"``) and its nodes, so a tree
     dump reads the same for every slot.  ``ParticipantStatusEffects`` alone is
-    built by hand: its apply step is an ``ApplyOrFault`` selector (RSH-05-021).
+    built by hand: its apply step is an ``ApplyOrFault`` selector (RSH-09-006).
     """
     return py_trees.composites.Selector(
         name=f"{label}Effects",
@@ -268,7 +268,7 @@ def create_announce_log_entry_tree(
                             IsParticipantStatusEventNode(
                                 name="IsParticipantStatusEvent"
                             ),
-                            # RSH-05-021: either Apply succeeds or fault is
+                            # RSH-09-006: either Apply succeeds or fault is
                             # emitted to CaseActor and FAILURE propagates.
                             py_trees.composites.Selector(
                                 name="ApplyOrFault",

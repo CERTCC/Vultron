@@ -32,7 +32,7 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
     ├─ SenderIsParticipantNode                # Sender guard from the declared rule (HP-01-008)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
     │   ├─ CarriedObjectInTargetCaseNode      # Guard: status of this case (HP-08-007)
-    │   ├─ FilterParticipantStatusDimensionsNode  # Guard: adjudicate rm/vfd/pxa separately (RSH-05)
+    │   ├─ CheckParticipantStatusAcceptableNode  # Guard: accept whole or refuse whole (RSH-09)
     │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)
     ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
     │   ├─ Sequence("SkipIfNotCaseManager")
@@ -56,18 +56,17 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
     from the committed ``add_participant_status_to_participant`` ledger entry
     (RSH-08-003, PCR-03-001).
 
-``FilterParticipantStatusDimensionsNode`` adjudicates ``rm``, ``vfd`` and
-``pxa`` independently before the commit, so an unacceptable value in one
-dimension no longer discards the accepted dimensions or aborts the Sequence
-before the StatusAdoptionGate emit (RSH-05, ISSUE-2235).  It replaced the
-former ``CheckParticipantRMNotClosedNode`` guard (now removed), subsuming the
-terminal-``RM.CLOSED`` check: a wholly refused assertion still returns FAILURE
-here, before any canonical ledger entry is committed.  When that refusal was
-an RM regression, the factory's refusal-effects stage posts the RSH-06-004
+``CheckParticipantStatusAcceptableNode`` judges the received status as a whole
+before the commit: it is accepted as sent, or refused whole, with every refused
+dimension and its reason reported to the sender in the refusal notice
+(RSH-09-001, RSH-09-002, CLP-05-001).  A refused status is never rewritten into
+one the sender did not send (ADR-0107), so a refusal returns FAILURE here,
+before any canonical ledger entry is committed.  When the refused status
+carried an RM anomaly, the factory's refusal-effects stage posts the RSH-06-004
 note before the tree fails (CLP-10-022).
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
-Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004, RSH-05.
+Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004, RSH-09.
 Per ADR-0050: canonical RM closure is routed through Leave(VulnerabilityCase)
 receive path in receive_close_case_tree, not here.
 """
@@ -98,7 +97,7 @@ from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
-    FilterParticipantStatusDimensionsNode,
+    CheckParticipantStatusAcceptableNode,
     rm_gap_note,
 )
 from vultron.core.behaviors.status.nodes.threat_termination import (
@@ -152,7 +151,7 @@ def add_participant_status_tree(
     When the gate passes, ``EmitCaseStatusUpdateNode`` writes the post-adoption
     CaseStatus — carrying the report's P/X/A when it does not regress the
     case's — directly to the case ledger and fans it out to participants
-    (RSH-01-003, RSH-04-004, RSH-05-019).  A ``FailureIsSuccess``-wrapped
+    (RSH-01-003, RSH-04-004, RSH-09-005).  A ``FailureIsSuccess``-wrapped
     ``TeardownEffects`` Sequence then attempts embargo teardown: the
     ``EmbargoTeardownAuthorizationGate`` call-out gates execution, and
     ``ThreatTerminationBranchNode`` fires when the received CaseStatus has
@@ -228,7 +227,7 @@ def add_participant_status_tree(
                 if tree_case_id
                 else []
             ),
-            FilterParticipantStatusDimensionsNode(
+            CheckParticipantStatusAcceptableNode(
                 participant_id=participant_id,
                 status_id=status_id,
                 status_obj_fallback=status_obj,
@@ -291,7 +290,7 @@ def add_participant_status_tree(
         manager_gate_name=(
             "AdoptParticipantStatusIfCaseManager" if tree_case_id else None
         ),
-        # A wholly refused regression owes the sender the same note
+        # A refused regression owes the sender the same note
         # (RSH-06-004); the factory runs it only on the refusal, at the
         # CASE_MANAGER, once per received activity (CLP-10-022).
         refusal_effects=[rm_gap_note(actor_id, tree_case_id)],

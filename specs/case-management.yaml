@@ -3830,7 +3830,7 @@ groups:
       then a VALID -> DEFERRED and a DEFERRED -> CLOSED status entry, in that order;
       that a replica which accepts each of those entries ends with the same per-actor
       status history as the CASE_MANAGER and writes no step the ledger lacks; that a
-      replica whose participant-status effect refuses an entry (RSH-05-021) logs a
+      replica whose participant-status effect refuses an entry (RSH-09-006) logs a
       WARNING and still writes no step of its own; that a status entry whose
       commit is forced to fail leaves the CASE_MANAGER's participant record and
       status records unchanged and the Leave not applied; and that applying the

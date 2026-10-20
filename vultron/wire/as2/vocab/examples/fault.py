@@ -36,7 +36,7 @@ def create_processing_fault() -> as_Create:
     The Vendor cannot apply the ``Announce(CaseLedgerEntry)`` the Case
     Manager sent, because the participant status it records violates the
     composite-state entailments, so it reports the fault to the Case Manager
-    (RSH-05-021).  The fault points at the failed activity by ``inReplyTo``
+    (RSH-09-006).  The fault points at the failed activity by ``inReplyTo``
     and names its failure class by URI, with no implementation diagnostics
     (ASK-07-003, ASK-07-004, ASK-07-006).
     """

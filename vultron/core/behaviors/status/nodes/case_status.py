@@ -22,8 +22,8 @@ AddCaseStatusToCase BT sequence (issue #758).
 which embargo and status trees both compose, lives in the shared
 :mod:`vultron.core.behaviors.case_status_snapshot` module (BTND-04-001).
 
-Per-dimension adjudication nodes (RSH-05, ADR-0061, ISSUE-2256) live in
-:mod:`cs_dimension_filter` to keep this module under the 500-line limit.
+The whole accept-or-reject guard (RSH-09-005) lives in
+:mod:`case_status_acceptance`.
 """
 
 import logging
@@ -34,13 +34,9 @@ from vultron.core.behaviors.case_status_snapshot import promote_pxa
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
-    PortInformation,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
-    BB_CASE_STATUS_DIM_FILTER,
-)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import PxaDimension
@@ -113,13 +109,9 @@ class CheckCaseStatusIdempotencyNode(
 class AppendCaseStatusToCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     """Append the resolved CaseStatus to ``case.case_statuses`` and persist.
 
-    When ``BB_CASE_STATUS_DIM_FILTER`` carries a filtered status for this
-    tick (written by :class:`FinalizeCsFilterNode`), that filtered object is
-    appended and saved to the DataLayer so the canonical record reflects the
-    accepted portion, not the raw assertion (RSH-05, ISSUE-2256).
-
-    Falls back to resolving from the DataLayer/fallback when no filter is
-    present (original behavior for unfiltered statuses).
+    The status is the one received, resolved from the DataLayer or the
+    fallback: a received CaseStatus is accepted whole or refused whole before
+    this node runs (RSH-09-005).
 
     Returns SUCCESS on successful append.
     Returns FAILURE if the case or status cannot be resolved.
@@ -138,29 +130,6 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         self.case_id = case_id
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        BB_CASE_STATUS_DIM_FILTER: PortInformation(
-            data_type=object, required=False
-        ),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            BB_CASE_STATUS_DIM_FILTER: f"/{BB_CASE_STATUS_DIM_FILTER}",
-        }
-
-    def _resolve_filtered(self) -> CaseStatus | None:
-        """Return the filter-adjusted CaseStatus if one exists for this tick."""
-        payload = self._try_get_input(BB_CASE_STATUS_DIM_FILTER)
-        if not isinstance(payload, dict):
-            return None
-        if payload.get("status_id") != self.status_id:
-            return None
-        obj = payload.get("filtered_status")
-        return obj if isinstance(obj, CaseStatus) else None
 
     def _resolve_status(self) -> "PersistableModel | None":
         assert self.datalayer is not None
@@ -188,16 +157,7 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        # Use the per-dimension-filtered status when available; otherwise fall
-        # back to the raw asserted object (no filtering was needed or applied).
-        from_filter = False
-        status_obj: CaseStatus | PersistableModel | None = (
-            self._resolve_filtered()
-        )
-        if status_obj is not None:
-            from_filter = True
-        else:
-            status_obj = self._resolve_status()
+        status_obj = self._resolve_status()
 
         if status_obj is None:
             self.feedback_message = f"Status '{self.status_id}' not found"
@@ -222,10 +182,7 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts, StateWriteCapable):
                 status_obj = status_obj.model_copy(
                     update={"pxa": PxaDimension(state=promoted)}
                 )
-                from_filter = True
-
-        if from_filter:
-            self.datalayer.save(status_obj)
+                self.datalayer.save(status_obj)
 
         case.add_case_status(status_obj)
         self.datalayer.save(case)

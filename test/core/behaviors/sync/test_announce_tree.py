@@ -2028,7 +2028,7 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
 
 
 # ---------------------------------------------------------------------------
-# RSH-05-021: Selector(ApplyOrFault) — fault emission and persist blocking
+# RSH-09-006: Selector(ApplyOrFault) — fault emission and persist blocking
 # ---------------------------------------------------------------------------
 
 
@@ -2064,12 +2064,12 @@ def _make_participant_status_entry_with_states(
 class TestAnnounceTreeEmitImpossibleStateFault:
     """Full-tree tests: Selector(ApplyOrFault) emits fault and blocks persist.
 
-    Covers RSH-05-021 (impossible composite state) and ARCH-15-001
+    Covers RSH-09-006 (impossible composite state) and ARCH-15-001
     (malformed local participant record) end-to-end through
     ``create_announce_log_entry_tree()``.
     """
 
-    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("RSH-09-006")
     @pytest.mark.spec("SYNC-12-001")
     def test_impossible_composite_state_emits_fault_and_blocks_persist(
         self, datalayer, case_actor, case_obj
@@ -2078,7 +2078,7 @@ class TestAnnounceTreeEmitImpossibleStateFault:
 
         EmitImpossibleStateFaultNode must fire (emit_processing_fault called
         with ImpossibleState class), and PersistReceivedLogEntry must NOT
-        store the entry (RSH-05-021, SYNC-12-001).
+        store the entry (RSH-09-006, SYNC-12-001).
         """
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.models.case_participant import CaseParticipant

@@ -7,13 +7,13 @@ uses the in-memory ``status_obj`` rather than re-reading from the DataLayer,
 since ParticipantStatus has no reference fields that rehydrate_fields would
 expand (ADR-0034 makes the read-back vestigial).
 
-Also covers RSH-05-021: an entry whose effective composite state violates the
+Also covers RSH-09-006: an entry whose effective composite state violates the
 RM↔VF, RM↔D, or VF↔D entailments must be refused (FAILURE, no DataLayer write)
 and ``Create(ProcessingFault)`` must be emitted to the CaseActor via the
 Selector(Apply, EmitFaultThenFail) tree structure in ``announce_tree.py``.
 
 See: specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
-     specs/received-status-handling.yaml RSH-05-021.
+     specs/received-status-handling.yaml RSH-09-006.
 """
 
 import uuid
@@ -217,19 +217,19 @@ def test_apply_participant_status_skips_missing_participant(
 
 
 # ---------------------------------------------------------------------------
-# RSH-05-021: composite-state entailment enforcement on the replica-apply path
+# RSH-09-006: composite-state entailment enforcement on the replica-apply path
 # ---------------------------------------------------------------------------
 
 
 class TestApplyParticipantStatusCompositeStateViolation:
     """ApplyParticipantStatusFromLedgerNode refuses impossible composite states.
 
-    RSH-05-021: if the entry's effective state violates composite-state
+    RSH-09-006: if the entry's effective state violates composite-state
     entailments (RM↔VF, RM↔D, VF↔D), the node MUST return FAILURE and MUST NOT
     write to the DataLayer.
     """
 
-    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("RSH-09-006")
     def test_valid_composite_state_succeeds(
         self, bridge, datalayer, case_actor, participant
     ):
@@ -256,7 +256,7 @@ class TestApplyParticipantStatusCompositeStateViolation:
         updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
         assert len(updated.participant_statuses) == initial_count + 1
 
-    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("RSH-09-006")
     def test_impossible_state_rm_valid_vf_ready_fails(
         self, bridge, datalayer, case_actor, participant
     ):
@@ -285,7 +285,7 @@ class TestApplyParticipantStatusCompositeStateViolation:
             "FAILURE must not write to DataLayer"
         )
 
-    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("RSH-09-006")
     def test_impossible_state_vf_not_ready_d_deployed_fails(
         self, bridge, datalayer, case_actor, participant
     ):
@@ -315,7 +315,7 @@ class TestApplyParticipantStatusCompositeStateViolation:
             "FAILURE must not write to DataLayer"
         )
 
-    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("RSH-09-006")
     @pytest.mark.spec("CM-23-016")
     def test_composite_state_check_reads_the_entry_as_carried(
         self, bridge, datalayer, case_actor, participant
@@ -364,7 +364,7 @@ class TestApplyParticipantStatusCompositeStateViolation:
 class TestEmitImpossibleStateFaultNode:
     """EmitImpossibleStateFaultNode emits the fault and returns FAILURE."""
 
-    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("RSH-09-006")
     def test_emits_fault_with_impossible_state_class(
         self, datalayer, case_actor
     ):
@@ -407,7 +407,7 @@ class TestEmitImpossibleStateFaultNode:
         )
         assert case_actor.id_ in call_kwargs["to"]
 
-    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("RSH-09-006")
     def test_returns_failure_without_trigger_activity(
         self, bridge, case_actor
     ):

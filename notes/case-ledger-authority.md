@@ -272,7 +272,7 @@ the status entries and never derive a closure path from their own state.
 The status entries are the CASE_MANAGER's own writes, so their
 `payloadSnapshot.actor` is the CASE_MANAGER; the leaver's act stays attributed to
 the leaver in `close_case`. A replica copies each step as carried; it refuses
-only a step whose composite state is impossible (RSH-05-021), and then writes
+only a step whose composite state is impossible (RSH-09-006), and then writes
 nothing in its place. Every activity-typed RM move works the same way: the
 report verdicts, engage/defer and the full-case Invite replies commit the act,
 then the status the CASE_MANAGER wrote (`CommitParticipantStatusEntriesNode`,

@@ -148,43 +148,45 @@ class ExceptionNode(py_trees.behaviour.Behaviour):
         raise RuntimeError("Intentional test exception")
 
 
-class StageLedgerOverrideThenFail(py_trees.behaviour.Behaviour):
-    """Stage the ledger override on the blackboard, then FAILURE (#3101).
+class StageRMAnomalyThenFail(py_trees.behaviour.Behaviour):
+    """Stage an RM anomaly on the blackboard, then FAILURE (#3101).
 
-    Reproduces the short-circuit shape from ``add_case_status_tree``: a node
-    writes ``ledger_payload_object_override`` to the process-global blackboard
-    and a later node in the same ``memory=False`` Sequence FAILUREs before
-    ``FinalizeCsFilterNode`` — the key's owner — can clear it.  Writes the
-    ``/``-prefixed alias the port machinery uses.
+    Reproduces the short-circuit shape of a received tree: a guard writes
+    ``rm_transition_anomaly`` to the process-global blackboard and the same
+    ``memory=False`` Sequence FAILUREs before ``EmitRMGapNoteNode`` — the
+    key's reader — consumes it.  Writes the ``/``-prefixed alias the port
+    machinery uses.
     """
 
-    def __init__(self, name: str = "StageLedgerOverrideThenFail"):
+    def __init__(self, name: str = "StageRMAnomalyThenFail"):
         super().__init__(name=name)
 
     def update(self) -> Status:
-        py_trees.blackboard.Blackboard.storage[
-            "/ledger_payload_object_override"
-        ] = {"object_id": "stale-object-from-vanished-case"}
-        self.feedback_message = "staged override then aborting"
+        py_trees.blackboard.Blackboard.storage["/rm_transition_anomaly"] = {
+            "anomaly_type": "regression",
+            "stale": True,
+        }
+        self.feedback_message = "staged anomaly then aborting"
         return Status.FAILURE
 
 
-class WriteLedgerOverride(py_trees.behaviour.Behaviour):
-    """Write ``ledger_payload_object_override`` and SUCCEED.
+class WriteRMAnomaly(py_trees.behaviour.Behaviour):
+    """Write ``rm_transition_anomaly`` and SUCCEED.
 
-    ``StageLedgerOverrideThenFail`` short-circuits its Sequence, which is the
+    ``StageRMAnomalyThenFail`` short-circuits its Sequence, which is the
     right shape for the #3101 regression tests but stops any probe downstream of
     it from ever ticking.  This variant exists so a probe can observe the key
     *while* the tree is still running.
     """
 
-    def __init__(self, name: str = "WriteLedgerOverride"):
+    def __init__(self, name: str = "WriteRMAnomaly"):
         super().__init__(name=name)
 
     def update(self) -> Status:
-        py_trees.blackboard.Blackboard.storage[
-            "/ledger_payload_object_override"
-        ] = {"object_id": "written-during-execution"}
+        py_trees.blackboard.Blackboard.storage["/rm_transition_anomaly"] = {
+            "anomaly_type": "gap",
+            "written": "during-execution",
+        }
         return Status.SUCCESS
 
 
@@ -560,69 +562,65 @@ def test_execute_with_setup_restores_preexisting_context(
     assert storage["/datalayer"] is sentinel_dl
 
 
-def test_execute_with_setup_clears_stale_ledger_override(
-    bridge, test_actor_id
-):
-    """A FAILURE short-circuit leaves no stale ledger override (#3101).
+def test_execute_with_setup_clears_a_stale_rm_anomaly(bridge, test_actor_id):
+    """A FAILURE short-circuit leaves no stale RM anomaly (#3101).
 
-    ``ledger_payload_object_override`` is a within-execution hand-off written by
-    ``FinalizeCsFilterNode`` and consumed by ``CommitCaseLedgerEntryNode``.  If
-    an earlier node in the ``memory=False`` Sequence FAILUREs first, Finalize
-    never ticks to clear it, so before #3101 the value stranded on the
-    process-global blackboard and the *next* execution misread it.  The bridge
-    now resets the key at the execution boundary regardless of outcome, so it
-    must be absent after a short-circuiting run and the following run must start
-    clean.
+    ``rm_transition_anomaly`` is a within-execution hand-off written by the RM
+    guards and read by ``EmitRMGapNoteNode``.  If the Sequence FAILUREs before
+    the reader ticks, the value would strand on the process-global blackboard
+    and the *next* execution could note it again.  The bridge resets the key at
+    the execution boundary regardless of outcome, so it must be absent after a
+    short-circuiting run and the following run must start clean.
     """
     storage = py_trees.blackboard.Blackboard.storage
 
     result = bridge.execute_with_setup(
-        tree=StageLedgerOverrideThenFail(), actor_id=test_actor_id
+        tree=StageRMAnomalyThenFail(), actor_id=test_actor_id
     )
 
     assert result.status == Status.FAILURE
-    assert "ledger_payload_object_override" not in storage
-    assert "/ledger_payload_object_override" not in storage
+    assert "rm_transition_anomaly" not in storage
+    assert "/rm_transition_anomaly" not in storage
 
-    # A subsequent execution must not see the vanished-case override.
+    # A subsequent execution must not see the stale anomaly.
     captured: dict[str, Any] = {}
 
-    class _CaptureOverride(py_trees.behaviour.Behaviour):
+    class _CaptureAnomaly(py_trees.behaviour.Behaviour):
         def update(self) -> Status:
             captured["present"] = (
-                "/ledger_payload_object_override" in storage
-                or "ledger_payload_object_override" in storage
+                "/rm_transition_anomaly" in storage
+                or "rm_transition_anomaly" in storage
             )
             return Status.SUCCESS
 
     second = bridge.execute_with_setup(
-        tree=_CaptureOverride(name="CaptureOverride"), actor_id=test_actor_id
+        tree=_CaptureAnomaly(name="CaptureAnomaly"), actor_id=test_actor_id
     )
     assert second.status == Status.SUCCESS
     assert captured["present"] is False
 
 
-def test_execute_with_setup_restores_preexisting_ledger_override(
+def test_execute_with_setup_restores_a_preexisting_rm_anomaly(
     bridge, test_actor_id
 ):
-    """A caller-set ledger override is restored, not unconditionally deleted.
+    """A caller-set RM anomaly is restored, not unconditionally deleted.
 
     The bridge resets the key to its *pre-execution* state (ADR-0087), so a
     value present before the run survives it — the cleanup targets only what the
     execution itself left behind.
     """
     storage = py_trees.blackboard.Blackboard.storage
-    sentinel = {"object_id": "caller-provided"}
-    storage["/ledger_payload_object_override"] = sentinel
+    sentinel = {"anomaly_type": "caller-provided"}
+    storage["/rm_transition_anomaly"] = sentinel
 
     try:
         result = bridge.execute_with_setup(
-            tree=StageLedgerOverrideThenFail(), actor_id=test_actor_id
+            tree=StageRMAnomalyThenFail(), actor_id=test_actor_id
         )
         assert result.status == Status.FAILURE
-        assert storage["/ledger_payload_object_override"] is sentinel
+        assert storage["/rm_transition_anomaly"] is sentinel
     finally:
-        storage.pop("/ledger_payload_object_override", None)
+        storage.pop("/rm_transition_anomaly", None)
 
 
 # Integration tests
@@ -1692,7 +1690,7 @@ class TestNestedExecutionKeyIsolation:
             "sync_port",
             "is_leader",
             "wire_render_port",
-            "ledger_payload_object_override",
+            "rm_transition_anomaly",
             "actor_id",
         ],
     )
@@ -1715,7 +1713,7 @@ class TestNestedExecutionKeyIsolation:
           the process-global blackboard, and ``port_for_store`` returns an
           object that does not opt in unchanged.  ``setup_tree`` then writes
           *the sentinel itself* back, so pre-value == post-value.
-        - ``ledger_payload_object_override`` — no node in ``AlwaysSucceed``
+        - ``rm_transition_anomaly`` — no node in ``AlwaysSucceed``
           writes it.
 
         So this builds a bridge with distinct injected ports and an explicit
@@ -1745,10 +1743,10 @@ class TestNestedExecutionKeyIsolation:
 
         observed: dict[str, Any] = {}
         children: list[py_trees.behaviour.Behaviour] = []
-        if key == "ledger_payload_object_override":
+        if key == "rm_transition_anomaly":
             # The only key here that no bridge-injected value covers: a node
-            # has to write it, the way add_case_status_tree does (#3101).
-            children.append(WriteLedgerOverride())
+            # has to write it, the way the received RM guards do (#3101).
+            children.append(WriteRMAnomaly())
         children.append(RecordManagedKeyDuringTick(key, observed))
         tree = py_trees.composites.Sequence(
             name="ObserveManagedKey", memory=False, children=children

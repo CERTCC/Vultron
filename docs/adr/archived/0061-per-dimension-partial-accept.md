@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 date: 2026-08-12
 created: 2026-08-12
 updated: 2026-08-12
@@ -7,6 +7,7 @@ revision: 1
 deciders: Allen D. Householder
 consulted: Vultron protocol maintainers
 informed: Vultron contributors
+superseded_by: 0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md
 stakeholder_type: [project-contributor]
 ---
 

@@ -160,8 +160,8 @@ def read_rm_states(
 # each has a single shared entry point so the disposition is chosen by role,
 # not re-litigated at every call site (#3101):
 #
-#   Regime 1 — Authoritative coordination (default).  Guards, per-dimension
-#     filters, ledger commits, append/emit nodes: the case MUST exist.  Its
+#   Regime 1 — Authoritative coordination (default).  Guards, acceptance
+#     checks, ledger commits, append/emit nodes: the case MUST exist.  Its
 #     absence mid-coordination is an anomaly, so ``require_case`` reports one
 #     canonical FAILURE at ``error`` level.
 #   Regime 2 — Replica-apply of a remote ledger entry.  ``resolve_case_replica``
@@ -179,7 +179,7 @@ def require_case(
     """Resolve a case that MUST exist for authoritative coordination (Regime 1).
 
     The canonical case-resolution helper for BT nodes that coordinate an
-    *existing* case: idempotency/invariant guards, per-dimension filters,
+    *existing* case: idempotency/invariant guards, acceptance checks,
     ledger commits, append nodes, emit nodes.  A case that cannot be resolved
     mid-coordination is an anomaly — a concurrent deletion or a caller bug —
     never a routine branch (ADR-0087).  It therefore reports one canonical

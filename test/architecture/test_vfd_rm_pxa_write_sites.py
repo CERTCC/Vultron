@@ -48,7 +48,7 @@ from test.architecture import _corpus
 # Classification key:
 #   PROTECTED  — write covered by transition validation.  For the trigger path
 #                ValidateTriggerTransitionsNode runs first, and for the received
-#                path FilterParticipantStatusDimensionsNode does — but neither
+#                path CheckParticipantStatusAcceptableNode does — but neither
 #                is what makes the write-node sites safe, because some call
 #                sites reach CreateParticipantStatusNode through *neither*
 #                (develop_fix.py, deploy_fix.py, and the closure writer
@@ -65,8 +65,6 @@ from test.architecture import _corpus
 #                no DataLayer write
 #   RM-TRACKED — RM transition nodes documented in rm_transitions.py;
 #                tracked separately per BTND-10-001 / issue #2081
-#   FILTER     — carry-forward writes inside FilterParticipantStatusDimensions-
-#                Node (received path); the filter adjudicates before writing
 # ---------------------------------------------------------------------------
 # permanent: BTND-10-001 (the list is the write-site audit)
 AUDITED_SITES: list[tuple[str, str]] = sorted(
@@ -87,18 +85,6 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         ("report/nodes/deploy_fix.py", "DDimension"),
         # PREDICATE — develop_fix_conditions.py: VfDimension.is_fix_ready()
         ("report/nodes/develop_fix_conditions.py", "VfDimension"),
-        # FILTER — _adjudicate_dimensions carry-forward (extracted from dimension_filter.py)
-        # One site per dimension: every refusal reason — role guard, omitted
-        # assertion, non-monotone move, cross-machine entailment — carries the
-        # participant's current value forward and so is spelled once, in
-        # `_vf_carry` / `_d_carry` (ARCH-15-004, #2906).  Was 3 VfDimension and
-        # 4 DDimension sites before those helpers were extracted.
-        ("status/nodes/_adjudication.py", "PxaDimension"),
-        ("status/nodes/_adjudication.py", "RmDimension"),
-        ("status/nodes/_adjudication.py", "VfDimension"),
-        ("status/nodes/_adjudication.py", "DDimension"),
-        # FILTER — CaseStatus per-dimension carry-forward (ISSUE-2256)
-        ("status/nodes/cs_dimension_filter.py", "PxaDimension"),
         # SNAPSHOT — EmitCaseStatusUpdateNode: post-mutation CaseStatus snapshot (ISSUE-2175)
         ("case_status_snapshot.py", "PxaDimension"),
         # AC-1 promote_pxa() result applied in AppendCaseStatusToCaseNode
