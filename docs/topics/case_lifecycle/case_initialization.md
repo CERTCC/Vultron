@@ -58,8 +58,9 @@ When an actor creates a case for itself, it is the case's only participant, so t
 
 Every entry is required ([CLP-07-013](../../reference/specs/protocol.md#clp-07-013)).
 The first entry that fails to commit stops the sequence, so no later entry is committed out of order, and the creation is reported as failed.
-When an actor creates a case for itself and the genesis entry fails, the `Create` is taken back out of the outbox and the case is removed.
-If delivery has already taken the `Create`, the case is kept and the failure is reported.
+When an actor creates a case for itself, the case, its records, the queued `Create` and the entries are written together, so an entry that fails removes all of them.
+Delivery learns of the `Create` only after they are written, so it never sends a case that was then removed.
+On the proposal path the records written before a failed entry are kept, and the failure is reported.
 
 ---
 
