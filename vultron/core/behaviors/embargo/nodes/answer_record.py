@@ -90,7 +90,8 @@ class EmbargoDecisionAppliesNode(DataLayerConditionWithPorts):
     decision the lifecycle refuses, or whose entries would not apply, is
     refused before it is committed (ADR-0124, SYNC-12-001).  A subclass
     names the decision (:meth:`_decide`) and the act (:meth:`_act`).  A
-    decision fault (``VultronBTInternalError``) raises.
+    decision fault or a composition fault (``INTERNAL_FAULTS``) raises: it
+    is no refusal, so it is never answered with the refusal notice.
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:

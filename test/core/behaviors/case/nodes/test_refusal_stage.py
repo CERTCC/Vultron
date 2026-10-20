@@ -392,3 +392,29 @@ def test_the_diversion_flag_is_reset_on_the_next_run() -> None:
 
     assert not stage.skipped_as_diversion
     assert effect.ticks == 1
+
+
+@pytest.mark.spec("CLP-10-026")
+@pytest.mark.spec("CLP-10-022")
+def test_a_refusal_ahead_of_a_diversion_taken_last_run_runs_the_effects() -> (
+    None
+):
+    """A diversion the next run never reaches has diverted nothing."""
+    before = _Counting("Before")
+    condition = _Counting("Condition")
+    diversion = DiversionStage("Divert", condition, _Counting("Answer"))
+    guards = py_trees.composites.Sequence(
+        name="Guards", memory=False, children=[before, diversion]
+    )
+    effect = _Counting("Effect")
+    stage = _stage_with(guards, effect)
+    stage.tick_once()
+    assert stage.skipped_as_diversion and diversion.taken
+
+    before._status = Status.FAILURE
+    stage.tick_once()
+
+    assert not diversion.taken
+    assert not stage.skipped_as_diversion
+    assert effect.ticks == 1
+    assert stage.refusal_reason == "Before said FAILURE"

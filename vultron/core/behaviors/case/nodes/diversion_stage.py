@@ -135,6 +135,17 @@ class DiversionStage(py_trees.composites.Composite):
         """The receiver's answer to a diverted delivery."""
         return self.children[1]
 
+    def stop(self, new_status: Status = Status.INVALID) -> None:
+        """Stop the stage; a stage reset to ``INVALID`` has diverted nothing.
+
+        A stage the next run never reaches (a guard ahead of it refused) is
+        left ``INVALID``, so :attr:`taken` must not still report the earlier
+        run's diversion.
+        """
+        if new_status == Status.INVALID:
+            self.taken = False
+        super().stop(new_status)
+
     @property
     def effects_succeeded(self) -> bool:
         """True when the delivery was diverted and its answer completed."""

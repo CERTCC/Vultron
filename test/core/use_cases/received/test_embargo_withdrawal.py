@@ -270,6 +270,7 @@ def test_a_leave_of_an_embargo_not_in_force_is_refused_uncommitted(
         refused_id=leave.id_,
         asserter=_FINDER,
         reason="not the embargo in force",
+        case_id=_CASE_ID,
     )
 
 
@@ -293,6 +294,7 @@ def test_a_leave_with_no_embargo_in_force_is_refused_uncommitted(
         refused_id=leave.id_,
         asserter=_FINDER,
         reason="No embargo is in force",
+        case_id=_CASE_ID,
     )
 
 
@@ -322,6 +324,7 @@ def test_a_leave_from_a_row_that_is_not_agreed_is_refused_uncommitted(
         refused_id=leave.id_,
         asserter=_FINDER,
         reason="not AGREED",
+        case_id=_CASE_ID,
     )
 
 
@@ -345,6 +348,7 @@ def test_a_leave_from_the_case_owner_is_refused_uncommitted(make_payload):
         refused_id=leave.id_,
         asserter=_OWNER,
         reason="case owner",
+        case_id=_CASE_ID,
     )
 
 
@@ -415,6 +419,7 @@ def test_a_reject_of_the_embargo_in_force_from_an_agreed_row_is_refused(
         refused_id=reject_id,
         asserter=_FINDER,
         reason="withdrawal is Leave(EmbargoEvent)",
+        case_id=_CASE_ID,
     )
 
 
@@ -476,6 +481,7 @@ def test_a_new_leave_after_a_withdrawal_is_still_refused(make_payload):
         refused_id=second.id_,
         asserter=_FINDER,
         reason="not AGREED",
+        case_id=_CASE_ID,
     )
 
 

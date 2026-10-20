@@ -38,12 +38,14 @@ def assert_refusal_notice(
     refused_id: str,
     asserter: str,
     reason: str,
+    case_id: str,
 ) -> dict[str, Any]:
     """Assert *manager* queued one refusal notice of *refused_id*.
 
     The notice is a ``Reject`` of the refused activity, inline, threaded by
-    ``inReplyTo``, addressed to *asserter* alone, with the refusing guard's
-    reason in ``summary``; *reason* must appear in it (CLP-05-001).
+    ``inReplyTo``, addressed to *asserter* alone, about *case_id*, with the
+    refusing guard's reason in ``summary``; *reason* must appear in it
+    (CLP-05-001).
 
     Returns:
         The notice's sealed body.
@@ -57,6 +59,7 @@ def assert_refusal_notice(
     assert body["type"] == "Reject"
     assert body["actor"] == manager
     assert body["to"] == [asserter]
+    assert body["context"] == case_id
     assert body["inReplyTo"] == refused_id
     assert body["object"]["id"] == refused_id
     assert reason in body["summary"], body["summary"]

@@ -28,6 +28,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.embargo_register import terminate
+from test.support.refusal_notice import assert_no_refusal_notice
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -428,6 +429,10 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     assert em_before == EM.REVISE
 
     net.receive(MANAGER, body)
+    # A late-Accept arm answers the delivery itself (CLP-10-026).
+    assert_no_refusal_notice(
+        net.stores[MANAGER], manager=MANAGER, refused_id=str(body["id"])
+    )
     _deliver_all(net, OWNER)
 
     manager_record = cast(
@@ -562,6 +567,10 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
         )
 
     net.receive(MANAGER, body)
+    # A late-Accept arm answers the delivery itself (CLP-10-026).
+    assert_no_refusal_notice(
+        net.stores[MANAGER], manager=MANAGER, refused_id=str(body["id"])
+    )
     _deliver_all(net, OWNER)
 
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
@@ -654,6 +663,10 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
     dl_mgr = net.stores[MANAGER]
 
     net.receive(MANAGER, body)
+    # A late-Accept arm answers the delivery itself (CLP-10-026).
+    assert_no_refusal_notice(
+        net.stores[MANAGER], manager=MANAGER, refused_id=str(body["id"])
+    )
     _deliver_all(net, OWNER)
 
     # The replica's consent row is unchanged: the frozen row timed out

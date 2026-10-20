@@ -42,6 +42,9 @@ from vultron.core.behaviors.embargo.nodes import (
     activation_commit,
     reject_proposed,
 )
+from vultron.core.behaviors.embargo.nodes.answer_record import (
+    EmbargoAnswerAppliesNode,
+)
 from vultron.core.behaviors.embargo.nodes.teardown import (
     TerminationIsTimelyNode,
 )
@@ -60,7 +63,11 @@ from vultron.core.models.pending_assertion import (
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
-from vultron.errors import VultronBTInternalError
+from vultron.errors import (
+    INTERNAL_FAULTS,
+    VultronBTInternalError,
+    VultronError,
+)
 from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     remove_embargo_from_case_activity,
@@ -125,6 +132,7 @@ def test_a_reject_of_a_decided_proposal_gets_the_notice():
         refused_id=body["id"],
         asserter=BYSTANDER,
         reason="neither the active embargo nor an open proposal",
+        case_id=net.case_id,
     )
 
 
@@ -148,6 +156,7 @@ def test_an_accept_of_a_decided_proposal_is_refused_with_the_notice():
         refused_id=body["id"],
         asserter=BYSTANDER,
         reason="nothing to accept (CM-18-003)",
+        case_id=net.case_id,
     )
 
 
@@ -173,6 +182,7 @@ def test_an_accept_of_an_embargo_missing_from_the_register_gets_the_notice():
         refused_id=body["id"],
         asserter=BYSTANDER,
         reason=f"Embargo '{unknown}' is neither the active embargo",
+        case_id=net.case_id,
     )
 
 
@@ -259,6 +269,7 @@ def test_an_owner_decision_on_no_open_proposal_gets_the_notice(accept: bool):
         refused_id=decision_id,
         asserter=OWNER,
         reason="is not an open proposal",
+        case_id=net.case_id,
     )
 
 
@@ -286,6 +297,7 @@ def test_an_owner_activation_with_pxa_set_gets_the_notice():
             refused_id=decision_id,
             asserter=OWNER,
             reason="EMB-02-002",
+            case_id=net.case_id,
         )["id"]
     )
 
@@ -339,6 +351,7 @@ def test_an_untimely_end_time_remove_gets_the_notice():
         refused_id=remove_id,
         asserter=OWNER,
         reason="Refused termination",
+        case_id=net.case_id,
     )
 
 
@@ -361,6 +374,7 @@ def test_an_owners_threat_signal_remove_gets_the_notice():
         refused_id=remove_id,
         asserter=OWNER,
         reason="case status update",
+        case_id=net.case_id,
     )
 
 
@@ -409,6 +423,7 @@ def test_an_invite_once_the_embargo_ended_gets_a_reject_of_it():
         refused_id=body["id"],
         asserter=BYSTANDER,
         reason="admits no embargo proposal",
+        case_id=net.case_id,
     )
     assert notice["object"]["type"] == "Invite"
     store = get_pending_assertion_store(BYSTANDER)
@@ -461,13 +476,17 @@ def test_the_case_managers_er_to_an_accept_closes_the_accepters_ask():
     assert net.receive(MANAGER, body).disposition is (
         HandlerDisposition.REFUSED
     )
+    store = get_pending_assertion_store(BYSTANDER)
+    assert store.is_suppressed(net.case_id, _ACCEPT, body["id"])
 
     ((type_, verdict),) = net.deliver(MANAGER, to=BYSTANDER, type_="Reject")
 
     assert type_ == "Reject"
-    # The sender guard admits the CASE_MANAGER at a participant (HP-01-006).
+    # The sender guard admits the CASE_MANAGER at a participant (HP-01-006);
+    # the replica records no consent from the ER, since only the
+    # CASE_MANAGER records an answer, so the tree still reports a refusal.
+    assert verdict.disposition is HandlerDisposition.REFUSED
     assert "not the invitee" not in (verdict.reason or ""), verdict.reason
-    store = get_pending_assertion_store(BYSTANDER)
     assert not store.is_suppressed(net.case_id, _ACCEPT, body["id"])
 
 
@@ -476,35 +495,68 @@ def test_the_case_managers_er_to_an_accept_closes_the_accepters_ask():
 # ---------------------------------------------------------------------------
 
 
-def _internal_fault(*_args: Any, **_kwargs: Any) -> Any:
-    raise VultronBTInternalError("a decision fault, not a refusal")
+def _raising(fault: type[VultronError]) -> Any:
+    def _raise(*_args: Any, **_kwargs: Any) -> Any:
+        raise fault("a fault of ours, not a refusal")
+
+    return _raise
+
+
+_FAULTS = pytest.mark.parametrize(
+    "fault", INTERNAL_FAULTS, ids=lambda f: f.__name__
+)
 
 
 @pytest.mark.spec("CLP-05-001")
-def test_an_internal_failure_in_a_remove_guard_gets_no_notice(monkeypatch):
-    net = _net("internal-remove")
+@_FAULTS
+def test_an_internal_failure_in_a_remove_guard_gets_no_notice(
+    monkeypatch, fault: type[VultronError]
+):
+    net = _net(f"internal-remove-{fault.__name__}")
     monkeypatch.setattr(
-        TerminationIsTimelyNode, "_violations", _internal_fault
+        TerminationIsTimelyNode, "_violations", _raising(fault)
     )
 
-    with pytest.raises(VultronBTInternalError):
+    # The handler reports it as an internal error (ADR-0095).
+    with pytest.raises(VultronBTInternalError, match=fault.__name__):
         _owner_remove(net, cause=OtherCause())
 
     assert net.queued(MANAGER, to=OWNER, type_="Reject") == []
 
 
 @pytest.mark.spec("CLP-05-001")
+@_FAULTS
 @pytest.mark.parametrize("accept", [True, False], ids=["activate", "reject"])
 def test_an_internal_failure_in_an_owner_decision_guard_gets_no_notice(
-    monkeypatch, accept: bool
+    monkeypatch, accept: bool, fault: type[VultronError]
 ):
-    net = _net(f"internal-owner-{accept}")
+    net = _net(f"internal-owner-{accept}-{fault.__name__}")
     embargo_id = _propose(net, f"internal-owner-{accept}", 90)
     net.deliver(MANAGER, to=OWNER, type_="Invite")
     module = activation_commit if accept else reject_proposed
-    monkeypatch.setattr(module, "trial_apply", _internal_fault)
+    monkeypatch.setattr(module, "trial_apply", _raising(fault))
 
-    with pytest.raises(VultronBTInternalError):
+    # The handler reports it as an internal error (ADR-0095).
+    with pytest.raises(VultronBTInternalError, match=fault.__name__):
         _owner_decision(net, embargo_id, accept=accept)
 
     assert net.queued(MANAGER, to=OWNER, type_="Reject") == []
+
+
+@pytest.mark.spec("CLP-05-001")
+@_FAULTS
+def test_an_internal_failure_in_an_answer_guard_gets_no_notice(
+    monkeypatch, fault: type[VultronError]
+):
+    net = _net(f"internal-answer-{fault.__name__}")
+    _, invite_id = _invited(net, BYSTANDER, f"internal-{fault.__name__}")
+    monkeypatch.setattr(EmbargoAnswerAppliesNode, "_decide", _raising(fault))
+    body = _answer_body(net, BYSTANDER, invite_id, accept=True, tag="fault")
+
+    # The handler reports it as an internal error (ADR-0095).
+    with pytest.raises(VultronBTInternalError, match=fault.__name__):
+        net.receive(MANAGER, body)
+
+    assert_no_refusal_notice(
+        net.stores[MANAGER], manager=MANAGER, refused_id=body["id"]
+    )
