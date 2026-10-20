@@ -239,6 +239,7 @@ def test_a_deleted_field_is_refused_naming_the_reset() -> None:
     message = str(excinfo.value)
     assert "'old_field'" in message
     assert "removed it" in message
+    assert "(field removed)" not in message
     assert "#0" in message
 
 

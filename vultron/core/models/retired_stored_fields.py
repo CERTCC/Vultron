@@ -66,7 +66,8 @@ class RetiredStoredField(NamedTuple):
         """What happened to the old key: a rename, a move, or a deletion."""
         if self.replacement is None:
             return "removed it"
-        return "renamed it to" if self.moved_to is None else "moved it to"
+        verb = "renamed it to" if self.moved_to is None else "moved it to"
+        return f"{verb} {self.destination()}"
 
 
 class RetiredFieldsRecord(CoreRecord):
@@ -118,7 +119,7 @@ class RetiredFieldsRecord(CoreRecord):
         violations = [
             Violation(
                 f"{key!r} is the stored shape before {field.retired_by}"
-                f" {field.change()} {field.destination()}",
+                f" {field.change()}",
                 # A moved or deleted field has no replacement on this model,
                 # so the rule names the key it read instead.
                 (key,)
