@@ -109,3 +109,21 @@ def test_an_obligation_with_no_report_is_refused() -> None:
     never be discharged; it fails at construction instead."""
     with pytest.raises(ValidationError):
         PendingCreationTimeRevisionRelay(**_fields(report_id=None))
+
+
+@pytest.mark.spec("CP-05-005")
+@pytest.mark.parametrize("old", ["invite_queued", "inviteQueued"])
+def test_the_retired_invite_queued_key_is_refused_naming_the_reset(
+    old: str,
+) -> None:
+    """A stored marker that still carries ``invite_queued`` fails to load
+    with a message naming the old key and saying the store must be reset
+    (#4950, notes/datalayer-design.md § 'Renaming a Stored Field')."""
+    data = {**_fields(), old: False}
+
+    with pytest.raises(ValidationError, match="must be reset") as excinfo:
+        PendingCreationTimeRevisionRelay.model_validate(data)
+
+    message = str(excinfo.value)
+    assert repr(old) in message
+    assert "#4950" in message

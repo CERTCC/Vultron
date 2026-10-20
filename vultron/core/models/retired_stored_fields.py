@@ -13,18 +13,18 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Refuse a stored record that still carries a renamed or moved field's old key.
+"""Refuse a stored record that still carries a retired field's old key.
 
 The project has no backwards-compatibility requirement for stored data, so a
-renamed persisted field gets no read alias and no conversion.  Left alone, a
-row written before the rename would not say what happened: ``CoreRecord``
-refuses unknown keys, but only as a bare "extra inputs are not permitted" (and
-a "field required" for the new name) that never says a rename happened.  A
-model that renames a stored field, or moves it to another model, derives from
-:class:`RetiredFieldsRecord` and declares the old key in
-``retired_stored_fields``; loading a row that still holds it fails with a
-message naming the old shape and saying the store must be reset.  The
-datalayer logs that reason when it reads the row back as absent.
+renamed, moved, or deleted persisted field gets no read alias and no
+conversion.  Left alone, a row written before the change would not say what
+happened: ``CoreRecord`` refuses unknown keys, but only as a bare "extra
+inputs are not permitted" (and a "field required" for a renamed field) that
+never says a rename or deletion happened.  A model that renames, moves, or
+deletes a stored field derives from :class:`RetiredFieldsRecord` and declares
+the old key in ``retired_stored_fields``; loading a row that still holds it
+fails with a message naming the old shape and saying the store must be reset.
+The datalayer logs that reason when it reads the row back as absent.
 """
 
 from collections.abc import Mapping
@@ -40,23 +40,32 @@ from vultron.errors import Violation, VultronValidationError
 class RetiredStoredField(NamedTuple):
     """Where a retired stored key went, and the change that retired it.
 
+    ``replacement`` is the new field name for a rename, or the field name on
+    ``moved_to`` for a move.  Pass ``None`` when the field was deleted with no
+    replacement.
+
     ``moved_to`` names the model that now holds ``replacement`` when the field
     left this model altogether, e.g. case bookkeeping moved off the case into a
-    record of its own (#4448).  ``None`` means a rename within this model.
+    record of its own (#4448).  ``None`` means a rename within this model, or a
+    deletion (when ``replacement`` is also ``None``).
     """
 
-    replacement: str
+    replacement: str | None
     retired_by: str
     moved_to: type[BaseModel] | None = None
 
     def destination(self) -> str:
         """The field the old key's value now lives in, for the refusal."""
+        if self.replacement is None:
+            return "(field removed)"
         if self.moved_to is None:
             return repr(self.replacement)
         return f"{self.moved_to.__name__}.{self.replacement}"
 
     def change(self) -> str:
-        """What happened to the old key: a rename or a move."""
+        """What happened to the old key: a rename, a move, or a deletion."""
+        if self.replacement is None:
+            return "removed it"
         return "renamed it to" if self.moved_to is None else "moved it to"
 
 
@@ -89,6 +98,10 @@ class RetiredFieldsRecord(CoreRecord):
                 raise TypeError(
                     f"{cls.__name__} retires {old!r} but still declares it"
                 )
+            if field.replacement is None:
+                # Deletion: the field was removed entirely; no replacement
+                # to check.
+                continue
             target = field.moved_to or cls
             if field.replacement not in target.model_fields:
                 raise TypeError(
@@ -106,9 +119,11 @@ class RetiredFieldsRecord(CoreRecord):
             Violation(
                 f"{key!r} is the stored shape before {field.retired_by}"
                 f" {field.change()} {field.destination()}",
-                # A moved field's replacement is not on this model, so the
-                # rule names the key it read instead.
-                (key,) if field.moved_to else (field.replacement,),
+                # A moved or deleted field has no replacement on this model,
+                # so the rule names the key it read instead.
+                (key,)
+                if (field.moved_to or field.replacement is None)
+                else (field.replacement,),
             )
             for old, field in cls.retired_stored_fields.items()
             for key in (old, to_camel(old))
