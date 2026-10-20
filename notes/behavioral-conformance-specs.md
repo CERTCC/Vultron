@@ -29,10 +29,11 @@ general spec-format rules (field presence decides `BehavioralSpec` versus
 [spec-authoring-rules.md](spec-authoring-rules.md); this note holds only the rules
 specific to this layer.
 
-## Draft from the normative sources, in priority order
+## Draft from the protocol sources, in priority order
 
-1. `docs/reference/formal_protocol/transitions.md` — already normative, organized
-   by message type.
+1. `docs/reference/formal_protocol/transitions.md` — organized by message type;
+   informative, so where it differs from the Protocol Specification, the
+   specification governs (DF-12-007).
 2. `specs/vultron-protocol-spec.yaml` (VP) — the policy items to `satisfies`-link.
 3. `docs/topics/behavior_logic/` diagrams — for compound conditions
    `transitions.md` does not cover; descriptive, not normative.
