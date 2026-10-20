@@ -206,7 +206,7 @@ Do **not** "fix" the admitted moves to match: the receive path stays liberal in
 what it admits, because RM is self-declaratory (ADR-0121) and a peer may advance
 several steps between messages (CSB-16-001). Both paths refuse whole, though:
 the receive path never records part of a status, because that records one
-nobody sent (ADR-0107 detail 5, decided under #4451). The cost is that a
+nobody sent (RSH-09-001, decided under #4451). The cost is that a
 correct P/X/A observation sent beside a regressing RM is refused with it; the
 refusal notice names every reason, so the sender corrects and resends
 (RSH-09-002). A refused receive returns `HandlerResult.refused`, written as a

@@ -486,7 +486,8 @@ groups:
     note: >
       Implemented by `EmitRMGapNoteNode`, a `_CommitCaseManagerNoteBase`: in the
       CASE_MANAGER-gated effects of `add_participant_status_tree` for an
-      accepted declaration, and in its `refusal_effects` for a refused one, which the shared factory runs only on that refusal, at the
+      accepted declaration, and in its `refusal_effects` for a refused one,
+      which the shared factory runs only on that refusal, at the
       CASE_MANAGER, once per received activity (CLP-10-022). Every active
       participant sees the note, not only the sender. An invitee whose
       full-case reply is refused is not yet active, so the fan-out does not
@@ -845,7 +846,7 @@ groups:
     A received `Add(ParticipantStatus, CaseParticipant)` or `Add(CaseStatus,
     VulnerabilityCase)` states a whole status, so the CASE_MANAGER accepts it
     as sent or refuses all of it. It never records a status the sender did
-    not send. Derived from ADR-0107 detail 5 and ISSUE-3741.
+    not send. Derived from ADR-0107 and ISSUE-3741.
   specs:
   - id: RSH-09-001
     priority: MUST

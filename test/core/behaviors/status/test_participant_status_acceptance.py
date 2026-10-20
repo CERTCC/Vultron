@@ -54,6 +54,7 @@ from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes.participant_status_acceptance import (
+    CheckParticipantStatusAcceptableNode,
     participant_status_refusals,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
@@ -468,6 +469,63 @@ class TestRefusedStatusIsRefusedWhole:
         assert "vf:" in result.feedback_message
         assert _receipt_entries(dl) == []
         assert ASSERTED_STATUS_ID not in _status_ids(dl, PARTICIPANT_ID)
+
+
+# ---------------------------------------------------------------------------
+# CheckParticipantStatusAcceptableNode: when there is nothing to judge
+# ---------------------------------------------------------------------------
+
+
+class TestNothingToJudge:
+    """The guard passes when it has nothing to judge the status against;
+    the append subtree reports a missing participant or status itself."""
+
+    @staticmethod
+    def _node(fallback: Any = None) -> CheckParticipantStatusAcceptableNode:
+        return CheckParticipantStatusAcceptableNode(
+            participant_id=PARTICIPANT_ID,
+            status_id=ASSERTED_STATUS_ID,
+            status_obj_fallback=fallback,
+        )
+
+    @staticmethod
+    def _tick(dl: SqliteDataLayer, node: Any) -> Status:
+        bridge = BTBridge(datalayer=dl)
+        return bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        ).status
+
+    @pytest.mark.spec("RSH-09-001")
+    def test_an_unknown_participant_passes(self, store_for):
+        dl = store_for(CASE_MANAGER_ID)
+        assert self._tick(dl, self._node()) == Status.SUCCESS
+
+    @pytest.mark.spec("RSH-09-001")
+    def test_a_redelivered_status_passes(self, store_for):
+        """Idempotent re-delivery: the status is already on the participant."""
+        dl = store_for(CASE_MANAGER_ID)
+        current = _current_status(RM.ACCEPTED, None, CS_pxa.pxa)
+        _seed_case(dl, current, None)
+        node = CheckParticipantStatusAcceptableNode(
+            participant_id=PARTICIPANT_ID, status_id=current.id_
+        )
+        assert self._tick(dl, node) == Status.SUCCESS
+
+    @pytest.mark.spec("RSH-09-001")
+    def test_an_unresolvable_assertion_passes(self, store_for):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed_case(dl, _current_status(RM.ACCEPTED, None, CS_pxa.pxa), None)
+        assert self._tick(dl, self._node()) == Status.SUCCESS
+
+    @pytest.mark.spec("RSH-09-003")
+    def test_the_inline_status_is_judged_when_not_stored(self, store_for):
+        """The fallback object is what the activity carried inline."""
+        dl = store_for(CASE_MANAGER_ID)
+        _seed_case(dl, _current_status(RM.ACCEPTED, None, CS_pxa.pxa), None)
+        regressing = _asserted_status(RM.VALID, None, None)
+        node = self._node(fallback=regressing)
+        assert self._tick(dl, node) == Status.FAILURE
+        assert "rm: ACCEPTED → VALID" in node.feedback_message
 
 
 # ---------------------------------------------------------------------------

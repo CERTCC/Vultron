@@ -460,6 +460,68 @@ class TestCheckCaseStatusAcceptableNodeAbsentCaseId:
 
 
 # ---------------------------------------------------------------------------
+# CheckCaseStatusAcceptableNode — whole accept or reject (RSH-09-005)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckCaseStatusAcceptableNode:
+    """The node accepts a CaseStatus as sent or refuses all of it."""
+
+    def _run(self, bridge, dl, case, asserted):
+        dl.create(case)
+        dl.create(asserted)
+        node = CheckCaseStatusAcceptableNode(
+            case_id=CASE_ID, status_id=STATUS_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        return result.status, node.feedback_message
+
+    @pytest.mark.spec("RSH-09-005")
+    def test_the_first_case_status_has_nothing_to_judge_against(
+        self, bridge, dl
+    ):
+        """A case holding no status yet accepts the first one as sent."""
+        case = as_VulnerabilityCase(id_=CASE_ID, name="No Status Yet")
+        assert case.case_statuses == []
+        asserted = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
+        )
+        status, _ = self._run(bridge, dl, case, asserted)
+        assert status == Status.SUCCESS
+
+    @pytest.mark.spec("RSH-09-005")
+    def test_the_cases_em_with_a_forward_pxa_is_accepted(self, bridge, dl):
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Accepted", attributed_to=ACTOR_ID
+        )
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=EM.NONE),
+            pxa=PxaDimension(state=CS_pxa.PXA),
+        )
+        status, _ = self._run(bridge, dl, case, asserted)
+        assert status == Status.SUCCESS
+
+    @pytest.mark.spec("RSH-09-005", "EH-07-001")
+    def test_every_refused_rule_is_named(self, bridge, dl):
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Refused", attributed_to=ACTOR_ID
+        )
+        case.append_case_status(pxa=CS_pxa.Pxa)
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=EM.ACTIVE),
+            pxa=PxaDimension(state=CS_pxa.pxa),
+        )
+        status, reason = self._run(bridge, dl, case, asserted)
+        assert status == Status.FAILURE
+        assert "em: ACTIVE differs from the case's NONE" in reason
+        assert "pxa: Pxa → pxa is not a forward move" in reason
+
+
+# ---------------------------------------------------------------------------
 # CheckCaseStatusAcceptableNode — P/X/A regression (RSH-09-005)
 # ---------------------------------------------------------------------------
 

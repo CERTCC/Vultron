@@ -87,7 +87,8 @@ _VALIDATING_NODE_MODULES: tuple[str, ...] = (
 # was settled by ADR-0089 with these two as its end state.
 # permanent: ADR-0089 (two writer dispositions, permanent non-writer over-catch)
 _DECLARED_EXCLUSIONS: dict[str, str] = {
-    # Replica-apply path (RSH-09-006), a disposition distinct from emit: the assertion was already made and validated by the
+    # Replica-apply path (RSH-09-006), a disposition distinct from emit: the
+    # assertion was already made and validated by the
     # peer that emitted it, and this node decides whether the local replica can
     # *apply* the resulting ledger entry.  It MUST NOT use the emit evaluator.
     # The emit evaluator's role gates ask whether the *asserting* actor held

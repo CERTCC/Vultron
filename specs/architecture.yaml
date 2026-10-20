@@ -1028,8 +1028,9 @@ groups:
       `by_alias=True` and revalidating through the core class ("dump-and-revalidate").
     rationale: 'Dump-and-revalidate normalises only as far as the core class happens to accept every key a wire dump
       emits. ARCH-12-003 has a core class read its own AS2 spelling, not an arbitrary wire object''s: under `extra="forbid"`
-      a wire key with no core field raises, and without it the key is silently discarded. The received-status
-      filter once relied on the since-retired `_migrate_flat_fields` shim (SDO-03-003).'
+      a wire key with no core field raises, and without it the key is silently discarded.
+      The received-status filter once relied on the since-retired
+      `_migrate_flat_fields` shim (SDO-03-003).'
     verification: No module under `vultron/core/` constructs a core model via `CoreClass.model_validate(wire_obj.model_dump(by_alias=True, ...))`.
     relationships:
     - rel_type: depends_on
