@@ -23,9 +23,12 @@ StatusAdoptionGate of the two-seam authorization model (ADR-0046, RSH-01-001 to 
 after ``AppendParticipantStatusNode`` records the raw peer update, a
 ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
 should adopt the status, then ``EmitCaseStatusUpdateNode`` writes the
-post-adoption CaseStatus directly to the case ledger without routing through
-the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
-``add_case_status_tree``; this tree does not execute them directly (RSH-01-004).
+post-adoption CaseStatus, carrying the P, X or A the sender reported, directly
+to the case ledger without routing through the inbox seam (RSH-01-003,
+RSH-04-004).  The embargo teardown and the CSB-18 diagnostic follow it
+(RSH-01-004).  This tree is the only received path by which a participant's
+P, X or A report reaches the case status: ``Add(CaseStatus)`` is the
+CASE_MANAGER's alone (RSH-04-001, RSH-04-005).
 
     AddParticipantStatusBT (Sequence)
     ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)
@@ -43,11 +46,12 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
             ├─ StatusAdoptionGate (Selector)    # StatusAdoptionGate authorization (RSH-01-002)
             │   ├─ CheckIsCaseOwnerNode        # Hard bypass: CASE_OWNER gospel (RSH-01-002)
             │   └─ CaseOwnerApprovesStatusUpdate  # Call-out: non-owners need approval
-            ├─ EmitCaseStatusUpdateNode        # Direct ledger write (RSH-04-004, RSH-01-003)
+            ├─ EmitCaseStatusUpdateNode        # Adopted P/X/A (RSH-01-003)
             ├─ TeardownEffectsOrSkip (FailureIsSuccess)
             │   └─ TeardownEffects (Sequence)
             │       ├─ EmbargoTeardownAuthorizationGate  # Call-out gate (RSH-02-001)
             │       └─ ThreatTerminationBranchNode       # Embargo teardown on P/X/A (RSH-03-001)
+            ├─ PxaEmInvariantDiagnosticNode    # CSB-18-002..004 post-cascade check (#4829)
             └─ EmitRMGapNoteNode               # Commit add_note_to_case on RM anomaly (RSH-06-004)
 
     A replica holding a copy of the ``Add(ParticipantStatus)`` writes nothing: the whole
@@ -97,12 +101,16 @@ from vultron.core.behaviors.status.nodes import (
     FilterParticipantStatusDimensionsNode,
     rm_gap_note,
 )
+from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
+    PxaEmInvariantDiagnosticNode,
+)
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
 )
 from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
+from vultron.core.models.participant_status import ParticipantStatus
 
 logger = logging.getLogger(__name__)
 
@@ -143,15 +151,17 @@ def add_participant_status_tree(
       ``call_out.status_adoption_gate_factory``; default is ``AlwaysSucceed``
 
     When the gate passes, ``EmitCaseStatusUpdateNode`` writes the post-adoption
-    CaseStatus directly to the case ledger and fans it out to participants
-    (RSH-01-003, RSH-04-004).  A ``FailureIsSuccess``-wrapped ``TeardownEffects``
+    CaseStatus, with the reported P, X or A when it moves the case's forward,
+    directly to the case ledger and fans it out to participants (RSH-01-003,
+    RSH-04-004, #4956).  A ``FailureIsSuccess``-wrapped ``TeardownEffects``
     Sequence then attempts embargo teardown: the ``EmbargoTeardownAuthorizationGate``
     call-out gates execution, and ``ThreatTerminationBranchNode`` fires when the
     received CaseStatus has P=True, X=True, or A=True (RSH-03-001 to RSH-03-003).
     The ``FailureIsSuccess`` wrapper ensures the tree still returns SUCCESS when
     the gate blocks teardown, mirroring the tolerant semantics in the use case
-    layer.  This replaces the side-effect handling previously routed via the
-    ``add_case_status_tree`` inbox-loopback (RSH-04-004).
+    layer.  ``PxaEmInvariantDiagnosticNode`` then reads the post-teardown EM and
+    commits a CSB-18 note when an adopted P, X or A sits beside an embargo that
+    is still in force (CSB-18-002..004, #4829).
 
     Args:
         request: The parsed inbound domain event.
@@ -233,9 +243,17 @@ def add_participant_status_tree(
                 validate_rm=False,
             ),
             status_adoption_gate,
+            # The adopted P, X or A the sender reported in its embedded case
+            # status is what the canonical CaseStatus records (RSH-01-003,
+            # #4956).
             EmitCaseStatusUpdateNode(
                 case_id=tree_case_id,
                 name="EmitCaseStatusUpdate",
+                reported_status=(
+                    status_obj.case_status
+                    if isinstance(status_obj, ParticipantStatus)
+                    else None
+                ),
             ),
             py_trees.decorators.FailureIsSuccess(
                 name="TeardownEffectsOrSkip",
@@ -262,6 +280,14 @@ def add_participant_status_tree(
                         ),
                     ],
                 ),
+            ),
+            # The CSB-18 note is the CASE_MANAGER's own act, committed and
+            # replicated (#4829); it reads the post-teardown EM, so a gate
+            # that blocked the teardown is reported (CSB-18-002..004).
+            PxaEmInvariantDiagnosticNode(
+                status_obj=status_obj,
+                case_id=tree_case_id,
+                name="PxaEmInvariantDiagnostic",
             ),
             rm_gap_note(actor_id, tree_case_id),
         ]

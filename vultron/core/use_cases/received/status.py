@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
+    any_of,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,22 +77,20 @@ def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
 class AddCaseStatusToCaseReceivedUseCase:
     """Process a received ``Add(CaseStatus, VulnerabilityCase)`` (CP, CX, CA).
 
-    A participant reports case-level evidence (public awareness, a public
-    exploit, observed attacks) to the CASE_MANAGER, which adjudicates each
-    dimension and adopts what it accepts (RSH-05-015).  At the CASE_MANAGER
-    the sender must hold a participant record on the case whose closure is
-    not recorded, as for ``Add(ParticipantStatus)``.  A participant replica
-    takes case state from the CASE_MANAGER alone (PCR-03-001), which alone
-    emits ``Add(CaseStatus)`` (RSH-04-001), and a participant sends its
-    case-scoped messages only to the CASE_MANAGER (PCR-08-001).  An
-    unentitled sender is ``REFUSED`` before anything is committed, written
-    or sent (HP-01-006).
+    ``Add(CaseStatus)`` is the CASE_MANAGER's record of the case status it
+    adopted, which it alone emits (RSH-04-001).  A receiver admits it only from
+    the case's CASE_MANAGER, sent to a participant (RSH-04-005, PCR-03-001);
+    a participant reports P, X or A in the ``CaseStatus`` its own
+    ``Add(ParticipantStatus)`` embeds, where the StatusAdoptionGate applies
+    (RSH-07-001).  An ``Add(CaseStatus)`` from any other sender, or sent to
+    the CASE_MANAGER, is ``REFUSED`` before anything is committed, written or
+    sent (HP-01-006).
     """
 
-    # A participant reports to the CASE_MANAGER; a replica takes the status
-    # from the CASE_MANAGER alone (RSH-05-015, RSH-04-001, PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
-        SenderEntitlementKind.PARTICIPANT
+    # Only the CASE_MANAGER sends it, and only to a participant; no sender is
+    # entitled at the CASE_MANAGER (RSH-04-005, RSH-04-001, PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER)
     )
 
     def __init__(
@@ -99,7 +98,6 @@ class AddCaseStatusToCaseReceivedUseCase:
         dl: CasePersistence,
         request: AddCaseStatusToCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
-        call_out: "StatusAuthorizationCallOutBundle | None" = None,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
@@ -108,7 +106,6 @@ class AddCaseStatusToCaseReceivedUseCase:
         self._sync_port = sync_port
         self._request: AddCaseStatusToCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
-        self._call_out = call_out
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -122,13 +119,9 @@ class AddCaseStatusToCaseReceivedUseCase:
                 "Add(CaseStatus) is missing its status id or case id"
             )
 
-        call_out_kwargs = (
-            {"call_out": self._call_out} if self._call_out is not None else {}
-        )
         tree = add_case_status_tree(
             request=request,
             sender_rule=self.sender_entitlement,
-            **call_out_kwargs,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -138,9 +131,9 @@ class AddCaseStatusToCaseReceivedUseCase:
         )
         result = bridge.execute_with_setup(
             tree=tree,
-            # The *receiving* actor, not the sender (BT-17-005): this applies an
-            # inbound CaseStatus to the receiver's own replica, so the tree must
-            # execute — and therefore read and write — in the receiver's store.
+            # The *receiving* actor, not the sender (BT-17-005): the guards
+            # check the inbound CaseStatus against the receiver's own replica,
+            # so the tree must execute in the receiver's store.
             actor_id=resolve_receiving_actor_id(
                 self._dl, request.receiving_actor_id
             ),

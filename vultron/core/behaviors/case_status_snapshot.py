@@ -24,8 +24,8 @@ lifecycle nodes that compose the embargo trigger trees, so an embargo tree
 importing from it would close an import cycle (CS-05-003).
 
 :func:`promote_pxa` is the SM-09-001 persistence-boundary promotion this node
-and :class:`~vultron.core.behaviors.status.nodes.case_status.AppendCaseStatusToCaseNode`
-both apply.
+applies.  :func:`adopted_pxa` is the case ``pxa`` after a participant's
+adopted report (RSH-01-003).
 """
 
 import json
@@ -44,7 +44,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import CS_pxa, is_monotonic_pxa_forward
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +58,29 @@ def promote_pxa(pxa: CS_pxa) -> CS_pxa:
     return pxa
 
 
+def adopted_pxa(current: CS_pxa, reported: CaseStatus | None) -> CS_pxa:
+    """The case ``pxa`` after adopting *reported* (RSH-01-003, RSH-05-019).
+
+    A reported value that is a monotone forward move from *current* is
+    adopted; any other value, or none, keeps *current*.  The result is
+    promoted at the persistence boundary either way (SM-09-001).
+    """
+    if reported is not None:
+        asserted = promote_pxa(reported.pxa.state)
+        if is_monotonic_pxa_forward(current, asserted):
+            return asserted
+    return promote_pxa(current)
+
+
 class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     """Snapshot the post-mutation CaseStatus, commit a CaseLedgerEntry, and fan out.
 
     After an EM or PXA lifecycle node mutates the case state, this node:
 
     1. Reads the VulnerabilityCase from the DataLayer (post-mutation).
-    2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa`` state.
+    2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa``
+       state, with the adopted ``pxa`` of *reported_status* when one is given
+       (RSH-01-003).
     3. Builds the CASE_MANAGER's ``Add(CaseStatus)`` through the
        trigger-activity port and commits its sealed blob as a CaseLedgerEntry
        via ``create_commit_log_entry_tree`` (VM-08-003).
@@ -74,11 +90,26 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
 
     MUST NOT route through the inbox seam (RSH-04-004).
     Per RSH-04-002 (EM mutations) and RSH-04-003 (PXA mutations).
+
+    Args:
+        case_id: The case whose status is snapshotted.
+        name: Node name; defaults to the class name.
+        reported_status: The case status a participant reported, which the
+            StatusAdoptionGate ahead of this node adopted.  Its ``pxa``
+            replaces the case's when it is a monotone forward move from it;
+            otherwise the case's value is kept (RSH-01-003, RSH-05-019).
+            ``None`` for a tree that has already mutated the case.
     """
 
-    def __init__(self, case_id: str | None, name: str | None = None) -> None:
+    def __init__(
+        self,
+        case_id: str | None,
+        name: str | None = None,
+        reported_status: CaseStatus | None = None,
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+        self.reported_status = reported_status
         self._committed_status_id: str | None = None
 
     def update(self) -> Status:
@@ -120,7 +151,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
-        pxa_state = promote_pxa(current.pxa.state)
+        pxa_state = adopted_pxa(current.pxa.state, self.reported_status)
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,

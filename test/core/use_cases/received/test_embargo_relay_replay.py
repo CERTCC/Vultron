@@ -162,6 +162,10 @@ def test_a_replica_follows_a_revision_from_proposal_to_activation():
         assert case.proposed_embargo_ids == [], actor_id
 
 
+# Integration tier, with the rest of the LedgerNetwork replay group
+# (#4917): about 11s idle, most of it in DataLayer reads, so under the full
+# unit run's load it can pass the 30s ceiling (notes/testing-pitfalls.md).
+@pytest.mark.integration
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("SYNC-12-001")
 def test_a_ledger_only_replica_resolves_two_successive_revisions():

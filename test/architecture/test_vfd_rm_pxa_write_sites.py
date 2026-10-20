@@ -101,8 +101,6 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         ("status/nodes/cs_dimension_filter.py", "PxaDimension"),
         # SNAPSHOT — EmitCaseStatusUpdateNode: post-mutation CaseStatus snapshot (ISSUE-2175)
         ("case_status_snapshot.py", "PxaDimension"),
-        # AC-1 promote_pxa() result applied in AppendCaseStatusToCaseNode
-        ("status/nodes/case_status.py", "PxaDimension"),
         # BOOTSTRAP — ADR-0114 birth write: invitee's first ParticipantStatus
         # at RM.RECEIVED (no prior state; embed directly in CaseParticipant,
         # not via CreateParticipantStatusNode). CM-11-006 / #4048.

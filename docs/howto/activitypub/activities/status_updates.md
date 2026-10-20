@@ -6,7 +6,7 @@ level: 400
 # How to Post a Status Update or a Case Note
 
 Use this guide to tell the other participants something: that your fix is ready, that the vulnerability is now public, or anything that needs narrative rather than a state change.
-A status update is one `as:Add` that carries the new status inline and attaches it.
+A status update is one `as:Add(ParticipantStatus)` that carries your new status inline and attaches it to your own participant record.
 A note is sent the same way: one `as:Add` that carries the note inline.
 You finish with the update committed to the case ledger and replicated to every participant.
 
@@ -60,52 +60,43 @@ Participant status is self-declaratory, so a participant asserting another parti
 
 ## Report something true of the case
 
-Use a case status for public awareness, exploit publication, and observed attacks — the dimensions that are properties of the vulnerability rather than of any one participant.
+Public awareness, exploit publication, and observed attacks are properties of the vulnerability rather than of any one participant.
+You report your own view of them in your participant status.
 
-Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all implemented in ActivityStreams as `Add(CaseStatus)`, or in your own participant status (see [Report it in your own participant status](#report-it-in-your-own-participant-status)).
-All three set `pxaState`; which one you are sending is determined by which letter in it changes case.
+Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) all set `pxaState` in the case status that your participant status embeds.
+Which one you are sending is determined by which letter in it changes case.
 
-When you send a case status, send `Add(CaseStatus)` naming the case in `target`, with the new status, carrying the new `pxaState`, inline as its `object`.
-The protocol names `Add(CaseStatus)` as the one form; a received `Create(CaseStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
+Send `Add(ParticipantStatus)` targeting your own participant record, with the new status inline as its `object`, and make the change to `pxaState` in its embedded case status.
+Only the CASE_MANAGER sends `Add(CaseStatus)`, inside a case ledger entry, as its record of the case status it adopted (RSH-04-001).
+A receiver refuses an `Add(CaseStatus)` from any other sender (RSH-04-005).
 
 ### Report that the vulnerability is public
 
 Change `p` to `P` in `pxaState`.
 That is Public Awareness (CP).
 
-{% include-markdown "../../../reference/messages/_occasions/embeds/public-awareness.md" %}
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-public-awareness.md" %}
 
 ### Report that an exploit is public
 
 Change `x` to `X`.
 That is Exploit Public (CX).
 
-{% include-markdown "../../../reference/messages/_occasions/embeds/exploit-public.md" %}
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-exploit-public.md" %}
 
 ### Report that attacks are happening
 
 Change `a` to `A`.
 That is Attacks Observed (CA).
 
-{% include-markdown "../../../reference/messages/_occasions/embeds/attacks-observed.md" %}
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-attacks-observed.md" %}
 
-The state change hangs off the `Add`, because that is the activity that asserts the attachment.
+### What happens to your report
 
-### Report it in your own participant status
-
-A participant status embeds a case status that carries your own view of `pxaState`.
-Only the CASE_MANAGER sends `Add(CaseStatus)` directly; every other participant reports public awareness, exploit publication or observed attacks in its own participant status (RSH-04-001).
-Send `Add(ParticipantStatus)` targeting your own participant record, and make the same change to `pxaState` in its embedded case status.
 Your report is your view of the case status, not a change to it.
 The CASE_MANAGER records the status on your participant record and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization (RSH-07-001).
-If it adopts the change, the CASE_MANAGER records it in its own `Add(CaseStatus)`, and while an embargo is active or proposed, ends or abandons the embargo (RSH-03-001).
-The Reporter + Vendor (`rv`) demo reports public awareness this way.
-
-{% include-markdown "../../../reference/messages/_occasions/embeds/participant-public-awareness.md" %}
-
-{% include-markdown "../../../reference/messages/_occasions/embeds/participant-exploit-public.md" %}
-
-{% include-markdown "../../../reference/messages/_occasions/embeds/participant-attacks-observed.md" %}
+If it adopts the change, the CASE_MANAGER commits it as an `Add(CaseStatus)` entry to the case ledger, and while an embargo is active or proposed, ends or abandons the embargo (RSH-03-001).
+The Reporter + Vendor (`rv`) demo and the `status-updates` demo report public awareness this way.
 
 ---
 
@@ -142,7 +133,7 @@ If the note is a fault report rather than ordinary case discussion, see [How to 
 | What you sent | What to confirm |
 |---|---|
 | `Add(ParticipantStatus)` | Your participant record carries the new status, on every replica. |
-| `Add(CaseStatus)` | The case status carries the new `pxaState`, on every replica. |
+| `Add(ParticipantStatus)` carrying a `pxaState` | Once the CASE_MANAGER adopts it, the case status carries the new `pxaState`, on every replica. |
 | `Add(Note)` | The note appears on the case, on every replica. |
 
 Each of these is committed by the CASE_MANAGER and fanned out, so checking your own store alone does not confirm the update landed.
@@ -161,7 +152,7 @@ Each of these is committed by the CASE_MANAGER and fanned out, so checking your 
     DEMO=status-updates docker compose -f docker/docker-compose.yml run --rm demo
     ```
 
-    The scenario adds a note, a case status, and a participant status.
+    The scenario adds and removes a note, then reports public awareness in a participant status and checks that the case status adopted it.
 
 ---
 

@@ -222,6 +222,8 @@ def test_routing_safety_net_status_domain(test_pipeline, monkeypatch):
     status = as_CaseStatus(
         id_="https://example.org/status/cs-ibp-1", context=case.id_
     )
+    # Routing only: ``execute`` is patched, so the sender rule (the
+    # CASE_MANAGER alone, RSH-04-005) never runs.
     activity = add_status_to_case_activity(
         status,
         target=case,

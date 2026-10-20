@@ -49,7 +49,7 @@ from vultron.wire.as2.vocab.activities.case_participant import (
     _AddStatusToParticipantActivity,
 )
 
-#: When a participant sends each P/X/A report, in either wire form.
+#: When a participant reports each P/X/A in its own participant status.
 _PXA_WHEN: dict[CS_pxa, str] = {
     CS_pxa.Pxa: (
         "a Participant learns that the public knows of the vulnerability"
@@ -106,6 +106,57 @@ def _participant_pxa_occasion(
     )
 
 
+#: When the CASE_MANAGER records each adopted P/X/A in ``Add(CaseStatus)``.
+_CASE_PXA_WHEN: dict[CS_pxa, str] = {
+    CS_pxa.Pxa: (
+        "the Case Manager records that the public knows of the vulnerability"
+    ),
+    CS_pxa.PXa: (
+        "the Case Manager records that an exploit for the vulnerability is "
+        "public"
+    ),
+    CS_pxa.pxA: (
+        "the Case Manager records that attackers are exploiting the "
+        "vulnerability"
+    ),
+}
+
+#: What every case P/X/A occasion says about who sends it.
+_CASE_PXA_NOTES = (
+    "Only the Case Manager sends a case status, as its record of the "
+    "`pxaState` it adopted, and a receiver refuses one from any other "
+    "sender. A participant reports public awareness, a public exploit or "
+    "observed attacks in its own participant status instead."
+)
+
+
+def _case_pxa_occasion(
+    *,
+    anchor: str,
+    heading: str,
+    description: str,
+    example: str,
+    pxa: CS_pxa,
+    shorthand: ProtocolShorthand,
+) -> Occasion:
+    """An occasion for the CASE_MANAGER's record of an adopted P/X/A, which
+    it alone sends in ``Add(CaseStatus)``, to a participant (RSH-04-001,
+    RSH-04-005)."""
+    return Occasion(
+        when=_CASE_PXA_WHEN[pxa],
+        anchor=anchor,
+        addressee=AddresseeSide.PARTICIPANT,
+        heading=heading,
+        description=description,
+        example=example,
+        distinguisher=FieldValue(
+            object_type=CaseStatus, field="pxa", value=pxa
+        ),
+        shorthand=shorthand,
+        notes=_CASE_PXA_NOTES,
+    )
+
+
 ENTRIES: list[SemanticEntry] = [
     # Case status
     SemanticEntry(
@@ -117,51 +168,37 @@ ENTRIES: list[SemanticEntry] = [
         wire_activity_class=_AddStatusToCaseActivity,
         include_activity=True,
         occasions=(
-            Occasion(
-                when=_PXA_WHEN[CS_pxa.Pxa],
+            _case_pxa_occasion(
                 anchor="public-awareness",
-                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Public awareness in a case status",
                 description=(
-                    "Announces evidence that the vulnerability is known to the"
-                    " public."
+                    "Tells a participant that the case status now records "
+                    "that the public knows of the vulnerability."
                 ),
                 example="add_public_awareness_to_case",
-                distinguisher=FieldValue(
-                    object_type=CaseStatus, field="pxa", value=CS_pxa.Pxa
-                ),
-                howto=HowToGuide.STATUS_UPDATES,
+                pxa=CS_pxa.Pxa,
                 shorthand=ProtocolShorthand.CP,
             ),
-            Occasion(
-                when=_PXA_WHEN[CS_pxa.PXa],
+            _case_pxa_occasion(
                 anchor="exploit-public",
-                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Exploit public in a case status",
                 description=(
-                    "Announces evidence that an exploit is publicly available."
+                    "Tells a participant that the case status now records "
+                    "that an exploit is publicly available."
                 ),
                 example="add_exploit_public_to_case",
-                distinguisher=FieldValue(
-                    object_type=CaseStatus, field="pxa", value=CS_pxa.PXa
-                ),
-                howto=HowToGuide.STATUS_UPDATES,
+                pxa=CS_pxa.PXa,
                 shorthand=ProtocolShorthand.CX,
             ),
-            Occasion(
-                when=_PXA_WHEN[CS_pxa.pxA],
+            _case_pxa_occasion(
                 anchor="attacks-observed",
-                addressee=AddresseeSide.CASE_MANAGER,
                 heading="Attacks observed in a case status",
                 description=(
-                    "Announces evidence that attackers are exploiting the "
-                    "vulnerability."
+                    "Tells a participant that the case status now records "
+                    "that attackers are exploiting the vulnerability."
                 ),
                 example="add_attacks_observed_to_case",
-                distinguisher=FieldValue(
-                    object_type=CaseStatus, field="pxa", value=CS_pxa.pxA
-                ),
-                howto=HowToGuide.STATUS_UPDATES,
+                pxa=CS_pxa.pxA,
                 shorthand=ProtocolShorthand.CA,
             ),
         ),

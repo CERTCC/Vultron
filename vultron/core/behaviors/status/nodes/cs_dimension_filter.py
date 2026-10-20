@@ -22,8 +22,7 @@ Three composable precondition guards (RSH-05, ADR-0061, ISSUE-2256):
 2. ``FilterCsPxaDimensionNode`` — adjudicates PXA; reads and explicitly
    writes back the accumulator via a dual-alias output port (#2706).
 3. ``FinalizeCsFilterNode``     — combines results, checks whole-refusal,
-   and publishes ``BB_CASE_STATUS_DIM_FILTER`` /
-   ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE``.
+   and publishes ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE``.
 
 ``FilterCsEmDimensionNode`` returns FAILURE when the asserted status cannot
 be resolved (unresolvable → guard aborts before GuardedCommit, CLP-10-009).
@@ -55,11 +54,6 @@ from vultron.core.states.cs import is_pxa_assertion_acceptable
 from vultron.core.states.em import is_em_assertion_acceptable
 
 logger = logging.getLogger(__name__)
-
-#: Blackboard key carrying the per-dimension filter outcome for
-#: :class:`AppendCaseStatusToCaseNode` downstream.  ``None`` when nothing
-#: was filtered.
-BB_CASE_STATUS_DIM_FILTER = "append_case_status_dim_filter"
 
 #: Internal accumulator key shared between the three filter guard nodes
 #: within a single tick.  Not for external consumption.
@@ -112,8 +106,8 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
     change (ADR-0122), so a status can carry it but never move it (RSH-05-023).
     Refused EM is carried forward (the case's value); an identical one passes.
 
-    Also clears ``BB_CASE_STATUS_DIM_FILTER`` unconditionally at tick start
-    so that no prior execution's value leaks into this tick (BT-17-003).
+    Also clears the accumulator unconditionally at tick start so that no
+    prior execution's value leaks into this tick (BT-17-003).
     ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`` is solely owned by
     :class:`FinalizeCsFilterNode`, which clears it on every exit path.
 
@@ -134,21 +128,16 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
         _BB_CS_FILTER_ACC: PortInformation(data_type=object, required=False),
-        BB_CASE_STATUS_DIM_FILTER: PortInformation(
-            data_type=object, required=False
-        ),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             _BB_CS_FILTER_ACC: f"/{_BB_CS_FILTER_ACC}",
-            BB_CASE_STATUS_DIM_FILTER: f"/{BB_CASE_STATUS_DIM_FILTER}",
         }
 
     def _clear(self) -> None:
         self._set_output(_BB_CS_FILTER_ACC, None)
-        self._set_output(BB_CASE_STATUS_DIM_FILTER, None)
         # BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE is FinalizeCsFilterNode's key —
         # do not zero it here (CONCERN-2711, #2711).
 
@@ -295,8 +284,7 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
     Reads the per-tick accumulator written by :class:`FilterCsEmDimensionNode`
     and updated by :class:`FilterCsPxaDimensionNode`.  If at least one
     dimension was refused, it builds the filtered :class:`CaseStatus` and
-    publishes ``BB_CASE_STATUS_DIM_FILTER`` for :class:`AppendCaseStatusToCaseNode`
-    and ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`` for the canonical ledger commit.
+    publishes ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`` for the ledger commit.
 
     Returns:
         SUCCESS when no dimensions were refused, or when at least one dimension
@@ -316,9 +304,6 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
-        BB_CASE_STATUS_DIM_FILTER: PortInformation(
-            data_type=object, required=False
-        ),
         BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: PortInformation(
             data_type=object, required=False
         ),
@@ -328,7 +313,6 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             _BB_CS_FILTER_ACC: f"/{_BB_CS_FILTER_ACC}",
-            BB_CASE_STATUS_DIM_FILTER: f"/{BB_CASE_STATUS_DIM_FILTER}",
             BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: f"/{BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE}",
         }
 
@@ -371,14 +355,6 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
             self._set_output(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None)
             return Status.FAILURE
 
-        self._set_output(
-            BB_CASE_STATUS_DIM_FILTER,
-            {
-                "status_id": status_id,
-                "refused": refused,
-                "filtered_status": filtered,
-            },
-        )
         self._set_output(
             BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
             {

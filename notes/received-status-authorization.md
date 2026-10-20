@@ -88,8 +88,16 @@ questions, each behind its own seam:
    a blocked teardown still leaves the tree `SUCCESS`.
 
 On the adoption path the gates run in one tree, in order, with no inbox
-round-trip (RSH-01-003, RSH-01-004). `add_case_status_tree` runs the teardown
-gate only.
+round-trip (RSH-01-003, RSH-01-004). `add_case_status_tree` runs neither: it
+is admitted only at a participant replica, from the CASE_MANAGER, and writes
+nothing on receipt (RSH-04-005, RSH-08-003).
+
+**The adoption commit carries the reported P/X/A.** `EmitCaseStatusUpdateNode`
+snapshots the case's own state, so in `add_participant_status_tree` it takes the
+sender's embedded case status as `reported_status` and adopts its `pxa` when that
+moves forward (`adopted_pxa`, RSH-01-003, RSH-05-019). Without it the commit
+re-snapshots an unchanged `pxa` and the adoption adopts nothing (#4956). Assert
+a P/X/A report against `case.current_status`, not the sender's record.
 
 **Both seams are call-outs that require Case Owner approval by default**
 (RSH-07-001, RSH-07-002, ADR-0076). A permissive backend
@@ -119,7 +127,8 @@ independently and publishes a *filtered* `ParticipantStatus` in which each
 refused dimension carries the participant's current value forward. Refusing the
 whole snapshot for one bad dimension would discard the accepted ones and skip
 teardown. `FilterCsEmDimensionNode` → `FilterCsPxaDimensionNode` →
-`FinalizeCsFilterNode` do the same for `CaseStatus`. Rules:
+`FinalizeCsFilterNode` do the same for `CaseStatus`, at the participant replica
+that is its only receiver (RSH-05-015). Rules:
 
 - **The filters are guards.** They are read-only (CLP-10-006), run before
   `GuardedCommitOrSkip`, and `FinalizeCsFilterNode` belongs in
@@ -195,18 +204,21 @@ sender check: authorization happened at the gates.
   the replica waits for the committed teardown entry. The skip decides *who*
   tears down, not *whether*.
 - **A blocked teardown leaves the PXA↔EM entailment violated** (CSB-18-002 to
-  CSB-18-004). `PxaEmInvariantDiagnosticNode` detects it after the cascade, at
-  the CASE_MANAGER only, and commits a note as its own `add_note_to_case`
-  entry, so a lagging replica never reports the gap (RSH-06-004, #4829).
+  CSB-18-004). `PxaEmInvariantDiagnosticNode` detects it after the cascade in
+  `add_participant_status_tree`, at the CASE_MANAGER only, and commits a note as
+  its own `add_note_to_case` entry, so a lagging replica never reports the gap
+  (RSH-06-004, #4829).
 
 ## CaseStatus emission authority (RSH-04)
 
 - **Only the CASE_MANAGER emits `Add(CaseStatus)`.** Other participants embed a
   suggested `CaseStatus` in `Add(ParticipantStatus)` and let the gates decide
   (RSH-04-001).
-- **Refuse `Add(CaseStatus)` from anyone else.** `add_case_status_tree` has no
-  adoption gate, so admitting it from a participant skips the Case Owner's
-  approval (RSH-04-005, RSH-07-001).
+- **Refuse `Add(CaseStatus)` from anyone else, and at the CASE_MANAGER.**
+  `add_case_status_tree` has no adoption gate, so admitting it from a
+  participant skips the Case Owner's approval (RSH-04-005, RSH-07-001). The
+  CASE_MANAGER still moves the case status: by its embargo trees and by adopting
+  any participant's `Add(ParticipantStatus)`, its own included.
 - **Every CASE_MANAGER-side EM or P/X/A mutation is followed by a canonical
   `CaseStatus` ledger write** through `EmitCaseStatusUpdateNode` (RSH-04-002,
   RSH-04-003); without it every replica stays stale. Wire it after any new EM

@@ -36,8 +36,8 @@ Submodules:
 - ``lifecycle``: Auto-close emit node and the re-exported P/X/A teardown
   branch (ThreatTerminationBranchNode, EmitCloseCaseNode)
 - ``rm_anomaly``: RM transition anomaly notification (EmitRMGapNoteNode)
-- ``case_status``: Idempotency guard and append nodes for the
-  AddCaseStatusToCase workflow.  EmitCaseStatusUpdateNode (direct ledger
+- ``case_status``: Idempotency guard for the AddCaseStatusToCase
+  workflow.  EmitCaseStatusUpdateNode (direct ledger
   writes after EM/PXA mutations, RSH-04-002/RSH-04-003) is shared with the
   embargo trees, so it lives in ``vultron.core.behaviors.case_status_snapshot``
   (BTND-04-001)
@@ -57,7 +57,6 @@ from vultron.core.behaviors.status.nodes.append import (
 )
 from vultron.core.behaviors.status.nodes.case_status import (
     CASE_STATUS_ALREADY_PRESENT,
-    AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
 )
 from vultron.core.behaviors.status.nodes.conditions import (
@@ -65,7 +64,6 @@ from vultron.core.behaviors.status.nodes.conditions import (
     CloseNotYetEmittedConditionNode,
 )
 from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
-    BB_CASE_STATUS_DIM_FILTER,
     FilterCsEmDimensionNode,
     FilterCsPxaDimensionNode,
     FinalizeCsFilterNode,
@@ -116,13 +114,11 @@ __all__ = [
     # cs_invariant_diagnostic
     "PxaEmInvariantDiagnosticNode",
     # case_status
-    "BB_CASE_STATUS_DIM_FILTER",
     "CASE_STATUS_ALREADY_PRESENT",
     "CheckCaseStatusIdempotencyNode",
     "FilterCsEmDimensionNode",
     "FilterCsPxaDimensionNode",
     "FinalizeCsFilterNode",
-    "AppendCaseStatusToCaseNode",
     # cs_invariant_guards
     "CheckCsEphemeralStateNode",
     "CheckCsHistoryPrefixNode",

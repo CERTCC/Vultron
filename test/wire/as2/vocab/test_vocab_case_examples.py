@@ -333,14 +333,17 @@ class TestVocabCaseStatusExamples(unittest.TestCase):
     def test_add_case_status_to_case(self):
         activity = examples.add_status_to_case()
         self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
+        # Only the CASE_MANAGER sends it, to a participant (RSH-04-005).
+        case_actor = examples.case_actor()
+        finder = examples.finder()
         case = examples.case()
         status = examples.case_status()
 
         self.assertIsInstance(activity, as_Add)
         self.assertEqual(activity.type_, "Add")
 
-        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.actor, case_actor.id_)
+        self.assertEqual(activity.to, [finder.id_])
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.object_, status)
 

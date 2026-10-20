@@ -388,9 +388,10 @@ See [Acknowledge a Report](../howto/activitypub/activities/acknowledge.md) for t
 This demo shows two workflows for updating a case record:
 
 1. **Notes** — the vendor creates a `Note`, adds it to the case with `Add(Note)`, and then removes it again with `Remove(Note)`.
-2. **Status** — the vendor creates a `CaseStatus` and adds it to the case, then creates a `ParticipantStatus` and adds it to its own participant record with `Add(ParticipantStatus)`.
+2. **Status** — the vendor reports public awareness in a new `ParticipantStatus`, added to its own participant record with `Add(ParticipantStatus)`, and the demo checks that the case status adopted it.
 
 A participant status update is how an actor reports its own Case State (CS) progress: Vendor Awareness (CV), Fix Readiness (CF), and Fix Deployed (CD) are all `Add(ParticipantStatus)` activities.
+So are Public Awareness (CP), Exploit Public (CX), and Attacks Observed (CA), carried in the case status the participant status embeds; only the Case Manager sends `Add(CaseStatus)`.
 
 See [How to Post a Status Update or a Case Note](../howto/activitypub/activities/status_updates.md) for details.
 

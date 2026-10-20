@@ -69,9 +69,9 @@
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
-| a Participant learns that the public knows of the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | the case manager | a participant | `pxaState` = `Pxa` | [Public awareness in a case status](../cs.md#public-awareness) |
-| a Participant learns that an exploit for the vulnerability is public | `Add(CaseStatus)[target=VulnerabilityCase]` | the case manager | a participant | `pxaState` = `PXa` | [Exploit public in a case status](../cs.md#exploit-public) |
-| a Participant observes attacks that exploit the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | the case manager | a participant | `pxaState` = `pxA` | [Attacks observed in a case status](../cs.md#attacks-observed) |
+| the Case Manager records that the public knows of the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the case manager | `pxaState` = `Pxa` | [Public awareness in a case status](../cs.md#public-awareness) |
+| the Case Manager records that an exploit for the vulnerability is public | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the case manager | `pxaState` = `PXa` | [Exploit public in a case status](../cs.md#exploit-public) |
+| the Case Manager records that attackers are exploiting the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the case manager | `pxaState` = `pxA` | [Attacks observed in a case status](../cs.md#attacks-observed) |
 | a Vendor becomes aware of the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | the case manager | a participant (usually: vendor) | `vfState` = `Vf` | [Vendor Awareness (CV)](../cs.md#vendor-awareness) |
 | a Vendor has a fix ready | `Add(ParticipantStatus)[target=CaseParticipant]` | the case manager | a participant (usually: vendor) | `vfState` = `VF` | [Fix Readiness (CF)](../cs.md#fix-readiness) |
 | a Deployer has deployed the fix | `Add(ParticipantStatus)[target=CaseParticipant]` | the case manager | a participant (usually: deployer) | `dState` = `D` | [Fix Deployed (CD)](../cs.md#fix-deployed) |

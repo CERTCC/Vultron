@@ -135,8 +135,11 @@ whether to adopt it as canonical:
 - The CASE_MANAGER adjudicates each state-machine dimension of a reported
   status separately. A valid `vfd` update proceeds even when the `rm` value in
   the same report is refused.
-- On adoption, the CASE_MANAGER performs the canonical write by emitting
-  `Add(CaseStatus)` addressed to itself.
+- On adoption, the CASE_MANAGER commits the adopted status as its own
+  `Add(CaseStatus)` case ledger entry, carrying the reported public state
+  where it moves the case's forward. It writes the entry directly, never by
+  sending an `Add(CaseStatus)` to itself, and a receiver refuses an
+  `Add(CaseStatus)` from any other sender.
 - The component that records the claim MUST NOT execute side-effects.
 
 !!! warning "The default is Case Owner authorization, not automatic adoption"

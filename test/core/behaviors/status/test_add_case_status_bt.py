@@ -15,11 +15,22 @@
 
 """Tests for AddCaseStatus BT nodes and tree factory.
 
-Covers steps of the AddCaseStatusToCaseBT sequence:
-  1. CheckCaseStatusIdempotencyNode  — duplicate skipped, new status passes
-  2. AppendCaseStatusToCaseNode      — status appended and persisted
+``Add(CaseStatus)`` is the CASE_MANAGER's record of the case status it
+adopted, admitted only from the case's CASE_MANAGER at a participant replica
+(RSH-04-001, RSH-04-005).  The tree-level and use-case tests here therefore
+run at a replica — the store's owner is an ordinary participant and the case
+names another actor as its CASE_MANAGER — with the CASE_MANAGER as sender, and
+assert that the guards they target, not the sender guard, decided the verdict
+(``door_guards_admitted``).  A replica writes no case state on receipt
+(RSH-08-003); the CASE_MANAGER's adoption of a participant's P, X or A, its
+teardown gate and its CSB-18 note are tested on ``Add(ParticipantStatus)`` in
+``test_add_participant_status_bt.py``.
 
-Also covers the full tree factory and use-case-level integration.
+Covers:
+  - CheckCaseStatusIdempotencyNode, the Cs dimension filters and the
+    Cs invariant guards (node level and through the tree);
+  - the sender rule: refused at the CASE_MANAGER and from a non-manager;
+  - ThreatTerminationBranchNode and EmitCaseStatusUpdateNode (node level).
 
 Regression coverage:
   - Bug #2704: FilterCsEmDimensionNode must return FAILURE (not SUCCESS) when
@@ -27,7 +38,7 @@ Regression coverage:
   - Bug #2706: FilterCsPxaDimensionNode must write the updated accumulator back
     via _set_output so PXA refusals survive a copy-returning blackboard.
 
-Per issue #758 AC-1, AC-3.
+Per issue #758 AC-1, AC-3; issue #4851.
 """
 
 from typing import cast
@@ -41,7 +52,6 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.embargo_register import activate, propose
-from test.support.note_wire import assert_case_manager_note_recorded
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -49,11 +59,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.call_out.bundles.status_authorization import (
-    STATUS_AUTHORIZATION_PERMISSIVE,
-    StatusAuthorizationCallOutBundle,
-)
-from vultron.core.behaviors.call_out.nodes import AlwaysFail
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
 )
@@ -62,17 +67,20 @@ from vultron.core.behaviors.status.add_case_status_tree import (
 )
 from vultron.core.behaviors.status.nodes import (
     CASE_STATUS_ALREADY_PRESENT,
-    AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
 )
 from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     FilterCsEmDimensionNode,
     FilterCsPxaDimensionNode,
+    FinalizeCsFilterNode,
+)
+from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
+    CheckCsEphemeralStateNode,
 )
 from vultron.core.behaviors.status.nodes.lifecycle import (
     ThreatTerminationBranchNode,
 )
-from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
@@ -89,8 +97,13 @@ from vultron.core.models.pending_assertion import (
     PendingAssertion,
     get_pending_assertion_store,
 )
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.use_cases.received._bt_verdict import (
+    door_guards_admitted,
+    node_failed,
+)
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
 )
@@ -115,12 +128,85 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 # Constants
 # ---------------------------------------------------------------------------
 
+#: The store owner of the replica tests: an ordinary participant.
 ACTOR_ID = "https://example.org/actors/vendor"
+#: The case's CASE_MANAGER: the only sender of ``Add(CaseStatus)``.
+CASE_MANAGER_ID = "https://example.org/actors/case-manager"
+CM_PARTICIPANT_ID = (
+    "https://example.org/cases/case-bt-01/participants/case-manager"
+)
 CASE_ID = "https://example.org/cases/case-bt-01"
 #: The declared rule the factory composes the sender guard from (HP-01-008).
 _CASE_STATUS_RULE = AddCaseStatusToCaseReceivedUseCase.sender_entitlement
 STATUS_ID = "https://example.org/cases/case-bt-01/statuses/s1"
 STATUS2_ID = "https://example.org/cases/case-bt-01/statuses/s2"
+
+
+# ---------------------------------------------------------------------------
+# Replica helpers
+# ---------------------------------------------------------------------------
+
+
+def _replica_store(
+    case: VulnerabilityCase, replica_id: str = ACTOR_ID
+) -> SqliteDataLayer:
+    """*replica_id*'s store holding *case*, seated beside its CASE_MANAGER.
+
+    The CASE_MANAGER is :data:`CASE_MANAGER_ID`, so the store's owner
+    receives ``Add(CaseStatus)`` as a participant replica (RSH-04-005).
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=replica_id)
+    seed_case_manager_participant(dl, case, CASE_MANAGER_ID)
+    seed_case_participant(dl, case, replica_id)
+    dl.create(case)
+    return dl
+
+
+def _from_manager(
+    status: as_CaseStatus,
+    target: str | as_VulnerabilityCase = CASE_ID,
+    replica_id: str = ACTOR_ID,
+):
+    """The CASE_MANAGER's ``Add(CaseStatus)``, addressed to *replica_id*."""
+    return add_status_to_case_activity(
+        status, target=target, actor=CASE_MANAGER_ID, to=[replica_id]
+    )
+
+
+def _run_at_replica(
+    dl: SqliteDataLayer,
+    event: AddCaseStatusToCaseReceivedEvent,
+    tree: py_trees.behaviour.Behaviour | None = None,
+):
+    """Run *tree* (default: the AddCaseStatus tree for *event*) at the replica.
+
+    Returns ``(result, tree)``.
+    """
+    tree = tree or add_case_status_tree(
+        sender_rule=_CASE_STATUS_RULE, request=event
+    )
+    bridge = BTBridge(
+        datalayer=dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    )
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=str(dl.actor_id), activity=event
+    )
+    return result, tree
+
+
+def _ledger_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
+    return [
+        e
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry)
+    ]
+
+
+def _status_ids(dl: SqliteDataLayer) -> list[str | None]:
+    case = cast(VulnerabilityCase, dl.read(CASE_ID))
+    return [_as_id(s) for s in case.case_statuses]
 
 
 # ---------------------------------------------------------------------------
@@ -131,8 +217,6 @@ STATUS2_ID = "https://example.org/cases/case-bt-01/statuses/s2"
 @pytest.fixture
 def dl():
     # The node-level tests below run as ACTOR_ID, so this is ACTOR_ID's store.
-    # The use-case and authorization-gate tests further down run as the case
-    # manager and build their own CASE_MANAGER_ID store for that reason.
     return SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
 
 
@@ -147,11 +231,10 @@ def bridge(dl):
 
 @pytest.fixture
 def case():
-    # RSH-08-003 (#3814): AppendCaseStatusToCaseNode and the teardown effects
-    # are CASE_MANAGER-gated, so ACTOR_ID (the store owner these tree-level
-    # tests run as) holds the role; attributed_to seeds the CLP-08 genesis.
+    # ACTOR_ID's replica of a case the CASE_MANAGER holds; attributed_to
+    # seeds the CLP-08 genesis.
     return as_VulnerabilityCase(
-        id_=CASE_ID, name="BT Case", attributed_to=ACTOR_ID
+        id_=CASE_ID, name="BT Case", attributed_to=CASE_MANAGER_ID
     )
 
 
@@ -162,7 +245,8 @@ def status_obj():
 
 @pytest.fixture
 def populated_dl(dl, case, status_obj):
-    seed_case_manager_participant(dl, case, ACTOR_ID)
+    seed_case_manager_participant(dl, case, CASE_MANAGER_ID)
+    seed_case_participant(dl, case, ACTOR_ID)
     dl.create(case)
     dl.create(status_obj)
     return dl
@@ -222,104 +306,6 @@ class TestCheckCaseStatusIdempotencyNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
         assert node.feedback_message != CASE_STATUS_ALREADY_PRESENT
-
-
-# ---------------------------------------------------------------------------
-# AppendCaseStatusToCaseNode
-# ---------------------------------------------------------------------------
-
-
-class TestAppendCaseStatusToCaseNode:
-    def test_appends_status_to_case(self, populated_dl):
-        """Status is appended to case.case_statuses and case is saved."""
-        bridge = BTBridge(
-            datalayer=populated_dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(populated_dl),
-        )
-        node = AppendCaseStatusToCaseNode(
-            case_id=CASE_ID,
-            status_id=STATUS_ID,
-            status_obj_fallback=None,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-        case = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
-        status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
-        assert STATUS_ID in status_ids
-
-    def test_case_not_found_fails(self, bridge):
-        """Case not in DataLayer → FAILURE."""
-        node = AppendCaseStatusToCaseNode(
-            case_id="https://example.org/cases/nonexistent",
-            status_id=STATUS_ID,
-            status_obj_fallback=None,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-
-    def test_status_not_in_dl_uses_fallback(self, dl):
-        """Status not in DL; fallback inline object is saved and used."""
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Fallback Case")
-        dl.create(case)
-
-        inline_status = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        node = AppendCaseStatusToCaseNode(
-            case_id=CASE_ID,
-            status_id=STATUS_ID,
-            status_obj_fallback=inline_status,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-        case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
-        status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
-        assert STATUS_ID in status_ids
-
-    def test_ephemeral_pXa_promoted_before_append(self, dl):
-        """AC-1 / SM-09-001: pXa PXA is promoted to PXa before appending."""
-        from vultron.core.models.dimensions import PxaDimension
-
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Promotion Case")
-        dl.create(case)
-
-        # em defaults to EmDimension() via default_factory
-        ephemeral_status = CaseStatus(
-            id_=STATUS_ID,
-            context=CASE_ID,
-            attributed_to=ACTOR_ID,
-            pxa=PxaDimension(state=CS_pxa.pXa),
-        )
-        dl.save(ephemeral_status)
-
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        node = AppendCaseStatusToCaseNode(
-            case_id=CASE_ID,
-            status_id=STATUS_ID,
-            status_obj_fallback=None,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-        reloaded_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
-        promoted = [
-            s
-            for s in reloaded_case.case_statuses
-            if isinstance(s, CaseStatus)
-            and getattr(s, "id_", None) == STATUS_ID
-        ]
-        assert promoted, "Promoted CaseStatus must be appended to case"
-        assert promoted[0].pxa.state is CS_pxa.PXa
 
 
 # ---------------------------------------------------------------------------
@@ -390,53 +376,35 @@ class TestFilterCsEmDimensionNodeBug2704:
 
     @pytest.mark.spec("CLP-10-009")
     def test_unresolvable_status_produces_no_ledger_entry(self, make_payload):
-        """Full tree: unresolvable status aborts before GuardedCommit → zero CaseLedgerEntries (#2704).
+        """Full tree: an unresolvable status fails FilterCsEmDimensionNode
+        before GuardedCommit → zero CaseLedgerEntries (#2704).
 
-        This test FAILS on pre-fix code where the guard returned SUCCESS,
-        allowing GuardedCommit to fire and leave an orphaned ledger entry.
+        Runs at a replica, from the CASE_MANAGER (RSH-04-005), so the sender
+        guard admits it and the filter is what refuses it.
         """
         from unittest.mock import PropertyMock, patch
 
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
-        dl = self._build_dl()
-        # STATUS_ID intentionally NOT written to DL — _resolve_asserted() returns None.
-        wire_case = as_VulnerabilityCase(id_=CASE_ID, name="2704 Case")
-        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        activity = add_status_to_case_activity(
-            status_obj, target=wire_case, actor=CASE_MANAGER_ID_2704
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="2704 Case", attributed_to=CASE_MANAGER_ID
         )
-        event = make_payload(activity)
+        dl = _replica_store(case)
+        # STATUS_ID intentionally NOT written to DL — _resolve_asserted() returns None.
+        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        event = make_payload(_from_manager(status_obj))
 
         # Patch request.status to None so status_obj_fallback=None in the tree factory.
         with patch.object(
             type(event), "status", new_callable=PropertyMock, return_value=None
         ):
-            tree = add_case_status_tree(
-                sender_rule=_CASE_STATUS_RULE,
-                request=event,
-                call_out=STATUS_AUTHORIZATION_PERMISSIVE,
-            )
-            bridge = BTBridge(
-                datalayer=dl,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            )
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=CASE_MANAGER_ID_2704, activity=event
-            )
+            result, tree = _run_at_replica(dl, event)
 
         assert result.status == Status.FAILURE
-
-        entries = [
-            e
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry)
-        ]
-        assert len(entries) == 0, (
+        assert door_guards_admitted(tree)
+        assert node_failed(tree, FilterCsEmDimensionNode), (
             "An unresolvable status must be rejected by FilterCsEmDimensionNode"
-            " before GuardedCommit fires — zero CaseLedgerEntries (CLP-10-009, #2704)"
+            " before GuardedCommit fires (CLP-10-009, #2704)"
         )
+        assert _ledger_entries(dl) == []
 
 
 # ---------------------------------------------------------------------------
@@ -479,35 +447,6 @@ class TestFilterCsPxaDimensionNodeBug2706:
     a refused assertion.
     """
 
-    def _build_dl(self):
-        """Return a DataLayer with pxa=Pxa current state and a pxa=pxa regression asserted."""
-        from vultron.enums.roles import CVDRole
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:", actor_id=CASE_MANAGER_ID_2706
-        )
-        cm_participant = CaseParticipant(
-            id_=f"{CASE_ID}/participants/cm-2706",
-            context=CASE_ID,
-            attributed_to=CASE_MANAGER_ID_2706,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        case = VulnerabilityCase(
-            id_=CASE_ID,
-            name="2706 Test Case",
-            attributed_to=CASE_MANAGER_ID_2706,
-        )
-        case.add_participant(cm_participant)
-        case.append_case_status(pxa=CS_pxa.Pxa)
-        dl.create(case)
-        dl.create(cm_participant)
-        # Asserted: pxa regression (pxa=pxa instead of Pxa), same EM
-        asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pxa)
-        )
-        dl.create(asserted)
-        return dl
-
     def test_output_ports_include_acc_write_back(self):
         """FilterCsPxaDimensionNode must declare an output port for accumulator write-back (#2706).
 
@@ -531,28 +470,28 @@ class TestFilterCsPxaDimensionNodeBug2706:
         Without the fix the mutation is discarded, FinalizeCsFilterNode sees an
         empty refused list and the tree incorrectly returns SUCCESS.
 
-        This test FAILS on pre-fix code and PASSES after the fix.
+        Runs at a replica, from the CASE_MANAGER (RSH-04-005), so the sender
+        guard admits it and FinalizeCsFilterNode is what refuses it.
         """
+        import copy as _copy
         from unittest.mock import patch
 
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
-        dl = self._build_dl()
-        wire_case = as_VulnerabilityCase(id_=CASE_ID, name="2706 Case")
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="2706 Case", attributed_to=CASE_MANAGER_ID
+        )
+        case.append_case_status(pxa=CS_pxa.Pxa)
+        dl = _replica_store(case)
+        # Asserted: pxa regression (pxa=pxa instead of Pxa), same EM
         status_obj = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pxa)
         )
-        activity = add_status_to_case_activity(
-            status_obj, target=wire_case, actor=CASE_MANAGER_ID_2706
-        )
-        event = make_payload(activity)
+        dl.create(status_obj)
+        event = make_payload(_from_manager(status_obj))
 
-        # Patch get_input on FilterCsPxaDimensionNode to return a DEEP COPY of any dict,
-        # simulating a blackboard that never returns mutable references.
-        # A shallow dict() copy shares nested lists, so deep copy is required to
-        # isolate the mutation from the stored object.
-        import copy as _copy
-
+        # Patch get_input on FilterCsPxaDimensionNode to return a DEEP COPY of
+        # any dict, simulating a blackboard that never returns mutable
+        # references.  A shallow dict() copy shares nested lists, so deep copy
+        # is required to isolate the mutation from the stored object.
         _real_get_input = FilterCsPxaDimensionNode.get_input
 
         def _copy_returning(self_node, port_name, default=None):
@@ -562,137 +501,191 @@ class TestFilterCsPxaDimensionNodeBug2706:
         with patch.object(
             FilterCsPxaDimensionNode, "get_input", new=_copy_returning
         ):
-            tree = add_case_status_tree(
-                sender_rule=_CASE_STATUS_RULE,
-                request=event,
-                call_out=STATUS_AUTHORIZATION_PERMISSIVE,
-            )
-            bridge = BTBridge(
-                datalayer=dl,
-                wire_render_port=As2WireRenderAdapter(),
-                sync_port=SyncActivityAdapter(dl),
-            )
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=CASE_MANAGER_ID_2706, activity=event
-            )
+            result, tree = _run_at_replica(dl, event)
 
-        # pxa regression with no EM change → whole refusal → FAILURE, zero ledger entries.
-        # Without fix: copy mutation discarded → Finalize sees refused=[] → SUCCESS → ledger written.
+        # pxa regression with no EM change → whole refusal → FAILURE.
+        # Without fix: copy mutation discarded → Finalize sees refused=[] → SUCCESS.
         # With fix:    _set_output writes updated acc → Finalize sees refused=['pxa'] → FAILURE.
         assert result.status == Status.FAILURE
+        assert door_guards_admitted(tree)
+        assert node_failed(tree, FinalizeCsFilterNode), (
+            "A whole-refused PXA regression must fail FinalizeCsFilterNode."
+            " FilterCsPxaDimensionNode must write the updated acc back via"
+            " _set_output (#2706)"
+        )
+        assert _ledger_entries(dl) == []
 
-        entries = [
-            e
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry)
-        ]
-        assert len(entries) == 0, (
-            "A whole-refused PXA regression must produce zero CaseLedgerEntries."
-            " FilterCsPxaDimensionNode must write the updated acc back via _set_output (#2706)"
+
+# ---------------------------------------------------------------------------
+# Full tree: add_case_status_tree, at a participant replica
+# ---------------------------------------------------------------------------
+
+
+def _capture_override(tree: py_trees.behaviour.Behaviour):
+    """Wrap *tree* with a probe that captures the ledger payload override.
+
+    The override is a within-execution hand-off (FinalizeCsFilterNode writes
+    it, GuardedCommit consumes it) and the bridge resets it at the execution
+    boundary (#3101, ADR-0087), so it is not readable after
+    ``execute_with_setup`` returns.  A SUCCESS probe appended after the tree
+    still sees Finalize's write on the accept path.  Returns
+    ``(probed_tree, captured)``.
+    """
+    captured: dict[str, object] = {}
+
+    class _CaptureOverride(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            captured["override"] = py_trees.blackboard.Blackboard.storage.get(
+                "/ledger_payload_object_override"
+            )
+            return Status.SUCCESS
+
+    probed = py_trees.composites.Sequence(
+        name="AddCaseStatusToCaseBTWithProbe",
+        memory=False,
+        children=[tree, _CaptureOverride(name="CaptureOverride")],
+    )
+    return probed, captured
+
+
+class TestAddCaseStatusTreeSenderRule:
+    """Only the case's CASE_MANAGER sends ``Add(CaseStatus)``, and only to a
+    participant (RSH-04-005): the factory's sender guard refuses anything
+    else before a precondition guard runs."""
+
+    @pytest.mark.spec("RSH-04-005")
+    @pytest.mark.spec("HP-01-006")
+    def test_a_participants_status_is_refused_at_a_replica(
+        self, populated_dl, make_payload, status_obj
+    ):
+        peer = "https://example.org/actors/peer"
+        case = cast(VulnerabilityCase, populated_dl.read(CASE_ID))
+        seed_case_participant(populated_dl, case, peer)
+        populated_dl.save(case)
+        activity = add_status_to_case_activity(
+            status_obj, target=CASE_ID, actor=peer, to=[ACTOR_ID]
         )
 
+        result, tree = _run_at_replica(populated_dl, make_payload(activity))
 
-# ---------------------------------------------------------------------------
-# Full tree: add_case_status_tree
-# ---------------------------------------------------------------------------
+        assert result.status == Status.FAILURE
+        assert not door_guards_admitted(tree)
+        assert STATUS_ID not in _status_ids(populated_dl)
+        assert populated_dl.outbox_list() == []
+
+    @pytest.mark.spec("RSH-04-005")
+    @pytest.mark.spec("HP-01-006")
+    def test_a_status_sent_to_the_case_manager_is_refused(self, make_payload):
+        """Not even the CASE_MANAGER's own: no sender is entitled at the
+        CASE_MANAGER, so nothing is appended or committed."""
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="At the manager", attributed_to=CASE_MANAGER_ID
+        )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
+        seed_case_manager_participant(dl, case, CASE_MANAGER_ID)
+        seed_case_participant(dl, case, ACTOR_ID)
+        dl.create(case)
+        status_obj = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
+        )
+        dl.create(status_obj)
+
+        for sender in (ACTOR_ID, CASE_MANAGER_ID):
+            activity = add_status_to_case_activity(
+                status_obj, target=CASE_ID, actor=sender, to=[CASE_MANAGER_ID]
+            )
+            result, tree = _run_at_replica(dl, make_payload(activity))
+
+            assert result.status == Status.FAILURE, sender
+            assert not door_guards_admitted(tree), sender
+            assert STATUS_ID not in _status_ids(dl), sender
+            assert _ledger_entries(dl) == [], sender
+            assert dl.outbox_list() == [], sender
+
+    @pytest.mark.spec("RSH-04-005")
+    @pytest.mark.spec("RSH-03-004")
+    def test_the_tree_has_no_effects(self, populated_dl, make_payload):
+        """No append, teardown or CSB-18 note: a replica takes the status from
+        the ledger fan-out (RSH-08-003) and the CASE_MANAGER declared it, so
+        nothing is asked (RSH-03-004)."""
+        from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
+            PxaEmInvariantDiagnosticNode,
+        )
+
+        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE,
+            request=make_payload(_from_manager(status_obj)),
+        )
+        node_types = {type(n) for n in tree.iterate()}
+        assert ThreatTerminationBranchNode not in node_types
+        assert PxaEmInvariantDiagnosticNode not in node_types
 
 
 class TestAddCaseStatusTree:
-    def test_happy_path_appends_status(
-        self, populated_dl, make_payload, case, status_obj
+    @pytest.mark.spec("RSH-04-005")
+    @pytest.mark.spec("RSH-08-003")
+    def test_happy_path_is_admitted_and_writes_nothing(
+        self, populated_dl, make_payload, status_obj
     ):
-        """Full Sequence: new status is appended to case."""
-        activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID
-        )
-        event = make_payload(activity)
-
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE,
-            request=event,
-            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
-        )
-        bridge = BTBridge(
-            datalayer=populated_dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(populated_dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
+        """Full Sequence at a replica: the CASE_MANAGER's new status passes
+        every guard, and the replica appends nothing — it takes the status
+        from the ledger fan-out (RSH-08-003, PCR-03-001)."""
+        result, tree = _run_at_replica(
+            populated_dl, make_payload(_from_manager(status_obj))
         )
         assert result.status == Status.SUCCESS
-
-        updated_case = populated_dl.read(CASE_ID)
-        status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
-        assert STATUS_ID in status_ids
+        assert door_guards_admitted(tree)
+        assert STATUS_ID not in _status_ids(populated_dl)
+        assert _ledger_entries(populated_dl) == []
 
     def test_idempotent_duplicate_fails_with_sentinel(
         self, populated_dl, make_payload, case, status_obj
     ):
         """Duplicate status → BT FAILURE with CASE_STATUS_ALREADY_PRESENT."""
         # Pre-load the status onto the case (use wire types for DL save)
-        case.case_statuses.append(status_obj.id_)
-        populated_dl.save(case)
+        stored = cast(VulnerabilityCase, populated_dl.read(CASE_ID))
+        stored.case_statuses.append(status_obj.id_)
+        populated_dl.save(stored)
 
-        activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID
-        )
-        event = make_payload(activity)
-
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE, request=event
-        )
-        bridge = BTBridge(
-            datalayer=populated_dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(populated_dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
+        result, tree = _run_at_replica(
+            populated_dl, make_payload(_from_manager(status_obj))
         )
         assert result.status == Status.FAILURE
+        assert door_guards_admitted(tree)
         assert BTBridge.get_failure_reason(tree) == CASE_STATUS_ALREADY_PRESENT
 
     @pytest.mark.spec("RSH-05-017")
     @pytest.mark.spec("RSH-05-023")
-    def test_status_moving_em_alone_is_refused(self, dl, make_payload):
+    def test_status_moving_em_alone_is_refused(self, make_payload):
         """A status whose only change is EM → refused in full; not appended.
 
         EM is derived from the embargo register and no status moves it
         (RSH-05-023): the asserted EM is refused and the case's carried
         forward, which leaves nothing new, so the tree FAILS (RSH-05-005).
         """
-        case = as_VulnerabilityCase(id_=CASE_ID, name="EM Guard")
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, name="EM Guard", attributed_to=CASE_MANAGER_ID
+        )
         initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
             em=EmDimension(state=EM.NONE),
         )
         case.case_statuses.append(initial)  # type: ignore[arg-type]
-        dl.create(case)
+        dl = _replica_store(case)
 
         bad_status = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
         )
         dl.create(bad_status)
 
-        activity = add_status_to_case_activity(
-            bad_status, target=case, actor=ACTOR_ID
-        )
-        event = make_payload(activity)
-
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE, request=event
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
+        result, tree = _run_at_replica(
+            dl, make_payload(_from_manager(bad_status, target=case))
         )
         assert result.status == Status.FAILURE
+        assert door_guards_admitted(tree)
+        assert node_failed(tree, FinalizeCsFilterNode)
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
@@ -700,9 +693,7 @@ class TestAddCaseStatusTree:
         assert updated_case.em_state == EM.NONE
 
     @pytest.mark.spec("CSB-17-012")
-    def test_px_ephemeral_a_event_rejected_no_ledger_write(
-        self, dl, make_payload
-    ):
+    def test_px_ephemeral_a_event_rejected_no_ledger_write(self, make_payload):
         """Full tree rejects A-event from pX state; no ledger write (CSB-17-012, ISSUE-2524).
 
         When the current PXA state is pXa (exploit public, public unaware),
@@ -711,12 +702,14 @@ class TestAddCaseStatusTree:
         and no CaseStatus entry should be appended to the case.
         """
         case = VulnerabilityCase(
-            id_=CASE_ID, name="Ephemeral pX Guard", attributed_to=ACTOR_ID
+            id_=CASE_ID,
+            name="Ephemeral pX Guard",
+            attributed_to=CASE_MANAGER_ID,
         )
         # Auto-seeded baseline is pxa; advance to pXa (X exploit published,
         # P still false — the ephemeral state that requires P next).
         case.append_case_status(pxa=CS_pxa.pXa)
-        dl.create(case)
+        dl = _replica_store(case)
 
         # Asserted status fires A-event only (pXa → pXA); P is NOT advanced.
         asserted = as_CaseStatus(
@@ -726,51 +719,36 @@ class TestAddCaseStatusTree:
         )
         dl.create(asserted)
 
-        activity = add_status_to_case_activity(
-            asserted, target=case.id_, actor=ACTOR_ID
-        )
-        event = make_payload(activity)
-
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE, request=event
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
+        result, tree = _run_at_replica(
+            dl, make_payload(_from_manager(asserted))
         )
         assert result.status == Status.FAILURE
-
-        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
-        status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
-        assert STATUS_ID not in status_ids
+        assert door_guards_admitted(tree)
+        assert node_failed(tree, CheckCsEphemeralStateNode)
+        assert STATUS_ID not in _status_ids(dl)
 
     @pytest.mark.spec("RSH-05-015")
     @pytest.mark.spec("RSH-05-016")
     @pytest.mark.spec("RSH-05-023")
     @pytest.mark.spec("RSH-05-019")
-    def test_em_move_with_pxa_advance_refuses_em_and_applies_pxa(
-        self, dl, make_payload
+    def test_em_move_with_pxa_advance_refuses_em_and_accepts_pxa(
+        self, make_payload
     ):
         """EM move (NONE→PROPOSED) with a PXA advance → BT SUCCEEDS.
 
         Bug #2256: all-or-nothing CS validation discarded a valid dimension
-        when another was refused, aborting the Sequence before
-        ThreatTerminationBranchNode.  Per-dimension adjudication refuses the
+        when another was refused.  Per-dimension adjudication refuses the
         asserted EM — a status never moves EM (RSH-05-023) — carries the
-        case's EM forward, and still accepts the PXA advance.
+        case's EM forward, and still accepts the PXA advance: the filtered
+        status the guards publish holds EM NONE and PXA Pxa.  The CASE_MANAGER
+        side of the same split, on an adopted participant report, is
+        ``test_an_adopted_report_never_moves_em``.
         """
         case = VulnerabilityCase(
-            id_=CASE_ID, name="EM PXA Split", attributed_to=ACTOR_ID
+            id_=CASE_ID, name="EM PXA Split", attributed_to=CASE_MANAGER_ID
         )
-        # RSH-08-003 (#3814): the append is CASE_MANAGER-gated, so ACTOR_ID
-        # (the store owner) holds the role.
-        seed_case_manager_participant(dl, case, ACTOR_ID)
         # Auto-seeded CaseStatus has pxa=pxa and EM NONE.
-        dl.create(case)
+        dl = _replica_store(case)
 
         # Sender asserts EM NONE→PROPOSED (refused) + PXA pxa→Pxa (valid)
         asserted = as_CaseStatus(
@@ -780,53 +758,31 @@ class TestAddCaseStatusTree:
             pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl.create(asserted)
+        event = make_payload(_from_manager(asserted))
+        probed, captured = _capture_override(
+            add_case_status_tree(sender_rule=_CASE_STATUS_RULE, request=event)
+        )
 
-        activity = add_status_to_case_activity(
-            asserted, target=case.id_, actor=ACTOR_ID
-        )
-        event = make_payload(activity)
-
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE,
-            request=event,
-            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
-        )
+        result, _ = _run_at_replica(dl, event, tree=probed)
 
         assert result.status == Status.SUCCESS
-
+        fields = cast(dict, captured["override"])["fields"]
+        assert fields == {"emState": EM.NONE.name, "pxaState": "Pxa"}
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
-        status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
-        assert STATUS_ID in status_ids
         assert updated_case.em_state == EM.NONE
-
-        # PXA advance accepted, EM carried forward (not moved).  Assert on
-        # the saved domain CaseStatus at STATUS_ID, not current_status.
-        saved_status = cast(CaseStatus, dl.read(STATUS_ID))
-        assert saved_status.em.state == EM.NONE
-        assert saved_status.pxa.state == CS_pxa.Pxa
 
     @pytest.mark.spec("RSH-05-023")
     def test_status_carrying_the_cases_em_passes_it(
-        self, dl, make_payload, caplog
+        self, make_payload, caplog
     ):
         """An asserted EM identical to the case's is not refused (RSH-05-023)."""
         import logging
 
         case = VulnerabilityCase(
-            id_=CASE_ID, name="EM Carried", attributed_to=ACTOR_ID
+            id_=CASE_ID, name="EM Carried", attributed_to=CASE_MANAGER_ID
         )
         propose(case, f"{CASE_ID}/embargo_events/carried")
-        # The sender must hold a participant record (HP-01-006).
-        seed_case_participant(dl, case, ACTOR_ID)
-        dl.create(case)
+        dl = _replica_store(case)
 
         asserted = as_CaseStatus(
             id_=STATUS_ID,
@@ -835,41 +791,28 @@ class TestAddCaseStatusTree:
             pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl.create(asserted)
-
-        activity = add_status_to_case_activity(
-            asserted, target=case.id_, actor=ACTOR_ID
-        )
-        event = make_payload(activity)
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE,
-            request=event,
-            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
+        event = make_payload(_from_manager(asserted))
+        probed, captured = _capture_override(
+            add_case_status_tree(sender_rule=_CASE_STATUS_RULE, request=event)
         )
 
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=ACTOR_ID, activity=event
-            )
+            result, _ = _run_at_replica(dl, event, tree=probed)
 
         assert result.status == Status.SUCCESS
         assert not [
             r for r in caplog.records if "refused EM" in r.getMessage()
         ]
-        saved_status = cast(CaseStatus, dl.read(STATUS_ID))
-        assert saved_status.em.state == EM.PROPOSED
-        assert saved_status.pxa.state == CS_pxa.Pxa
+        # Nothing refused, so the guards publish no override: the status is
+        # taken as asserted.
+        assert captured["override"] is None
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         assert updated_case.em_state == EM.PROPOSED
 
     @pytest.mark.spec("RSH-05-019")
     @pytest.mark.spec("SL-03-001")
     def test_pxa_refusal_warning_names_case_id_not_status_id(
-        self, dl, make_payload, caplog
+        self, make_payload, caplog
     ):
         """The PXA refusal WARNING reports the case ID, with the status ID labelled.
 
@@ -881,12 +824,10 @@ class TestAddCaseStatusTree:
         import logging
 
         case = VulnerabilityCase(
-            id_=CASE_ID, name="PXA Refusal Log", attributed_to=ACTOR_ID
+            id_=CASE_ID, name="PXA Refusal Log", attributed_to=CASE_MANAGER_ID
         )
         case.append_case_status(pxa=CS_pxa.Pxa)
-        # The sender must hold a participant record (HP-01-006).
-        seed_case_participant(dl, case, ACTOR_ID)
-        dl.create(case)
+        dl = _replica_store(case)
 
         # The case's own EM + PXA regression → PXA dimension refused and
         # logged; nothing else is new, so the status is refused in full
@@ -899,26 +840,12 @@ class TestAddCaseStatusTree:
         )
         dl.create(asserted)
 
-        activity = add_status_to_case_activity(
-            asserted, target=case.id_, actor=ACTOR_ID
-        )
-        event = make_payload(activity)
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE,
-            request=event,
-            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=ACTOR_ID, activity=event
+            result, tree = _run_at_replica(
+                dl, make_payload(_from_manager(asserted))
             )
         assert result.status == Status.FAILURE
+        assert door_guards_admitted(tree)
 
         pxa_refusals = [
             r.getMessage()
@@ -934,7 +861,7 @@ class TestAddCaseStatusTree:
     @pytest.mark.spec("RSH-05-023")
     @pytest.mark.spec("SL-03-001")
     def test_em_refusal_warning_names_case_id_and_labelled_status_id(
-        self, dl, make_payload, caplog
+        self, make_payload, caplog
     ):
         """The EM refusal WARNING has the same shape as the PXA one (#3039).
 
@@ -945,12 +872,10 @@ class TestAddCaseStatusTree:
         import logging
 
         case = VulnerabilityCase(
-            id_=CASE_ID, name="EM Refusal Log", attributed_to=ACTOR_ID
+            id_=CASE_ID, name="EM Refusal Log", attributed_to=CASE_MANAGER_ID
         )
         case.append_case_status(pxa=CS_pxa.pxa)
-        # The sender must hold a participant record (HP-01-006).
-        seed_case_participant(dl, case, ACTOR_ID)
-        dl.create(case)
+        dl = _replica_store(case)
 
         # EM other than the case's (NONE → ACTIVE) + valid PXA advance → EM
         # refused, tree still SUCCEEDS (partial accept), refusal is logged.
@@ -962,24 +887,9 @@ class TestAddCaseStatusTree:
         )
         dl.create(asserted)
 
-        activity = add_status_to_case_activity(
-            asserted, target=case.id_, actor=ACTOR_ID
-        )
-        event = make_payload(activity)
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE,
-            request=event,
-            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-
         with caplog.at_level(logging.WARNING):
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=ACTOR_ID, activity=event
+            result, _ = _run_at_replica(
+                dl, make_payload(_from_manager(asserted))
             )
         assert result.status == Status.SUCCESS
 
@@ -995,7 +905,7 @@ class TestAddCaseStatusTree:
 
     @pytest.mark.spec("RSH-05-012")
     def test_finalize_cs_filter_node_emstate_uses_name_serialization(
-        self, dl, make_payload
+        self, make_payload
     ):
         """emState in BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE equals EM member .name.
 
@@ -1006,12 +916,10 @@ class TestAddCaseStatusTree:
         equals .name only while no EM member has value ≠ name (RSH-05-012).
         """
         case = VulnerabilityCase(
-            id_=CASE_ID, name="EM PXA Split", attributed_to=ACTOR_ID
+            id_=CASE_ID, name="EM PXA Split", attributed_to=CASE_MANAGER_ID
         )
         propose(case, f"{CASE_ID}/embargo_events/serialized")
-        # The sender must hold a participant record (HP-01-006).
-        seed_case_participant(dl, case, ACTOR_ID)
-        dl.create(case)
+        dl = _replica_store(case)
 
         # EM PROPOSED→ACTIVE refused (carried forward as PROPOSED) + PXA
         # pxa→Pxa accepted: a partial accept, so Finalize writes the override.
@@ -1022,48 +930,12 @@ class TestAddCaseStatusTree:
             pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl.create(asserted)
-
-        activity = add_status_to_case_activity(
-            asserted, target=case.id_, actor=ACTOR_ID
-        )
-        event = make_payload(activity)
-
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE,
-            request=event,
-            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
+        event = make_payload(_from_manager(asserted))
+        probed, captured = _capture_override(
+            add_case_status_tree(sender_rule=_CASE_STATUS_RULE, request=event)
         )
 
-        # The override is a within-execution hand-off (FinalizeCsFilterNode
-        # writes it, GuardedCommit consumes it) and the bridge now resets it at
-        # the execution boundary (#3101, ADR-0087), so it is no longer readable
-        # after execute_with_setup returns.  Capture it mid-execution with a
-        # SUCCESS probe appended after the tree: on the accept path nothing
-        # clears it within the tree, so the probe still sees Finalize's write.
-        captured: dict[str, object] = {}
-
-        class _CaptureOverride(py_trees.behaviour.Behaviour):
-            def update(self) -> Status:
-                captured["override"] = (
-                    py_trees.blackboard.Blackboard.storage.get(
-                        "/ledger_payload_object_override"
-                    )
-                )
-                return Status.SUCCESS
-
-        probed = py_trees.composites.Sequence(
-            name="AddCaseStatusToCaseBTWithProbe",
-            memory=False,
-            children=[tree, _CaptureOverride(name="CaptureOverride")],
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=probed, actor_id=ACTOR_ID, activity=event
-        )
+        result, _ = _run_at_replica(dl, event, tree=probed)
         assert result.status == Status.SUCCESS
 
         override = cast(dict, captured.get("override"))
@@ -1080,72 +952,65 @@ class TestAddCaseStatusTree:
 
 
 # ---------------------------------------------------------------------------
-# Use-case level (integration with BT)
+# Use-case level (integration with BT), at a participant replica
 # ---------------------------------------------------------------------------
 
 
+def _replica_with_status(
+    status_obj: as_CaseStatus,
+    *,
+    preload: bool = False,
+    initial: as_CaseStatus | None = None,
+) -> SqliteDataLayer:
+    case = as_VulnerabilityCase(
+        id_=CASE_ID, name="UC Case", attributed_to=CASE_MANAGER_ID
+    )
+    if initial is not None:
+        case.case_statuses.append(initial)  # type: ignore[arg-type]
+    if preload:
+        case.case_statuses.append(status_obj)  # type: ignore[arg-type]
+    dl = _replica_store(case)
+    dl.create(status_obj)
+    return dl
+
+
 class TestAddCaseStatusToCaseReceivedUseCase:
-    def test_use_case_appends_status(self, make_payload):
-        """Use case succeeds: status is appended to case."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=CASE_MANAGER_ID,
-        )
-        # RSH-08-003 (#3814): the append is CASE_MANAGER-gated, so the
-        # receiving store (CASE_MANAGER_ID) holds the role; attributed_to
-        # seeds the CLP-08 genesis.
-        case = as_VulnerabilityCase(
-            id_=CASE_ID, name="UC Case", attributed_to=CASE_MANAGER_ID
-        )
+    @pytest.mark.spec("RSH-04-005")
+    @pytest.mark.spec("RSH-08-003")
+    def test_use_case_admits_the_managers_status_and_writes_nothing(
+        self, make_payload
+    ):
+        """The CASE_MANAGER's status is admitted at a replica, which appends
+        nothing: it takes the status from the ledger fan-out."""
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        seed_case_manager_participant(dl, case, CASE_MANAGER_ID)
-        # The sender must hold a participant record (HP-01-006).
-        seed_case_participant(dl, case, ACTOR_ID)
-        dl.create(case)
-        dl.create(status_obj)
+        dl = _replica_with_status(status_obj)
 
-        activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
-        )
-        event = make_payload(activity)
-
-        AddCaseStatusToCaseReceivedUseCase(
+        result = AddCaseStatusToCaseReceivedUseCase(
             dl,
-            event,
+            make_payload(_from_manager(status_obj)),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
-        status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
-        assert STATUS_ID in status_ids
+        assert result.disposition is HandlerDisposition.APPLIED, result
+        assert STATUS_ID not in _status_ids(dl)
+        assert dl.outbox_list() == []
 
     def test_use_case_idempotent_logs_info(self, make_payload, caplog):
-        """Duplicate status → no append; use case ledgers at INFO not WARNING."""
+        """Duplicate status → SKIPPED; use case logs at INFO not WARNING."""
         import logging
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=CASE_MANAGER_ID,
-        )
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Idempotent Case")
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        case.case_statuses.append(status_obj)  # type: ignore[arg-type]
-        # The sender must hold a participant record (HP-01-006).
-        seed_case_participant(dl, case, ACTOR_ID)
-        dl.create(case)
-        dl.create(status_obj)
-
-        activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
-        )
-        event = make_payload(activity)
+        dl = _replica_with_status(status_obj, preload=True)
 
         with caplog.at_level(logging.DEBUG):
-            AddCaseStatusToCaseReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+            result = AddCaseStatusToCaseReceivedUseCase(
+                dl,
+                make_payload(_from_manager(status_obj)),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
+        assert result.disposition is HandlerDisposition.SKIPPED, result
         info_msgs = [
             r.message for r in caplog.records if r.levelno == logging.INFO
         ]
@@ -1161,72 +1026,49 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         )
 
     def test_use_case_invalid_em_logs_warning(self, make_payload, caplog):
-        """Invalid EM transition → no append; use case ledgers at WARNING."""
+        """A status moving EM alone → REFUSED by the guards; WARNING logged."""
         import logging
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=CASE_MANAGER_ID,
-        )
-        case = as_VulnerabilityCase(id_=CASE_ID, name="EM Guard Case")
         initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
             em=EmDimension(state=EM.NONE),
         )
-        case.case_statuses.append(initial)  # type: ignore[arg-type]
-        dl.create(case)
-
         bad_status = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
         )
-        dl.create(bad_status)
-
-        activity = add_status_to_case_activity(
-            bad_status, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
-        )
-        event = make_payload(activity)
+        dl = _replica_with_status(bad_status, initial=initial)
 
         with caplog.at_level(logging.DEBUG):
-            AddCaseStatusToCaseReceivedUseCase(
-                dl, event, wire_render_port=As2WireRenderAdapter()
+            result = AddCaseStatusToCaseReceivedUseCase(
+                dl,
+                make_payload(_from_manager(bad_status)),
+                wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
+        assert result.disposition is HandlerDisposition.REFUSED
+        # The guards refused the content, not the sender (HP-01-006).
+        assert "refused in full" in (result.reason or ""), result.reason
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
         ]
-        assert any(
-            "AddCaseStatusToCaseBT" in m or "invalid" in m.lower()
-            for m in warn_msgs
-        ), "Expected WARNING for invalid transition"
-
-        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
-        status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
-        assert STATUS_ID not in status_ids
+        assert any("AddCaseStatusToCaseBT" in m for m in warn_msgs), (
+            "Expected WARNING for the refused status"
+        )
+        assert STATUS_ID not in _status_ids(dl)
 
     def test_use_case_missing_status_id_logs_warning(
         self, make_payload, caplog
     ):
         """Missing status_id in event → WARNING; no BT executed."""
         import logging
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=CASE_MANAGER_ID,
-        )
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Missing ID Case")
-        dl.create(case)
-
-        # Construct a status with no ID to force status_id=None via factory
-        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
-        )
-        event = make_payload(activity)
-
-        # Patch status_id to None to simulate the missing-ID edge case
         from unittest.mock import PropertyMock, patch
 
+        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        dl = _replica_with_status(status_obj)
+        event = make_payload(_from_manager(status_obj))
+
+        # Patch status_id to None to simulate the missing-ID edge case
         with patch.object(
             type(event),
             "status_id",
@@ -1234,10 +1076,11 @@ class TestAddCaseStatusToCaseReceivedUseCase:
             return_value=None,
         ):
             with caplog.at_level(logging.DEBUG):
-                AddCaseStatusToCaseReceivedUseCase(
+                result = AddCaseStatusToCaseReceivedUseCase(
                     dl, event, wire_render_port=As2WireRenderAdapter()
                 ).execute()
 
+        assert result.disposition is HandlerDisposition.REFUSED
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
         ]
@@ -1249,8 +1092,6 @@ class TestAddCaseStatusToCaseReceivedUseCase:
 # ---------------------------------------------------------------------------
 
 
-CASE_MANAGER_ID = "https://example.org/actors/case-manager"
-CM_PARTICIPANT_ID = f"{CASE_ID}/participants/case-manager"
 PEER_SENDER_ID = "https://example.org/users/peer"
 
 
@@ -1719,136 +1560,6 @@ class TestThreatTerminationBranchNodeProposedEm:
 
 
 # ---------------------------------------------------------------------------
-# EmbargoTeardownAuthorizationGate (RSH-02-001)
-# ---------------------------------------------------------------------------
-
-
-class TestAddCaseStatusTreeSeam2:
-    """EmbargoTeardownAuthorizationGate call-out wiring tests (RSH-02-001, RSH-02-002)."""
-
-    def _make_event(self, dl, pxa_state: CS_pxa = CS_pxa.pxa):
-        from vultron.semantic_registry import extract_event
-
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Seam2 Case")
-        status_obj = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=pxa_state)
-        )
-        dl.create(case)
-        dl.create(status_obj)
-
-        activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID
-        )
-        return cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
-
-    @pytest.mark.spec("RSH-02-001")
-    def test_side_effects_guard_always_fail_blocks_threat_termination(self):
-        """EmbargoTeardownAuthorizationGate=AlwaysFail → ThreatTerminationBranch never runs.
-
-        Even with CS.P set and an active embargo, the Sequence fails at the
-        guard node and the BT returns FAILURE without touching the EM state.
-        """
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.models.case import VulnerabilityCase
-        from vultron.core.states.em import EM
-        from vultron.enums.roles import CVDRole
-        from vultron.semantic_registry import extract_event
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=CASE_MANAGER_ID,
-        )
-        embargo = as_EmbargoEvent(
-            id_=f"{CASE_ID}/embargo_events/e1",
-            context=CASE_ID,
-            end_time=days_from_now_utc(45),
-        )
-        cm_participant = CaseParticipant(
-            id_=f"{CASE_ID}/participants/cm",
-            context=CASE_ID,
-            attributed_to=CASE_MANAGER_ID,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        # Build case with ACTIVE em_state before storing in DataLayer
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="Seam2 Guard Case", attributed_to=CASE_MANAGER_ID
-        )
-        case.add_participant(cm_participant)
-        activate(case, embargo.id_)
-        # The sender must hold a participant record (HP-01-006).
-        seed_case_participant(dl, case, ACTOR_ID)
-        status_obj = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
-        )
-        dl.create(case)
-        dl.create(cm_participant)
-        dl.create(embargo)
-        dl.create(status_obj)
-
-        activity = add_status_to_case_activity(
-            status_obj,
-            target=as_VulnerabilityCase(id_=CASE_ID),
-            actor=ACTOR_ID,
-            to=[CASE_MANAGER_ID],
-        )
-        event = cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
-
-        def _always_fail(name: str):
-            return AlwaysFail(name)
-
-        call_out = StatusAuthorizationCallOutBundle(
-            embargo_teardown_authorization_gate_factory=_always_fail
-        )
-
-        from vultron.core.behaviors.status.add_case_status_tree import (
-            add_case_status_tree,
-        )
-
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE, request=event, call_out=call_out
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
-        )
-        # FailureIsSuccess wraps the teardown Sequence, so the outer BT returns
-        # SUCCESS even when the authorization gate blocked teardown.
-        assert result.status == Status.SUCCESS
-
-        # EM state must NOT have changed — guard blocked teardown
-        updated = cast(VulnerabilityCase, dl.read(CASE_ID))
-        assert updated.current_status.em.state == EM.ACTIVE
-
-    @pytest.mark.spec("RSH-03-001")
-    @pytest.mark.spec("RSH-03-003")
-    def test_tree_contains_threat_termination_branch_node(self, dl):
-        """add_case_status_tree must contain ThreatTerminationBranchNode (RSH-03-001)."""
-        event = self._make_event(dl)
-        from vultron.core.behaviors.status.add_case_status_tree import (
-            add_case_status_tree,
-        )
-
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE, request=event
-        )
-
-        def _collect_node_types(node):
-            yield type(node).__name__
-            for child in getattr(node, "children", []):
-                yield from _collect_node_types(child)
-
-        node_types = set(_collect_node_types(tree))
-        assert "ThreatTerminationBranchNode" in node_types, (
-            "add_case_status_tree must contain ThreatTerminationBranchNode"
-            " (RSH-03-001, ADR-0046)"
-        )
-
-
-# ---------------------------------------------------------------------------
 # Regression: ThreatTerminationBranchNode — CS.P teardown outcome
 # ---------------------------------------------------------------------------
 
@@ -1942,93 +1653,20 @@ class TestRegressionCSPTeardownPath:
 
 
 # ---------------------------------------------------------------------------
-# Regression: CLP-10-009 — validators in preconditions, ledger entry on accept
+# Regression: CLP-10-009 — validators in preconditions, before the commit
 # ---------------------------------------------------------------------------
-
-CASE_MANAGER_ID_2254 = "https://example.org/actors/case-mgr-2254"
-CM_PARTICIPANT_ID_2254 = f"{CASE_ID}/participants/case-mgr-2254"
 
 
 class TestCaseLedgerEntryCreation:
-    """CLP-10-009 / ISSUE-2254 regression: add_case_status_tree must commit a
-    canonical ledger entry for valid updates (Fix 2: plain Sequence → create_receive_activity_tree).
+    """CLP-10-009 / ISSUE-2254 regression: add_case_status_tree runs its
+    validators as precondition guards, before GuardedCommit.
 
-    Before the fix add_case_status_tree used a plain Sequence with no
-    GuardedCommit, so NO ledger entries were ever produced.  After the fix the
-    tree uses create_receive_activity_tree and a CaseLedgerEntry is created
-    for every valid accepted update when the receiving actor is the CASE_MANAGER.
+    The commit itself is declined at a replica, the only receiver of
+    ``Add(CaseStatus)`` (RSH-04-005, RSH-08-003); the CASE_MANAGER's own
+    ``add_case_status_to_case`` entry for an adopted report is asserted in
+    ``test_add_participant_status_bt.py``
+    (``test_an_owners_public_awareness_is_adopted``).
     """
-
-    def _build_dl_with_case_manager(self):
-        from vultron.enums.roles import CVDRole
-
-        # The tree runs as the case manager, so this is the case manager's own
-        # store (BT-05-005, ADR-0073).
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:", actor_id=CASE_MANAGER_ID_2254
-        )
-        cm_participant = CaseParticipant(
-            id_=CM_PARTICIPANT_ID_2254,
-            context=CASE_ID,
-            attributed_to=CASE_MANAGER_ID_2254,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        # attributed_to seeds the per-case genesis hash (CLP-08-003); without
-        # it the guarded commit cannot anchor a hash chain.
-        case = VulnerabilityCase(
-            id_=CASE_ID,
-            name="Ledger Test Case",
-            attributed_to=CASE_MANAGER_ID_2254,
-        )
-        case.add_participant(cm_participant)
-        dl.create(case)
-        dl.create(cm_participant)
-        return dl
-
-    @pytest.mark.spec("CLP-10-009")
-    def test_valid_update_produces_ledger_entry(self, make_payload):
-        """A valid Add(CaseStatus) produces exactly one CaseLedgerEntry when
-        the receiving actor is the CASE_MANAGER (CLP-10-009, Fix 2).
-
-        This test FAILS on pre-fix code where add_case_status_tree used a
-        plain Sequence with no GuardedCommit.
-        """
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
-        dl = self._build_dl_with_case_manager()
-        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        dl.create(status_obj)
-
-        wire_case = as_VulnerabilityCase(id_=CASE_ID, name="Ledger Test Case")
-        activity = add_status_to_case_activity(
-            status_obj, target=wire_case, actor=CASE_MANAGER_ID_2254
-        )
-        event = make_payload(activity)
-
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE,
-            request=event,
-            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=CASE_MANAGER_ID_2254, activity=event
-        )
-        assert result.status == Status.SUCCESS
-
-        entries = [
-            e
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry)
-        ]
-        assert len(entries) == 1, (
-            "A valid Add(CaseStatus) accepted by the CASE_MANAGER must produce"
-            " exactly one CaseLedgerEntry (CLP-10-009)"
-        )
 
     @pytest.mark.spec("CLP-10-009")
     def test_invalid_em_transition_produces_no_ledger_entry(
@@ -2037,53 +1675,30 @@ class TestCaseLedgerEntryCreation:
         """An invalid EM transition is rejected in precondition_guards → zero
         CaseLedgerEntries (CLP-10-009: validators run before GuardedCommit).
         """
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
-        dl = self._build_dl_with_case_manager()
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Ledger Test Case", attributed_to=CASE_MANAGER_ID
+        )
         initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
             em=EmDimension(state=EM.NONE),
         )
-        from typing import cast as c
-
-        from vultron.core.models.case import VulnerabilityCase
-
-        case_obj = c(VulnerabilityCase, dl.read(CASE_ID))
-        case_obj.case_statuses.append(str(initial.id_))
+        case.case_statuses.append(str(initial.id_))
+        dl = _replica_store(case)
         dl.create(initial)
-        dl.save(case_obj)
 
         bad_status = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
         )
         dl.create(bad_status)
 
-        wire_case = as_VulnerabilityCase(id_=CASE_ID, name="Ledger Test Case")
-        activity = add_status_to_case_activity(
-            bad_status, target=wire_case, actor=CASE_MANAGER_ID_2254
-        )
-        event = make_payload(activity)
-
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE, request=event
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=CASE_MANAGER_ID_2254, activity=event
+        result, tree = _run_at_replica(
+            dl, make_payload(_from_manager(bad_status))
         )
         assert result.status == Status.FAILURE
-
-        entries = [
-            e
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry)
-        ]
-        assert len(entries) == 0, (
+        assert door_guards_admitted(tree)
+        assert node_failed(tree, FinalizeCsFilterNode)
+        assert _ledger_entries(dl) == [], (
             "An invalid Add(CaseStatus) rejected by a precondition guard must"
             " produce zero CaseLedgerEntries (CLP-10-009)"
         )
@@ -2224,147 +1839,9 @@ class TestFilterCsEmDimensionNodeClearBehavior:
         )
 
 
-# ---------------------------------------------------------------------------
-# AC-2 / AC-3: PxaEmInvariantDiagnosticNode (CONCERN-3008)
-# ---------------------------------------------------------------------------
-
 DIAG_CASE_ID = "https://example.org/cases/diag-3008"
 DIAG_STATUS_ID = f"{DIAG_CASE_ID}/statuses/s1"
 DIAG_CM_ID = "https://example.org/actors/diag-cm"
-DIAG_ACTOR_ID = "https://example.org/actors/diag-actor"
-
-
-class TestPxaEmInvariantDiagnosticNode:
-    """PxaEmInvariantDiagnosticNode posts a Note iff invariant still violated.
-
-    AC-2: PERMISSIVE gate — teardown fires, EM becomes EXITED, no violation →
-          no Note recorded.
-    AC-3: Blocked gate (AlwaysFail) — teardown blocked, EM stays ACTIVE,
-          violation detected → Note committed and attached to the case.
-    """
-
-    def _build_dl_with_active_embargo(self, actor_id: str = DIAG_CM_ID):
-        from vultron.enums.roles import CVDRole
-
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-        cm_participant = CaseParticipant(
-            id_=f"{DIAG_CASE_ID}/participants/cm",
-            context=DIAG_CASE_ID,
-            attributed_to=actor_id,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        embargo = as_EmbargoEvent(
-            id_=f"{DIAG_CASE_ID}/embargo_events/e1",
-            context=DIAG_CASE_ID,
-            end_time=days_from_now_utc(45),
-        )
-        case = VulnerabilityCase(
-            id_=DIAG_CASE_ID,
-            name="Diag Test Case",
-            attributed_to=actor_id,
-        )
-        case.add_participant(cm_participant)
-        activate(case, embargo.id_)
-        # The senders must hold participant records (HP-01-006).
-        for sender in (DIAG_ACTOR_ID, PEER_ID):
-            seed_case_participant(dl, case, sender)
-        status_obj = as_CaseStatus(
-            id_=DIAG_STATUS_ID,
-            context=DIAG_CASE_ID,
-            pxa=PxaDimension(state=CS_pxa.Pxa),
-        )
-        dl.create(case)
-        dl.create(cm_participant)
-        dl.create(embargo)
-        dl.create(status_obj)
-        return dl, status_obj
-
-    def _make_event(self, dl, status_obj, receiver_id: str = DIAG_CM_ID):
-        from vultron.semantic_registry import extract_event
-
-        activity = add_status_to_case_activity(
-            status_obj,
-            target=as_VulnerabilityCase(id_=DIAG_CASE_ID),
-            actor=DIAG_ACTOR_ID,
-            to=[receiver_id],
-        )
-        return cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
-
-    @pytest.mark.spec("CSB-18-002")
-    @pytest.mark.spec("CSB-18-003")
-    @pytest.mark.spec("CSB-18-004")
-    def test_permissive_gate_teardown_fires_no_note_posted(self):
-        """AC-2: PERMISSIVE gate — teardown fires, EM=EXITED → no violation → no Note."""
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
-
-        dl, status_obj = self._build_dl_with_active_embargo()
-        event = self._make_event(dl, status_obj)
-
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE,
-            request=event,
-            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=DIAG_CM_ID, activity=event
-        )
-        assert result.status == Status.SUCCESS
-
-        updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
-        assert updated.current_status.em.state == EM.EXITED
-
-        # EM.EXITED proves teardown fired; diagnostic node finds no violation — no Note needed.
-
-    @pytest.mark.spec("CSB-18-002")
-    @pytest.mark.spec("CSB-18-003")
-    @pytest.mark.spec("CSB-18-004")
-    @pytest.mark.spec("VAM-01-010")
-    def test_blocked_gate_invariant_violated_note_posted(self):
-        """AC-3: AlwaysFail gate — teardown blocked, EM=ACTIVE → violation → Note posted."""
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
-
-        dl, status_obj = self._build_dl_with_active_embargo(
-            actor_id=f"{DIAG_CM_ID}-blocked"
-        )
-        event = self._make_event(
-            dl, status_obj, receiver_id=f"{DIAG_CM_ID}-blocked"
-        )
-
-        call_out = StatusAuthorizationCallOutBundle(
-            embargo_teardown_authorization_gate_factory=AlwaysFail
-        )
-        tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE, request=event, call_out=call_out
-        )
-        bridge = BTBridge(
-            datalayer=dl,
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=tree, actor_id=f"{DIAG_CM_ID}-blocked", activity=event
-        )
-        assert result.status == Status.SUCCESS
-
-        # EM must still be ACTIVE — gate blocked teardown
-        updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
-        assert updated.current_status.em.state == EM.ACTIVE
-
-        # AlwaysFail gate blocks teardown — only the diagnostic node can note
-        # it, as the CASE_MANAGER's own committed note (#4829).
-        note = assert_case_manager_note_recorded(dl, DIAG_CASE_ID)
-        assert "Cross-machine entailment violated" in note["content"]
 
 
 # ---------------------------------------------------------------------------
@@ -2376,41 +1853,47 @@ PEER_ID = "https://example.org/actors/rsh-03-004-peer"
 
 
 class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
-    """``add_case_status_tree`` gives the branch the status's sender, so at a
-    replica a P/X/A status the CASE_MANAGER declared tears nothing down and
-    asks for nothing (RSH-03-004, #4149); the manager's committed entry
-    carries the teardown.  A peer's status never reaches the branch at a
-    replica: the replica takes case state from the CASE_MANAGER alone, so
-    the sender guard refuses it (PCR-03-001, RSH-04-001, HP-01-006).
+    """At a replica under an active embargo, the CASE_MANAGER's P/X/A status
+    tears nothing down and asks for nothing: the tree has no teardown, and
+    the manager's committed entry carries it (RSH-03-004, #4149).  A peer's
+    status never reaches the guards at a replica: only the CASE_MANAGER
+    emits ``Add(CaseStatus)``, so the sender guard refuses it (RSH-04-005,
+    PCR-03-001, HP-01-006).
     """
 
     def _run(
         self, sender: str, expected: Status = Status.SUCCESS
     ) -> SqliteDataLayer:
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
-        from vultron.semantic_registry import extract_event
+        from vultron.enums.roles import CVDRole
 
-        dl: SqliteDataLayer
-        dl, status_obj = (
-            TestPxaEmInvariantDiagnosticNode()._build_dl_with_active_embargo(
-                actor_id=REPLICA_ID
-            )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=REPLICA_ID)
+        cm_participant = CaseParticipant(
+            id_=f"{DIAG_CASE_ID}/participants/cm",
+            context=DIAG_CASE_ID,
+            attributed_to=DIAG_CM_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
         )
-        # The store is the replica's; the CASE_MANAGER is someone else.
-        case = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
-        cm = cast(CaseParticipant, dl.read(f"{DIAG_CASE_ID}/participants/cm"))
-        dl.save(cm.model_copy(update={"attributed_to": DIAG_CM_ID}))
-        case.actor_participant_index = {
-            **{
-                actor: pid
-                for actor, pid in case.actor_participant_index.items()
-                if actor != REPLICA_ID
-            },
-            DIAG_CM_ID: cm.id_,
-        }
-        dl.save(case)
+        embargo = as_EmbargoEvent(
+            id_=f"{DIAG_CASE_ID}/embargo_events/e1",
+            context=DIAG_CASE_ID,
+            end_time=days_from_now_utc(45),
+        )
+        case = VulnerabilityCase(
+            id_=DIAG_CASE_ID, name="Replica Case", attributed_to=DIAG_CM_ID
+        )
+        case.add_participant(cm_participant)
+        activate(case, embargo.id_)
+        for actor in (REPLICA_ID, PEER_ID):
+            seed_case_participant(dl, case, actor)
+        status_obj = as_CaseStatus(
+            id_=DIAG_STATUS_ID,
+            context=DIAG_CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.Pxa),
+        )
+        dl.create(case)
+        dl.create(cm_participant)
+        dl.create(embargo)
+        dl.create(status_obj)
 
         event = cast(
             AddCaseStatusToCaseReceivedEvent,
@@ -2424,9 +1907,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
             ),
         )
         tree = add_case_status_tree(
-            sender_rule=_CASE_STATUS_RULE,
-            request=event,
-            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
+            sender_rule=_CASE_STATUS_RULE, request=event
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -2451,6 +1932,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
 
     @pytest.mark.spec("PCR-03-001")
     @pytest.mark.spec("HP-01-006")
+    @pytest.mark.spec("RSH-04-005")
     def test_a_peers_declaration_is_refused_at_a_replica(self):
         """Even from a participant: only the CASE_MANAGER emits it."""
         dl = self._run(sender=PEER_ID, expected=Status.FAILURE)

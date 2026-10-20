@@ -15,8 +15,8 @@
 
 """Unit tests for case status workflow nodes (submodule path).
 
-Verifies CASE_STATUS_ALREADY_PRESENT, CheckCaseStatusIdempotencyNode,
-and AppendCaseStatusToCaseNode imported directly from the submodule.
+Verifies CASE_STATUS_ALREADY_PRESENT and CheckCaseStatusIdempotencyNode
+imported directly from the submodule, and EmitCaseStatusUpdateNode.
 
 Per issue #758 AC-1, AC-3.
 """
@@ -37,11 +37,13 @@ from vultron.core.behaviors.case_status_snapshot import (
 )
 from vultron.core.behaviors.status.nodes.case_status import (
     CASE_STATUS_ALREADY_PRESENT,
-    AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
 )
 from vultron.core.models.case import VulnerabilityCase as CoreCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import PxaDimension
+from vultron.core.states.cs import CS_pxa
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -179,69 +181,6 @@ class TestCheckCaseStatusIdempotencyNode:
 
 
 # ---------------------------------------------------------------------------
-# AppendCaseStatusToCaseNode
-# ---------------------------------------------------------------------------
-
-
-class TestAppendCaseStatusToCaseNode:
-    def test_appends_status(self, populated_bridge, populated_dl, status_obj):
-        case_before = populated_dl.read(CASE_ID)
-        initial_count = len(case_before.case_statuses)
-
-        node = AppendCaseStatusToCaseNode(
-            case_id=CASE_ID,
-            status_id=STATUS_ID,
-            status_obj_fallback=status_obj,
-        )
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
-        )
-        assert result.status == Status.SUCCESS
-
-        case_after = populated_dl.read(CASE_ID)
-        assert len(case_after.case_statuses) == initial_count + 1
-
-    def test_missing_case_fails(self, bridge, status_obj):
-        node = AppendCaseStatusToCaseNode(
-            case_id="https://example.org/cases/missing",
-            status_id=STATUS_ID,
-            status_obj_fallback=status_obj,
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-
-    @pytest.mark.spec("ARCH-15-001")
-    def test_empty_string_case_id_returns_failure_with_diagnostic(
-        self, bridge, status_obj
-    ):
-        """Empty string case_id → FAILURE with a diagnostic mentioning absence."""
-        node = AppendCaseStatusToCaseNode(
-            case_id="", status_id=STATUS_ID, status_obj_fallback=status_obj
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-        assert (
-            "absent" in node.feedback_message.lower()
-            or "case_id" in node.feedback_message.lower()
-        )
-
-    @pytest.mark.spec("ARCH-15-001")
-    def test_none_case_id_returns_failure_with_diagnostic(
-        self, bridge, status_obj
-    ):
-        """None case_id → FAILURE with a diagnostic mentioning absence."""
-        node = AppendCaseStatusToCaseNode(
-            case_id=None, status_id=STATUS_ID, status_obj_fallback=status_obj
-        )
-        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.FAILURE
-        assert (
-            "absent" in node.feedback_message.lower()
-            or "case_id" in node.feedback_message.lower()
-        )
-
-
-# ---------------------------------------------------------------------------
 # EmitCaseStatusUpdateNode — lives in vultron.core.behaviors.case_status_snapshot
 # (shared with the embargo trees, BTND-04-001); tested here beside the
 # AddCaseStatusToCase nodes it shares fixtures with.
@@ -270,6 +209,54 @@ class TestEmitCaseStatusUpdateNode:
         case_after = populated_dl.read(CASE_ID)
         assert isinstance(case_after, CoreCase)
         assert len(case_after.case_statuses) == initial_count + 1
+
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.parametrize(
+        ("case_pxa", "reported", "expected"),
+        [
+            # A forward move is adopted (#4956).
+            (CS_pxa.pxa, CS_pxa.Pxa, CS_pxa.Pxa),
+            (CS_pxa.Pxa, CS_pxa.PXA, CS_pxa.PXA),
+            # A regression keeps the case's value (RSH-05-019).
+            (CS_pxa.PXa, CS_pxa.Pxa, CS_pxa.PXa),
+            # An ephemeral pX is promoted on adoption (SM-09-001).
+            (CS_pxa.pxa, CS_pxa.pXa, CS_pxa.PXa),
+        ],
+        ids=["forward", "multi-forward", "regress", "promoted"],
+    )
+    def test_reported_status_pxa_is_adopted_only_forward(
+        self, dl, case, case_pxa, reported, expected
+    ):
+        """The committed CaseStatus carries an adopted forward pxa."""
+        case.case_statuses.append(  # type: ignore[arg-type]
+            as_CaseStatus(context=CASE_ID, pxa=PxaDimension(state=case_pxa))
+        )
+        dl.create(case)
+        node = EmitCaseStatusUpdateNode(
+            case_id=CASE_ID,
+            reported_status=CaseStatus(
+                context=CASE_ID, pxa=PxaDimension(state=reported)
+            ),
+        )
+        result = BTBridge(
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        stored = dl.read(CASE_ID)
+        assert isinstance(stored, CoreCase)
+        assert stored.current_status.pxa.state == expected
+        entry = next(
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if getattr(obj, "semantic_type", None) == "add_case_status_to_case"
+        )
+        assert isinstance(entry, CaseLedgerEntry)
+        snapshot_object = entry.payload_snapshot["object"]
+        assert snapshot_object["pxaState"] == expected.name
 
     @pytest.mark.spec("ARCH-15-001")
     @pytest.mark.spec("VM-08-003")

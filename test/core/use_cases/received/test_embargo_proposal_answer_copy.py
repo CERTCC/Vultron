@@ -726,8 +726,18 @@ def _is_invitee_row_update(kwargs: dict[str, Any]) -> bool:
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.parametrize(
     ("declined_first", "revising"),
-    [(False, False), (True, False), (False, True)],
-    ids=["owed", "answered-meanwhile", "owed-during-revision"],
+    [
+        pytest.param(False, False, id="owed"),
+        pytest.param(True, False, id="answered-meanwhile"),
+        # Integration tier, with the rest of the LedgerNetwork replay group
+        # (#4917): about 11s idle, most of it in DataLayer reads.
+        pytest.param(
+            False,
+            True,
+            id="owed-during-revision",
+            marks=pytest.mark.integration,
+        ),
+    ],
 )
 def test_a_replacement_whose_row_did_not_commit_is_completed_next_run(
     declined_first, revising

@@ -55,18 +55,27 @@ groups:
     statement: >
       When StatusAdoptionGate passes, `add_participant_status_tree` MUST write
       the post-adoption `CaseStatus` directly to the canonical case ledger via
-      `EmitCaseStatusUpdateNode` (RSH-04-004). It MUST NOT emit a
-      self-addressed `Add(CaseStatus, VulnerabilityCase)` to the CASE_MANAGER
-      to reach the canonical write indirectly.
+      `EmitCaseStatusUpdateNode` (RSH-04-004). The post-adoption `CaseStatus`
+      MUST carry the PXA state the sender reported in the `CaseStatus` its
+      `ParticipantStatus` embeds when that state is a monotone forward move
+      from the case's current PXA state, and the case's current PXA state
+      otherwise (RSH-05-019). It MUST NOT emit a self-addressed
+      `Add(CaseStatus, VulnerabilityCase)` to the CASE_MANAGER to reach the
+      canonical write indirectly.
     rationale: >
       The CASE_MANAGER is the authority for its own canonical state changes, so
-      routing its adoption decision back through its own inbox adds a hop and a
-      second adjudication pass to a write it has already authorized. The direct
-      ledger write is the shape RSH-04-004 specifies for every CASE_MANAGER-side
-      `CaseStatus` mutation; the adoption path is one such mutation.
-    verification: Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py` confirm that when
-      `StatusAdoptionGate` passes `EmitCaseStatusUpdateNode` appends the post-adoption `CaseStatus` to the case,
-      and that no `EmitAddCaseStatusToSelf` node is present in the tree.
+      routing its adoption back through its own inbox adds a hop and a second
+      adjudication to a write it has already authorized (RSH-04-004). It is the
+      only path by which a participant's P, X or A reaches the case status
+      (RSH-04-005), so a write that re-snapshots the case's PXA adopts nothing
+      (#4956).
+    verification: >-
+      Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
+      confirm that when `StatusAdoptionGate` passes `EmitCaseStatusUpdateNode`
+      appends the post-adoption `CaseStatus` to the case, carrying a forward
+      reported PXA state and keeping the case's own for a regressing one, that a
+      refused adoption leaves the case's PXA state unchanged, and that no
+      `EmitAddCaseStatusToSelf` node is present in the tree.
     adr:
     - ADR-0046
     - ADR-0108
@@ -82,10 +91,10 @@ groups:
       `CaseStatus` ledger write of RSH-01-003, and MUST pass through
       `EmbargoTeardownAuthorizationGate` before executing.
     rationale: >
-      Side-effects must run after the canonical write and under the same
-      authorization posture as the `add_case_status_tree` path (RSH-02-001,
-      RSH-07-002), so that adopting a participant's assertion and acting on it
-      remain two separately authorized steps whichever tree performs them.
+      Side-effects must run after the canonical write and behind their own
+      authorization gate (RSH-02-001, RSH-07-002), so that adopting a
+      participant's assertion and acting on it remain two separately
+      authorized steps.
     verification: Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py` confirm the
       `TeardownEffects` sequence is ordered after `EmitCaseStatusUpdateNode` and begins with
       `EmbargoTeardownAuthorizationGate`.
@@ -103,14 +112,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      `add_case_status_tree` MUST include a `EmbargoTeardownAuthorizationGate` Evaluator
-      call-out node positioned after `AppendCaseStatusToCaseNode` and before
+      `add_participant_status_tree` MUST include a `EmbargoTeardownAuthorizationGate` Evaluator
+      call-out node positioned after `EmitCaseStatusUpdateNode` and before
       `ThreatTerminationBranchNode`.
     rationale: >
       EmbargoTeardownAuthorizationGate of ADR-0046 — provides a hook to gate side-effect execution
       independently of the canonical write authorization.
-    verification: Inspection of `vultron/core/behaviors/status/` confirms `EmbargoTeardownAuthorizationGate` is positioned
-      after `AppendCaseStatusToCaseNode` and before `ThreatTerminationBranchNode` in `add_case_status_tree`.
+      `add_participant_status_tree` is the received tree that adopts a
+      participant's P, X or A (RSH-01-003); a received `Add(CaseStatus)`
+      writes and tears down nothing (RSH-04-005).
+    verification: >-
+      `test/core/behaviors/status/test_status_authorization_bundle.py` confirms
+      `EmbargoTeardownAuthorizationGate` is positioned after
+      `EmitCaseStatusUpdateNode` and before `ThreatTerminationBranchNode` in
+      `add_participant_status_tree`.
     stories:
     - story_2022_023
     - story_2022_026
@@ -129,9 +144,9 @@ groups:
       (security-significant gate exception) and ADR-0076. The prior default
       of `AlwaysSucceed` was a prototype-stage convenience; production-ready
       posture requires explicit operator opt-in for permissive behavior.
-      Belt-and-suspenders: `add_case_status_tree` runs this gate with no
-      adoption gate ahead of it (RSH-04-001), so it would otherwise inherit a
-      permissive teardown gate with no explicit opt-in.
+      Belt-and-suspenders: a Case Owner's report passes the adoption gate
+      without a call-out (RSH-01-002), so its teardown would otherwise
+      inherit a permissive teardown gate with no explicit opt-in.
     verification: Inspection of `vultron/core/behaviors/status/` confirms the default backend for
       `EmbargoTeardownAuthorizationGate` is `RequireCaseOwnerApproval`, not `AlwaysSucceed`.
 
@@ -154,6 +169,8 @@ groups:
       did) leaves exploit and attack signals without a teardown trigger.
     verification: Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py` confirm `ThreatTerminationBranchNode`
       triggers embargo teardown when `CaseStatus` carries CS.P, CS.X, or CS.A.
+      `test/core/behaviors/status/test_add_participant_status_bt.py` drives it
+      from an adopted report.
     stories:
     - story_2022_018
     - story_2022_019
@@ -169,12 +186,11 @@ groups:
       (e.g., CASE_OWNER). Authorization is the responsibility of StatusAdoptionGate;
       by the time this node runs, the canonical write is already authorized.
     rationale: >
-      By the time this node runs the canonical write is already authorized:
-      by `StatusAdoptionGate` in `add_participant_status_tree` (where the
-      sender is the asserting participant), or by CASE_MANAGER emission
-      authority in `add_case_status_tree` (RSH-04-001, where the sender is the
-      CASE_MANAGER). Neither sender is necessarily CASE_OWNER, so a duplicate
-      CASE_OWNER gate here would block legitimate teardown on both paths.
+      By the time this node runs the canonical write is already authorized,
+      by `StatusAdoptionGate` in `add_participant_status_tree`, where the
+      sender is the asserting participant. That sender is not necessarily
+      CASE_OWNER: the gate's call-out may approve a non-owner's report, so a
+      duplicate CASE_OWNER gate here would block a legitimate teardown.
     note: >
       RSH-03-004's skip for a status the CASE_MANAGER declared is not an
       authorization gate: it does not decide whether a teardown is allowed,
@@ -184,19 +200,23 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      `PublicDisclosureBranchNode` MUST be removed from
-      `add_participant_status_tree` and replaced by `ThreatTerminationBranchNode`
-      in `add_case_status_tree`.
+      `add_participant_status_tree` MUST tear an embargo down through
+      `ThreatTerminationBranchNode`, after the canonical write, and MUST NOT
+      contain `PublicDisclosureBranchNode`. `add_case_status_tree` MUST NOT
+      contain `ThreatTerminationBranchNode`.
     rationale: >
-      The node belongs in the tree that writes canonical state. Its presence
-      in `add_participant_status_tree` predates the two-seam design and must
-      be migrated as part of implementing RSH-01 and RSH-02.
+      The node belongs in the tree that writes canonical state. A received
+      `Add(CaseStatus)` writes none: it is admitted only at a participant
+      replica, from the CASE_MANAGER, whose own teardown the replica leaves to
+      the committed entry (RSH-04-005, RSH-03-004). `PublicDisclosureBranchNode`
+      covered only CS.P and predates the two-seam design (RSH-03-001).
     verification: >
       `PublicDisclosureBranchNode` is deleted (#4154);
       `test/core/behaviors/status/test_add_participant_status_bt.py` asserts no
-      node of that name is in `add_participant_status_tree`, and
+      node of that name is in `add_participant_status_tree` and that
+      `ThreatTerminationBranchNode` is, and
       `test/core/behaviors/status/test_add_case_status_bt.py` asserts
-      `ThreatTerminationBranchNode` is present in `add_case_status_tree`.
+      `add_case_status_tree` contains no `ThreatTerminationBranchNode`.
 
     stories:
     - story_2022_081
@@ -228,7 +248,8 @@ groups:
       queued; with another sender the terminate ask is still queued. The
       same file runs the whole `add_case_status_tree` at a replica and
       asserts the outbox stays empty (no ask, no diagnostic Note) for the
-      CASE_MANAGER's declaration, and
+      CASE_MANAGER's declaration, which is the only one a replica admits
+      (RSH-04-005), and
       `test/core/behaviors/status/test_add_participant_status_bt.py` pins
       that `add_participant_status_tree` gives the branch the status's
       sender.
@@ -318,8 +339,8 @@ groups:
       authority for its own outbound state changes.
     rationale: >
       The inbox seam handles a received `Add(CaseStatus)`, which only the
-      CASE_MANAGER sends (RSH-04-005), and gates only its embargo teardown
-      (EmbargoTeardownAuthorizationGate). The CASE_MANAGER writing its own
+      CASE_MANAGER sends, and only to a participant replica, which writes
+      nothing on receipt (RSH-04-005, RSH-08-003). The CASE_MANAGER writing its own
       EM/PXA transition is an authoritative state change, not a received
       message. Routing through
       the inbox loopback (as `EmitAddCaseStatusToSelfNode` does) inverts
@@ -351,11 +372,11 @@ groups:
     rationale: >
       RSH-04-001 reserves `Add(CaseStatus)` for the CASE_MANAGER, which sends it
       to participants inside a case ledger entry. `add_case_status_tree` has no
-      StatusAdoptionGate (RSH-03-002 rests on its sender being the
-      CASE_MANAGER), so admitting it from another sender adopts that
+      StatusAdoptionGate, so admitting it from another sender would adopt that
       participant's P, X or A report without the Case Owner approval RSH-07-001
       requires. A participant embeds the P, X or A it reports in its own
-      `Add(ParticipantStatus)` instead (RSH-04-001).
+      `Add(ParticipantStatus)` instead (RSH-04-001), which the CASE_MANAGER
+      adopts through the gate (RSH-01-003).
     verification: >-
       A test marked `RSH-04-005` asserts that `AddCaseStatusToCaseReceivedUseCase`
       declares a sender rule admitting only the CASE_MANAGER on the participant
@@ -513,7 +534,7 @@ groups:
     kind: protocol
     statement: >
       The `em` dimension SHOULD NOT be adjudicated at StatusAdoptionGate; embargo state
-      belongs to EmbargoTeardownAuthorizationGate (`add_case_status_tree`).
+      belongs to EmbargoTeardownAuthorizationGate (`add_participant_status_tree`, RSH-02-001).
     rationale: >
       EM is per-case rather than per-participant and its authorization gate is
       the EmbargoTeardownAuthorizationGate (RSH-02-001). Adjudicating it in the StatusAdoptionGate guard
@@ -640,28 +661,30 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CASE_MANAGER receiving an `Add(CaseStatus, Case)` MUST adjudicate the EM
-      and PXA dimensions of the reported case status independently. An
-      unacceptable value in one dimension MUST NOT cause the value reported in
-      the other dimension to be discarded.
+      A participant receiving an `Add(CaseStatus, Case)` from the case's
+      CASE_MANAGER MUST adjudicate the EM and PXA dimensions of the reported
+      case status independently. An unacceptable value in one dimension MUST
+      NOT cause the value reported in the other dimension to be discarded.
     rationale: >
       EM and PXA are independent state machines within CaseStatus (parallel to
       RM, VFD, EM, PXA in ParticipantStatus). A value that is unacceptable in
       EM carries no information about PXA and vice versa. Discarding the whole
       snapshot destroys state the receiver has no grounds to refuse. Liberal
-      accept (ISSUE-2229): accept everything acceptable.
+      accept (ISSUE-2229): accept everything acceptable. A participant replica
+      is the one receiver left: RSH-04-005 refuses an `Add(CaseStatus)` sent to
+      the CASE_MANAGER, and from any sender but the CASE_MANAGER.
     verification: >
-      Unit tests for `add_case_status_tree` confirm that an unacceptable EM
-      value does not discard an accepted PXA value from the same CaseStatus
-      snapshot, and vice versa.
+      Unit tests for `add_case_status_tree`, run at a participant replica with
+      the CASE_MANAGER as sender, confirm that an unacceptable EM value does not
+      discard an accepted PXA value from the same CaseStatus snapshot, and vice
+      versa.
     note: >
       Implemented by the three-node sequence `FilterCsEmDimensionNode`,
       `FilterCsPxaDimensionNode`, and `FinalizeCsFilterNode` in
       `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`, wired as
-      precondition guards of `add_case_status_tree`. See ISSUE-2256.
-      RSH-04-005 refuses an `Add(CaseStatus)` sent to the CASE_MANAGER, so the
-      receiver this requirement names goes away when #4851 implements it;
-      #4851 rescopes or retires this requirement.
+      precondition guards of `add_case_status_tree`. See ISSUE-2256. The
+      verdict is the replica's only output: it writes no case state on receipt
+      (RSH-08-003).
     lint_suppress:
     - missing_story_reference
   - id: RSH-05-016
@@ -770,8 +793,12 @@ groups:
       The predicate is `is_pxa_assertion_acceptable(current_pxa, asserted_pxa)`
       in `vultron/core/states/cs.py`, applied by `FilterCsPxaDimensionNode` on a
       received `Add(CaseStatus)` and by `ApplyCaseStatusFromLedgerNode` on the
-      `add_case_status_to_case` ledger entry (RSH-08-004). CSB-16-002 strict
-      single-step adjacency applies only to local write nodes, not to either.
+      `add_case_status_to_case` ledger entry (RSH-08-004). The CASE_MANAGER
+      applies the same forward-only rule when it adopts a participant's
+      reported PXA state (`adopted_pxa` in
+      `vultron/core/behaviors/case_status_snapshot.py`, RSH-01-003). CSB-16-002
+      strict single-step adjacency applies only to local write nodes, not to
+      any of these.
     stories:
     - story_2022_045
     - story_2022_088
