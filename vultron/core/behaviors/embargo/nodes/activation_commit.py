@@ -31,8 +31,9 @@ follows the copy model (ADR-0124, #4294):
    - the ``Accept``, which is the whole ``ACTIVATE`` register step, the
      ``SUPERSEDE`` of the embargo in force included, and states the owner's
      ``AGREED`` row (CLP-07-013, MSM-07-008).  On the trigger path the node
-     builds and commits it; on the received path intake committed it before
-     the guards admitted the act (ADR-0111), so it has no commit step here;
+     builds and commits it; on the received path the guarded commit
+     committed it, in this act's transaction, before this node runs
+     (ADR-0151), so it has no commit step here;
    - one CASE_MANAGER ``Update(EmbargoConsent)`` per ``CARRY_OVER`` row
      (EP-05-001), after the ``Accept``.
 
@@ -93,7 +94,8 @@ class CommitAndApplyEmbargoActivationNode(
     *builder* is the trigger use case's ``Accept`` builder: the node commits
     the ``Accept`` it builds, addressed to nobody, since every replica
     learns it from the entry (EP-09-007).  ``None`` on the received path,
-    where intake has already committed the owner's ``Accept``; the received
+    where the guarded commit has already committed the owner's ``Accept``,
+    in the same act's transaction; the received
     activity on ``/activity`` names the cause of the carry-over entries.
 
     FAILURE, with the error in ``result_out["error"]`` and nothing committed
@@ -274,8 +276,8 @@ class CommitAndApplyEmbargoActivationNode(
 class ActivationAppliesNode(DataLayerConditionWithPorts):
     """Guard: the CASE_MANAGER's decision and trial apply admit the activation.
 
-    The received owner's ``Accept`` is committed by intake before its
-    effects run (ADR-0111), so its trial runs here, among the guards: a step
+    The received owner's ``Accept`` is committed by the guarded commit before
+    its effects run (ADR-0111), so its trial runs here, among the guards: a step
     the register refuses refuses the act, and no entry is committed for it
     (ADR-0124).  Read-only.
     """

@@ -62,8 +62,9 @@ class _CopyMode(Enum):
 
     #: Decide only; :class:`CommitEmbargoDecisionNode` commits and applies.
     DECIDE = auto()
-    #: The act's entry is already committed (intake, ADR-0111): decide, then
-    #: commit the consent-row entries and apply.
+    #: The act's entry is already committed (a received act's guarded commit,
+    #: in the same act's transaction, ADR-0151): decide, then commit the
+    #: consent-row entries and apply.
     APPLY = auto()
 
 
@@ -79,7 +80,8 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
     step (:meth:`_register_step`) and one entry per changed consent row.
     :meth:`deciding` hands it to ``CommitEmbargoDecisionNode`` in
     ``result_out[EMBARGO_DECISION_KEY]``; :meth:`applying_after` commits the
-    rows and applies here, for an act intake already committed.
+    rows and applies here, for a received act whose guarded commit already
+    committed its entry.
     """
 
     def __init__(

@@ -98,7 +98,7 @@ def activate_embargo_on_case_tree(
     refused activation is never ledgered; the activation itself runs
     ``STRICT``.  The CASE_MANAGER decides the activation and trial-applies it
     among the guards, so a step the register refuses commits nothing; once
-    intake has committed the ``Accept`` (the whole register step and the
+    the guarded commit has committed the ``Accept`` (the whole register step and the
     owner's agreement), each ``CARRY_OVER`` row is committed as its own
     ``Update(EmbargoConsent)`` entry and only then is the case file written
     (ADR-0124, CLP-07-013).

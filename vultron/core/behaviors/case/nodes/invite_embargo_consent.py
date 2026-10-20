@@ -84,7 +84,7 @@ class _CheckEmbargoActiveStateNode(DataLayerActionWithPorts):
 class _SignEmbargoConsentLeafNode(DataLayerActionWithPorts, StateWriteCapable):
     """Write the invitee's agreement its ``Accept`` of the stub Invite states.
 
-    The Accept's own entry, committed by intake, is the entry for the row
+    The Accept's own entry, committed by the guarded commit, is the entry for the row
     (CLP-07-013): the row is written through the one apply function, as a
     replica writes it from the same entry
     (:func:`~vultron.core.participants.stub_reply.stub_accept_consent`,

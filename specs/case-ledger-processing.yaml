@@ -702,8 +702,8 @@ groups:
       first, a received proposal whose relay failed would stay in the register
       with no consent rows and no Invites, and its redelivery would be refused,
       so nothing would ever relay it. With the entry in the act's transaction, a
-      failed received act keeps nothing, and a redelivery is processed as a new
-      delivery (ADR-0151, #4933).
+      failed received act keeps nothing, and a later delivery of the activity is
+      not stopped as a repeat (ADR-0151, #4933).
     verification: >-
       A test fails the second commit of a two-entry act and asserts the
       CASE_MANAGER keeps no entry, no queued activity and no row change from it; a

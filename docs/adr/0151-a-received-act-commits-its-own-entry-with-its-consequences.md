@@ -21,7 +21,7 @@ stakeholder_type: [project-contributor]
 
 A received-side tree runs its stages in a fixed order: intake, the door guards, the clock decisions, the precondition guards, the guarded commit of the received activity's own entry, then the protocol effects (ADR-0111, ADR-0135, CLP-10-006).
 ADR-0111 made the guarded commit a stage of its own, before the effects.
-Each stage that writes was its own DataLayer write, so the received act's own entry was durable as soon as the commit stage ran, whatever the effects did after it.
+The factory composed each stage as its own node, and each node's writes were durable as soon as it ran, so the received act's own entry stood whatever the effects did after it.
 
 ADR-0146 made an embargo act atomic: the act's entries, the case-file changes they carry and every consequence a later node commits (the stub re-issue, a proposal's relay) commit in one DataLayer transaction, or none of them is written.
 A trigger act is atomic by that rule.
@@ -63,25 +63,33 @@ Chosen option: **A, one transaction for the act's own entry and its consequences
    Intake's archive of the received activity is a record of receipt, not of the act, so it stands when the act rolls back (ADR-0111, CLP-10-018).
    A clock decision commits the CASE_MANAGER's own decision ahead of the guards, and is its own act (CLP-10-025).
    A refusal answers a delivery that the guards refused, so no act runs (CLP-10-022).
-4. **A failed received act is undelivered.**
-   Because no entry is kept, the idempotency guards that read the ledger do not see the act, and a redelivery is processed as a new delivery.
-   Nothing re-applies a change after a rollback.
-5. **The received-tree factory composes it.**
+4. **A failed received act leaves no trace but intake's archive.**
+   Because no entry is kept, the idempotency guards that read the ledger do not see the act: a later delivery of the activity is not stopped as a repeat, and runs the act again.
+   Nothing redelivers it on its own, and nothing re-applies a change after a rollback.
+   The failure is an internal error: the handler raises, and the inbox, which answered the sender before processing, logs it.
+5. **The act block is the same at every receiver.**
+   At a participant replica the commit gate skips, and the block holds the replica effects, such as storing a received Invite's embargo and queuing the replica's answer.
+   A failure among them keeps none of their writes either, so a received act fails as a whole at a replica too.
+6. **The received-tree factory composes it.**
    A tree asks for the act block through the factory (`create_receive_activity_tree(as_one_act=True)`), which needs a commit stage; no tree builds its own.
    Every received embargo tree that commits does so.
    Whether other received trees do is decided per tree, with the case trees that still commit an embargo consequence after their act (#4959).
 
-This record supersedes, in part, detail 1 of ADR-0111, which made the guarded commit a stage that was durable before the protocol effects ran.
-The four-stage order of that detail, and the rest of ADR-0111, stand.
+This record supersedes detail 1 of ADR-0111 in part.
+That detail set four stages, intake, guards, guarded commit and effects, and each was composed as its own node.
+The order stands; for a tree that passes the act block, the guarded commit and the effects now run as one transaction instead of as separate writes.
+The rest of ADR-0111 stands.
 
 ### Consequences
 
 - Good, because a received act and a trigger act now follow one rule: the act succeeds or fails as a whole.
 - Good, because the re-apply after a rollback is removed, and no committed entry can exist without its consequences.
-- Good, because a received act whose consequence fails can be redelivered and processed fresh, so a received proposal is never stuck in the register with no rows.
+- Good, because a received act whose consequence fails leaves no entry, so a received proposal is never stuck in the register with no rows, and a later delivery of it runs the act again.
 - Bad, because the transaction now also holds the store's write lock for the received act's own commit and its replica effects, so another writer on the same store waits longer.
 - Bad, because a failure in a replica effect at the CASE_MANAGER now also removes the act's entry, where before it left the entry committed.
   This is the intended outcome: the act did not complete.
+- Bad, because the sender is not told that its act failed: the inbox answered before processing, and a refusal notice answers only a guard's refusal.
+  This was already so before this record; it now means the act is wholly absent rather than half done.
 
 ## Validation
 
@@ -89,6 +97,7 @@ The four-stage order of that detail, and the rest of ADR-0111, stand.
 - A test fails a received proposal's relay part-way and asserts that the proposal keeps no entry, no row, no relayed Invite and no register step, and that a redelivery is applied and relayed.
 - `test/architecture/test_embargo_consequences_in_one_act.py` asserts that every received embargo tree commits its own entry inside an `ActTransaction`.
 - `test/core/behaviors/case/test_receive_activity_tree.py` asserts the factory puts the commit, the replica effects and the CASE_MANAGER gate in one `ActTransaction`, and refuses the option on a tree with no commit.
+- `test/core/behaviors/test_act_transaction.py` asserts that at a participant replica a failing replica effect keeps none of the replica effects' writes.
 
 ## Pros and Cons of the Options
 

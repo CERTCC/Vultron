@@ -197,7 +197,8 @@ same transaction: compose the act's commit node and it into one `ActTransaction`
 `create_case_manager_gated_tree(as_one_act=True)` or
 `create_receive_activity_tree(as_one_act=True)` (#4949). In a received tree the
 act block also holds the guarded commit of the act's own entry, so a failed
-received act keeps no entry and its redelivery is processed fresh (ADR-0151).
+received act keeps no entry, and a later delivery is not stopped as a repeat
+(ADR-0151).
 
 ### Two Meanings of "Reject"
 

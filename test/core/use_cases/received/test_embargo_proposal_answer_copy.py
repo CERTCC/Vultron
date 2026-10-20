@@ -448,7 +448,7 @@ def test_the_managers_proposal_commits_one_row_per_participant_and_copies():
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.spec("CM-23-016")
 def test_a_received_proposal_commits_one_row_per_participant_and_copies():
-    """A participant's proposal: intake commits it, its rows follow."""
+    """A participant's proposal: the guarded commit commits it, its rows follow."""
     net = _net("received-propose")
     participants = len(net.case(MANAGER).actor_participant_index)
 
@@ -928,18 +928,22 @@ def test_a_received_withdrawal_whose_row_commit_fails_writes_no_row():
 @pytest.mark.spec("CLP-07-015")
 def test_a_received_act_whose_consequence_fails_keeps_no_entry_for_it():
     """A received act and its consequences succeed or fail as one: when a
-    row commit fails, the Leave's own entry is not kept either."""
+    row commit fails, the Leave's own entry is not kept either, nor the
+    ``Announce(CaseLedgerEntry)`` its commit queued for each participant, so
+    no replica is sent an entry the CASE_MANAGER does not hold."""
     net, _revision_id = _bystander_agreed_to_a_revision("withdraw-atomic")
-    before = committed_semantic_types(net.stores[MANAGER], net.case_id)
+    dl = net.stores[MANAGER]
+    before = committed_semantic_types(dl, net.case_id)
+    outbox_before = list(dl.outbox_list())
 
     with pytest.MonkeyPatch.context() as patch:
-        fail_commits(patch, commit_tree)
+        failed = fail_commits(patch, commit_tree)
         with pytest.raises(VultronBTInternalError, match="commit failed"):
             _bystander_leaves(net)
+    assert failed, "the fault came after the Leave's own commit"
 
-    assert committed_semantic_types(net.stores[MANAGER], net.case_id) == (
-        before
-    )
+    assert committed_semantic_types(dl, net.case_id) == before
+    assert list(dl.outbox_list()) == outbox_before
 
 
 @pytest.mark.spec("CLP-07-013")

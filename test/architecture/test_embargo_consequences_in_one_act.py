@@ -204,4 +204,16 @@ def test_a_received_embargo_act_commits_its_own_entry_in_its_act() -> None:
             f"{_B}/embargo/announce_teardown_tree.py",
             "invite_to_embargo_on_case_tree",
         ),
+        (
+            f"{_B}/embargo/announce_teardown_tree.py",
+            "remove_embargo_from_case_tree",
+        ),
+        (
+            f"{_B}/embargo/owner_decision_tree.py",
+            "activate_embargo_on_case_tree",
+        ),
+        (
+            f"{_B}/embargo/owner_decision_tree.py",
+            "reject_embargo_proposal_on_case_tree",
+        ),
     } <= committing

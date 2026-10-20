@@ -490,7 +490,8 @@ def invite_to_embargo_on_case_tree(
         CollectEmbargoInviteRecipientsNode(
             case_id=case_id, proposer_id=proposer_id
         ),
-        # Intake committed the proposal, whose entry is the PROPOSE step;
+        # The guarded commit committed the proposal, whose entry is the
+        # PROPOSE step, in this act's transaction;
         # the decision's new consent rows follow as the CASE_MANAGER's own
         # Create(EmbargoConsent) entries, and all are applied by copying
         # (ADR-0124, CLP-07-013).

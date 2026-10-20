@@ -1136,16 +1136,19 @@ def _assert_relay_kept_nothing(
     case_id: str,
     revision_id: str,
     entries_before: list[str],
+    outbox_before: list[str],
 ) -> None:
     """The received proposal kept nothing (CLP-07-015, ADR-0146, ADR-0151).
 
-    No Invite is queued, no consent row exists for the revision, and no
-    entry is new: the proposal's own entry commits in the same transaction
+    No Invite or announcement is queued, no consent row exists for the
+    revision, and no entry is new: the proposal's own entry commits in the same transaction
     as its consequences, so it is gone with them, and with it its
     ``PROPOSE`` step.  The idempotency latch is not written (ID-04-005).
     """
     assert _relayed_invites(dl) == []
     assert [e.id_ for e in _ledger_entries(dl, case_id)] == entries_before
+    # Not even the Announce(CaseLedgerEntry) the proposal's commit queued.
+    assert list(dl.outbox_list()) == outbox_before
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.ACTIVE
     assert revision_id not in case.pending_embargo_proposal_index
@@ -1177,6 +1180,7 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
     dl.create(proposal)
     event = make_payload(proposal, receiving_actor_id=MANAGER)
     entries_before = [e.id_ for e in _ledger_entries(dl, case_id)]
+    outbox_before = list(dl.outbox_list())
     adapter = _AdapterFailingOnSecondInvite(dl)
 
     with pytest.raises(VultronBTInternalError, match="mid-relay"):
@@ -1189,7 +1193,9 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
         ).execute()
 
     assert adapter.calls == 2, "the fault came after the first Invite"
-    _assert_relay_kept_nothing(dl, case_id, revision.id_, entries_before)
+    _assert_relay_kept_nothing(
+        dl, case_id, revision.id_, entries_before, outbox_before
+    )
 
     # Nothing was kept, so a redelivery is a fresh act: the proposal is
     # committed, and relayed to each other participant.
@@ -1208,6 +1214,9 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
         if e.id_ not in entries_before
     ].count("invite_to_embargo_on_case") == 1 + len((OTHER_A, OTHER_B))
     assert len(_relayed_invites(dl)) == len((OTHER_A, OTHER_B))
+    # The act queues announcements, so the unchanged outbox above is no
+    # vacuous check.
+    assert len(dl.outbox_list()) > len(outbox_before) + len((OTHER_A, OTHER_B))
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.REVISE
     for actor_id in (OTHER_A, OTHER_B, PROPOSER):
@@ -1236,6 +1245,7 @@ def test_a_received_proposal_whose_relay_commit_fails_keeps_no_consequence(
     dl.create(proposal)
     event = make_payload(proposal, receiving_actor_id=MANAGER)
     entries_before = [e.id_ for e in _ledger_entries(dl, case_id)]
+    outbox_before = list(dl.outbox_list())
 
     with pytest.MonkeyPatch.context() as mp:
         failed = fail_commits(
@@ -1253,7 +1263,9 @@ def test_a_received_proposal_whose_relay_commit_fails_keeps_no_consequence(
             ).execute()
     (first_invite,) = failed
     assert dl.read(first_invite) is None
-    _assert_relay_kept_nothing(dl, case_id, revision.id_, entries_before)
+    _assert_relay_kept_nothing(
+        dl, case_id, revision.id_, entries_before, outbox_before
+    )
 
 
 @pytest.mark.spec("CM-24-002")

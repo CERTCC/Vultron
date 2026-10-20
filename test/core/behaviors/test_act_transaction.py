@@ -279,3 +279,36 @@ def test_a_missing_datalayer_fails_without_running_the_children():
 
     assert statuses == [Status.FAILURE]
     assert ran == []
+
+
+def test_a_received_act_block_at_a_replica_keeps_no_replica_write(
+    dl: SqliteDataLayer,
+):
+    """At a participant replica the commit gate skips, and the act block
+    still holds the replica effects: when a later one fails, none of their
+    writes is kept, so the received act fails as a whole there too
+    (ADR-0151)."""
+    from vultron.core.behaviors.case.receive_activity_tree import (
+        create_receive_activity_tree,
+    )
+
+    tree = create_receive_activity_tree(
+        name="ReplicaBT",
+        # A case this store does not hold: not its CASE_MANAGER.
+        case_id="https://example.org/cases/not-held",
+        precondition_guards=[],
+        case_may_be_absent=True,
+        replica_effects=[
+            _save(dl, "persisted"),
+            _save(dl, "answer", status=Status.FAILURE),
+        ],
+        as_one_act=True,
+    )
+    act = tree.children[-1]
+    assert isinstance(act, ActTransaction)
+
+    result = _run(dl, act)
+
+    assert result.status is Status.FAILURE
+    assert not _held(dl, "persisted")
+    assert not _held(dl, "answer")

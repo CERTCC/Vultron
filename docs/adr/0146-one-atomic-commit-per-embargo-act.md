@@ -77,7 +77,7 @@ Its replacement Invite is built, queued and committed in the act's transaction w
 
 For a received act, the guarded commit of the act's own entry runs after intake and the guards, and before the consequences (ADR-0111).
 That commit runs in the same transaction as the consequences, so a failure in any of them keeps neither the entry nor any consequence (ADR-0151).
-A redelivery of a failed received act is then processed as a new delivery.
+A later delivery of a failed received act is then not stopped as a repeat, and runs the act again.
 Revision 3 named this as a known gap: the entry was committed in its own transaction first, the change it carried was applied again after the rollback, and a received proposal whose relay failed stayed in the register with no rows, its redelivery refused.
 Revision 4 closes it (#4933).
 
