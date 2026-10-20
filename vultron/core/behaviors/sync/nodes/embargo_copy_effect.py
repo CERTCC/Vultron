@@ -138,22 +138,6 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         """
         return []
 
-    def _left_to_a_later_entry(
-        self, before: EmbargoCaseFile, change: EmbargoChange
-    ) -> bool:
-        """True when the CASE_MANAGER answered this entry with a later one.
-
-        Checked before the apply, after :func:`change_is_in_place`: the
-        entry then changes nothing here, because the change the
-        CASE_MANAGER made in its place arrives as its own entry.  The
-        owner's ``Reject`` of the last revision after disclosure is the one
-        such entry (EMB-04-002).  False by default.
-
-        An override decides on the replica instead of copying, a tracked
-        deviation from CM-23-016 (#4789); no other slot may override it.
-        """
-        return False
-
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -176,16 +160,6 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             self.logger.debug(
                 "%s: '%s' entry '%s' is already in place on case '%s' —"
                 " idempotent no-op",
-                self.name,
-                entry.semantic_type,
-                entry.id_,
-                entry.case_id,
-            )
-            return Status.SUCCESS
-        if self._left_to_a_later_entry(before, change):
-            self.logger.info(
-                "%s: '%s' entry '%s' on case '%s' was answered by a later"
-                " entry, which carries the change — no-op",
                 self.name,
                 entry.semantic_type,
                 entry.id_,

@@ -36,7 +36,6 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState as ECS,
 )
 from vultron.errors import (
-    VultronInvalidStateTransitionError,
     VultronValidationError,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -115,10 +114,12 @@ def test_owner_rejecting_the_last_open_revision_returns_to_active(
 def test_owner_rejecting_one_of_two_revisions_with_pxa_set_is_allowed(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """The P/X/A guard bars only a Reject that returns the case to ACTIVE.
+    """Rejecting either of two revisions with P/X/A set is a plain REJECT.
 
-    With another revision still open, EM stays ``REVISE``: the case is not
-    kept on the prior terms, so there is nothing for EMB-04-002 to refuse.
+    With another revision still open, EM stays ``REVISE``.  Rejecting the
+    last one returns the case to the prior terms, which the CASE_MANAGER's
+    trees end in the same act (EMB-04-002, MSM-07-009); the lifecycle
+    records the step as decided either way.
     """
     owner, dl = owner_and_dl
     case, r1, r2, active_id = _case_with_two_open(dl, owner.id_, EM.REVISE)
@@ -135,10 +136,10 @@ def test_owner_rejecting_one_of_two_revisions_with_pxa_set_is_allowed(
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.proposed_embargo_ids == [r2]
     assert updated.active_embargo_id == active_id
-    with pytest.raises(VultronInvalidStateTransitionError):
-        lifecycle.reject_embargo_proposal(
-            case_id=case.id_, embargo_id=r2, actor_id=owner.id_
-        )
+    last = lifecycle.reject_embargo_proposal(
+        case_id=case.id_, embargo_id=r2, actor_id=owner.id_
+    )
+    assert last.em_after == EM.ACTIVE
 
 
 @pytest.mark.spec("MSM-07-004")

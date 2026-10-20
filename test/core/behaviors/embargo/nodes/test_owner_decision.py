@@ -492,10 +492,12 @@ class TestRejectEmbargoProposalLifecycleNode:
         assert owner_p.consent_for(revision_id) is EmbargoConsentState.INVITED
 
     @pytest.mark.spec("EMB-04-002")
-    def test_strict_ej_with_pxa_set_fails_and_writes_nothing(
+    @pytest.mark.spec("MSM-07-009")
+    def test_strict_ej_with_pxa_set_records_the_reject_step(
         self, dl: SqliteDataLayer
     ):
-        case, _, revision_id, _ = _case_with_owner(
+        """The termination follows in the trigger tree, not in this node."""
+        case, active_id, revision_id, _ = _case_with_owner(
             dl, "rej-pxa", em_state=EM.ACTIVE
         )
         case.append_case_status(pxa=CS_pxa.Pxa)
@@ -507,11 +509,10 @@ class TestRejectEmbargoProposalLifecycleNode:
             case_id=case.id_, embargo_id=revision_id, result_out=result_out
         )
 
-        assert _tick(node) is Status.FAILURE
-        assert isinstance(result_out["error"], VultronError)
-        kept = _case(dl, case.id_)
-        assert kept.current_status.em.state == EM.REVISE
-        assert kept.proposed_embargo_ids == [revision_id]
+        assert _tick(node) is Status.SUCCESS
+        decided = _case(dl, case.id_)
+        assert decided.active_embargo_id == active_id
+        assert decided.proposed_embargo_ids == []
 
 
 # ---------------------------------------------------------------------------

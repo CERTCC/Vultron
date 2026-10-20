@@ -37,6 +37,7 @@ from vultron.core.services.embargo_lifecycle import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState as ECS,
 )
@@ -252,16 +253,23 @@ def test_owners_accept_of_an_invite_with_pxa_set_is_consent_only(
 
 
 # ---------------------------------------------------------------------------
-# Tests: reject_embargo_proposal P/X/A guard (EMB-04-002)
+# Tests: reject_embargo_proposal after disclosure (EMB-04-002)
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("EMB-04-002")
+@pytest.mark.spec("MSM-07-009")
 @pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
-def test_reject_embargo_proposal_strict_revise_pxa_raises(
+def test_reject_embargo_proposal_strict_revise_pxa_rejects_the_revision(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
     pxa_state: CS_pxa,
 ) -> None:
-    """STRICT reject from REVISE+PXA raises (EMB-04-002: must terminate, not revert)."""
+    """STRICT reject from REVISE+PXA records the REJECT step as decided.
+
+    The lifecycle no longer refuses it: the CASE_MANAGER's trees terminate
+    the embargo after this step, in the same act (MSM-07-009), so the
+    revision ends REJECTED and the termination is its own entry.
+    """
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_)
     case.append_case_status(pxa=pxa_state)
@@ -272,13 +280,18 @@ def test_reject_embargo_proposal_strict_revise_pxa_raises(
     dl.save(case)
     write_consent_rows(dl, case)
 
-    lifecycle = EmbargoLifecycle(persistence=dl)
-    with pytest.raises(VultronInvalidStateTransitionError):
-        lifecycle.reject_embargo_proposal(
-            case_id=case.id_,
-            embargo_id=embargo.id_,
-            actor_id=owner.id_,
-        )
+    result = EmbargoLifecycle(persistence=dl).reject_embargo_proposal(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert (result.em_before, result.em_after) == (EM.REVISE, EM.ACTIVE)
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.embargo_register_status(embargo.id_) is (
+        EmbargoRegisterStatus.REJECTED
+    )
+    assert updated.active_embargo_id == active.id_
 
 
 def test_reject_embargo_proposal_strict_proposed_pxa_allowed(
