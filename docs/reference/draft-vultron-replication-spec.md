@@ -533,8 +533,8 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-03-001 | §5.1 | Receiver MUST reject on predecessor hash mismatch |
 | SYNC-03-002 | §5.2 | Sender MUST retry from last accepted hash after rejection |
 | SYNC-03-003 | §5.3 | Replication MUST be idempotent |
-| SYNC-03-006 | §5.1 | Receiver MUST refuse an entry whose content does not reproduce its hash |
 | SYNC-03-004 | §9 | Participants SHOULD include last accepted hash in context |
+| SYNC-03-006 | §5.1 | Receiver MUST refuse an entry whose content does not reproduce its hash |
 | SYNC-04-001 | §9 | Leader MUST track per-peer last acknowledged hash |
 | SYNC-04-002 | §9 | Per-peer state MUST be persisted across leader restart |
 | SYNC-05-001 | §10 | Sender SHOULD retry with exponential backoff |

@@ -93,8 +93,9 @@ class PersistReceivedLogEntryNode(DataLayerActionWithPorts):
 class CheckEntryHashIntactNode(DataLayerConditionWithPorts):
     """Refuse a received entry whose content does not reproduce its hash.
 
-    Runs before the tail lookup, so an entry that fails it is neither
-    buffered, applied nor stored.  No ``Reject(CaseLedgerEntry)`` is sent:
+    Runs before the already-stored check and the tail lookup, so an entry
+    that fails it is refused and logged, and neither buffered, applied nor
+    stored.  No ``Reject(CaseLedgerEntry)`` is sent:
     a replay would resend the same entry, and the replica's unmoved tail
     already makes the next entry ask for one (SYNC-03-006, SYNC-08-001).
     """
@@ -117,12 +118,15 @@ class CheckEntryHashIntactNode(DataLayerConditionWithPorts):
         if ledger_entry_hash_intact(entry):
             return Status.SUCCESS
         self.logger.error(
-            "%s: refusing ledger entry '%s' (case '%s', log_index=%d): its"
-            " content does not reproduce its entry_hash %.16s…",
+            "%s: refusing ledger entry '%s' (case '%s', log_index=%d) in"
+            " activity '%s' from actor '%s': its content does not reproduce"
+            " its entry_hash %.16s…",
             self.name,
             entry.id_,
             entry.case_id,
             entry.log_index,
+            getattr(self.activity, "activity_id", None),
+            getattr(self.activity, "actor_id", None),
             entry.entry_hash,
         )
         return Status.FAILURE

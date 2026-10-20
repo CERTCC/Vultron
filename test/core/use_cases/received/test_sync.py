@@ -684,6 +684,30 @@ class TestPreGenesisAnnounceBuffering:
         # Reject still queued as the backstop (SYNC-15-001).
         assert len(dl.outbox_list()) == 1
 
+    @pytest.mark.spec("SYNC-03-006")
+    @pytest.mark.spec("SYNC-15-004")
+    def test_pre_genesis_entry_with_bad_hash_is_not_buffered(
+        self, dl, gap_buffer
+    ):
+        """A tampered entry for an unseeded case is refused, not held."""
+        case = _make_case()  # deliberately NOT saved — pre-genesis window
+        entry = _make_entry(CASE_URI, 0, case.genesis_hash).model_copy(
+            update={"payload_snapshot": {"tampered": True}}
+        )
+
+        result = AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            self._make_event(entry),
+            sync_port=SyncActivityAdapter(dl),
+            gap_buffer=gap_buffer,
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert dl.read(entry.id_) is None
+        assert gap_buffer.depth(CASE_URI) == 0
+        # Refused without a Reject (SYNC-03-006).
+        assert dl.outbox_list() == []
+
 
 class TestAnnounceLedgerEntryDisposition:
     """Each ``Announce(CaseLedgerEntry)`` exit reports what happened (#2255).
@@ -802,6 +826,26 @@ class TestAnnounceLedgerEntryDisposition:
         assert result.reason is not None
         assert "SYNC-03-006" in result.reason
         assert dl.read(tampered.id_) is None
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("SYNC-03-006")
+    def test_tampered_copy_of_stored_entry_is_refused_not_skipped(
+        self, dl, genesis_entry, gap_buffer
+    ):
+        """The already-stored shortcut does not hide a failed hash check."""
+        dl.save(genesis_entry)
+        tampered = genesis_entry.model_copy(
+            update={"payload_snapshot": {"tampered": True}}
+        )
+
+        result = self._run(dl, self._make_event(tampered), gap_buffer)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "SYNC-03-006" in result.reason
+        stored = dl.read(genesis_entry.id_)
+        assert stored is not None
+        assert stored.payload_snapshot == genesis_entry.payload_snapshot
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("SYNC-14-001")

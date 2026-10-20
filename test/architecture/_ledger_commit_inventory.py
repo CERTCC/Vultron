@@ -213,11 +213,17 @@ _PASS_THROUGH_SEMANTIC_TYPES = frozenset(
         "self.semantic_type",
         "self._semantic_type",
         "chain_entry.semantic_type",
-        # ``HashChainLedgerRecord.from_ledger_entry`` rebuilds a record from an
-        # entry already committed, to check its hash; it commits nothing.
-        "entry.semantic_type",
     }
 )
+
+#: Pass-throughs admitted in one module only, so the generic expression does
+#: not exempt a commit elsewhere (a replica re-minting a received entry would
+#: write ``semantic_type=entry.semantic_type``; CLP-07-013/014).
+_MODULE_PASS_THROUGH_SEMANTIC_TYPES: dict[str, frozenset[str]] = {
+    # ``HashChainLedgerRecord.from_ledger_entry`` rebuilds a record from an
+    # entry already committed, to check its hash; it commits nothing.
+    "vultron.core.models.case_ledger": frozenset({"entry.semantic_type"}),
+}
 
 
 def _constant_value(expr: ast.expr, module: ModuleType) -> str | None:
@@ -302,7 +308,8 @@ def _semantic_type_keyword_values(
 
     Raises:
         AssertionError: on a value the scan cannot resolve and that is not a
-            known pass-through (:data:`_PASS_THROUGH_SEMANTIC_TYPES`).
+            known pass-through (:data:`_PASS_THROUGH_SEMANTIC_TYPES`, or
+            :data:`_MODULE_PASS_THROUGH_SEMANTIC_TYPES` for its module).
     """
     for node in _calls_on_lines_with(path, tree, "semantic_type="):
         for kw in node.keywords:
@@ -323,7 +330,12 @@ def _semantic_type_keyword_values(
                 yield from _class_attribute_values(owner, expr.attr, module)
                 continue
             source = ast.unparse(expr)
-            assert source in _PASS_THROUGH_SEMANTIC_TYPES, (
+            assert source in _PASS_THROUGH_SEMANTIC_TYPES or (
+                source
+                in _MODULE_PASS_THROUGH_SEMANTIC_TYPES.get(
+                    module.__name__, frozenset()
+                )
+            ), (
                 f"{module.__name__}:{node.lineno}: cannot resolve"
                 f" semantic_type={source}; name a constant, or add a"
                 " pass-through whose caller the scan resolves"

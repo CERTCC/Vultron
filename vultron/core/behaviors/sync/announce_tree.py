@@ -406,9 +406,6 @@ def create_announce_log_entry_tree(
         name="ProcessAndStore",
         memory=False,
         children=[
-            # An entry that fails its own hash is refused before it can be
-            # buffered, applied or stored (SYNC-03-006).
-            CheckEntryHashIntactNode(name="CheckEntryHashIntact"),
             reconstruct_or_reject,
             CheckHashOrRejectOnMismatchNode(
                 name="CheckHashOrRejectOnMismatch"
@@ -435,6 +432,10 @@ def create_announce_log_entry_tree(
                 name="CheckIsNotCaseManager",
                 child=CheckIsCaseManagerNode(name="CheckIsCaseManagerInverse"),
             ),
+            # An entry that fails its own hash is refused before it can be
+            # buffered, applied or stored, and before the already-stored
+            # shortcut could skip it unlogged (SYNC-03-006).
+            CheckEntryHashIntactNode(name="CheckEntryHashIntact"),
             entry_processing,
             # The entry this delivery stored (or found stored) may be the
             # predecessor a buffered entry waits on.  That successor is its
