@@ -60,7 +60,11 @@ from vultron.adapters.outbox_dead_letter import RetryStore
 from vultron.config import get_config
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.events import VultronEvent, is_case_bootstrap
+from vultron.core.models.events import (
+    VultronEvent,
+    is_case_bootstrap,
+    is_deferral_exempt,
+)
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
@@ -294,7 +298,7 @@ def _dispatch_or_defer_inbox_item(
     case_id = _activity_context_id(obj, event)
     if (
         case_id is not None
-        and not is_case_bootstrap(event)
+        and not is_deferral_exempt(event)
         and not isinstance(dl.read(case_id), VulnerabilityCase)
     ):
         expired = _expire_pending_case_activities(

@@ -19,9 +19,11 @@ import pytest
 
 from vultron.core.models.events import (
     CASE_BOOTSTRAP_SEMANTICS,
+    CASE_PRECEDING_SEMANTICS,
     MessageSemantics,
     VultronEvent,
     is_case_bootstrap,
+    is_deferral_exempt,
     resolve_case_context_id,
 )
 from vultron.core.models.events.base import CoreObject
@@ -64,6 +66,40 @@ class TestIsCaseBootstrap:
     )
     def test_non_bootstrap_semantics(self, semantic_type):
         assert not is_case_bootstrap(_event(semantic_type))
+
+
+class TestIsDeferralExempt:
+    """Processed without the case: the bootstraps and the stub Invite."""
+
+    @pytest.mark.parametrize(
+        "semantic_type",
+        sorted(CASE_BOOTSTRAP_SEMANTICS | CASE_PRECEDING_SEMANTICS),
+    )
+    def test_exempt_semantics(self, semantic_type):
+        assert is_deferral_exempt(_event(semantic_type))
+
+    @pytest.mark.spec("PCR-06-005")
+    def test_the_stub_invite_is_exempt_but_bootstraps_nothing(self):
+        """A stub Invite seeds no case, so it must not trigger a replay."""
+        event = _event(MessageSemantics.INVITE_ACTOR_TO_CASE)
+        assert is_deferral_exempt(event)
+        assert not is_case_bootstrap(event)
+
+    def test_the_two_sets_are_disjoint(self):
+        assert not CASE_BOOTSTRAP_SEMANTICS & CASE_PRECEDING_SEMANTICS
+
+    @pytest.mark.parametrize(
+        "semantic_type",
+        [
+            MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
+            MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+            MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        ],
+    )
+    def test_activities_presupposing_the_case_are_not_exempt(
+        self, semantic_type
+    ):
+        assert not is_deferral_exempt(_event(semantic_type))
 
 
 class TestResolveCaseContextIdBootstrap:

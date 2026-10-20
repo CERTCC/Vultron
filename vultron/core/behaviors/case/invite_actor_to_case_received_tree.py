@@ -115,6 +115,7 @@ def create_invite_actor_to_case_received_tree(
     case_id: str,
     invitee_id: str,
     inviter_id: str,
+    invite_id: str,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
@@ -151,6 +152,8 @@ def create_invite_actor_to_case_received_tree(
         invitee_id: The invited actor (the Invite's ``object``).
         inviter_id: The Invite's sender, recorded as the case's expected
             CASE_MANAGER.
+        invite_id: The Invite's id, recorded so the invitee's Accept of it
+            can fix the anchor (PCR-03-004).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
 
@@ -179,6 +182,7 @@ def create_invite_actor_to_case_received_tree(
                         case_id=case_id,
                         invitee_id=invitee_id,
                         case_actor_id=inviter_id,
+                        invite_id=invite_id,
                     ),
                 ],
                 case_may_be_absent=True,

@@ -492,8 +492,8 @@ class TestOwnerInviteThroughARemoteCaseActor:
     def test_the_invitee_receives_the_invite(self, topology):
         """The CaseActor's Invite reaches the invitee's container.
 
-        The invitee holds no case yet, so its inbox defers the Invite until the
-        bootstrap its Accept brings; ``read_received_activity`` reads the Invite
+        The invitee holds no case yet, but its inbox processes the stub Invite
+        on arrival (PCR-06-005); ``read_received_activity`` reads the Invite
         however the invitee holds it.
         """
         case_id = "urn:uuid:remote-ca-delivery"

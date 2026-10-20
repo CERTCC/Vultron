@@ -181,3 +181,47 @@ class TestDeferCheckNodeBootstrapNeverDeferred:
 
         assert status == Status.FAILURE
         assert len(queue.queued) == 1
+
+
+class TestDeferCheckNodeStubInviteProcessedOnArrival:
+    """The stub Invite precedes its case by design (MV-10-005, #4915).
+
+    An invitee holds no replica until it accepts, so deferring the stub
+    Invite until the case is known would hold it back until the very
+    Announce its Accept brings.  Every other activity naming an unknown case
+    is still deferred (PCR-06-002).
+    """
+
+    @pytest.mark.spec("PCR-06-005")
+    def test_stub_invite_for_unknown_case_is_not_deferred(self):
+        queue = _StubQueuePort(case_known=False)
+        status = _run_node(
+            "https://example.org/cases/not-yet-known",
+            queue,
+            semantic_type=MessageSemantics.INVITE_ACTOR_TO_CASE,
+        )
+
+        assert status == Status.SUCCESS
+        assert queue.queued == [], "the stub Invite must not be deferred"
+
+    @pytest.mark.spec("PCR-06-002", "PCR-06-005")
+    @pytest.mark.parametrize(
+        "semantic_type",
+        [
+            MessageSemantics.INVITE_ACTOR_TO_FULL_CASE,
+            MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+            MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        ],
+    )
+    def test_non_stub_activity_for_unknown_case_is_still_deferred(
+        self, semantic_type
+    ):
+        queue = _StubQueuePort(case_known=False)
+        status = _run_node(
+            "https://example.org/cases/not-yet-known",
+            queue,
+            semantic_type=semantic_type,
+        )
+
+        assert status == Status.FAILURE
+        assert len(queue.queued) == 1, f"{semantic_type} must be deferred"

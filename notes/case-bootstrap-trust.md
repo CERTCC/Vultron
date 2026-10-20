@@ -25,6 +25,7 @@ relevant_packages:
   - vultron/core/use_cases/received
   - vultron/core/use_cases/triggers
   - vultron/adapters/driving/fastapi
+  - vultron/core/behaviors
   - vultron/wire/as2/factories
 ---
 
@@ -89,6 +90,25 @@ order part of protocol correctness. Instead queue it unapplied for a bounded
 interval (`AppConfig.pre_bootstrap_queue_timeout_seconds`); on expiry drop it,
 warn, and send an `as_Question` asking the **report receiver** — the only actor
 already trusted — to resend the bootstrap.
+
+The queue record also carries the stub Invite's trust anchor (`invite_anchored`,
+PCR-03-004 path b), so expiry empties an anchored record but keeps it until the
+bootstrap arrives and deletes it, and the window opens with the first activity queued,
+not with the Invite: the time an invitee takes to answer must not cost it the anchor
+that admits the case's `Announce` (#4915).
+
+The queue's `case_actor_id` is a replay target until an Invite sets `invite_anchored`:
+the first deferred activity's sender writes it, so any actor could otherwise anchor
+itself as CASE_MANAGER of a case the receiver lacks. Read it as an anchor only when
+the flag is set, and let a stub Invite replace an unconfirmed sender
+(PCR-03-004, #4931).
+
+An Invite-anchored record stays replaceable until the invitee accepts the Invite that
+set it: `RecordInviteTrustAnchorNode` stores `anchor_invite_id`, and the accept
+trigger's `FixInviteTrustAnchorNode` sets `invite_accepted` on the record it names.
+Fixing the anchor any earlier would let a forged stub Invite lock out the real
+CASE_MANAGER's until the bootstrap; a forgery the invitee accepts first still wins
+until signatures (#2841, PCR-03-004).
 
 ## Layer Rules
 

@@ -118,10 +118,11 @@ def _stored_case_invite(
 ) -> as_Invite:
     """Read the received Invite as this invitee holds it, stub and all.
 
-    The Invite is read with ``read_received_activity``: archived by intake, or
-    held by the inbox while it waits for the case bootstrap.  The reply
-    factory checks that it is a case Invite.  The Accept or Reject embeds the
-    Invite as received, so its ``target`` stays the case stub
+    The Invite is read with ``read_received_activity``: intake archives it on
+    arrival, since the inbox never holds a stub Invite back for its case
+    (PCR-06-005).  The reply factory checks that it is a case Invite.  The
+    Accept or Reject embeds the Invite as received, so its ``target`` stays
+    the case stub
     (VAM-04-005, VAM-04-006): the CASE_MANAGER reads the case from the stub's
     ``caseId`` (CM-11-003), and the stub's ``type`` is what tells the reply
     apart from a reply to a full-case Invite (CM-11-013).

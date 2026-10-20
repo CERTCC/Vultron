@@ -39,6 +39,9 @@ from vultron.core.behaviors.case.nodes.diversion_stage import (
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
+from vultron.core.behaviors.case.nodes.refusal_notice import (
+    EMBARGO_REFUSAL_ANSWERS,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -129,6 +132,9 @@ class TestDiversionStage:
 
 
 def _tree(*guards, **kwargs) -> py_trees.composites.Sequence:
+    # A diversion answers in place, so a tree with one names how its other
+    # refusals are answered; only the embargo trees divert (CLP-10-026).
+    kwargs.setdefault("refusal_notice_exemption", EMBARGO_REFUSAL_ANSWERS)
     return create_receive_activity_tree(
         name="Probe",
         case_id=_CASE,
@@ -262,6 +268,7 @@ class TestCaseManagerDiversion:
             precondition_guards=[
                 Diversion(name="D", condition=condition, effects=(effect,))
             ],
+            refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         )
         (stage,) = [n for n in tree.iterate() if isinstance(n, DiversionStage)]
         BTBridge(datalayer=dl).execute_with_setup(

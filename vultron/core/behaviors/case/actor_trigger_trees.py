@@ -34,6 +34,9 @@ from datetime import datetime
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.invite_received import (
+    FixInviteTrustAnchorNode,
+)
 from vultron.core.behaviors.case.nodes.invite_response import (
     EmitAcceptCaseInviteNode,
     EmitAcceptFullCaseInviteNode,
@@ -84,14 +87,16 @@ def accept_case_invite_trigger_bt(
     """Return the trigger-side BT for the accept-case-invite workflow.
 
     Emits Accept(Invite) from the invitee's identity; the factory derives
-    the recipient from the persisted invite object.
+    the recipient from the persisted invite object.  Once the Accept is
+    queued, the trust anchor that Invite set is fixed, so a later Invite
+    naming another CaseActor can no longer replace it (PCR-03-004).
 
     Args:
         invite_id: ID of the RmInviteToCaseActivity being accepted.
         captured: Optional dict; ``captured["activity"]`` is set on success.
 
     Returns:
-        Sequence containing a single EmitAcceptCaseInviteNode.
+        Sequence of EmitAcceptCaseInviteNode then FixInviteTrustAnchorNode.
     """
     root = py_trees.composites.Sequence(
         name="AcceptCaseInviteTriggerBT",
@@ -101,6 +106,7 @@ def accept_case_invite_trigger_bt(
                 invite_id=invite_id,
                 captured=captured,
             ),
+            FixInviteTrustAnchorNode(invite_id=invite_id),
         ],
     )
     logger.debug("Created AcceptCaseInviteTriggerBT for invite=%s", invite_id)

@@ -28,6 +28,8 @@ import py_trees
 import pytest
 
 from test.core.use_cases.received.conftest import (
+    assert_only_refusal_notice,
+    queued_bodies,
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
@@ -193,14 +195,24 @@ def _assert_refused_in_tree_as_unrecorded(
 
     Intake archived it (CLP-10-018), so the refusal came from inside the one
     received tree (CLP-10-005); the guard refused before the commit, so the
-    store holds no ledger entry and the outbox is empty.
+    store holds no ledger entry and the outbox holds only the refusal notice
+    to the Case Owner (CLP-05-001).
     """
     assert result.disposition is HandlerDisposition.REFUSED
     assert "never recorded" in (result.reason or "")
     assert _NEVER_RECORDED_OFFER_ID in (result.reason or "")
     assert dl.read(ReceivedActivityRecord.build_id(answer_id)) is not None
     assert dl.list_objects("CaseLedgerEntry") == []
-    assert dl.outbox_list() == []
+    assert_only_refusal_notice(dl, answer_id, CASE_OWNER_ID)
+
+
+def _assert_only_notice_to_case_owner(dl: SqliteDataLayer) -> None:
+    """The outbox holds only the refusal notice of the Case Owner's answer."""
+    bodies = queued_bodies(dl)
+    assert len(bodies) == 1, bodies
+    refused_id = bodies[0]["inReplyTo"]
+    assert isinstance(refused_id, str)
+    assert_only_refusal_notice(dl, refused_id, CASE_OWNER_ID)
 
 
 def _forget_recommendation(dl: SqliteDataLayer) -> None:
@@ -461,7 +473,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             "never recorded" in r.message and "refusing" in r.message
             for r in caplog.records
         )
-        assert dl.outbox_list() == []
+        _assert_only_notice_to_case_owner(dl)
 
     @pytest.mark.spec("CM-16-006")
     @pytest.mark.spec("CLP-07-014")
@@ -484,7 +496,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "never recorded" in (result.reason or "")
-        assert dl.outbox_list() == []
+        _assert_only_notice_to_case_owner(dl)
 
     @pytest.mark.spec("CM-16-006")
     @pytest.mark.spec("CS-08-001")
@@ -506,7 +518,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "no recommendation" in (result.reason or "")
-        assert dl.outbox_list() == []
+        _assert_only_notice_to_case_owner(dl)
 
     @pytest.mark.spec("CM-16-019")
     def test_invitee_comes_from_the_recorded_offer_not_the_reply(self):
@@ -585,7 +597,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert "never recorded" in (result.reason or "")
-        assert dl.outbox_list() == []
+        _assert_only_notice_to_case_owner(dl)
 
     def test_never_fabricates_the_local_actor(self, caplog):
         """There is no "no local actor" case to skip for (ADR-0073).
@@ -707,9 +719,9 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
     def test_closed_invitee_is_refused_before_anything_is_sent(self, joined):
         """An invitee already at RM.CLOSED is never re-invited (CM-11-015).
 
-        The refusal comes before the emits, so neither the Invite nor the
-        recommender notification is queued (only the ledger sync of the
-        committed receipt is), and the record is left as it was.
+        The refusal comes before the commit and the emits, so neither the
+        Invite nor the recommender notification is queued, only the refusal
+        notice to the Case Owner, and the record is left as it was.
         """
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.dimensions import RmDimension
@@ -752,19 +764,9 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         assert result.disposition is not HandlerDisposition.APPLIED
         assert result.reason is not None
         assert "CM-11-015" in result.reason
-        # Only the ledger sync of the committed receipt is queued; no Invite
-        # and no AcceptActorRecommendation.
-        queued = [dl.read(act_id) for act_id in dl.outbox_list()]
-        assert all(
-            getattr(act, "type_", None) == "Announce" for act in queued
-        ), (
-            "a closed invitee must be sent no Invite and the recommender no"
-            " acceptance (CM-11-015)"
-        )
-        assert not any(
-            RECOMMENDER_ID in (getattr(act, "to", None) or [])
-            for act in queued
-        )
+        # Only the refusal notice to the Case Owner is queued: no Invite and
+        # no AcceptActorRecommendation (CM-11-015, CLP-05-001).
+        assert_only_refusal_notice(dl, event.activity_id, CASE_OWNER_ID)
         stored = dl.read(closed_id)
         assert isinstance(stored, CaseParticipant)
         assert stored.rm_closed
@@ -907,7 +909,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             "never recorded" in r.message and "refusing" in r.message
             for r in caplog.records
         )
-        assert dl.outbox_list() == []
+        _assert_only_notice_to_case_owner(dl)
 
     @pytest.mark.spec("CM-16-007")
     @pytest.mark.spec("CS-08-001")
@@ -929,7 +931,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         ).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "no recommendation" in (result.reason or "")
-        assert dl.outbox_list() == []
+        _assert_only_notice_to_case_owner(dl)
 
     @pytest.mark.spec("CM-16-019")
     @pytest.mark.spec("CLP-10-018")
@@ -1131,7 +1133,10 @@ def test_with_both_unrecorded_each_answer_reports_its_first_lookup(
         result.reason or ""
     )
     assert dl.list_objects("CaseLedgerEntry") == []
-    assert dl.outbox_list() == []
+    notice = assert_only_refusal_notice(dl, activity.id_, CASE_OWNER_ID)
+    # The notice carries the refusing guard's reason (CLP-05-001).
+    assert isinstance(notice["summary"], str)
+    assert (result.reason or "").endswith(notice["summary"])
 
 
 @pytest.mark.parametrize("verb", ["Accept", "Reject"])

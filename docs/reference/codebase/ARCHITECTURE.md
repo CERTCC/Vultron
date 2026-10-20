@@ -26,7 +26,8 @@ stakeholder_type: [project-contributor]
      The embargo end-time check is a clock decision of every tree with a case and both door guards, and the first, CASE_MANAGER-gated step of every case-scoped trigger's tree (EMB-13-003, BT-15-003); no dispatcher runs it as a hook.
      `refusal_effects`, when a tree passes them, run inside the guard stage only when a precondition guard refuses, and only at the CASE_MANAGER (CLP-10-022).
      They do not run for a redelivery, or for a guard failure that is an idempotent repeat the handler reports `SKIPPED` (`ReportsIdempotentRepeat` in `vultron/core/behaviors/idempotency.py`).
-     The refusal notice, `refusal_notice(case_id)` in `vultron/core/behaviors/case/nodes/refusal_notice.py`, is the refusal effect that tells the asserting participant its assertion was refused (CLP-05-001).
+     The factory adds the refusal notice, `refusal_notice(case_id)` in `vultron/core/behaviors/case/nodes/refusal_notice.py`, as the first refusal effect of every tree that commits to a case and has precondition guards, to tell the asserting participant its assertion was refused (CLP-02-005, CLP-05-001).
+     A tree goes without it only by naming a registered `RefusalNoticeExemption` (`refusal_notice_exemption`); `test/architecture/test_received_tree_refusal_notice.py` pins each use.
      The factory wraps `manager_effects` in the CASE_MANAGER gate and refuses an emit node in `replica_effects` that no named exemption covers (BT-17-008).
      The sender-guard stage is the per-use-case sender-entitlement check declared via `sender_entitlement` on the use-case class (HP-01-006, HP-01-007).
      The factory composes it from the declared `SenderRule` and a `SenderCheckContext` for the receiver's addressee side (`vultron/core/behaviors/sender_guard.py`, HP-01-008); a tree cannot pass a guard of its own, and the ratchet's allow-list of guards not yet migrated is empty.

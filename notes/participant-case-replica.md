@@ -66,9 +66,11 @@ the sender only against an anchor the receiver derived itself (HP-01-008):
 2. **Invite path**: a `VultronPendingCaseInbox` anchor written when the receiver
    processed `InviteActorToCase` (`RecordInviteTrustAnchorNode`, #4185). It is
    written only if the Invite's `object` is the receiving actor; it binds to the
-   Invite's `actor` field, not the transport sender; and a second Invite naming a
-   different CaseActor for the same case is refused, leaving the anchor
-   unchanged.
+   Invite's `actor` field, not the transport sender; a later Invite naming a
+   different CaseActor replaces an anchor the invitee has not accepted, so a
+   forged Invite cannot lock out the real one; and once `FixInviteTrustAnchorNode`
+   records the invitee's Accept (`invite_accepted`), such an Invite is refused,
+   leaving the anchor unchanged (PCR-03-004).
 
 No anchor means **reject**, never accept: no legitimate sequence delivers a
 first-contact Announce without a preceding Create or Invite (PCR-07-010, #3273).

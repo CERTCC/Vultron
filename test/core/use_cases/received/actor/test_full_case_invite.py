@@ -559,6 +559,7 @@ def invitee_without_replica(joining_case):  # noqa: F811
         VultronPendingCaseInbox(
             case_id=joining_case.case.id_,
             case_actor_id=joining_case.case_actor_id,
+            invite_anchored=True,
         )
     )
     return dl
@@ -585,6 +586,32 @@ def test_before_the_announce_the_recorded_trust_anchor_is_the_case_manager(
 
     assert accepted.disposition is not HandlerDisposition.REFUSED
     assert refused.disposition is HandlerDisposition.REFUSED
+
+
+@pytest.mark.spec("PCR-03-004")
+@pytest.mark.spec("CBT-03-004")
+def test_a_queue_recorded_sender_does_not_admit_a_full_case_invite(
+    joining_case,  # noqa: F811
+) -> None:
+    """The pre-bootstrap queue's sender is a replay target, not an anchor (#4931)."""
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id=joining_case.invitee_id
+    )
+    dl.save(
+        VultronPendingCaseInbox(
+            case_id=joining_case.case.id_,
+            activity_ids=["https://example.org/activities/queued"],
+            case_actor_id=_IMPOSTOR_ID,
+        )
+    )
+
+    result = _receive_as_invitee(
+        dl,
+        joining_case,
+        _full_case_invite_from(joining_case, _IMPOSTOR_ID, "q"),
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
 
 
 @pytest.mark.spec("CM-11-010")

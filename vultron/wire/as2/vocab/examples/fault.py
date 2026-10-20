@@ -31,23 +31,23 @@ from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
 
 def create_processing_fault() -> as_Create:
-    """The Case Manager refuses a status assertion naming an impossible state.
+    """A Vendor's replica refuses a ledger entry naming an impossible state.
 
-    The fault points at the failed activity by ``inReplyTo`` and names its
-    failure class by URI, with no implementation diagnostics (ASK-07-003,
-    ASK-07-004, ASK-07-006).
+    The Vendor cannot apply the ``Announce(CaseLedgerEntry)`` the Case
+    Manager sent, because the participant status it records violates the
+    composite-state entailments, so it reports the fault to the Case Manager
+    (RSH-05-021).  The fault points at the failed activity by ``inReplyTo``
+    and names its failure class by URI, with no implementation diagnostics
+    (ASK-07-003, ASK-07-004, ASK-07-006).
     """
-    _vendor = vendor()
     fault = as_ProcessingFault(
         failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
-        in_reply_to=(
-            "https://vultron.example/cases/1/participants/vendor/status/9"
-        ),
+        in_reply_to=f"{_CASE_ACTOR.id_}/announce/9",
     )
     return create_processing_fault_activity(
-        actor=_CASE_ACTOR.id_,
+        actor=vendor().id_,
         fault=fault,
-        to=[_vendor.id_],
+        to=[_CASE_ACTOR.id_],
     )
 
 

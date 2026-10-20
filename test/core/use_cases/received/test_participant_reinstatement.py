@@ -38,7 +38,10 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.use_cases.received.actor.test_case_joining_replies import (
     route_received,
 )
-from test.core.use_cases.received.conftest import seed_inert_invitee
+from test.core.use_cases.received.conftest import (
+    refusal_notices_since,
+    seed_inert_invitee,
+)
 from test.core.use_cases.received.test_participant_removal_planned import (
     CASE_ID,
     EMBARGO_ID,
@@ -61,6 +64,9 @@ from vultron.core.behaviors.case.case_participant_received_tree import (
 )
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
     ReinstateCaseParticipantReceivedNode,
+)
+from vultron.core.behaviors.case.nodes.refusal_stage import (
+    PreconditionGuardStage,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     SuggestedActorIsNotRemovedNode,
@@ -906,7 +912,16 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
                 AcceptOfferCaseParticipantReceivedUseCase.sender_entitlement
             ),
         }
-    names = [node.name for node in factory(**kwargs).children]
+    # The guards sit in the refusal-notice stage, ahead of the commit.
+    names = [
+        guard.name
+        for node in factory(**kwargs).children
+        for guard in (
+            node.guards.children
+            if isinstance(node, PreconditionGuardStage)
+            else [node]
+        )
+    ]
 
     # The Accept tree's guard also refuses a joined or closed actor
     # (CM-16-006), so it is a different composite from the recommend tree's.
@@ -952,7 +967,7 @@ def test_the_owners_accept_of_a_removed_invitee_is_refused_before_the_commit(
     case.dl.save(offer.object_)
     case.dl.save(offer)
     ledger_before = len(case.ledger())
-    outbox_before = set(case.dl.outbox_list())
+    outbox_before = case.dl.outbox_list()
 
     result = case.route(
         accept_case_participant_offer_activity(
@@ -966,4 +981,6 @@ def test_the_owners_accept_of_a_removed_invitee_is_refused_before_the_commit(
     assert result.disposition is HandlerDisposition.REFUSED
     assert "CM-31-013" in (result.reason or "")
     assert len(case.ledger()) == ledger_before
-    assert set(case.dl.outbox_list()) == outbox_before
+    # No stub Invite: only the refusal notice to the Case Owner (CLP-05-001).
+    (notice,) = refusal_notices_since(case.dl, outbox_before, OWNER)
+    assert "CM-31-013" in str(notice["summary"])

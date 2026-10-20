@@ -30,6 +30,12 @@ from vultron.core.behaviors.case.nodes.delegation import (
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
+from vultron.core.behaviors.case.nodes.refusal_notice import (
+    EmitRefusalNoticeNode,
+)
+from vultron.core.behaviors.case.nodes.refusal_stage import (
+    RefusalEffectsBestEffort,
+)
 from vultron.core.behaviors.case.nodes.role_gates import (
     CaseManagerGate,
     create_case_manager_gated_tree,
@@ -65,6 +71,8 @@ ADDRESSEE = "ActivityAddressedToReceiverNode"
 CLOCK_GATE = "ClockDecisionsIfCaseManager"
 #: The case-wide clock decision every case tree with a sender guard takes.
 END_TIME = "EmbargoEndTimeDecision"
+#: The stage a commit tree's guards sit in, with the refusal notice (CLP-02-005).
+STAGE = "PreconditionGuardStage"
 
 
 class _Emitter(EmitCapable, py_trees.behaviour.Behaviour):
@@ -132,7 +140,7 @@ class TestStageOrder:
         assert _names(tree)[1:] == [
             POST_CLOSE,
             ADDRESSEE,
-            "Guard",
+            STAGE,
             COMMIT,
             "Replica",
             "SampleBTIfCaseManager",
@@ -431,7 +439,12 @@ class TestRefusalEffects:
         ]
         assert len(gates) == 1
         assert gates[0].name == "SampleBTRefusalIfCaseManager"
-        assert gates[0].gated_branch is note
+        # The refusal notice first, then the tree's own effect, each
+        # best-effort on its own (CLP-02-005, CLP-10-022).
+        wrapped = list(gates[0].gated_branch.children)
+        assert [type(w) for w in wrapped] == [RefusalEffectsBestEffort] * 2
+        assert isinstance(wrapped[0].children[0], EmitRefusalNoticeNode)
+        assert wrapped[1].children[0] is note
 
     @pytest.mark.spec("BT-17-008")
     @pytest.mark.spec("CLP-10-022")
@@ -527,14 +540,136 @@ class TestRefusalEffects:
             "ReplicaEffect",
         ]
 
-    def test_without_refusal_effects_the_guards_stay_top_level(self) -> None:
+    def test_without_a_commit_or_refusal_effects_the_guards_stay_top_level(
+        self,
+    ) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=None,
+            precondition_guards=[_effect("Guard")],
+        )
+
+        assert _names(tree)[1:] == [POST_CLOSE, ADDRESSEE, "Guard"]
+
+
+class TestRefusalNotice:
+    """The factory adds the refusal notice itself (CLP-02-005, CLP-05-001)."""
+
+    @staticmethod
+    def _notices(tree: py_trees.behaviour.Behaviour) -> list:
+        return [
+            n for n in tree.iterate() if isinstance(n, EmitRefusalNoticeNode)
+        ]
+
+    @pytest.mark.spec("CLP-02-005")
+    @pytest.mark.spec("CLP-05-001")
+    def test_a_guarded_commit_tree_answers_a_refusal_with_the_notice(
+        self,
+    ) -> None:
         tree = create_receive_activity_tree(
             name="SampleBT",
             case_id=CASE_ID,
             precondition_guards=[_effect("Guard")],
         )
 
+        assert _names(tree)[1:] == [POST_CLOSE, ADDRESSEE, STAGE, COMMIT]
+        (notice,) = self._notices(tree)
+        assert notice._case_id == CASE_ID
+        assert tree.refusal_notice_exemption is None
+
+    @pytest.mark.spec("CLP-02-005")
+    @pytest.mark.parametrize(
+        ("case_id", "guards"),
+        [(None, [_effect("Guard")]), (CASE_ID, [])],
+        ids=["no-commit", "no-guards"],
+    )
+    def test_a_tree_that_refuses_nothing_before_a_commit_sends_none(
+        self, case_id: str | None, guards: list
+    ) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT", case_id=case_id, precondition_guards=guards
+        )
+
+        assert self._notices(tree) == []
+
+    @pytest.mark.spec("CLP-02-005")
+    def test_a_registered_exemption_drops_the_notice_and_is_recorded(
+        self,
+    ) -> None:
+        from vultron.core.behaviors.case.nodes.refusal_notice import (
+            OWNER_CLOSE_DECLINE,
+        )
+
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[_effect("Guard")],
+            refusal_notice_exemption=OWNER_CLOSE_DECLINE,
+        )
+
+        assert self._notices(tree) == []
         assert _names(tree)[1:] == [POST_CLOSE, ADDRESSEE, "Guard", COMMIT]
+        assert tree.refusal_notice_exemption is OWNER_CLOSE_DECLINE
+
+    @pytest.mark.spec("CLP-02-005")
+    def test_an_unregistered_exemption_is_refused(self) -> None:
+        from vultron.core.behaviors.case.nodes.refusal_notice import (
+            RefusalNoticeExemption,
+        )
+
+        homemade = RefusalNoticeExemption(name="homemade", reason="no record")
+        with pytest.raises(VultronWiringError, match="not registered"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[_effect("Guard")],
+                refusal_notice_exemption=homemade,
+            )
+
+    @pytest.mark.spec("CLP-02-005")
+    @pytest.mark.parametrize(
+        ("case_id", "guards"),
+        [(None, [_effect("Guard")]), (CASE_ID, [])],
+        ids=["no-commit", "no-guards"],
+    )
+    def test_an_exemption_that_exempts_nothing_is_refused(
+        self, case_id: str | None, guards: list
+    ) -> None:
+        from vultron.core.behaviors.case.nodes.refusal_notice import (
+            OWNER_CLOSE_DECLINE,
+        )
+
+        with pytest.raises(VultronWiringError, match="exempts nothing"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=case_id,
+                precondition_guards=guards,
+                refusal_notice_exemption=OWNER_CLOSE_DECLINE,
+            )
+
+    @pytest.mark.spec("CLP-02-005")
+    @pytest.mark.spec("CLP-10-026")
+    def test_a_diverting_tree_must_name_an_exemption(self) -> None:
+        from vultron.core.behaviors.case.nodes.diversion_stage import (
+            Diversion,
+        )
+
+        with pytest.raises(VultronWiringError, match="diverted deliveries"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=CASE_ID,
+                precondition_guards=[
+                    Diversion(name="D", condition=_effect("Condition"))
+                ],
+            )
+
+    def test_an_exemption_needs_a_reason(self) -> None:
+        from vultron.core.behaviors.case.nodes.refusal_notice import (
+            RefusalNoticeExemption,
+        )
+
+        with pytest.raises(ValueError):
+            RefusalNoticeExemption(name="x", reason="")
 
 
 class TestPostCloseStage:
@@ -589,7 +724,7 @@ class TestPostCloseStage:
             post_close_exemption=PostCloseExemption.LEDGER_RESYNC,
         )
 
-        assert _names(tree)[1:] == [ADDRESSEE, "Guard", COMMIT]
+        assert _names(tree)[1:] == [ADDRESSEE, STAGE, COMMIT]
 
     @pytest.mark.spec("CM-23-013")
     def test_a_reply_wraps_the_guard_in_a_gated_refusal_stage(self) -> None:
@@ -611,7 +746,7 @@ class TestPostCloseStage:
         assert _names(tree)[1:] == [
             "PostCloseStage",
             ADDRESSEE,
-            "Guard",
+            STAGE,
             COMMIT,
         ]
         stage = tree.children[1]
@@ -625,7 +760,7 @@ class TestPostCloseStage:
             for n in stage.refusal.iterate()
             if isinstance(n, CaseManagerGate)
         ]
-        assert [g.gated_branch for g in gates] == [reply]
+        assert [g.gated_branch.children for g in gates] == [[reply]]
 
     @pytest.mark.spec("CM-23-013")
     def test_a_reply_on_an_exempt_tree_is_refused(self) -> None:
@@ -711,7 +846,7 @@ class TestClockDecisionStage:
             ADDRESSEE,
             "SenderIsCaseManagerNode",
             "ClockDecisionsIfCaseManager",
-            "Guard",
+            STAGE,
             COMMIT,
             "Replica",
         ]
@@ -840,7 +975,7 @@ class TestClockDecisionStage:
             ADDRESSEE,
             "SenderIsCaseManagerNode",
             CLOCK_GATE,
-            "Guard",
+            STAGE,
             COMMIT,
         ]
         (stage,) = [

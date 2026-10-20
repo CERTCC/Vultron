@@ -125,10 +125,13 @@ Only admitted assertions enter the ledger; there is no disposition field.
   the hash chain (CLP-05-002). Other participants need canonical history, not
   failed attempts.
 - The `Reject` wraps the refused activity inline, `inReplyTo` its id, with the
-  guard's reason in `summary` (ADR-0141). Send it by passing
-  `refusal_notice(case_id)` (`case/nodes/refusal_notice.py`) in a tree's
-  `refusal_effects` (CLP-10-022), never from `execute()`; a sender-guard refusal
-  and a `SKIPPED` repeat get none. A guard that can fail as a repeat implements
+  guard's reason in `summary` (ADR-0141). `create_receive_activity_tree` adds
+  it to every tree that commits to a case and has precondition guards
+  (CLP-10-022); a tree never sends it itself, nor from `execute()`. A tree whose
+  refusals are answered otherwise names a registered `RefusalNoticeExemption`
+  (`case/nodes/refusal_notice.py`) that says how, pinned by
+  `test_received_tree_refusal_notice.py`. A sender-guard refusal and a
+  `SKIPPED` repeat get none. A guard that can fail as a repeat implements
   `ReportsIdempotentRepeat` (`behaviors/idempotency.py`), or the stage reads its
   repeat as a refusal and answers it. The reason is read by the sender, so it
   names the sender's own standing only.

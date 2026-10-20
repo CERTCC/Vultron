@@ -483,8 +483,8 @@ def create_accept_actor_recommendation_received_tree(
     names and the recommendation behind it, and publishes them for every
     later node.  An Accept naming an Offer or recommendation this
     CASE_MANAGER never recorded is refused there, after intake has archived
-    it (CLP-10-018) and before the commit, so nothing is recorded or sent
-    (CLP-10-005, CLP-10-010).
+    it (CLP-10-018) and before the commit, so nothing is recorded and only
+    the refusal notice is sent (CLP-10-005, CLP-10-010, CLP-05-001).
 
     Both emits are the CASE_MANAGER's (CM-16-006, PCR-08-007); a receiver
     that is not it does nothing (#3752).  An invitee already at
@@ -573,7 +573,8 @@ def create_reject_actor_recommendation_received_tree(
     looks up the ``Offer(CaseParticipant)`` the Reject names and the
     recommendation behind it, and a Reject naming either unrecorded is
     refused there, after intake has archived it (CLP-10-018) and before the
-    commit, so nothing is recorded or sent (CLP-10-005, CLP-10-010).
+    commit, so nothing is recorded and only the refusal notice is sent
+    (CLP-10-005, CLP-10-010, CLP-05-001).
 
     The emit is the CASE_MANAGER's (CM-16-007); a receiver that is not it
     does nothing (#3752).

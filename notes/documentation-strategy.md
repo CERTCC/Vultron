@@ -66,9 +66,11 @@ state names, the enum wins and the doc is updated, unless a maintainer has
 named the enum a bug. Canonical files: `vultron/core/states/rm.py`,
 `vultron/core/states/em.py`, `vultron/core/states/cs.py`.
 
-**The formal protocol stays normative.** `docs/reference/formal_protocol/`
-(`states.md`, `transitions.md`, `messages.md`) defines correct transitions;
-check a new handler or BT node against it, and never treat it as historical.
+**Check transitions against the formal protocol, under the specification.**
+`docs/reference/formal_protocol/` (`states.md`, `transitions.md`, `messages.md`)
+defines correct transitions; check a new handler or BT node against it and never
+treat it as historical. It is informative, though: where it differs from the
+Protocol Specification, the specification governs (DF-12-007).
 
 ## Three Views of Behavior, and Which One to Edit
 

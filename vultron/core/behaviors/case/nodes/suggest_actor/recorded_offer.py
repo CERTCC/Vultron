@@ -25,7 +25,8 @@ its roles from the Offer it recorded when it forwarded the recommendation
 :class:`RequireRecordedOfferAnswerNode` looks both up as a precondition guard
 of the answer's one received tree (CLP-10-005, CLP-10-010), so an answer
 naming an Offer or recommendation this CASE_MANAGER never recorded is archived
-by intake and refused before the commit, with nothing sent (CLP-10-018).  On
+by intake and refused before the commit, answered only by the refusal
+notice (CLP-10-018, CLP-05-001).  On
 success it publishes a :class:`RecordedOfferAnswer`, and every later node
 reads it through :class:`RecordedOfferAnswerInputMixin` instead of repeating
 the lookup.

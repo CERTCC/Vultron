@@ -78,6 +78,9 @@ from datetime import datetime
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.refusal_notice import (
+    EMBARGO_REFUSAL_ANSWERS,
+)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_participant_replica_gated_tree,
 )
@@ -273,6 +276,7 @@ def remove_embargo_from_case_tree(
     )
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
+        refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_actor_id, case_id),
@@ -510,6 +514,7 @@ def invite_to_embargo_on_case_tree(
     ]
     root = create_receive_activity_tree(
         name="InviteToEmbargoOnCaseBT",
+        refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=embargo_sender_context(sender_actor_id, case_id),
