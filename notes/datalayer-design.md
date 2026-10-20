@@ -5,9 +5,9 @@ kind: guidance
 tags: [datalayer, ports, persistence, architecture, hexagonal]
 description: >
   Rules for the DataLayer port contract, CasePersistence narrowing, the
-  write/read shape boundary, activity read-back, the received archive as bytes,
-  received-activity keying, received-artifact snapshots, per-actor stores, shared-record writes, and
-  stored-shape changes. Operating rules live in vultron/core/ports/AGENTS.md.
+  write/read shape boundary, activity read-back, the received archive as the
+  sealed body, received-activity keying, received-artifact snapshots, per-actor
+  stores, shared-record writes, and stored-shape changes. Operating rules live in vultron/core/ports/AGENTS.md.
 related_specs:
   - specs/datalayer.yaml
   - specs/architecture.yaml (ARCH-12-003, ARCH-12-006, ARCH-23-003, ARCH-23-005)
@@ -40,7 +40,8 @@ Specs: `specs/datalayer.yaml`.
 
 `dl.read()` returns core objects, never wire objects (ADR-0034), and core
 reads a received activity's facts only from the read-only view its archive loads
-(ADR-0148; see "Activity Read-Back" below).
+(ADR-0148; #4943 rewrites DL-06-001 and DL-06-002 to match; see "Activity
+Read-Back" below).
 
 ## DataLayer vs. CasePersistence
 
@@ -108,9 +109,9 @@ it conflates apart:
 
 | Need | Source of truth | Rule |
 |---|---|---|
-| **Semantic content** — what a message *means* | **Core state**, or the archive's read-only view | Core reads a received activity's facts only from the view its archive loads, never from a wire row (DL-06-001 as ADR-0148 rewrites it, DL-06-002). |
+| **Semantic content** — what a message *means* | **Core state**, or the archive's read-only view | Core reads a received activity's facts only from the view its archive loads, never from a wire row (ADR-0148; #4943 rewrites DL-06-001 and DL-06-002 to match). |
 | **Correlation** — which prior message this answers | **Core-entity relationship** | Resolve through a domain relationship, not a wire re-read (DL-06-003). |
-| **Envelope reconstitution** — verbatim original in a reply's `object_` | **The archived received bytes** | Read only via a wire/adapter seam that parses the bytes; never the core summary (DL-06-004, ADR-0148). |
+| **Envelope reconstitution** — verbatim original in a reply's `object_` | **The archived sealed body** | Read only via a wire/adapter seam that parses the sealed body; never the core summary (DL-06-004, ADR-0148). |
 
 The extractor (the single interpretation site, ARCH-03-001) records each domain
 fact as core state at interpretation time — a transition on an existing core
@@ -137,13 +138,12 @@ effect node. A `StoreReceivedObjectNode` or `idempotent_store` of the received
 activity itself breaks every such scan at once, and the sender controls both the
 id and the unsigned `actor`. Source: #4866; work: #4869, #4870, #4871.
 
-**The received archive is the bytes that arrived (ADR-0148).** Store the body the
-parser sealed (VM-08-002) and nothing derived from it; each load reparses it
-through the inbox's parse and extraction into a read-only view. Reason: a stored
-summary silently loses every field the extractor does not copy, and a reply built
-from it embeds that summary instead of what the sender sent (an embargo Invite
-lost its `endTime`). Never add a second stored copy beside the bytes: two copies
-of one delivery drift. Source: #4910.
+**The received archive is the sealed received body.** Store the body the parser
+sealed and nothing derived from it; each load reparses it through the inbox's
+parse and extraction into a read-only view. Reason: a stored summary silently
+loses every field the extractor does not copy, so a reply built from it embeds
+that summary instead of what the sender sent. Never add a second stored copy
+beside the sealed body: two copies of one delivery drift. Source: ADR-0148.
 
 ## A DataLayer Fallback Is a Smell for a Masked Protocol Bug
 
