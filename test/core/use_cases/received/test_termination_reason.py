@@ -215,7 +215,7 @@ def _replay(dl, case_id: str, snapshot: dict) -> Status:
             case_id=case_id,
             log_index=0,
             object_id=f"{case_id}/activities/remove",
-            event_type="remove_embargo_event_from_case",
+            semantic_type="remove_embargo_event_from_case",
             payload_snapshot=snapshot,
             prev_log_hash="0" * 64,
         )

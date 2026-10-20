@@ -138,7 +138,7 @@ def test_render_case_ledger_entry(adapter):
     obj = CaseLedgerEntry(
         case_id="urn:uuid:case",
         log_object_id="urn:uuid:obj",
-        event_type="V",
+        semantic_type="V",
     )
     result = adapter.render(obj)
     _assert_wire_dict(result, "CaseLedgerEntry")
@@ -154,7 +154,7 @@ def test_render_returns_camel_case_keys(adapter):
     obj = CaseLedgerEntry(
         case_id="urn:uuid:case",
         log_object_id="urn:uuid:obj",
-        event_type="V",
+        semantic_type="V",
     )
     result = adapter.render(obj)
     # Wire alias for 'case_id' is 'caseId' / 'context' depending on wire model;

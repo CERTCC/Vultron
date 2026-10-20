@@ -553,7 +553,7 @@ class ActorSession:
         return self._post("leave-case", {"case_id": self._require_case_id()})
 
     def sync_log_entry(
-        self, *, object_id: str, event_type: str
+        self, *, object_id: str, semantic_type: str
     ) -> WireSyncLogEntryResult:
         """Commit and fan out a canonical ledger entry (sync-log-entry)."""
         return cast(
@@ -563,7 +563,7 @@ class ActorSession:
                 {
                     "case_id": self._require_case_id(),
                     "object_id": object_id,
-                    "event_type": event_type,
+                    "semantic_type": semantic_type,
                 },
                 path_prefix="demo",
                 result_cls=WireSyncLogEntryResult,

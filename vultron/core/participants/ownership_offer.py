@@ -50,9 +50,9 @@ from datetime import datetime
 from vultron.core.models._helpers import _as_id, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.protocol_pair import (
-    OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE,
-    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
     OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES,
+    OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE,
     ProtocolPair,
 )
 from vultron.core.models.wire_keys import wire_key
@@ -118,23 +118,23 @@ class RecordedOwnershipOffer:
     def answer_id(self) -> str | None:
         """The ledgered entry that closed the Offer, or ``None`` while open.
 
-        Any event type in ``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``
+        Any semantic type in ``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``
         closes it: the transferee's answer, the offerer's withdrawal or the
         CASE_MANAGER's expiry record.
         """
         return self.pair.reply_object_id
 
     @property
-    def closed_by_event_type(self) -> str | None:
-        """The ``event_type`` of the entry that closed the Offer, if any."""
-        return self.pair.reply_event_type
+    def closed_by_semantic_type(self) -> str | None:
+        """The ``semantic_type`` of the entry that closed the Offer, if any."""
+        return self.pair.reply_semantic_type
 
     @property
     def closed_by_expiry(self) -> bool:
         """``True`` when the CASE_MANAGER's expiry record closed the Offer."""
         return (
-            self.closed_by_event_type
-            == OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE
+            self.closed_by_semantic_type
+            == OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE
         )
 
     def is_past_deadline(self, now: datetime) -> bool:
@@ -161,7 +161,7 @@ def _offer_entries(dl: CasePersistence, case_id: str) -> list[CaseLedgerEntry]:
     return [
         entry
         for entry in recorded_entries_for_case(case_id=case_id, dl=dl)
-        if entry.event_type == OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE
+        if entry.semantic_type == OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE
     ]
 
 
@@ -300,9 +300,9 @@ def _recorded(
         )
     pair = dl.find_protocol_pair(
         case_id=case_id,
-        request_event_type=OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE,
+        request_semantic_type=OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE,
         object_id=entry.log_object_id,
-        reply_event_types=OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES,
+        reply_semantic_types=OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES,
     )
     return RecordedOwnershipOffer(
         case_id=case_id,

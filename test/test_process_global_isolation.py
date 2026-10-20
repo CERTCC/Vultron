@@ -114,7 +114,7 @@ def _gap_entry() -> CaseLedgerEntry:
         case_id=_CASE_ID,
         log_index=3,
         object_id=f"{_CASE_ID}/activities/act-3",
-        event_type="test_event",
+        semantic_type="test_event",
         payload_snapshot={"log_index": 3},
         prev_log_hash="a" * 64,
     )
@@ -123,7 +123,7 @@ def _gap_entry() -> CaseLedgerEntry:
         log_index=chain.log_index,
         term=chain.term,
         log_object_id=chain.object_id,
-        event_type=chain.event_type,
+        semantic_type=chain.semantic_type,
         payload_snapshot=dict(chain.payload_snapshot),
         prev_log_hash=chain.prev_log_hash,
         entry_hash=chain.entry_hash,

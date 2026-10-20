@@ -54,8 +54,8 @@ from vultron.core.behaviors.case.nodes.embargo_revision_relay import (
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.embargo_consent_event_types import (
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+from vultron.core.models.embargo_consent_semantic_types import (
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_duration import EmbargoDurationSource
@@ -316,7 +316,7 @@ def test_an_invite_committed_before_its_consent_write_is_completed_on_retry(
             patch,
             commit_tree,
             when=lambda kw: (
-                kw["event_type"] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+                kw["semantic_type"] == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
             ),
         )
         bt_scenario.assert_failure(

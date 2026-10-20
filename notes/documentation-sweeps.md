@@ -88,7 +88,7 @@ five-actor scenario, CONCERN-3466).
    `@scenario` decorator.
 2. **Ratchetable** (derivable from source, specs, or config): keep it and add
    the ratchet in the same PR, following
-   `test/ci/invariants/test_universal_event_types.py` or
+   `test/ci/invariants/test_universal_semantic_types.py` or
    `test/architecture/test_codebase_docs_paths.py`.
 3. **Not ratchetable** (a runtime outcome, a schedule, a forecast, a count that
    changes under you): remove it and point at whatever holds the live answer. A

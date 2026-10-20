@@ -51,8 +51,8 @@ logger = logging.getLogger(__name__)
 #: Kind label of the full-case Invite's derived id (see ``derived_activity_id``).
 FULL_CASE_INVITE_ID_KIND = "invite-actor-to-full-case"
 
-#: Ledger ``event_type`` of the full-case Invite's entry.
-FULL_CASE_INVITE_EVENT_TYPE = "invite_actor_to_full_case"
+#: Ledger ``semantic_type`` of the full-case Invite's entry.
+FULL_CASE_INVITE_SEMANTIC_TYPE = "invite_actor_to_full_case"
 
 
 def stored_invite_floor(invite: object) -> LedgerPosition | None:
@@ -296,7 +296,7 @@ class EmitInviteActorToFullCaseNode(_EmitSingleActivityBase):
             case_id=self.case_id,
             activity_id=activity_id,
             activity_blob=activity_blob,
-            event_type=FULL_CASE_INVITE_EVENT_TYPE,
+            semantic_type=FULL_CASE_INVITE_SEMANTIC_TYPE,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:

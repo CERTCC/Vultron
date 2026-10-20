@@ -179,7 +179,7 @@ class TestFactoryChecks:
                         CreateLogEntryNode(
                             case_id=_CASE,
                             object_id=_CASE,
-                            event_type="probe",
+                            semantic_type="probe",
                         ),
                     ),
                     gate=DiversionGate.RECEIVER,

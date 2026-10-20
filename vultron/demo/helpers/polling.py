@@ -515,14 +515,14 @@ def wait_for_reporter_log_entry(
 def _ledger_entry_matches(
     entry: dict,
     case_id: str,
-    event_type: str,
+    semantic_type: str,
     log_object_id: "str | None",
     min_log_index: "int | None",
 ) -> bool:
     """Return True if *entry* satisfies all supplied ledger-event criteria."""
     if entry.get("case_id") != case_id:
         return False
-    if entry.get("event_type") != event_type:
+    if entry.get("semantic_type") != semantic_type:
         return False
     if (
         log_object_id is not None
@@ -539,7 +539,7 @@ def _ledger_entry_matches(
 def wait_for_ledger_event(
     client: DataLayerClient,
     case_id: str,
-    event_type: str,
+    semantic_type: str,
     log_object_id: "str | None" = None,
     min_log_index: "int | None" = None,
     timeout_seconds: float = PARTICIPANT_JOIN_TIMEOUT,
@@ -548,8 +548,8 @@ def wait_for_ledger_event(
 ) -> None:
     """Poll *client*'s DataLayer until a ``CaseLedgerEntry`` matches the given criteria.
 
-    More precise than :func:`wait_for_event_type_in_ledger`: when *log_object_id*
-    is provided the gate is keyed on ``(event_type, log_object_id)``; when
+    More precise than :func:`wait_for_semantic_type_in_ledger`: when *log_object_id*
+    is provided the gate is keyed on ``(semantic_type, log_object_id)``; when
     *min_log_index* is provided the gate additionally requires the matching entry
     to have ``log_index >= min_log_index``.  With neither supplied the behaviour
     is match-any (same as the legacy helper).
@@ -557,7 +557,7 @@ def wait_for_ledger_event(
     Args:
         client: DataLayerClient connected to the authoritative container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
-        event_type: The ``event_type`` value to wait for (e.g. ``"close_case"``).
+        semantic_type: The ``semantic_type`` value to wait for (e.g. ``"close_case"``).
         log_object_id: When supplied, the ledger entry's ``log_object_id`` must
             also match.  Use this to distinguish multiple events of the same
             type on different objects (EDF-06-002).
@@ -588,13 +588,13 @@ def wait_for_ledger_event(
             if not isinstance(v, dict):
                 continue
             if not _ledger_entry_matches(
-                v, case_id, event_type, log_object_id, min_log_index
+                v, case_id, semantic_type, log_object_id, min_log_index
             ):
                 continue
             logger.info(
                 "Ledger event %r found for case %s"
                 " (log_object_id=%r, log_index=%r)",
-                event_type,
+                semantic_type,
                 case_id,
                 v.get("log_object_id"),
                 v.get("log_index"),
@@ -602,7 +602,7 @@ def wait_for_ledger_event(
             return True
         return False
 
-    parts = [f"event_type={event_type!r}"]
+    parts = [f"semantic_type={semantic_type!r}"]
     if log_object_id is not None:
         parts.append(f"log_object_id={log_object_id!r}")
     if min_log_index is not None:
@@ -617,15 +617,15 @@ def wait_for_ledger_event(
     )
 
 
-def wait_for_event_type_in_ledger(
+def wait_for_semantic_type_in_ledger(
     client: DataLayerClient,
     case_id: str,
-    event_type: str,
+    semantic_type: str,
     timeout_seconds: float = 20.0,
     poll_interval: float = 0.5,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll *client*'s DataLayer until a ``CaseLedgerEntry`` with *event_type* appears.
+    """Poll *client*'s DataLayer until a ``CaseLedgerEntry`` with *semantic_type* appears.
 
     Use this before reading the authoritative tail index when a later step
     depends on an entry the CaseActor commits asynchronously, so the tail
@@ -640,7 +640,7 @@ def wait_for_event_type_in_ledger(
     Args:
         client: DataLayerClient connected to the authoritative container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
-        event_type: The ``event_type`` value to wait for (e.g. ``"close_case"``).
+        semantic_type: The ``semantic_type`` value to wait for (e.g. ``"close_case"``).
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Read this actor's store instead of *client*'s own.  Pass
@@ -653,14 +653,14 @@ def wait_for_event_type_in_ledger(
             CaseActor (CLP-10-006) with no participant effect to announce.
 
     Raises:
-        AssertionError: If no entry with *event_type* appears within
+        AssertionError: If no entry with *semantic_type* appears within
             *timeout_seconds*.
     """
 
     wait_for_ledger_event(
         client=client,
         case_id=case_id,
-        event_type=event_type,
+        semantic_type=semantic_type,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
         dl_actor_id=dl_actor_id,
@@ -1344,11 +1344,11 @@ def find_case_actor_participant_id(
 def wait_for_case_actor_ledger_event(
     client: DataLayerClient,
     case_id: str,
-    event_type: str,
+    semantic_type: str,
     timeout_seconds: float = PARTICIPANT_JOIN_TIMEOUT,
     poll_interval: float = 0.5,
 ) -> None:
-    """Poll the CaseActor's *own* ledger, read through *client*, for *event_type*.
+    """Poll the CaseActor's *own* ledger, read through *client*, for *semantic_type*.
 
     The gate for "the CASE_MANAGER committed it": the commit lands in the
     CaseActor's store the moment its received-side tree runs, before any
@@ -1367,17 +1367,17 @@ def wait_for_case_actor_ledger_event(
     Args:
         client: DataLayerClient for the container that hosts the CaseActor.
         case_id: Full URI of the ``as_VulnerabilityCase``.
-        event_type: The ``event_type`` value to wait for.
+        semantic_type: The ``semantic_type`` value to wait for.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
 
     Raises:
         AssertionError: If no such entry appears within *timeout_seconds*.
     """
-    wait_for_event_type_in_ledger(
+    wait_for_semantic_type_in_ledger(
         client=client,
         case_id=case_id,
-        event_type=event_type,
+        semantic_type=semantic_type,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
         dl_actor_id=resolve_case_actor_store_id(client, case_id),

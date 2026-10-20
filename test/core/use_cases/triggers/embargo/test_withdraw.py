@@ -10,7 +10,7 @@ from typing import cast
 
 import pytest
 
-from test.support.ledger import committed_event_types
+from test.support.ledger import committed_semantic_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -165,7 +165,7 @@ def test_a_seeded_signatory_withdraws_with_no_invite(
         case_id=case.id_,
         manager_id=manager_id,
         activity_type="Leave",
-        event_type=_WITHDRAW,
+        semantic_type=_WITHDRAW,
     )
     # Not the CASE_MANAGER: the replica's row moves when the manager's commit
     # is announced, not here (EP-09-008).
@@ -205,7 +205,7 @@ def test_a_case_manager_signatory_records_and_commits_its_own_withdrawal(
 
     assert activity_of(result)["type"] == "Leave"
     assert _row(dl, participant_id, embargo_id) is ECS.DECLINED
-    assert _WITHDRAW in committed_event_types(dl, case.id_)
+    assert _WITHDRAW in committed_semantic_types(dl, case.id_)
     after = cast(VulnerabilityCase, dl.read(case.id_))
     assert after.active_embargo_id == embargo_id
 

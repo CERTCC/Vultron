@@ -135,12 +135,12 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
         for obj in dl.list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
     ]
-    event_types = {entry.event_type for entry in entries}
-    assert {"offer_actor_to_case", "invite_actor_to_case"} <= event_types
+    semantic_types = {entry.semantic_type for entry in entries}
+    assert {"offer_actor_to_case", "invite_actor_to_case"} <= semantic_types
 
     announced = _announced(dl)
     for entry in entries:
         assert _FINDER_ID in announced.get(entry.id_, set()), (
-            f"{entry.event_type} entry '{entry.id_}' was committed but never"
+            f"{entry.semantic_type} entry '{entry.id_}' was committed but never"
             " announced to the finder (SYNC-02-003)"
         )

@@ -39,7 +39,7 @@ from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 
 logger = logging.getLogger(__name__)
 
-_PROPOSAL_EVENT_TYPE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
+_PROPOSAL_SEMANTIC_TYPE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
 
 
 def close_refused_embargo_proposal(
@@ -63,7 +63,7 @@ def close_refused_embargo_proposal(
         dl, request.receiving_actor_id
     )
     get_pending_assertion_store(receiving_actor_id).clear(
-        case_id, _PROPOSAL_EVENT_TYPE, invite_id
+        case_id, _PROPOSAL_SEMANTIC_TYPE, invite_id
     )
     logger.info(
         "CASE_MANAGER '%s' refused embargo proposal '%s' on case '%s';"

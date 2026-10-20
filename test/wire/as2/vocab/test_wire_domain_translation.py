@@ -252,7 +252,7 @@ def test_case_ledger_entry_to_core_returns_domain_model():
         case_id="https://example.org/cases/1",
         log_index=1,
         log_object_id="https://example.org/activities/1",
-        event_type="case_created",
+        semantic_type="case_created",
         payload_snapshot={"id": "https://example.org/activities/1"},
     )
 

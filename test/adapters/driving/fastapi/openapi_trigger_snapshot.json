@@ -912,19 +912,19 @@
             "title": "Case Id",
             "type": "string"
           },
-          "event_type": {
-            "title": "Event Type",
-            "type": "string"
-          },
           "object_id": {
             "title": "Object Id",
+            "type": "string"
+          },
+          "semantic_type": {
+            "title": "Semantic Type",
             "type": "string"
           }
         },
         "required": [
           "case_id",
           "object_id",
-          "event_type"
+          "semantic_type"
         ],
         "title": "SyncLogEntryRequest",
         "type": "object"

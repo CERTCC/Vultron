@@ -36,7 +36,7 @@ def trigger_log_commit(
     client: DataLayerClient,
     actor_id: str,
     case_id: str,
-    event_type: str,
+    semantic_type: str,
     object_id: str | None = None,
 ) -> str:
     """Commit a log entry for *case_id* and return the entry hash.
@@ -50,7 +50,7 @@ def trigger_log_commit(
         client: DataLayerClient connected to the CaseActor container.
         actor_id: Full URI of the actor committing the log entry.
         case_id: Full URI of the ``as_VulnerabilityCase``.
-        event_type: Short machine-readable event descriptor.
+        semantic_type: The entry's semantic type.
         object_id: Optional URI of the primary object.  Defaults to
             *case_id* when not supplied.
 
@@ -64,7 +64,7 @@ def trigger_log_commit(
     ).with_case(as_VulnerabilityCase(id_=case_id))
     result = session.sync_log_entry(
         object_id=object_id if object_id is not None else case_id,
-        event_type=event_type,
+        semantic_type=semantic_type,
     )
     entry_hash = result.entry_hash
     logger.info(

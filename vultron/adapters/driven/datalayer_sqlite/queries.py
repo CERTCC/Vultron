@@ -329,25 +329,25 @@ def find_case_by_report_id(
 def find_protocol_pair(
     dl: "Any",  # SqliteDataLayer
     case_id: str,
-    request_event_type: str,
+    request_semantic_type: str,
     object_id: str,
-    reply_event_types: frozenset[str],
+    reply_semantic_types: frozenset[str],
 ) -> ProtocolPair:
     """Return the open/closed state of a request/reply protocol pair.
 
     Two-pass scan of ``CaseLedgerEntry`` objects scoped to *case_id*:
 
     1. Locate the latest request entry whose
-       ``event_type == request_event_type`` **and**
+       ``semantic_type == request_semantic_type`` **and**
        ``log_object_id == object_id``.
     2. Search, in ``log_index`` order, for the first reply entry recorded
-       after that request whose ``event_type`` is in *reply_event_types*.
+       after that request whose ``semantic_type`` is in *reply_semantic_types*.
        A reply recorded before the request answered an earlier one: a case
        that offers again after an answered Offer must not read the new
        Offer as already answered (CM-21-014).
 
     Returns a :class:`~vultron.core.models.protocol_pair.ProtocolPair`
-    with ``reply_object_id`` / ``reply_event_type`` populated when a reply
+    with ``reply_object_id`` / ``reply_semantic_type`` populated when a reply
     is found (``is_closed()``), or ``None`` fields when not (``is_open()``).
     If no request entry is found, returns an open pair.
 
@@ -355,7 +355,7 @@ def find_protocol_pair(
        ``CaseLedgerEntry`` has no structural field linking a reply to the
        specific request that triggered it (``in_reply_to`` chain-following
        is YAGNI per CLP-11-004).  This function is therefore most reliable
-       when at most one open offer of a given ``request_event_type`` exists
+       when at most one open offer of a given ``request_semantic_type`` exists
        per case at a time, which is the expected protocol usage
        (ADR-0026/CM-16).
     """
@@ -374,7 +374,7 @@ def find_protocol_pair(
         (
             getattr(e, "log_index", 0)
             for e in case_entries
-            if getattr(e, "event_type", None) == request_event_type
+            if getattr(e, "semantic_type", None) == request_semantic_type
             and getattr(e, "log_object_id", None) == object_id
         ),
         default=None,
@@ -382,24 +382,24 @@ def find_protocol_pair(
     request_found = request_index is not None
 
     reply_object_id: str | None = None
-    reply_event_type_found: str | None = None
+    reply_semantic_type_found: str | None = None
 
     if request_index is not None:
         for entry in case_entries:
             if getattr(entry, "log_index", 0) <= request_index:
                 continue
-            entry_event_type = getattr(entry, "event_type", None)
-            if entry_event_type in reply_event_types:
+            entry_semantic_type = getattr(entry, "semantic_type", None)
+            if entry_semantic_type in reply_semantic_types:
                 reply_object_id = getattr(entry, "log_object_id", None)
-                reply_event_type_found = entry_event_type
+                reply_semantic_type_found = entry_semantic_type
                 break
 
     return ProtocolPair(
         case_id=case_id,
-        request_event_type=request_event_type,
+        request_semantic_type=request_semantic_type,
         object_id=object_id,
-        reply_event_types=reply_event_types,
+        reply_semantic_types=reply_semantic_types,
         reply_object_id=reply_object_id,
-        reply_event_type=reply_event_type_found,
+        reply_semantic_type=reply_semantic_type_found,
         request_found=request_found,
     )

@@ -27,8 +27,8 @@ from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.enums.roles import CVDRole
 
-#: The ``event_type`` of the entry that records an admitted role Offer.
-OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE = "offer_case_participant_role"
+#: The ``semantic_type`` of the entry that records an admitted role Offer.
+OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE = "offer_case_participant_role"
 
 
 def recorded_role_offer_entries(
@@ -38,7 +38,7 @@ def recorded_role_offer_entries(
     return [
         entry
         for entry in recorded_entries_for_case(case_id=case_id, dl=dl)
-        if entry.event_type == OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE
+        if entry.semantic_type == OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE
     ]
 
 
@@ -97,7 +97,7 @@ def role_offer_forward_id(
 
 
 __all__ = [
-    "OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE",
+    "OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE",
     "entry_names_role_offer",
     "recorded_role_offer",
     "recorded_role_offer_entries",

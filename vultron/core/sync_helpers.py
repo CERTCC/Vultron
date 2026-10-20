@@ -296,14 +296,14 @@ def _find_equivalent_recorded_entry(
     *,
     case_id: str,
     object_id: str,
-    event_type: str,
+    semantic_type: str,
     payload_snapshot: dict[str, Any],
     dl: CasePersistence,
     entries: list[CaseLedgerEntry] | None = None,
 ) -> CaseLedgerEntry | None:
     """Return an already-recorded canonical entry with equivalent semantics.
 
-    "Equivalent" means same case, object, event type, and payload snapshot.
+    "Equivalent" means same case, object, semantic type, and payload snapshot.
     This supports idempotent handling of participant retries without appending
     duplicate canonical entries for the same logical assertion.
 
@@ -316,7 +316,7 @@ def _find_equivalent_recorded_entry(
     Args:
         case_id: URI of the parent case.
         object_id: Candidate entry's ``log_object_id``.
-        event_type: Candidate entry's ``event_type``.
+        semantic_type: Candidate entry's ``semantic_type``.
         payload_snapshot: The candidate ``payloadSnapshot``.
         dl: DataLayer to query when *entries* is not supplied.
         entries: Pre-fetched recorded entries for this case, from
@@ -333,7 +333,7 @@ def _find_equivalent_recorded_entry(
         obj
         for obj in pool
         if obj.log_object_id == object_id
-        and obj.event_type == event_type
+        and obj.semantic_type == semantic_type
         and _semantic_payload(obj.payload_snapshot) == wanted
     ]
     if not matches:

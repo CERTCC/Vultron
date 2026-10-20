@@ -42,8 +42,8 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_consent_event_types import (
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+from vultron.core.models.embargo_consent_semantic_types import (
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.use_case_result import (
@@ -72,7 +72,7 @@ _ACTIVE = f"{_CASE_ID}/embargo_events/active"
 _AGREED_REVISION = f"{_CASE_ID}/embargo_events/agreed-revision"
 _INVITED_REVISION = f"{_CASE_ID}/embargo_events/invited-revision"
 _WITHDRAW = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
-_UPDATE_CONSENT = UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+_UPDATE_CONSENT = UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
 
 
 def _embargo(embargo_id: str, days: int) -> as_EmbargoEvent:
@@ -213,7 +213,7 @@ def _announced_to(dl: SqliteDataLayer) -> set[str]:
 
 def _ledger(dl: SqliteDataLayer) -> list[str]:
     return [
-        str(entry.event_type)
+        str(entry.semantic_type)
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
     ]

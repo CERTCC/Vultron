@@ -68,7 +68,7 @@ class ApplyParticipantStatusFromLedgerNode(
     """Apply an ``add_participant_status_to_participant`` ledger entry locally.
 
     When a non-Case-Actor participant receives
-    ``Announce(CaseLedgerEntry)`` and the entry's ``event_type`` is
+    ``Announce(CaseLedgerEntry)`` and the entry's ``semantic_type`` is
     ``add_participant_status_to_participant``, this node reconstructs the
     :class:`~vultron.core.models.participant_status.ParticipantStatus` from
     the entry's ``payload_snapshot`` and appends it to the matching

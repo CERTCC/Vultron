@@ -215,7 +215,7 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             e
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
-            and e.event_type == "offer_case_participant_role"
+            and e.semantic_type == "offer_case_participant_role"
         ]
         assert len(offer_entries) == 1
         assert (

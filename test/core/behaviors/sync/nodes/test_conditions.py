@@ -28,19 +28,22 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     _REMOVE_NOTE_FROM_CASE_EVENT,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.participant_event_types import (
-    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 
 
 @pytest.mark.parametrize(
-    "node_cls, matching_event_type",
+    "node_cls, matching_semantic_type",
     [
         (IsRemoveEmbargoEventNode, _REMOVE_EMBARGO_EVENT),
         (IsParticipantStatusEventNode, _ADD_PARTICIPANT_STATUS_EVENT),
         (IsAddNoteEventNode, _ADD_NOTE_TO_CASE_EVENT),
         (IsRemoveNoteEventNode, _REMOVE_NOTE_FROM_CASE_EVENT),
-        (IsCreateCaseParticipantEventNode, CREATE_CASE_PARTICIPANT_EVENT_TYPE),
+        (
+            IsCreateCaseParticipantEventNode,
+            CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        ),
         (IsInviteAcceptEventNode, "accept_invite_actor_to_case"),
         (IsInviteRejectEventNode, "reject_invite_actor_to_case"),
     ],
@@ -49,11 +52,13 @@ class TestPositiveLedgerEntryConditionNodes:
     """Tests for positive-precondition Is* condition nodes (BTND-08-001)."""
 
     @pytest.mark.spec("SYNC-12-001")
-    def test_succeeds_on_matching_event_type(
-        self, bridge, case_actor, node_cls, matching_event_type
+    def test_succeeds_on_matching_semantic_type(
+        self, bridge, case_actor, node_cls, matching_semantic_type
     ):
         entry = _make_entry(0)
-        entry = entry.model_copy(update={"event_type": matching_event_type})
+        entry = entry.model_copy(
+            update={"semantic_type": matching_semantic_type}
+        )
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
@@ -65,14 +70,14 @@ class TestPositiveLedgerEntryConditionNodes:
         assert result.status == Status.SUCCESS
 
     @pytest.mark.spec("SYNC-12-001")
-    def test_fails_on_non_matching_event_type(
-        self, bridge, case_actor, node_cls, matching_event_type
+    def test_fails_on_non_matching_semantic_type(
+        self, bridge, case_actor, node_cls, matching_semantic_type
     ):
         entry = _make_entry(0)
-        # use any event_type that is NOT the matching one
-        other_event = "some_other_event_type"
-        assert other_event != matching_event_type
-        entry = entry.model_copy(update={"event_type": other_event})
+        # use any semantic_type that is NOT the matching one
+        other_event = "some_other_semantic_type"
+        assert other_event != matching_semantic_type
+        entry = entry.model_copy(update={"semantic_type": other_event})
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
@@ -88,9 +93,9 @@ class TestPositiveLedgerEntryConditionNodes:
 def test_a_create_note_entry_attaches_no_note(bridge, case_actor):
     """Only an ``add_note_to_case`` entry attaches a note (#4707).
 
-    The retired ``create_note`` event type no longer reaches the note slot.
+    The retired ``create_note`` semantic type no longer reaches the note slot.
     """
-    entry = _make_entry(0).model_copy(update={"event_type": "create_note"})
+    entry = _make_entry(0).model_copy(update={"semantic_type": "create_note"})
     event = _make_event(entry, actor_id=case_actor.id_)
 
     result = bridge.execute_with_setup(
@@ -150,7 +155,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
             case_id=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",
-            event_type="test_event",
+            semantic_type="test_event",
             payload_snapshot={"log_index": 2},
             prev_log_hash=e0.entry_hash,
             entry_hash="f" * 64,
@@ -174,7 +179,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
             case_id=CASE_ID,
             log_index=1,
             log_object_id="https://example.org/activities/log-1",
-            event_type="test_event",
+            semantic_type="test_event",
             payload_snapshot={"log_index": 1},
             prev_log_hash="0" * 64,  # wrong: does not match e0.entry_hash
             entry_hash="1" * 64,
@@ -201,7 +206,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
             case_id=CASE_ID,
             log_index=2,
             log_object_id="https://example.org/activities/log-2",
-            event_type="test_event",
+            semantic_type="test_event",
             payload_snapshot={"log_index": 2},
             prev_log_hash=e0.entry_hash,
             entry_hash="a" * 64,

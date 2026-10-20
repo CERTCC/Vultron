@@ -61,7 +61,7 @@ from vultron.core.models._helpers import from_now_utc
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
     wait_for_case_attributed_to,
-    wait_for_event_type_in_ledger,
+    wait_for_semantic_type_in_ledger,
 )
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import recipient_ids
@@ -186,10 +186,10 @@ def _vendor_offers_ownership(
     )
     logger.info("Vendor offered ownership: %s", logfmt(offer))
     with demo_gate("Ownership offer recorded by the CaseActor (CM-21-005)"):
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=client,
             case_id=case.id_,
-            event_type="offer_case_ownership_transfer",
+            semantic_type="offer_case_ownership_transfer",
             dl_actor_id=case_actor_id,
         )
     return offer.id_
@@ -436,10 +436,10 @@ def demo_transfer_ownership_reject(
     with demo_gate(
         "CaseActor committed reject_case_ownership_transfer (CM-21-012)"
     ):
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=client,
             case_id=case.id_,
-            event_type="reject_case_ownership_transfer",
+            semantic_type="reject_case_ownership_transfer",
             dl_actor_id=case_actor_id,
         )
 
@@ -531,10 +531,10 @@ def demo_transfer_ownership_withdraw(
     with demo_gate(
         "CaseActor committed undo_case_ownership_transfer (CM-21-015)"
     ):
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=client,
             case_id=case.id_,
-            event_type="undo_case_ownership_transfer",
+            semantic_type="undo_case_ownership_transfer",
             dl_actor_id=case_actor_id,
         )
 

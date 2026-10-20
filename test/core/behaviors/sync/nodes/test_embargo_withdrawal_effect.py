@@ -42,7 +42,7 @@ from vultron.enums.roles import CVDRole
 MANAGER_ACTOR_ID = "https://example.org/actors/case-manager"
 ACTIVE_EMBARGO_ID = f"{CASE_ID}/embargo_events/e0"
 REVISION_ID = f"{CASE_ID}/embargo_events/e1"
-_EVENT_TYPE = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
+_SEMANTIC_TYPE = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
 
 
 def _embargo(embargo_id: str, days: int) -> EmbargoEvent:
@@ -74,7 +74,7 @@ def _leave_entry(
             case_id=CASE_ID,
             log_index=0,
             object_id=snapshot["id"],
-            event_type=_EVENT_TYPE,
+            semantic_type=_SEMANTIC_TYPE,
             payload_snapshot=snapshot,
             prev_log_hash="0" * 64,
         )

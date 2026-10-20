@@ -714,7 +714,7 @@ class TestTriggerLogCommit:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            event_type="test_commit",
+            semantic_type="test_commit",
         )
 
         assert isinstance(entry_hash, str)
@@ -749,13 +749,13 @@ class TestTriggerLogCommit:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            event_type="event_a",
+            semantic_type="event_a",
         )
         h2 = demo.trigger_log_commit(
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            event_type="event_b",
+            semantic_type="event_b",
         )
 
         assert h1 != h2
@@ -791,7 +791,7 @@ class TestWaitForReporterLogEntry:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            event_type="test_wait",
+            semantic_type="test_wait",
         )
 
         # In single-server mode the vendor DataLayer is shared, so the entry
@@ -852,7 +852,7 @@ class TestVerifyReplicaState:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            event_type="demo_verification",
+            semantic_type="demo_verification",
         )
 
         # Should not raise — single server means replica is trivially consistent
@@ -1814,9 +1814,9 @@ class TestDeliveryIsolation:
 # ---------------------------------------------------------------------------
 
 
-def _log_event_type(entry: dict) -> str:
-    """Return eventType from a log entry dict (accepts camelCase alias)."""
-    return str(entry.get("eventType", entry.get("event_type", "")))
+def _log_semantic_type(entry: dict) -> str:
+    """Return semanticType from a log entry dict (accepts camelCase alias)."""
+    return str(entry.get("semanticType", entry.get("semantic_type", "")))
 
 
 def _log_payload(entry: dict) -> dict:
@@ -1997,12 +1997,12 @@ class TestCaseLedgerInvariants:
     Spec: CLP-07.
     """
 
-    #: Baseline event types that must appear in the combined case log after a
+    #: Baseline semantic types that must appear in the combined case log after a
     #: complete rv CVD run.  These are the types observed in the
     #: single-DataLayer in-process test environment and do not correspond
     #: directly to CI invariant 5 (whose full set requires CaseActor
     #: commit-path completeness — see issue #789).
-    _REQUIRED_EVENT_TYPES: frozenset[str] = frozenset(
+    _REQUIRED_SEMANTIC_TYPES: frozenset[str] = frozenset(
         {
             "add_participant_status_to_participant",  # participant tracking — CI invariant 7.
             # offer_case_manager_role removed: ADR-0041 removes SendOfferCaseManagerRoleNode;
@@ -2030,13 +2030,13 @@ class TestCaseLedgerInvariants:
         status_entries = [
             e
             for e in entries
-            if _log_event_type(e) == "add_participant_status_to_participant"
+            if _log_semantic_type(e) == "add_participant_status_to_participant"
         ]
         assert status_entries, (
             "Expected at least one add_participant_status_to_participant entry"
             " in the combined case log, but none were found. "
             f"(total entries: {len(entries)}, "
-            f"event types: {sorted({_log_event_type(e) for e in entries})})"
+            f"semantic types: {sorted({_log_semantic_type(e) for e in entries})})"
         )
 
     def test_all_participants_rm_closed_at_scenario_end(
@@ -2069,13 +2069,13 @@ class TestCaseLedgerInvariants:
         # CI invariant 7 — last RM state per participant must be CLOSED.
         latest_rm: dict[str, str] = {}
         for entry in entries:
-            event_type = _log_event_type(entry)
+            semantic_type = _log_semantic_type(entry)
             payload = _log_payload(entry)
-            if event_type == "add_participant_status_to_participant":
+            if semantic_type == "add_participant_status_to_participant":
                 p_id, rm_state = _participant_id_and_rm(payload)
                 if p_id and rm_state:
                     latest_rm[p_id] = rm_state
-            elif event_type == "close_case":
+            elif semantic_type == "close_case":
                 # close_case entries signal RM=CLOSED for the departing actor
                 # (ADR-0050: Leave(VulnerabilityCase) is the canonical closure path).
                 actor_id = payload.get("actor") or payload.get("attributedTo")
@@ -2098,17 +2098,17 @@ class TestCaseLedgerInvariants:
             f"Participants not in RM=CLOSED at scenario end: {not_closed}"
         )
 
-    def test_required_event_types_present_in_case_actor_log(
+    def test_required_semantic_types_present_in_case_actor_log(
         self,
         completed_workflow: tuple[
             demo.DataLayerClient, demo.as_VulnerabilityCase
         ],
     ) -> None:
-        """Combined case log contains the required baseline event types.
+        """Combined case log contains the required baseline semantic types.
 
-        Verifies a baseline set of event types observed in the single-DataLayer
+        Verifies a baseline set of semantic types observed in the single-DataLayer
         in-process test environment.  This does not directly correspond to CI
-        invariant 5 (whose full EXPECTED_EVENT_TYPES set requires CaseActor
+        invariant 5 (whose full EXPECTED_SEMANTIC_TYPES set requires CaseActor
         commit-path completeness per issue #789); it confirms that the
         participant-tracking and report-intake paths produce log entries.
         Spec: CLP-07.
@@ -2116,11 +2116,11 @@ class TestCaseLedgerInvariants:
         vendor_client, case = completed_workflow
         entries = _fetch_case_log(vendor_client, case)
 
-        # Baseline event-type presence check (participant tracking + report intake).
-        found = {_log_event_type(e) for e in entries}
-        missing = self._REQUIRED_EVENT_TYPES - found
+        # Baseline semantic-type presence check (participant tracking + report intake).
+        found = {_log_semantic_type(e) for e in entries}
+        missing = self._REQUIRED_SEMANTIC_TYPES - found
         assert not missing, (
-            f"Required eventTypes missing from combined case log: {sorted(missing)}\n"
+            f"Required semanticTypes missing from combined case log: {sorted(missing)}\n"
             f"Found: {sorted(found)}"
         )
 
@@ -2345,7 +2345,7 @@ class TestRvMilestoneAssertions:
                 "case_id": case.id_,
                 "log_index": 0,
                 "entry_hash": "h0",
-                "event_type": "close_case",
+                "semantic_type": "close_case",
             }
         }
 

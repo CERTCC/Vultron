@@ -157,7 +157,7 @@ def test_a_slash_spelled_owner_reaches_its_case_owner_records():
     (entry,) = [
         e
         for e in _ledger(dl)
-        if e.event_type == "reject_embargo_proposal_on_case"
+        if e.semantic_type == "reject_embargo_proposal_on_case"
     ]
     # The ledger keeps what the sender wrote (OID-01-006).
     assert entry.payload_snapshot.get("actor") == _VENDOR_AS_WRITTEN

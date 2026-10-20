@@ -73,7 +73,7 @@ def _entry(index: int, case_id: str = CASE_ID) -> CaseLedgerEntry:
         case_id=case_id,
         log_index=index,
         log_object_id=f"http://example.com/activities/a{index}",
-        event_type="test",
+        semantic_type="test",
     )
 
 

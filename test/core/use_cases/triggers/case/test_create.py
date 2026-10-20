@@ -423,7 +423,7 @@ def _rebuild_case_file(
     """
     records: dict[str, CoreObject] = {}
     for entry in entries:
-        key, cls = _CARRIED[entry.event_type]
+        key, cls = _CARRIED[entry.semantic_type]
         record = cls.model_validate(entry.payload_snapshot[key])
         records[record.id_] = record
     return records
@@ -471,21 +471,23 @@ class TestCreateCaseTriggerLedger:
 
         entries = ledger_entries(self.dl, case.id_)
 
-        assert [e.event_type for e in entries] == [
+        assert [e.semantic_type for e in entries] == [
             "create_case",
             "add_report_to_case",
             "create_case_participant",
             "add_case_status_to_case",
         ]
         assert [
-            (e.event_type, e.log_object_id) for e in entries
+            (e.semantic_type, e.log_object_id) for e in entries
         ] == creation_entry_sequence(self.dl, case)
 
     @pytest.mark.spec("CLP-07-013")
     def test_a_case_with_no_report_commits_no_report_entry(self):
         case = self._create(report=False)
 
-        assert [e.event_type for e in ledger_entries(self.dl, case.id_)] == [
+        assert [
+            e.semantic_type for e in ledger_entries(self.dl, case.id_)
+        ] == [
             "create_case",
             "create_case_participant",
             "add_case_status_to_case",
@@ -707,9 +709,9 @@ class TestCreateCaseTriggerLedger:
 
         (case,) = self.dl.list_objects("VulnerabilityCase")
         assert case.id_ in str(raised.value), "the error names the case"
-        assert [e.event_type for e in ledger_entries(self.dl, case.id_)] == [
-            "create_case"
-        ]
+        assert [
+            e.semantic_type for e in ledger_entries(self.dl, case.id_)
+        ] == ["create_case"]
         (queued,) = self.dl.outbox_list()
         assert getattr(self.dl.read(queued), "type_", None) == "Create"
 

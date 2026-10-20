@@ -265,7 +265,7 @@ def stub_closure_gate() -> Iterator[MagicMock]:
 #: ledger, as a message; checked after every demo test (``conftest``).
 REBUILD_FAILURES: list[str] = []
 
-#: Each case the check rebuilt, with its ledger's event types, so a test can
+#: Each case the check rebuilt, with its ledger's semantic types, so a test can
 #: see what it covered.
 REBUILT_CASES: list[tuple[str, list[str]]] = []
 
@@ -330,7 +330,10 @@ def check_cases_rebuild_from_their_ledgers() -> None:
             REBUILT_CASES.append(
                 (
                     case_id,
-                    [str(e.event_type) for e in ledger_entries(dl, case_id)],
+                    [
+                        str(e.semantic_type)
+                        for e in ledger_entries(dl, case_id)
+                    ],
                 )
             )
             try:

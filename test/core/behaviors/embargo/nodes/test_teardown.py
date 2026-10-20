@@ -31,7 +31,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
 )
 from test.support.embargo_register import propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
@@ -601,7 +601,7 @@ def _remove_entry(
             case_id=case_id,
             log_index=0,
             object_id=f"{case_id}/activities/remove",
-            event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
+            semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             payload_snapshot={
                 "type": "Remove",
                 "object": (

@@ -517,7 +517,7 @@ class TestSeedVendorParticipantRMState:
         RM.RECEIVED simulates what the protocol would have done.
 
         RM.VALID must NOT be pre-seeded — validate-report must drive that
-        transition so the validate_report eventType appears in the case-actor
+        transition so the validate_report semanticType appears in the case-actor
         ledger (issue #2273).
         """
         from vultron.core.states.rm import RM

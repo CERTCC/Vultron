@@ -199,7 +199,7 @@ def recorded_notes(dl: SqliteDataLayer) -> list[dict[str, Any]]:
             e
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
-            and e.event_type == "add_note_to_case"
+            and e.semantic_type == "add_note_to_case"
         ),
         key=lambda e: e.log_index,
     )
@@ -312,13 +312,13 @@ def assert_anomaly_flagged_and_noted(
 
 
 def committed_since(dl: SqliteDataLayer, log_index: int) -> list[str]:
-    """The ``event_type`` of each entry *dl* committed after *log_index*.
+    """The ``semantic_type`` of each entry *dl* committed after *log_index*.
 
     A refused declaration commits nothing of its own; the only entry it may
     leave is the CASE_MANAGER's RSH-06-004 note (CLP-10-022).
     """
     return [
-        e.event_type
+        e.semantic_type
         for e in sorted(
             (
                 e

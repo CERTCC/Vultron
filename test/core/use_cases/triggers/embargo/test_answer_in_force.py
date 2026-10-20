@@ -257,7 +257,7 @@ def test_answers_the_embargo_in_force_by_invite_id(
         case_id=in_force.case.id_,
         manager_id=in_force.manager_id,
         activity_type=verb,
-        event_type=semantics.value,
+        semantic_type=semantics.value,
     )
     # Not the CASE_MANAGER: the replica's row moves when the manager's commit
     # is announced, not here (EP-09-008).
@@ -442,7 +442,7 @@ def test_an_invite_held_only_under_its_own_id_is_answered(
         case_id=in_force.case.id_,
         manager_id=in_force.manager_id,
         activity_type=verb,
-        event_type=semantics.value,
+        semantic_type=semantics.value,
     )
 
 
@@ -486,7 +486,7 @@ def test_an_invite_held_only_as_its_archive_record_is_answered(
         case_id=in_force.case.id_,
         manager_id=in_force.manager_id,
         activity_type=verb,
-        event_type=semantics.value,
+        semantic_type=semantics.value,
     )
 
 

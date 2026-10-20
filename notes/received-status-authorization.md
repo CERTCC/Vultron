@@ -62,10 +62,10 @@ property of the pipeline:
 - **Received-side state writes are CASE_MANAGER-gated** (`manager_effects`); a
   replica stores the activity and converges on the `Announce(CaseLedgerEntry)`
   fan-out. `test/architecture/test_received_tree_state_writes_are_gated.py`
-  enforces it, and every committed event type must be replayed
-  (`test/architecture/test_ledger_event_types_are_replayed.py`).
+  enforces it, and every committed semantic type must be replayed
+  (`test/architecture/test_ledger_semantic_types_are_replayed.py`).
 - **Add the replay node before gating the effect.** Gating a state-writing
-  effect whose event type no replica replays blinds every replica (RSH-08-004
+  effect whose semantic type no replica replays blinds every replica (RSH-08-004
   before RSH-08-003).
 - **The one exception** is a signatory whose ledger stream is paused: the
   CASE_MANAGER's direct `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)` is its

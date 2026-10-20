@@ -82,7 +82,7 @@ class _CommitCaseManagerNoteBase(
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(
             case_id=case_id,
-            event_type=MessageSemantics.ADD_NOTE_TO_CASE.value,
+            semantic_type=MessageSemantics.ADD_NOTE_TO_CASE.value,
             notify_participants=False,
             name=name,
         )
@@ -156,7 +156,7 @@ class _CommitCaseManagerNoteBase(
         if failure is not None:
             raise RuntimeError(
                 f"{self.name}: case '{self._case_id}' vanished after its"
-                f" '{self._event_type}' entry committed"
+                f" '{self._semantic_type}' entry committed"
             )
         attach_note(self.datalayer, case, cast(str, self._note_id))
         self.logger.info(
@@ -165,7 +165,7 @@ class _CommitCaseManagerNoteBase(
             self._note_id,
             self._composed.name if self._composed else "",
             self._case_id,
-            self._event_type,
+            self._semantic_type,
         )
 
 

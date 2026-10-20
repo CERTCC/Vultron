@@ -196,11 +196,11 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
     that sender is the CASE_MANAGER whose forward it answers (CM-33-004), not
     the Case Owner that made the Offer; the name is the port's.
 
-    Subclasses set ``_EVENT_TYPE`` (the kind label of the derived id) and
+    Subclasses set ``_SEMANTIC_TYPE`` (the kind label of the derived id) and
     ``_ANSWER`` (for logs), and implement :meth:`_factory_method`.
     """
 
-    _EVENT_TYPE: ClassVar[str]
+    _SEMANTIC_TYPE: ClassVar[str]
     _ANSWER: ClassVar[str]
 
     def __init__(
@@ -238,7 +238,7 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
             actor=self.actor_id,
             to=[self._case_manager_id],
             id_=derived_activity_id(
-                self._EVENT_TYPE, self.actor_id, self.case_id, self.offer_id
+                self._SEMANTIC_TYPE, self.actor_id, self.case_id, self.offer_id
             ),
         )
 
@@ -319,7 +319,7 @@ class AutoAcceptCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
     See SE-08-003, ADR-0039.
     """
 
-    _EVENT_TYPE = "accept_case_participant_role"
+    _SEMANTIC_TYPE = "accept_case_participant_role"
     _ANSWER = "Accept"
 
     def _factory_method(self) -> Callable[..., tuple[str, str]]:
@@ -404,7 +404,7 @@ class EmitRejectCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
     See SE-08-003, ADR-0039.
     """
 
-    _EVENT_TYPE = "reject_case_participant_role"
+    _SEMANTIC_TYPE = "reject_case_participant_role"
     _ANSWER = "Reject"
 
     def _factory_method(self) -> Callable[..., tuple[str, str]]:

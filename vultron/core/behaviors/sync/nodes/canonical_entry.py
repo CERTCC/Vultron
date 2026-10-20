@@ -263,7 +263,7 @@ def _bare_inline_object_path(
 
 def _validate_entry_timestamps(
     *,
-    event_type: str,
+    semantic_type: str,
     payload_snapshot: dict[str, Any],
     case_published: datetime | None,
     prev_actor_published: datetime | None,
@@ -305,7 +305,7 @@ def _validate_entry_timestamps(
     (ISSUE-2824).
 
     Args:
-        event_type: Ledger event type, used to prefix violation messages.
+        semantic_type: Ledger semantic type, used to prefix violation messages.
         payload_snapshot: The candidate ``payloadSnapshot``.
         case_published: The parent case's own ``published``, or ``None`` when
             the case is not yet readable (the genesis entry is committed
@@ -333,13 +333,13 @@ def _validate_entry_timestamps(
     raw_published = payload_snapshot.get("published")
     if raw_published is None:  # CLP-07-011
         raise VultronCanonicalEntryError(
-            f"{event_type}: CLP-07-011 — payloadSnapshot.published is "
+            f"{semantic_type}: CLP-07-011 — payloadSnapshot.published is "
             "required; a snapshot without it is not the verbatim AS2 activity"
         )
     entry_published = parse_published(raw_published)
     if entry_published is None:  # CLP-07-011 (malformed)
         raise VultronCanonicalEntryError(
-            f"{event_type}: CLP-07-011 — payloadSnapshot.published is not a "
+            f"{semantic_type}: CLP-07-011 — payloadSnapshot.published is not a "
             "valid ISO 8601 timestamp"
         )
     if (  # CLP-14-006
@@ -347,7 +347,7 @@ def _validate_entry_timestamps(
         and entry_published < case_published - skew_tolerance
     ):
         raise VultronCanonicalEntryError(
-            f"{event_type}: CLP-14-006 — entry published {entry_published} "
+            f"{semantic_type}: CLP-14-006 — entry published {entry_published} "
             f"predates case created {case_published} by more than the "
             f"{skew_tolerance} clock-skew tolerance"
         )
@@ -378,7 +378,7 @@ def _validate_entry_timestamps(
             "Recorded as observed; emission order is the participant's "
             "obligation and is verified across the scenario, not per "
             "assertion (CLP-15-005).",
-            event_type,
+            semantic_type,
             entry_published,
             payload_snapshot.get("actor"),
             regression,
@@ -392,7 +392,7 @@ def _validate_entry_timestamps(
         and entry_published > now + future_tolerance
     ):
         raise VultronCanonicalEntryError(  # CLP-14-007
-            f"{event_type}: CLP-14-007 — entry published {entry_published} "
+            f"{semantic_type}: CLP-14-007 — entry published {entry_published} "
             f"exceeds future tolerance of {future_tolerance}"
         )
     if (
@@ -400,7 +400,7 @@ def _validate_entry_timestamps(
         and entry_published < now - staleness_window
     ):
         raise VultronCanonicalEntryError(  # CLP-14-008
-            f"{event_type}: CLP-14-008 — entry published {entry_published} "
+            f"{semantic_type}: CLP-14-008 — entry published {entry_published} "
             f"exceeds staleness window of {staleness_window}"
         )
 
@@ -409,7 +409,7 @@ def _validate_canonical_entry(
     *,
     case_id: str,
     payload_snapshot: dict[str, Any],
-    event_type: str,
+    semantic_type: str,
     case_published: datetime | None = None,
     prev_actor_published: datetime | None = None,
     future_tolerance: timedelta | None = timedelta(minutes=5),
@@ -420,14 +420,14 @@ def _validate_canonical_entry(
     # equivalence lookup (CLP-07).
     if not payload_snapshot:
         raise VultronCanonicalEntryError(
-            f"{event_type}: recorded canonical entries require a non-empty"
+            f"{semantic_type}: recorded canonical entries require a non-empty"
             f" {_PAYLOAD_SNAPSHOT}"
         )
 
     snapshot_actor = payload_snapshot.get("actor")
     if not isinstance(snapshot_actor, str) or not snapshot_actor:
         raise VultronCanonicalEntryError(
-            f"{event_type}: payloadSnapshot.actor must be a non-empty URI"
+            f"{semantic_type}: payloadSnapshot.actor must be a non-empty URI"
         )
 
     activity_type = _snapshot_type(payload_snapshot)
@@ -437,27 +437,27 @@ def _validate_canonical_entry(
     bare_reference_path = _bare_inline_object_path(payload_snapshot, case_id)
     if bare_reference_path is not None:
         raise VultronCanonicalEntryError(
-            f"{event_type}: {bare_reference_path} must be an inline object, "
+            f"{semantic_type}: {bare_reference_path} must be an inline object, "
             "not a bare ID string"
         )
 
     if signature not in _CANONICAL_PAYLOAD_SIGNATURES:
         raise VultronCanonicalEntryError(
-            f"{event_type}: payloadSnapshot type/object pair {signature!r} "
+            f"{semantic_type}: payloadSnapshot type/object pair {signature!r} "
             "is not canonical"
         )
 
     context = payload_snapshot.get("context")
     if context != case_id:
         raise VultronCanonicalEntryError(
-            f"{event_type}: payloadSnapshot.context must equal the case URI"
+            f"{semantic_type}: payloadSnapshot.context must equal the case URI"
         )
 
     # Claimed-timestamp invariants.  Unconditional for recorded entries: each
     # individual check gates itself on the context it needs.  Gating the whole
     # block on an optional argument is what left it dead (ISSUE-2824).
     _validate_entry_timestamps(
-        event_type=event_type,
+        semantic_type=semantic_type,
         payload_snapshot=payload_snapshot,
         case_published=case_published,
         prev_actor_published=prev_actor_published,

@@ -338,7 +338,7 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
             return super().update()  # reported by the frame
         if case.active_embargo_id != step.embargo_id:
             self.feedback_message = (
-                f"{self.name}: '{entry.event_type}' entry '{entry.id_}' names"
+                f"{self.name}: '{entry.semantic_type}' entry '{entry.id_}' names"
                 f" embargo '{step.embargo_id}', which is not the one in force"
                 f" on case '{entry.case_id}' — nothing to copy (ADR-0122)"
             )

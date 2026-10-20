@@ -591,7 +591,7 @@ groups:
         statement: >-
           Each demo scenario's invariant test file (e.g.
           `test/ci/invariants/test_rv_invariants.py`) MUST include a
-          per-scenario expected-event-types list that is comprehensive for that
+          per-scenario expected-semantic-types list that is comprehensive for that
           scenario: it MUST cover all protocol phases that the scenario is
           designed to exercise, not only the universal phases (DEMOMA-16-001)
           shared by all scenarios.
@@ -600,7 +600,7 @@ groups:
           add_participant_status_to_participant, close_case, add_note_to_case,
           engage_case) does not guard against a scenario-specific
           phase (e.g. notes-exchange) regressing silently. Each scenario's
-          expected-event-types list must reflect what that scenario is designed
+          expected-semantic-types list must reflect what that scenario is designed
           to prove end-to-end.
         relationships:
           - rel_type: refines
@@ -815,7 +815,7 @@ groups:
         statement: >-
           The minimum PR validation scenario set is `rv`, `rvcv-handoff`,
           `rcvcv`, `rcv-reject`, `rcv-embargo`, and `rcvv-embargo`. Together
-          these scenarios cover all distinct protocol event types exercised by
+          these scenarios cover all distinct protocol semantic types exercised by
           the full scenario suite: the universal types (DEMOMA-16-001) plus
           `invite_actor_to_case`, `offer_case_participant`,
           `accept_invite_actor_to_case`, `accept_actor_recommendation`,
@@ -835,7 +835,7 @@ groups:
           RCV-reject adds reject_invite_actor_to_case (the only scenario that
           exercises a vendor rejecting an invitation after entering RM.RECEIVED).
           RCV-embargo and RCVV-embargo are the only sources of the embargo
-          event types, by different paths. Rationale recorded in
+          semantic types, by different paths. Rationale recorded in
           `notes/demo-ci-scenario-coverage.md`. See ADR-0052.
         relationships:
           - rel_type: refines
@@ -1082,13 +1082,13 @@ groups:
           whether the minimum PR set defined in DEMOCI-06-002 requires expansion
           to preserve full embargo lifecycle protocol coverage.
         rationale: >-
-          The embargo event types (`invite_to_embargo_on_case`,
+          The embargo semantic types (`invite_to_embargo_on_case`,
           `accept_invite_to_embargo_on_case`, `activate_embargo_on_case`,
           `remove_embargo_event_from_case`) are produced only by `rcv-embargo`
           and `rcvv-embargo`, so the minimum PR set preserves embargo coverage
           only while at least one of them is a member. The coverage matrix in
           `notes/demo-ci-scenario-coverage.md` is where that membership is
-          checked against the harness event-type constants.
+          checked against the harness semantic-type constants.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-06-001
@@ -1119,12 +1119,12 @@ groups:
           - ci-cd
           - demo
         statement: >-
-          If the embargo scenarios introduce protocol event types not covered
+          If the embargo scenarios introduce protocol semantic types not covered
           by `rv`, `rvcv-handoff`, or `rcvcv`, the minimum PR set defined in
           DEMOCI-06-002 MUST be expanded.
         rationale: >-
           No scenario other than `rcv-embargo` and `rcvv-embargo` commits an
-          embargo event type, so a minimum PR set without them leaves the
+          embargo semantic type, so a minimum PR set without them leaves the
           embargo lifecycle unexercised on PRs.
 
       - id: DEMOCI-07-010

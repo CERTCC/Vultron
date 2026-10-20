@@ -361,7 +361,7 @@ RECIPES: dict[str, Recipe] = {
     "record_case_announced": lambda w: w.adapter.record_case_announced(
         case_id=w.case_id,
         actor=_CASE_ACTOR,
-        event_type="demo_event",
+        semantic_type="demo_event",
         object_id=w.case_id,
     ),
     "add_object_to_case": lambda w: w.adapter.add_object_to_case(

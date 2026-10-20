@@ -57,11 +57,11 @@ def _unreachable(to: list[str] | None) -> tuple[str, str]:
 
 NODES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
     "embargo decision": lambda: CommitEmbargoDecisionNode(
-        case_id=_CASE, event_type="accept_embargo", builder=_unreachable
+        case_id=_CASE, semantic_type="accept_embargo", builder=_unreachable
     ),
     "case fully closed": lambda: CommitCaseFullyClosedNode(case_id=_CASE),
     "demo log entry": lambda: CommitDemoLogEntryNode(
-        case_id=_CASE, object_id=_CASE, event_type="demo_event"
+        case_id=_CASE, object_id=_CASE, semantic_type="demo_event"
     ),
     "case status snapshot": lambda: EmitCaseStatusUpdateNode(case_id=_CASE),
     "case creation entries": lambda: CommitNativeLedgerEntriesNode(

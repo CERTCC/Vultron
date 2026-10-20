@@ -187,4 +187,4 @@ def test_extract_activity_snapshot_does_not_inline_cross_context_refs(
 CASE_ID = "https://example.org/cases/case-001"
 ACTOR_ID = "https://example.org/actors/case-actor"
 OBJECT_ID = "https://example.org/activities/act-001"
-EVENT_TYPE = "submit_report"
+SEMANTIC_TYPE = "submit_report"

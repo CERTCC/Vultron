@@ -372,7 +372,7 @@ groups:
       The structural allowlist (SE-07-005) catches phrase definitions that use
       forbidden slot names, but cannot detect a phrase that is structurally valid
       yet still produces a dangling em-dash at render time (e.g. because
-      `target_label` did not resolve for a particular event type). The behavioural
+      `target_label` did not resolve for a particular semantic type). The behavioural
       tests close this gap. Source: CONCERN-1898.
     relationships:
     - rel_type: verifies

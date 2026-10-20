@@ -63,7 +63,7 @@ from vultron.metadata.demo_scenarios.prose_tables import (
 )
 from vultron.metadata.demo_scenarios.scenario_groups import (
     partition_problems,
-    per_scenario_event_type_requirements,
+    per_scenario_semantic_type_requirements,
 )
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
 
@@ -97,7 +97,7 @@ def missing_narrative_nav_entries(
     ]
 
 
-def missing_event_type_requirements(
+def missing_semantic_type_requirements(
     specs: tuple[ScenarioSpec, ...] | None = None,
     registry: SpecRegistry | None = None,
 ) -> list[str]:
@@ -108,7 +108,7 @@ def missing_event_type_requirements(
     what its invariant harness must observe.
     """
     resolved = discover_scenarios() if specs is None else specs
-    per_scenario = per_scenario_event_type_requirements(registry)
+    per_scenario = per_scenario_semantic_type_requirements(registry)
     return [spec.name for spec in resolved if spec.name not in per_scenario]
 
 
@@ -191,8 +191,8 @@ def consistency_problems(
     )
     problems.extend(
         f"registered scenario {name!r} has no per-scenario DEMOMA-16 "
-        "requirement stating its expected event types (DEMOCI-11-007)."
-        for name in missing_event_type_requirements(resolved, registry)
+        "requirement stating its expected semantic types (DEMOCI-11-007)."
+        for name in missing_semantic_type_requirements(resolved, registry)
     )
     # A structural failure — a renamed table heading or column, a missing
     # register heading, a malformed marker, a consumer path that moved — is
@@ -237,7 +237,7 @@ __all__ = [
     "SCENARIO_TABLE_CONSUMERS",
     "ScenarioTable",
     "consistency_problems",
-    "missing_event_type_requirements",
+    "missing_semantic_type_requirements",
     "missing_narrative_nav_entries",
     "narrative_status_claims",
     "restated_counts",

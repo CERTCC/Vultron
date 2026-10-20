@@ -28,7 +28,7 @@ from typing import ClassVar, cast
 
 import py_trees.behaviour
 
-from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_SEMANTIC_TYPE
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -49,7 +49,7 @@ class SvcOfferEmbargoTermsBase(SvcEmbargoTriggerBase):
     share.
     """
 
-    _assertion_event_type: ClassVar[str] = EMBARGO_INVITE_EVENT_TYPE
+    _assertion_semantic_type: ClassVar[str] = EMBARGO_INVITE_SEMANTIC_TYPE
     _tree_factory: ClassVar[Callable[..., py_trees.behaviour.Behaviour]]
 
     def _prepare(self) -> None:

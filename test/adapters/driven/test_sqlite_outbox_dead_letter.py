@@ -291,7 +291,7 @@ def test_resolve_ledger_entry_id_reads_inline_object_from_sqlite(alice_dl):
         case_id="urn:case:seam-test",
         log_index=0,
         log_object_id="urn:activity:seam-object",
-        event_type="SeamTest",
+        semantic_type="SeamTest",
     )
     ledger_entry_id = wire_entry.id_
     announce = announce_log_entry_activity(

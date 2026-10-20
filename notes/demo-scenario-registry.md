@@ -89,7 +89,7 @@ author's declaration, so a group without it silently belongs to neither register
   exception is argued in that constant's comment. A planned-register row with no
   group is never allowed.
 - **Select the per-scenario DEMOMA-16 requirements by content, not ID range**
-  (DEMOCI-11-007). One is per-scenario when it names an expected-event-types list
+  (DEMOCI-11-007). One is per-scenario when it names an expected-semantic-types list
   **and** exactly one scenario as "the `<name>` scenario"; IDs inside the apparent
   range are not per-scenario and some outside it are.
 
@@ -135,8 +135,8 @@ Route each consumer by what it is:
 
 **Name each column's authority.** In the checked `notes/` tables, `Scenario`
 comes from the registry, `Spec` from the spec corpus, `Covered by minimum set`
-membership from `in_pr_set`, and the event-type ticks from each harness's
-`_XXX_EXPECTED_EVENT_TYPES` constant (read by AST, so the hook never imports a
+membership from `in_pr_set`, and the semantic-type ticks from each harness's
+`_XXX_EXPECTED_SEMANTIC_TYPES` constant (read by AST, so the hook never imports a
 test module). A column with no named authority goes unratcheted and drifts.
 
 **The mkdocs-tree boundary is load-bearing.** `include-markdown` expands only at

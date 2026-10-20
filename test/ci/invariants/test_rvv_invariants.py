@@ -25,16 +25,16 @@ from __future__ import annotations
 import pytest
 
 from test.ci.invariants.common import (
-    check_event_type_count,
     check_late_joiner_has_full_history,
+    check_semantic_type_count,
     load_devlogs,
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 
 _DEMO_NAME = "rvv"
 
-#: Expected protocol eventTypes in a complete RVV run.
-_RVV_EXPECTED_EVENT_TYPES = [
+#: Expected protocol semanticTypes in a complete RVV run.
+_RVV_EXPECTED_SEMANTIC_TYPES = [
     pytest.param("validate_report", id="validate_report"),
     pytest.param(
         "add_participant_status_to_participant",
@@ -80,7 +80,7 @@ globals().update(
     make_universal_invariant_tests(
         replicas_fixture="rvv_replicas",
         chain_actors=_CHAIN_ACTORS,
-        expected_event_types=_RVV_EXPECTED_EVENT_TYPES,
+        expected_semantic_types=_RVV_EXPECTED_SEMANTIC_TYPES,
         narrative_path="docs/topics/scenarios/rvv.md",
         joined_invitees=1,
     )
@@ -100,7 +100,7 @@ def test_rvv_invite_actor_to_case_present(
 
     Spec: DEMOMA-09-002.
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rvv_replicas, "invite_actor_to_case", min_count=1
     )
     assert not violations, violations[0] if violations else ""

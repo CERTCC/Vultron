@@ -377,7 +377,7 @@ def test_removal_is_one_canonical_ledger_entry_by_the_owner(
     removal_case.remove(VENDOR)
 
     added = removal_case.ledger()[before:]
-    assert len(added) == 1, [e.event_type for e in added]
+    assert len(added) == 1, [e.semantic_type for e in added]
     assert added[0].payload_snapshot.get("actor") == OWNER
 
 

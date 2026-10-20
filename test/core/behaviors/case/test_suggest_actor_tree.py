@@ -863,20 +863,20 @@ _OFFER_SNAPSHOT = {
 
 
 def _ledger(*rows: tuple[str, dict]) -> SqliteDataLayer:
-    """A store whose ledger holds *rows* of (event_type, snapshot), in order.
+    """A store whose ledger holds *rows* of (semantic_type, snapshot), in order.
 
     Each entry is keyed by its own activity id, as the CASE_MANAGER commits a
     request it sends (ADR-0119), never by the actor the request concerns.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR_ID)
     prev = _ZERO_HASH
-    for index, (event_type, snapshot) in enumerate(rows):
+    for index, (semantic_type, snapshot) in enumerate(rows):
         entry = _to_persistable_entry(
             HashChainLedgerRecord(
                 case_id=_CASE_ID,
                 log_index=index,
                 object_id=f"https://example.org/activities/a-{index}",
-                event_type=event_type,
+                semantic_type=semantic_type,
                 payload_snapshot=snapshot,
                 prev_log_hash=prev,
             )
@@ -1185,7 +1185,7 @@ class TestProtocolPairIsPending:
     def test_is_pending_true_when_request_found_and_no_reply(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=True,
         )
@@ -1194,7 +1194,7 @@ class TestProtocolPairIsPending:
     def test_is_pending_false_when_request_not_found(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=False,
         )
@@ -1203,11 +1203,11 @@ class TestProtocolPairIsPending:
     def test_is_pending_false_when_reply_found(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=True,
             reply_object_id="https://example.org/activities/reply",
-            reply_event_type="accept_offer_case_participant",
+            reply_semantic_type="accept_offer_case_participant",
         )
         assert pair.is_pending() is False
 
@@ -1215,7 +1215,7 @@ class TestProtocolPairIsPending:
         """is_open() returns True for fresh pair (no request found). is_pending() should not."""
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=False,
         )
@@ -1225,7 +1225,7 @@ class TestProtocolPairIsPending:
     def test_request_found_defaults_to_false(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
         )
         assert pair.request_found is False

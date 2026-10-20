@@ -46,7 +46,7 @@ class _MinimalTrigger(SvcActivityTriggerBase):
 class _EmbargoTrigger(SvcEmbargoTriggerBase):
     """Minimal concrete embargo subclass for testing."""
 
-    _assertion_event_type = "test_embargo_event"
+    _assertion_semantic_type = "test_embargo_event"
 
     def __init__(self, dl, request, trigger_activity=None, subject=None):
         super().__init__(dl, request, trigger_activity)

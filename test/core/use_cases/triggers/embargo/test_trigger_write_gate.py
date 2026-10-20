@@ -28,7 +28,7 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
-from test.support.ledger import committed_event_types
+from test.support.ledger import committed_semantic_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -126,7 +126,7 @@ def test_non_manager_trigger_asks_and_writes_no_em_state(
     assert len(invites) == 1
     assert invites[0].to == [MANAGER]
     # A declaration would be a ledger commit, not an outbox item (AC-3).
-    assert committed_event_types(finder_dl, case.id_) == [], (
+    assert committed_semantic_types(finder_dl, case.id_) == [], (
         "a non-manager must not declare an EM state it has not been given"
     )
 
@@ -262,14 +262,14 @@ def test_non_manager_revision_asks_and_writes_no_em_state(
     assert updated.current_status.em.state == EM.ACTIVE
     assert updated.active_embargo == case.active_embargo
     assert updated.proposed_embargo_ids == case.proposed_embargo_ids
-    assert committed_event_types(finder_dl, case.id_) == []
+    assert committed_semantic_types(finder_dl, case.id_) == []
     _assert_asked_case_manager(
         finder_dl,
         actor_id=finder.id_,
         case_id=case.id_,
         manager_id=owner.id_,
         activity_type="Invite",
-        event_type=MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
+        semantic_type=MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
     )
 
 

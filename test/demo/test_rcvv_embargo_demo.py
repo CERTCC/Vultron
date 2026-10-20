@@ -375,7 +375,7 @@ class TestEmStateAfterEachPhase:
         self, cast, case, em_waits
     ):
         with (
-            patch.object(demo, "wait_for_event_type_in_ledger") as ledger,
+            patch.object(demo, "wait_for_semantic_type_in_ledger") as ledger,
             patch.object(demo, "wait_for_case_em_terminated") as replica_wait,
         ):
             demo._phase_accidental_collapse(cast, case)
@@ -389,7 +389,7 @@ class TestEmStateAfterEachPhase:
             cast.vendor2,
         ):
             session.terminate_embargo.assert_not_called()
-        assert ledger.call_args.kwargs["event_type"] == (
+        assert ledger.call_args.kwargs["semantic_type"] == (
             "remove_embargo_event_from_case"
         )
         # The teardown commits in the CASE_MANAGER's store (#1876).

@@ -242,8 +242,8 @@ def reporter_introduction_recipients(
     ]
 
 
-_CLOSE_CASE_EVENT_TYPE = MessageSemantics.CLOSE_CASE.value
-_PARTICIPANT_STATUS_EVENT_TYPE = (
+_CLOSE_CASE_SEMANTIC_TYPE = MessageSemantics.CLOSE_CASE.value
+_PARTICIPANT_STATUS_SEMANTIC_TYPE = (
     MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value
 )
 
@@ -265,13 +265,13 @@ def entry_records_own_closure(
     status entry about it that is committed after its closure is one of
     those steps.
     """
-    if entry.event_type == _CLOSE_CASE_EVENT_TYPE:
+    if entry.semantic_type == _CLOSE_CASE_SEMANTIC_TYPE:
         # The snapshot keeps the leaver's own spelling (OID-01-006).
         snapshot_actor = snapshot_actor_id(entry.payload_snapshot.get("actor"))
         return snapshot_actor is not None and same_actor_id(
             snapshot_actor, actor_id
         )
-    if entry.event_type == _PARTICIPANT_STATUS_EVENT_TYPE:
+    if entry.semantic_type == _PARTICIPANT_STATUS_SEMANTIC_TYPE:
         return any(
             status.id_ == entry.log_object_id
             for status in record.participant_statuses

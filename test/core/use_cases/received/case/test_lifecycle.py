@@ -109,7 +109,7 @@ def test_adding_new_report_is_applied_and_committed(dl):
 
     assert result.disposition == HandlerDisposition.APPLIED
     assert _reports(dl) == [report.id_]
-    assert [e.event_type for e in _entries(dl)] == ["add_report_to_case"]
+    assert [e.semantic_type for e in _entries(dl)] == ["add_report_to_case"]
 
 
 @pytest.mark.spec("HP-01-003")
@@ -206,7 +206,9 @@ def test_late_joiner_receives_the_added_report_through_backfill(dl):
         call.kwargs["entry"]
         for call in sync_port.send_announce_log_entry.call_args_list
     ]
-    report_entries = [e for e in sent if e.event_type == "add_report_to_case"]
+    report_entries = [
+        e for e in sent if e.semantic_type == "add_report_to_case"
+    ]
     assert len(report_entries) == 1
 
     replica = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
@@ -252,7 +254,7 @@ def test_apply_report_entry_is_idempotent_and_tolerates_a_missing_case(dl):
         case_id=_CASE_ID,
         log_index=0,
         log_object_id="https://example.org/activities/add-report",
-        event_type="add_report_to_case",
+        semantic_type="add_report_to_case",
         payload_snapshot={"object": report_id},
         prev_log_hash="0" * 64,
         entry_hash="1" * 64,

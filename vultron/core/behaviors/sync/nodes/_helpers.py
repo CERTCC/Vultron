@@ -16,7 +16,7 @@
 """Shared helpers for SYNC log-replication effect nodes.
 
 Provides the ``_extract_id_from_field`` utility and the
-``_LedgerEffectNode`` base class used by all per-event-type effect nodes.
+``_LedgerEffectNode`` base class used by all per-semantic-type effect nodes.
 """
 
 from __future__ import annotations

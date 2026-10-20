@@ -7,10 +7,10 @@ RCV-specific checks.
 Actor set: ``reporter``, ``coordinator``, ``vendor``, ``case-actor``.
 
 RCV-specific invariants (DEMOMA-12-008/009):
-- ``validate_report`` event type is present (Coordinator validates Reporter's report).
+- ``validate_report`` semantic type is present (Coordinator validates Reporter's report).
 - ``invite_actor_to_case`` appears exactly once (the Vendor's invitation; the
   Reporter is seated at case creation, CM-22-002, and is never invited).
-- ``close_case`` event type is present.
+- ``close_case`` semantic type is present.
 - CS transition VFd observed in Vendor's add_participant_status entries
   (the Vendor stops at VFd, CSB-15-002).
 - P-transition observed in Coordinator's add_participant_status entries.
@@ -27,20 +27,20 @@ from __future__ import annotations
 import pytest
 
 from test.ci.invariants.common import (
-    check_event_type_count,
-    check_event_type_present,
     check_late_joiner_has_full_history,
+    check_semantic_type_count,
+    check_semantic_type_present,
     cs_observations_from_snap,
-    event_type,
     load_devlogs,
     payload,
+    semantic_type,
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 
 _DEMO_NAME = "rcv"
 
-#: Expected protocol eventTypes in a complete RCV run.
-_RCV_EXPECTED_EVENT_TYPES = [
+#: Expected protocol semanticTypes in a complete RCV run.
+_RCV_EXPECTED_SEMANTIC_TYPES = [
     pytest.param("validate_report", id="validate_report"),
     pytest.param(
         "add_participant_status_to_participant",
@@ -87,7 +87,7 @@ globals().update(
     make_universal_invariant_tests(
         replicas_fixture="rcv_replicas",
         chain_actors=_CHAIN_ACTORS,
-        expected_event_types=_RCV_EXPECTED_EVENT_TYPES,
+        expected_semantic_types=_RCV_EXPECTED_SEMANTIC_TYPES,
         narrative_path="docs/topics/scenarios/rcv.md",
         joined_invitees=1,
     )
@@ -103,11 +103,11 @@ globals().update(
 def test_rcv_validate_report_present(
     rcv_replicas: dict[str, list[dict]],
 ) -> None:
-    """``validate_report`` event type is present in the log.
+    """``validate_report`` semantic type is present in the log.
 
     Spec: DEMOMA-12-002 (Coordinator validates Reporter's report).
     """
-    violations = check_event_type_present(rcv_replicas, "validate_report")
+    violations = check_semantic_type_present(rcv_replicas, "validate_report")
     assert not violations, violations[0] if violations else ""
 
 
@@ -127,7 +127,7 @@ def test_rcv_invite_actor_to_case_exactly_once(
     Spec: DEMOMA-12-003 (Reporter seated, not invited), DEMOMA-12-004
     (Coordinator invites Vendor directly), DEMOMA-12-009(2).
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rcv_replicas, "invite_actor_to_case", min_count=1, max_count=1
     )
     assert not violations, violations[0] if violations else ""
@@ -137,11 +137,11 @@ def test_rcv_invite_actor_to_case_exactly_once(
 def test_rcv_close_case_present(
     rcv_replicas: dict[str, list[dict]],
 ) -> None:
-    """``close_case`` event type is present in the log.
+    """``close_case`` semantic type is present in the log.
 
     Spec: DEMOMA-12-005 (case reaches terminal RM.CLOSED).
     """
-    violations = check_event_type_present(rcv_replicas, "close_case")
+    violations = check_semantic_type_present(rcv_replicas, "close_case")
     assert not violations, violations[0] if violations else ""
 
 
@@ -182,7 +182,7 @@ def test_rcv_vendor_vfd_transition_observed(
     status_entries = [
         e
         for e in vendor_entries
-        if event_type(e) == "add_participant_status_to_participant"
+        if semantic_type(e) == "add_participant_status_to_participant"
     ]
     if not status_entries:
         pytest.skip(
@@ -217,7 +217,7 @@ def test_rcv_coordinator_p_transition_observed(
     status_entries = [
         e
         for e in coordinator_entries
-        if event_type(e) == "add_participant_status_to_participant"
+        if semantic_type(e) == "add_participant_status_to_participant"
     ]
     if not status_entries:
         pytest.skip(

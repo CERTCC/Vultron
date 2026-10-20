@@ -48,7 +48,7 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _LedgerEffectNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    _SingleEventTypeNode,
+    _SingleSemanticTypeNode,
 )
 from vultron.core.models._helpers import _as_id, project_wire_snapshot_to_core
 from vultron.core.models.case_status import CaseStatus
@@ -56,11 +56,11 @@ from vultron.core.models.events.base import MessageSemantics
 
 logger = logging.getLogger(__name__)
 
-#: Ledger ``event_type`` of a case-status entry.
-ADD_CASE_STATUS_EVENT_TYPE = MessageSemantics.ADD_CASE_STATUS_TO_CASE.value
+#: Ledger ``semantic_type`` of a case-status entry.
+ADD_CASE_STATUS_SEMANTIC_TYPE = MessageSemantics.ADD_CASE_STATUS_TO_CASE.value
 
 
-class IsAddCaseStatusEventNode(_SingleEventTypeNode):
+class IsAddCaseStatusEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is an ``add_case_status_to_case`` event.
 
     Used in the ``CaseStatus`` slot of ``AnnounceLogEntryReceivedBT``.
@@ -68,7 +68,7 @@ class IsAddCaseStatusEventNode(_SingleEventTypeNode):
     Per RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    matched_event_type = ADD_CASE_STATUS_EVENT_TYPE
+    matched_semantic_type = ADD_CASE_STATUS_SEMANTIC_TYPE
 
 
 class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):

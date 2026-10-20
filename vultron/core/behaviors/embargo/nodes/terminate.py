@@ -27,7 +27,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
-    EMBARGO_TEARDOWN_EVENT_TYPE,
+    EMBARGO_TEARDOWN_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
@@ -87,7 +87,7 @@ class TeardownAskPendingNode(DataLayerConditionWithPorts):
         reason = suppressed_repeat_reason(
             self.actor_id,
             self._case_id,
-            EMBARGO_TEARDOWN_EVENT_TYPE,
+            EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             self.embargo_id,
         )
         if reason is None:
@@ -190,7 +190,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         record_pending_assertion(
             self.actor_id,
             self._case_id,
-            EMBARGO_TEARDOWN_EVENT_TYPE,
+            EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             activity_id,
             subject_id=self.embargo_id,
         )

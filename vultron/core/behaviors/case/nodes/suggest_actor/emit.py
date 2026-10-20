@@ -55,9 +55,9 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
 
-#: Ledger ``event_type`` of the forwarded ``Offer(CaseParticipant)``, and the
+#: Ledger ``semantic_type`` of the forwarded ``Offer(CaseParticipant)``, and the
 #: kind label of its derived id.
-OFFER_CASE_PARTICIPANT_EVENT_TYPE = "offer_case_participant"
+OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE = "offer_case_participant"
 
 
 def _resolve_owner_recipient(
@@ -247,7 +247,7 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
                 to=[owner_id],
                 roles=roles,
                 id_=derived_activity_id(
-                    OFFER_CASE_PARTICIPANT_EVENT_TYPE,
+                    OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
                     self.actor_id,
                     self.case_id,
                     self.recommendation_id,
@@ -272,7 +272,7 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
             case_id=self.case_id,
             activity_id=activity_id,
             activity_blob=activity_blob,
-            event_type=OFFER_CASE_PARTICIPANT_EVENT_TYPE,
+            semantic_type=OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
         )
         self.logger.info(
             "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"

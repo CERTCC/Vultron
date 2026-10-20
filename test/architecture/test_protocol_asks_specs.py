@@ -252,7 +252,7 @@ def test_gate_records_a_defined_not_yet_state_before_asking() -> None:
     strict=True,
     reason=(
         "ASK-03-001: ask kinds are not modelled. ProtocolPair carries "
-        "reply_event_types per instance, but no registry of ask kinds declares "
+        "reply_semantic_types per instance, but no registry of ask kinds declares "
         "the closing set. Tracked by #2884."
     ),
 )
@@ -266,7 +266,7 @@ def test_ask_kinds_declare_their_closing_reply_types() -> None:
         )
     )
     assert kinds is not None, "No AskKind descriptor type is importable."
-    assert "reply_event_types" in _field_names(kinds)
+    assert "reply_semantic_types" in _field_names(kinds)
 
 
 @pytest.mark.xfail(
@@ -761,7 +761,7 @@ def test_embargo_invite_is_a_declared_ask_kind() -> None:
     # The kind must be able to say what closes it and what a late reply
     # means (ASK-03-001, ASK-03-002): Accept/Reject closers, stale expiry.
     fields = _field_names(kinds)
-    assert "reply_event_types" in fields
+    assert "reply_semantic_types" in fields
     assert fields & {"expiry_consequence", "on_expiry"}
 
 

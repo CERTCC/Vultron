@@ -41,8 +41,8 @@ from vultron.core.behaviors.sync.announce_tree import (
 )
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.participant_event_types import (
-    UPDATE_CASE_OWNER_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    UPDATE_CASE_OWNER_SEMANTIC_TYPE,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
@@ -110,7 +110,7 @@ def _ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
         object_id="https://example.org/activities/ownership-0",
         # The CASE_MANAGER's own record of the new owner, which follows the
         # Accept and carries the case (CLP-07-013, #4439).
-        event_type=UPDATE_CASE_OWNER_EVENT_TYPE,
+        semantic_type=UPDATE_CASE_OWNER_SEMANTIC_TYPE,
         payload_snapshot={
             "type": "Update",
             "object": {
@@ -134,7 +134,7 @@ def _add_report_record(prev_hash: str) -> HashChainLedgerRecord:
         case_id=CASE_ID,
         log_index=1,
         object_id=REPORT_ID,
-        event_type="add_report_to_case",
+        semantic_type="add_report_to_case",
         payload_snapshot={
             "type": "Add",
             "actor": NEW_OWNER_ACTOR_ID,

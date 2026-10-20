@@ -58,8 +58,8 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.roles import has_case_manager_role
 from vultron.errors import VultronBTInternalError, VultronWiringError
 
-#: ``event_type`` of the entry recording one participant status.
-ADD_PARTICIPANT_STATUS_EVENT_TYPE = (
+#: ``semantic_type`` of the entry recording one participant status.
+ADD_PARTICIPANT_STATUS_SEMANTIC_TYPE = (
     MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value
 )
 
@@ -313,7 +313,7 @@ class CommitParticipantStatusEntriesNode(
             tree=create_commit_log_entry_tree(
                 case_id=self._case_id,
                 object_id=status.id_,
-                event_type=ADD_PARTICIPANT_STATUS_EVENT_TYPE,
+                semantic_type=ADD_PARTICIPANT_STATUS_SEMANTIC_TYPE,
                 payload_snapshot=json.loads(blob),
                 check_freshness=self.check_freshness,
             ),

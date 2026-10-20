@@ -38,7 +38,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoAbandonmentFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    EMBARGO_ABANDONMENT_EVENT_TYPE,
+    EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -92,7 +92,7 @@ def _replay(bridge, embargo: Any):
     return _run(
         bridge,
         ApplyEmbargoAbandonmentFromLedgerNode(name="Abandonment"),
-        _entry(EMBARGO_ABANDONMENT_EVENT_TYPE, _abandonment(embargo)),
+        _entry(EMBARGO_ABANDONMENT_SEMANTIC_TYPE, _abandonment(embargo)),
     )
 
 
@@ -146,7 +146,7 @@ def test_an_entry_naming_no_embargo_fails(bridge, datalayer, proposed_case):
     result = _run(
         bridge,
         ApplyEmbargoAbandonmentFromLedgerNode(name="Abandonment"),
-        _entry(EMBARGO_ABANDONMENT_EVENT_TYPE, snapshot),
+        _entry(EMBARGO_ABANDONMENT_SEMANTIC_TYPE, snapshot),
     )
 
     assert result.status == Status.FAILURE

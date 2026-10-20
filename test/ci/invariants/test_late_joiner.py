@@ -21,7 +21,7 @@ def _entry(log_index: int, entry_hash: str, prev_hash: str) -> dict:
         "logIndex": log_index,
         "entryHash": entry_hash,
         "prevLogHash": prev_hash,
-        "eventType": "noop",
+        "semanticType": "noop",
         "case_id": "https://example.org/cases/test",
         "payloadSnapshot": {},
     }

@@ -40,20 +40,20 @@ from typing import Literal
 
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 from vultron.metadata.base import repo_root
-from vultron.metadata.demo_scenarios.event_types import (
-    additional_event_types,
-    harness_event_types,
-)
 from vultron.metadata.demo_scenarios.scenario_groups import (
     SPEC_ID_RE,
-    per_scenario_event_type_requirements,
+    per_scenario_semantic_type_requirements,
+)
+from vultron.metadata.demo_scenarios.semantic_types import (
+    additional_semantic_types,
+    harness_semantic_types,
 )
 from vultron.metadata.markdown_tables import MarkdownTable, iter_tables
 from vultron.metadata.specs.registry import SpecRegistry
 
 #: Spelling of a scenario in a table's ``Scenario`` column.  Two consumers,
 #: two spellings: the coverage matrix keys rows by sub-command ``name`` while
-#: the required-event-types table uses the display ``label``.  Declared per
+#: the required-semantic-types table uses the display ``label``.  Declared per
 #: table rather than guessed, because guessing wrong reports every row as
 #: misspelled.
 _BY_NAME: Literal["name"] = "name"
@@ -74,7 +74,7 @@ class ScenarioTable:
         path: Repository-relative path of the containing file.
         heading: Heading text the table sits under. The table is located by
             heading because these files hold several other tables whose rows are
-            event types, dimensions or RM transitions rather than scenarios.
+            semantic types, dimensions or RM transitions rather than scenarios.
         spelling: :data:`_BY_NAME` or :data:`_BY_LABEL`.
         spec_column: Header of a column holding the row's per-scenario DEMOMA-16
             requirement IDs, or ``None``. Derived from the **spec corpus**, not
@@ -87,13 +87,13 @@ class ScenarioTable:
             rather than left as prose. The rest of the cell stays hand-written —
             *which* scenario covers a non-member is a coverage judgement the
             registry does not hold.
-        event_type_column: Header of a column naming the event types the
+        semantic_type_column: Header of a column naming the semantic types the
             scenario requires *beyond* the universal block, or ``None``. Derived
-            from the harness's ``_XXX_EXPECTED_EVENT_TYPES`` constant
+            from the harness's ``_XXX_EXPECTED_SEMANTIC_TYPES`` constant
             (ISSUE-3505), which is the live answer Invariant 5 asserts against.
             Parenthesised annotations in the cell (``(≥3)``, ``(none)``) are
-            multiplicity commentary, not event types, and are ignored.
-        tick_columns: When true, every column but ``Scenario`` is an event-type
+            multiplicity commentary, not semantic types, and are ignored.
+        tick_columns: When true, every column but ``Scenario`` is a semantic-type
             name and a non-empty cell asserts that the scenario exercises it —
             the coverage-matrix shape. Ratcheted against the same harness
             constants (ISSUE-3505); these ticks were the file's last unratcheted
@@ -105,7 +105,7 @@ class ScenarioTable:
     spelling: Literal["name", "label"]
     spec_column: str | None = None
     pr_set_column: str | None = None
-    event_type_column: str | None = None
+    semantic_type_column: str | None = None
     tick_columns: bool = False
 
 
@@ -132,10 +132,10 @@ SCENARIO_TABLES: tuple[ScenarioTable, ...] = (
     ),
     ScenarioTable(
         path="notes/demo-ci-invariants.md",
-        heading="Scenario required event types",
+        heading="Scenario required semantic types",
         spelling=_BY_LABEL,
         spec_column="Spec",
-        event_type_column="Additional required",
+        semantic_type_column="Additional required",
     ),
 )
 
@@ -231,14 +231,14 @@ def scenario_table_problems(
       ``in_pr_set`` scenarios. MS-16-002 requires a drift-prone fact to be
       derived or ratcheted rather than left as prose, and membership is
       derivable even though the rest of that cell is not;
-    - where it carries an event-type column, each row names exactly the event
+    - where it carries a semantic-type column, each row names exactly the event
       types that scenario's harness constant requires beyond the universal set
       (ISSUE-3505).
     """
     base = root or repo_root()
     resolved = discover_scenarios() if specs is None else specs
     problems: list[str] = []
-    per_scenario = per_scenario_event_type_requirements(registry)
+    per_scenario = per_scenario_semantic_type_requirements(registry)
 
     for table in SCENARIO_TABLES:
         parsed = _table_for(table, base)
@@ -265,7 +265,7 @@ def scenario_table_problems(
         if table.pr_set_column is not None:
             problems.extend(_pr_set_column_problems(table, parsed, resolved))
 
-        if table.event_type_column is not None:
+        if table.semantic_type_column is not None:
             problems.extend(
                 _additional_column_problems(table, parsed, resolved, base)
             )
@@ -317,8 +317,8 @@ def _pr_set_column_problems(
     return problems
 
 
-def _cell_event_types(cell: str) -> frozenset[str]:
-    """Return the event-type names *cell* lists.
+def _cell_semantic_types(cell: str) -> frozenset[str]:
+    """Return the semantic-type names *cell* lists.
 
     Multiplicity annotations are dropped: the column's job is to say *which*
     types are required, and ``(≥3)`` / ``(none)`` are prose about how many
@@ -341,10 +341,10 @@ def _additional_column_problems(
     root: Path,
 ) -> list[str]:
     """Return rows whose ``Additional required`` cell disagrees with the harness."""
-    column = table.event_type_column or ""
+    column = table.semantic_type_column or ""
     problems: list[str] = []
     for spec, cell in zip(resolved, parsed.column(column), strict=False):
-        harness = harness_event_types(spec, root)
+        harness = harness_semantic_types(spec, root)
         if harness is None:
             # No harness file. For a *registered* scenario that is a missing
             # derived path, which DEMOCI-11-003 already reports via
@@ -353,8 +353,8 @@ def _additional_column_problems(
             # therefore safe only while both run from the same command; see
             # ``sync.main``, which extends one problem list with both.
             continue
-        wanted = additional_event_types(harness)
-        named = _cell_event_types(cell)
+        wanted = additional_semantic_types(harness)
+        named = _cell_semantic_types(cell)
         if named != wanted:
             problems.append(
                 f"{table.path}:{parsed.line} row {spec.label!r} names "
@@ -373,7 +373,7 @@ def _tick_problems(
 ) -> list[str]:
     """Return tick-matrix cells that disagree with the harness constants.
 
-    Each ✓ asserts that a named event type appears in a named scenario's
+    Each ✓ asserts that a named semantic type appears in a named scenario's
     expected list, which is exactly what the harness constant declares — so the
     matrix is checkable, and MS-16-002 requires it to be checked.  A stale tick
     makes a scenario look like it exercises a phase it does not, which is an
@@ -386,15 +386,15 @@ def _tick_problems(
     unknown = [name for name in columns if not name.islower()]
     if unknown:
         problems.append(
-            f"{table.path}:{parsed.line} tick matrix has non-event-type "
+            f"{table.path}:{parsed.line} tick matrix has non-semantic-type "
             f"columns {unknown}; every column but 'Scenario' must be an "
-            "event_type name for the harness ratchet to read it "
+            "semantic_type name for the harness ratchet to read it "
             "(DEMOCI-11-007)."
         )
         return problems
 
     for spec, row in zip(resolved, parsed.rows, strict=False):
-        harness = harness_event_types(spec, root)
+        harness = harness_semantic_types(spec, root)
         if harness is None:
             # No harness file. For a *registered* scenario that is a missing
             # derived path, which DEMOCI-11-003 already reports via

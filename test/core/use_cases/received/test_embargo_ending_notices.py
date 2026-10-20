@@ -59,7 +59,7 @@ from vultron.core.behaviors.sync.announce_tree import (
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
-    REINSTATE_CASE_PARTICIPANT_EVENT_TYPE,
+    REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.activity import VultronActivity
@@ -898,7 +898,7 @@ def test_paused_replica_ignores_an_announced_longer_revision() -> None:
 def _entry_event(
     activity: Any,
     *,
-    event_type: str,
+    semantic_type: str,
     log_index: int,
     prev_log_hash: str,
     to: str,
@@ -916,7 +916,7 @@ def _entry_event(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=activity.id_,
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=activity.model_dump(
                 by_alias=True, mode="json", exclude_none=True
             ),
@@ -972,7 +972,7 @@ def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
         add_participant_to_case_activity(
             replica.record(), target=CASE_ID, actor=OWNER, context=CASE_ID
         ),
-        event_type=REINSTATE_CASE_PARTICIPANT_EVENT_TYPE,
+        semantic_type=REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
         log_index=0,
         prev_log_hash=replica.case().genesis_hash,
         to=replica.actor_id,
@@ -984,7 +984,7 @@ def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
 
     termination, _ = _entry_event(
         _termination_from(MANAGER, replica.dl, REMOVED),
-        event_type="remove_embargo_event_from_case",
+        semantic_type="remove_embargo_event_from_case",
         log_index=1,
         prev_log_hash=reinstatement_entry.entry_hash,
         to=replica.actor_id,

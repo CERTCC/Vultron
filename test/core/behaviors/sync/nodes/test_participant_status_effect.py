@@ -107,7 +107,7 @@ def _make_status_entry(
             case_id=CASE_ID,
             log_index=0,
             object_id="https://example.org/activities/add-status",
-            event_type="add_participant_status_to_participant",
+            semantic_type="add_participant_status_to_participant",
             payload_snapshot=snapshot,
             prev_log_hash=CASE_GENESIS_HASH,
         )

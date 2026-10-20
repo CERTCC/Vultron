@@ -268,14 +268,14 @@ class TestCloseCaseOwnerLast:
 # ---------------------------------------------------------------------------
 
 
-def _entry(index: int, event_type: str, actor: str, **object_: str) -> dict:
+def _entry(index: int, semantic_type: str, actor: str, **object_: str) -> dict:
     snapshot: dict = {"actor": actor}
     if object_:
         snapshot["object"] = object_
     return {
         "case_id": _CASE,
         "log_index": index,
-        "event_type": event_type,
+        "semantic_type": semantic_type,
         "payload_snapshot": snapshot,
     }
 
@@ -436,7 +436,7 @@ class TestVerifyCaseClosureRecorded:
         with waited as wait, found:
             verify_case_closure_recorded(client, _CASE, [_REPORTER, _OWNER])
         wait.assert_called_once_with(
-            client=client, case_id=_CASE, event_type="case_fully_closed"
+            client=client, case_id=_CASE, semantic_type="case_fully_closed"
         )
         # The client is already bound to the CASE_MANAGER's store: read as
         # given, with no second store lookup.

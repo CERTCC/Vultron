@@ -1288,14 +1288,14 @@ def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
         return
     # Seed vendor at RM.RECEIVED — the minimum state needed so that the
     # validate-report trigger can advance RECEIVED → VALID and emit the
-    # validate_report eventType to the case-actor ledger.
+    # validate_report semanticType to the case-actor ledger.
     #
     # In a multi-server deployment the CaseProposal acceptance round-trip would
     # drive this transition automatically (SubmitReportReceivedUseCase creates
     # the participant at RM.RECEIVED).  In single-server demo mode that
     # round-trip is blocked, so we seed it here as the protocol would have.
     # RM.VALID must NOT be pre-seeded — validate-report must drive that
-    # transition so the eventType appears in the case-actor ledger (issue #2273).
+    # transition so the semanticType appears in the case-actor ledger (issue #2273).
     vendor_p = CaseParticipant(
         attributed_to=vendor_actor_id,
         context=case_id,

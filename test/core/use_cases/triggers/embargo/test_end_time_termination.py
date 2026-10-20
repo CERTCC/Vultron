@@ -35,7 +35,7 @@ from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.end_time_tree import (
     END_TIME_LEDGER_FRESH_NODE_NAME,
 )
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
@@ -203,7 +203,7 @@ class _World:
         return [
             entry
             for entry in ledger_entries(self.dl, self.case_id)
-            if entry.event_type == EMBARGO_TEARDOWN_EVENT_TYPE
+            if entry.semantic_type == EMBARGO_TEARDOWN_SEMANTIC_TYPE
         ]
 
 

@@ -53,7 +53,7 @@ def entry() -> CaseLedgerEntry:
         case_id=_CASE_ID,
         log_index=3,
         object_id="https://example.org/activities/a3",
-        event_type="test_event",
+        semantic_type="test_event",
         payload_snapshot={"k": "v"},
         prev_log_hash="0" * 64,
     )

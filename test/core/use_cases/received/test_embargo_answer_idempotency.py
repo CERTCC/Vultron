@@ -41,11 +41,11 @@ from vultron.core.behaviors.embargo.nodes.answer_repeat import (
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.embargo_consent_event_types import (
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+from vultron.core.models.embargo_consent_semantic_types import (
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.rsvp_deadline import HONOUR_LATE_ACCEPT_EVENT_TYPE
+from vultron.core.models.rsvp_deadline import HONOUR_LATE_ACCEPT_SEMANTIC_TYPE
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -149,7 +149,7 @@ def _withdraw(
 
 def _entries(net: LedgerNetwork) -> list[str]:
     return [
-        str(obj.event_type)
+        str(obj.semantic_type)
         for obj in net.stores[MANAGER].list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
     ]
@@ -288,7 +288,7 @@ def test_a_reject_of_the_agreed_embargo_in_force_is_refused_leave_withdraws():
     # (ADR-0124, CLP-07-013).
     assert _entries(net)[entries:] == [
         WITHDRAW_EVENT,
-        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
     ]
     assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.DECLINED
 
@@ -373,7 +373,10 @@ def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
     # own Update(EmbargoConsent) entry (CLP-07-013, ADR-0124).
     added = Counter(_entries(net)) - Counter(entries)
     assert added == Counter(
-        [HONOUR_LATE_ACCEPT_EVENT_TYPE, UPDATE_EMBARGO_CONSENT_EVENT_TYPE]
+        [
+            HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
+            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
+        ]
         if activated
         else [MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value]
     )

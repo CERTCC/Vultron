@@ -36,17 +36,17 @@ from __future__ import annotations
 import pytest
 
 from test.ci.invariants.common import (
-    check_event_type_count,
-    check_event_type_present,
     check_late_joiner_has_full_history,
+    check_semantic_type_count,
+    check_semantic_type_present,
     load_devlogs,
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 
 _DEMO_NAME = "rcvcv"
 
-#: Expected protocol eventTypes in a complete RCVCV run.
-_RCVCV_EXPECTED_EVENT_TYPES = [
+#: Expected protocol semanticTypes in a complete RCVCV run.
+_RCVCV_EXPECTED_SEMANTIC_TYPES = [
     pytest.param("validate_report", id="validate_report"),
     pytest.param(
         "add_participant_status_to_participant",
@@ -101,7 +101,7 @@ globals().update(
     make_universal_invariant_tests(
         replicas_fixture="rcvcv_replicas",
         chain_actors=_CHAIN_ACTORS,
-        expected_event_types=_RCVCV_EXPECTED_EVENT_TYPES,
+        expected_semantic_types=_RCVCV_EXPECTED_SEMANTIC_TYPES,
         narrative_path="docs/topics/scenarios/rcvcv.md",
         joined_invitees=3,
     )
@@ -124,7 +124,7 @@ def test_rcvcv_invite_actor_to_case_at_least_three(
 
     Spec: DEMOMA-19-003, DEMOMA-19-009.
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rcvcv_replicas, "invite_actor_to_case", min_count=3
     )
     assert not violations, violations[0] if violations else ""
@@ -138,7 +138,7 @@ def test_rcvcv_offer_case_participant_present(
 
     Spec: DEMOMA-19-009 (C2 uses the ADR-0026 suggest-actor flow).
     """
-    violations = check_event_type_present(
+    violations = check_semantic_type_present(
         rcvcv_replicas, "offer_case_participant"
     )
     assert not violations, violations[0] if violations else ""
@@ -155,7 +155,7 @@ def test_rcvcv_accept_invite_at_least_three(
 
     Spec: DEMOMA-19-003, DEMOMA-19-009.
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rcvcv_replicas, "accept_invite_actor_to_case", min_count=3
     )
     assert not violations, violations[0] if violations else ""

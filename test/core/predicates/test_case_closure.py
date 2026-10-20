@@ -20,25 +20,25 @@ from dataclasses import dataclass
 import pytest
 
 from vultron.core.predicates.case_closure import (
-    CASE_FULLY_CLOSED_EVENT_TYPE,
+    CASE_FULLY_CLOSED_SEMANTIC_TYPE,
     ledger_records_full_closure,
 )
 
 
 @dataclass
 class _Entry:
-    event_type: str
+    semantic_type: str
 
 
 @pytest.mark.spec("CM-23-013")
 def test_a_ledger_with_case_fully_closed_is_closed() -> None:
-    entries = [_Entry("close_case"), _Entry(CASE_FULLY_CLOSED_EVENT_TYPE)]
+    entries = [_Entry("close_case"), _Entry(CASE_FULLY_CLOSED_SEMANTIC_TYPE)]
     assert ledger_records_full_closure(entries)
 
 
 @pytest.mark.spec("CM-23-013")
 def test_order_does_not_matter() -> None:
-    entries = [_Entry(CASE_FULLY_CLOSED_EVENT_TYPE), _Entry("add_note")]
+    entries = [_Entry(CASE_FULLY_CLOSED_SEMANTIC_TYPE), _Entry("add_note")]
     assert ledger_records_full_closure(entries)
 
 

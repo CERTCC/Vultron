@@ -90,7 +90,7 @@ class ApplyOfferReportFromLedgerNode(
         entry = _require_log_entry(self.activity, self.name)
 
         # Only handle add_report_to_case entries.
-        if entry.event_type != "add_report_to_case":
+        if entry.semantic_type != "add_report_to_case":
             return Status.SUCCESS
 
         snapshot = (

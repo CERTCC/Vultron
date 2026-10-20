@@ -88,7 +88,7 @@ _NOT_A_MODIFIER = r"(?!(?:as|of|in|and|or|to|a|an|the|is|are|was|were)\s)"
 #: - ``(?<![#\\w-])`` — the count must not continue an identifier. ``#2018`` is an
 #:   issue reference and ``DEMOMA-16`` / ``ADR-0098`` are spec and decision IDs,
 #:   all of which these files cite constantly and often right next to the word
-#:   "scenario" (``DEMOMA-16 scenario event types`` would otherwise report
+#:   "scenario" (``DEMOMA-16 scenario semantic types`` would otherwise report
 #:   ``16 scenario``).
 #: - at most two modifier words, none of them a stopword — see
 #:   :data:`_NOT_A_MODIFIER`.

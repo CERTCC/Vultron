@@ -19,7 +19,7 @@ Note on the ownership transfer: the ``Offer(VulnerabilityCase)`` /
 (ADR-0053, CM-21-005/CM-21-007), which commits
 ``offer_case_ownership_transfer`` and ``accept_case_ownership_transfer``
 ledger entries and broadcasts them to every participant.  The acceptance is
-in the expected-event-types list below, and the narrative's causal edges
+in the expected-semantic-types list below, and the narrative's causal edges
 place it between the Coordinator's own invitation acceptance and its invite
 of Vendor2.  The demo additionally verifies the resulting ``attributed_to``
 change on both the Vendor1 and Coordinator DataLayers via ``demo_check``
@@ -36,16 +36,16 @@ from __future__ import annotations
 import pytest
 
 from test.ci.invariants.common import (
-    check_event_type_count,
     check_late_joiner_has_full_history,
+    check_semantic_type_count,
     load_devlogs,
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 
 _DEMO_NAME = "rvcv-handoff"
 
-#: Expected protocol eventTypes in a complete RVCV-handoff run.
-_RVCV_HANDOFF_EXPECTED_EVENT_TYPES = [
+#: Expected protocol semanticTypes in a complete RVCV-handoff run.
+_RVCV_HANDOFF_EXPECTED_SEMANTIC_TYPES = [
     pytest.param("validate_report", id="validate_report"),
     pytest.param(
         "add_participant_status_to_participant",
@@ -105,7 +105,7 @@ globals().update(
     make_universal_invariant_tests(
         replicas_fixture="rvcv_handoff_replicas",
         chain_actors=_CHAIN_ACTORS,
-        expected_event_types=_RVCV_HANDOFF_EXPECTED_EVENT_TYPES,
+        expected_semantic_types=_RVCV_HANDOFF_EXPECTED_SEMANTIC_TYPES,
         narrative_path="docs/topics/scenarios/rvcv-handoff.md",
         joined_invitees=2,
     )
@@ -126,7 +126,7 @@ def test_rvcv_handoff_invite_actor_to_case_at_least_twice(
     Vendor1 invites Coordinator; then Coordinator (the new CASE_OWNER after
     the ownership handoff) invites Vendor2.
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rvcv_handoff_replicas, "invite_actor_to_case", min_count=2
     )
     assert not violations, violations[0] if violations else ""
@@ -142,7 +142,7 @@ def test_rvcv_handoff_accept_invite_at_least_twice(
     Coordinator's invitation — both mid-case joins land in the canonical
     ledger (PCR-08-008).
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rvcv_handoff_replicas, "accept_invite_actor_to_case", min_count=2
     )
     assert not violations, violations[0] if violations else ""
@@ -160,19 +160,19 @@ def test_rvcv_handoff_vendor2_rm_triage_observed(
     the original receiver), the full-case Invite acceptance appears once
     (Vendor2), and ``engage_case`` appears at least twice (one each).
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rvcv_handoff_replicas, "validate_report", min_count=1, max_count=1
     )
     assert not violations, violations[0] if violations else ""
 
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rvcv_handoff_replicas,
         "accept_invite_actor_to_full_case",
         min_count=1,
     )
     assert not violations, violations[0] if violations else ""
 
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rvcv_handoff_replicas, "engage_case", min_count=2
     )
     assert not violations, violations[0] if violations else ""

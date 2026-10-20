@@ -44,7 +44,7 @@ from vultron.core.behaviors.case.nodes.embargo_revision import (
     creation_revision_parties,
 )
 from vultron.core.behaviors.case.nodes.proposal_ledger import (
-    CREATE_CASE_EVENT_TYPE,
+    CREATE_CASE_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
@@ -302,7 +302,9 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
         entries: list[CaseLedgerEntry],
     ) -> _RelayState:
         """Decide, without writing anything, what the owed relay still needs."""
-        if not any(e.event_type == CREATE_CASE_EVENT_TYPE for e in entries):
+        if not any(
+            e.semantic_type == CREATE_CASE_SEMANTIC_TYPE for e in entries
+        ):
             # Only a retry outside the case tree reaches this: the tree runs
             # the relay after its ledger commit.
             reason = (

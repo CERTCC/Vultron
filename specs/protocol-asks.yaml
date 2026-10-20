@@ -200,7 +200,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      Each ask kind MUST declare the set of reply event types that close it.
+      Each ask kind MUST declare the set of reply semantic types that close it.
     rationale: >
       Pairing a reply to an ask requires a declared closing set rather than
       hard-coded reply names at call sites; `ProtocolPair` already carries this
@@ -312,7 +312,7 @@ groups:
       and the relay (EP-09) emits one per participant per proposal, so the
       outstanding-ask register must track it without a special case. Declaring
       the kind here keeps `find_protocol_pair`'s one-open-request assumption from
-      being applied to N simultaneous Invites of one event type. Source: #3918,
+      being applied to N simultaneous Invites of one semantic type. Source: #3918,
       ADR-0113 as amended.
     verification: >
       The ask-kind registry, when it lands (#2884), declares this kind with the

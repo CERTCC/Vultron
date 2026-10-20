@@ -70,7 +70,7 @@ def assert_case_manager_note_recorded(
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
         and e.case_id == case_id
-        and e.event_type == "add_note_to_case"
+        and e.semantic_type == "add_note_to_case"
     ]
     assert len(entries) == 1, [e.log_object_id for e in entries]
     body = entries[0].payload_snapshot

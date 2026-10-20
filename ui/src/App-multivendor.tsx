@@ -928,7 +928,7 @@ function App() {
                     yPos = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
                   }
 
-                  // Determine node color based on participant and event type
+                  // Determine node color based on participant and semantic type
                   let fillColor: string
                   if (participant) {
                     let colors: { decision: string; decisionHover: string; consequence: string; consequenceHover: string }

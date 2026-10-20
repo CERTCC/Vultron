@@ -409,7 +409,7 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": managed_case.id_,
                 "object_id": managed_case.id_,
-                "event_type": "demo_sync",
+                "semantic_type": "demo_sync",
             },
         )
         assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
@@ -425,7 +425,7 @@ class TestDemoSyncLogEntry:
         entry = dl.read(body["log_entry_id"])
         assert entry is not None
         assert entry.entry_hash == body["entry_hash"]
-        assert entry.event_type == "demo_sync"
+        assert entry.semantic_type == "demo_sync"
 
     @pytest.mark.spec("TRIG-01-003")
     def test_unknown_actor_returns_404(
@@ -436,13 +436,13 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": managed_case.id_,
                 "object_id": managed_case.id_,
-                "event_type": "demo_sync",
+                "semantic_type": "demo_sync",
             },
         )
         assert resp.status_code == status.HTTP_404_NOT_FOUND
         assert resp.json()["detail"]["error"] == "NotFound"
 
-    def test_missing_event_type_returns_422(
+    def test_missing_semantic_type_returns_422(
         self, client_demo: TestClient, actor, managed_case
     ):
         resp = client_demo.post(
@@ -497,7 +497,7 @@ class TestDemoSyncLogEntry:
                 json={
                     "case_id": case.id_,
                     "object_id": case.id_,
-                    "event_type": "single_server",
+                    "semantic_type": "single_server",
                 },
             )
 
@@ -537,7 +537,7 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": case.id_,
                 "object_id": case.id_,
-                "event_type": "foreign",
+                "semantic_type": "foreign",
             },
         )
         assert resp.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -696,7 +696,7 @@ class TestDemoGetCaseLedgerEntry:
         data = response.json()
         assert data["logIndex"] == 1
         assert data["caseId"] == case_with_actor.id_
-        assert data["eventType"] == "test_event_1"
+        assert data["semanticType"] == "test_event_1"
 
     def test_returns_404_for_missing_index(
         self, client_demo: TestClient, actor, case_with_actor
@@ -748,11 +748,11 @@ class TestDemoGetCaseLedgerEntry:
         data = response.json()
         # camelCase aliases should be present
         assert "logObjectId" in data
-        assert "eventType" in data
+        assert "semanticType" in data
         assert "logIndex" in data
         assert "caseId" in data
         assert "log_object_id" not in data
-        assert "event_type" not in data
+        assert "semantic_type" not in data
 
 
 # ---------------------------------------------------------------------------

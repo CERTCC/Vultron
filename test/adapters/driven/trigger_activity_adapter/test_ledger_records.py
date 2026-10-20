@@ -165,13 +165,13 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
         "record_case_announced": lambda a: a.record_case_announced(
             case_id=CASE_ID,
             actor=CASE_ACTOR_ID,
-            event_type="demo_event",
+            semantic_type="demo_event",
             object_id=CASE_ID,
         ),
     }
 
 
-#: The ``(type, object type)`` each recipe records, and its event type.
+#: The ``(type, object type)`` each recipe records, and its semantic type.
 _SHAPES: dict[str, tuple[str, str, str]] = {
     "record_case_created": ("Create", "VulnerabilityCase", "create_case"),
     "record_report_added_to_case": (
@@ -257,7 +257,7 @@ def test_the_record_passes_the_canonical_guard(adapter, recipes, method):
     _validate_canonical_entry(
         case_id=CASE_ID,
         payload_snapshot=_snapshot(recipes[method], adapter),
-        event_type=_SHAPES[method][2],
+        semantic_type=_SHAPES[method][2],
     )
 
 

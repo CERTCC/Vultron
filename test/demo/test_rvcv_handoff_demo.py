@@ -621,7 +621,7 @@ class TestRvcvHandoffMilestoneAssertions:
                 "case_id": case.id_,
                 "log_index": 0,
                 "entry_hash": "h0",
-                "event_type": "close_case",
+                "semantic_type": "close_case",
             }
         }
 
@@ -679,7 +679,7 @@ class TestRvcvHandoffMilestoneAssertions:
                 "case_id": case.id_,
                 "log_index": 0,
                 "entry_hash": "h0",
-                "event_type": "close_case",
+                "semantic_type": "close_case",
             }
         }
 
@@ -1000,7 +1000,7 @@ class TestOwnershipTransferAnnounceReachesReporterAC5c:
     via HTTP POST.  The outbox drains automatically (TestClient processes
     BackgroundTasks synchronously), routing the Announce to Reporter's inbox.
     Reporter's DataLayer is then checked for an Announce whose object is a
-    CaseLedgerEntry with event_type == "accept_case_ownership_transfer".
+    CaseLedgerEntry with semantic_type == "accept_case_ownership_transfer".
     """
 
     def test_reporter_receives_announce_ledger_entry(self):
@@ -1026,17 +1026,17 @@ class TestOwnershipTransferAnnounceReachesReporterAC5c:
                 )
                 if obj is None:
                     return False
-                event_type = (
-                    obj.get("event_type")
+                semantic_type = (
+                    obj.get("semantic_type")
                     if isinstance(obj, dict)
-                    else getattr(obj, "event_type", None)
+                    else getattr(obj, "semantic_type", None)
                 )
-                return event_type == "accept_case_ownership_transfer"
+                return semantic_type == "accept_case_ownership_transfer"
 
             ot_announces = [a for a in announce_values if _is_ot_announce(a)]
             assert len(ot_announces) >= 1, (
                 "Reporter's DataLayer must contain at least one "
-                "Announce(CaseLedgerEntry[event_type="
+                "Announce(CaseLedgerEntry[semantic_type="
                 "accept_case_ownership_transfer]) "
                 "after ownership transfer — no manual trigger (AC-5c). "
                 f"Got announces: {announce_values!r}"
@@ -1516,7 +1516,7 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             patch.object(demo, "wait_for_case_attributed_to"),
             patch.object(demo, "wait_for_case_actor_ledger_event"),
             patch.object(
-                demo, "wait_for_event_type_in_ledger"
+                demo, "wait_for_semantic_type_in_ledger"
             ) as mock_ledger_wait,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
@@ -1588,7 +1588,7 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             " Reporter's own container, not the offerer's"
         )
         assert kwargs["case_id"] == case.id_
-        assert kwargs["event_type"] == "accept_case_ownership_transfer"
+        assert kwargs["semantic_type"] == "accept_case_ownership_transfer"
 
     def test_find_ownership_transfer_offer_for_actor_is_called(self):
         """find_ownership_transfer_offer_for_actor must be called (not wait_for_object_stored)."""
@@ -1930,7 +1930,7 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
             ),
             patch.object(
                 demo,
-                "wait_for_event_type_in_ledger",
+                "wait_for_semantic_type_in_ledger",
                 side_effect=_record("replica_ledger"),
             ),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
@@ -1978,7 +1978,7 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
             "the commit gate reads the CaseActor's store on the dedicated"
             " case-actor container that hosts it, not Vendor1's replica"
         )
-        assert commit_kwargs["event_type"] == self.COMMIT_EVENT
+        assert commit_kwargs["semantic_type"] == self.COMMIT_EVENT
         assert kinds[1:] == [
             "attributed_to",
             "attributed_to",
@@ -2044,7 +2044,7 @@ class TestPhaseOwnershipHandoffGatesOnCaseActorCommit:
                 demo, "wait_for_case_attributed_to", side_effect=attributed_to
             ),
             patch.object(
-                demo, "wait_for_event_type_in_ledger"
+                demo, "wait_for_semantic_type_in_ledger"
             ) as reporter_wait,
             patch.object(demo, "as_VulnerabilityCase"),
             patch.object(
@@ -2142,7 +2142,7 @@ class TestRvcvHandoffOwnershipHandoffSkipsDependents:
             ) as replica_wait,
             patch.object(demo, "wait_for_case_actor_ledger_event"),
             patch.object(demo, "wait_for_case_attributed_to"),
-            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_semantic_type_in_ledger"),
             patch.object(
                 ActorSession, "invite_actor_to_case", **invite_trigger
             ),

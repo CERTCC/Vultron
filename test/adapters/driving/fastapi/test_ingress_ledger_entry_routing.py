@@ -60,7 +60,7 @@ def _make_announce_body() -> dict:
         id_=_ENTRY_ID,
         case_id=_CASE_ID,
         log_object_id=_INVITEE_ID,
-        event_type="accept_invite_actor_to_case",
+        semantic_type="accept_invite_actor_to_case",
         payload_snapshot={"actor": _INVITEE_ID},
         entry_hash="hash-1",
         prev_log_hash="hash-0",
@@ -144,7 +144,7 @@ def test_replayed_ledger_entry_announce_routes_and_keeps_fields(
         f" got {type(replayed_object).__name__}"
     )
     assert replayed_object.case_id == _CASE_ID
-    assert replayed_object.event_type == "accept_invite_actor_to_case"
+    assert replayed_object.semantic_type == "accept_invite_actor_to_case"
     assert (
         find_matching_semantics(replayed)
         == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY

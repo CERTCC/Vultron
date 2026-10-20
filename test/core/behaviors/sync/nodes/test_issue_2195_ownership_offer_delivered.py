@@ -126,10 +126,10 @@ def case_replica(datalayer):
 
 
 def _offer_ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
-    """Ownership-transfer *offer* ledger entry (event_type from StrEnum value).
+    """Ownership-transfer *offer* ledger entry (semantic_type from StrEnum value).
 
     ``MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER.value`` is
-    ``"offer_case_ownership_transfer"`` — the exact event_type
+    ``"offer_case_ownership_transfer"`` — the exact semantic_type
     ``CommitCaseLedgerEntryNode`` writes for the forwarded Offer.  The snapshot
     embeds the full forwarded Offer activity (id=OFFER_ID, target=Coordinator,
     object=case) so a future backfill effect would have everything it needs.
@@ -138,7 +138,7 @@ def _offer_ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
         case_id=CASE_ID,
         log_index=0,
         object_id=OFFER_ID,
-        event_type="offer_case_ownership_transfer",
+        semantic_type="offer_case_ownership_transfer",
         payload_snapshot={
             "type": "Offer",
             "id": OFFER_ID,

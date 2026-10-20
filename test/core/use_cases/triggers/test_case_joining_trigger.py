@@ -293,7 +293,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
         and e.case_id == case.id_
-        and e.event_type == "invite_actor_to_case"
+        and e.semantic_type == "invite_actor_to_case"
         and invitee.id_ in json.dumps(e.payload_snapshot, default=str)
     ]
     assert creation_entries, "the participant's creation must be committed"
@@ -301,7 +301,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
         e
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
-        and e.event_type == "add_case_participant"
+        and e.semantic_type == "add_case_participant"
     ]
 
 

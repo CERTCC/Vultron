@@ -2,7 +2,7 @@
 
 Verifies that ``check_causal_edges`` returns violations when the declared
 edge list is corrupted — either by reversing the expected ordering, by naming
-event types that are absent from the log, or by supplying an empty log.
+semantic types that are absent from the log, or by supplying an empty log.
 
 These tests use synthetic replica data; no real devlog fixtures are needed.
 They are deliberately NOT tagged ``@pytest.mark.case_ledger_invariants`` so
@@ -22,7 +22,7 @@ from test.ci.invariants.common import check_causal_edges
 
 def _make_entry(log_idx: int, evt: str) -> dict:
     """Return a minimal ledger entry dict for testing."""
-    return {"log_index": log_idx, "eventType": evt}
+    return {"log_index": log_idx, "semanticType": evt}
 
 
 def _replicas(*entries: dict) -> dict[str, list[dict]]:
@@ -82,7 +82,7 @@ def test_causal_edge_antecedent_without_log_index_is_not_satisfied() -> None:
     position is unknown.
     """
     replicas = _replicas(
-        {"eventType": "validate_report"},
+        {"semanticType": "validate_report"},
         _make_entry(3, "engage_case"),
     )
     edges = [{"antecedent": "validate_report", "consequent": "engage_case"}]

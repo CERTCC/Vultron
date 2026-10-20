@@ -74,7 +74,7 @@ def empty_log() -> CaseLedger:
 
 @pytest.fixture()
 def log_with_one_entry(empty_log: CaseLedger) -> CaseLedger:
-    empty_log.append(object_id=OBJECT_ID, event_type="report_received")
+    empty_log.append(object_id=OBJECT_ID, semantic_type="report_received")
     return empty_log
 
 
@@ -82,17 +82,17 @@ def log_with_one_entry(empty_log: CaseLedger) -> CaseLedger:
 def log_with_three_entries(empty_log: CaseLedger) -> CaseLedger:
     empty_log.append(
         object_id="urn:uuid:obj1",
-        event_type="report_received",
+        semantic_type="report_received",
         payload_snapshot={"id": "urn:uuid:obj1"},
     )
     empty_log.append(
         object_id="urn:uuid:obj2",
-        event_type="case_created",
+        semantic_type="case_created",
         payload_snapshot={"id": "urn:uuid:obj2"},
     )
     empty_log.append(
         object_id="urn:uuid:obj3",
-        event_type="participant_added",
+        semantic_type="participant_added",
     )
     return empty_log
 
@@ -199,13 +199,13 @@ class TestCaseLedgerEntry:
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
-            event_type="report_received",
+            semantic_type="report_received",
             prev_log_hash=_ZERO_HASH,
         )
         assert entry.case_id == CASE_ID
         assert entry.log_index == 0
         assert entry.object_id == OBJECT_ID
-        assert entry.event_type == "report_received"
+        assert entry.semantic_type == "report_received"
         assert entry.prev_log_hash == _ZERO_HASH
 
     def test_entry_hash_auto_computed(self):
@@ -213,7 +213,7 @@ class TestCaseLedgerEntry:
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
-            event_type="report_received",
+            semantic_type="report_received",
             prev_log_hash=_ZERO_HASH,
         )
         assert entry.entry_hash != ""
@@ -224,7 +224,7 @@ class TestCaseLedgerEntry:
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
-            event_type="report_received",
+            semantic_type="report_received",
             prev_log_hash=_ZERO_HASH,
         )
         assert entry.verify_hash()
@@ -234,7 +234,7 @@ class TestCaseLedgerEntry:
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
-            event_type="report_received",
+            semantic_type="report_received",
             prev_log_hash=_ZERO_HASH,
         )
         # Manually tamper with object_id after creation
@@ -256,7 +256,7 @@ class TestCaseLedgerEntry:
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
-            event_type="accept_case_ownership_transfer",
+            semantic_type="accept_case_ownership_transfer",
             prev_log_hash=_ZERO_HASH,
             payload_snapshot={
                 "id": OBJECT_ID,
@@ -284,7 +284,7 @@ class TestCaseLedgerEntry:
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
-            event_type="test",
+            semantic_type="test",
             prev_log_hash=_ZERO_HASH,
         )
         assert entry.term is None
@@ -294,14 +294,14 @@ class TestCaseLedgerEntry:
             case_id=CASE_ID,
             log_index=0,
             object_id="urn:uuid:obj1",
-            event_type="test",
+            semantic_type="test",
             prev_log_hash=_ZERO_HASH,
         )
         e2 = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id="urn:uuid:obj2",
-            event_type="test",
+            semantic_type="test",
             prev_log_hash=_ZERO_HASH,
         )
         assert e1.entry_hash != e2.entry_hash
@@ -312,7 +312,7 @@ class TestCaseLedgerEntry:
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
-            event_type="test",
+            semantic_type="test",
             prev_log_hash=_ZERO_HASH,
         )
         hashable = entry._hashable_dict()
@@ -324,7 +324,7 @@ class TestCaseLedgerEntry:
             case_id=CASE_ID,
             log_index=0,
             object_id=OBJECT_ID,
-            event_type="test",
+            semantic_type="test",
             prev_log_hash=_ZERO_HASH,
             payload_snapshot=snap,
         )
@@ -364,8 +364,8 @@ class TestCaseLedgerAppend:
     def test_second_entry_prev_hash_equals_first_entry_hash(
         self, empty_log: CaseLedger
     ):
-        e1 = empty_log.append(object_id="urn:uuid:a", event_type="first")
-        e2 = empty_log.append(object_id="urn:uuid:b", event_type="second")
+        e1 = empty_log.append(object_id="urn:uuid:a", semantic_type="first")
+        e2 = empty_log.append(object_id="urn:uuid:b", semantic_type="second")
         assert e2.prev_log_hash == e1.entry_hash
 
     def test_log_indices_monotonically_increase(
@@ -376,13 +376,13 @@ class TestCaseLedgerAppend:
 
     def test_next_index_increments(self, empty_log: CaseLedger):
         assert empty_log.next_index == 0
-        empty_log.append(object_id="urn:uuid:a", event_type="first")
+        empty_log.append(object_id="urn:uuid:a", semantic_type="first")
         assert empty_log.next_index == 1
-        empty_log.append(object_id="urn:uuid:b", event_type="second")
+        empty_log.append(object_id="urn:uuid:b", semantic_type="second")
         assert empty_log.next_index == 2
 
     def test_returned_entry_matches_stored(self, empty_log: CaseLedger):
-        returned = empty_log.append(object_id=OBJECT_ID, event_type="test")
+        returned = empty_log.append(object_id=OBJECT_ID, semantic_type="test")
         stored = empty_log.entries[0]
         assert returned is stored
 
@@ -390,7 +390,7 @@ class TestCaseLedgerAppend:
         self, empty_log: CaseLedger
     ):
         """Omitting payload_snapshot produces an empty dict on the entry."""
-        entry = empty_log.append(object_id=OBJECT_ID, event_type="test")
+        entry = empty_log.append(object_id=OBJECT_ID, semantic_type="test")
         assert entry.payload_snapshot == {}
         assert entry.payload_snapshot is not None
 
@@ -413,10 +413,10 @@ class TestCaseLedgerAppendOnly:
         self, empty_log: CaseLedger
     ):
         """Mutating the returned tuple does not affect the underlying log."""
-        empty_log.append(object_id="urn:uuid:a", event_type="first")
+        empty_log.append(object_id="urn:uuid:a", semantic_type="first")
         snapshot = empty_log.entries
         assert len(snapshot) == 1
-        empty_log.append(object_id="urn:uuid:b", event_type="second")
+        empty_log.append(object_id="urn:uuid:b", semantic_type="second")
         # snapshot captured before second append is still length 1
         assert len(snapshot) == 1
         assert len(empty_log.entries) == 2
@@ -466,8 +466,8 @@ class TestCaseLedgerVerifyChain:
     def test_tampered_prev_hash_fails_verify_chain(
         self, empty_log: CaseLedger
     ):
-        empty_log.append(object_id="urn:uuid:a", event_type="first")
-        e2 = empty_log.append(object_id="urn:uuid:b", event_type="second")
+        empty_log.append(object_id="urn:uuid:a", semantic_type="first")
+        e2 = empty_log.append(object_id="urn:uuid:b", semantic_type="second")
         # Tamper with e2's prev_log_hash to point at something wrong
         object.__setattr__(e2, "prev_log_hash", _ZERO_HASH)
         # verify_chain should detect the broken link
@@ -492,20 +492,22 @@ class TestCaseLedgerAppendLogging:
         with caplog.at_level(
             logging.INFO, logger="vultron.core.models.case_ledger"
         ):
-            empty_log.append(object_id=OBJECT_ID, event_type="report_received")
+            empty_log.append(
+                object_id=OBJECT_ID, semantic_type="report_received"
+            )
         assert any(
             r.levelno == logging.INFO and "report_received" in r.message
             for r in caplog.records
         )
 
-    def test_info_log_contains_event_type(
+    def test_info_log_contains_semantic_type(
         self, empty_log: CaseLedger, caplog: pytest.LogCaptureFixture
     ):
         with caplog.at_level(
             logging.INFO, logger="vultron.core.models.case_ledger"
         ):
             empty_log.append(
-                object_id=OBJECT_ID, event_type="participant_added"
+                object_id=OBJECT_ID, semantic_type="participant_added"
             )
         assert any("participant_added" in r.message for r in caplog.records)
 
@@ -515,7 +517,7 @@ class TestCaseLedgerAppendLogging:
         with caplog.at_level(
             logging.INFO, logger="vultron.core.models.case_ledger"
         ):
-            empty_log.append(object_id=OBJECT_ID, event_type="test_event")
+            empty_log.append(object_id=OBJECT_ID, semantic_type="test_event")
         assert any("log_index=0" in r.message for r in caplog.records)
 
     def test_debug_log_contains_entry_hash(
@@ -525,7 +527,7 @@ class TestCaseLedgerAppendLogging:
             logging.DEBUG, logger="vultron.core.models.case_ledger"
         ):
             entry = empty_log.append(
-                object_id=OBJECT_ID, event_type="test_event"
+                object_id=OBJECT_ID, semantic_type="test_event"
             )
         expected_prefix = entry.entry_hash[:16]
         assert any(
@@ -543,7 +545,7 @@ class TestCaseLedgerAppendLogging:
         ):
             empty_log.append(
                 object_id=OBJECT_ID,
-                event_type="test_event",
+                semantic_type="test_event",
                 payload_snapshot=snap,
             )
         assert any(

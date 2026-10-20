@@ -136,7 +136,6 @@ from vultron.demo.helpers.polling import (
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
-    wait_for_event_type_in_ledger,
     wait_for_ledger_event,
     wait_for_note_in_case,
     wait_for_object_stored,
@@ -150,6 +149,7 @@ from vultron.demo.helpers.polling import (
     wait_for_reporter_case,
     wait_for_reporter_introduction,
     wait_for_reporter_log_entry,
+    wait_for_semantic_type_in_ledger,
 )
 from vultron.demo.helpers.runner import (
     check_all_containers,

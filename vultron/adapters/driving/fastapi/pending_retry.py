@@ -92,7 +92,7 @@ from vultron.core.behaviors.case.nodes.proposal import (
     RequeuePendingCreateCaseActivityNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_ledger import (
-    CREATE_CASE_EVENT_TYPE,
+    CREATE_CASE_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
@@ -399,7 +399,7 @@ def _relay_pending_revision(
     if dl.read(marker.id_) is None:
         return True
     if not any(
-        e.event_type == CREATE_CASE_EVENT_TYPE
+        e.semantic_type == CREATE_CASE_SEMANTIC_TYPE
         for e in recorded_entries_for_case(case_id=marker.case_id, dl=cop)
     ):
         # Nothing at startup commits a case's creation entries: only a

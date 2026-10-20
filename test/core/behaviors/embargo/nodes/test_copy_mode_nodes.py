@@ -30,7 +30,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     OTHER_PARTICIPANT_ACTOR,
     make_case_with_manager,
 )
-from test.support.ledger import committed_event_types
+from test.support.ledger import committed_semantic_types
 from vultron.core.behaviors.embargo.decided_entries import EMBARGO_DECISION_KEY
 from vultron.core.behaviors.embargo.nodes import lifecycle, withdrawal
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
@@ -97,7 +97,7 @@ def test_applying_after_a_case_that_changed_fails_without_a_write(
     """The trial refuses an entry because the case moved: FAILURE."""
     case_id = _seed(bt_scenario, "copy-moved", EM.PROPOSED)
     embargo_id = "https://example.org/cases/case_copy-moved/embargo_events/e1"
-    before = committed_event_types(bt_scenario.dl, case_id)
+    before = committed_semantic_types(bt_scenario.dl, case_id)
 
     def _refuse(**_kwargs: object) -> None:
         raise VultronEntryRefusedError("the case moved")
@@ -111,7 +111,7 @@ def test_applying_after_a_case_that_changed_fails_without_a_write(
     )
 
     bt_scenario.assert_failure(result, reason="the case moved")
-    assert committed_event_types(bt_scenario.dl, case_id) == before
+    assert committed_semantic_types(bt_scenario.dl, case_id) == before
 
 
 @pytest.mark.executes_as(CASE_MANAGER_ACTOR)
@@ -124,7 +124,7 @@ def test_a_commit_node_with_no_decision_raises(
     result = bt_scenario.run(
         CommitEmbargoDecisionNode(
             case_id=case_id,
-            event_type="accept_invite_to_embargo_on_case",
+            semantic_type="accept_invite_to_embargo_on_case",
             builder=lambda _to: ("urn:uuid:act", '{"id": "urn:uuid:act"}'),
             decision_from={},
         )
@@ -161,7 +161,7 @@ def test_an_answer_node_records_the_row_on_the_answers_own_entry(
 ) -> None:
     """Applying an answer intake committed adds no entry (ADR-0122)."""
     case_id = _seed(bt_scenario, "copy-answer", EM.PROPOSED)
-    before = committed_event_types(bt_scenario.dl, case_id)
+    before = committed_semantic_types(bt_scenario.dl, case_id)
 
     result = bt_scenario.run(
         RecordParticipantAcceptanceNode(
@@ -175,7 +175,7 @@ def test_an_answer_node_records_the_row_on_the_answers_own_entry(
     )
 
     bt_scenario.assert_success(result)
-    assert committed_event_types(bt_scenario.dl, case_id) == before
+    assert committed_semantic_types(bt_scenario.dl, case_id) == before
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +189,7 @@ def test_the_withdrawal_guard_refuses_what_the_lifecycle_refuses(
 ) -> None:
     """No embargo in force: the staged decision refuses; nothing written."""
     case_id = _seed(bt_scenario, "copy-withdraw-guard", EM.PROPOSED)
-    before = committed_event_types(bt_scenario.dl, case_id)
+    before = committed_semantic_types(bt_scenario.dl, case_id)
 
     result = bt_scenario.run(
         EmbargoWithdrawalAppliesNode(
@@ -200,7 +200,7 @@ def test_the_withdrawal_guard_refuses_what_the_lifecycle_refuses(
     )
 
     bt_scenario.assert_failure(result, reason="records nothing")
-    assert committed_event_types(bt_scenario.dl, case_id) == before
+    assert committed_semantic_types(bt_scenario.dl, case_id) == before
 
 
 @pytest.mark.executes_as(CASE_MANAGER_ACTOR)
@@ -233,7 +233,7 @@ def test_a_withdrawal_effect_whose_decision_is_refused_writes_nothing(
     """The lifecycle refuses the withdrawal (no embargo in force): FAILURE,
     nothing committed or written."""
     case_id = _seed(bt_scenario, "copy-withdraw-moved", EM.PROPOSED)
-    before = committed_event_types(bt_scenario.dl, case_id)
+    before = committed_semantic_types(bt_scenario.dl, case_id)
 
     result = bt_scenario.run(
         RecordParticipantWithdrawalNode(
@@ -248,4 +248,4 @@ def test_a_withdrawal_effect_whose_decision_is_refused_writes_nothing(
 
     assert result.status == Status.FAILURE
     assert not result.internal_error
-    assert committed_event_types(bt_scenario.dl, case_id) == before
+    assert committed_semantic_types(bt_scenario.dl, case_id) == before

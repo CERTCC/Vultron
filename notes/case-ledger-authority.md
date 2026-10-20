@@ -100,19 +100,19 @@ Replicas need the asserted content to rebuild state, so the hash chain is
 computed over entries that each include the payload snapshot, never over pointers
 to prior assertions.
 
-**Planned: `event_type` is the registry's label for the payload (ADR-0140,
-proposed).** Every payload is a valid AS2 activity, and an entry's `event_type`
+**Planned: `semantic_type` is the registry's label for the payload (ADR-0140,
+proposed).** Every payload is a valid AS2 activity, and an entry's `semantic_type`
 must equal the semantic type the registry assigns to its `payload_snapshot`,
 including for the CASE_MANAGER's own acts. Today each write path stamps
-`event_type` from its own string constant. The shapes for ledger-only acts are
+`semantic_type` from its own string constant. The shapes for ledger-only acts are
 decided in #4723; the equality test is #4724.
 
-**Planned: the field is renamed `semantic_type` (wire `semanticType`) first
-(CLP-02-014).** The rename is mechanical and lands before the ADR-0140 work,
-which is then written against the new name. The hashed key follows the field
-name, as `object_id` already does, so only newly written entries hash
-differently; a stored `eventType` row is refused and the store reset, never
-aliased (`notes/datalayer-design.md`).
+**The field is `semantic_type`, wire key `semanticType` (CLP-02-014).** The
+glossary names "event type" as a term to avoid for it. The hash chain hashes
+the field under its own name, as `object_id` already is. An entry still
+carrying the retired `eventType` key is refused, never aliased: a stored row
+means the store must be reset, a received one that its sender is out of date
+(`notes/datalayer-design.md`).
 
 ## Refusals Go to the Process Log
 
@@ -161,7 +161,7 @@ replica decides nothing:
   offer records and pending markers are the CASE_MANAGER's working records: not
   ledgered, not replicated, never read to compute a case-file value.
 - **No allow-list.** A write with no entry is a defect. `NO_REPLICA_EFFECT` in
-  `test/architecture/test_ledger_event_types_are_replayed.py` lists committed
+  `test/architecture/test_ledger_semantic_types_are_replayed.py` lists committed
   types that change nothing a replica holds; it is not a place to park an
   unreplayed write. `EXEMPT` in `test/architecture/test_ledger_commit_coverage.py`
   lists routed activities that commit nothing: each row is a CLP-02-013 ground

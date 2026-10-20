@@ -59,7 +59,7 @@ class SvcAddObjectToCaseUseCase(SvcActivityTriggerBase):
     is written.
 
     After queueing, the ``Add`` is recorded in the actor's pending-assertion
-    store under its semantics, the event type the CASE_MANAGER commits; the
+    store under its semantics, the semantic type the CASE_MANAGER commits; the
     matching ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-002,
     SYNC-11-003).  Adding the same object to the same case again while that
     assertion is pending is suppressed before the tree runs and reported with
@@ -85,7 +85,7 @@ class SvcAddObjectToCaseUseCase(SvcActivityTriggerBase):
 
     def _suppressed_duplicate(self) -> ActivityResult | None:
         # Classify first: a refused type raises here, before any tree exists,
-        # so it queues nothing.  The semantics is also the ledger event type
+        # so it queues nothing.  The semantics is also the ledger semantic type
         # the pending assertion is keyed by.
         try:
             self._semantics = self._factory.add_object_to_case_semantics(

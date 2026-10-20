@@ -33,7 +33,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     setup_blackboard,
 )
 from test.support.embargo_register import propose, write_consent_rows
-from test.support.ledger import committed_event_types, fail_commits
+from test.support.ledger import committed_semantic_types, fail_commits
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -50,7 +50,7 @@ from vultron.core.behaviors.embargo.trigger_tree import (
     reject_proposed_embargo_bt,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    EMBARGO_ABANDONMENT_EVENT_TYPE,
+    EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
@@ -158,7 +158,7 @@ def _abandonment_entries(
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
         and entry.case_id == case_id
-        and str(entry.event_type) == EMBARGO_ABANDONMENT_EVENT_TYPE
+        and str(entry.semantic_type) == EMBARGO_ABANDONMENT_SEMANTIC_TYPE
     ]
 
 
@@ -229,7 +229,7 @@ def test_a_non_manager_neither_writes_nor_asks(indexed: bool):
     assert updated.current_status.em.state == EM.PROPOSED
     assert updated.proposed_embargo_ids == list(proposals)
     assert _queued(dl) == []
-    assert committed_event_types(dl, case.id_) == []
+    assert committed_semantic_types(dl, case.id_) == []
 
 
 @pytest.mark.spec("CM-18-005")
@@ -262,7 +262,7 @@ def test_a_proposal_naming_no_invite_fails_before_anything_moves():
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.PROPOSED
     assert updated.proposed_embargo_ids == list(proposals)
-    assert committed_event_types(dl, case.id_) == []
+    assert committed_semantic_types(dl, case.id_) == []
     assert _queued(dl) == []
 
 
@@ -281,7 +281,7 @@ def test_an_unreadable_invite_fails_before_anything_moves():
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.PROPOSED
     assert updated.proposed_embargo_ids == list(proposals)
-    assert committed_event_types(dl, case.id_) == []
+    assert committed_semantic_types(dl, case.id_) == []
     assert _queued(dl) == []
 
 
@@ -297,7 +297,9 @@ def _fail_commits_after(monkeypatch: pytest.MonkeyPatch, allowed: int) -> None:
         monkeypatch,
         commit_tree,
         allowed=allowed,
-        when=lambda kw: kw.get("event_type") == EMBARGO_ABANDONMENT_EVENT_TYPE,
+        when=lambda kw: (
+            kw.get("semantic_type") == EMBARGO_ABANDONMENT_SEMANTIC_TYPE
+        ),
     )
 
 

@@ -283,7 +283,7 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
         case_id="https://example.org/cases/case-sync-2",
         log_index=0,
         object_id="https://example.org/activities/logged-2",
-        event_type="log_entry_committed",
+        semantic_type="log_entry_committed",
         payload_snapshot={"state": "replicated"},
         prev_log_hash=_ZERO_HASH,
     )
@@ -308,4 +308,4 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
     assert emitted_object["type"] == "CaseLedgerEntry"
     assert emitted_object["caseId"] == entry.case_id
     assert emitted_object["logObjectId"] == entry.log_object_id
-    assert emitted_object["eventType"] == entry.event_type
+    assert emitted_object["semanticType"] == entry.semantic_type

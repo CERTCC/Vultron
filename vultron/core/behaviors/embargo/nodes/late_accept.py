@@ -41,7 +41,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models.events.base import VultronEvent
-from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_NOOP_EVENT_TYPE
+from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
 from vultron.core.states.em import EM
 from vultron.errors import VultronWiringError
 
@@ -157,7 +157,7 @@ class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(
             case_id=case_id,
-            event_type=INVITE_EXPIRED_NOOP_EVENT_TYPE,
+            semantic_type=INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
             notify_participants=False,
             name=name,
         )

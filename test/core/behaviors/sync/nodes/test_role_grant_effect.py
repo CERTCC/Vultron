@@ -69,7 +69,7 @@ def _entry(snapshot: dict[str, Any]):
             case_id=CASE_ID,
             log_index=0,
             object_id="https://example.org/activities/accept-role",
-            event_type="accept_case_participant_role",
+            semantic_type="accept_case_participant_role",
             payload_snapshot=snapshot,
             prev_log_hash="0" * 64,
         )

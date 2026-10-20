@@ -781,7 +781,7 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
                 e
                 for e in dl.list_objects("CaseLedgerEntry")
                 if isinstance(e, CaseLedgerEntry)
-                and e.event_type == "invite_actor_to_case"
+                and e.semantic_type == "invite_actor_to_case"
             ]
 
         ledger_at_append: list[list[str | None]] = []

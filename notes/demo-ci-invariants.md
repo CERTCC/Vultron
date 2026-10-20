@@ -6,7 +6,7 @@ description: >
   Rules for the demo CI case-ledger invariant harness: separate demo and
   harness jobs, an artifact that exists even when the demo fails, the narrative
   causal-edge schema, harness file conventions, the per-scenario expected
-  event types table (ratcheted), keeping DEMOMA-16 and the harness constants in
+  semantic types table (ratcheted), keeping DEMOMA-16 and the harness constants in
   one PR, reading a red harness job, post-merge runs on `main`, and
   cancellation-safe failure notification.
 related_specs:
@@ -103,8 +103,8 @@ ledger must show:
 
 ```yaml
 causal_edges:
-  - antecedent: <event_type>     # eventType of the earlier ledger entry
-    consequent: <event_type>     # eventType of the later ledger entry
+  - antecedent: <semantic_type>     # semanticType of the earlier ledger entry
+    consequent: <semantic_type>     # semanticType of the later ledger entry
     consequent_actor: <name>     # actorName of the recorded emitter
     note: <text>                 # optional
     observable: true             # optional; false = not a ledger event
@@ -130,11 +130,11 @@ causal_edges:
   `invite_actor_to_case`, and each `invite_actor_to_case` edge is followed by
   exactly one accept-or-reject edge from a different actor.
 - **Update together (DEMOMA-22-006).** A change to a scenario's causal flow
-  updates both the narrative's `causal_edges:` and, if it adds an event type that
-  must always appear, the harness's `_XXX_EXPECTED_EVENT_TYPES`. Neither check
+  updates both the narrative's `causal_edges:` and, if it adds a semantic type that
+  must always appear, the harness's `_XXX_EXPECTED_SEMANTIC_TYPES`. Neither check
   substitutes for the other.
 
-An edge may name an event type the expected list does not require: the handoff
+An edge may name a semantic type the expected list does not require: the handoff
 narratives declare `offer_case_ownership_transfer →
 accept_case_ownership_transfer` (ADR-0053), while DEMOMA-16-005/006 require only
 the acceptance. Requiring the offer would need the spec and harness edits to land
@@ -149,7 +149,7 @@ Each scenario has one self-contained harness,
 Copy an existing one:
 
 1. Declare `_DEMO_NAME`, `_CHAIN_ACTORS` (scenario-role names, not docker service
-   names) and `_<SCENARIO>_EXPECTED_EVENT_TYPES`.
+   names) and `_<SCENARIO>_EXPECTED_SEMANTIC_TYPES`.
 2. Define a module-scoped replicas fixture calling
    `load_devlogs(demo_name=_DEMO_NAME)`.
 3. Inject the universal invariants with
@@ -175,14 +175,14 @@ synthetic fixtures for unit-testing `common.py` (CONCERN-2004).
 
 ---
 
-## Per-Scenario Expected Event Types (DEMOMA-16)
+## Per-Scenario Expected Semantic Types (DEMOMA-16)
 
-Each scenario's `_XXX_EXPECTED_EVENT_TYPES` extends the universal types
+Each scenario's `_XXX_EXPECTED_SEMANTIC_TYPES` extends the universal types
 (DEMOMA-16-001) with the phases that scenario must exercise, so a scenario-specific
 phase cannot regress silently. The DEMOMA-16 requirements are normative; the
 constants implement them.
 
-### Scenario required event types
+### Scenario required semantic types
 
 One row per scenario. `Scenario` is the registry's `label` in name order, `Spec`
 is resolved from the spec corpus, and `Additional required` is checked against
@@ -208,9 +208,9 @@ annotations such as `(≥3)` belong to the count tests and are not checked.
 
 Invariant 5 checks that each expected type is **present**. A scenario that needs
 an event **N or more times** adds a `test_XXX_<event>_at_least_N` test built on
-`check_event_type_count`.
+`check_semantic_type_count`.
 
-`check_event_type_count` also takes a keyword-only `max_count`. Add one where a
+`check_semantic_type_count` also takes a keyword-only `max_count`. Add one where a
 count above the scenario's own sends would itself be a defect that the universal
 duplicate-commit check (`test_invariant_clp07_unique_payload_snapshot_ids`,
 CLP-07-002) cannot see, such as a second Invite with its own activity id. RCV
@@ -232,14 +232,14 @@ the check's parameter; do not skip the invariant.
 ## Keeping Spec and Code in Sync
 
 When a scenario phase is added or removed, change the DEMOMA-16 requirement in
-`specs/multi-actor-demo.yaml` and the harness's `_XXX_EXPECTED_EVENT_TYPES` in
+`specs/multi-actor-demo.yaml` and the harness's `_XXX_EXPECTED_SEMANTIC_TYPES` in
 the **same PR** (DEMOMA-16-008). They cannot be split across a docs PR and a
 later implementation PR.
 
 `test/metadata/test_demo_scenario_artifacts.py` ratchets one direction:
-`test_per_scenario_demoma_16_names_every_harness_event_type` fails when a harness
+`test_per_scenario_demoma_16_names_every_harness_semantic_type` fails when a harness
 expects a non-universal type its requirement does not name, and
-`test_democi_06_002_names_exactly_the_pr_set_event_types` holds DEMOCI-06-002
+`test_democi_06_002_names_exactly_the_pr_set_semantic_types` holds DEMOCI-06-002
 equal to the PR-set harnesses' types. The reverse is not checked, because some
 statements name a type to exclude it (DEMOMA-16-002, DEMOMA-16-011).
 
@@ -270,7 +270,7 @@ file finds nothing:
   (CM-11-002) — not in `rcv-reject`, whose Vendor rejects;
 - `rv_demo.py` calls it through `vendor_engages_case()`.
 
-The `rvcv-handoff` `check_event_type_count(..., "engage_case", min_count=2)`
+The `rvcv-handoff` `check_semantic_type_count(..., "engage_case", min_count=2)`
 stays scenario-specific: it asserts the count Vendor2's post-join triage implies.
 
 ---

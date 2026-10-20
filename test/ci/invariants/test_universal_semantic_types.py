@@ -1,11 +1,11 @@
-"""Ratchet: every scenario harness lists the five universal event types.
+"""Ratchet: every scenario harness lists the five universal semantic types.
 
-DEMOMA-16-001 declares five event types — ``validate_report``,
+DEMOMA-16-001 declares five semantic types — ``validate_report``,
 ``add_participant_status_to_participant``, ``close_case``,
 ``add_note_to_case``, and ``engage_case`` — that MUST appear in the
 authoritative case-actor log of *every* multi-actor demo scenario.  Each
 scenario harness implements that requirement as the leading entries of its
-``_XXX_EXPECTED_EVENT_TYPES`` constant.
+``_XXX_EXPECTED_SEMANTIC_TYPES`` constant.
 
 DEMOMA-16-008 requires the spec requirement and the test constants to change
 in the same PR.  Nothing enforced that structurally: ``engage_case`` was added
@@ -42,11 +42,11 @@ _REPO_ROOT = Path(__file__).parents[3]
 _CI_SCENARIOS_JSON = _REPO_ROOT / ".github" / "demo-scenarios.json"
 _SPECS_DIR = _REPO_ROOT / "specs"
 
-#: The DEMOMA-16-001 universal event types, in the order the harnesses list
+#: The DEMOMA-16-001 universal semantic types, in the order the harnesses list
 #: them.  Amending this tuple requires amending DEMOMA-16-001 in the same PR
 #: (DEMOMA-16-008) — ``test_demoma_16_001_enumerates_the_universal_types``
 #: fails otherwise.
-_UNIVERSAL_EVENT_TYPES = (
+_UNIVERSAL_SEMANTIC_TYPES = (
     "validate_report",
     "add_participant_status_to_participant",
     "close_case",
@@ -54,7 +54,7 @@ _UNIVERSAL_EVENT_TYPES = (
     "engage_case",
 )
 
-_EXPECTED_CONST_RE = re.compile(r"^_[A-Z0-9_]+_EXPECTED_EVENT_TYPES$")
+_EXPECTED_CONST_RE = re.compile(r"^_[A-Z0-9_]+_EXPECTED_SEMANTIC_TYPES$")
 
 
 def _harness_modules() -> list[ParameterSet]:
@@ -70,33 +70,33 @@ def _harness_modules() -> list[ParameterSet]:
     ]
 
 
-def _expected_event_types_constant(
+def _expected_semantic_types_constant(
     module: ModuleType,
 ) -> tuple[str, list[str]]:
-    """Return the harness's single expected-event-types constant name + values.
+    """Return the harness's single expected-semantic-types constant name + values.
 
-    Values are the ``eventType`` strings in declaration order.  Entries may be
+    Values are the ``semanticType`` strings in declaration order.  Entries may be
     ``pytest.param(...)`` (the convention in every harness) or a bare
     string, which pytest also accepts.
     """
     names = [n for n in vars(module) if _EXPECTED_CONST_RE.match(n)]
     assert len(names) == 1, (
         f"{module.__name__} must declare exactly one "
-        f"_XXX_EXPECTED_EVENT_TYPES constant, found {sorted(names)}"
+        f"_XXX_EXPECTED_SEMANTIC_TYPES constant, found {sorted(names)}"
     )
     name = names[0]
-    event_types = []
+    semantic_types = []
     for entry in getattr(module, name):
         value = entry if isinstance(entry, str) else entry.values[0]
         assert isinstance(value, str), (
-            f"{name} entry {entry!r} does not wrap an eventType string"
+            f"{name} entry {entry!r} does not wrap a semanticType string"
         )
-        event_types.append(value)
-    return name, event_types
+        semantic_types.append(value)
+    return name, semantic_types
 
 
 @pytest.mark.parametrize(("demo", "module_name"), _harness_modules())
-def test_harness_lists_universal_event_types_once(
+def test_harness_lists_universal_semantic_types_once(
     demo: str, module_name: str
 ) -> None:
     """Each harness's universal block is the five DEMOMA-16-001 types.
@@ -107,20 +107,20 @@ def test_harness_lists_universal_event_types_once(
     block owns the requirement.
     """
     module = importlib.import_module(module_name)
-    const_name, event_types = _expected_event_types_constant(module)
+    const_name, semantic_types = _expected_semantic_types_constant(module)
     where = f"{const_name} ({demo})"
 
     assert (
-        tuple(event_types[: len(_UNIVERSAL_EVENT_TYPES)])
-        == _UNIVERSAL_EVENT_TYPES
+        tuple(semantic_types[: len(_UNIVERSAL_SEMANTIC_TYPES)])
+        == _UNIVERSAL_SEMANTIC_TYPES
     ), (
         f"{where} must open with the DEMOMA-16-001 universal block "
-        f"{list(_UNIVERSAL_EVENT_TYPES)}; got {event_types}"
+        f"{list(_UNIVERSAL_SEMANTIC_TYPES)}; got {semantic_types}"
     )
 
-    for event_type in _UNIVERSAL_EVENT_TYPES:
-        assert event_types.count(event_type) == 1, (
-            f"{where} lists {event_type!r} {event_types.count(event_type)} "
+    for semantic_type in _UNIVERSAL_SEMANTIC_TYPES:
+        assert semantic_types.count(semantic_type) == 1, (
+            f"{where} lists {semantic_type!r} {semantic_types.count(semantic_type)} "
             "times; universal types belong in the universal block exactly once"
         )
 
@@ -151,12 +151,12 @@ def test_demoma_16_001_enumerates_the_universal_types() -> None:
     """DEMOMA-16-001's statement names exactly the five universal types.
 
     Guards the spec side of DEMOMA-16-008: promoting or retiring a universal
-    event type in the harnesses without amending DEMOMA-16-001 fails here.
+    semantic type in the harnesses without amending DEMOMA-16-001 fails here.
     """
     statement = load_registry(_SPECS_DIR).get("DEMOMA-16-001").statement
     quoted = set(re.findall(r"`([a-z_]+)`", statement))
-    assert quoted == set(_UNIVERSAL_EVENT_TYPES), (
-        "DEMOMA-16-001 must enumerate exactly the universal event types "
-        f"{sorted(_UNIVERSAL_EVENT_TYPES)}; its statement names "
+    assert quoted == set(_UNIVERSAL_SEMANTIC_TYPES), (
+        "DEMOMA-16-001 must enumerate exactly the universal semantic types "
+        f"{sorted(_UNIVERSAL_SEMANTIC_TYPES)}; its statement names "
         f"{sorted(quoted)}"
     )

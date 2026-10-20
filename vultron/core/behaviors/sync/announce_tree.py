@@ -224,7 +224,7 @@ def create_announce_log_entry_tree(
     # of Selector(Seq(IsX, ApplyX), Success("Skipped")).
     #
     # The Inverter fires SUCCESS only when the condition does NOT match (routing
-    # no-op for the wrong event type).  When the condition matches but ApplyX
+    # no-op for the wrong semantic type).  When the condition matches but ApplyX
     # fails, both branches of the Selector fail, so the FAILURE propagates to
     # LogEntryEventEffects and blocks PersistReceivedLogEntry (SYNC-12-001).
     log_entry_event_effects = py_trees.composites.Sequence(

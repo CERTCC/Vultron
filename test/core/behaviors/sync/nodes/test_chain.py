@@ -71,7 +71,7 @@ def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
         tree=CreateLogEntryNode(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-1",
-            event_type="note_added",
+            semantic_type="note_added",
             payload_snapshot=_canonical_note_snapshot(PARTICIPANT_ACTOR_ID),
             name="CreateLogEntry",
         ),
@@ -95,7 +95,7 @@ def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
     node = CreateLogEntryNode(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-2",
-        event_type="note_added",
+        semantic_type="note_added",
     )
     assert node.payload_snapshot == {}
     assert node.payload_snapshot is not None
@@ -163,7 +163,7 @@ def test_create_log_entry_node_rejects_non_canonical_snapshots(
         tree=CreateLogEntryNode(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-invalid",
-            event_type="note_added",
+            semantic_type="note_added",
             payload_snapshot=snapshot,
             name="CreateLogEntry",
         ),
@@ -182,7 +182,7 @@ def test_create_log_entry_node_allows_case_authored_announce(bridge):
         tree=CreateLogEntryNode(
             case_id=CASE_ID,
             object_id=CASE_ID,
-            event_type="case_announced",
+            semantic_type="case_announced",
             payload_snapshot=_canonical_case_announce_snapshot(),
             name="CreateLogEntry",
         ),
@@ -274,7 +274,7 @@ class TestPersistLogEntryNodeLogging:
         assert result.status == Status.SUCCESS
         assert any(r.levelno == logging.INFO for r in caplog.records)
 
-    def test_info_log_contains_event_type(
+    def test_info_log_contains_semantic_type(
         self, bridge, entry, caplog: pytest.LogCaptureFixture
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"

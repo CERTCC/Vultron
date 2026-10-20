@@ -53,7 +53,7 @@ _DEFAULT_OBJECT = object()
 def _offer_entry(
     offer_id: str,
     object_field: Any = _DEFAULT_OBJECT,
-    event_type: str = OFFER_EVENT,
+    semantic_type: str = OFFER_EVENT,
     actor: str = "https://example.org/actors/original-owner",
     target: Any = None,
 ):
@@ -80,7 +80,7 @@ def _offer_entry(
             case_id=CASE_ID,
             log_index=0,
             object_id=offer_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=snapshot,
             prev_log_hash=_ZERO_HASH,
         )
@@ -104,7 +104,7 @@ def _run_effect(bridge, entry, case_actor):
 
 @pytest.mark.spec("SYNC-12-001")
 def test_condition_succeeds_on_offer_event(bridge, case_actor):
-    """SUCCESS when the entry's event_type is offer_case_ownership_transfer."""
+    """SUCCESS when the entry's semantic_type is offer_case_ownership_transfer."""
     entry = _offer_entry(offer_id=f"urn:uuid:{uuid.uuid4()}")
     result = bridge.execute_with_setup(
         tree=IsOfferOwnershipTransferEventNode(
@@ -118,10 +118,10 @@ def test_condition_succeeds_on_offer_event(bridge, case_actor):
 
 @pytest.mark.spec("SYNC-12-001")
 def test_condition_fails_on_other_event(bridge, case_actor):
-    """FAILURE for any other event_type — the Inverter arm handles routing."""
+    """FAILURE for any other semantic_type — the Inverter arm handles routing."""
     entry = _offer_entry(
         offer_id=f"urn:uuid:{uuid.uuid4()}",
-        event_type="accept_case_ownership_transfer",
+        semantic_type="accept_case_ownership_transfer",
     )
     result = bridge.execute_with_setup(
         tree=IsOfferOwnershipTransferEventNode(

@@ -136,7 +136,7 @@ exporters to the files they write.
 
 Rules for the TypeScript side:
 
-- A ledger entry's meaning is its `eventType`, which equals the registry's
+- A ledger entry's meaning is its `semanticType`, which equals the registry's
   semantic type for its AS2 payload (ADR-0140). The UI reads the exported
   registry table; it never keeps its own list of event names or phrasing.
 - TypeScript types for anything the UI reads match the current Python models,
@@ -306,8 +306,7 @@ they block wait for them.
 5. **Live mode.** #3642 (watch a running scenario) after #4729 → #3643
    (branch points through real triggers) after #4727 and #4730.
 
-Independent follow-ups: Idea #4734 (rename `eventType` to match the glossary)
-and #4735 (log "no use case found" at WARNING).
+Independent follow-up: #4735 (log "no use case found" at WARNING).
 
 ---
 

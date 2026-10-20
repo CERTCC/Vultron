@@ -37,17 +37,22 @@ Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.retired_stored_fields import (
+    RetiredFieldsRecord,
+    RetiredStoredField,
+)
 from vultron.core.models.wire_keys import wire_key
 
 
-class CaseLedgerEntry(CoreObject):
+class CaseLedgerEntry(RetiredFieldsRecord, CoreObject):
     """Core domain model for a single canonical case ledger entry.
 
     .. note::
@@ -65,7 +70,7 @@ class CaseLedgerEntry(CoreObject):
         log_index: Monotonically increasing index scoped to ``case_id``.
         term: Raft cluster term; ``None`` for single-node deployments.
         log_object_id: Full URI of the asserted activity or primary object.
-        event_type: Short machine-readable event descriptor.
+        semantic_type: The registry's label for the entry's payload.
         payload_snapshot: Normalised activity payload snapshot.
         prev_log_hash: SHA-256 hash of the predecessor entry's content.
         entry_hash: SHA-256 hash of this entry's canonical content.
@@ -74,6 +79,12 @@ class CaseLedgerEntry(CoreObject):
     Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003;
     CLP-04-007.
     """
+
+    # A stored or received entry still spelling the field the old way is
+    # refused, never read through an alias (CLP-02-014).
+    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+        "event_type": RetiredStoredField("semantic_type", "#4872"),
+    }
 
     type_: Literal["CaseLedgerEntry"] = Field(  # type: ignore[assignment]
         default="CaseLedgerEntry",
@@ -98,11 +109,11 @@ class CaseLedgerEntry(CoreObject):
         validation_alias="logObjectId",
         serialization_alias="logObjectId",
     )
-    event_type: NonEmptyString = Field(
+    semantic_type: NonEmptyString = Field(
         ...,
-        description="Short machine-readable event descriptor",
-        validation_alias="eventType",
-        serialization_alias="eventType",
+        description="The registry's label for the entry's payload",
+        validation_alias="semanticType",
+        serialization_alias="semanticType",
     )
     payload_snapshot: dict[NonEmptyString, Any] = Field(
         default_factory=dict,

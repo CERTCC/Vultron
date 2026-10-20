@@ -46,8 +46,8 @@ from vultron.enums.roles import serialize_roles
 #: Kind label of a stub Invite's derived id (see ``derived_activity_id``).
 INVITE_ID_KIND = "invite-actor-to-case"
 
-#: Ledger ``event_type`` of a stub Invite's entry.
-INVITE_EVENT_TYPE = "invite_actor_to_case"
+#: Ledger ``semantic_type`` of a stub Invite's entry.
+INVITE_SEMANTIC_TYPE = "invite_actor_to_case"
 
 
 def build_stub_invite(
@@ -140,7 +140,7 @@ def commit_stub_invite(
         case_id=case_id,
         activity_id=activity_id,
         activity_blob=activity_blob,
-        event_type=INVITE_EVENT_TYPE,
+        semantic_type=INVITE_SEMANTIC_TYPE,
     )
 
 
@@ -360,7 +360,7 @@ class EmitInviteActorToCaseNode(_StubInviteEmitBase):
 
 __all__ = [
     "EmitInviteActorToCaseNode",
-    "INVITE_EVENT_TYPE",
+    "INVITE_SEMANTIC_TYPE",
     "build_stub_invite",
     "commit_stub_invite",
 ]

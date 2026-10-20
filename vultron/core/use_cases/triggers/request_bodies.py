@@ -591,7 +591,7 @@ class SyncLogEntryRequest(CaseTriggerRequest):
     """
 
     object_id: UriString
-    event_type: NonEmptyString
+    semantic_type: NonEmptyString
 
 
 class SetStubSummaryRequest(CaseTriggerRequest):

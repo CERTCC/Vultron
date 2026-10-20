@@ -3,7 +3,7 @@
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "caseId": "urn:test:case_id:1",
     "entryHash": "",
-    "eventType": "urn:test:event_type:1",
+    "semanticType": "urn:test:semantic_type:1",
     "id": "urn:test:case_id:1/log/-1",
     "logIndex": -1,
     "logObjectId": "urn:test:log_object_id:1",

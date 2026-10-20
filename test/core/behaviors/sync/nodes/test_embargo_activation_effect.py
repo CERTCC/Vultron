@@ -116,7 +116,7 @@ def _apply(bridge, embargo: Any, *, accept: bool = True):
             case_id=CASE_ID,
             log_index=0,
             object_id="https://example.org/activities/owner-decision",
-            event_type=(
+            semantic_type=(
                 "activate_embargo_on_case"
                 if accept
                 else "reject_embargo_proposal_on_case"

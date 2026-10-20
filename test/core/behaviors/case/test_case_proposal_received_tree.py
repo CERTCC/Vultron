@@ -36,7 +36,7 @@ import py_trees
 import pytest
 
 from test.support.embargo_register import register, terminate
-from test.support.ledger import committed_event_types, fail_commits
+from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -145,7 +145,7 @@ def _participant_creation_entry(
     matches = [
         e
         for e in ledger_entries(dl, case_id)
-        if e.event_type == _CREATE_PARTICIPANT
+        if e.semantic_type == _CREATE_PARTICIPANT
         and e.payload_snapshot["object"].get("attributedTo") == actor_uri
     ]
     assert len(matches) == 1, (
@@ -2130,7 +2130,8 @@ class TestADR0041LedgerEntries:
         entries = ledger_entries(dl, case.id_)
 
         assert [
-            (e.event_type, e.log_object_id) for e in entries[: len(expected)]
+            (e.semantic_type, e.log_object_id)
+            for e in entries[: len(expected)]
         ] == expected
 
     def test_create_case_ledger_entry_present(self, make_payload):
@@ -2150,8 +2151,8 @@ class TestADR0041LedgerEntries:
         case_id = case.id_
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
-        event_types = {getattr(e, "event_type", None) for e in entries}
-        assert "create_case" in event_types, (
+        semantic_types = {getattr(e, "semantic_type", None) for e in entries}
+        assert "create_case" in semantic_types, (
             "create_case ledger entry must be committed natively (AC-4)"
         )
 
@@ -2159,7 +2160,7 @@ class TestADR0041LedgerEntries:
         create_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None) == "create_case"
+            if getattr(e, "semantic_type", None) == "create_case"
             and getattr(e, "case_id", None) == case_id
         ]
         assert create_entries, "create_case entry must reference the case_id"
@@ -2186,7 +2187,7 @@ class TestADR0041LedgerEntries:
         report_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None) == "add_report_to_case"
+            if getattr(e, "semantic_type", None) == "add_report_to_case"
             and getattr(e, "case_id", None) == case_id
         ]
         assert report_entries, (
@@ -2208,8 +2209,8 @@ class TestADR0041LedgerEntries:
         _run_full_bt(make_payload, dl)
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
-        event_types = [getattr(e, "event_type", None) for e in entries]
-        assert "add_participant_status_to_participant" in event_types, (
+        semantic_types = [getattr(e, "semantic_type", None) for e in entries]
+        assert "add_participant_status_to_participant" in semantic_types, (
             "add_participant_status_to_participant entries must be present (AC-4)"
         )
 
@@ -2226,7 +2227,7 @@ class TestADR0041LedgerEntries:
         cs_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None) == "add_case_status_to_case"
+            if getattr(e, "semantic_type", None) == "add_case_status_to_case"
         ]
         assert cs_entries, "add_case_status_to_case entry must be present"
         for entry in cs_entries:
@@ -2275,13 +2276,13 @@ class TestCM18007InitLedgerEntries:
         created = [
             e.log_object_id
             for e in entries
-            if e.event_type == _CREATE_PARTICIPANT
+            if e.semantic_type == _CREATE_PARTICIPANT
         ]
         assert created == [str(_as_id(p)) for p in case.case_participants], (
             "one create_case_participant entry per record, in roster order"
             " (CM-18-007, CLP-07-013)"
         )
-        status_entries = [e for e in entries if e.event_type == _ADD_STATUS]
+        status_entries = [e for e in entries if e.semantic_type == _ADD_STATUS]
         assert len(status_entries) == 2, (
             f"only the CaseActor's VALID and ACCEPTED follow its creation"
             f" (CM-23-007), got {len(status_entries)}"
@@ -2733,7 +2734,7 @@ class TestADR0041GenesisCommitFailure:
         assert result.disposition is not HandlerDisposition.APPLIED
         assert "creation entries stop there" in (result.reason or "")
         case = next(iter(dl.list_objects("VulnerabilityCase")))
-        assert committed_event_types(dl, case.id_) == ["create_case"]
+        assert committed_semantic_types(dl, case.id_) == ["create_case"]
         assert len(attempted) == 2, "nothing is tried after the failed entry"
 
     @pytest.mark.spec("CLP-07-013")
@@ -2762,7 +2763,7 @@ class TestADR0041GenesisCommitFailure:
         assert first.disposition is not HandlerDisposition.APPLIED
         (case,) = dl.list_objects("VulnerabilityCase")
         assert isinstance(case, VulnerabilityCase)
-        assert committed_event_types(dl, case.id_) == ["create_case"]
+        assert committed_semantic_types(dl, case.id_) == ["create_case"]
 
         result = _run_full_bt(make_payload, dl)
 
@@ -2771,7 +2772,8 @@ class TestADR0041GenesisCommitFailure:
         assert len(expected) > 1, expected
         entries = ledger_entries(dl, case.id_)
         assert [
-            (e.event_type, e.log_object_id) for e in entries[: len(expected)]
+            (e.semantic_type, e.log_object_id)
+            for e in entries[: len(expected)]
         ] == expected
 
     @pytest.mark.spec("CLP-07-013")
@@ -2805,7 +2807,7 @@ class TestADR0041GenesisCommitFailure:
         attempted: list[str] = []
 
         def _accept(*_args, **kwargs):
-            attempted.append(kwargs["event_type"])
+            attempted.append(kwargs["semantic_type"])
             return py_trees.behaviours.Success(name="AcceptedCommit")
 
         monkeypatch.setattr(
@@ -2948,7 +2950,7 @@ class TestCaseActorRMLifecycleBootstrap:
         later = [
             RM(e.payload_snapshot["object"]["rmState"])
             for e in ledger_entries(dl, case.id_)
-            if e.event_type == _ADD_STATUS
+            if e.semantic_type == _ADD_STATUS
             and e.payload_snapshot["object"].get("attributedTo")
             == _CASE_ACTOR_URI
         ]

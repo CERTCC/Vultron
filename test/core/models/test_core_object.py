@@ -520,7 +520,7 @@ def test_core_object_drops_alias_shadowed_field_name_twin():
     entry = CoreCaseLedgerEntry(
         case_id="urn:uuid:case-dedup",
         log_object_id="urn:uuid:logobj-dedup",
-        event_type="RS",
+        semantic_type="RS",
     )
     dumped = entry.model_dump(mode="json")
     assert "id_" in dumped  # the dump uses the Python field name
@@ -545,7 +545,7 @@ def test_case_ledger_entry_derives_id_from_wire_spelled_coordinates():
             "caseId": "urn:uuid:case-wire",
             "logIndex": 3,
             "logObjectId": "urn:uuid:logobj-wire",
-            "eventType": "RS",
+            "semanticType": "RS",
         }
     )
     assert entry.id_ == "urn:uuid:case-wire/log/3"

@@ -35,11 +35,11 @@ from test.core.use_cases.received.actor.test_ownership import (
     _VENDOR_ID,
     _accept,
     _announces,
-    _event_types,
     _owner,
     _owner_roles,
     _ownership_offer_harness,
     _reject,
+    _semantic_types,
     _undo,
 )
 from test.support.ledger import commit_case_fully_closed
@@ -55,7 +55,7 @@ from vultron.core.behaviors.case.ownership_transfer_tree import (
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.protocol_pair import (
-    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received._bt_verdict import find_node
@@ -66,7 +66,7 @@ from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
 )
 
-_EXPIRED = OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE
+_EXPIRED = OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE
 
 
 def _past() -> Any:
@@ -94,7 +94,8 @@ def _expiry_entries(dl) -> list[CaseLedgerEntry]:
     return [
         entry
         for entry in dl.list_objects("CaseLedgerEntry")
-        if isinstance(entry, CaseLedgerEntry) and entry.event_type == _EXPIRED
+        if isinstance(entry, CaseLedgerEntry)
+        and entry.semantic_type == _EXPIRED
     ]
 
 
@@ -117,8 +118,8 @@ class TestLateAnswerIsRefused:
         assert result.reason is not None and "CM-21-016" in result.reason
         assert _owner(dl, case_id) == _VENDOR_ID
         assert _owner_roles(dl, case_id) == roles_before
-        assert "accept_case_ownership_transfer" not in _event_types(dl)
-        assert _event_types(dl).count(_EXPIRED) == 1
+        assert "accept_case_ownership_transfer" not in _semantic_types(dl)
+        assert _semantic_types(dl).count(_EXPIRED) == 1
         # The expiry entry is broadcast as Announce(CaseLedgerEntry).
         assert _announces(dl, outbox_before)
 
@@ -130,8 +131,8 @@ class TestLateAnswerIsRefused:
         result = _reject(dl, make_payload, offer)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert "reject_case_ownership_transfer" not in _event_types(dl)
-        assert _event_types(dl).count(_EXPIRED) == 1
+        assert "reject_case_ownership_transfer" not in _semantic_types(dl)
+        assert _semantic_types(dl).count(_EXPIRED) == 1
 
     @pytest.mark.spec("CM-21-016")
     @pytest.mark.spec("CM-21-017")
@@ -147,7 +148,7 @@ class TestLateAnswerIsRefused:
         assert first.disposition is HandlerDisposition.REFUSED
         assert second.disposition is HandlerDisposition.REFUSED
         assert second.reason is not None and "expired" in second.reason
-        assert _event_types(dl).count(_EXPIRED) == 1
+        assert _semantic_types(dl).count(_EXPIRED) == 1
 
     @pytest.mark.spec("CM-21-016")
     def test_answer_before_the_deadline_is_admitted(self, make_payload):
@@ -162,7 +163,7 @@ class TestLateAnswerIsRefused:
 
         assert result.disposition is HandlerDisposition.APPLIED
         assert _owner(dl, case_id) == _COORDINATOR_ID
-        assert _EXPIRED not in _event_types(dl)
+        assert _EXPIRED not in _semantic_types(dl)
 
     @pytest.mark.spec("CM-21-016")
     @pytest.mark.spec("CLP-10-025")
@@ -189,7 +190,7 @@ class TestLateAnswerIsRefused:
         assert result.reason is not None and "CM-21-016" in result.reason
         assert _owner(dl, case_id) == _VENDOR_ID
         assert _expiry_entries(dl) == []
-        assert "accept_case_ownership_transfer" not in _event_types(dl)
+        assert "accept_case_ownership_transfer" not in _semantic_types(dl)
         assert any(
             "clock decision" in r.getMessage() and r.levelname == "WARNING"
             for r in caplog.records
@@ -211,8 +212,8 @@ class TestLazyExpiry:
         result = _undo(dl, make_payload, offer)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert "undo_case_ownership_transfer" not in _event_types(dl)
-        assert _event_types(dl).count(_EXPIRED) == 1
+        assert "undo_case_ownership_transfer" not in _semantic_types(dl)
+        assert _semantic_types(dl).count(_EXPIRED) == 1
 
     @pytest.mark.spec("CM-21-017")
     @pytest.mark.spec("CM-21-014")
@@ -229,7 +230,7 @@ class TestLazyExpiry:
         )
 
         assert second is HandlerDisposition.APPLIED
-        types = _event_types(dl)
+        types = _semantic_types(dl)
         # The expiry is committed before the new Offer it makes room for.
         assert types.index(_EXPIRED) < len(types) - 1
         assert types[-1] == "offer_case_ownership_transfer"
@@ -264,7 +265,7 @@ class TestLazyExpiry:
         result = _accept(dl, make_payload, offer)
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert _EXPIRED not in _event_types(dl)
+        assert _EXPIRED not in _semantic_types(dl)
 
     @pytest.mark.spec("CM-21-017")
     @pytest.mark.spec("BT-17-001")
@@ -408,13 +409,13 @@ class TestOnlyThePartyPromptsTheExpiry:
     ):
         case_id = "https://example.org/cases/case_dl_non_party"
         dl, _, _, offer = _expired_offer(make_payload, case_id)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
         outbox_before = dl.outbox_list()
 
         result = reply(dl, make_payload, offer, sender=sender)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert _event_types(dl) == entries_before
+        assert _semantic_types(dl) == entries_before
         assert _announces(dl, outbox_before) == []
         assert _owner(dl, case_id) == _VENDOR_ID
 
@@ -433,7 +434,7 @@ class TestOnlyThePartyPromptsTheExpiry:
 
         case_id = "https://example.org/cases/case_dl_other_offer"
         dl, _, _, _ = _expired_offer(make_payload, case_id)
-        entries_before = _event_types(dl)
+        entries_before = _semantic_types(dl)
         unrecorded = offer_case_ownership_transfer_activity(
             as_VulnerabilityCase(id_=case_id),
             target=_COORDINATOR_ID,
@@ -445,7 +446,7 @@ class TestOnlyThePartyPromptsTheExpiry:
         result = _accept(dl, make_payload, unrecorded)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert _event_types(dl) == entries_before
+        assert _semantic_types(dl) == entries_before
 
     @pytest.mark.spec("CM-21-017")
     def test_the_partys_late_reply_after_a_non_partys_still_ledgers_it(
@@ -460,7 +461,7 @@ class TestOnlyThePartyPromptsTheExpiry:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason is not None and "CM-21-016" in result.reason
-        assert _event_types(dl).count(_EXPIRED) == 1
+        assert _semantic_types(dl).count(_EXPIRED) == 1
 
 
 @pytest.mark.spec("CM-23-013")
@@ -471,13 +472,13 @@ def test_expiry_changes_nothing_once_the_case_is_fully_closed(make_payload):
     case_id = "https://example.org/cases/case_dl_closed"
     dl, _, _, offer = _expired_offer(make_payload, case_id)
     commit_case_fully_closed(dl, case_id, _VENDOR_ID)
-    entries_before = _event_types(dl)
+    entries_before = _semantic_types(dl)
 
     result = _accept(dl, make_payload, offer)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert result.reason is not None and "CM-23-013" in result.reason
-    assert _event_types(dl) == entries_before
+    assert _semantic_types(dl) == entries_before
     assert _expiry_entries(dl) == []
 
 
@@ -490,7 +491,7 @@ def test_an_offer_from_a_non_owner_ledgers_no_expiry(make_payload):
     Offer's expiry."""
     case_id = "https://example.org/cases/case_dl_non_owner_offer"
     dl, deliver, _, _ = _expired_offer(make_payload, case_id)
-    entries_before = _event_types(dl)
+    entries_before = _semantic_types(dl)
 
     second, _ = deliver(
         "https://example.org/users/vendor2",
@@ -499,7 +500,7 @@ def test_an_offer_from_a_non_owner_ledgers_no_expiry(make_payload):
     )
 
     assert second is HandlerDisposition.REFUSED
-    assert _event_types(dl) == entries_before
+    assert _semantic_types(dl) == entries_before
     assert _expiry_entries(dl) == []
 
 
@@ -525,5 +526,5 @@ def test_a_replica_admits_the_expiry_entry_the_case_manager_commits(
     _validate_canonical_entry(
         case_id=case_id,
         payload_snapshot=entry.payload_snapshot,
-        event_type=entry.event_type,
+        semantic_type=entry.semantic_type,
     )

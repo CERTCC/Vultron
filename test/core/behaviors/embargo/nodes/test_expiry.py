@@ -39,7 +39,7 @@ from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.rsvp_deadline import (
-    INVITE_EXPIRED_EVENT_TYPE,
+    INVITE_EXPIRED_SEMANTIC_TYPE,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -116,7 +116,7 @@ def _expiry_event(
             case_id=CASE_ID,
             log_index=0,
             object_id=f"{CASE_ID}/embargo_invites/i1",
-            event_type=INVITE_EXPIRED_EVENT_TYPE,
+            semantic_type=INVITE_EXPIRED_SEMANTIC_TYPE,
             payload_snapshot=snapshot,
             prev_log_hash="0" * 64,
         )
@@ -226,9 +226,9 @@ class TestApplyInviteExpiryFromLedgerNode:
 def _honour_late_accept_event(
     actor: str | None, embargo_id: str = EMBARGO_ID
 ) -> Any:
-    """Build an AnnounceLogEntry event wrapping a HONOUR_LATE_ACCEPT_EVENT_TYPE entry."""
+    """Build an AnnounceLogEntry event wrapping a HONOUR_LATE_ACCEPT_SEMANTIC_TYPE entry."""
     from vultron.core.models.rsvp_deadline import (
-        HONOUR_LATE_ACCEPT_EVENT_TYPE,
+        HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
         HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
     )
 
@@ -248,7 +248,7 @@ def _honour_late_accept_event(
             case_id=CASE_ID,
             log_index=0,
             object_id=f"{CASE_ID}/invites/i1",
-            event_type=HONOUR_LATE_ACCEPT_EVENT_TYPE,
+            semantic_type=HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
             payload_snapshot=snapshot,
             prev_log_hash="0" * 64,
         )

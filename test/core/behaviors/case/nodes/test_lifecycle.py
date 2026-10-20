@@ -176,7 +176,7 @@ def test_constructor_case_id_builds_inner_commit_tree(bridge):
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
-        event_type=MessageSemantics.CREATE_CASE.value,
+        semantic_type=MessageSemantics.CREATE_CASE.value,
         payload_snapshot={},
     )
     execute_kwargs = (
@@ -227,13 +227,15 @@ def test_blackboard_case_id_builds_inner_commit_tree(bridge, datalayer):
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
-        event_type=MessageSemantics.CREATE_CASE.value,
+        semantic_type=MessageSemantics.CREATE_CASE.value,
         payload_snapshot={},
     )
 
 
-def test_activity_on_blackboard_uses_semantic_type_as_event_type(bridge):
-    """event_type is derived from activity.semantic_type.value."""
+def test_activity_on_blackboard_semantics_become_the_entry_semantic_type(
+    bridge,
+):
+    """The entry's semantic_type is derived from activity.semantic_type.value."""
     activity = _FakeActivity(
         activity_id=ACTIVITY_ID,
         semantic_type=MessageSemantics.CREATE_CASE,
@@ -252,7 +254,7 @@ def test_activity_on_blackboard_uses_semantic_type_as_event_type(bridge):
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
-        event_type=MessageSemantics.CREATE_CASE.value,
+        semantic_type=MessageSemantics.CREATE_CASE.value,
         payload_snapshot={},
     )
 
@@ -277,7 +279,7 @@ def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
-        event_type=MessageSemantics.CREATE_CASE.value,
+        semantic_type=MessageSemantics.CREATE_CASE.value,
         payload_snapshot={
             "id": ACTIVITY_ID,
             "type": "Create",

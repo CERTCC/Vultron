@@ -26,7 +26,9 @@ from typing import cast
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
-from vultron.core.predicates.case_closure import CASE_FULLY_CLOSED_EVENT_TYPE
+from vultron.core.predicates.case_closure import (
+    CASE_FULLY_CLOSED_SEMANTIC_TYPE,
+)
 
 
 class CommitCaseFullyClosedNode(_CommitCaseManagerActivityBase):
@@ -62,7 +64,7 @@ class CommitCaseFullyClosedNode(_CommitCaseManagerActivityBase):
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(
             case_id=case_id,
-            event_type=CASE_FULLY_CLOSED_EVENT_TYPE,
+            semantic_type=CASE_FULLY_CLOSED_SEMANTIC_TYPE,
             notify_participants=False,
             name=name,
         )

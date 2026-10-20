@@ -55,7 +55,7 @@ def _to_persistable_entry(
         log_index=chain_entry.log_index,
         term=chain_entry.term,
         log_object_id=chain_entry.object_id,
-        event_type=chain_entry.event_type,
+        semantic_type=chain_entry.semantic_type,
         payload_snapshot=dict(chain_entry.payload_snapshot),
         prev_log_hash=chain_entry.prev_log_hash,
         entry_hash=chain_entry.entry_hash,
@@ -69,7 +69,7 @@ def _make_entry(
         case_id=case_id,
         log_index=log_index,
         object_id="https://example.org/activities/act1",
-        event_type="test_event",
+        semantic_type="test_event",
         payload_snapshot={"key": "value"},
         prev_log_hash=prev_hash,
     )

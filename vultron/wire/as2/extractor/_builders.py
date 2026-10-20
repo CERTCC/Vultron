@@ -538,9 +538,7 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
     log_object_id = getattr(obj, "log_object_id", None) or getattr(
         obj, "logObjectId", None
     )
-    event_type = getattr(obj, "event_type", None) or getattr(
-        obj, "eventType", None
-    )
+    semantic_type = getattr(obj, "semantic_type", None)
     # Both stamps are the CaseActor's and are required on the wire
     # (CLP-14-002, CLP-02-008), so a parsed entry always has them; a replica
     # keeps them rather than stamping its own — ``received_at`` is hashed.
@@ -550,7 +548,7 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
         object_id
         and case_id
         and log_object_id
-        and event_type
+        and semantic_type
         and received_at is not None
         and published is not None
     ):
@@ -561,7 +559,7 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
                 log_index=log_index,
                 term=getattr(obj, "term", None),
                 log_object_id=log_object_id,
-                event_type=event_type,
+                semantic_type=semantic_type,
                 payload_snapshot=getattr(obj, "payload_snapshot", {})
                 or getattr(obj, "payloadSnapshot", {}),
                 prev_log_hash=getattr(obj, "prev_log_hash", None)

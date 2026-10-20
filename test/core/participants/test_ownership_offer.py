@@ -48,7 +48,7 @@ def _ledger(
     dl: SqliteDataLayer,
     index: int,
     object_id: str,
-    event_type: str,
+    semantic_type: str,
     at: datetime,
     target: str | None = _TRANSFEREE,
     **snapshot_extra: str,
@@ -62,7 +62,7 @@ def _ledger(
             case_id=_CASE_ID,
             log_index=index,
             log_object_id=object_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=snapshot,
             prev_log_hash="",
             entry_hash="",
@@ -286,7 +286,7 @@ def test_withdrawal_closes_the_offer(dl):
     offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1", _MANAGER)
 
     assert offer.answer_id == "urn:undo:1"
-    assert offer.closed_by_event_type == "undo_case_ownership_transfer"
+    assert offer.closed_by_semantic_type == "undo_case_ownership_transfer"
     assert open_ownership_offer(dl, _CASE_ID) is None
 
 

@@ -30,8 +30,8 @@ from vultron.core.behaviors.embargo.nodes.activation_commit import (
     CommitAndApplyEmbargoActivationNode,
 )
 from vultron.core.behaviors.embargo.nodes.activation_effect import (
-    EMBARGO_ACTIVATION_EVENT_TYPE,
-    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
+    EMBARGO_ACTIVATION_SEMANTIC_TYPE,
+    EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
     ApplyEmbargoActivationFromLedgerNode,
     ApplyEmbargoProposalRejectionFromLedgerNode,
     IsActivateEmbargoEventNode,
@@ -90,7 +90,7 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
 )
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     COMMITTED_ACTIVITY_KEY,
-    EMBARGO_TEARDOWN_EVENT_TYPE,
+    EMBARGO_TEARDOWN_SEMANTIC_TYPE,
     CommitEmbargoDecisionNode,
     CommitEmbargoProposalNode,
     EmbargoActivityBuilder,
@@ -120,7 +120,7 @@ from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     OwnerRejectsRevisionAfterDisclosureNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay import (
-    EMBARGO_INVITE_EVENT_TYPE,
+    EMBARGO_INVITE_SEMANTIC_TYPE,
     CollectEmbargoInviteRecipientsNode,
     EmbargoProposalNotYetRecordedNode,
     EmStateAdmitsProposalNode,
@@ -197,21 +197,21 @@ __all__ = [
     "SendEmbargoEndingNoticesNode",
     "embargo_ending_notice_nodes",
     # The case owner's decision replayed from the ledger (RSH-08-004)
-    "EMBARGO_ACTIVATION_EVENT_TYPE",
-    "EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE",
+    "EMBARGO_ACTIVATION_SEMANTIC_TYPE",
+    "EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE",
     "ApplyEmbargoActivationFromLedgerNode",
     "ApplyEmbargoProposalRejectionFromLedgerNode",
     "IsActivateEmbargoEventNode",
     "IsRejectEmbargoProposalEventNode",
     # Relay (EP-09)
-    "EMBARGO_INVITE_EVENT_TYPE",
+    "EMBARGO_INVITE_SEMANTIC_TYPE",
     "CollectEmbargoInviteRecipientsNode",
     "EmStateAdmitsProposalNode",
     "EmbargoProposalNotYetRecordedNode",
     "ReinviteStaleAccepterNode",
     "RelayEmbargoInviteToEachNode",
     # CASE_MANAGER decision commit (EP-09-008, #4085)
-    "EMBARGO_TEARDOWN_EVENT_TYPE",
+    "EMBARGO_TEARDOWN_SEMANTIC_TYPE",
     "CommitEmbargoDecisionNode",
     "CommitEmbargoProposalNode",
     "CommitAndApplyEmbargoTerminationNode",

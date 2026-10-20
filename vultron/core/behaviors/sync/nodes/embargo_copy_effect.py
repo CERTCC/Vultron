@@ -62,7 +62,7 @@ from vultron.core.behaviors.embargo_case_file import (
 )
 from vultron.core.behaviors.sync.nodes._helpers import _LedgerEffectNode
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    _EventTypeSetNode,
+    _SemanticTypeSetNode,
 )
 from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -75,7 +75,7 @@ from vultron.core.models.embargo_apply import (
     change_is_in_place,
 )
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_consent_event_types import (
+from vultron.core.models.embargo_consent_semantic_types import (
     CONSENT_ROW_VERBS,
 )
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
@@ -165,7 +165,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
             change = self._change(entry)
         except (TypeError, ValueError) as exc:
             self.feedback_message = (
-                f"{self.name}: '{entry.event_type}' entry '{entry.id_}' does"
+                f"{self.name}: '{entry.semantic_type}' entry '{entry.id_}' does"
                 f" not carry a valid change: {exc}"
             )
             self.logger.exception("%s", self.feedback_message)
@@ -177,7 +177,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
                 "%s: '%s' entry '%s' is already in place on case '%s' —"
                 " idempotent no-op",
                 self.name,
-                entry.event_type,
+                entry.semantic_type,
                 entry.id_,
                 entry.case_id,
             )
@@ -187,7 +187,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
                 "%s: '%s' entry '%s' on case '%s' was answered by a later"
                 " entry, which carries the change — no-op",
                 self.name,
-                entry.event_type,
+                entry.semantic_type,
                 entry.id_,
                 entry.case_id,
             )
@@ -205,14 +205,14 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
                     " taken after it) — idempotent no-op",
                     self.name,
                     entry.case_id,
-                    entry.event_type,
+                    entry.semantic_type,
                     entry.id_,
                 )
                 return Status.SUCCESS
             return self._refuse(entry, exc)
         save_case_file(self.datalayer, before, after)
         self.feedback_message = (
-            f"{self.name}: copied '{entry.event_type}' entry '{entry.id_}'"
+            f"{self.name}: copied '{entry.semantic_type}' entry '{entry.id_}'"
             f" onto case '{entry.case_id}' (CM-23-016)"
         )
         self.logger.info("%s", self.feedback_message)
@@ -239,14 +239,14 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         return Status.FAILURE
 
 
-class IsEmbargoConsentEventNode(_EventTypeSetNode):
+class IsEmbargoConsentEventNode(_SemanticTypeSetNode):
     """Precondition: SUCCESS when this log entry IS a consent-row entry.
 
     ``create_embargo_consent`` or ``update_embargo_consent``, the
     CASE_MANAGER's own entry for one consent row (ADR-0122, CLP-07-013).
     """
 
-    matched_event_types = frozenset(CONSENT_ROW_VERBS)
+    matched_semantic_types = frozenset(CONSENT_ROW_VERBS)
 
 
 class ApplyEmbargoConsentFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
@@ -260,7 +260,7 @@ class ApplyEmbargoConsentFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
             project_wire_snapshot_to_core(EmbargoConsent, data)
         )
         return ConsentRowChange(
-            verb=CONSENT_ROW_VERBS[entry.event_type], row=row
+            verb=CONSENT_ROW_VERBS[entry.semantic_type], row=row
         )
 
 

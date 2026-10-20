@@ -27,7 +27,7 @@ from vultron.core.behaviors.sync.nodes import (
 def create_commit_log_entry_tree(
     case_id: str,
     object_id: str,
-    event_type: str,
+    semantic_type: str,
     *,
     payload_snapshot: dict[str, Any] | None = None,
     check_freshness: bool = True,
@@ -85,7 +85,7 @@ def create_commit_log_entry_tree(
                     CreateLogEntryNode(
                         case_id=case_id,
                         object_id=object_id,
-                        event_type=event_type,
+                        semantic_type=semantic_type,
                         payload_snapshot=payload_snapshot,
                         name="CreateLogEntry",
                     ),
@@ -104,7 +104,7 @@ def commit_emitted_activity(
     case_id: str,
     activity_id: str,
     activity_blob: str,
-    event_type: str,
+    semantic_type: str,
     sync_port: "SyncActivityPort | None" = None,
     check_freshness: bool = True,
 ) -> dict[str, Any]:
@@ -139,7 +139,7 @@ def commit_emitted_activity(
         tree=create_commit_log_entry_tree(
             case_id=case_id,
             object_id=activity_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=snapshot,
             check_freshness=check_freshness,
         ),
@@ -151,12 +151,12 @@ def commit_emitted_activity(
         # sync port or a crash in the commit tree is our fault, never a
         # refusal a caller may absorb (ADR-0095, #4113).
         raise VultronBTInternalError(
-            f"nested ledger commit for {event_type}/{activity_id} failed:"
+            f"nested ledger commit for {semantic_type}/{activity_id} failed:"
             f" {result.feedback_message}"
         )
     if result.status != py_trees.common.Status.SUCCESS:
         raise RuntimeError(
-            f"ledger commit failed for {event_type}/{activity_id}:"
+            f"ledger commit failed for {semantic_type}/{activity_id}:"
             f" {result.feedback_message}"
         )
     return snapshot

@@ -20,7 +20,7 @@ committing set from code (``_ledger_commit_inventory``), so a handler that
 case at a time.
 
 Only the receive-side commit counts: CLP-09-003 asks for a commit *for the
-act*, and an explicit ``event_type=`` commit inside a received tree records a
+act*, and an explicit ``semantic_type=`` commit inside a received tree records a
 consequence (``CommitNativeLedgerEntriesNode``'s genesis entries) or an
 activity the actor emits, not the act received.  Crediting those would let a
 handler whose act goes unledgered pass on a side entry.
@@ -121,6 +121,7 @@ def test_exemptions_name_a_ground_or_an_issue():
 
 
 @pytest.mark.spec("CLP-02-013")
+@pytest.mark.spec("CLP-10-004")
 def test_exemptions_name_routed_use_cases_that_do_not_commit(
     committed: set[str],
 ):

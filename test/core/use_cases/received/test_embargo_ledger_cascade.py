@@ -58,7 +58,7 @@ class TestEmbargoLogEntryCascade:
 
     @pytest.mark.spec("CLP-10-006", "EP-09-007")
     @pytest.mark.parametrize(
-        "factory, use_case, event_type",
+        "factory, use_case, semantic_type",
         [
             (
                 activate_embargo_activity,
@@ -73,7 +73,7 @@ class TestEmbargoLogEntryCascade:
         ],
     )
     def test_owner_decision_commits_log_entry(
-        self, make_payload, factory, use_case, event_type
+        self, make_payload, factory, use_case, semantic_type
     ):
         """The owner's Accept/Reject(EmbargoEvent) commits one CaseLedgerEntry."""
         author_id = "https://example.org/users/coord"
@@ -106,7 +106,7 @@ class TestEmbargoLogEntryCascade:
             and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(CaseLedgerEntry, entries[0]).event_type == event_type
+        assert cast(CaseLedgerEntry, entries[0]).semantic_type == semantic_type
 
     def test_remove_embargo_event_commits_log_entry(self, make_payload):
         """RemoveEmbargoEventFromCaseReceivedUseCase commits a CaseLedgerEntry."""
@@ -146,7 +146,7 @@ class TestEmbargoLogEntryCascade:
             and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(CaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).semantic_type == (
             "remove_embargo_event_from_case"
         )
 
@@ -307,7 +307,7 @@ class TestEmbargoLogEntryCascade:
         ]
         # The answer's entry is its row's entry: no second one follows
         # (ADR-0122, CLP-07-013).
-        assert [cast(CaseLedgerEntry, e).event_type for e in entries] == [
+        assert [cast(CaseLedgerEntry, e).semantic_type for e in entries] == [
             "accept_invite_to_embargo_on_case"
         ]
 
@@ -365,6 +365,6 @@ class TestEmbargoLogEntryCascade:
         ]
         # The answer's entry is its row's entry: no second one follows
         # (ADR-0122, CLP-07-013).
-        assert [cast(CaseLedgerEntry, e).event_type for e in entries] == [
+        assert [cast(CaseLedgerEntry, e).semantic_type for e in entries] == [
             "reject_invite_to_embargo_on_case"
         ]

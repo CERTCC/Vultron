@@ -28,17 +28,17 @@ from __future__ import annotations
 import pytest
 
 from test.ci.invariants.common import (
-    check_event_type_count,
-    check_event_type_present,
     check_late_joiner_has_full_history,
+    check_semantic_type_count,
+    check_semantic_type_present,
     load_devlogs,
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 
 _DEMO_NAME = "rvcv-extension"
 
-#: Expected protocol eventTypes in a complete RVCV-extension run.
-_RVCV_EXPECTED_EVENT_TYPES = [
+#: Expected protocol semanticTypes in a complete RVCV-extension run.
+_RVCV_EXPECTED_SEMANTIC_TYPES = [
     pytest.param("validate_report", id="validate_report"),
     pytest.param(
         "add_participant_status_to_participant",
@@ -92,7 +92,7 @@ globals().update(
     make_universal_invariant_tests(
         replicas_fixture="rvcv_extension_replicas",
         chain_actors=_CHAIN_ACTORS,
-        expected_event_types=_RVCV_EXPECTED_EVENT_TYPES,
+        expected_semantic_types=_RVCV_EXPECTED_SEMANTIC_TYPES,
         narrative_path="docs/topics/scenarios/rvcv-extension.md",
         joined_invitees=2,
     )
@@ -113,7 +113,7 @@ def test_rvcv_extension_invite_actor_to_case_at_least_twice(
     Spec: DEMOMA-10-003 (Vendor1 invites the Coordinator), DEMOMA-10-005
     (CaseActor invites Vendor2).
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rvcv_extension_replicas, "invite_actor_to_case", min_count=2
     )
     assert not violations, violations[0] if violations else ""
@@ -127,7 +127,7 @@ def test_rvcv_extension_offer_case_participant_present(
 
     Spec: DEMOMA-16-004 (Coordinator uses the ADR-0026 suggest-actor flow).
     """
-    violations = check_event_type_present(
+    violations = check_semantic_type_present(
         rvcv_extension_replicas, "offer_case_participant"
     )
     assert not violations, violations[0] if violations else ""

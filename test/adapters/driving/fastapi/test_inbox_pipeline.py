@@ -247,7 +247,7 @@ def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
         case_id=CASE_ID,
         log_index=0,
         log_object_id="https://example.org/activities/a-1",
-        event_type="announce",
+        semantic_type="announce",
         prev_log_hash="0",
         entry_hash="1",
     )

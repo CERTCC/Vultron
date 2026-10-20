@@ -36,7 +36,7 @@ def _make_entry(
     log_index: int,
     entry_hash: str,
     prev_log_hash: str,
-    event_type: str,
+    semantic_type: str,
     case_id: str = CASE_URI,
     payload_snapshot: dict | None = None,
     disposition: str = "recorded",
@@ -45,7 +45,7 @@ def _make_entry(
         "logIndex": log_index,
         "entryHash": entry_hash,
         "prevLogHash": prev_log_hash,
-        "eventType": event_type,
+        "semanticType": semantic_type,
         "case_id": case_id,
         "payloadSnapshot": payload_snapshot or {},
         "disposition": disposition,
@@ -57,12 +57,12 @@ def _build_chain(tag: str, events: list[dict]) -> list[dict]:
     entries: list[dict] = []
     prev = GENESIS_HASH
     for i, ev in enumerate(events):
-        h = _sha(f"{tag}:{i}:{ev.get('eventType', 'noop')}")
+        h = _sha(f"{tag}:{i}:{ev.get('semanticType', 'noop')}")
         entry = _make_entry(
             log_index=i,
             entry_hash=h,
             prev_log_hash=prev,
-            event_type=ev.get("eventType", "noop"),
+            semantic_type=ev.get("semanticType", "noop"),
             payload_snapshot=ev.get("payloadSnapshot"),
         )
         prev = h
@@ -111,26 +111,26 @@ def _base_events() -> list[dict]:
     """Five-event sequence that satisfies all 15 invariant checks."""
     return [
         {
-            "eventType": "create_case",
+            "semanticType": "create_case",
             "payloadSnapshot": {
                 "actor": ACTOR_A,
                 "context": CASE_URI,
             },
         },
         {
-            "eventType": "add_participant_status_to_participant",
+            "semanticType": "add_participant_status_to_participant",
             "payloadSnapshot": _VALID_STATUS,
         },
         {
-            "eventType": "add_participant_status_to_participant",
+            "semanticType": "add_participant_status_to_participant",
             "payloadSnapshot": _ACCEPTED_STATUS,
         },
         {
-            "eventType": "add_participant_status_to_participant",
+            "semanticType": "add_participant_status_to_participant",
             "payloadSnapshot": _CLOSED_STATUS,
         },
         {
-            "eventType": "close_case",
+            "semanticType": "close_case",
             "payloadSnapshot": {"actor": ACTOR_A, "context": CASE_URI},
         },
     ]

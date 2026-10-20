@@ -82,7 +82,7 @@ def test_the_verdict_is_followed_by_the_stored_status_in_full():
 
     assert result.disposition is HandlerDisposition.APPLIED
     entries = ledger_entries(dl, CASE_ID)
-    assert [e.event_type for e in entries] == [
+    assert [e.semantic_type for e in entries] == [
         MessageSemantics.INVALIDATE_REPORT.value,
         _STATUS_ENTRY,
     ]
@@ -104,7 +104,7 @@ def test_a_status_whose_entry_fails_is_taken_back(monkeypatch):
     fail_commits(
         monkeypatch,
         status_entries,
-        when=lambda kwargs: kwargs["event_type"] == _STATUS_ENTRY,
+        when=lambda kwargs: kwargs["semantic_type"] == _STATUS_ENTRY,
     )
 
     result = _invalidate(dl)
@@ -112,7 +112,7 @@ def test_a_status_whose_entry_fails_is_taken_back(monkeypatch):
     assert result.disposition is not HandlerDisposition.APPLIED
     assert [s.id_ for s in _finder(dl).participant_statuses] == before
     assert _STATUS_ENTRY not in [
-        e.event_type for e in ledger_entries(dl, CASE_ID)
+        e.semantic_type for e in ledger_entries(dl, CASE_ID)
     ]
 
 
@@ -126,7 +126,7 @@ def test_a_repeated_verdict_writes_and_commits_no_second_status():
     assert _invalidate(dl).disposition is not HandlerDisposition.REFUSED
 
     assert [s.id_ for s in _finder(dl).participant_statuses] == statuses
-    assert [e.event_type for e in ledger_entries(dl, CASE_ID)].count(
+    assert [e.semantic_type for e in ledger_entries(dl, CASE_ID)].count(
         _STATUS_ENTRY
     ) == 1
 
@@ -147,13 +147,13 @@ def test_a_redelivered_verdict_records_the_withdrawn_status(monkeypatch):
         fail_commits(
             patched,
             status_entries,
-            when=lambda kwargs: kwargs["event_type"] == _STATUS_ENTRY,
+            when=lambda kwargs: kwargs["semantic_type"] == _STATUS_ENTRY,
         )
         InvalidateReportReceivedUseCase(dl, event, **_ports(dl)).execute()
 
     InvalidateReportReceivedUseCase(dl, event, **_ports(dl)).execute()
 
-    assert [e.event_type for e in ledger_entries(dl, CASE_ID)] == [
+    assert [e.semantic_type for e in ledger_entries(dl, CASE_ID)] == [
         MessageSemantics.INVALIDATE_REPORT.value,
         _STATUS_ENTRY,
     ]

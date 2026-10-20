@@ -429,7 +429,7 @@ LEDGER_ENTRY: dict[str, Any] = {
     "caseId": CASE_ID,
     "logIndex": 0,
     "logObjectId": "https://example.org/activities/0",
-    "eventType": "create_case",
+    "semanticType": "create_case",
     "prevLogHash": "0" * 64,
     "entryHash": "a" * 64,
     "published": SENDER_PUBLISHED,

@@ -86,7 +86,7 @@ def _seed_ledger_entry(
     dl,
     case_id: str,
     object_id: str,
-    event_type: str,
+    semantic_type: str,
     actor_id: str,
     payload_snapshot: dict | None = None,
 ):
@@ -104,7 +104,7 @@ def _seed_ledger_entry(
         case_id=case_id,
         log_index=tail_index + 1,
         object_id=object_id,
-        event_type=event_type,
+        semantic_type=semantic_type,
         payload_snapshot=payload_snapshot or {},
         prev_log_hash=tail_hash,
     )
@@ -113,7 +113,7 @@ def _seed_ledger_entry(
         log_index=chain_entry.log_index,
         term=chain_entry.term,
         log_object_id=chain_entry.object_id,
-        event_type=chain_entry.event_type,
+        semantic_type=chain_entry.semantic_type,
         payload_snapshot=dict(chain_entry.payload_snapshot),
         prev_log_hash=chain_entry.prev_log_hash,
         entry_hash=chain_entry.entry_hash,
@@ -188,7 +188,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
         dl,
         case_id=case.id_,
         object_id=f"{case.id_}/events/0",
-        event_type="submit_report",
+        semantic_type="submit_report",
         actor_id=case_actor_id,
         payload_snapshot={"index": 0},
     )
@@ -196,7 +196,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
         dl,
         case_id=case.id_,
         object_id=f"{case.id_}/events/1",
-        event_type="add_participant_status",
+        semantic_type="add_participant_status",
         actor_id=case_actor_id,
         payload_snapshot={"index": 1},
     )
@@ -827,8 +827,8 @@ class TestInviteActorUseCases:
         assert len(entries) >= 1, (
             "Expected at least one CaseLedgerEntry after reject-invite"
         )
-        assert any("reject" in e.event_type for e in entries), (
-            f"Expected a reject-invite ledger entry; got: {[e.event_type for e in entries]}"
+        assert any("reject" in e.semantic_type for e in entries), (
+            f"Expected a reject-invite ledger entry; got: {[e.semantic_type for e in entries]}"
         )
 
     def test_accept_invite_actor_to_case_adds_participant(
@@ -1129,7 +1129,7 @@ class TestInviteActorUseCases:
         self, monkeypatch, make_payload
     ):
         """AcceptInviteActorToCaseReceivedUseCase commits a canonical
-        as_CaseLedgerEntry with event_type 'accept_invite_actor_to_case'
+        as_CaseLedgerEntry with semantic_type 'accept_invite_actor_to_case'
         (CM-02-009).
 
         record_event('participant_joined') was removed in #789; the trust
@@ -1214,7 +1214,7 @@ class TestInviteActorUseCases:
         ]
         assert len(entries) >= 1
         assert any(
-            e.event_type == "accept_invite_actor_to_case" for e in entries
+            e.semantic_type == "accept_invite_actor_to_case" for e in entries
         )
 
     def test_accept_invite_backfills_canonical_ledger_from_genesis(
@@ -1260,12 +1260,12 @@ class TestInviteActorUseCases:
         #   genesis (#2898), and last the full-case Invite (4).  No
         #   add_case_participant entry is committed (CM-31-012).
         assert announced_log_indices == [0, 1, 2, 3, 4]
-        assert [e.event_type for e in announced_entries[3:]] == [
+        assert [e.semantic_type for e in announced_entries[3:]] == [
             "add_participant_status_to_participant",
             "invite_actor_to_full_case",
         ]
         assert "add_case_participant" not in {
-            e.event_type for e in dl.list_objects("CaseLedgerEntry")
+            e.semantic_type for e in dl.list_objects("CaseLedgerEntry")
         }
         assert announced_entries[0].entry_hash == first.entry_hash
         assert announced_entries[1].entry_hash == second.entry_hash
@@ -1357,7 +1357,7 @@ class TestInviteActorUseCases:
                 mp,
                 commit_tree,
                 when=lambda kw: (
-                    kw["event_type"] == "invite_actor_to_full_case"
+                    kw["semantic_type"] == "invite_actor_to_full_case"
                 ),
             )
             # The Invite is queued, so the failed commit escapes rather than
@@ -1389,7 +1389,7 @@ class TestInviteActorUseCases:
         recorded = [
             e.log_object_id
             for e in dl.list_objects("CaseLedgerEntry")
-            if getattr(e, "event_type", None) == "invite_actor_to_full_case"
+            if getattr(e, "semantic_type", None) == "invite_actor_to_full_case"
         ]
         assert recorded == [invite_id]
 
@@ -1504,7 +1504,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/0",
-            event_type="submit_report",
+            semantic_type="submit_report",
             actor_id=case_actor_id,
             payload_snapshot={"index": 0},
         )
@@ -1512,7 +1512,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/1",
-            event_type="add_participant_status",
+            semantic_type="add_participant_status",
             actor_id=case_actor_id,
             payload_snapshot={"index": 1},
         )
@@ -1663,7 +1663,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/0",
-            event_type="submit_report",
+            semantic_type="submit_report",
             actor_id=case_actor_id,
             payload_snapshot={"index": 0},
         )
@@ -1671,7 +1671,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/1",
-            event_type="add_participant_status",
+            semantic_type="add_participant_status",
             actor_id=case_actor_id,
             payload_snapshot={"index": 1},
         )
@@ -1768,7 +1768,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/0",
-            event_type="submit_report",
+            semantic_type="submit_report",
             actor_id=case_actor_id,
             payload_snapshot={"index": 0},
         )
@@ -1776,7 +1776,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/1",
-            event_type="add_participant_status",
+            semantic_type="add_participant_status",
             actor_id=case_actor_id,
             payload_snapshot={"index": 1},
         )
@@ -2288,7 +2288,7 @@ class TestInviteDispositions:
             if isinstance(e, CaseLedgerEntry)
         ]
         assert not any(
-            e.event_type == "accept_invite_actor_to_case" for e in ledger
+            e.semantic_type == "accept_invite_actor_to_case" for e in ledger
         )
         sync_port.send_announce_log_entry.assert_not_called()
 

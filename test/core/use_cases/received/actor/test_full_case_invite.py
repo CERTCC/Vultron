@@ -103,7 +103,7 @@ def test_stub_accept_sends_announce_then_replay_then_full_case_invite(
 
     entries = _ledger_tail(joining_case)
     invite_entry = next(
-        e for e in entries if e.event_type == "invite_actor_to_full_case"
+        e for e in entries if e.semantic_type == "invite_actor_to_full_case"
     )
     floor_entry = entries[invite_entry.log_index - 1]
     invite_kwargs = ordered[invite_at][1]
@@ -291,7 +291,7 @@ def test_a_reply_is_recorded_in_the_ledger_with_its_position(
     recorded = [
         e
         for e in _ledger_tail(joining_case)
-        if e.event_type == "accept_invite_actor_to_full_case"
+        if e.semantic_type == "accept_invite_actor_to_full_case"
     ]
     assert len(recorded) == 1
     assert (
@@ -379,7 +379,7 @@ def test_confirmation_and_gap_replies_are_accepted(
     assert result.disposition is expected_disposition, result.reason
     assert _rm_history(joining_case)[-1] == expected_rm
     assert len(_rm_history(joining_case)) == records_before + new_records
-    committed = [e.event_type for e in _ledger_tail(joining_case)[before:]]
+    committed = [e.semantic_type for e in _ledger_tail(joining_case)[before:]]
     gap = second == "reject"
     # The receipt is committed even for a confirmation or gap; each status
     # written follows it as its own entry (CLP-07-013), and a gap also gets
@@ -418,7 +418,7 @@ def test_a_regression_reply_is_refused_before_receipt(
     assert _rm_history(joining_case)[-1] == RM.VALID
     # Nothing of the reply is committed; only the CASE_MANAGER's RSH-06-004
     # note is (CLP-10-022, #4829).
-    assert [e.event_type for e in _ledger_tail(joining_case)[before:]] == [
+    assert [e.semantic_type for e in _ledger_tail(joining_case)[before:]] == [
         "add_note_to_case"
     ]
 

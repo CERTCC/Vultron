@@ -31,21 +31,23 @@ import pytest
 
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import propose, write_consent_rows
-from test.support.ledger import committed_event_types, fail_commits
+from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.embargo_consent_event_types import CONSENT_ROW_VERBS
+from vultron.core.models.embargo_consent_semantic_types import (
+    CONSENT_ROW_VERBS,
+)
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     TerminationCauseKind,
@@ -181,15 +183,15 @@ def _queued_removes(net: LedgerNetwork) -> list[str]:
 
 
 def _embargo_entry_types(net: LedgerNetwork, since: int) -> list[str]:
-    """The embargo and consent event types committed after the first
+    """The embargo and consent semantic types committed after the first
     *since* entries."""
-    embargo_types = {EMBARGO_TEARDOWN_EVENT_TYPE, *CONSENT_ROW_VERBS}
+    embargo_types = {EMBARGO_TEARDOWN_SEMANTIC_TYPE, *CONSENT_ROW_VERBS}
     return [
-        event_type
-        for event_type in committed_event_types(
+        semantic_type
+        for semantic_type in committed_semantic_types(
             net.stores[MANAGER], net.case_id
         )[since:]
-        if event_type in embargo_types
+        if semantic_type in embargo_types
     ]
 
 
@@ -207,11 +209,13 @@ class TestCaseManagerCommitsFirst:
         """At the commit the embargo is still in force; afterwards it is
         ended, every open proposal cancelled, by that one entry."""
         net = _net(f"tc-order-{path}")
-        before = len(committed_event_types(net.stores[MANAGER], net.case_id))
+        before = len(
+            committed_semantic_types(net.stores[MANAGER], net.case_id)
+        )
         em_at_commit: list[EM] = []
 
         def _record(kwargs: dict[str, Any]) -> bool:
-            if kwargs["event_type"] == EMBARGO_TEARDOWN_EVENT_TYPE:
+            if kwargs["semantic_type"] == EMBARGO_TEARDOWN_SEMANTIC_TYPE:
                 em_at_commit.append(net.case(MANAGER).em_state)
             return False  # observe only; every commit runs
 
@@ -231,7 +235,7 @@ class TestCaseManagerCommitsFirst:
         assert ended.pending_embargo_proposal_index == {}
         # One activity/object pair, one entry: no cancel or consent entry.
         assert _embargo_entry_types(net, before) == [
-            EMBARGO_TEARDOWN_EVENT_TYPE
+            EMBARGO_TEARDOWN_SEMANTIC_TYPE
         ]
 
     @pytest.mark.spec("CLP-07-013")
@@ -248,7 +252,9 @@ class TestCaseManagerCommitsFirst:
         failed = fail_commits(
             monkeypatch,
             commit_tree,
-            when=lambda kw: kw["event_type"] == EMBARGO_TEARDOWN_EVENT_TYPE,
+            when=lambda kw: (
+                kw["semantic_type"] == EMBARGO_TEARDOWN_SEMANTIC_TYPE
+            ),
         )
 
         run = _trigger if path == "trigger" else _cascade
@@ -259,7 +265,7 @@ class TestCaseManagerCommitsFirst:
         assert net.register(MANAGER) == register
         assert _rows(net, MANAGER) == rows
         assert _queued_removes(net) == [], "an unrecorded Remove was queued"
-        assert EMBARGO_TEARDOWN_EVENT_TYPE not in committed_event_types(
+        assert EMBARGO_TEARDOWN_SEMANTIC_TYPE not in committed_semantic_types(
             net.stores[MANAGER], net.case_id
         )
 
@@ -272,13 +278,13 @@ class TestCaseManagerCommitsFirst:
         """A threat termination with no threat signal set is refused before
         any entry is committed."""
         net = _net("tc-refused")
-        before = committed_event_types(net.stores[MANAGER], net.case_id)
+        before = committed_semantic_types(net.stores[MANAGER], net.case_id)
         register = net.register(MANAGER)
 
         status = _cascade(net, ThreatSignalTermination())
 
         assert status == py_trees.common.Status.FAILURE
-        assert committed_event_types(net.stores[MANAGER], net.case_id) == (
+        assert committed_semantic_types(net.stores[MANAGER], net.case_id) == (
             before
         )
         assert net.register(MANAGER) == register
@@ -297,12 +303,12 @@ class TestCaseManagerCommitsFirst:
 
         monkeypatch.setattr(termination_commit, "trial_apply", _refuse)
         net = _net("tc-trial")
-        before = committed_event_types(net.stores[MANAGER], net.case_id)
+        before = committed_semantic_types(net.stores[MANAGER], net.case_id)
         register = net.register(MANAGER)
 
         assert _cascade(net) == py_trees.common.Status.FAILURE
 
-        assert committed_event_types(net.stores[MANAGER], net.case_id) == (
+        assert committed_semantic_types(net.stores[MANAGER], net.case_id) == (
             before
         )
         assert net.register(MANAGER) == register
@@ -316,7 +322,7 @@ class TestReplicaCopiesTheTermination:
     def _replay_and_compare(net: LedgerNetwork) -> None:
         manager_register = net.register(MANAGER)
         for replica in REPLICAS:
-            assert EMBARGO_TEARDOWN_EVENT_TYPE in net.replay_ledger(replica)
+            assert EMBARGO_TEARDOWN_SEMANTIC_TYPE in net.replay_ledger(replica)
             assert net.case(replica).em_state is EM.EXITED
             assert net.register(replica) == manager_register, replica
             assert _rows(net, replica) == _rows(net, MANAGER), replica
