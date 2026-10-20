@@ -625,21 +625,61 @@ groups:
     statement: >-
       The `AddNoteToCaseReceivedUseCase` handler MUST append the note's id to
       `VulnerabilityCase.notes` (a list of note ids) and commit the attachment as a
-      ledger entry; when the `Add(Note)` carries a note that no record is stored
-      under, the handler MUST persist that Note object before it appends the id, and
-      it MUST NOT replace a note already stored under the note's id.
-    rationale: Ensures notes are fully persisted and linked to cases, consistent with the case management data model
+      ledger entry, persisting the Note object the `Add(Note)` carries before it
+      appends the id. An `Add(Note)` introduces a new note: when a note is already
+      stored under the note's id, the handler MUST refuse the `Add` before the
+      commit, whatever the carried note says, unless the case's ledger already
+      records that same `Add`, which it MUST report as a `SKIPPED` redelivery. It
+      MUST NOT replace a stored note; a change to one is an `Update(Note)`.
+    rationale: >-
+      Notes are persisted and linked to cases, consistent with the case management
+      data model. The refusal keys on the id alone because the inbox's routing
+      rebuild hands the handler the note stored under the id in place of the
+      carried one (IO-03-004), so a rule comparing the two copies could never see
+      a difference on the inbox path; that is how an `Add` naming another case's
+      note attached it and sent its content to the target case's participants
+      (#4831).
+    relationships:
+    - rel_type: depends_on
+      spec_id: IO-03-004
     verification: >-
-      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_to_case_appends_note`
-      runs the handler at the CASE_MANAGER and asserts the note id is in the re-read case's
-      `notes`; `::test_add_note_to_case_idempotent` asserts a redelivery appends it once;
-      `::test_add_note_to_case_stores_the_inline_note` asserts an `Add(Note)` carrying
+      In `test/core/use_cases/received/test_note.py::TestNoteUseCases`,
+      `test_add_note_to_case_appends_note` runs the handler at the CASE_MANAGER and
+      asserts the note id is in the re-read case's `notes`;
+      `test_add_note_to_case_stores_the_inline_note` asserts an `Add(Note)` carrying
       a note the CASE_MANAGER has never seen persists that note;
-      `::test_add_note_to_case_refuses_to_overwrite_a_different_note` asserts a
-      different note under a stored id is refused with no entry and no overwrite;
-      `::test_add_note_through_ingress_keeps_the_stored_note` sends the same
-      conflicting `Add` through the inbox ingress and asserts the stored note is
-      unchanged.
+      `test_redelivered_add_note_is_skipped` asserts a redelivery is `SKIPPED` and
+      appends the note once; `test_new_add_naming_an_attached_note_is_refused`
+      asserts a second `Add` naming the same note is refused;
+      `test_add_note_to_case_refuses_to_overwrite_a_different_note` and
+      `test_add_note_through_ingress_with_a_taken_id_is_refused` assert a
+      different note under a stored id is refused with no entry and no overwrite,
+      directly and through the inbox ingress;
+      `test_add_note_through_ingress_naming_another_cases_note_is_refused` asserts
+      the same through the ingress for a note stored for another case.
+  - id: HP-08-007
+    priority: MUST
+    kind: project
+    statement: >-
+      A received `Add(Note)` or `Add(CaseStatus)` whose object's `context` is not
+      the `Add`'s target case, or names no case, MUST be refused before the
+      commit. The object checked is the one the handler would attach: the record
+      stored under the object's id when one is held, else the carried copy.
+    rationale: >-
+      A note or status belongs to one case; attaching another case's object would
+      commit it to the target case's ledger and send it to that case's
+      participants (#4831). Checking the stored record matches what the inbox
+      routes (IO-03-004).
+    relationships:
+    - rel_type: refines
+      spec_id: HP-08-006
+    verification: >-
+      `test/core/behaviors/case/nodes/test_carried_object_case.py` drives
+      `CarriedObjectInTargetCaseNode` with an object of the target case, of another
+      case, of no case, and a stored record of another case under the carried
+      id. `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_whose_case_is_not_the_target_is_refused`
+      and `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_case_status_of_another_case_is_refused`
+      assert each handler refuses such an `Add` with no entry and no attachment.
 - id: HP-09
   title: Offer Recipient Addressing
   specs:

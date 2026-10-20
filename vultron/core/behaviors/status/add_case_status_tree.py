@@ -56,6 +56,9 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
 )
+from vultron.core.behaviors.case.nodes.carried_object_case import (
+    CarriedObjectInTargetCaseNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -98,6 +101,8 @@ def add_case_status_tree(
     Implements nine nodes in a Sequence:
 
     1. Idempotency check — fail fast if the status is already present.
+       Then the case check — refuse a status whose ``context`` is not this
+       case (HP-08-007, #4831).
     2. Ephemeral-state guard — rejects CaseStatus that violates the pX→P
        constraint (CSB-17-012, ISSUE-2524).
     3. History-prefix guard — rejects single-step PXA transitions that would
@@ -150,6 +155,18 @@ def add_case_status_tree(
             CheckCaseStatusIdempotencyNode(
                 case_id=case_id,
                 status_id=status_id,
+            ),
+            # HP-08-007: a status of another case never joins this one.
+            *(
+                [
+                    CarriedObjectInTargetCaseNode(
+                        object_id=status_id,
+                        carried=status_obj,
+                        case_id=case_id,
+                    )
+                ]
+                if case_id
+                else []
             ),
             CheckCsEphemeralStateNode(
                 case_id=case_id,

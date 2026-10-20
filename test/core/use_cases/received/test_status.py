@@ -123,6 +123,63 @@ class TestStatusUseCases:
         ).execute()
         assert again.disposition == HandlerDisposition.SKIPPED
 
+    @pytest.mark.spec("HP-08-007")
+    @pytest.mark.parametrize(
+        "stored_for_other_case",
+        [False, True],
+        ids=["carried-names-other-case", "stored-for-other-case"],
+    )
+    def test_add_case_status_of_another_case_is_refused(
+        self, make_payload, stored_for_other_case
+    ):
+        """An Add(CaseStatus) whose status belongs to another case is
+        refused before the commit: the target case gains no status and no
+        entry is written.  The stored-for-other-case arm is what the inbox
+        routes when the status id names a status the receiver holds for
+        another case, since its rebuild prefers the stored copy (#4831)."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_cs3x",
+            name="Add Status Case",
+            attributed_to="https://test.example/api/v2/actors/test-actor",
+        )
+        other_case_id = "https://example.org/cases/case_cs3y"
+        status_id = f"{other_case_id}/statuses/s1"
+        seed_store_owner_as_case_manager(dl, case)
+        seed_case_participant(dl, case, "https://example.org/users/vendor")
+        dl.create(case)
+        if stored_for_other_case:
+            dl.create(as_CaseStatus(id_=status_id, context=other_case_id))
+        carried = as_CaseStatus(
+            id_=status_id,
+            context=case.id_ if stored_for_other_case else other_case_id,
+        )
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = AddCaseStatusToCaseReceivedUseCase(
+            dl,
+            make_payload(
+                add_status_to_case_activity(
+                    carried,
+                    target=case,
+                    actor="https://example.org/users/vendor",
+                    to=[dl.actor_id],
+                )
+            ),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        refreshed = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert status_id not in [
+            getattr(s, "id_", s) for s in refreshed.case_statuses
+        ]
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+
     def test_add_case_status_blocks_invalid_em_transition(
         self, monkeypatch, make_payload
     ):

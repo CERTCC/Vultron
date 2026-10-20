@@ -90,6 +90,7 @@ from vultron.core.behaviors.embargo.nodes.withdrawal import (
     IsWithdrawableEmbargoNode,
 )
 from vultron.core.behaviors.helpers import WIRING_UNAVAILABLE_MESSAGES
+from vultron.core.behaviors.note.nodes.storage import NoteIdNotTakenNode
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
 )
@@ -302,6 +303,7 @@ def _redelivery_verdict(
         type[OwnershipOfferOpenNode]
         | type[NoOpenOwnershipOfferNode]
         | type[IsWithdrawableEmbargoNode]
+        | type[NoteIdNotTakenNode]
     ),
     verdict: HandlerResult,
     fallback: str,
@@ -348,6 +350,22 @@ def embargo_withdrawal_redelivery_verdict(
         IsWithdrawableEmbargoNode,
         verdict,
         "Leave(EmbargoEvent) redelivered",
+    )
+
+
+def add_note_redelivery_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+) -> HandlerResult:
+    """Report a redelivered ``Add(Note)`` as ``SKIPPED``.
+
+    :class:`~vultron.core.behaviors.note.nodes.storage.NoteIdNotTakenNode`
+    fails with ``is_redelivery`` set when the case's ledger already records
+    the ``Add``, so nothing is re-applied.  That is the benign no-op of a
+    redelivery, not a refusal (HP-01-003, HP-08-006).
+    """
+    return _redelivery_verdict(
+        tree, NoteIdNotTakenNode, verdict, "Add(Note) redelivered"
     )
 
 
