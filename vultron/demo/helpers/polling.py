@@ -854,19 +854,6 @@ def _poll_datalayer_for(
 _RECEIVED_ACTIVITY_TYPES: tuple[str, ...] = (RECEIVED_ACTIVITY_RECORD_TYPE,)
 
 
-def _received_activity(obj_data: dict) -> dict:
-    """The received activity the archive record *obj_data* wraps.
-
-    Intake archives a dispatched activity as a ``ReceivedActivityRecord``
-    (CLP-10-017, ADR-0111), which wraps it.  Mirrors
-    :func:`vultron.core.services.received_activity.read_received_activity`.
-
-    Raises:
-        AssertionError: when the record wraps no activity.
-    """
-    return received_activity_in(obj_data)
-
-
 def _received_activity_id(raw_id: str, obj_data: dict) -> str:
     """The sender's id for the received activity the record *obj_data* holds.
 
@@ -876,7 +863,7 @@ def _received_activity_id(raw_id: str, obj_data: dict) -> str:
     Raises:
         AssertionError: when the record's activity carries no id.
     """
-    activity_id = _received_activity(obj_data).get("id")
+    activity_id = received_activity_in(obj_data).get("id")
     if not activity_id:
         raise AssertionError(
             f"received-activity record {raw_id!r} holds an activity with no id"
@@ -904,7 +891,7 @@ def _is_case_invite_for(
     Invite names the case by URI (AKM-02-003).  *full_case* selects which of the
     two is wanted: any case Invite by default, only a full-case one when true.
     """
-    invite = _received_activity(obj_data)
+    invite = received_activity_in(obj_data)
     if invite.get("type") != "Invite":
         return False
     target_raw = invite.get("target")
@@ -1116,7 +1103,7 @@ def _is_ownership_transfer_offer_for(
     does NOT match this discriminator, so polling for the forwarded Offer on
     Coordinator's DataLayer correctly skips the original.
     """
-    offer = _received_activity(obj_data)
+    offer = received_activity_in(obj_data)
     if offer.get("type") != "Offer":
         return False
     target_raw = offer.get("target")
@@ -1191,7 +1178,7 @@ def find_ownership_transfer_offer_for_actor(
 
 def _is_cp_offer_for_case(obj_data: dict, case_id: str) -> bool:
     """Return True if *obj_data* holds an Offer(CaseParticipant) for *case_id*."""
-    offer = _received_activity(obj_data)
+    offer = received_activity_in(obj_data)
     if offer.get("type") != "Offer":
         return False
     target_raw = offer.get("target")
@@ -1967,7 +1954,7 @@ def _is_embargo_invite_for(
     The relayed Invite names its embargo in ``object`` (inline or by id) and its
     invitee as the sole ``to`` recipient (EP-09-010).
     """
-    invite = _received_activity(obj_data)
+    invite = received_activity_in(obj_data)
     if invite.get("type") != "Invite":
         return False
     inner = invite.get("object")

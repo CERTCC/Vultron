@@ -148,7 +148,6 @@ def test_replayed_ledger_entry_announce_routes_and_keeps_fields(
     replayed = StoredActivityIngressAdapter(dl=dl).parse(activity.id_)
     assert replayed is not None
     assert replayed.received_evidence == body
-    assert replayed is not None
     replayed_object = getattr(replayed, "object_", None)
     assert isinstance(replayed_object, CaseLedgerEntry), (
         "Replayed Announce must carry a typed CaseLedgerEntry;"

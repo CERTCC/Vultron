@@ -609,9 +609,9 @@ class TestAcceptCaseParticipantOffer:
     ):
         """#3763: the Offer the owner received keeps its inline participant.
 
-        Ingress stores the received Offer with its participant as an id and
-        stores no participant record, so the Accept reads the Offer from the
-        intake archive, which holds it as the event carried it.
+        Ingress stores neither the received Offer nor a participant record
+        (DL-06-006), so the Accept reads the Offer from the intake archive,
+        which holds it as the event carried it.
         """
         from vultron.adapters.driving.fastapi.inbox_orchestration import (
             FastAPIIngressAdapter,

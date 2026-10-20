@@ -561,10 +561,17 @@ def test_inbox_handler_replays_deferred_items_after_case_announce(
     mock_dispatcher.dispatch.side_effect = fake_dispatch
     monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
     monkeypatch.setattr(ih, "prepare_for_dispatch", fake_prepare)
+    # The verdict decides the replay; holding and rebuilding the queued items
+    # are the staging's, tested in test_inbox_staging.py.
     monkeypatch.setattr(
         ih.InlineObjectStaging,
         "rehydrate_deferred",
         lambda self, item_id: items[item_id],
+    )
+    monkeypatch.setattr(
+        ih.InlineObjectStaging,
+        "hold_for_replay",
+        lambda self, activity_id, activity=None: True,
     )
     monkeypatch.setattr(ih, "outbox_handler", fake_outbox_handler)
 
@@ -1546,3 +1553,47 @@ def test_a_queue_holding_no_activity_does_not_expire():
         timeout_seconds=60,
     )
     assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is not None
+
+
+@pytest.mark.spec("IE-06-004", "DL-06-006")
+@pytest.mark.parametrize("max_attempts", [1, 12], ids=["dead-letter", "retry"])
+def test_a_failed_item_stays_held_whether_retried_or_dead_lettered(
+    max_attempts: int,
+) -> None:
+    """The rebuild released the item's record; the failure path holds it
+    again, so neither the retry nor the dead letter loses the activity."""
+    from vultron.adapters.driving.fastapi.inbox_staging import (
+        InlineObjectStaging,
+        hold_activity,
+    )
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    actor_id = "https://example.org/actors/participant"
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+    case_id = "https://example.org/cases/case-held"
+    activity = add_note_to_case_activity(
+        as_Note(content="held", context=case_id),
+        target=case_id,
+        context=case_id,
+        actor="https://example.org/actors/case-actor",
+        to=[actor_id],
+    )
+    hold_activity(dl, activity)
+    staging = InlineObjectStaging(dl)
+    assert staging.rehydrate_deferred(activity.id_) is not None
+    assert staging.held(activity.id_) is None, "precondition: released"
+
+    ih._inbox_retry_or_dead_letter(
+        activity.id_,
+        actor_id,
+        "processing_error",
+        "boom",
+        dl,
+        dl,
+        max_attempts,
+        staging,
+    )
+
+    assert staging.held(activity.id_) is not None
+    assert dl.read(activity.id_) is None

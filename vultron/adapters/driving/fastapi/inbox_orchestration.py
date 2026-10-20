@@ -395,14 +395,15 @@ class FastAPIQueuePort:
         the replay rebuilds it after this delivery's staging is gone, and the
         receiver keeps no copy under its id (DL-06-006).  *activity* is the
         event's core summary, held for core readers until intake archives it.
+        It is held before it is queued, so a failed hold queues nothing.
         """
+        self._staging.hold_for_replay(activity_id, activity)
         _queue_pending_case_activity(
             queue_dl=self._actor_dl,
             case_id=case_id,
             activity_id=activity_id,
             case_actor_id=case_actor_id,
         )
-        self._staging.hold_for_replay(activity_id, activity)
 
     def check_and_expire(self, case_id: str) -> bool:
         """Check expiry; drop queue and return ``True`` when expired."""

@@ -35,7 +35,6 @@ from vultron.demo.helpers.polling import (
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
-    _received_activity,
     _received_activity_id,
     _wait_for_participant_status_field,
     assert_received_from,
@@ -54,6 +53,7 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_embargo_consent,
     wait_for_pending_inbox_quiescent,
 )
+from vultron.demo.utils import received_activity_in
 from vultron.wire.as2.factories.actor import offer_case_participant_activity
 from vultron.wire.as2.factories.case import (
     rm_invite_to_case_activity,
@@ -826,7 +826,7 @@ class TestMalformedReceivedRecord:
 
     def test_a_record_wrapping_no_activity_fails(self):
         with pytest.raises(AssertionError, match="wraps no activity"):
-            _received_activity(
+            received_activity_in(
                 {"type": "ReceivedActivityRecord", "id": "urn:uuid:r"}
             )
 

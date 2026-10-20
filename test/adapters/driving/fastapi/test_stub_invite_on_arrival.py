@@ -57,6 +57,9 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
     FastAPIQueuePort,
 )
+from vultron.adapters.driving.fastapi.inbox_staging import (
+    InlineObjectStaging,
+)
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.inbox import (
     InboxOutcome,
@@ -151,14 +154,21 @@ def _wire_body(activity: BaseModel) -> dict[str, Any]:
 
 
 def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:
-    """Run one delivery through the adapters ``run_inbox_pipeline`` builds."""
+    """Run one delivery through the adapters ``run_inbox_pipeline`` builds.
+
+    The ingress and queue ports share one staging, as there, so a deferred
+    delivery is held for its replay (DL-06-006).
+    """
+    staging = InlineObjectStaging(dl)
     return process_payload(
         body,
-        FastAPIIngressAdapter(dl=dl),
+        FastAPIIngressAdapter(dl=dl, staging=staging),
         FastAPIDispatchAdapter(
             dl=dl, actor_id=_INVITEE_ID, dispatcher=make_dispatcher()
         ),
-        FastAPIQueuePort(dl=dl, actor_dl=dl, actor_id=_INVITEE_ID),
+        FastAPIQueuePort(
+            dl=dl, actor_dl=dl, actor_id=_INVITEE_ID, staging=staging
+        ),
     )
 
 

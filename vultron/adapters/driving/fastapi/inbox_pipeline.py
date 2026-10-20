@@ -110,7 +110,8 @@ class InboxPipeline:
             )
             return False
         self._requeue_counts[activity_id] = attempts
-        staging.hold_for_replay(activity_id)
+        if staging.can_hold(activity_id):
+            staging.hold_for_replay(activity_id)
         (queue_dl if queue_dl is not None else self._dl).inbox_append(
             activity_id
         )
@@ -180,13 +181,14 @@ class InboxPipeline:
                     queue_dl=queue_dl,
                 ):
                     return None
+                # Held before it is queued: the record is its only copy.
+                staging.hold_for_replay(event.activity_id, event.activity)
                 _queue_pending_case_activity(
                     queue_dl=queue_dl,
                     case_id=case_id,
                     activity_id=event.activity_id,
                     case_actor_id=event.actor_id,
                 )
-                staging.hold_for_replay(event.activity_id, event.activity)
                 return None
 
             result = dispatch(

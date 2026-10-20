@@ -325,14 +325,15 @@ def _dispatch_or_defer_inbox_item(
             case_id,
             event.activity_id,
         )
+        # Held before it is queued: the record is its only copy (DL-06-006).
+        if staging is not None:
+            staging.hold_for_replay(event.activity_id, event.activity)
         _queue_pending_case_activity(
             queue_dl,
             case_id,
             event.activity_id,
             case_actor_id=event.actor_id,
         )
-        if staging is not None:
-            staging.hold_for_replay(event.activity_id, event.activity)
         return None
 
     result = dispatch(event=event, dl=dl, dispatcher=dispatcher)
@@ -385,6 +386,10 @@ def _inbox_retry_or_dead_letter(
             nothing to rebuild (DL-06-006).
     """
     total = retry.get_inbox_attempt_count(item_id) + 1
+    if staging is not None and staging.can_hold(item_id):
+        # The rebuild released the record, and the retry, or an operator
+        # reading the dead letter, needs the activity it held (DL-06-006).
+        staging.hold_for_replay(item_id)
     if total >= max_attempts:
         retry.inbox_dead_letter_append(
             item_id,
@@ -402,8 +407,6 @@ def _inbox_retry_or_dead_letter(
         )
     else:
         retry.set_inbox_attempt_count(item_id, total)
-        if staging is not None:
-            staging.hold_for_replay(item_id)
         queue_dl.inbox_append(item_id)
         logger.error(
             "Error processing inbox item '%s' for actor '%s' (attempt %d/%d);"
@@ -464,7 +467,8 @@ def _rehydrate_inbox_item(
                 staging,
             )
         else:
-            staging.hold_for_replay(item_id)
+            if staging.can_hold(item_id):
+                staging.hold_for_replay(item_id)
             queue_dl.inbox_append(item_id)
         return None
     if not isinstance(obj, as_Activity):
@@ -546,7 +550,7 @@ def _process_inbox_item(
                 staging,
             )
         else:
-            if staging is not None:
+            if staging is not None and staging.can_hold(item_id):
                 staging.hold_for_replay(item_id)
             queue_dl.inbox_append(item_id)
         return False

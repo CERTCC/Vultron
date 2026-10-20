@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-"""Ingress stages inline objects for routing and stores none of them (#3763).
+"""Ingress stages a delivery for routing and stores none of it (#3763, #4871).
 
-The stored activity names its inline object by id, so the by-id re-read that
-rebuilds the routed activity reads through a staging store holding the
-delivery's inline objects.  Nothing staged reaches the receiver's store, and a
-deferred activity keeps its staged rows only until its replay.
+The routed activity is rebuilt by a by-id read through a staging store that
+holds the parsed activity's row and its inline objects.  Nothing staged
+reaches the receiver's store (DL-06-006, IO-03-004), and a deferred activity
+is held whole, its sealed body and staged rows, only until its replay.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -51,7 +51,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronValidationError, VultronWiringError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -670,10 +670,32 @@ def test_a_stage_that_stages_no_activity_row_fails_loudly(dl):
     assert _StagingStore(dl, "urn:uuid:next").read("urn:uuid:unstaged") is None
 
 
-def test_holding_what_was_never_staged_writes_nothing(dl, caplog):
-    with caplog.at_level(logging.WARNING):
-        assert InlineObjectStaging(dl).hold_for_replay("urn:uuid:x") is False
+@pytest.mark.spec("DL-06-006")
+def test_holding_what_was_never_staged_is_a_wiring_fault(dl):
+    """A queue port with its own staging would queue an id holding nothing."""
+    staging = InlineObjectStaging(dl)
+
+    assert staging.can_hold("urn:uuid:x") is False
+    with pytest.raises(VultronWiringError, match="share one"):
+        staging.hold_for_replay("urn:uuid:x")
     assert sum(dl.count_all().values()) == 0
+
+
+@pytest.mark.spec("DL-06-006", "CBT-03-001")
+def test_a_failed_hold_queues_nothing(dl):
+    """The record is held before the id is queued, so a hold that raises
+    leaves no queued id with nothing behind it."""
+    queue = FastAPIQueuePort(
+        dl=dl,
+        actor_dl=dl,
+        actor_id=_RECEIVER_ID,
+        staging=InlineObjectStaging(dl),
+    )
+
+    with pytest.raises(VultronWiringError):
+        queue.queue(activity_id="urn:uuid:unstaged", case_id=_CASE_ID)
+
+    assert dl.read(VultronPendingCaseInbox.build_id(_CASE_ID)) is None
 
 
 def test_staging_store_of_a_file_deployment_is_in_memory():

@@ -67,6 +67,7 @@ from vultron.errors import (
     VultronAlreadyExistsError,
     VultronNotFoundError,
     VultronValidationError,
+    VultronWiringError,
 )
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.rehydration import rehydrate
@@ -285,6 +286,15 @@ class InlineObjectStaging:
             received_body=activity.received_evidence_json,
         )
 
+    def can_hold(self, activity_id: str) -> bool:
+        """Whether this staging rebuilt or released *activity_id*, so it can
+        hold it again (:meth:`hold_for_replay`)."""
+        return (
+            activity_id in self._released
+            or activity_id in self._staged
+            or activity_id in self._routed_in_place
+        )
+
     def held(self, activity_id: str) -> DeferredInboxActivity | None:
         """The record holding *activity_id* for its replay, if any."""
         record = self._dl.read(DeferredInboxActivity.build_id(activity_id))
@@ -353,7 +363,14 @@ class InlineObjectStaging:
         replay deferred again, or re-queued after a failure, keeps the body it
         was first held with.
 
+        Hold before queueing: the record is the only copy of the activity, so
+        an id queued with nothing held would be silently dropped.
+
         Returns whether this call wrote the record.
+
+        Raises:
+            VultronWiringError: When this staging neither rebuilt nor released
+                *activity_id*, so it has nothing to hold.
         """
         released = self._released.pop(activity_id, None)
         if released is not None:
@@ -365,12 +382,13 @@ class InlineObjectStaging:
             self.rehydrate_parsed(self._routed_in_place.pop(activity_id))
             staged = self._staged.get(activity_id)
         if staged is None:
-            logger.warning(
-                "Nothing staged for deferred activity %s in this inbox run;"
-                " its replay will find nothing to rebuild.",
-                activity_id,
+            # The record is the only copy the receiver keeps (DL-06-006), so
+            # queueing an id with nothing held for it would drop the activity.
+            raise VultronWiringError(
+                f"Nothing staged for deferred activity {activity_id!r} in this"
+                " inbox run: the queue port and the ingress adapter must"
+                " share one InlineObjectStaging"
             )
-            return False
         activity_row_json = (
             json.dumps(staged.activity_row)
             if staged.received_body is None

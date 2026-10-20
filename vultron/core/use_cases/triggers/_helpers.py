@@ -214,9 +214,8 @@ def _resolve_invite_to_embargo_in_force(
             embargo, or the row is in any other state.
     """
     resource = "Invite(EmbargoEvent)"
-    # The archived record holds a core activity; a copy the inbox defers
-    # under the sender's id may rehydrate as its wire class, so both are read
-    # by field.
+    # Read from the archive or the inbox's deferred record, both of which
+    # hold the core summary; its fields are read by name.
     invite = read_received_activity(dl, invite_id, resource)
     if getattr(invite, "type_", None) != "Invite":
         raise VultronNotFoundError(resource, invite_id)
