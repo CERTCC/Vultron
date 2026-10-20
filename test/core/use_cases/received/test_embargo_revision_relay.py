@@ -1210,6 +1210,10 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
     ).execute()
 
     assert again.disposition is HandlerDisposition.REFUSED
+    # The refusal is the missing consent row, not some other guard.
+    assert again.reason is not None
+    assert "EmbargoConsent" in again.reason
+    assert "not found" in again.reason
     assert _relayed_invites(dl) == []
 
 

@@ -93,6 +93,14 @@ def _held(dl: SqliteDataLayer, name: str) -> bool:
     return dl.read(_note(name).id_) is not None
 
 
+def _context_chain(error: BaseException) -> Iterator[BaseException]:
+    """Yield each exception in *error*'s ``__context__`` chain."""
+    context = error.__context__
+    while context is not None:
+        yield context
+        context = context.__context__
+
+
 def test_children_that_succeed_commit_every_write(dl: SqliteDataLayer):
     tree = ActTransaction(
         name="Act", children=[_save(dl, "act"), _save(dl, "consequence")]
@@ -180,11 +188,33 @@ def test_an_act_inside_another_rolls_back_with_it(dl: SqliteDataLayer):
 def test_the_status_is_settled_before_the_parent_reads_it(
     dl: SqliteDataLayer,
 ):
-    """A Selector parent that sees FAILURE runs its fallback outside the act.
+    """A committed act is committed before its parent reads SUCCESS.
 
-    Had the act yielded its status with its transaction still open, the
-    fallback's write would run inside it and be rolled back with it.
+    A Selector stops at a child that succeeds and never resumes that
+    child's tick.  Had the act yielded its status with its transaction still
+    open, the transaction would be closed only when the tick is discarded,
+    which rolls it back.
     """
+    tree = py_trees.composites.Selector(
+        name="Parent",
+        memory=False,
+        children=[
+            ActTransaction(name="Act", children=[_save(dl, "act")]),
+            _save(dl, "fallback"),
+        ],
+    )
+
+    result = _run(dl, tree)
+
+    assert result.status is Status.SUCCESS
+    assert _held(dl, "act")
+    assert not _held(dl, "fallback")
+
+
+def test_a_failed_act_keeps_nothing_and_a_fallback_after_it_does(
+    dl: SqliteDataLayer,
+):
+    """A Selector parent that sees FAILURE runs its fallback outside the act."""
     tree = py_trees.composites.Selector(
         name="Parent",
         memory=False,
@@ -330,7 +360,7 @@ class TestApplyAfterRollback:
                     apply_after_rollback(lambda: applied.append("second"))
                     _raise()
 
-        assert isinstance(info.value.__context__, (_Boom, RuntimeError))
+        assert any(isinstance(e, _Boom) for e in _context_chain(info.value))
         # The inner rollback ran both, and so did the outer one.
         assert applied == ["first", "second", "first", "second"]
 

@@ -59,8 +59,9 @@ def act_transaction(datalayer: CasePersistence) -> Iterator[None]:
 
     A ``datalayer.transaction()``, plus the changes named with
     :func:`apply_after_rollback`: when the block raises, they are applied
-    after its rollback, then the exception propagates (or, when one of them
-    raises, that exception, chained to the first).  A block opened
+    after its rollback, then the exception propagates (or, when any of
+    them raises, the last such failure, with the earlier ones and the
+    block's own failure as its context).  A block opened
     inside another is part of it: the outer block also applies them if it
     rolls back in turn, because the outer rollback undoes what the inner
     one applied.
