@@ -135,17 +135,33 @@ def test_an_offer_linked_to_the_recorded_one_stands_for_nothing(dl):
         recorded_ownership_offer(dl, _CASE_ID, "urn:planted:1")
 
 
-@pytest.mark.spec("CM-21-005")
-def test_the_offer_id_is_derived_from_the_manager_case_and_proposal():
-    """The CASE_MANAGER keys its Offer by an id it derives, never by one the
-    owner chose, and the same proposal always derives the same id."""
-    made = ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1")
+_OWNER_ID = "https://example.org/actors/owner"
 
-    assert made == ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1")
+
+@pytest.mark.spec("CM-21-005")
+@pytest.mark.spec("OID-01-006")
+def test_the_offer_id_is_derived_from_the_manager_case_proposal_and_proposer():
+    """The CASE_MANAGER keys its Offer by an id it derives, never by one the
+    owner chose; the same proposal always derives the same id, whatever
+    spelling an actor id was read in, and another proposer's reuse of the
+    proposal id derives another."""
+    made = ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1", _OWNER_ID)
+
+    assert made == ownership_offer_id(
+        _MANAGER + "/", _CASE_ID, "urn:proposal:1", _OWNER_ID + "/"
+    )
     assert made != "urn:proposal:1"
-    assert made != ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:2")
     assert made != ownership_offer_id(
-        "https://example.org/actors/other", _CASE_ID, "urn:proposal:1"
+        _MANAGER, _CASE_ID, "urn:proposal:2", _OWNER_ID
+    )
+    assert made != ownership_offer_id(
+        "https://example.org/actors/other",
+        _CASE_ID,
+        "urn:proposal:1",
+        _OWNER_ID,
+    )
+    assert made != ownership_offer_id(
+        _MANAGER, _CASE_ID, "urn:proposal:1", "https://example.org/actors/x"
     )
 
 
@@ -164,7 +180,7 @@ def _managed_case(dl: SqliteDataLayer) -> None:
 @pytest.mark.spec("HP-01-003")
 def test_the_offer_made_from_a_proposal_is_found_by_the_proposal(dl):
     _managed_case(dl)
-    made = ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1")
+    made = ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1", _OWNER_ID)
     _ledger(
         dl,
         0,
@@ -172,21 +188,34 @@ def test_the_offer_made_from_a_proposal_is_found_by_the_proposal(dl):
         "offer_case_ownership_transfer",
         _T0,
         actor=_MANAGER,
-        attributedTo="https://example.org/actors/owner",
+        attributedTo=_OWNER_ID,
     )
 
-    offer = offer_made_from_proposal(dl, _CASE_ID, "urn:proposal:1")
+    offer = offer_made_from_proposal(dl, _CASE_ID, "urn:proposal:1", _OWNER_ID)
 
     assert offer is not None and offer.offer_id == made
-    assert offer.offerer_id(_MANAGER) == "https://example.org/actors/owner"
-    assert offer_made_from_proposal(dl, _CASE_ID, "urn:proposal:2") is None
+    assert offer.offerer_id(_MANAGER) == _OWNER_ID
+    assert (
+        offer_made_from_proposal(dl, _CASE_ID, "urn:proposal:2", _OWNER_ID)
+        is None
+    )
+    # Another sender reusing the proposal id names no Offer of its own.
+    assert (
+        offer_made_from_proposal(
+            dl, _CASE_ID, "urn:proposal:1", "https://example.org/actors/x"
+        )
+        is None
+    )
 
 
 def test_no_offer_is_made_from_a_proposal_on_a_case_with_no_manager(dl):
-    made = ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1")
+    made = ownership_offer_id(_MANAGER, _CASE_ID, "urn:proposal:1", _OWNER_ID)
     _ledger(dl, 0, made, "offer_case_ownership_transfer", _T0)
 
-    assert offer_made_from_proposal(dl, _CASE_ID, "urn:proposal:1") is None
+    assert (
+        offer_made_from_proposal(dl, _CASE_ID, "urn:proposal:1", _OWNER_ID)
+        is None
+    )
 
 
 _OWNER = "https://example.org/actors/owner"

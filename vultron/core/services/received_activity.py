@@ -87,7 +87,7 @@ def read_held_activity(
     Some replies answer an activity this actor either received or sent: an
     embargo ``Reject`` of an Invite that another participant proposed or that
     this actor proposed, a withdrawal of the actor's own ownership-transfer
-    Offer.  A received activity is read as :func:`read_received_activity`
+    proposal.  A received activity is read as :func:`read_received_activity`
     reads it.  Anything else is read under its own id: an activity this
     actor sent, the one record of an activity type a receiver keeps under the
     activity's id (DL-06-006), or a core record kept under that id (the

@@ -1735,7 +1735,9 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         ).execute()
 
         assert result.disposition.value == "applied", result
-        made_id = ownership_offer_id(case_actor.id_, case.id_, proposal_id)
+        made_id = ownership_offer_id(
+            case_actor.id_, case.id_, proposal_id, owner.id_
+        )
         entries = sorted(
             (
                 cast(CaseLedgerEntry, e)

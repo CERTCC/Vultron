@@ -55,6 +55,7 @@ from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.offer_forward import entry_target
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import (
+    normalise_actor_id,
     same_actor_id,
     snapshot_actor_id,
 )
@@ -191,18 +192,27 @@ def _entry_end_time(entry: CaseLedgerEntry) -> datetime | None:
 OWNERSHIP_OFFER_ID_KIND = "offer-case-ownership-transfer"
 
 
-def ownership_offer_id(manager_id: str, case_id: str, proposal_id: str) -> str:
-    """The id of the Offer *manager_id* makes from the proposal *proposal_id*.
+def ownership_offer_id(
+    manager_id: str, case_id: str, proposal_id: str, proposer_id: str
+) -> str:
+    """The id of the Offer *manager_id* makes from *proposer_id*'s proposal.
 
     Derived, never taken from the proposal: the CASE_MANAGER keys nothing it
     emits or stores by an id another party chose, the inner Offer's id
     included (ADR-0148, DL-06-006).  A redelivery of the proposal rebuilds
     the same Offer, which the outbox queues once (OX-06-002), and the
     owner's withdrawal of the proposal names that Offer through the same
-    derivation (CM-21-015).
+    derivation (CM-21-015).  The proposer is part of the derivation, so a
+    proposal id another sender reuses names a different Offer; both actor
+    ids are normalised first, so every caller derives one id whatever
+    spelling it read them in (OID-01-006).
     """
     return derived_activity_id(
-        OWNERSHIP_OFFER_ID_KIND, manager_id, case_id, proposal_id
+        OWNERSHIP_OFFER_ID_KIND,
+        normalise_actor_id(manager_id),
+        case_id,
+        proposal_id,
+        normalise_actor_id(proposer_id),
     )
 
 
@@ -272,9 +282,10 @@ def _recorded(
 
 
 def offer_made_from_proposal(
-    dl: CasePersistence, case_id: str, proposal_id: str
+    dl: CasePersistence, case_id: str, proposal_id: str, proposer_id: str
 ) -> RecordedOwnershipOffer | None:
-    """The recorded Offer the case's CASE_MANAGER made from *proposal_id*.
+    """The recorded Offer the case's CASE_MANAGER made from *proposer_id*'s
+    proposal *proposal_id*.
 
     ``None`` when the ledger records no such Offer, or the case is not held
     or names no CASE_MANAGER: the proposal is then a new one.  A proposal
@@ -289,7 +300,9 @@ def offer_made_from_proposal(
         return None
     try:
         return recorded_ownership_offer(
-            dl, case_id, ownership_offer_id(manager_id, case_id, proposal_id)
+            dl,
+            case_id,
+            ownership_offer_id(manager_id, case_id, proposal_id, proposer_id),
         )
     except VultronNotFoundError:
         return None

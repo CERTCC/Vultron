@@ -255,7 +255,9 @@ class TestOwnershipTransferUseCases:
         disposition, offer = deliver(_COORDINATOR_ID, proposal_id)
 
         assert disposition is HandlerDisposition.APPLIED
-        made_id = ownership_offer_id(_CASE_ACTOR_ID, case_id, proposal_id)
+        made_id = ownership_offer_id(
+            _CASE_ACTOR_ID, case_id, proposal_id, _VENDOR_ID
+        )
         trigger_activity.offer_case_ownership_transfer.assert_called_once_with(
             case_id=case_id,
             transferee_id=_COORDINATOR_ID,
@@ -345,7 +347,7 @@ class TestOwnershipTransferUseCases:
             trigger_activity.offer_case_ownership_transfer.call_args.kwargs
         )
         assert kwargs["id_"] == ownership_offer_id(
-            _CASE_ACTOR_ID, case_id, proposal_id
+            _CASE_ACTOR_ID, case_id, proposal_id, _VENDOR_ID
         )
         assert kwargs["actor"] == _CASE_ACTOR_ID
         assert kwargs["attributed_to"] == _VENDOR_ID
@@ -572,7 +574,9 @@ class TestOwnershipTransferUseCases:
                 trigger_activity,
             )
 
-        made_id = ownership_offer_id(_CASE_ACTOR_ID, case_id, proposal_id)
+        made_id = ownership_offer_id(
+            _CASE_ACTOR_ID, case_id, proposal_id, _VENDOR_ID
+        )
         assert made_id not in dl.outbox_list()
         assert dl.read(made_id) is None
         assert "offer_case_ownership_transfer" not in _semantic_types(dl)
@@ -866,7 +870,11 @@ def _propose(
 
 def _made_offer(dl, case_id: str, proposal):
     """The Offer the CASE_MANAGER made from *proposal*, or ``None``."""
-    made = dl.read(ownership_offer_id(_CASE_ACTOR_ID, case_id, proposal.id_))
+    made = dl.read(
+        ownership_offer_id(
+            _CASE_ACTOR_ID, case_id, proposal.id_, str(proposal.actor)
+        )
+    )
     if made is not None:
         _PROPOSAL_OF[made.id_] = proposal
     return made
@@ -1123,6 +1131,32 @@ def test_redelivered_proposal_of_an_answered_offer_is_skipped_while_a_newer_one_
     assert trigger_activity.offer_case_ownership_transfer.call_count == 2
 
 
+@pytest.mark.spec("CM-21-019")
+@pytest.mark.spec("HP-01-003")
+def test_a_new_owner_reusing_an_old_proposal_id_makes_a_new_offer(
+    make_payload,
+):
+    """A proposal id is the proposer's: the next owner reusing it proposes
+    anew, so it is judged and its own Offer made, never skipped as the old
+    owner's redelivery."""
+    case_id = "https://example.org/cases/case_ot_reused_by_new_owner"
+    dl, deliver, trigger_activity = _ownership_offer_harness(
+        make_payload, case_id
+    )
+    proposal_id = "https://example.org/activities/proposal_reused"
+    _, first = deliver(_COORDINATOR_ID, proposal_id)
+    assert (
+        _accept(dl, make_payload, first).disposition
+        is HandlerDisposition.APPLIED
+    )
+
+    again, second = deliver(_VENDOR_ID, proposal_id, offerer=_COORDINATOR_ID)
+
+    assert again is HandlerDisposition.APPLIED
+    assert second.id_ != first.id_
+    assert trigger_activity.offer_case_ownership_transfer.call_count == 2
+
+
 @pytest.mark.spec("CM-21-005")
 @pytest.mark.spec("HP-01-003")
 def test_an_offer_that_fails_after_the_proposal_entry_is_made_on_redelivery(
@@ -1153,7 +1187,9 @@ def test_an_offer_that_fails_after_the_proposal_entry_is_made_on_redelivery(
         "propose_case_ownership_transfer",
         "offer_case_ownership_transfer",
     ]
-    made_id = ownership_offer_id(_CASE_ACTOR_ID, case_id, proposal.id_)
+    made_id = ownership_offer_id(
+        _CASE_ACTOR_ID, case_id, proposal.id_, _VENDOR_ID
+    )
     assert [c.kwargs["id_"] for c in factory.call_args_list] == [
         made_id,
         made_id,
@@ -1304,7 +1340,7 @@ class TestAcceptIsActedOnOnlyFromTheTransferee:
         disposition, offer = deliver(_COORDINATOR_ID, proposal_id)
         assert disposition is HandlerDisposition.APPLIED
         assert offer.id_ == ownership_offer_id(
-            _CASE_ACTOR_ID, case_id, proposal_id
+            _CASE_ACTOR_ID, case_id, proposal_id, _VENDOR_ID
         )
         assert getattr(offer, "in_reply_to", None) is None
 

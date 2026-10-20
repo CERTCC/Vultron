@@ -399,6 +399,7 @@ class UndoCaseOwnershipTransferReceivedUseCase:
                 ),
                 case_id,
                 proposal_id,
+                request.proposer_id,
             )
             if case_id is not None and proposal_id is not None
             else None

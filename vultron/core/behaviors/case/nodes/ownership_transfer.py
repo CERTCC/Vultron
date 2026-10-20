@@ -222,7 +222,7 @@ class MakeOwnershipTransferOfferNode(_EmitSingleActivityBase):
             attributed_to=authorship.attributed_to,
             end_time=self.end_time,
             id_=ownership_offer_id(
-                self.actor_id, self.case_id, self.proposal_id
+                self.actor_id, self.case_id, self.proposal_id, self.owner_id
             ),
         )
 

@@ -227,7 +227,9 @@ def _record_ownership_offer(cm_store, owned_case, make_payload, offer_id):
     ).execute()
     assert recorded.disposition is HandlerDisposition.APPLIED
     offer = cm_store.read(
-        ownership_offer_id(_CASE_MANAGER_ID, owned_case.id_, offer_id)
+        ownership_offer_id(
+            _CASE_MANAGER_ID, owned_case.id_, offer_id, _OWNER_ID
+        )
     )
     assert offer is not None
     return offer

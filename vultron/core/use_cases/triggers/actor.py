@@ -646,10 +646,20 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
         proposal = read_held_activity(
             self._dl, offer_id, "Offer(Offer(VulnerabilityCase))"
         )
+        inner = getattr(proposal, "object_", None)
+        inner_type = getattr(getattr(inner, "type_", None), "value", None)
+        if inner_type is None and isinstance(inner, dict):
+            inner_type = inner.get("type")
         raw_case_id = _as_id(getattr(proposal, "context", None))
-        if not raw_case_id:
+        if inner_type != "Offer" or not raw_case_id:
+            # The owner withdraws its own proposal, never the CASE_MANAGER's
+            # Offer made from it (ADR-0148): an id naming anything else is a
+            # caller error, refused before any tree runs.
             raise VultronNotFoundError(
-                "VulnerabilityCase (in proposal context)", offer_id
+                "ownership-transfer proposal Offer(Offer(VulnerabilityCase))"
+                " naming its case (offer_id must name the proposal the offer"
+                " trigger returned)",
+                offer_id,
             )
         return raw_case_id
 

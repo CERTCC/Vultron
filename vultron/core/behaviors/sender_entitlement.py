@@ -1862,7 +1862,9 @@ class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
     was established when it was admitted, and the sender may since have
     handed ownership on, so the role is not re-checked and the open-Offer
     guard reports it ``SKIPPED`` (HP-01-003).  The same proposal id from any
-    other sender is judged as a new proposal.
+    other sender is judged as a new proposal: the Offer id is derived from
+    the proposer too
+    (:func:`~vultron.core.participants.ownership_offer.ownership_offer_id`).
 
     Spec: CM-21-019, HP-01-003, HP-01-006.
     """
@@ -1903,7 +1905,7 @@ class SenderIsOfferingCaseOwnerNode(SenderEntitlementConditionNode):
         if _holds_case_owner_role(self.datalayer, case, sender):
             return Status.SUCCESS
         made = offer_made_from_proposal(
-            self.datalayer, self._case_id, self._proposal_id
+            self.datalayer, self._case_id, self._proposal_id, sender
         )
         manager_id = resolve_case_manager_id(case, self.datalayer)
         offerer = (

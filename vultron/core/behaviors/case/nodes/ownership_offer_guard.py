@@ -159,11 +159,16 @@ class NoOpenOwnershipOfferNode(
     _REPEAT_FLAG = "is_redelivery"
 
     def __init__(
-        self, case_id: str, proposal_id: str, name: str | None = None
+        self,
+        case_id: str,
+        proposal_id: str,
+        proposer_id: str,
+        name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.proposal_id = proposal_id
+        self.proposer_id = proposer_id
         self.is_redelivery = False
         """``True`` when the last run found the Offer made from this
         proposal already ledgered: a benign no-op, not a refusal."""
@@ -174,7 +179,7 @@ class NoOpenOwnershipOfferNode(
             return f
         assert self.datalayer is not None
         made = offer_made_from_proposal(
-            self.datalayer, self.case_id, self.proposal_id
+            self.datalayer, self.case_id, self.proposal_id, self.proposer_id
         )
         if made is not None:
             self.is_redelivery = True
@@ -220,7 +225,11 @@ def case_manager_admits_ownership_proposal_guard(
         case_id=case_id,
         body_name="OwnershipProposalAdmissible",
         children=[
-            NoOpenOwnershipOfferNode(case_id=case_id, proposal_id=proposal_id),
+            NoOpenOwnershipOfferNode(
+                case_id=case_id,
+                proposal_id=proposal_id,
+                proposer_id=proposer_id,
+            ),
             OwnershipProposalAdmissibleNode(
                 case_id=case_id,
                 proposed_case_id=proposed_case_id,

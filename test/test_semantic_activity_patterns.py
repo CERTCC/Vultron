@@ -16,11 +16,13 @@ from vultron.wire.as2.extractor import (
 )
 from vultron.wire.as2.extractor._instances import RefusalNoticePattern
 from vultron.wire.as2.factories import (
+    accept_case_ownership_transfer_activity,
     accept_case_participant_role_activity,
     announce_vulnerability_case_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
     propose_case_ownership_transfer_activity,
+    reject_case_ownership_transfer_activity,
     reject_case_participant_role_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -1089,6 +1091,36 @@ def test_ownership_proposal_is_told_apart_from_the_offer_by_shape():
         == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
     )
     assert not ProposeCaseOwnershipTransferActivityPattern.match(offer)
+
+
+@pytest.mark.spec("VAM-04-007")
+@pytest.mark.spec("VAM-04-008")
+@pytest.mark.spec("VAM-04-009")
+@pytest.mark.parametrize(
+    ("factory", "semantics"),
+    [
+        (None, MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER),
+        (
+            accept_case_ownership_transfer_activity,
+            MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
+        ),
+        (
+            reject_case_ownership_transfer_activity,
+            MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
+        ),
+    ],
+)
+def test_the_case_managers_offer_and_its_answers_match_their_patterns(
+    factory, semantics
+):
+    offer = cast(Any, _proposal().object_)
+    activity = (
+        offer
+        if factory is None
+        else factory(offer, actor="https://example.org/coordinator")
+    )
+
+    assert find_matching_semantics(activity) == semantics
 
 
 @pytest.mark.spec("CLP-05-001")

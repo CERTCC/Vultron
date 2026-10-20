@@ -805,7 +805,9 @@ def _otc_make_offer(dl, proposal, case_manager_id: str) -> Any:
     while dl.outbox_pop() is not None:
         pass
     offer = dl.read(
-        ownership_offer_id(case_manager_id, event.case_id or "", proposal.id_)
+        ownership_offer_id(
+            case_manager_id, event.case_id or "", proposal.id_, event.actor_id
+        )
     )
     assert offer is not None
     return offer
@@ -819,7 +821,8 @@ def _otc_ownership_transferred(
 
     Three isolated actor apps wired through *router*: the Vendor (case owner),
     the Coordinator (CASE_MANAGER, which makes the Offer from the Vendor's
-    proposal and receives the Accept) and the Reporter, the transferee.  The case lives only on the Coordinator, so
+    proposal and receives the Accept) and the Reporter, the transferee.
+    The case lives only on the Coordinator, so
     neither peer can anchor its chain: each Rejects every ledger entry it is
     sent, which is what drives the Reject/replay loop SYNC-15-003 bounds.
     Yields once the Accept's inbox POST — and every delivery it set off — has

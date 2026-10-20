@@ -44,6 +44,7 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories.case import (
+    offer_case_ownership_transfer_activity,
     propose_case_ownership_transfer_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -182,11 +183,34 @@ def test_raises_when_proposal_names_no_case():
     actor.id_ = actor_id
     offer = MagicMock()
     offer.context = None
+    offer.object_ = {"type": "Offer"}
     dl = MagicMock()
     dl.read.side_effect = lambda id_: actor if id_ == actor_id else offer
 
     with pytest.raises(VultronNotFoundError):
         _execute(dl, actor_id, "https://example.org/activities/offer-nocase")
+
+
+@pytest.mark.spec("TRIG-11-006")
+@pytest.mark.spec("CM-21-015")
+def test_naming_the_offer_rather_than_the_proposal_is_refused(owner_world):
+    """``offer_id`` names the owner's proposal, never an Offer of the case:
+    a held ``Offer(VulnerabilityCase)`` is refused before anything is sent,
+    with an error that says what to name (ADR-0148)."""
+    dl, owner, case_manager, case, _ = owner_world
+    offer = offer_case_ownership_transfer_activity(
+        case=as_VulnerabilityCase.model_validate(
+            {"id": case.id_, "name": case.name}
+        ),
+        target="https://example.org/actors/coordinator",
+        actor=case_manager.id_,
+        attributed_to=owner.id_,
+    )
+    dl.create(offer)
+
+    with pytest.raises(VultronNotFoundError, match="proposal"):
+        _execute(dl, owner.id_, offer.id_)
+    assert dl.outbox_list() == []
 
 
 @pytest.mark.spec("CM-21-015")

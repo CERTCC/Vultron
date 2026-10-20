@@ -8,10 +8,12 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import field_validator
 
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_stub import stub_case_id
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.primitives import normalise_actor_id
 
 if TYPE_CHECKING:
     from vultron.core.models.base import CoreObject
@@ -231,6 +233,24 @@ class UndoCaseOwnershipTransferReceivedEvent(VultronEvent):
     def case_id(self) -> str | None:
         """The case the withdrawn proposal names: the proposal's ``context``."""
         return self.inner_context_id
+
+    @property
+    def proposer_id(self) -> str:
+        """The actor the withdrawn proposal names as its sender, normalised.
+
+        It is the copy the Undo embeds, which its sender wrote, so it only
+        selects which recorded Offer the Undo names: the sender's standing is
+        checked against that Offer, never against this claim (CM-21-015).
+        The Undo's own sender when the copy names none.
+        """
+        embedded = self.activity.object_ if self.activity else None
+        actor = (
+            embedded.get("actor")
+            if isinstance(embedded, dict)
+            else getattr(embedded, "actor", None)
+        )
+        actor_id = _as_id(actor)
+        return normalise_actor_id(actor_id) if actor_id else self.actor_id
 
 
 class InviteActorToCaseReceivedEvent(VultronEvent):

@@ -439,9 +439,10 @@ class OfferCaseOwnershipTransferRequest(CaseTriggerRequest):
 
 
 class _OwnershipTransferAnswerRequest(BaseModel):
-    """The body shared by every reply to an Offer: it names the Offer.
+    """The body shared by every ownership-transfer reply: it names what it answers.
 
-    The transferee's two answers, and the offerer's withdrawal.
+    The transferee's two answers name the CASE_MANAGER's Offer; the owner's
+    withdrawal names its own proposal (ADR-0148).
 
     TRIG-03-001: Must include offer_id.
     TRIG-03-002: Unknown fields are silently ignored (extra="ignore").

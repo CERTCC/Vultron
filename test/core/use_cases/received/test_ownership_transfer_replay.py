@@ -70,7 +70,7 @@ def _transferred(case_id: str) -> LedgerNetwork:
     )
     _send(net, proposal)
     offer = net.stores[MANAGER].read(
-        ownership_offer_id(MANAGER, case_id, proposal.id_)
+        ownership_offer_id(MANAGER, case_id, proposal.id_, OWNER)
     )
     assert offer is not None
     _send(

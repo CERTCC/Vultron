@@ -154,7 +154,9 @@ def test_the_case_manager_makes_one_offer_and_ledgers_it(
     )
 
     assert result.status == Status.SUCCESS
-    made_id = ownership_offer_id(CASE_ACTOR_ID, CASE_ID, PROPOSAL_ID)
+    made_id = ownership_offer_id(
+        CASE_ACTOR_ID, CASE_ID, PROPOSAL_ID, VENDOR_ID
+    )
     assert _offers(bt_scenario) == [made_id]
     offer = bt_scenario.dl.read(made_id)
     assert offer is not None

@@ -1089,19 +1089,19 @@ def find_full_case_invite_for_actor(
 def _is_ownership_transfer_offer_for(
     obj_data: dict, case_id: str, transferee_id: str
 ) -> bool:
-    """Return True if *obj_data* is a forwarded Offer(VulnerabilityCase) for *transferee_id*.
+    """True if *obj_data* is the CaseActor's ownership Offer to *transferee_id*.
 
-    The CaseActor creates a NEW Offer when forwarding an ownership-transfer Offer
-    to the transferee (CM-21-005).  The forwarded Offer has::
+    The CaseActor makes the one Offer of a transfer from the owner's proposal
+    and sends it to the transferee (CM-21-005, ADR-0148).  That Offer has::
 
         type   = "Offer"
         target = transferee_id      # the actor being offered ownership,
                                     # inline Actor or its id (DL-08-003)
         object = case_id            # the VulnerabilityCase being transferred
 
-    The original Vendor Offer (addressed to the CaseActor, target=case_actor_id)
-    does NOT match this discriminator, so polling for the forwarded Offer on
-    Coordinator's DataLayer correctly skips the original.
+    The Vendor's proposal, ``Offer(Offer(VulnerabilityCase))`` addressed to
+    the CaseActor, has no ``target`` and an Offer as its object, so it does
+    NOT match this discriminator.
     """
     offer = received_activity_in(obj_data)
     if offer.get("type") != "Offer":
@@ -1454,8 +1454,9 @@ def wait_for_object_stored(
     .. warning::
         **Only valid when the recipient stores the same object ID.**  When the
         receiving actor creates a *new* derived object in response (the
-        forwarding pattern — e.g. ``OfferCaseOwnershipTransferReceivedUseCase``
-        creating a new forwarded Offer), the original *obj_id* will never
+        propose-then-execute pattern — e.g.
+        ``ProposeCaseOwnershipTransferReceivedUseCase`` making the Offer from
+        the owner's proposal), the original *obj_id* will never
         appear in the recipient's DataLayer.  Use
         :func:`find_ownership_transfer_offer_for_actor` or a similar semantic
         scan in those cases.  See EDF-06-004 and issue #2178.

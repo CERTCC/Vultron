@@ -465,8 +465,9 @@ groups:
       `Offer(VulnerabilityCase)`: the one Offer of a transfer, which the
       CASE_MANAGER makes from the Case Owner's proposal (CM-21-005).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `OfferCaseOwnershipTransferPattern` uses `TAtype.OFFER` and `AOtype.VULNERABILITY_CASE`; integration
-      tests in `test/demo/test_transfer_ownership_demo.py` exercise this flow.
+      `OfferCaseOwnershipTransferActivityPattern` uses `TAtype.OFFER` and
+      `AOtype.VULNERABILITY_CASE`; a test marked `VAM-04-007` in
+      `test/test_semantic_activity_patterns.py` matches an Offer of the case to it.
     stories:
     - story_2022_050
     - story_2022_047
@@ -475,8 +476,10 @@ groups:
     kind: protocol
     statement: '`ACCEPT_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Accept(Offer(VulnerabilityCase))`'
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `AcceptCaseOwnershipTransferPattern` wraps `OfferCaseOwnershipTransferPattern` inside an `Accept` outer
-      pattern; integration tests in `test/demo/test_transfer_ownership_demo.py` exercise this flow.
+      `AcceptCaseOwnershipTransferActivityPattern` wraps
+      `OfferCaseOwnershipTransferActivityPattern` inside an `Accept` outer
+      pattern; a test marked `VAM-04-008` in `test/test_semantic_activity_patterns.py`
+      matches an Accept of the Offer to it.
     stories:
     - story_2022_050
     - story_2022_048
@@ -485,8 +488,10 @@ groups:
     kind: protocol
     statement: '`REJECT_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Reject(Offer(VulnerabilityCase))`'
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
-      `RejectCaseOwnershipTransferPattern` wraps `OfferCaseOwnershipTransferPattern` inside a `Reject` outer
-      pattern; integration tests in `test/demo/test_transfer_ownership_demo.py` exercise this flow.
+      `RejectCaseOwnershipTransferActivityPattern` wraps
+      `OfferCaseOwnershipTransferActivityPattern` inside a `Reject` outer
+      pattern; a test marked `VAM-04-009` in `test/test_semantic_activity_patterns.py`
+      matches an Reject of the Offer to it.
     stories:
     - story_2022_048
     - story_2022_050
