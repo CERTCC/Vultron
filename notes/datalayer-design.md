@@ -40,7 +40,7 @@ Specs: `specs/datalayer.yaml`.
 
 `dl.read()` returns core objects, never wire objects (ADR-0034), and core
 reads a received activity's facts only from the read-only view its archive loads
-(ADR-0148; #4943 rewrites DL-06-001 and DL-06-002 to match; see "Activity
+(ADR-0149; #4943 rewrites DL-06-001 and DL-06-002 to match; see "Activity
 Read-Back" below).
 
 ## DataLayer vs. CasePersistence
@@ -109,9 +109,9 @@ it conflates apart:
 
 | Need | Source of truth | Rule |
 |---|---|---|
-| **Semantic content** — what a message *means* | **Core state**, or the archive's read-only view | Core reads a received activity's facts only from the view its archive loads, never from a wire row (ADR-0148; #4943 rewrites DL-06-001 and DL-06-002 to match). |
+| **Semantic content** — what a message *means* | **Core state**, or the archive's read-only view | Core reads a received activity's facts only from the view its archive loads, never from a wire row (ADR-0149; #4943 rewrites DL-06-001 and DL-06-002 to match). |
 | **Correlation** — which prior message this answers | **Core-entity relationship** | Resolve through a domain relationship, not a wire re-read (DL-06-003). |
-| **Envelope reconstitution** — verbatim original in a reply's `object_` | **The archived sealed body** | Read only via a wire/adapter seam that parses the sealed body; never the core summary (DL-06-004, ADR-0148). |
+| **Envelope reconstitution** — verbatim original in a reply's `object_` | **The archived sealed body** | Read only via a wire/adapter seam that parses the sealed body; never the core summary (DL-06-004, ADR-0149). |
 
 The extractor (the single interpretation site, ARCH-03-001) records each domain
 fact as core state at interpretation time — a transition on an existing core
@@ -143,7 +143,7 @@ sealed and nothing derived from it; each load reparses it through the inbox's
 parse and extraction into a read-only view. Reason: a stored summary silently
 loses every field the extractor does not copy, so a reply built from it embeds
 that summary instead of what the sender sent. Never add a second stored copy
-beside the sealed body: two copies of one delivery drift. Source: ADR-0148.
+beside the sealed body: two copies of one delivery drift. Source: ADR-0149.
 
 ## A DataLayer Fallback Is a Smell for a Masked Protocol Bug
 

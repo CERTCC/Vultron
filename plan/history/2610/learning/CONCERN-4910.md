@@ -29,6 +29,6 @@ Where: vultron/wire/as2/extractor/_builders.py, vultron/core/behaviors/case/node
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/4942>.
 
-ADR: `docs/adr/0148-the-received-archive-is-the-bytes-that-arrived-read-through-a-read-only-view.md`.
+ADR: `docs/adr/0149-the-received-archive-is-the-sealed-received-body-read-through-a-read-only-view.md`.
 
 Notes: `notes/datalayer-design.md`.
