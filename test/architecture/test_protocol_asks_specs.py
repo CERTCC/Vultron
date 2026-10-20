@@ -31,7 +31,7 @@ the build, and whoever landed it must replace the placeholder assertion with a
 real behavioural one. That promotion is the point: this module is a ratchet, not
 a substitute for testing the feature.
 
-Specs: ASK-01 through ASK-08, CP-05-007, OX-14-002, RSH-07-004, RSH-07-005.
+Specs: ASK-01 through ASK-08 (including ASK-07-010), CP-05-007, OX-14-002, RSH-07-004, RSH-07-005.
 See `notes/protocol-asks.md` and ADR-0080.
 """
 
@@ -576,6 +576,27 @@ def test_unprocessable_activity_is_not_committed_to_the_ledger() -> None:
         "The dead-letter tree commits a canonical ledger entry for an activity "
         "that could not be processed."
     )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "ASK-07-010: no internal-error failure class exists, so a received "
+        "use case that raises is only logged and its sender is never "
+        "answered. Tracked by #4981."
+    ),
+)
+@pytest.mark.spec("ASK-07-010")
+def test_a_raising_received_use_case_is_answered_with_a_fault() -> None:
+    """A raising received use case MUST be answered with a fault (ASK-07-010).
+
+    The inbox answered the sender before processing, and a failed act keeps
+    nothing but intake's archive, so the fault is the sender's only notice.
+    """
+    fault_classes = importlib.import_module(
+        "vultron.core.models.fault_classes"
+    )
+    assert hasattr(fault_classes, "VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR")
 
 
 # ---------------------------------------------------------------------------

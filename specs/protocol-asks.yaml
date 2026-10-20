@@ -805,6 +805,38 @@ groups:
       No ledger entry is committed for an activity that failed processing.
     adr:
     - ADR-0080
+  - id: ASK-07-010
+    stories:
+    - story_2022_039
+    - story_2022_077
+    priority: MUST
+    kind: protocol
+    statement: >
+      When a received-side use case raises while processing an inbound activity
+      whose sender it can name, the inbox MUST answer that sender with
+      `Create(ProcessingFault)` of an internal-error failure class, emitted
+      after the act's DataLayer transaction has rolled back. It MUST cover every
+      received use case, not only the trees that commit an act. A deferred
+      activity replayed from the pending queue MUST be answered only when it is
+      dead-lettered, never on an attempt that is retried. The fault id MUST be
+      derived from the failed activity and the failure class, so a repeated
+      failure of the same activity emits no second fault.
+    rationale: >
+      A failed received act keeps nothing but intake's archive (CLP-07-015), and
+      the inbox answered the sender before processing, so without this fault
+      the sender is never told and waits out its ask deadline in silence.
+      Emitting after the rollback keeps the fault from being undone with the
+      act; answering a deferred activity only at dead-letter keeps a retry
+      that later succeeds from sending a false fault.
+    verification: >
+      A received act whose consequence raises through the inbox leaves one
+      queued `Create(ProcessingFault)` to the sender with the internal-error
+      class and no diagnostics; a second failing delivery of the same body
+      queues nothing new.
+    adr:
+    - ADR-0080
+    tags:
+    - error-handling
 - id: ASK-08
   title: Lost-Reply Recovery
   description: >
