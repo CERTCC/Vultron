@@ -64,7 +64,7 @@ def create_case() -> as_Create:
     """The bootstrap ``Create(VulnerabilityCase)``, every object it introduces inline.
 
     A receiver seeds its replica from this one activity, so the report and the
-    participant travel as objects, not ids (CBT-01-012, ADR-0107 detail 4).
+    participant travel as objects, not ids (CBT-01-012, AKM-02-004).
     """
     participant = as_CaseParticipant(
         case_roles=[CVDRole.VENDOR],

@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""A sender inlines every object its activity introduces (ADR-0107 detail 4).
+"""A sender inlines every object its activity introduces (AKM-02-004).
 
 A receiver never has to reconstruct an object the sender already held, so first
 delivery does not depend on a fetch.  Two ratchets hold this:

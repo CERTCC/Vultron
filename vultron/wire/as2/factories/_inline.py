@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The object an activity introduces travels inline (ADR-0107 detail 4).
+"""The object an activity introduces travels inline (AKM-02-004).
 
 Most factories get this from their activity class, whose ``object_`` field is
 typed as the full object, so Pydantic refuses a bare id.  A factory that builds
@@ -47,6 +47,6 @@ def require_inline(
         raise VultronActivityConstructionError(
             f"{factory}: the object an activity introduces travels inline,"
             f" so it must be a {cls.__name__}, got {type(value).__name__}"
-            " (ADR-0107 detail 4, AKM-03-003)"
+            " (AKM-02-004, AKM-03-003)"
         )
     return value

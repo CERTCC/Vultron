@@ -81,7 +81,7 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
         # the id is non-empty rather than equal to the shared singleton.
         self.assertTrue(case_from_activity.id_)
         # The report travels inline too: the receiver seeds its replica from
-        # this one activity (CBT-01-012, ADR-0107 detail 4).
+        # this one activity (CBT-01-012, AKM-02-004).
         carried_report = case_from_activity.vulnerability_reports[0]
         self.assertIsInstance(carried_report, as_VulnerabilityReport)
         self.assertEqual(

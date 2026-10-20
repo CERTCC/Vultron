@@ -59,7 +59,7 @@ too, because the hash chain must cover it (CLP-07-006).
 - Test fixtures that construct activities use full domain objects as `object_`
   (TB-05-004).
 
-- An activity that introduces an object carries it inline (ADR-0107 detail 4).
+- An activity that introduces an object carries it inline (AKM-02-004).
   A factory whose activity class would accept an id there (a generic `as_Create`,
   or a class that admits a URI for received activities) guards it with
   `require_inline` (`vultron/wire/as2/factories/_inline.py`).

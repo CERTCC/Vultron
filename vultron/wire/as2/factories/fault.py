@@ -59,7 +59,7 @@ def create_processing_fault_activity(
 
     Raises:
         VultronActivityConstructionError: If *fault* is not an inline
-            ``as_ProcessingFault`` (ADR-0107 detail 4).
+            ``as_ProcessingFault`` (AKM-02-004).
     """
     fault = require_inline(
         fault, as_ProcessingFault, factory="create_processing_fault_activity"

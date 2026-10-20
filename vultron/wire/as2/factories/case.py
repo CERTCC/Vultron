@@ -1290,8 +1290,8 @@ def create_case_proposal_activity(
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails,
-            *proposal* is not an inline ``as_CaseProposal`` (ADR-0107
-            detail 4), or *actor* is not the proposal's ``attributed_to``.
+            *proposal* is not an inline ``as_CaseProposal`` (AKM-02-004),
+            or *actor* is not the proposal's ``attributed_to``.
     """
     proposal = require_inline(
         proposal, as_CaseProposal, factory="create_case_proposal_activity"
