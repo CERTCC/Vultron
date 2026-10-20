@@ -33,8 +33,10 @@ References to objects the receiver already holds may stay bare: a case in
 
 import importlib
 import inspect
+import pkgutil
+import types
+import typing
 from collections.abc import Callable
-from types import ModuleType
 from typing import Any, cast
 
 import pytest
@@ -47,6 +49,7 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2 import factories as factories_package
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     add_note_to_case_activity,
@@ -64,6 +67,7 @@ from vultron.wire.as2.factories import (
     offer_case_participant_activity,
     offer_case_participant_role_activity,
     rm_create_report_activity,
+    rm_invite_to_case_activity,
     rm_submit_report_activity,
 )
 from vultron.wire.as2.factories.case import create_case_proposal_activity
@@ -72,16 +76,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.examples import vocab_examples
 from vultron.wire.as2.vocab.examples.case_proposal import vendor_profile
 from vultron.wire.as2.vocab.objects.embargo_consent import as_EmbargoConsent
-
-_FACTORY_MODULES = (
-    "actor",
-    "case",
-    "case_participant",
-    "embargo",
-    "fault",
-    "report",
-    "sync",
-)
 
 _ACTOR = "https://example.org/actors/coordinator"
 _PEER = "https://example.org/actors/vendor"
@@ -184,19 +178,32 @@ INTRODUCES: dict[
 }
 
 #: Factories that build the object they introduce from their arguments, so
-#: there is no object to pass as an id; the recipe builds the activity.
-BUILDS_WHAT_IT_INTRODUCES: dict[str, Callable[[], as_Activity]] = {
-    "offer_case_participant_activity": lambda: offer_case_participant_activity(
-        _PEER, target=_CASE, actor=_ACTOR, to=[_ACTOR]
+#: there is no object to pass as an id: ``(build, the slot it travels in)``.
+BUILDS_WHAT_IT_INTRODUCES: dict[str, tuple[Callable[[], as_Activity], str]] = {
+    "offer_case_participant_activity": (
+        lambda: offer_case_participant_activity(
+            _PEER, target=_CASE, actor=_ACTOR, to=[_ACTOR]
+        ),
+        "object",
     ),
-    "offer_case_participant_role_activity": lambda: (
-        offer_case_participant_role_activity(
+    "offer_case_participant_role_activity": (
+        lambda: offer_case_participant_role_activity(
             role=CVDRole.CASE_MANAGER,
             target_actor=as_Actor(id_=_PEER),
             case=_CASE,
             actor=_ACTOR,
             to=[_PEER],
-        )
+        ),
+        "object",
+    ),
+    # The invitee does not hold the case yet, so the stub Invite introduces
+    # it: the stub, built from a case given only by URI, goes in ``target``
+    # (CM-17-002, MV-10-001).
+    "rm_invite_to_case_activity": (
+        lambda: rm_invite_to_case_activity(
+            _PEER, target=_CASE, actor=_ACTOR, to=[_PEER]
+        ),
+        "target",
     ),
 }
 
@@ -249,19 +256,25 @@ INTRODUCES_NOTHING: dict[str, str] = {
     "reject_embargo_proposal_activity": _HELD,
     "announce_embargo_activity": _HELD,
     "recommend_actor_activity": _ACTOR_REF,
-    "rm_invite_to_case_activity": _ACTOR_REF,
+    # The invitee already holds the case from the Announce (AKM-02-003).
     "rm_invite_to_full_case_activity": _ACTOR_REF,
     "bootstrap_replay_question_activity": "a Question, which carries no object",
 }
 
 
+def _factory_modules() -> list[types.ModuleType]:
+    """Every public module of the factories package, found, not listed."""
+    return [
+        importlib.import_module(f"{factories_package.__name__}.{info.name}")
+        for info in pkgutil.iter_modules(factories_package.__path__)
+        if not info.name.startswith("_") and info.name != "errors"
+    ]
+
+
 def _factory_names() -> set[str]:
     """Every public ``*_activity`` function the factory modules define."""
     names: set[str] = set()
-    for short in _FACTORY_MODULES:
-        module: ModuleType = importlib.import_module(
-            f"vultron.wire.as2.factories.{short}"
-        )
+    for module in _factory_modules():
         for name, value in inspect.getmembers(module, inspect.isfunction):
             if (
                 value.__module__ == module.__name__
@@ -290,12 +303,23 @@ def test_an_introducing_factory_refuses_a_bare_id(factory):
         build(_BARE)
 
 
-def _carried_inline(activity: as_Activity) -> dict[str, Any]:
-    obj = wire_body(activity).get("object")
-    assert isinstance(obj, dict) and obj.get("type") and obj.get("id"), (
-        f"{type(activity).__name__} carries {obj!r}, not an inline object"
+def _is_inline(value: object) -> bool:
+    """An inline object names its ``type`` and its ``id``; a bare id does not."""
+    return (
+        isinstance(value, dict)
+        and bool(value.get("type"))
+        and bool(value.get("id"))
     )
-    return cast(dict[str, Any], obj)
+
+
+def _carried_inline(
+    body: dict[str, Any], slot: str = "object"
+) -> dict[str, Any]:
+    value = body.get(slot)
+    assert _is_inline(value), (
+        f"{body.get('type')} carries {value!r} in {slot}, not an inline object"
+    )
+    return cast(dict[str, Any], value)
 
 
 @pytest.mark.spec("AKM-03-003")
@@ -303,14 +327,81 @@ def _carried_inline(activity: as_Activity) -> dict[str, Any]:
 def test_an_introducing_factory_carries_the_object_inline(factory):
     build, inline = INTRODUCES[factory]
     introduced = inline()
-    obj = _carried_inline(build(introduced))
+    obj = _carried_inline(wire_body(build(introduced)))
     assert obj["id"] == introduced.id_
 
 
 @pytest.mark.spec("AKM-03-003")
 @pytest.mark.parametrize("factory", sorted(BUILDS_WHAT_IT_INTRODUCES))
 def test_a_factory_that_builds_its_object_carries_it_inline(factory):
-    _carried_inline(BUILDS_WHAT_IT_INTRODUCES[factory]())
+    build, slot = BUILDS_WHAT_IT_INTRODUCES[factory]
+    _carried_inline(wire_body(build()), slot)
+
+
+#: The parameter of an answering or acting factory that holds the activity it
+#: answers or the object it acts on, by name.
+_OBJECT_PARAMETERS = frozenset(
+    {
+        "offer",
+        "leave",
+        "invite",
+        "proposal",
+        "late_accept",
+        "entry",
+        "refused",
+        "case",
+        "participant",
+        "row",
+        "embargo",
+    }
+)
+
+
+def _admits_a_bare_string(annotation: object) -> bool:
+    if annotation is str or annotation in (Any, object):
+        return True
+    if typing.get_origin(annotation) in (typing.Union, types.UnionType):
+        return any(
+            _admits_a_bare_string(a) for a in typing.get_args(annotation)
+        )
+    return False
+
+
+def _factory(name: str) -> Callable[..., Any]:
+    for module in _factory_modules():
+        if hasattr(module, name):
+            return cast(Callable[..., Any], getattr(module, name))
+    raise LookupError(name)
+
+
+@pytest.mark.spec("AKM-03-003")
+@pytest.mark.parametrize(
+    "factory",
+    sorted(
+        name
+        for name, reason in INTRODUCES_NOTHING.items()
+        if reason in (_ANSWERS, _HELD)
+    ),
+)
+def test_an_answering_or_acting_factory_takes_its_object_typed(factory):
+    """What such a factory carries is typed, so it cannot start taking an id.
+
+    The classification says why it introduces nothing; this keeps the reason
+    true, since a parameter annotated to admit ``str`` would let a bare id
+    through to ``object`` unexamined.
+    """
+    function = _factory(factory)
+    hints = typing.get_type_hints(function)
+    held = [
+        p
+        for p in inspect.signature(function).parameters
+        if p in _OBJECT_PARAMETERS
+    ]
+    assert held, (
+        f"{factory} names no parameter in {sorted(_OBJECT_PARAMETERS)}"
+    )
+    admits = [p for p in held if _admits_a_bare_string(hints.get(p, Any))]
+    assert not admits, f"{factory} takes {admits} as a bare string"
 
 
 #: Activity types whose example introduces its ``object``.
@@ -353,10 +444,7 @@ def test_the_example_corpus_has_introducing_activities():
 @pytest.mark.parametrize("example", sorted(_INTRODUCING_EXAMPLES))
 def test_an_example_carries_what_it_introduces_inline(example):
     body = _INTRODUCING_EXAMPLES[example]
-    obj = body.get("object")
-    assert isinstance(obj, dict), (
-        f"{example} sends {body.get('type')} with a bare object {obj!r}"
-    )
+    obj = _carried_inline(body)
     bare = _bare_ids_in_introduced_case(obj)
     assert not bare, (
         f"{example} introduces a case whose nested objects are bare ids: {bare}"
