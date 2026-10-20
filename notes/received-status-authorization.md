@@ -94,8 +94,8 @@ nothing on receipt (RSH-04-005, RSH-08-003).
 
 **The adoption commit carries the reported P/X/A.** `EmitCaseStatusUpdateNode`
 snapshots the case's own state, so in `add_participant_status_tree` it takes the
-sender's embedded case status as `reported_status` and adopts its `pxa` when that
-moves forward (`adopted_pxa`, RSH-01-003, RSH-05-019). Without it the commit
+sender's status (by id at tick, else inline) and adds every P/X/A latch it sets,
+clearing none (`adopted_pxa`, RSH-01-003). Without it the commit
 re-snapshots an unchanged `pxa` and the adoption adopts nothing (#4956). Assert
 a P/X/A report against `case.current_status`, not the sender's record.
 
@@ -199,10 +199,12 @@ pass evaluates RM↔VF, RM↔D (CSB-18-001) and VF↔D (CSB-17-001):
 `CaseStatus` carries CS.P, CS.X or CS.A (RSH-03-001 to RSH-03-003). It does no
 sender check: authorization happened at the gates.
 
-- **A CASE_MANAGER-declared status is torn down by the CASE_MANAGER.** At any
-  other actor the branch does nothing (`_DeclaredByCaseManagerNode`, RSH-03-004);
-  the replica waits for the committed teardown entry. The skip decides *who*
-  tears down, not *whether*.
+- **Only the CASE_MANAGER runs the teardown.** The branch is built only by
+  `add_participant_status_tree`, under its CASE_MANAGER gate
+  (`test/architecture/test_teardown_branch_sites.py`); a replica learns the
+  teardown from the committed entries and never asks for one (RSH-03-004). Do not
+  add a teardown to a tree a replica runs, or the out-of-order ask of #4149
+  returns.
 - **A blocked teardown leaves the PXA↔EM entailment violated** (CSB-18-002 to
   CSB-18-004). `PxaEmInvariantDiagnosticNode` detects it after the cascade in
   `add_participant_status_tree`, at the CASE_MANAGER only, and commits a note as

@@ -574,6 +574,40 @@ class TestAddCaseStatusTreeSenderRule:
         assert populated_dl.outbox_list() == []
 
     @pytest.mark.spec("RSH-04-005")
+    @pytest.mark.spec("PCR-03-001")
+    @pytest.mark.spec("HP-01-006")
+    def test_a_replica_with_no_case_manager_refuses_every_sender(
+        self, make_payload
+    ):
+        """With no CASE_MANAGER on its case there is nobody to admit it from,
+        so even a stranger's public-awareness status is refused by the sender
+        guard, with nothing appended, committed or sent."""
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="No manager", attributed_to=ACTOR_ID
+        )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
+        seed_case_participant(dl, case, ACTOR_ID)
+        dl.create(case)
+        status_obj = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
+        )
+        dl.create(status_obj)
+        activity = add_status_to_case_activity(
+            status_obj,
+            target=CASE_ID,
+            actor="https://example.org/actors/stranger",
+            to=[ACTOR_ID],
+        )
+
+        result, tree = _run_at_replica(dl, make_payload(activity))
+
+        assert result.status == Status.FAILURE
+        assert not door_guards_admitted(tree)
+        assert STATUS_ID not in _status_ids(dl)
+        assert _ledger_entries(dl) == []
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("RSH-04-005")
     @pytest.mark.spec("HP-01-006")
     def test_a_status_sent_to_the_case_manager_is_refused(self, make_payload):
         """Not even the CASE_MANAGER's own: no sender is entitled at the
@@ -1092,9 +1126,6 @@ class TestAddCaseStatusToCaseReceivedUseCase:
 # ---------------------------------------------------------------------------
 
 
-PEER_SENDER_ID = "https://example.org/users/peer"
-
-
 class TestThreatTerminationBranchNode:
     """RSH-03-001: fires teardown on P/X/A; RSH-03-002: no sender-role gate."""
 
@@ -1265,8 +1296,8 @@ class TestThreatTerminationBranchNode:
     def test_no_sender_role_gate(self, dl):
         """RSH-03-002: a sender holding no role still triggers the teardown.
 
-        Sender authorization was handled at StatusAdoptionGate.  The sender
-        matters only for RSH-03-004, when it is the CASE_MANAGER itself.
+        Sender authorization was handled at StatusAdoptionGate, and the node
+        takes no sender at all.
         """
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
@@ -1282,16 +1313,13 @@ class TestThreatTerminationBranchNode:
         node = ThreatTerminationBranchNode(
             status_obj=status_obj,
             case_id=CASE_ID,
-            sender_actor_id="https://example.org/users/no-role",
         )
         bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
         assert updated.current_status.em.state == EM.EXITED
 
-    def _run_replica(
-        self, dl, status_obj, sender: str
-    ) -> py_trees.common.Status:
+    def _run_replica(self, dl, status_obj) -> py_trees.common.Status:
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
         )
@@ -1303,40 +1331,22 @@ class TestThreatTerminationBranchNode:
             sync_port=SyncActivityAdapter(dl),
         )
         node = ThreatTerminationBranchNode(
-            status_obj=status_obj, case_id=CASE_ID, sender_actor_id=sender
+            status_obj=status_obj, case_id=CASE_ID
         )
         return bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID).status
 
-    @pytest.mark.spec("RSH-03-004")
-    def test_a_replica_waits_for_the_managers_teardown_entry(self, dl):
-        """The manager's P/X/A declaration arrives before its teardown entry.
+    @pytest.mark.spec("EP-09-008")
+    def test_a_non_manager_running_the_branch_asks_the_manager(self, dl):
+        """Run off the CASE_MANAGER, the branch asks rather than tears down.
 
-        The replica still holds the active embargo, and it asks nothing:
-        the manager has already torn down (#4149).
+        No received tree runs it there (RSH-03-004); this pins the node's
+        own behaviour should one ever do so.
         """
         status_obj = self._setup_dl_with_embargo(
             dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
         )
 
-        status = self._run_replica(dl, status_obj, sender=CASE_MANAGER_ID)
-
-        assert status == Status.SUCCESS
-        assert dl.outbox_list() == []
-        updated = cast(VulnerabilityCase, dl.read(CASE_ID))
-        assert updated.current_status.em.state == EM.ACTIVE
-
-    @pytest.mark.spec("RSH-03-004")
-    @pytest.mark.spec("EP-09-008")
-    def test_a_replica_still_asks_on_a_status_the_manager_did_not_declare(
-        self, dl
-    ):
-        status_obj = self._setup_dl_with_embargo(
-            dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
-        )
-
-        status = self._run_replica(
-            dl, status_obj, sender="https://example.org/users/peer"
-        )
+        status = self._run_replica(dl, status_obj)
 
         assert status == Status.SUCCESS
         queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
@@ -1425,7 +1435,7 @@ class TestThreatTerminationBranchNode:
             dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
         )
 
-        self._run_replica(dl, status_obj, sender=PEER_SENDER_ID)
+        self._run_replica(dl, status_obj)
 
         [ask_id] = dl.outbox_list()
         pending = self._ask_pending()
@@ -1439,9 +1449,9 @@ class TestThreatTerminationBranchNode:
         status_obj = self._setup_dl_with_embargo(
             dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
         )
-        self._run_replica(dl, status_obj, sender=PEER_SENDER_ID)
+        self._run_replica(dl, status_obj)
 
-        status = self._run_replica(dl, status_obj, sender=PEER_SENDER_ID)
+        status = self._run_replica(dl, status_obj)
 
         assert status == Status.SUCCESS
         assert len(dl.outbox_list()) == 1
@@ -1452,13 +1462,13 @@ class TestThreatTerminationBranchNode:
         status_obj = self._setup_dl_with_embargo(
             dl, CS_pxa.Pxa, manager_id=CASE_MANAGER_ID
         )
-        self._run_replica(dl, status_obj, sender=PEER_SENDER_ID)
+        self._run_replica(dl, status_obj)
         [first_ask_id] = dl.outbox_list()
 
         self._announce_managers_teardown_entry(dl, first_ask_id)
 
         assert self._ask_pending() is None
-        self._run_replica(dl, status_obj, sender=PEER_SENDER_ID)
+        self._run_replica(dl, status_obj)
         pending = self._ask_pending()
         assert pending is not None
         assert pending.object_id != first_ask_id
@@ -1476,7 +1486,7 @@ class TestThreatTerminationBranchNodeProposedEm:
     """
 
     def _setup(
-        self, store_actor: str, sender: str | None = None
+        self, store_actor: str
     ) -> tuple[SqliteDataLayer, BTBridge, ThreatTerminationBranchNode]:
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
@@ -1518,7 +1528,7 @@ class TestThreatTerminationBranchNodeProposedEm:
             sync_port=SyncActivityAdapter(dl),
         )
         node = ThreatTerminationBranchNode(
-            status_obj=status_obj, case_id=CASE_ID, sender_actor_id=sender
+            status_obj=status_obj, case_id=CASE_ID
         )
         return dl, bridge, node
 
@@ -1535,15 +1545,9 @@ class TestThreatTerminationBranchNodeProposedEm:
         assert updated.proposed_embargo_ids == []
 
     @pytest.mark.spec("EMB-16-002")
-    @pytest.mark.spec("RSH-03-004")
-    @pytest.mark.parametrize(
-        "sender", [None, CASE_MANAGER_ID], ids=["undeclared", "by-manager"]
-    )
-    def test_a_non_manager_writes_and_sends_nothing(self, sender):
-        """Whoever declared the status, a non-manager neither abandons nor
-        asks; with the manager as sender the out-of-order arrival skips the
-        branch before it is reached (#4149)."""
-        dl, bridge, node = self._setup(ACTOR_ID, sender=sender)
+    def test_a_non_manager_writes_and_sends_nothing(self):
+        """A non-manager neither abandons the open proposal nor asks."""
+        dl, bridge, node = self._setup(ACTOR_ID)
 
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
@@ -1552,11 +1556,6 @@ class TestThreatTerminationBranchNodeProposedEm:
         assert updated.current_status.em.state == EM.PROPOSED
         assert updated.proposed_embargo_ids == [PROPOSED_EMBARGO_ID]
         assert dl.outbox_list() == []
-        skip = next(
-            c for c in node.children if c.name == "DeclaredByCaseManager"
-        )
-        expected = Status.SUCCESS if sender else Status.FAILURE
-        assert skip.status == expected
 
 
 # ---------------------------------------------------------------------------

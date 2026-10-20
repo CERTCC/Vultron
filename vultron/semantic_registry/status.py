@@ -16,6 +16,9 @@ Covers both case-level and participant-level status entries.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from collections.abc import Mapping
+from dataclasses import dataclass
+
 from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.events.base import MessageSemantics
@@ -76,36 +79,6 @@ _PARTICIPANT_PXA_NOTES = (
 )
 
 
-def _participant_pxa_occasion(
-    *,
-    anchor: str,
-    heading: str,
-    description: str,
-    example: str,
-    pxa: CS_pxa,
-    shorthand: ProtocolShorthand,
-) -> Occasion:
-    """An occasion for a participant's own P/X/A report, which travels as
-    the ``pxa`` of the case status its ``ParticipantStatus`` embeds."""
-    return Occasion(
-        when=_PXA_WHEN[pxa],
-        anchor=anchor,
-        addressee=AddresseeSide.CASE_MANAGER,
-        heading=heading,
-        description=description,
-        example=example,
-        distinguisher=FieldValue(
-            object_type=ParticipantStatus,
-            within="case_status",
-            field="pxa",
-            value=pxa,
-        ),
-        howto=HowToGuide.STATUS_UPDATES,
-        shorthand=shorthand,
-        notes=_PARTICIPANT_PXA_NOTES,
-    )
-
-
 #: When the CASE_MANAGER records each adopted P/X/A in ``Add(CaseStatus)``.
 _CASE_PXA_WHEN: dict[CS_pxa, str] = {
     CS_pxa.Pxa: (
@@ -130,7 +103,44 @@ _CASE_PXA_NOTES = (
 )
 
 
-def _case_pxa_occasion(
+@dataclass(frozen=True)
+class _PxaForm:
+    """What tells one wire form of the P/X/A messages apart from the other:
+    who sends it, to whom, and where the ``pxa`` it carries sits."""
+
+    when: Mapping[CS_pxa, str]
+    addressee: AddresseeSide
+    object_type: type[CaseStatus] | type[ParticipantStatus]
+    within: str | None
+    howto: HowToGuide | None
+    notes: str
+
+
+#: A participant's own report, in the case status its participant status
+#: embeds (RSH-04-001); the CASE_MANAGER chooses whether to adopt it.
+_PARTICIPANT_PXA = _PxaForm(
+    when=_PXA_WHEN,
+    addressee=AddresseeSide.CASE_MANAGER,
+    object_type=ParticipantStatus,
+    within="case_status",
+    howto=HowToGuide.STATUS_UPDATES,
+    notes=_PARTICIPANT_PXA_NOTES,
+)
+
+#: The CASE_MANAGER's record of what it adopted, which it alone sends, to a
+#: participant (RSH-04-001, RSH-04-005).
+_CASE_PXA = _PxaForm(
+    when=_CASE_PXA_WHEN,
+    addressee=AddresseeSide.PARTICIPANT,
+    object_type=CaseStatus,
+    within=None,
+    howto=None,
+    notes=_CASE_PXA_NOTES,
+)
+
+
+def _pxa_occasion(
+    form: _PxaForm,
     *,
     anchor: str,
     heading: str,
@@ -139,21 +149,23 @@ def _case_pxa_occasion(
     pxa: CS_pxa,
     shorthand: ProtocolShorthand,
 ) -> Occasion:
-    """An occasion for the CASE_MANAGER's record of an adopted P/X/A, which
-    it alone sends in ``Add(CaseStatus)``, to a participant (RSH-04-001,
-    RSH-04-005)."""
+    """An occasion for the P/X/A message *pxa* in the wire form *form*."""
     return Occasion(
-        when=_CASE_PXA_WHEN[pxa],
+        when=form.when[pxa],
         anchor=anchor,
-        addressee=AddresseeSide.PARTICIPANT,
+        addressee=form.addressee,
         heading=heading,
         description=description,
         example=example,
         distinguisher=FieldValue(
-            object_type=CaseStatus, field="pxa", value=pxa
+            object_type=form.object_type,
+            within=form.within,
+            field="pxa",
+            value=pxa,
         ),
+        howto=form.howto,
         shorthand=shorthand,
-        notes=_CASE_PXA_NOTES,
+        notes=form.notes,
     )
 
 
@@ -168,7 +180,8 @@ ENTRIES: list[SemanticEntry] = [
         wire_activity_class=_AddStatusToCaseActivity,
         include_activity=True,
         occasions=(
-            _case_pxa_occasion(
+            _pxa_occasion(
+                _CASE_PXA,
                 anchor="public-awareness",
                 heading="Public awareness in a case status",
                 description=(
@@ -179,7 +192,8 @@ ENTRIES: list[SemanticEntry] = [
                 pxa=CS_pxa.Pxa,
                 shorthand=ProtocolShorthand.CP,
             ),
-            _case_pxa_occasion(
+            _pxa_occasion(
+                _CASE_PXA,
                 anchor="exploit-public",
                 heading="Exploit public in a case status",
                 description=(
@@ -190,7 +204,8 @@ ENTRIES: list[SemanticEntry] = [
                 pxa=CS_pxa.PXa,
                 shorthand=ProtocolShorthand.CX,
             ),
-            _case_pxa_occasion(
+            _pxa_occasion(
+                _CASE_PXA,
                 anchor="attacks-observed",
                 heading="Attacks observed in a case status",
                 description=(
@@ -275,7 +290,8 @@ ENTRIES: list[SemanticEntry] = [
             # (RSH-07-001), and an adopted P, X or A ends or abandons the
             # embargo (RSH-03-001), so each is an occasion of this entry
             # (#4569).
-            _participant_pxa_occasion(
+            _pxa_occasion(
+                _PARTICIPANT_PXA,
                 anchor="participant-public-awareness",
                 heading="Public awareness in a participant status",
                 description=(
@@ -286,7 +302,8 @@ ENTRIES: list[SemanticEntry] = [
                 pxa=CS_pxa.Pxa,
                 shorthand=ProtocolShorthand.CP,
             ),
-            _participant_pxa_occasion(
+            _pxa_occasion(
+                _PARTICIPANT_PXA,
                 anchor="participant-exploit-public",
                 heading="Exploit public in a participant status",
                 description=(
@@ -297,7 +314,8 @@ ENTRIES: list[SemanticEntry] = [
                 pxa=CS_pxa.PXa,
                 shorthand=ProtocolShorthand.CX,
             ),
-            _participant_pxa_occasion(
+            _pxa_occasion(
+                _PARTICIPANT_PXA,
                 anchor="participant-attacks-observed",
                 heading="Attacks observed in a participant status",
                 description=(

@@ -217,17 +217,19 @@ class TestEmitCaseStatusUpdateNode:
             # A forward move is adopted (#4956).
             (CS_pxa.pxa, CS_pxa.Pxa, CS_pxa.Pxa),
             (CS_pxa.Pxa, CS_pxa.PXA, CS_pxa.PXA),
-            # A regression keeps the case's value (RSH-05-019).
+            # A latch the report omits is kept (RSH-01-003).
             (CS_pxa.PXa, CS_pxa.Pxa, CS_pxa.PXa),
+            # A mixed report adds its new latch and clears none.
+            (CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA),
             # An ephemeral pX is promoted on adoption (SM-09-001).
             (CS_pxa.pxa, CS_pxa.pXa, CS_pxa.PXa),
         ],
-        ids=["forward", "multi-forward", "regress", "promoted"],
+        ids=["forward", "multi-forward", "omitted", "mixed", "promoted"],
     )
-    def test_reported_status_pxa_is_adopted_only_forward(
+    def test_reported_status_latches_are_added(
         self, dl, case, case_pxa, reported, expected
     ):
-        """The committed CaseStatus carries an adopted forward pxa."""
+        """The committed CaseStatus adds the reported latches, clearing none."""
         case.case_statuses.append(  # type: ignore[arg-type]
             as_CaseStatus(context=CASE_ID, pxa=PxaDimension(state=case_pxa))
         )

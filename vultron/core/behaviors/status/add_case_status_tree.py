@@ -116,8 +116,12 @@ def add_case_status_tree(
         name="AddCaseStatusToCaseBT",
         case_id=case_id or None,
         sender_rule=sender_rule,
+        # A replica admits it from the CASE_MANAGER alone, so with no
+        # CASE_MANAGER to check against it refuses (RSH-04-005, PCR-03-001).
         sender_context=SenderCheckContext(
-            sender_id=sender_actor_id, case_id=case_id
+            sender_id=sender_actor_id,
+            case_id=case_id,
+            case_manager_required=True,
         ),
         precondition_guards=[
             CheckCaseStatusIdempotencyNode(

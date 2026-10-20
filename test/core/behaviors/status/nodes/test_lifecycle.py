@@ -194,7 +194,6 @@ class TestThreatTerminationBranchNodeProposedEmPath:
         )
         node = ThreatTerminationBranchNode(
             status_obj=public_aware_status,
-            sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
         return dl, bridge, node

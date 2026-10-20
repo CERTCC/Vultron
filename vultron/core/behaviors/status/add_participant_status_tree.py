@@ -254,6 +254,9 @@ def add_participant_status_tree(
                     if isinstance(status_obj, ParticipantStatus)
                     else None
                 ),
+                # Read at tick, after the append, so a status received by
+                # reference is adopted too.
+                reported_status_id=status_id or None,
             ),
             py_trees.decorators.FailureIsSuccess(
                 name="TeardownEffectsOrSkip",
@@ -276,7 +279,6 @@ def add_participant_status_tree(
                             case_id=tree_case_id,
                             name="ThreatTerminationBranch",
                             use_datalayer_fallback=True,
-                            sender_actor_id=actor_id,
                         ),
                     ],
                 ),

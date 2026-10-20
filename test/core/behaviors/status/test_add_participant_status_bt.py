@@ -80,9 +80,13 @@ from vultron.core.behaviors.status.nodes.threat_termination import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
+)
+from vultron.core.models.events.status import (
+    AddParticipantStatusToParticipantReceivedEvent,
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
@@ -1132,19 +1136,18 @@ class TestAddParticipantStatusTree:
         )
 
     @pytest.mark.spec("RSH-03-004")
-    def test_teardown_branch_is_given_the_statuss_sender(
+    @pytest.mark.spec("RSH-08-003")
+    def test_teardown_branch_runs_only_at_the_case_manager(
         self,
         populated_dl,
         make_payload,
     ):
-        """The tree hands ``ThreatTerminationBranchNode`` the status's sender.
+        """``ThreatTerminationBranchNode`` sits under the CASE_MANAGER gate.
 
-        RSH-03-004 decides at a replica whether the CASE_MANAGER declared the
-        P/X/A status; without the sender the skip never fires (#4149)."""
-        from vultron.core.behaviors.status.nodes.threat_termination import (
-            _DeclaredByCaseManagerNode,
-        )
-
+        A replica therefore never runs the teardown, and never asks the
+        CASE_MANAGER for one: it learns the teardown from the committed
+        entries alone (RSH-03-004).
+        """
         activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
             target=as_CaseParticipant(
@@ -1153,19 +1156,26 @@ class TestAddParticipantStatusTree:
             actor=ACTOR_ID,
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
-        event = make_payload(activity)
         tree = add_participant_status_tree(
-            request=event,
+            request=make_payload(activity),
             case_id=CASE_ID,
             sender_rule=_STATUS_RULE,
         )
 
-        declared = [
+        gates = [
             n
             for n in tree.iterate()
-            if isinstance(n, _DeclaredByCaseManagerNode)
+            if n.name == "AdoptParticipantStatusIfCaseManager"
         ]
-        assert [n.sender_actor_id for n in declared] == [ACTOR_ID]
+        assert len(gates) == 1
+        under_gate = {id(n) for n in gates[0].iterate()}
+        branches = [
+            n
+            for n in tree.iterate()
+            if isinstance(n, ThreatTerminationBranchNode)
+        ]
+        assert branches, "the tree must tear down on an adopted P/X/A"
+        assert all(id(n) in under_gate for n in branches)
 
     @pytest.mark.spec("RSH-01-001")
     @pytest.mark.spec("RSH-01-002")
@@ -2045,6 +2055,22 @@ def _case_status_entries(dl: SqliteDataLayer) -> list:
     ]
 
 
+def _seed_case_pxa(dl: SqliteDataLayer, pxa: CS_pxa) -> None:
+    """Record *pxa* as the case's status, stamped to the whole second as the
+    status the tree commits is, so that one sorts after it (CM-29-001)."""
+    from datetime import UTC, datetime
+
+    case = dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    case.append_case_status(pxa=pxa)
+    earlier = datetime.now(UTC).replace(microsecond=0)
+    seeded = case.case_statuses[-1]
+    assert isinstance(seeded, CaseStatus)
+    seeded.published = earlier
+    seeded.updated = earlier
+    dl.save(case)
+
+
 def _case_pxa(dl: SqliteDataLayer) -> CS_pxa:
     case = dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
@@ -2132,17 +2158,13 @@ class TestAdoptedPxaReachesTheCaseStatus:
         assert _case_status_entries(populated_dl) == []
 
     @pytest.mark.spec("RSH-01-003")
-    @pytest.mark.spec("RSH-05-019")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_a_regressing_report_leaves_the_case_pxa(
+    def test_a_report_omitting_a_latch_keeps_it(
         self, populated_dl, make_payload
     ):
-        """Case at PXa; a report of Pxa would un-set X, so the case keeps PXa."""
+        """Case at PXa; a report of Pxa omits X, which the case keeps."""
 
-        case = populated_dl.read(CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
-        case.append_case_status(pxa=CS_pxa.PXa)
-        populated_dl.save(case)
+        _seed_case_pxa(populated_dl, CS_pxa.PXa)
 
         result = _run_at_case_manager(
             populated_dl, make_payload(_pxa_report(CS_pxa.Pxa))
@@ -2155,12 +2177,59 @@ class TestAdoptedPxaReachesTheCaseStatus:
             "PXa"
         ]
 
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_a_mixed_report_adds_its_new_latch(
+        self, populated_dl, make_payload
+    ):
+        """Case at PxA; a report of PXa omits A but newly sets X: the case
+        moves to PXA, so the teardown never acts on an X it does not record."""
 
-class TestAdoptedPxa:
-    """``adopted_pxa`` adopts a monotone forward report, promoted (SM-09-001)."""
+        _seed_case_pxa(populated_dl, CS_pxa.PxA)
+
+        result = _run_at_case_manager(
+            populated_dl, make_payload(_pxa_report(CS_pxa.PXa))
+        )
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        assert _case_pxa(populated_dl) == CS_pxa.PXA
 
     @pytest.mark.spec("RSH-01-003")
-    @pytest.mark.spec("RSH-05-019")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_a_status_received_by_reference_is_adopted(
+        self, populated_dl, make_payload
+    ):
+        """The Add names its status by id only; the stored copy is read at
+        tick, so its P is adopted all the same (#4956)."""
+        from vultron.semantic_registry import extract_event
+        from vultron.wire.as2.parser import parse_activity
+
+        activity = _pxa_report(CS_pxa.Pxa)
+        status = activity.object_
+        assert isinstance(status, as_ParticipantStatus)
+        populated_dl.create(status)
+        body = activity.model_dump(
+            by_alias=True, mode="json", exclude_none=True
+        )
+        body["object"] = status.id_
+        by_reference = cast(
+            AddParticipantStatusToParticipantReceivedEvent,
+            extract_event(parse_activity(body)),
+        )
+        assert by_reference.status_id == status.id_
+        assert getattr(by_reference.status, "case_status", None) is None
+
+        result = _run_at_case_manager(populated_dl, by_reference)
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        assert _case_pxa(populated_dl) == CS_pxa.Pxa
+
+
+class TestAdoptedPxa:
+    """``adopted_pxa`` adds the report's latches and clears none, promoted
+    (SM-09-001)."""
+
+    @pytest.mark.spec("RSH-01-003")
     @pytest.mark.spec("SM-09-001")
     @pytest.mark.parametrize(
         ("current", "reported", "expected"),
@@ -2168,8 +2237,8 @@ class TestAdoptedPxa:
             ("pxa", "Pxa", "Pxa"),  # forward
             ("pxa", "PXA", "PXA"),  # multi-component forward
             ("Pxa", "Pxa", "Pxa"),  # equal
-            ("PXa", "Pxa", "PXa"),  # regress: X un-set
-            ("PxA", "PXa", "PxA"),  # not monotone: A un-set
+            ("PXa", "Pxa", "PXa"),  # omits X: kept
+            ("PxA", "PXa", "PXA"),  # omits A, sets X: union
             ("pxa", None, "pxa"),  # nothing reported
             ("pxa", "pXa", "PXa"),  # reported pX promoted to PX
             ("pXa", None, "PXa"),  # current pX promoted to PX

@@ -25,7 +25,7 @@ importing from it would close an import cycle (CS-05-003).
 
 :func:`promote_pxa` is the SM-09-001 persistence-boundary promotion this node
 applies.  :func:`adopted_pxa` is the case ``pxa`` after a participant's
-adopted report (RSH-01-003).
+adopted report, the union of the two sets of latches (RSH-01-003).
 """
 
 import json
@@ -43,8 +43,9 @@ from vultron.core.behaviors.sync.commit_tree import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.states.cs import CS_pxa, is_monotonic_pxa_forward
+from vultron.core.states.cs import CS_pxa
 
 logger = logging.getLogger(__name__)
 
@@ -59,17 +60,37 @@ def promote_pxa(pxa: CS_pxa) -> CS_pxa:
 
 
 def adopted_pxa(current: CS_pxa, reported: CaseStatus | None) -> CS_pxa:
-    """The case ``pxa`` after adopting *reported* (RSH-01-003, RSH-05-019).
+    """The case ``pxa`` after adopting *reported* (RSH-01-003).
 
-    A reported value that is a monotone forward move from *current* is
-    adopted; any other value, or none, keeps *current*.  The result is
-    promoted at the persistence boundary either way (SM-09-001).
+    P, X and A are one-way latches, so the adopted state sets every latch
+    either *current* or *reported* sets, and clears none: a report that
+    omits a latch the case holds still adds the ones it newly sets.  With no
+    report the result is *current*.  It is promoted at the persistence
+    boundary either way (SM-09-001).
     """
-    if reported is not None:
-        asserted = promote_pxa(reported.pxa.state)
-        if is_monotonic_pxa_forward(current, asserted):
-            return asserted
-    return promote_pxa(current)
+    if reported is None:
+        return promote_pxa(current)
+    union = "".join(
+        mine.upper() if theirs.isupper() else mine
+        for mine, theirs in zip(
+            current.name, reported.pxa.state.name, strict=True
+        )
+    )
+    return promote_pxa(CS_pxa[union])
+
+
+def latches_cleared_by(current: CS_pxa, reported: CaseStatus | None) -> str:
+    """The latches *current* sets that *reported* does not, as ``"PXA"``
+    letters (empty when none): what adopting *reported* ignores."""
+    if reported is None:
+        return ""
+    return "".join(
+        mine
+        for mine, theirs in zip(
+            current.name, reported.pxa.state.name, strict=True
+        )
+        if mine.isupper() and not theirs.isupper()
+    )
 
 
 class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
@@ -79,8 +100,8 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
 
     1. Reads the VulnerabilityCase from the DataLayer (post-mutation).
     2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa``
-       state, with the adopted ``pxa`` of *reported_status* when one is given
-       (RSH-01-003).
+       state, with the P/X/A latches of the reported status adopted when one
+       is named (RSH-01-003).
     3. Builds the CASE_MANAGER's ``Add(CaseStatus)`` through the
        trigger-activity port and commits its sealed blob as a CaseLedgerEntry
        via ``create_commit_log_entry_tree`` (VM-08-003).
@@ -95,10 +116,14 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
         case_id: The case whose status is snapshotted.
         name: Node name; defaults to the class name.
         reported_status: The case status a participant reported, which the
-            StatusAdoptionGate ahead of this node adopted.  Its ``pxa``
-            replaces the case's when it is a monotone forward move from it;
-            otherwise the case's value is kept (RSH-01-003, RSH-05-019).
-            ``None`` for a tree that has already mutated the case.
+            StatusAdoptionGate ahead of this node adopted.  Every P/X/A latch
+            it sets is added to the case's, and none is cleared
+            (:func:`adopted_pxa`, RSH-01-003).  ``None`` for a tree that has
+            already mutated the case.
+        reported_status_id: The id of the reported ``ParticipantStatus`` or
+            ``CaseStatus``, read at tick time so a status received by
+            reference is adopted too; the stored copy wins over
+            *reported_status*, which is the fallback.
     """
 
     def __init__(
@@ -106,11 +131,23 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
         case_id: str | None,
         name: str | None = None,
         reported_status: CaseStatus | None = None,
+        reported_status_id: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.reported_status = reported_status
+        self.reported_status_id = reported_status_id
         self._committed_status_id: str | None = None
+
+    def _resolve_reported(self) -> CaseStatus | None:
+        """The reported case status: the stored copy, else the inline one."""
+        if self.reported_status_id and self.datalayer is not None:
+            stored = self.datalayer.read(self.reported_status_id)
+            if isinstance(stored, ParticipantStatus):
+                return stored.case_status or self.reported_status
+            if isinstance(stored, CaseStatus):
+                return stored
+        return self.reported_status
 
     def update(self) -> Status:
         if not self.case_id:
@@ -151,7 +188,17 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
-        pxa_state = adopted_pxa(current.pxa.state, self.reported_status)
+        reported = self._resolve_reported()
+        pxa_state = adopted_pxa(current.pxa.state, reported)
+        if cleared := latches_cleared_by(current.pxa.state, reported):
+            self.logger.info(
+                "%s: reported status for case '%s' omits %s, which the case"
+                " already records; kept (RSH-01-003, actor_id=%s)",
+                self.name,
+                self.case_id,
+                cleared,
+                self.actor_id,
+            )
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
