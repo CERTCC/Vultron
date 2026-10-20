@@ -28,6 +28,7 @@ notice (CLP-06-006).  The last tests drive production trees end to end.
 import json
 from typing import Any, cast
 
+import py_trees
 import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
@@ -56,6 +57,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.sender_check_context import SenderCheckContext
 from vultron.core.behaviors.sender_entitlement import (
@@ -276,6 +278,51 @@ def test_a_replica_queues_no_notice():
     emit = find_node(tree, EmitRefusalNoticeNode)
     assert emit is not None and emit.status == Status.INVALID
     assert _notices(net, BYSTANDER, OWNER) == []
+
+
+class _RanAfterNotice(EmitCapable, py_trees.behaviour.Behaviour):
+    """A refusal effect that records that it ran."""
+
+    def __init__(self) -> None:
+        super().__init__(name="RanAfterNotice")
+        self.ran = False
+
+    def update(self) -> Status:
+        self.ran = True
+        return Status.SUCCESS
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_a_notice_that_cannot_be_built_does_not_stop_the_next_effect(
+    monkeypatch,
+):
+    """Each refusal effect is best-effort on its own (the RSH-06-004 note)."""
+
+    def _broken(self: EmitRefusalNoticeNode) -> tuple[str, str]:
+        raise ValueError("cannot render the refused activity")
+
+    monkeypatch.setattr(EmitRefusalNoticeNode, "_call_factory", _broken)
+    net, _, invite_id = _network("best-effort")
+    after = _RanAfterNotice()
+    tree = create_receive_activity_tree(
+        name="RefusalNoticeTestBT",
+        case_id=net.case_id,
+        sender_rule=SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+        sender_context=SenderCheckContext(
+            sender_id=BYSTANDER, case_id=net.case_id
+        ),
+        precondition_guards=[_Refuses(name="Refuses")],
+        refusal_effects=[after],
+    )
+
+    result = _run(net, MANAGER, tree, _accept_event(net, invite_id))
+
+    assert result.status == Status.FAILURE
+    assert BTBridge.get_failure_reason(tree) == REFUSAL
+    emit = find_node(tree, EmitRefusalNoticeNode)
+    assert emit is not None and emit.status == Status.FAILURE
+    assert after.ran
+    assert _notices(net, MANAGER, BYSTANDER) == []
 
 
 def test_a_notice_outside_a_refusal_stage_fails_and_queues_nothing():

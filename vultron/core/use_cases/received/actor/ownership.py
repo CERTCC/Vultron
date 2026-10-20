@@ -443,8 +443,9 @@ class UndoCaseOwnershipTransferReceivedUseCase:
     At the CASE_MANAGER the sender must be the Case Owner that made an open
     ownership-transfer Offer it recorded for the case; at any other replica
     it must be the CASE_MANAGER.  Anyone else, or a withdrawal of an Offer
-    already answered or withdrawn, is ``REFUSED`` with nothing committed and
-    nothing sent.
+    already answered or withdrawn, is ``REFUSED`` with nothing committed; the
+    withdrawal of a closed Offer is answered with the refusal notice, anyone
+    else with nothing (CLP-05-001, HP-01-006).
 
     An admitted Undo commits an ``undo_case_ownership_transfer`` entry and
     broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every
