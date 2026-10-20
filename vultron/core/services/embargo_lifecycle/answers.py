@@ -29,7 +29,6 @@ the active embargo is re-evaluated only when the owner activates a revision
 import logging
 
 from vultron.core.models.embargo_register import rejection_changes
-from vultron.core.predicates.embargo import rejection_ends_embargo
 from vultron.core.services.embargo_lifecycle.pec_activation import (
     _PecActivationMixin,
 )
@@ -37,10 +36,7 @@ from vultron.core.services.embargo_lifecycle.results import (
     EmbargoLifecycleResult,
     TransitionMode,
 )
-from vultron.errors import (
-    VultronInvalidStateTransitionError,
-    VultronValidationError,
-)
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +113,14 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         The CASE_MANAGER's ``STRICT`` decision.  A replica copies the
         committed ``REJECT`` step instead (CM-23-016, ADR-0124).
 
+        Rejecting the last open revision while CS is public, exploited or
+        attacked returns the case to the prior terms only inside the act:
+        the caller ends the embargo in the same act, so the revision ends
+        ``REJECTED`` and the embargo ``TERMINATED``, as two entries a
+        replica copies in order (EMB-04-002, MSM-07-009).  The received and
+        trigger trees compose that termination after this step
+        (``reject_then_terminate_bt``).
+
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
             embargo_id: ID of the proposed ``EmbargoEvent`` being rejected.
@@ -129,10 +133,6 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronValidationError: If *embargo_id* is not an open proposal
                 of the case.
-            VultronInvalidStateTransitionError: If the rejection would
-                return the case to the prior terms with P/X/A set
-                (EMB-04-002): callers end the embargo through the
-                termination trigger (ET) instead.
         """
         case = self._read_case(case_id)
         em_before = case.em_state
@@ -140,15 +140,6 @@ class _AnswerOperationsMixin(_PecActivationMixin):
             raise VultronValidationError(
                 f"Embargo '{embargo_id}' is not an open proposal of case"
                 f" '{case_id}': nothing to reject."
-            )
-
-        if rejection_ends_embargo(case, embargo_id):
-            raise VultronInvalidStateTransitionError(
-                f"Cannot reject embargo revision '{embargo_id}' on case"
-                f" '{case_id}': public awareness, exploit publication, or"
-                " attack observation is set"
-                f" (pxa_state='{case.current_status.pxa.state.name}');"
-                " terminate the embargo (ET) instead (EMB-04-002)."
             )
         # STRICT: a refused step raises, so the step is always applied here.
         self._apply_register_step(

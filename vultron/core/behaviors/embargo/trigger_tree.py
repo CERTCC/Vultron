@@ -65,6 +65,7 @@ from vultron.core.behaviors.embargo.nodes import (
     CommitEmbargoDecisionNode,
     CommitEmbargoProposalNode,
     EmbargoActivityBuilder,
+    EmbargoOutlivesDisclosureNode,
     HasActiveEmbargoNode,
     IndexOwnEmbargoProposalNode,
     IsProposedEmbargoNode,
@@ -95,6 +96,7 @@ from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import (
     TerminationRequest,
+    ThreatSignalTermination,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import (
@@ -173,6 +175,8 @@ def _answer_arms(
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
     actor_config: ActorConfig | None = None,
+    *,
+    ends_embargo_after_disclosure: bool = False,
 ) -> list[py_trees.behaviour.Behaviour]:
     """Manager: decide, commit, apply, declare; otherwise: ask the manager.
 
@@ -187,7 +191,8 @@ def _answer_arms(
     commits the act's entry (carrying any register step), then one
     CASE_MANAGER entry per consent row the decision changes, and applies them
     by copying.  *lifecycle_node* is built with *result_out*, where it leaves
-    the decision.
+    the decision.  *ends_embargo_after_disclosure* is passed to
+    :func:`_decision_arms`.
     """
     return _decision_arms(
         name,
@@ -204,6 +209,7 @@ def _answer_arms(
         result_out,
         activity_builder,
         actor_config,
+        ends_embargo_after_disclosure=ends_embargo_after_disclosure,
     )
 
 
@@ -214,6 +220,8 @@ def _decision_arms(
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
     actor_config: ActorConfig | None = None,
+    *,
+    ends_embargo_after_disclosure: bool = False,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The two arms of an answer or decision, around *decide_and_commit*.
 
@@ -223,23 +231,34 @@ def _decision_arms(
     (CM-31-009), and re-issue stale stub Invites (CM-11-016).  Otherwise:
     ask the manager.  Shared by :func:`_answer_arms` and the activation arm;
     each decides before it commits and commits before it writes (ADR-0124).
+
+    With *ends_embargo_after_disclosure* (the owner's rejection), a decision
+    that leaves the prior terms standing with P/X/A set is followed in the
+    same act by the termination (:func:`end_embargo_outliving_disclosure_bt`,
+    EMB-04-002), which declares, notifies and re-issues in place of the
+    usual tail.
     """
     capture, notices = embargo_ending_notice_nodes(case_id)
+    tail: list[py_trees.behaviour.Behaviour] = [
+        _make_emit_node(case_id),
+        notices,
+        # The owner's accept of a revision changes the active embargo
+        # under any outstanding stub Invite (CM-11-016).  The node compares
+        # each stub's terms with the embargo in force and does nothing
+        # while a proposal is open, so a reject or a participant's accept
+        # re-issues nothing.
+        ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
+    ]
+    if ends_embargo_after_disclosure:
+        tail = [
+            end_embargo_outliving_disclosure_bt(
+                case_id=case_id, otherwise=tail, actor_config=actor_config
+            )
+        ]
     return _by_role(
         name,
         case_id,
-        as_case_manager=[
-            capture,
-            *decide_and_commit,
-            _make_emit_node(case_id),
-            notices,
-            # The owner's accept of a revision changes the active embargo
-            # under any outstanding stub Invite (CM-11-016).  The node compares
-            # each stub's terms with the embargo in force and does nothing
-            # while a proposal is open, so a reject or a participant's accept
-            # re-issues nothing.
-            ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
-        ],
+        as_case_manager=[capture, *decide_and_commit, *tail],
         otherwise=[
             sender_side_bt(
                 case_id=case_id,
@@ -531,7 +550,10 @@ def reject_embargo_proposal_trigger_bt(
 
     ``Reject(EmbargoEvent, target=Case)`` (ADR-0122): as the CASE_MANAGER the
     owner rejects the proposal ``STRICT`` and commits its decision; any other
-    owner asks the CASE_MANAGER.
+    owner asks the CASE_MANAGER.  A rejection of the last revision after
+    disclosure is followed, in the same act, by the CASE_MANAGER's
+    termination (EMB-04-002, MSM-07-009), so a refused termination commits
+    neither.
     """
     return py_trees.composites.Sequence(
         name="RejectEmbargoProposalTriggerBT",
@@ -547,6 +569,7 @@ def reject_embargo_proposal_trigger_bt(
             EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
             result_out,
             activity_builder,
+            ends_embargo_after_disclosure=True,
         ),
     )
 
@@ -713,6 +736,68 @@ def terminate_embargo_bt(
                     ),
                 ],
                 otherwise=[ask],
+            ),
+        ],
+    )
+
+
+def end_embargo_outliving_disclosure_bt(
+    *,
+    case_id: str,
+    otherwise: list[py_trees.behaviour.Behaviour],
+    requested_by: str | None = None,
+    actor_config: ActorConfig | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """After the owner's ``REJECT``, end an embargo that outlived disclosure.
+
+    The owner's rejection of the last open revision while CS is public,
+    exploited or attacked returns the case to the prior terms, which no act
+    may end in (EMB-04-002).  The CASE_MANAGER records the ``REJECT`` step
+    as decided and then, in the same act, terminates the embargo through
+    the shared :func:`terminate_embargo_bt` (BT-19-002), with the threat
+    signals the case carries as the cause its ``Remove`` carries
+    (EMB-13-005), so the revision ends ``REJECTED`` and the embargo
+    ``TERMINATED`` as two entries a replica copies in order (MSM-07-009).
+    Any other rejection runs *otherwise*.
+
+    The arms are exclusive on the case state the ``REJECT`` left, so a
+    failed termination is never answered by *otherwise*: it fails this node,
+    and the enclosing act keeps none of its writes (ADR-0146, ADR-0151).
+    The tree runs behind the CASE_MANAGER gate, so the ask arm inside
+    ``terminate_embargo_bt`` never runs here.  *requested_by* is credited
+    on the ending notices (CM-31-009).
+    """
+    return py_trees.composites.Selector(
+        name="EndEmbargoOutlivingDisclosure",
+        memory=False,
+        children=[
+            py_trees.composites.Sequence(
+                name="TerminateOutlivingEmbargo",
+                memory=False,
+                children=[
+                    EmbargoOutlivesDisclosureNode(case_id=case_id),
+                    terminate_embargo_bt(
+                        case_id=case_id,
+                        result_out={},
+                        requested_by=requested_by,
+                        termination=ThreatSignalTermination(),
+                        actor_config=actor_config,
+                    ),
+                ],
+            ),
+            py_trees.composites.Sequence(
+                name="PriorTermsAllowed",
+                memory=False,
+                children=[
+                    py_trees.decorators.Inverter(
+                        name="UnlessOutlivingDisclosure",
+                        child=EmbargoOutlivesDisclosureNode(
+                            case_id=case_id,
+                            name="CheckEmbargoOutlivesDisclosure",
+                        ),
+                    ),
+                    *otherwise,
+                ],
             ),
         ],
     )

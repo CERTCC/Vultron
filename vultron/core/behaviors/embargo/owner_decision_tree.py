@@ -49,10 +49,12 @@ from vultron.core.behaviors.embargo.nodes import (
     DecideRejectedEmbargoProposalNode,
     IsOpenEmbargoProposalNode,
     OwnerMayActivateEmbargoNode,
-    OwnerRejectsRevisionAfterDisclosureNode,
+    OwnerRejectionAppliesNode,
     embargo_ending_notice_nodes,
 )
-from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.behaviors.embargo.trigger_tree import (
+    end_embargo_outliving_disclosure_bt,
+)
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
@@ -60,7 +62,6 @@ from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
 )
-from vultron.core.models.embargo_termination import ThreatSignalTermination
 
 logger = logging.getLogger(__name__)
 
@@ -168,63 +169,6 @@ def activate_embargo_on_case_tree(
     return root
 
 
-def _decide_owner_rejection(
-    case_id: str,
-    embargo_id: str,
-    rejecting_actor_id: str,
-    actor_config: ActorConfig | None = None,
-) -> py_trees.behaviour.Behaviour:
-    """The owner's Reject decides the proposal; with P/X/A set it ends the embargo.
-
-    ``Selector``: when the owner rejects the last open revision after CS has
-    gone public, exploited or attacked, returning to the prior terms is not
-    allowed (EMB-04-002), so the CASE_MANAGER terminates the embargo through
-    the shared ``terminate_embargo_bt`` and announces ET to every other
-    participant — the same path the public-disclosure cascade takes.  Any
-    other Reject is decided by the :class:`DecideRejectedEmbargoProposalNode`
-    that follows.  Once the condition holds, a termination failure fails the
-    tree: it is not a reason to revert to the prior terms instead.
-
-    The whole decision sits behind the CASE_MANAGER gate, so the
-    non-manager ask arm inside ``terminate_embargo_bt`` never runs here.  It
-    stays rather than a manager-only variant: every path ends an embargo
-    through the one shared composition (BT-19-002).
-    """
-    return py_trees.composites.Selector(
-        name="DecideRejectedProposal",
-        memory=False,
-        children=[
-            py_trees.composites.Sequence(
-                name="TerminateOnRejectedRevision",
-                memory=False,
-                children=[
-                    OwnerRejectsRevisionAfterDisclosureNode(
-                        case_id=case_id,
-                        embargo_id=embargo_id,
-                        rejecting_actor_id=rejecting_actor_id,
-                    ),
-                    terminate_embargo_bt(
-                        case_id=case_id,
-                        result_out={},
-                        requested_by=rejecting_actor_id,
-                        termination=ThreatSignalTermination(),
-                        actor_config=actor_config,
-                    ),
-                ],
-            ),
-            py_trees.decorators.Inverter(
-                name="UnlessTerminating",
-                child=OwnerRejectsRevisionAfterDisclosureNode(
-                    case_id=case_id,
-                    embargo_id=embargo_id,
-                    rejecting_actor_id=rejecting_actor_id,
-                    name="CheckOwnerRejectsRevisionAfterDisclosure",
-                ),
-            ),
-        ],
-    )
-
-
 def reject_embargo_proposal_on_case_tree(
     case_id: str,
     embargo_id: str,
@@ -242,23 +186,36 @@ def reject_embargo_proposal_on_case_tree(
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
         ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
         ├─ IsOpenEmbargoProposalNode         # read-only guard (CLP-10-009)
+        ├─ OwnerRejectionAppliesNode         # trial REJECT (+ TERMINATE)
         └─ RejectEmbargoProposalOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
-           ├─ GuardedCommitCaseLedgerEntryBT
+           ├─ GuardedCommitCaseLedgerEntryBT    # the Reject: REJECT
            └─ RejectEmbargoProposalOnCaseBTIfCaseManager (CASE_MANAGER gate)
-              ├─ DecideRejectedProposal (Selector)
-              │  ├─ TerminateOnRejectedRevision  # EJ with P/X/A → ET
-              │  └─ UnlessTerminating (Inverter)
-              └─ DecideRejectedEmbargoProposalNode  # REJECT; no consent
+              ├─ DecideRejectedEmbargoProposalNode  # REJECT; no consent
+              └─ EndEmbargoOutlivingDisclosure (Selector)
+                 ├─ TerminateOutlivingEmbargo   # P/X/A set → ET (Remove)
+                 └─ PriorTermsAllowed
 
     ``PROPOSED → NONE`` or ``REVISE → ACTIVE`` when it was the last open
-    proposal, EM unchanged while another is open (EP-08-001), or ET when
-    P/X/A is set (EMB-04-002).  No participant's consent changes, the
-    owner's included (ADR-0122).
+    proposal, and EM unchanged while another is open (EP-08-001).  No
+    participant's consent changes, the owner's included (ADR-0122).
+
+    When the owner rejects the last open revision while CS is public,
+    exploited or attacked, the prior terms may not stand (EMB-04-002): the
+    CASE_MANAGER records the ``REJECT`` step as decided and then commits
+    its own ``Remove(EmbargoEvent)`` carrying the ``TERMINATE`` step and the
+    threat signals as its cause (EMB-13-005), through the shared
+    ``terminate_embargo_bt`` (BT-19-002), which announces the end to every
+    other participant.  The guard trial-applies both steps before the
+    commit, and the act is one transaction, so a refused termination
+    commits neither entry (MSM-07-009).  A replica copies both entries in
+    order and decides nothing (CM-23-016).
 
     Args:
         case_id: ID of the VulnerabilityCase.
         embargo_id: ID of the proposed EmbargoEvent being rejected.
         sender_actor_id: Sender of the ``Reject``; must be the case owner.
+        actor_config: The CASE_MANAGER's configuration; its RSVP windows set
+            the deadline of a stub Invite a termination re-issues.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
 
@@ -277,15 +234,17 @@ def reject_embargo_proposal_on_case_tree(
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
             IsOpenEmbargoProposalNode(case_id=case_id, embargo_id=embargo_id),
+            OwnerRejectionAppliesNode(case_id=case_id, embargo_id=embargo_id),
         ],
         manager_effects=[
-            _decide_owner_rejection(
-                case_id, embargo_id, sender_actor_id, actor_config
-            ),
-            # After an ET the proposal is already cancelled, so this is a
-            # no-op.
             DecideRejectedEmbargoProposalNode(
                 case_id=case_id, embargo_id=embargo_id
+            ),
+            end_embargo_outliving_disclosure_bt(
+                case_id=case_id,
+                otherwise=[],
+                requested_by=sender_actor_id,
+                actor_config=actor_config,
             ),
         ],
         manager_case_id=case_id,

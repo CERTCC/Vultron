@@ -141,6 +141,11 @@ _FACTORIES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
             termination=ThreatSignalTermination(),
         )
     ),
+    "end_embargo_outliving_disclosure_bt": lambda: (
+        trigger_tree.end_embargo_outliving_disclosure_bt(
+            case_id=_CASE, otherwise=[]
+        )
+    ),
     "reject_proposed_embargo_bt": lambda: (
         trigger_tree.reject_proposed_embargo_bt(case_id=_CASE, result_out={})
     ),

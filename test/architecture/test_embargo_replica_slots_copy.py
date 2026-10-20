@@ -29,12 +29,12 @@ must.  It also follows every module-level function and core model method a
 slot reaches, however indirectly, so a slot cannot hand the work to a helper
 or a model method that runs it.
 
-The one tracked deviation is the owner's-rejection slot's skip of a
-``Reject`` the CASE_MANAGER answered with ET (#4789): it reads one shared
-predicate rather than copying, and
-:func:`test_only_the_owner_rejection_slot_decides_a_skip` keeps it the only
-one.  The CM-31-010 notice path (``ending_notice_replica.py``) applies no
-ledger entry and is outside CM-23-016's scope.
+No slot decides on the replica that an entry changes nothing:
+:func:`test_no_slot_decides_a_skip` keeps the copy frame free of a skip hook
+and the slots free of the EMB-04-002 predicates, which the CASE_MANAGER
+alone reads (MSM-07-009).  The CM-31-010 notice path
+(``ending_notice_replica.py``) applies no ledger entry and is outside
+CM-23-016's scope.
 """
 
 import functools
@@ -300,14 +300,28 @@ def _slots_overriding(attr: str) -> set[str]:
 
 
 @pytest.mark.spec("CM-23-016")
-def test_only_the_owner_rejection_slot_decides_a_skip() -> None:
-    """The one tracked deviation from copy-only stays contained (#4789).
+@pytest.mark.spec("MSM-07-009")
+def test_no_slot_decides_a_skip() -> None:
+    """No slot decides, on the replica, that an entry changes nothing.
 
-    ``_left_to_a_later_entry`` lets a slot decide, on the replica, that an
-    entry changes nothing.  Only the owner's-rejection slot may, for the
-    ``Reject`` the CASE_MANAGER answered with ET (EMB-04-002); a new
-    override is a new deviation and needs its own decision.
+    The owner's ``Reject`` the CASE_MANAGER answers with ET is copied as its
+    ``REJECT`` step and the ``Remove`` that follows as its ``TERMINATE``
+    step (MSM-07-009), so the copy frame has no skip hook and no slot reads
+    the EMB-04-002 predicates.  A new skip is a deviation from CM-23-016
+    and needs its own decision.
     """
-    assert _slots_overriding("_left_to_a_later_entry") == {
-        ApplyEmbargoProposalRejectionFromLedgerNode.__name__
-    }
+    assert not hasattr(
+        ApplyEmbargoChangeFromLedgerNode, "_left_to_a_later_entry"
+    )
+    assert _slots_overriding("_left_to_a_later_entry") == set()
+    predicates = {"rejection_ends_embargo", "embargo_outlives_disclosure"}
+    reading = sorted(
+        slot.__name__
+        for slot in _SLOTS
+        if predicates
+        & set().union(
+            *(_names_used(c) for c in _own_classes(slot)),
+            *_functions_reached(slot).values(),
+        )
+    )
+    assert not reading, f"{reading} read an EMB-04-002 predicate"

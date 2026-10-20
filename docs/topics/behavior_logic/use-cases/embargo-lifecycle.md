@@ -117,7 +117,7 @@ Every Participant Embargo Consent change is a side effect of an EM activity or a
 | `Accept(Invite(Event))`, from any Participant, the case owner included | none | the sender's row for those terms becomes `AGREED`; that makes it a signatory only once they are the embargo in force (MSM-07-003) |
 | `Reject(Invite(Event))`, from any Participant, the case owner included | none | the sender's row for those terms becomes `DECLINED`; refused from an `AGREED` row for the embargo in force, because withdrawal is `Leave(Event)` (MSM-07-004, MSM-07-010) |
 | The case owner's `Accept(Event, target=Case)` (EA, or EC for a revision) | to `ACTIVE`, or to `REVISE` while another proposal stays open | the owner's row for the activated embargo becomes `AGREED` unless it already is; a revision that ends no later than the embargo it replaces carries over every Participant whose row for the replaced embargo is `AGREED`, and one that ends later writes nothing, so a signatory that has not agreed to it has lapsed (MSM-07-005, MSM-07-008) |
-| The case owner's `Reject(Event, target=Case)` (ER, or EJ for a revision) | `PROPOSED` to `NONE`, or `REVISE` to `ACTIVE` with the prior terms standing, once no other proposal is open; once public disclosure, a public exploit or an attack is known, the rejection of the last open revision ends the embargo instead (ET, EMB-04-002) | none, the owner's included (MSM-07-009) |
+| The case owner's `Reject(Event, target=Case)` (ER, or EJ for a revision) | `PROPOSED` to `NONE`, or `REVISE` to `ACTIVE` with the prior terms standing, once no other proposal is open; once public disclosure, a public exploit or an attack is known, the rejection of the last open revision is followed in the same act by the case manager's termination (ET, EMB-04-002), so the revision ends `REJECTED` and the embargo `TERMINATED` | none, the owner's included (MSM-07-009) |
 | Withdrawal, `Leave(Event)` of the embargo in force | none | the withdrawing Participant's `AGREED` row for the embargo in force becomes `DECLINED`, as does every row it had marked `AGREED` for an open revision; the embargo stays in force for everyone else (MSM-07-010) |
 | Embargo Termination (ET), `Remove(Event, origin=Case)` | `ACTIVE` or `REVISE` to `EXITED` | none is written: with no `ACTIVE` entry nobody is a signatory, and no message is sent for consent (MSM-07-006) |
 | Invitation deadline passes | none | that invitation's `INVITED` row moves to `TIMED_OUT`, recorded in the case ledger (MSM-07-007) |
@@ -178,10 +178,10 @@ The result is that a store rebuilt from the case manager's ledger alone holds th
 The `Remove` entry carries what ended the embargo, `EARLY` or `END_TIME_REACHED`, and the structured cause behind an early end, such as a threat signal.
 A replica copies both onto its own register, so its record of the termination matches the case manager's.
 
-One limit applies today.
-When the owner rejects the last open revision after the case went public, the case manager answers with a termination instead (EMB-04-002).
-A replica then skips the `Reject` entry, because the `Remove` that follows cancels the revision.
-Deciding that skip is the one place a replica decides what an entry changes rather than copying it.
+When the owner rejects the last open revision after the case went public, the case manager records the rejection and then ends the embargo in the same act (EMB-04-002, MSM-07-009).
+The ledger holds two entries: the `Reject`, which leaves the revision `REJECTED`, and then the case manager's own `Remove`, which leaves the embargo `TERMINATED` with the threat signals as its cause.
+A replica copies both entries in order and decides nothing.
+If the termination is refused, neither entry is committed.
 
 ---
 

@@ -1,10 +1,10 @@
 """Tests for SvcRejectEmbargoUseCase."""
 
-from typing import cast
+from typing import NoReturn, cast
 
 import pytest
 
-from test.support.ledger import committed_semantic_types
+from test.support.ledger import committed_semantic_types, ledger_entries
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -12,9 +12,16 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.embargo.nodes import termination_commit
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    ThreatSignal,
+)
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -22,6 +29,7 @@ from vultron.core.use_cases.triggers.embargo import SvcRejectEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
     RejectEmbargoTriggerRequest,
 )
+from vultron.errors import VultronError, VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
@@ -224,3 +232,98 @@ def test_non_owner_manager_reject_is_consent_and_moves_no_register_entry(
     assert (
         MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value not in committed
     )
+
+
+def _owner_manager_revision_after_disclosure(
+    dl: SqliteDataLayer, owner_id: str
+) -> tuple[VulnerabilityCase, str, str]:
+    """An owner-manager's case in REVISE with P set; the revision is last open."""
+    finder = _persist_actor(dl, "Finder")
+    case, _, participant_id = _build_active_embargo_case(
+        dl, owner_id, finder.id_
+    )
+    proposal, revision_id = _open_revision(
+        dl, case.id_, owner_id, participant_id
+    )
+    case = cast(VulnerabilityCase, dl.read(case.id_))
+    case.append_case_status(pxa=CS_pxa.Pxa)
+    dl.save(case)
+    return case, proposal.id_, revision_id
+
+
+def _reject_as_owner(
+    dl: SqliteDataLayer, owner_id: str, case_id: str, proposal_id: str
+) -> object:
+    return SvcRejectEmbargoUseCase(
+        dl,
+        RejectEmbargoTriggerRequest(
+            actor_id=owner_id, case_id=case_id, proposal_id=proposal_id
+        ),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+
+
+@pytest.mark.spec("EMB-04-002")
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.spec("EMB-13-005")
+def test_manager_reject_after_disclosure_rejects_then_terminates(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The owner-manager's EJ with P set never leaves the prior terms standing.
+
+    It commits the ``Reject`` (the ``REJECT`` step) and then its own
+    ``Remove`` (the ``TERMINATE`` step, with the threat signal as its cause)
+    in the same act (MSM-07-009).
+    """
+    owner, dl = owner_actor_and_dl
+    case, proposal_id, revision_id = _owner_manager_revision_after_disclosure(
+        dl, owner.id_
+    )
+    active_id = case.active_embargo_id
+    assert active_id is not None
+
+    _reject_as_owner(dl, owner.id_, case.id_, proposal_id)
+
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.em_state == EM.EXITED
+    assert updated.embargo_register_status(revision_id) is (
+        EmbargoRegisterStatus.REJECTED
+    )
+    assert updated.embargo_register_status(active_id) is (
+        EmbargoRegisterStatus.TERMINATED
+    )
+    assert updated.embargo_termination == EmbargoTermination.threat(
+        [ThreatSignal.P]
+    )
+    types = [str(e.semantic_type) for e in ledger_entries(dl, case.id_)]
+    reject = MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value
+    remove = MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value
+    assert types.index(reject) < types.index(remove)
+
+
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.spec("CLP-07-015")
+def test_manager_reject_after_disclosure_with_a_refused_termination_commits_neither(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refused termination leaves the act uncommitted, the Reject included."""
+    owner, dl = owner_actor_and_dl
+    case, proposal_id, revision_id = _owner_manager_revision_after_disclosure(
+        dl, owner.id_
+    )
+    before = committed_semantic_types(dl, case.id_)
+
+    def _refuse(*_args: object) -> NoReturn:
+        raise VultronInvalidStateTransitionError("termination refused")
+
+    monkeypatch.setattr(termination_commit, "decide_termination", _refuse)
+    with pytest.raises(VultronError):
+        _reject_as_owner(dl, owner.id_, case.id_, proposal_id)
+
+    assert committed_semantic_types(dl, case.id_) == before
+    kept = cast(VulnerabilityCase, dl.read(case.id_))
+    assert kept.proposed_embargo_ids == [revision_id]
+    assert kept.em_state == EM.REVISE
