@@ -57,6 +57,7 @@ import sys
 from collections.abc import Callable, Sequence
 
 from vultron.demo.helpers.polling import wait_for_initialized_case
+from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     reporter_submits_report,
     verify_reporter_trusts_introduction,
@@ -64,10 +65,9 @@ from vultron.demo.helpers.workflow import (
 from vultron.demo.utils import (  # BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
-    check_server_availability,
     demo_check,
-    demo_environment,
     demo_step,
+    read_received_activities,
     setup_demo_logging,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -75,8 +75,19 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 logger = logging.getLogger(__name__)
 
 
+def _accepts_a_case_proposal(accept: dict) -> bool:
+    """Whether the served Accept *accept* answers a CaseProposal (CP-05-003)."""
+    proposal = accept.get("object")
+    return (
+        isinstance(proposal, dict) and proposal.get("type") == "CaseProposal"
+    )
+
+
 def demo_case_proposal_round_trip(
-    client: DataLayerClient, reporter: as_Actor, vendor: as_Actor
+    client: DataLayerClient,
+    reporter: as_Actor,
+    vendor: as_Actor,
+    coordinator: as_Actor | None = None,
 ) -> None:
     """Exercise the full CaseProposal round-trip (CP-07-003).
 
@@ -91,6 +102,8 @@ def demo_case_proposal_round_trip(
         reporter: The reporter actor (report originator).
         vendor: The vendor actor (receives the report, hosts the
             case-actor service).
+        coordinator: Unused; accepted so the demo takes the standard
+            exchange-demo arguments :func:`run_exchange_demos` passes.
     """
     # Step 1: through the reporter's own submit-report trigger, which writes
     # the anchor the vendor's case introduction is checked against
@@ -116,8 +129,17 @@ def demo_case_proposal_round_trip(
         with demo_check(
             "Accept(as_CaseProposal) exists — case-actor accepted the proposal"
         ):
-            accept_activities = client.get("/Accepts/")
-            assert isinstance(accept_activities, dict) and accept_activities, (
+            # The vendor received the Accept, so it is read from the vendor's
+            # archive record of it, never a row under the case-actor's id
+            # (DL-06-006).
+            accept_activities = [
+                accept
+                for accept in read_received_activities(
+                    client, "Accept", actor_id=vendor.id_
+                )
+                if _accepts_a_case_proposal(accept)
+            ]
+            assert accept_activities, (
                 "Expected at least one Accept activity in the DataLayer "
                 "after the CaseProposal round-trip (CP-05-003).  "
                 "The case-actor may not have processed Create(as_CaseProposal)."
@@ -146,6 +168,11 @@ def demo_case_proposal_round_trip(
         )
 
 
+_ALL_DEMOS: Sequence[tuple[str, Callable[..., None]]] = [
+    ("Demo: CaseProposal round-trip", demo_case_proposal_round_trip),
+]
+
+
 def main(
     skip_health_check: bool = False,
     demos: Sequence[Callable] | None = None,
@@ -156,23 +183,18 @@ def main(
         skip_health_check: When ``True``, skip the server health check.
             Useful in integration tests where the server is already known
             to be running.
-        demos: Optional explicit list of demo callables to run.  Defaults
-            to ``[demo_case_proposal_round_trip]``.
+        demos: Optional subset of :data:`_ALL_DEMOS` callables to run; all of
+            them when omitted.
     """
-    setup_demo_logging()
-    client = DataLayerClient(base_url=BASE_URL)
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("Server is not available at %s", BASE_URL)
-        return
-
-    if demos is None:
-        demos = [demo_case_proposal_round_trip]
-
-    with demo_environment(client) as (reporter, vendor, _coordinator):
-        for demo_fn in demos:
-            demo_fn(client, reporter, vendor)
+    run_exchange_demos(
+        _ALL_DEMOS,
+        skip_health_check=skip_health_check,
+        demos=demos,
+        client=DataLayerClient(base_url=BASE_URL),
+    )
 
 
 if __name__ == "__main__":
+    setup_demo_logging()
     main()
     sys.exit(0)

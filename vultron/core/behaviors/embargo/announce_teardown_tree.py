@@ -34,6 +34,8 @@ force, and only the CASE_MANAGER announces (BT-17-008):
     RemoveEmbargoFromCaseBT (Sequence)
     ├─ ClockDecisionsIfCaseManager        # end time, overdue invites (CM-28-015)
     ├─ ValidateCaseExistsNode             # case must exist as VulnerabilityCase
+    ├─ TerminationCauseIsAdmissibleNode   # THREAT_SIGNAL: the CASE_MANAGER's only
+    ├─ TerminationIsTimelyNode            # no END_TIME_REACHED before the end time
     ├─ GuardedCommitCaseLedgerEntryBT     # record receipt before effects (CLP-10-006)
     ├─ TeardownOnReplica (Selector)       # participant replica: paused only
     │  ├─ SkipIfCaseManager
@@ -100,7 +102,6 @@ from vultron.core.behaviors.embargo.nodes import (
     CanAnswerEmbargoInviteNode,
     ClearActiveEmbargoNode,
     CollectEmbargoInviteRecipientsNode,
-    CreateAndStoreInviteNode,
     EmbargoProposalNotYetRecordedNode,
     HasEmbargoActiveNode,
     IndexReceivedEmbargoProposalNode,
@@ -112,6 +113,7 @@ from vultron.core.behaviors.embargo.nodes import (
     SendAnnounceEmbargoEventNode,
     SendEmbargoInviteAnswerNode,
     SendOwnerEmbargoDecisionNode,
+    TerminationCauseIsAdmissibleNode,
     TerminationIsTimelyNode,
     ValidateCaseExistsNode,
     case_manager_admits_proposal_guard,
@@ -133,7 +135,10 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 from vultron.core.behaviors.sender_guard import embargo_sender_context
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    TerminationCause,
+)
 from vultron.core.states.embargo_register import TerminationReason
 
 logger = logging.getLogger(__name__)
@@ -201,6 +206,7 @@ def remove_embargo_from_case_tree(
     actor_config: ActorConfig | None = None,
     *,
     sender_rule: SenderRule,
+    termination_cause: TerminationCause | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for receiver-side embargo removal (protocol ET).
 
@@ -237,6 +243,11 @@ def remove_embargo_from_case_tree(
             (ADR-0115, EP-09-005, PCR-03-001).
         termination_reason: The what the ``Remove`` carries in ``content``,
             recorded on the ``TERMINATED`` entry (ADR-0122).
+        termination_cause: The why the ``Remove`` carries as
+            ``terminationCause``, or ``None`` when it names none; recorded on
+            the ``TERMINATED`` entry as given (EMB-13-005).  A
+            ``THREAT_SIGNAL`` cause from anyone but the CASE_MANAGER is
+            refused before the commit (``TerminationCauseIsAdmissibleNode``).
         terminated_at: The ``Remove``'s ``published`` time.  An
             ``END_TIME_REACHED`` claimed before the embargo's end time is
             refused before the commit (``TerminationIsTimelyNode``).
@@ -255,8 +266,11 @@ def remove_embargo_from_case_tree(
     capture, notices = embargo_ending_notice_nodes(
         case_id, requested_by=sender_actor_id
     )
-    # The Remove carries only the what; its sender keeps the why (ADR-0122).
-    termination = EmbargoTermination.from_reason(termination_reason)
+    # The Remove carries the what and, when its sender names one, the why
+    # (EMB-13-005); the TERMINATED entry records both as given.
+    termination = EmbargoTermination.from_reason(
+        termination_reason, termination_cause
+    )
     root = create_receive_activity_tree(
         name="RemoveEmbargoFromCaseBT",
         case_id=case_id,
@@ -266,6 +280,13 @@ def remove_embargo_from_case_tree(
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
             ValidateCaseExistsNode(case_id=case_id),
+            # A threat signal arrives as a case status update, never on a
+            # case owner's Remove (EMB-13-005).
+            TerminationCauseIsAdmissibleNode(
+                case_id=case_id,
+                sender_actor_id=sender_actor_id,
+                termination=termination,
+            ),
             TerminationIsTimelyNode(
                 case_id=case_id,
                 termination=termination,
@@ -410,7 +431,8 @@ def invite_to_embargo_on_case_tree(
     changes who holds the role, so their order does not matter.
 
     **A participant replica stores and answers** the Invite addressed to it
-    and writes nothing else (EP-09-003).  The intake stores the Invite; when
+    and writes nothing else (EP-09-003).  The intake archives the Invite
+    under the receiver's key (CLP-10-017, DL-06-006); when
     the executing actor is its addressee, the EMB-15 response decision
     (``create_embargo_response_decision_tree``) queues an ``Accept`` or
     ``Reject`` of it to the CASE_MANAGER (``SendEmbargoInviteAnswerNode``).
@@ -422,7 +444,7 @@ def invite_to_embargo_on_case_tree(
     proposal, the relayed Invite and every answer from the CASE_MANAGER's
     committed entries, which ``create_announce_log_entry_tree`` replays
     (EP-09-007, RSH-08-004).  An Invite that reached a store other than its
-    addressee's is stored and left unanswered.
+    addressee's is archived and left unanswered.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -438,7 +460,7 @@ def invite_to_embargo_on_case_tree(
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
         embargo: The inline ``EmbargoEvent`` the message carries, persisted
-            by the intake in whichever store receives the Invite (CLP-10-017);
+            by an effect in whichever store receives the Invite (CLP-10-017);
             ``None`` when the message named its object by bare URI.
         actor_config: The executing CASE_MANAGER's configuration; its RSVP
             windows set each relayed Invite's ``endTime`` (CM-28-012).
@@ -447,11 +469,12 @@ def invite_to_embargo_on_case_tree(
     Returns:
         Root node of the ``InviteToEmbargoOnCaseBT`` Sequence.
     """
-    # The intake stores the Invite and the embargo it carries, in every store:
-    # the store keeps the Invite's object by reference, so without the
-    # EmbargoEvent it could not read the Invite back whole to adjudicate or
-    # answer it.  Storing the object moves no EM or consent state (EP-09-003).
-    intake: list[py_trees.behaviour.Behaviour] = [CreateAndStoreInviteNode()]
+    # Every store keeps the embargo the Invite carries, the core record its
+    # adjudication and answer read.  The Invite itself is read as intake
+    # archived it, never stored under the id its sender chose (CLP-10-017,
+    # DL-06-006).  Storing the embargo moves no EM or consent state
+    # (EP-09-003).
+    intake: list[py_trees.behaviour.Behaviour] = []
     if embargo is not None:
         intake.append(PersistEmbargoEventNode(embargo=embargo))
     adjudication: list[py_trees.behaviour.Behaviour] = [

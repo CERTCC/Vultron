@@ -79,6 +79,7 @@ from vultron.demo.utils import (
     logfmt,
     seed_peer,
     setup_demo_logging,
+    verify_received_activity_stored,
 )
 
 # Vultron imports
@@ -214,8 +215,8 @@ def _check_forward_carries_deadline(
     answer (CM-21-016).
     """
     with demo_check("Forwarded Offer carries the deadline to answer"):
-        forwarded = client.get(
-            client.dl_path(forwarded_offer_id, actor_id=coordinator.id_)
+        forwarded = verify_received_activity_stored(
+            client, forwarded_offer_id, actor_id=coordinator.id_
         )
         end_time = forwarded.get("endTime")
         if end_time is None or datetime.fromisoformat(end_time) != deadline:

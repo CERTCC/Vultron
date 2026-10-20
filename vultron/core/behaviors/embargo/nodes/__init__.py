@@ -108,7 +108,6 @@ from vultron.core.behaviors.embargo.nodes.owner_decision import (
     SendOwnerEmbargoDecisionNode,
 )
 from vultron.core.behaviors.embargo.nodes.proposal import (
-    CreateAndStoreInviteNode,
     IndexReceivedEmbargoProposalNode,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
@@ -146,6 +145,9 @@ from vultron.core.behaviors.embargo.nodes.terminate import (
     TeardownAskPendingNode,
     ask_case_manager_to_terminate_once,
 )
+from vultron.core.behaviors.embargo.nodes.termination_cause_guard import (
+    TerminationCauseIsAdmissibleNode,
+)
 from vultron.core.behaviors.embargo.nodes.termination_commit import (
     CommitAndApplyEmbargoTerminationNode,
 )
@@ -178,6 +180,7 @@ __all__ = [
     "HasEmbargoActiveNode",
     "ClearActiveEmbargoNode",
     "TerminationIsTimelyNode",
+    "TerminationCauseIsAdmissibleNode",
     "ApplyEmbargoTeardownNode",
     "SendAnnounceEmbargoEventNode",
     # The case owner's decision on a proposal (ADR-0122) and its replay
@@ -243,7 +246,6 @@ __all__ = [
     "InviteExpiryChangedConsentNode",
     "InviteExpiryNeedsApplyNode",
     # Proposal
-    "CreateAndStoreInviteNode",
     "RecordParticipantAcceptanceNode",
     "RecordParticipantRejectionNode",
     # Lifecycle

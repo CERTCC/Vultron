@@ -15,17 +15,22 @@
 import json
 import re
 
+import pytest
+from pydantic.fields import FieldInfo
+
 from vultron.metadata.base import repo_root
 from vultron.metadata.wire_context.sync import (
     CONTEXT_JSONLD_PATH,
     WRITE_COMMAND,
     _all_object_subclasses,
     _concrete_type_value,
+    _wire_name,
     as2_term_values,
     build_context_document,
     is_stale,
     render_context_json,
     vultron_context_terms,
+    vultron_property_terms,
 )
 from vultron.wire.as2.vocab.base.base import (
     ACTIVITY_STREAMS_NS,
@@ -220,7 +225,43 @@ def test_generator_terms_match_committed_terms() -> None:
     """The generator's term set equals the committed term set (sans prefix)."""
     committed = _term_block(_committed_context())
     committed.pop("vultron")
-    assert committed == vultron_context_terms()
+    assert committed == vultron_context_terms() | vultron_property_terms()
+
+
+@pytest.mark.spec("EMB-13-005")
+def test_termination_cause_is_a_declared_vultron_property() -> None:
+    """The termination ``Remove``'s ``terminationCause`` resolves (#4857).
+
+    It is a Vultron property, not an AS2 one, so a receiver resolves it only
+    through the Vultron context.
+    """
+    terms = vultron_property_terms()
+    assert terms["terminationCause"] == "vultron:terminationCause"
+    # Keyed by the wire name, never the Python field name.
+    assert "termination_cause" not in terms
+    committed = _term_block(_committed_context())
+    assert committed["terminationCause"] == "vultron:terminationCause"
+    # A property is not a type, so the type-term guards above do not see it.
+    assert "terminationCause" not in vultron_context_terms()
+
+
+@pytest.mark.parametrize(
+    ("info", "expected"),
+    [
+        (
+            FieldInfo(alias="inAlias", serialization_alias="outAlias"),
+            "outAlias",
+        ),
+        (FieldInfo(alias="inAlias"), "inAlias"),
+        (FieldInfo(), "field_name"),
+    ],
+    ids=["serialization-alias", "alias", "name"],
+)
+def test_a_property_term_is_the_field_wire_name(
+    info: FieldInfo, expected: str
+) -> None:
+    """A marked field's term is the name it travels under."""
+    assert _wire_name("field_name", info) == expected
 
 
 def test_render_is_deterministic_and_sorted() -> None:
@@ -243,11 +284,13 @@ def test_namespace_index_page_lists_exactly_the_generated_terms() -> None:
     """
     page = (repo_root() / "docs/ns/index.md").read_text(encoding="utf-8")
     rows = re.findall(r"^\|\s*`(\w+)`\s*\|", page, flags=re.MULTILINE)
+    # The "Declared types" and "Declared properties" tables together.
+    terms = set(vultron_context_terms()) | set(vultron_property_terms())
 
     assert rows, "found no 'Declared types' rows in docs/ns/index.md"
-    assert set(rows) == set(vultron_context_terms()), (
-        "docs/ns/index.md's declared-type table disagrees with the generated "
-        f"context. Only on the page: {sorted(set(rows) - set(vultron_context_terms()))}; "
-        f"only in the context: {sorted(set(vultron_context_terms()) - set(rows))}. "
-        f"Regenerate with '{WRITE_COMMAND}' and update the table to match."
+    assert set(rows) == terms, (
+        "docs/ns/index.md's declared-term tables disagree with the generated "
+        f"context. Only on the page: {sorted(set(rows) - terms)}; "
+        f"only in the context: {sorted(terms - set(rows))}. "
+        f"Regenerate with '{WRITE_COMMAND}' and update the tables to match."
     )

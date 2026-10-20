@@ -20,7 +20,9 @@ back per line instead (PD-10-002): each extractor returns the set of overlong
 lines in a tree, and the growth guard (:func:`added_overlong_lines`) fails a
 branch for each line it adds. A line edited, or written new, must fit; a line
 left alone is not this branch's doing, even when a rename or a module split
-carried it to another file.
+carried it to another file. Ruff's ``W505`` finds the Python doc lines, so
+the guard and ``ruff check --select W505`` agree on what a doc line is; only
+the files the branch changed are read.
 
 A line counts as overlong as markdownlint's non-strict ``MD013`` counts it:
 longer than the limit *and* with whitespace past the limit. A line whose
@@ -32,9 +34,10 @@ Requirements: specs/project-documentation.yaml PD-10.
 
 from __future__ import annotations
 
-import io
+import json
 import re
-import token
+import subprocess  # nosec B404 - runs a fixed ruff command only
+import sys
 import tokenize
 from collections import Counter
 from collections.abc import Iterable, Iterator, Sequence
@@ -44,7 +47,7 @@ from vultron.metadata.base import iter_tree_texts
 from vultron.metadata.specs.growth_guard import (
     Extractor,
     GrowthCheck,
-    compare_with_base,
+    compare_changed_with_base,
 )
 
 #: The prose line limit outside ``docs/`` (AGENTS.md § Markdown Formatting).
@@ -65,12 +68,6 @@ PYTHON_ROOTS: tuple[str, ...] = (
 SPEC_ROOT = "specs"
 
 _WHITESPACE_RE = re.compile(r"\s")
-#: Tokens after which a token starts a statement.
-_STATEMENT_START = frozenset(
-    {token.NEWLINE, token.NL, token.INDENT, token.DEDENT, token.ENCODING}
-)
-#: Tokens that carry no code, skipped when looking past a string.
-_TRIVIA = frozenset({token.NL, token.COMMENT})
 
 
 def is_overlong(line: str, limit: int = LINE_LIMIT) -> bool:
@@ -128,8 +125,14 @@ def added_overlong_lines(
     :func:`~vultron.metadata.specs.growth_guard.added_since_base`, except
     that a moved line is not counted as added (:func:`new_lines`). Arguments,
     skipping and errors are as that function documents.
+
+    Only the files the branch changed are read, on both sides
+    (:func:`~vultron.metadata.specs.growth_guard.compare_changed_with_base`):
+    every extractor here is per file, so an unchanged file adds the same items,
+    and the same count of each line, to both sides. The result's
+    ``head_total`` is therefore ``None``.
     """
-    seen = compare_with_base(
+    seen = compare_changed_with_base(
         extract,
         repo_root=repo_root,
         paths=paths,
@@ -138,8 +141,8 @@ def added_overlong_lines(
     )
     head = seen.head_value
     if seen.base_value is None:
-        return GrowthCheck(None, frozenset(), len(head), skipped=seen.skipped)
-    return GrowthCheck(seen.base, new_lines(seen.base_value, head), len(head))
+        return GrowthCheck(None, frozenset(), None, skipped=seen.skipped)
+    return GrowthCheck(seen.base, new_lines(seen.base_value, head), None)
 
 
 def overlong_spec_yaml_lines(repo_root: Path) -> frozenset[str]:
@@ -172,85 +175,135 @@ def _license_header_end(lines: list[str]) -> int:
     return notice_end
 
 
-def _next_code(tokens: list[tokenize.TokenInfo], at: int) -> int:
-    """Index of the first token from *at* on that is not trivia."""
-    while at < len(tokens) and tokens[at].type in _TRIVIA:
-        at += 1
-    return at
+#: The ruff rule that finds comment and docstring lines over the limit.
+_RUFF_DOC_RULE = "W505"
 
 
-def _string_statement_end(tokens: list[tokenize.TokenInfo], at: int) -> int:
-    """Last row of the string statement starting at *at*, or ``0``.
+def _ruff_doc_rows(
+    repo_root: Path, roots: Sequence[str]
+) -> dict[str, list[int]]:
+    """The rows ruff's ``W505`` flags under *roots*, keyed by relative path.
 
-    A string is a statement when the run of string tokens from *at* is
-    followed by the end of the statement; otherwise it is part of a larger
-    expression (``\"a\" + b``) and ``0`` is returned.
-    """
-    end = at
-    while tokens[_next_code(tokens, end + 1)].type == token.STRING:
-        end = _next_code(tokens, end + 1)
-    after = tokens[_next_code(tokens, end + 1)]
-    if after.type in (token.NEWLINE, token.ENDMARKER):
-        return tokens[end].end[0]
-    return 0
-
-
-def _doc_rows(source: str) -> Iterator[int]:
-    """The 1-based rows of standalone comments and string statements.
-
-    A comment counts when it is alone on its line. A string counts when it is
-    a whole statement, as a docstring is. A string passed as an argument or
-    assigned to a name is data.
+    The rule runs alone and with ``--isolated``, so the limit is
+    :data:`LINE_LIMIT` whatever the tree's own ruff configuration says, and the
+    base tree is read under the same settings as the working tree. ``noqa``
+    comments are ignored: the guard has no exemptions. Only ``*.py`` files are
+    read, and ruff's default excludes (``dist/``, ``venv/``, ``_build/`` …) are
+    cleared, so every module under *roots* is read, as the guard documents.
 
     Raises:
-        SyntaxError: *source* does not tokenize.
+        SyntaxError: ruff cannot parse a file, so its doc lines are unknown.
+        RuntimeError: ruff, a dev dependency, is not installed or fails.
     """
+    proc = subprocess.run(  # nosec B603 - fixed ruff argv
+        [
+            sys.executable,
+            "-m",
+            "ruff",
+            "check",
+            "--isolated",
+            "--no-cache",
+            "--ignore-noqa",
+            "--exit-zero",
+            "--select",
+            _RUFF_DOC_RULE,
+            "--config",
+            f"lint.pycodestyle.max-doc-length={LINE_LIMIT}",
+            "--config",
+            'include=["*.py"]',
+            "--config",
+            "exclude=[]",
+            "--output-format",
+            "json",
+            *roots,
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"ruff check failed: {proc.stderr.strip()}")
+    root = repo_root.resolve()
+    rows: dict[str, list[int]] = {}
+    for found in json.loads(proc.stdout):
+        rel = Path(found["filename"]).resolve().relative_to(root).as_posix()
+        row = found["location"]["row"]
+        if found["code"] != _RUFF_DOC_RULE:
+            raise SyntaxError(f"{rel}:{row}: {found['message']}")
+        rows.setdefault(rel, []).append(row)
+    return rows
+
+
+#: A comment alone on its line with a second ``#``, where a pragma may start.
+_PRAGMA_CANDIDATE_RE = re.compile(r"^\s*#.*#")
+
+
+def _pragma_comment_rows(rel: str, text: str, lines: list[str]) -> set[int]:
+    """Rows of overlong comments alone on their line that ``W505`` passes.
+
+    ``W505`` drops a trailing pragma (``# noqa``, ``# type:``, ``# nosec`` …)
+    and everything after it before it measures a line, so a comment whose
+    pragma comes early passes ruff at any length. The guard has no exemptions,
+    so such a comment is measured whole. A file is tokenized only when it has
+    a candidate line, and a candidate counts only when the tokenizer finds a
+    comment starting it, so a string that merely looks like one stays data.
+
+    Raises:
+        SyntaxError: the tokenizer cannot read the file.
+    """
+    candidates = {
+        row
+        for row, line in enumerate(lines, start=1)
+        if _PRAGMA_CANDIDATE_RE.match(line) and is_overlong(line)
+    }
+    if not candidates:
+        return set()
+    readline = iter(text.splitlines(keepends=True)).__next__
     try:
-        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
-    except tokenize.TokenError as exc:
-        raise SyntaxError(str(exc)) from exc
-    previous = token.NEWLINE
-    for at, tok in enumerate(tokens):
-        if tok.type == token.COMMENT:
-            if not tok.line[: tok.start[1]].strip():
-                yield tok.start[0]
-            continue
-        if tok.type == token.STRING and previous in _STATEMENT_START:
-            last = _string_statement_end(tokens, at)
-            yield from range(tok.start[0], last + 1)
-        if tok.type != token.NL:
-            previous = tok.type
-
-
-def python_doc_lines(source: str) -> Iterator[str]:
-    """The comment and docstring lines of *source*, as ruff's ``W505`` reads.
-
-    A doc line is a comment alone on its line, or a line of a string that is
-    a statement by itself, as docstrings are (:func:`_doc_rows`). The license
-    notice every module opens with is skipped (:func:`_license_header_end`).
-
-    Raises:
-        SyntaxError: *source* does not tokenize.
-    """
-    lines = source.splitlines()
-    skip = _license_header_end(lines)
-    for row in sorted(set(_doc_rows(source))):
-        if skip < row <= len(lines):
-            yield lines[row - 1]
+        return {
+            tok.start[0]
+            for tok in tokenize.generate_tokens(readline)
+            if tok.type == tokenize.COMMENT
+            and tok.start[0] in candidates
+            and not tok.line[: tok.start[1]].strip()
+        }
+    except (tokenize.TokenError, SyntaxError) as exc:
+        raise SyntaxError(f"{rel}: {exc}") from exc
 
 
 def overlong_python_doc_lines(repo_root: Path) -> frozenset[str]:
     """Every overlong doc line of every ``*.py`` under :data:`PYTHON_ROOTS`.
 
-    A file with no overlong line past its license notice is not tokenized:
-    most files have none, and tokenizing is the slow step.
+    A doc line is a comment alone on its line, or a line of a string that is a
+    statement by itself, as docstrings are: the lines ruff's ``W505`` reads,
+    found by ruff itself (:func:`_ruff_doc_rows`), plus the comments ``W505``
+    measures short because of a pragma (:func:`_pragma_comment_rows`). Of
+    those, a line counts when :func:`is_overlong` holds, so a line whose
+    overflow is one unbreakable token passes here as it does in spec YAML. The
+    license notice every module opens with is skipped
+    (:func:`_license_header_end`). Ruff skips gitignored files; the pragma
+    check reads every module, which matters only for a whole-tree call, since
+    the guard's trees hold only files git tracks or would track.
+
+    Raises:
+        SyntaxError: A file under the roots does not parse.
     """
+    roots = [r for r in PYTHON_ROOTS if (repo_root / r).is_dir()]
+    if not roots:
+        return frozenset()
+    ruff_rows = _ruff_doc_rows(repo_root, roots)
     items: set[str] = set()
-    for rel, source in iter_tree_texts(repo_root, PYTHON_ROOTS, "*.py"):
-        lines = source.splitlines()
-        if not any(map(is_overlong, lines[_license_header_end(lines) :])):
-            continue
-        overlong = (ln for ln in python_doc_lines(source) if is_overlong(ln))
+    for rel, text in iter_tree_texts(repo_root, roots, "*.py"):
+        lines = text.splitlines()
+        rows = set(ruff_rows.get(rel, ()))
+        rows |= _pragma_comment_rows(rel, text, lines)
+        skip = _license_header_end(lines)
+        overlong = (
+            lines[row - 1]
+            for row in sorted(rows)
+            if skip < row <= len(lines) and is_overlong(lines[row - 1])
+        )
         items.update(_items(rel, overlong))
     return frozenset(items)
 
@@ -265,5 +318,4 @@ __all__ = [
     "new_lines",
     "overlong_python_doc_lines",
     "overlong_spec_yaml_lines",
-    "python_doc_lines",
 ]

@@ -11,9 +11,9 @@ causal_edges:
     consequent: add_participant_status_to_participant
     consequent_actor: case-actor
     note: >
-      Case engagement triggers the creation of participant status records for
-      each actor that has joined.  The first status record establishes
-      the participant's initial RM and CS state in the canonical ledger.
+      The Case Actor records each engagement's RM ACCEPTED as a participant
+      status entry right after the engage_case entry, carrying the status it
+      stored (CLP-07-013).
   - antecedent: validate_report
     consequent: close_case
     consequent_actor: vendor
@@ -93,10 +93,9 @@ state to ACCEPTED and records an `engage_case` entry in the ledger.
 
 ### 4. Participant status records are created
 
-Once the case is active, the Case Actor records the initial participant status
-for each actor — Reporter and Vendor — capturing their RM state and CVD role.
-Each such record appears in the ledger as an `add_participant_status_to_participant`
-entry.
+When the Case Actor records an engagement, it commits the RM status it wrote for the engaging actor as an `add_participant_status_to_participant` entry right after the `engage_case` entry ([CLP-07-013](../../reference/specs/protocol.md#clp-07-013)).
+Every replica copies that status, its id and time included.
+The records seated at case creation were ledgered earlier, each as a `create_case_participant` entry.
 
 *Antecedent:* `engage_case` is present in the ledger.
 

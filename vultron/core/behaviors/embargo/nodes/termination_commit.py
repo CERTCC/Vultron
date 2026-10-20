@@ -86,7 +86,9 @@ class CommitAndApplyEmbargoTerminationNode(
     time an ``END_TIME_REACHED`` termination is claimed at.  *builder* is
     the trigger use case's own ``Remove`` builder; ``None`` (the end-time
     check and the threat cascades) builds it through the trigger-activity
-    factory, carrying the decided termination's what in ``content``.  The
+    factory, carrying the decided termination's what in ``content`` and its
+    why, the cause the ``TERMINATED`` entry records (a threat cascade's
+    signals included), as ``terminationCause`` (EMB-13-005).  The
     ``Remove`` is addressed to every other participant and never to the
     manager (EMB-19-001, #4112).
 
@@ -131,6 +133,7 @@ class CommitAndApplyEmbargoTerminationNode(
             case_id=self._case_id,
             actor=cast(str, self.actor_id),
             reason=recorded.reason,
+            cause=recorded.cause,
             to=to,
         )
 

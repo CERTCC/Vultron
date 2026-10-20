@@ -357,7 +357,7 @@ def test_confirmation_and_gap_replies_are_accepted(
     committed, but no new status record is written, so it reads ``SKIPPED``
     (RSH-08-002).
     A Reject after Accept (VALID→CLOSED, a gap) is a forward move and is also
-    accepted, and a new status record *is* written.
+    accepted, and a new status record *is* written and committed.
     """
     tail = _ledger_tail(joining_case)[-1]
     invite = _full_case_invite_at(
@@ -379,9 +379,16 @@ def test_confirmation_and_gap_replies_are_accepted(
     assert result.disposition is expected_disposition, result.reason
     assert _rm_history(joining_case)[-1] == expected_rm
     assert len(_rm_history(joining_case)) == records_before + new_records
-    assert len(_ledger_tail(joining_case)) == before + 1, (
-        "the receipt is committed even for a confirmation or gap"
-    )
+    committed = [e.event_type for e in _ledger_tail(joining_case)[before:]]
+    gap = second == "reject"
+    # The receipt is committed even for a confirmation or gap; each status
+    # written follows it as its own entry (CLP-07-013), and a gap also gets
+    # the CASE_MANAGER's RSH-06-004 note, its own entry (#4829).
+    assert len(committed) == 1 + new_records + gap, committed
+    assert (
+        committed.count("add_participant_status_to_participant") == new_records
+    ), committed
+    assert committed.count("add_note_to_case") == int(gap), committed
 
 
 @pytest.mark.spec("RSH-06-006")
@@ -409,7 +416,11 @@ def test_a_regression_reply_is_refused_before_receipt(
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
     assert _rm_history(joining_case)[-1] == RM.VALID
-    assert len(_ledger_tail(joining_case)) == before
+    # Nothing of the reply is committed; only the CASE_MANAGER's RSH-06-004
+    # note is (CLP-10-022, #4829).
+    assert [e.event_type for e in _ledger_tail(joining_case)[before:]] == [
+        "add_note_to_case"
+    ]
 
 
 @pytest.mark.spec("CM-11-010")

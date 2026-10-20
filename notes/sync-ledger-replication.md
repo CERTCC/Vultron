@@ -16,6 +16,7 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/participant-case-replica.yaml
   - specs/protocol-asks.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/case-ledger-authority.md
   - notes/case-actor-cluster.md
@@ -98,16 +99,16 @@ Invariants every component touching state, messaging or storage must preserve:
 3. **Idempotent replay**: reprocessing any prefix, duplicates included, changes
    nothing.
 4. **Monotonic visibility**: a replica never regresses its acknowledged
-   position, and `ApplyParticipantStatusFromLedgerNode` never moves a replica's
-   `rm` backwards on the progress scale. Only `rm` is ratcheted; same-rank moves
-   (`VALID` ↔ `INVALID`) are re-adjudication, not regression (RSH-05-007).
+   position. It copies each status an entry carries, id, times and every
+   dimension as carried, and carries no local value over it (CM-23-016): the
+   CASE_MANAGER never commits a regression, so a ratchet would only make a
+   diverged replica disagree further.
    - An entry whose composite state violates the RM↔VF, RM↔D or VF↔D entailments
      is not applied; the replica emits `Create(ProcessingFault)`
-     `StatusAssertionRefused/ImpossibleState` (or `.../CorruptLocalRecord` for an
-     unreadable local record) to the CASE_MANAGER (RSH-05-021).
-   - The ratcheted status is saved **unconditionally**, and the node appends the
-     wire-typed object it reads back. Skipping the save when the status object is
-     already stored appends the un-ratcheted value.
+     `StatusAssertionRefused/ImpossibleState` to the CASE_MANAGER (RSH-05-021).
+   - The carried status is saved even when an object with its id is already
+     stored, so the CASE_MANAGER's copy replaces one a trigger stored without
+     attaching it (RSH-08-006).
 5. **Reject on divergence**: an entry that does not extend the chain is rejected
    and triggers resynchronization.
 
@@ -312,6 +313,11 @@ peer. Three properties are load-bearing; tests are in
 
 - **Rate limit, not suppression** (30 s at an unchanged position). A permanent
   block would strand a peer whose replayed entry was lost.
+- **The cooldown doubles per no-progress replay, capped at 600 s** (SYNC-15-013).
+  A fixed one stops the loop only when a round trip beats it, so a slow host
+  livelocks; `replays_at_position` resets on progress (#4882).
+- **The genesis case pre-seed follows the replay decision** (SYNC-15-014): an
+  unguarded pre-seed sends one case per Reject inside a suppressed window.
 - **Ask and record are separate.** Record only after at least one entry went
   out; recording a zero-entry decision suppresses the peer's next, genuinely
   stale Reject once the ledger grows.

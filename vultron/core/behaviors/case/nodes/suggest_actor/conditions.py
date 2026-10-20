@@ -38,6 +38,11 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
+from vultron.core.behaviors.case.nodes.suggest_actor.pending_request import (
+    invitee,
+    offered_participant_actor,
+    request_naming_actor_is_pending,
+)
 from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
     RecordedOfferAnswerInputMixin,
     RequireRecordedOfferAnswerNode,
@@ -355,10 +360,10 @@ def case_manager_admits_suggested_actor_guard(
 class InviteInFlightNode(DataLayerActionWithPorts):
     """Return SUCCESS if an Invite to the recommended actor is in-flight.
 
-    Queries the case ledger via ``find_protocol_pair`` with
-    ``event_type="invite_actor_to_case"`` and ``object_id=recommended_id``.
-    Returns SUCCESS when the pair ``is_pending()`` — i.e., an Invite was
-    sent and no Accept/Reject has been recorded (AC-7a, CM-16-009).
+    Finds the latest ``invite_actor_to_case`` entry inviting
+    ``recommended_id`` (:func:`request_naming_actor_is_pending`) and returns
+    SUCCESS when it is pending — i.e., an Invite was sent and no
+    Accept/Reject has been recorded (AC-7a, CM-16-009).
 
     Used as the second arm of the duplicate-detection Selector in
     :func:`~vultron.core.behaviors.case.suggest_actor_tree.create_recommend_actor_to_case_received_tree`.
@@ -378,13 +383,14 @@ class InviteInFlightNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        pair = self.datalayer.find_protocol_pair(
-            case_id=self.case_id,
-            request_event_type="invite_actor_to_case",
-            object_id=self.recommended_id,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
-        )
-        if pair.is_pending():
+        if request_naming_actor_is_pending(
+            self.datalayer,
+            self.case_id,
+            self.recommended_id,
+            "invite_actor_to_case",
+            INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+            invitee,
+        ):
             self.logger.info(
                 "%s: Invite to '%s' is in-flight for case '%s'",
                 self.name,
@@ -398,11 +404,11 @@ class InviteInFlightNode(DataLayerActionWithPorts):
 class PendingOfferCaseParticipantNode(DataLayerActionWithPorts):
     """Return SUCCESS if an Offer(CaseParticipant) to the Case Owner is pending.
 
-    Queries the case ledger via ``find_protocol_pair`` with
-    ``event_type="offer_case_participant"`` and ``object_id=recommended_id``.
-    Returns SUCCESS when the pair ``is_pending()`` — i.e., the CaseActor
-    has already forwarded an Offer(CaseParticipant) for this actor and the
-    Case Owner has not yet responded (AC-6, CM-16-008).
+    Finds the latest ``offer_case_participant`` entry whose participant
+    record names ``recommended_id`` (:func:`request_naming_actor_is_pending`)
+    and returns SUCCESS when it is pending — i.e., the CaseActor has already
+    forwarded an Offer(CaseParticipant) for this actor and the Case Owner
+    has not yet responded (AC-6, CM-16-008).
 
     Used as the third arm of the duplicate-detection Selector in
     :func:`~vultron.core.behaviors.case.suggest_actor_tree.create_recommend_actor_to_case_received_tree`.
@@ -422,13 +428,14 @@ class PendingOfferCaseParticipantNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        pair = self.datalayer.find_protocol_pair(
-            case_id=self.case_id,
-            request_event_type="offer_case_participant",
-            object_id=self.recommended_id,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
-        )
-        if pair.is_pending():
+        if request_naming_actor_is_pending(
+            self.datalayer,
+            self.case_id,
+            self.recommended_id,
+            "offer_case_participant",
+            OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            offered_participant_actor,
+        ):
             self.logger.info(
                 "%s: Offer(CaseParticipant) for '%s' is pending Case Owner "
                 "decision in case '%s'",

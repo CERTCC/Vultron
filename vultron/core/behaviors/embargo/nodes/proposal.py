@@ -18,7 +18,7 @@
 from typing import cast
 
 from py_trees.common import Status
-from py_trees.ports import NoDataAvailable, PortInformation
+from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.embargo.decided_entries import (
     EmbargoDecision,
@@ -37,7 +37,6 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle.pec import (
     find_actor_participant,
 )
-from vultron.core.services.idempotent_store import idempotent_store
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -52,73 +51,6 @@ from vultron.errors import (
 #: that is a repeat of a Reject already recorded.  The received tree's repeat
 #: guard stops a repeat before the commit (CM-13-005, HP-01-003).
 ALREADY_DECLINED_PREFIX = "Already declined"
-
-
-class CreateAndStoreInviteNode(DataLayerActionWithPorts):
-    """Idempotent storage of an InviteToEmbargoOnCase activity.
-
-    Reads the request from the blackboard 'activity' key and uses
-    request.activity_type, request.activity_id, and request.activity to
-    idempotently create the invite activity in the DataLayer.
-
-    Always returns SUCCESS (idempotent create).
-    """
-
-    def __init__(self, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "activity": PortInformation(data_type=object, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._activity = None
-        try:
-            self._activity = self.get_input("activity")
-        except (NoDataAvailable, NotImplementedError):
-            self._activity = None
-
-    def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.SUCCESS
-
-        request = self._activity
-        if request is None:
-            self.logger.warning(
-                "%s: request not found in blackboard", self.name
-            )
-            return Status.SUCCESS
-
-        activity_type = getattr(request, "activity_type", None)
-        activity_id = getattr(request, "activity_id", None)
-        activity = getattr(request, "activity", None)
-
-        if not activity_type or not activity_id or not activity:
-            self.logger.warning(
-                "%s: missing activity_type, activity_id, or activity on request",
-                self.name,
-            )
-            return Status.SUCCESS
-
-        idempotent_store(
-            self.datalayer,
-            activity_type,
-            activity_id,
-            activity,
-            "InviteToEmbargoOnCase",
-            activity_id,
-        )
-
-        self.feedback_message = f"Stored invite activity '{activity_id}'"
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
 
 
 class IndexReceivedEmbargoProposalNode(DataLayerActionWithPorts):

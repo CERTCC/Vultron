@@ -26,7 +26,6 @@ event (CLP-13-001)::
     PxaInviteRefusal (DiversionStage)
     ├─ PxaBarsEmbargoNode                 # P, X or A set on this case
     └─ PxaInviteRefusalAnswer (Sequence)
-       ├─ CreateAndStoreInviteNode        # Invite only: the ER is built from it
        ├─ PersistEmbargoEventNode         # Invite only, inline terms
        ├─ ReceiverIsInviteeNode           # Invite only: only the invitee answers
        ├─ ErFactoryAvailableNode          # no port: refused without its ER
@@ -53,9 +52,6 @@ from vultron.core.behaviors.embargo.nodes.cascade import (
 )
 from vultron.core.behaviors.embargo.nodes.invite_answer import (
     SendEmbargoInviteAnswerNode,
-)
-from vultron.core.behaviors.embargo.nodes.proposal import (
-    CreateAndStoreInviteNode,
 )
 from vultron.core.behaviors.embargo.nodes.pxa_refusal import (
     EmbargoInviteNotYetRefusedNode,
@@ -111,11 +107,12 @@ def pxa_invite_refusal(
 ) -> Diversion:
     """The P/X/A refusal of a received ``Invite(EmbargoEvent)`` (EMB-01-002).
 
-    The Invite and the terms it carries are stored first, so the ER can be
-    built from the stored Invite; storing them moves no EM or consent state
-    (EP-09-003).  An Invite naming its terms by URI only is answered all the
-    same: the ER names the Invite by id (ADR-0123).  Only the invitee answers
-    (EP-09-010); any other store keeps the Invite and sends nothing.
+    The terms the Invite carries are stored first; the ER is built from the
+    Invite as intake archived it (CLP-10-017, DL-06-006).  Storing the terms
+    moves no EM or consent state (EP-09-003).  An Invite naming its terms by
+    URI only is answered all the same: the ER names the Invite by id
+    (ADR-0123).  Only the invitee answers (EP-09-010); any other store keeps
+    the Invite's archive and sends nothing.
 
     Args:
         case_id: The case the embargo was proposed for.
@@ -124,7 +121,7 @@ def pxa_invite_refusal(
         sender_id: The Invite's ``actor``, whom the CASE_MANAGER answers.
         embargo: The inline terms, if the Invite carries them.
     """
-    effects: list[py_trees.behaviour.Behaviour] = [CreateAndStoreInviteNode()]
+    effects: list[py_trees.behaviour.Behaviour] = []
     if embargo is not None:
         effects.append(PersistEmbargoEventNode(embargo=embargo))
     effects.append(

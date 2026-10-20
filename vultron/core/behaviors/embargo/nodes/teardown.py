@@ -38,6 +38,7 @@ from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoChangeFromLedgerNode,
 )
 from vultron.core.models._helpers import parse_published
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_apply import (
@@ -47,6 +48,7 @@ from vultron.core.models.embargo_apply import (
     apply_embargo_change,
 )
 from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import case_content_recipients
 from vultron.core.ports.case_persistence import CasePersistence
@@ -278,6 +280,10 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts, StateWriteCapable):
         return Status.SUCCESS
 
 
+#: The ``Remove``'s key for the termination's why (EMB-13-005).
+_TERMINATION_CAUSE = wire_key("termination_cause", VultronActivity)
+
+
 class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
     """Copy a ``Remove(EmbargoEvent)`` entry onto this replica's case file.
 
@@ -286,19 +292,22 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
     apply function, it terminates the embargo the ``Remove`` names (its
     ``object``), never whatever is in force locally, and cancels every open
     proposal in the same step (EP-08-004).  The ``TERMINATED`` entry records
-    the what the ``Remove`` carries in ``content``; the why (the
-    termination's cause) does not travel on the wire, so a replica records
-    the what alone (ADR-0122, #4748).
+    the what the ``Remove`` carries in ``content`` and the why it carries as
+    ``terminationCause``, copied as the entry states it: a replica never
+    works a cause out from its own case state, and an entry with no
+    ``terminationCause`` records the what alone (EMB-13-005).
 
     As on the CASE_MANAGER, where such a ``Remove`` is ledgered with no
     effect (CLP-02-013), an entry naming an embargo that is not the one in
     force changes nothing: SUCCESS, nothing written.  An entry whose
-    ``content`` is not a termination reason, that names no embargo, or that
-    claims ``END_TIME_REACHED`` before the embargo's end time (its
-    ``published`` time, ADR-0122), or against an embargo this store cannot
-    read (EMB-18-003), is refused: FAILURE, which keeps the entry from being
-    persisted (SYNC-12-001).  A step the apply function refuses
-    is held for gap handling, as the frame does for every copied entry.
+    ``content`` is not a termination reason, whose ``terminationCause`` is
+    malformed or does not fit that reason (EMB-13-004), that names no
+    embargo, or that claims ``END_TIME_REACHED`` before the embargo's end
+    time (its ``published`` time, ADR-0122), or against an embargo this
+    store cannot read (EMB-18-003), is refused: FAILURE, which keeps the
+    entry from being persisted (SYNC-12-001).  A step the apply function
+    refuses is held for gap handling, as the frame does for every copied
+    entry.
     """
 
     def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:
@@ -310,7 +319,9 @@ class ApplyEmbargoTeardownNode(ApplyEmbargoChangeFromLedgerNode):
         return RegisterStep(
             kind=RegisterStepKind.TERMINATE,
             embargo=embargo_id,
-            termination=EmbargoTermination.from_reason(reason),
+            termination=EmbargoTermination.model_validate(
+                {"reason": reason, "cause": snapshot.get(_TERMINATION_CAUSE)}
+            ),
         )
 
     def update(self) -> Status:

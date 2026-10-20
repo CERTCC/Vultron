@@ -34,7 +34,7 @@ from vultron.wire.as2.extractor._builders import (
     _to_domain_obj,
     ledger_position_from_content,
     proposed_embargo_from,
-    termination_reason_of,
+    termination_of,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
@@ -95,6 +95,17 @@ def extract_intent(
 
     _obj_type = str(getattr(obj, "type_", "")) if obj is not None else ""
     carries_deadline = "answer_deadline" in event_class.model_fields
+    proposed_embargo = None
+    carries_terms = "proposed_embargo" in event_class.model_fields
+    terms_on_activity = _obj_type != str(VOtype.CASE_PROPOSAL)
+    if carries_terms:
+        # Offer(VulnerabilityReport) carries it itself; Create(CaseProposal)
+        # carries it on the Offer inlined in the proposal (EP-04-004,
+        # CP-01-008).  Surfaced here so no use case re-reads the wire
+        # activity for it (ADR-0035).
+        proposed_embargo = proposed_embargo_from(
+            activity if terms_on_activity else obj, activity_id=activity.id_
+        )
     extra_kwargs = _build_object_kwargs(
         obj,
         _obj_type,
@@ -109,6 +120,11 @@ def extract_intent(
         activity_end_time=(
             _activity_end_time(activity) if carries_deadline else None
         ),
+        # Terms the activity carries itself are part of the Offer the
+        # receiver archives and inlines in its case proposal (CP-01-008).
+        activity_proposed_embargo=(
+            proposed_embargo if terms_on_activity else None
+        ),
     )
 
     if "rsvp_deadline" in event_class.model_fields:
@@ -117,15 +133,8 @@ def extract_intent(
         )
     if carries_deadline:
         extra_kwargs["answer_deadline"] = _answer_deadline(activity)
-    if "proposed_embargo" in event_class.model_fields:
-        # Offer(VulnerabilityReport) carries it itself; Create(CaseProposal)
-        # carries it on the Offer inlined in the proposal (EP-04-004,
-        # CP-01-008).  Surfaced here so no use case re-reads the wire
-        # activity for it (ADR-0035).
-        carrier = activity if _obj_type != str(VOtype.CASE_PROPOSAL) else obj
-        extra_kwargs["proposed_embargo"] = proposed_embargo_from(
-            carrier, activity_id=activity.id_
-        )
+    if carries_terms:
+        extra_kwargs["proposed_embargo"] = proposed_embargo
 
     extra_kwargs.update(_content_kwargs(activity, event_class))
 
@@ -216,8 +225,19 @@ def _content_kwargs(
         kwargs["ledger_tail"] = ledger_position_from_content(activity)
     if "termination_reason" in event_class.model_fields:
         # A termination Remove carries its what in ``content``: exactly
-        # END_TIME_REACHED or EARLY, refused otherwise (ADR-0122).
-        kwargs["termination_reason"] = termination_reason_of(activity)
+        # END_TIME_REACHED or EARLY, refused otherwise (ADR-0122); and its
+        # why, when named, as ``terminationCause`` (EMB-13-005).
+        termination = termination_of(activity)
+        kwargs["termination_reason"] = termination.reason
+        kwargs["termination_cause"] = termination.cause
+    elif getattr(activity, "termination_cause", None) is not None:
+        # Only a termination Remove(EmbargoEvent) has a why (EMB-13-005).
+        # Any other Remove naming one is refused here, so the cause never
+        # reaches a ledger snapshot through an activity that cannot carry it.
+        raise VultronParseValidationError(
+            f"activity {activity.id_!r} carries a terminationCause, but only"
+            " a termination Remove(EmbargoEvent) may name one (EMB-13-005)"
+        )
     return kwargs
 
 

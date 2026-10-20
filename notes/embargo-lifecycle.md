@@ -16,6 +16,7 @@ description: >
   (EP-09, ADR-0113); and who may send each embargo message (ADR-0115).
 related_specs:
   - specs/case-management.yaml
+  - specs/datalayer.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
   - specs/message-semantics-mapping.yaml
@@ -113,17 +114,21 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   `content`, parsed at the edge (`termination_reason_from_content()`); the why
   is a structured cause (`vultron/core/models/embargo_termination.py`), a
   union discriminated on `kind`: `THREAT_SIGNAL` (`P`/`X`/`A`), `FIX_READY`
-  (the quorum's vendors), `FIX_DEPLOYED` and `OTHER` (ADR-0122 rev 7; only
-  `ThreatSignalCause` is built until #4857). Both sit on the `TERMINATED`
+  (the quorum's vendors), `FIX_DEPLOYED` and `OTHER` (ADR-0122 rev 7). Both
+  sit on the `TERMINATED`
   entry as one `EmbargoTermination`, required there and refused elsewhere. The
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
   triggering status, or, when unknown at build time, the case's PXA at the
-  write. The `Remove` carries the why as `terminationCause`, checked at the
-  parse edge (EMB-13-005, #4857), because a replica learns the why only from
-  the ledger entry: it copies the cause, never works it out from its own PXA
-  (#4748). An owner's `Remove` may claim `FIX_READY`, `FIX_DEPLOYED` or
-  `OTHER`, recorded as given; one naming `THREAT_SIGNAL` is refused, since a
-  threat signal arrives as a case status update setting `P`, `X` or `A`.
+  write. The `Remove` carries the why as `terminationCause` (a field on the
+  base `as_Remove`, marked a Vultron property so `context.jsonld` names it),
+  checked at the parse edge (EMB-13-005), because a replica learns the why
+  only from the ledger entry: it copies the cause, never works it out from its
+  own PXA (`ApplyEmbargoTeardownNode`). Every `Remove` the CASE_MANAGER sends
+  passes the cause it records to `terminate_embargo(cause=...)`. An owner's
+  `Remove` may claim `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, recorded as
+  given; one naming `THREAT_SIGNAL` is refused before the commit
+  (`TerminationCauseIsAdmissibleNode`), since a threat signal arrives as a
+  case status update setting `P`, `X` or `A`.
   The CASE_MANAGER decides the termination first (`decide_termination()`),
   builds its `Remove` from that decision, commits it, and only then applies
   the step (#4714), so the wire and the entry cannot disagree. The CM-31-009
@@ -265,8 +270,9 @@ catch-up fetch or deferral, refuse instead.
   in `vultron/core/behaviors/embargo/refusal_tree.py`, CLP-10-026), never a
   refusal effect: refusal effects run only at the CASE_MANAGER and are skipped
   on a redelivery, and a participant owes the ER too and re-queues an ER
-  sealed but never queued (ID-04-005). It stores the Invite and its
-  `EmbargoEvent` first (the ER factory needs the proposal) and answers where
+  sealed but never queued (ID-04-005). It stores the Invite's `EmbargoEvent`
+  first; the ER factory reads the proposal from intake's archive, never a copy
+  under the sender's id (DL-06-006). It answers where
   any Invite answer goes: the CASE_MANAGER answers the proposer, a participant
   answers the CASE_MANAGER, never a peer (PCR-08-001). An Invite naming its
   terms by URI only is still answered (ADR-0123).
@@ -465,9 +471,9 @@ cascade suppress each other (#4147).
 The declaration can arrive before the teardown entries, so
 `_DeclaredByCaseManagerNode` skips the branch when the status's sender holds
 CASE_MANAGER and is not the executing actor. It decides *who* tears down, not
-*whether* — it is not a sender-role authorization gate (RSH-03-002). For the
-same reason `PxaEmInvariantDiagnosticNode` posts no CSB-18 Note for such a
-status.
+*whether* — it is not a sender-role authorization gate (RSH-03-002). The
+CSB-18 diagnostic needs no such skip: `PxaEmInvariantDiagnosticNode` runs only
+at the CASE_MANAGER (#4829).
 
 **The P/X/A abandonment decides every open proposal (EMB-16-001).** The
 CASE_MANAGER commits one `Reject(Invite(EmbargoEvent))` per proposal under

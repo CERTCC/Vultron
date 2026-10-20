@@ -39,7 +39,9 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
     EmDimension,
@@ -185,19 +187,25 @@ def status_count(
     return len(participant.participant_statuses)
 
 
-def queued_notes(dl: SqliteDataLayer) -> list[Any]:
-    """Return the ``Add(Note)`` activities in *dl*'s outbox (RSH-06-004)."""
-    notes = []
-    for activity_id in dl.outbox_list():
-        activity = dl.read(activity_id)
-        obj = getattr(activity, "object_", None)
-        obj = dl.read(obj) if isinstance(obj, str) else obj
-        if (
-            getattr(activity, "type_", None) == "Add"
-            and getattr(obj, "type_", None) == "Note"
-        ):
-            notes.append(activity)
-    return notes
+def recorded_notes(dl: SqliteDataLayer) -> list[dict[str, Any]]:
+    """Return the notes *dl*'s CASE_MANAGER recorded on the case (RSH-06-004).
+
+    Each is the note an ``add_note_to_case`` entry carries inline, oldest
+    first: the CASE_MANAGER commits its own note and the ledger fan-out
+    delivers it (#4829).
+    """
+    entries = sorted(
+        (
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+            and e.event_type == "add_note_to_case"
+        ),
+        key=lambda e: e.log_index,
+    )
+    return [
+        cast(dict[str, Any], e.payload_snapshot["object"]) for e in entries
+    ]
 
 
 @dataclass(frozen=True)
@@ -284,7 +292,7 @@ def assert_anomaly_flagged_and_noted(
     """Assert the run logged *case*'s anomaly and posted the note it owes.
 
     An anomaly is logged at WARNING naming both states (RSH-06-003), and
-    either anomaly posts one RSH-06-004 clarification note to the sender
+    either anomaly records one RSH-06-004 clarification note for the sender
     carrying the RSH-06-005 fields: an accepted gap from the effect stage, a
     refused regression from the factory's refusal-effects stage (CLP-10-022).
     """
@@ -303,25 +311,44 @@ def assert_anomaly_flagged_and_noted(
     assert_note_owed(case, dl)
 
 
-def note_content(dl: SqliteDataLayer, activity: Any) -> str:
-    """Return the content of the note an ``Add(Note)`` activity carries."""
-    note = getattr(activity, "object_", None)
-    note = dl.read(note) if isinstance(note, str) else note
-    return str(getattr(note, "content", "") or "")
+def committed_since(dl: SqliteDataLayer, log_index: int) -> list[str]:
+    """The ``event_type`` of each entry *dl* committed after *log_index*.
+
+    A refused declaration commits nothing of its own; the only entry it may
+    leave is the CASE_MANAGER's RSH-06-004 note (CLP-10-022).
+    """
+    return [
+        e.event_type
+        for e in sorted(
+            (
+                e
+                for e in dl.list_objects("CaseLedgerEntry")
+                if isinstance(e, CaseLedgerEntry) and e.log_index > log_index
+            ),
+            key=lambda e: e.log_index,
+        )
+    ]
+
+
+def note_content(note: dict[str, Any]) -> str:
+    """Return the content of a recorded note."""
+    return str(note.get("content") or "")
 
 
 def assert_note_owed(case: RMDeclarationCase, dl: SqliteDataLayer) -> None:
-    """Assert *dl* queued exactly the RSH-06-004 note *case* owes, if any.
+    """Assert *dl* recorded exactly the RSH-06-004 note *case* owes, if any.
 
-    The note goes to the sender and names it, both RM states, and whether
-    the anomaly was a forward gap or a refused regression (RSH-06-005).
+    The note is attached to the case and names the sender, both RM states,
+    and whether the anomaly was a forward gap or a refused regression
+    (RSH-06-005).
     """
-    notes = queued_notes(dl)
+    notes = recorded_notes(dl)
     assert len(notes) == (0 if case.anomaly is None else 1)
     if not notes:
         return
-    assert ACTOR_ID in (getattr(notes[0], "to", None) or [])
-    content = note_content(dl, notes[0])
+    stored = cast(VulnerabilityCase, dl.read(CASE_ID))
+    assert notes[0]["id"] in [_as_id(n) for n in stored.notes]
+    content = note_content(notes[0])
     assert ACTOR_ID in content
     assert f"{case.current}" in content
     assert f"{case.declared}" in content

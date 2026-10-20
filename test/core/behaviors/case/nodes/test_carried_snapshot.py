@@ -86,7 +86,13 @@ def _node_types(tree: py_trees.behaviour.Behaviour) -> list[type]:
     return [type(n) for n in tree.iterate()]
 
 
-def test_engage_tree_keeps_the_snapshot_only_when_one_arrived():
+def test_engage_tree_holds_the_snapshot_embargo_and_stores_no_records():
+    """An Engage's carried case yields its embargo, never its records.
+
+    The CASE_MANAGER already holds every record the snapshot names, and a
+    participant's view of them is no entry a replica can copy (CLP-07-013,
+    CM-23-016).
+    """
     case = as_VulnerabilityCase(id_=_CASE_ID, name="snapshot")
 
     with_case = create_engage_case_tree(
@@ -102,6 +108,6 @@ def test_engage_tree_keeps_the_snapshot_only_when_one_arrived():
     )
 
     assert HoldCarriedEmbargoNode in _node_types(with_case)
-    assert StoreEmbeddedParticipantsNode in _node_types(with_case)
+    assert StoreEmbeddedParticipantsNode not in _node_types(with_case)
     assert HoldCarriedEmbargoNode not in _node_types(without)
     assert StoreEmbeddedParticipantsNode not in _node_types(without)

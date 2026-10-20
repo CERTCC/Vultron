@@ -10,6 +10,7 @@ description: >
   how the owner learns of a decline or timeout, late accepts, and the content gate.
 related_specs:
   - specs/case-ledger-processing.yaml
+  - specs/datalayer.yaml
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
@@ -452,9 +453,10 @@ answers it, because the receive side marks the row of whatever embargo the
 `_resolve_embargo_proposal` (`vultron/core/use_cases/triggers/_helpers.py`) looks
 in the open-proposal index first, then reads a named id as the actor's received
 Invite (`read_received_activity`). It accepts only an `Invite` whose sole `to`
-recipient is the actor (EP-09-010), whose object is the active embargo, held
-under its own id too (the answer wraps that copy), and for which the actor's row
-is `INVITED` or `TIMED_OUT`. Anything else raises `VultronNotFoundError`.
+recipient is the actor (EP-09-010), whose object is the active embargo, and for
+which the actor's row is `INVITED` or `TIMED_OUT`. Anything else raises
+`VultronNotFoundError`. The answer wraps the archived Invite; no copy under the
+sender's id is needed or kept (DL-06-006).
 
 - The answer goes through the relayed `Invite(EmbargoEvent)`, never the
   full-case Invite, whose replies move only RM state (CM-11-011).

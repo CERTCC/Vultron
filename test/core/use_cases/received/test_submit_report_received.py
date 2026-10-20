@@ -18,6 +18,7 @@ Instead it writes a pending VultronReportCaseLink and sends Create(as_CasePropos
 
 import pytest
 
+from test.support.received import assert_held_only_as_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -351,8 +352,14 @@ class TestSubmitReportAutoCreateCasePolicy:
         dl.save(VultronService(id_=self.VENDOR_ID))
         return event, dl
 
+    @pytest.mark.spec("DL-06-006")
+    @pytest.mark.spec("CLP-10-017")
     def test_auto_create_disabled_stores_report_and_offer_no_case(self):
-        """AC-2: auto_create_case=False stores report + Offer but no case."""
+        """AC-2: auto_create_case=False keeps report + Offer but no case.
+
+        The store holds no ingress row: the Offer is kept only as intake
+        archived it, never under the id its sender chose (DL-06-006).
+        """
         from vultron.config.actor import ActorConfig
 
         event, dl = self._make_event_and_dl()
@@ -363,10 +370,10 @@ class TestSubmitReportAutoCreateCasePolicy:
             actor_config=ActorConfig(auto_create_case=False),
         ).execute()
 
-        # Report and Offer(Report) activity are persisted.
+        # The report is persisted; the Offer(Report) is held as received.
         assert dl.read(self.REPORT_ID) is not None
-        offer_ids = [row.get("id_") for row in dl.get_all("Offer")]
-        assert self.OFFER_ID in offer_ids
+        assert_held_only_as_received(dl, self.OFFER_ID)
+        assert dl.get_all("Offer") == []
         # No VulnerabilityCase is created.
         assert dl.get_all("VulnerabilityCase") == []
 
@@ -990,7 +997,7 @@ class TestSubmitReportKeepsWhatArrived:
         from vultron.core.models.offer_record import VultronOfferRecord
 
         assert dl.read(self.REPORT_ID) is not None
-        assert self.OFFER_ID in [r.get("id_") for r in dl.get_all("Offer")]
+        assert_held_only_as_received(dl, self.OFFER_ID)
         assert (
             dl.read(VultronOfferRecord.build_id(self.OFFER_ID)) is not None
         ) is record
@@ -1020,7 +1027,7 @@ class TestSubmitReportKeepsWhatArrived:
         result, dl = self._run([self.OTHER_ID], report=False)
         assert result.disposition == HandlerDisposition.REFUSED
         assert "not a to recipient" in (result.reason or "")
-        assert self.OFFER_ID in [r.get("id_") for r in dl.get_all("Offer")]
+        assert_held_only_as_received(dl, self.OFFER_ID)
         assert dl.read(self.REPORT_ID) is None
         assert dl.outbox_list() == []
 
@@ -1041,7 +1048,7 @@ class TestSubmitReportKeepsWhatArrived:
     def test_offer_without_report_keeps_the_offer_only(self):
         result, dl = self._run([self.VENDOR_ID], report=False)
         assert result.disposition == HandlerDisposition.SKIPPED
-        assert self.OFFER_ID in [r.get("id_") for r in dl.get_all("Offer")]
+        assert_held_only_as_received(dl, self.OFFER_ID)
         assert dl.read(self.REPORT_ID) is None
 
     def test_execute_writes_nothing_itself(self):

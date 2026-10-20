@@ -26,6 +26,7 @@ Spec coverage:
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.states.embargo_register import TerminationReason
@@ -623,3 +624,51 @@ def test_ignore_late_embargo_accept_refuses_a_non_embargo_accept():
             {"type": "Accept", "actor": _ACTOR_URI, "object": "urn:x"},
             actor=_MANAGER_URI,
         )
+
+
+@pytest.mark.spec("DL-06-006")
+@pytest.mark.parametrize(
+    "factory", [em_accept_embargo_activity, em_reject_embargo_activity]
+)
+def test_answer_embeds_an_invite_as_intake_archived_it(
+    sample_proposal, factory
+):
+    """A received Invite is held in its core form, as the event carried it;
+    the answer factory validates it into the proposal class it embeds."""
+    from vultron.semantic_registry import extract_event
+
+    archived = extract_event(sample_proposal).activity
+    assert archived is not None
+    assert not isinstance(archived, as_Invite)
+
+    result = factory(proposal=archived, context=_CASE_URI, actor=_ACTOR_URI)
+
+    assert result.object_.id_ == sample_proposal.id_
+    assert result.object_.object_.id_ == sample_proposal.object_.id_
+
+
+@pytest.mark.spec("AF-04-001")
+@pytest.mark.parametrize(
+    "factory", [em_accept_embargo_activity, em_reject_embargo_activity]
+)
+def test_answer_refuses_an_archived_activity_that_is_not_an_embargo_invite(
+    factory,
+):
+    """An archived activity of another shape fails validation, wrapped."""
+    from vultron.semantic_registry import extract_event
+    from vultron.wire.as2.factories import rm_invite_to_case_activity
+
+    case_invite = rm_invite_to_case_activity(
+        "https://example.org/actors/invitee",
+        target=_CASE_URI,
+        actor=_ACTOR_URI,
+    )
+    archived = extract_event(case_invite).activity
+    assert archived is not None
+
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        factory(proposal=archived, context=_CASE_URI, actor=_ACTOR_URI)
+    cause = exc_info.value.__cause__
+    # as_answered's validation of the core form refused it, not the reply's.
+    assert isinstance(cause, ValidationError)
+    assert cause.title == "_EmProposeEmbargoActivity"

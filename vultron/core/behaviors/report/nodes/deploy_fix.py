@@ -292,11 +292,13 @@ class CheckNoNewDeploymentInfoNode(DataLayerConditionWithPorts):
 
 
 class TransitionCStoFixDeployed(DataLayerActionWithPorts, StateWriteCapable):
-    """Persist a VFD ParticipantStatus snapshot for the actor in this case.
+    """Store the D=D ParticipantStatus snapshot the actor reports.
 
-    Advances the actor's D dimension to ``d_state=D`` (fix deployed) and
-    persists the new ``ParticipantStatus`` record via the DataLayer, appending
-    it to the ``CaseParticipant.participant_statuses`` list.
+    Validates the move of the actor's D dimension to ``CS_d.D`` (fix
+    deployed) and stores the ``ParticipantStatus`` the emitted activity
+    carries, without appending it to the participant record: the
+    CASE_MANAGER appends it when it accepts it, and the actor's replica copies
+    it from the ledger (RSH-08-003, CLP-07-013, CM-23-016).
 
     Per AC-5 (issue #1825); follows the ``TransitionCStoFixReady`` pattern from
     ``develop_fix.py`` but targets the d→D transition.
@@ -323,6 +325,7 @@ class TransitionCStoFixDeployed(DataLayerActionWithPorts, StateWriteCapable):
             pxa_state=None,
             result_out=self._result_out,
             name=f"{_name}._Create",
+            attach=False,
         )
 
     def update(self) -> Status:

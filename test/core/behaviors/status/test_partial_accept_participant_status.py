@@ -49,6 +49,7 @@ from test.support.rm_declaration import (
     CASE_ID,
     CASE_MANAGER_ID,
     PARTICIPANT_ID,
+    STRANGER_ID,
     RMAnomalyProbe,
     RMDeclarationCase,
     assert_note_owed,
@@ -713,9 +714,10 @@ class TestTerminalClosedParticipant:
     ):
         """A backward rm with no other change → refused outright.
 
-        Nothing is appended and no canonical ledger entry is committed: the
-        assertion carried no acceptable information.  Executed as the Case
-        Manager so a commit *would* fire if the guards let it through.
+        Nothing is appended and nothing of the assertion is committed: it
+        carried no acceptable information.  The one entry is the CASE_MANAGER's
+        own RSH-06-004 note on the regression (CLP-10-022, #4829).  Executed as
+        the Case Manager so a commit *would* fire if the guards let it through.
         """
         dl = store_for(CASE_MANAGER_ID)
         current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
@@ -726,7 +728,9 @@ class TestTerminalClosedParticipant:
         assert result.status == Status.FAILURE
 
         assert ASSERTED_STATUS_ID not in _status_ids(dl, PARTICIPANT_ID)
-        assert _ledger_entries(dl) == []
+        assert [e.event_type for e in _ledger_entries(dl)] == [
+            "add_note_to_case"
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -769,158 +773,92 @@ def _announce_event(
     return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
 
 
-class TestLedgerApplyRmRatchet:
-    """A replicated entry must not regress a replica's derived RM state."""
+class TestLedgerApplyCopiesTheStatus:
+    """A replicated entry's status is copied as carried (CM-23-016, ADR-0124)."""
 
-    @pytest.mark.spec("RSH-05-007")
-    def test_regressive_rm_in_ledger_entry_does_not_regress_replica(
-        self, store_for
-    ):
-        """Replica at ACCEPTED; entry asserts VALID + vfd=VFd.
-
-        Monotonic visibility (see notes/sync-ledger-replication.md): the
-        replica keeps ``rm`` at ACCEPTED while still applying the accepted
-        ``vfd`` advance.  The entry uses rm=ACCEPTED, vf=VF so the
-        post-ratchet effective state (rm=ACCEPTED, vf=VF) satisfies the
-        composite-state entailments (RSH-05-021).
-        """
-        dl = store_for(ACTOR_ID)
-        current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
-        _seed_case(dl, current, None)
-
-        entry = _status_snapshot_entry(rm_state="VALID", vf_state="VF")
-        event = _announce_event(entry)
-
+    @staticmethod
+    def _apply(dl: Any, actor_id: str = ACTOR_ID) -> Status:
+        entry = _status_snapshot_entry(rm_state="VALID", vf_state="Vf")
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         )
-        result = bridge.execute_with_setup(
+        return bridge.execute_with_setup(
             tree=ApplyParticipantStatusFromLedgerNode(
                 name="ApplyParticipantStatusFromLedger"
             ),
-            actor_id=ACTOR_ID,
-            activity=event,
-        )
-        assert result.status == Status.SUCCESS
+            actor_id=actor_id,
+            activity=_announce_event(entry),
+        ).status
 
-        latest = _latest_status(dl, PARTICIPANT_ID)
-        assert _rm_of(latest) == RM.ACCEPTED.name, (
-            "a replicated entry must not regress the replica's rm state"
-        )
-        assert _vf_of(latest) == CS_vf.VF.name, (
-            "the accepted vfd advance must still be applied"
-        )
-
-    def test_ratchet_holds_when_the_status_object_is_already_stored_locally(
+    @pytest.mark.spec("CM-23-016")
+    def test_the_replicas_own_rm_is_never_carried_over_the_entrys(
         self, store_for
     ):
-        """The ratchet must survive a status object already in the DataLayer.
+        """Replica at ACCEPTED + VF; the entry records VALID + Vf.
 
-        The node appends the object it *reads back* from the DataLayer, so the
-        ratcheted value only reaches ``participant_statuses`` if the ratcheted
-        copy is saved.  A status object can already be stored locally without
-        being on the participant — an out-of-order ``Announce`` of the object
-        itself, or a replayed entry — and skipping the save in that case appends
-        the un-ratcheted status while the ratchet's own log line claims the
-        local value was carried forward (RSH-05-007, SYNC-02-002).
-
-        The test uses rm=ACCEPTED as the local state so that after ratcheting
-        the regression rm=VALID → rm=ACCEPTED the effective state is
-        rm=ACCEPTED+vf=VF, which satisfies the composite-state entailments
-        (RSH-05-021).
+        The replica writes what the entry carries.  Carrying its own RM
+        forward would give it a status no entry records, so two replicas at
+        the same ledger position could disagree.
         """
         dl = store_for(ACTOR_ID)
-        current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
-        _seed_case(dl, current, None)
-        # Present as a stored object, absent from participant_statuses.
-        dl.create(_asserted_status(RM.VALID, CS_vf.VF, CS_pxa.pxa))
+        _seed_case(
+            dl, _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa), None
+        )
+
+        assert self._apply(dl) == Status.SUCCESS
+
+        latest = _latest_status(dl, PARTICIPANT_ID)
+        assert latest.id_ == ASSERTED_STATUS_ID
+        assert _rm_of(latest) == RM.VALID.name
+        assert _vf_of(latest) == CS_vf.Vf.name
+
+    @pytest.mark.spec("CM-23-016")
+    def test_two_fresh_replicas_write_identical_records(self, store_for):
+        """One entry applied to two replicas: the same record, ids and times.
+
+        A minted id or a clock read in the apply would make them differ.
+        """
+        current = _current_status(RM.RECEIVED, CS_vf.Vf, CS_pxa.pxa)
+        replicas = [store_for(ACTOR_ID), store_for(STRANGER_ID)]
+        for dl in replicas:
+            _seed_case(dl, current.model_copy(deep=True), None)
+
+        for dl, owner in zip(replicas, (ACTOR_ID, STRANGER_ID), strict=True):
+            assert self._apply(dl, owner) == Status.SUCCESS
+
+        # The seed gives each record its own birth status; what the entry
+        # wrote is the status appended last.
+        first, second = (
+            _latest_status(dl, PARTICIPANT_ID).model_dump(mode="json")
+            for dl in replicas
+        )
+        assert first == second
+        assert first["id_"] == ASSERTED_STATUS_ID
+
+    @pytest.mark.spec("CM-23-016")
+    def test_a_status_already_stored_locally_is_appended_as_carried(
+        self, store_for
+    ):
+        """A status object stored but not yet on the participant is attached.
+
+        An out-of-order ``Announce`` of the object itself, or a replayed
+        entry, can leave the object stored without the participant holding
+        it; the entry still attaches the status it carries.
+        """
+        dl = store_for(ACTOR_ID)
+        _seed_case(
+            dl, _current_status(RM.RECEIVED, CS_vf.Vf, CS_pxa.pxa), None
+        )
+        dl.create(_asserted_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa))
         assert ASSERTED_STATUS_ID not in _status_ids(dl, PARTICIPANT_ID)
 
-        entry = _status_snapshot_entry(rm_state="VALID", vf_state="VF")
-        event = _announce_event(entry)
+        assert self._apply(dl) == Status.SUCCESS
 
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=ApplyParticipantStatusFromLedgerNode(
-                name="ApplyParticipantStatusFromLedger"
-            ),
-            actor_id=ACTOR_ID,
-            activity=event,
-        )
-        assert result.status == Status.SUCCESS
-
+        assert _status_ids(dl, PARTICIPANT_ID)[-1] == ASSERTED_STATUS_ID
         latest = _latest_status(dl, PARTICIPANT_ID)
-        assert _rm_of(latest) == RM.ACCEPTED.name, (
-            "the ratcheted rm must be persisted even when the status object"
-            " was already present in the local DataLayer"
-        )
-        assert _vf_of(latest) == CS_vf.VF.name
-
-    def test_unreadable_local_rm_fails_instead_of_skipping_the_ratchet(
-        self, store_for, monkeypatch
-    ):
-        """An unreadable RM floor is a shape mismatch, not "no floor".
-
-        The ratchet needs the replica's current RM to know what a regression
-        *is*.  Reading that floor with a defaulting accessor turned a
-        non-core-shaped local record into ``None``, which made the ratchet a
-        no-op and applied the regressing entry unchecked — the #2264 failure
-        mode, silent because the ratchet only logs when it refuses something.
-        ARCH-15-001 and ARCH-15-002 require FAILURE (ADR-0062).
-        """
-        dl = store_for(ACTOR_ID)
-        current = _current_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa)
-        _seed_case(dl, current, None)
-
-        # A *core* participant (so the node does not skip it as "not found")
-        # whose latest status is wire-shaped: flat ``rmState``, no ``rm``
-        # attribute at all.  Pydantic does not validate on list append, which
-        # is how such a record survives into a replica in the first place.
-        broken = cast(CaseParticipant, dl.read(PARTICIPANT_ID))
-        assert isinstance(broken, CaseParticipant)
-        broken.participant_statuses[-1] = cast(Any, current)
-
-        real_read = dl.read
-        monkeypatch.setattr(
-            dl,
-            "read",
-            lambda object_id: (
-                broken if object_id == PARTICIPANT_ID else real_read(object_id)
-            ),
-        )
-
-        entry = _status_snapshot_entry(rm_state="RECEIVED", vf_state="VF")
-        event = _announce_event(entry)
-
-        bridge = BTBridge(
-            datalayer=dl,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        )
-        result = bridge.execute_with_setup(
-            tree=ApplyParticipantStatusFromLedgerNode(
-                name="ApplyParticipantStatusFromLedger"
-            ),
-            actor_id=ACTOR_ID,
-            activity=event,
-        )
-        assert result.status == Status.FAILURE, (
-            "an unreadable RM floor must fail, not silently skip the ratchet"
-        )
-
-        assert real_read(ASSERTED_STATUS_ID) is None, (
-            "the regressing status must not be persisted when the ratchet"
-            " cannot be enforced"
-        )
-        assert ASSERTED_STATUS_ID not in [
-            str(getattr(s, "id_", s)) for s in broken.participant_statuses
-        ], "the regressing status must not reach participant_statuses"
+        assert _rm_of(latest) == RM.VALID.name
 
 
 # ---------------------------------------------------------------------------

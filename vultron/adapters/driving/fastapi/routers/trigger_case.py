@@ -63,7 +63,8 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
     description=(
         "Triggers the engage-case behavior for the given actor. "
         "Emits a Join(VulnerabilityCase) activity (RmEngageCaseActivity), "
-        "transitions the actor's RM state to ACCEPTED in the case, "
+        "addressed to the CASE_MANAGER, which records the actor's RM "
+        "ACCEPTED; the actor's replica copies that status from the ledger, "
         "and returns the activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_engage_case",
@@ -98,7 +99,8 @@ def trigger_engage_case(
     description=(
         "Triggers the defer-case behavior for the given actor. "
         "Emits an Ignore(VulnerabilityCase) activity (RmDeferCaseActivity), "
-        "transitions the actor's RM state to DEFERRED in the case, "
+        "addressed to the CASE_MANAGER, which records the actor's RM "
+        "DEFERRED; the actor's replica copies that status from the ledger, "
         "and returns the activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_defer_case",

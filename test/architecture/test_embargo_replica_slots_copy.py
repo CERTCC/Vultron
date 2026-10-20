@@ -37,23 +37,23 @@ one.  The CM-31-010 notice path (``ending_notice_replica.py``) applies no
 ledger entry and is outside CM-23-016's scope.
 """
 
-import ast
 import functools
 import importlib
 import inspect
 import pkgutil
-import sys
-import textwrap
-import types
-from collections.abc import Iterable
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
 import vultron.core.behaviors.embargo.nodes as embargo_nodes
 import vultron.core.behaviors.sync.nodes as sync_nodes
-import vultron.core.models as core_models
-from test.architecture import _corpus
+from test.architecture._replica_slots import (
+    _functions_reached,
+    _names_used,
+    _own_classes,
+    _reach,
+    _tree_slot_classes,
+)
 from vultron.core.behaviors.embargo.nodes.abandon import (
     ApplyEmbargoAbandonmentFromLedgerNode,
 )
@@ -79,9 +79,6 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
 from vultron.core.behaviors.embargo.nodes.withdrawal import (
     ApplyEmbargoWithdrawalFromLedgerNode,
 )
-from vultron.core.behaviors.sync.announce_tree import (
-    create_announce_log_entry_tree,
-)
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoChangeFromLedgerNode,
     ApplyEmbargoConsentFromLedgerNode,
@@ -92,9 +89,6 @@ from vultron.core.behaviors.sync.nodes.participant_record_effect import (
 from vultron.core.behaviors.sync.nodes.stub_reply_effect import (
     ApplyInviteAcceptFromLedgerNode,
     ApplyInviteRejectFromLedgerNode,
-)
-from vultron.core.use_cases.received.sync import (
-    AnnounceLedgerEntryReceivedUseCase,
 )
 
 #: Names a copying slot must never reach for (CM-23-016, CM-18-005).
@@ -156,139 +150,9 @@ _WRITER_NAMES = _LIFECYCLE_NAMES | {
 }
 
 
-def _names_used(obj: object) -> set[str]:
-    """Every bare name and attribute name *obj*'s source uses."""
-    source = inspect.getsource(cast(Any, obj))
-    tree = _corpus.parse_inline(textwrap.dedent(source))
-    names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name):
-            names.add(node.id)
-        elif isinstance(node, ast.Attribute):
-            names.add(node.attr)
-    return names
-
-
-def _own_classes(slot: type) -> list[type]:
-    return [c for c in slot.__mro__ if c.__module__.startswith("vultron.")]
-
-
 def _uses_lifecycle(cls: type) -> bool:
     used = set().union(*(_names_used(c) for c in _own_classes(cls)))
     return bool(used & _LIFECYCLE_NAMES)
-
-
-#: The core model writes behind the one apply function, deliberately not
-#: followed (see :func:`_functions_reached`).
-_UNWALKED_MODEL_WRITES = frozenset(
-    {
-        "VulnerabilityCase.apply_embargo_register_step",
-        "VulnerabilityCase.add_participant",
-    }
-)
-
-
-def _function_of(attr: object) -> types.FunctionType | None:
-    """The function a class attribute runs, unwrapping a descriptor."""
-    if isinstance(attr, (staticmethod, classmethod)):
-        attr = attr.__func__
-    elif isinstance(attr, property):
-        attr = attr.fget
-    return attr if isinstance(attr, types.FunctionType) else None
-
-
-@functools.cache
-def _model_methods() -> dict[str, tuple[types.FunctionType, ...]]:
-    """Every method a ``vultron.core.models`` class defines, by name.
-
-    Static and class methods and property getters count too.  A call is
-    matched to every method of its name, whatever the receiver, so a name
-    two models share follows both: the walk over-follows rather than misses.
-    """
-    methods: dict[str, list[types.FunctionType]] = {}
-    for info in pkgutil.walk_packages(
-        core_models.__path__, f"{core_models.__name__}."
-    ):
-        module = importlib.import_module(info.name)
-        for cls in vars(module).values():
-            if not inspect.isclass(cls) or cls.__module__ != module.__name__:
-                continue
-            for name, attr in vars(cls).items():
-                function = _function_of(attr)
-                if (
-                    function is not None
-                    # Methods compiled elsewhere (dataclass- or
-                    # pydantic-generated dunders) have no source here to walk.
-                    and function.__code__.co_filename == module.__file__
-                    and function.__qualname__ not in _UNWALKED_MODEL_WRITES
-                ):
-                    methods.setdefault(name, []).append(function)
-    return {name: tuple(found) for name, found in methods.items()}
-
-
-def _functions_reached(
-    cls: type, *, follow_methods: bool = True
-) -> dict[str, set[str]]:
-    """Each codebase function *cls* reaches, and the names it uses.
-
-    Starts from every class in *cls*'s MRO that this codebase defines.
-    """
-    return _reach(_own_classes(cls), follow_methods=follow_methods)
-
-
-def _reach(
-    roots: Iterable[object], *, follow_methods: bool = True
-) -> dict[str, set[str]]:
-    """Each codebase function *roots* reach by name, and the names it uses.
-
-    Follows every name a class body or function body uses that resolves, in
-    its module, to a module-level function this codebase defines, and every
-    attribute name that a core model method bears
-    (:func:`_model_methods`, unless *follow_methods* is false), and so on
-    from there.  So a slot calling
-    ``record.sign_embargo(...)`` reaches the PEC transition inside it.
-    Classes are not followed: a slot's own classes are walked by MRO, and a
-    lifecycle-running node class is forbidden by name.
-
-    Blind spots, by construction: a function reached as ``module.func`` (an
-    attribute that names no model method is not resolved); a method of a
-    class outside ``vultron.core.models``, or of a class nested inside
-    another; a ``functools.cached_property`` (not unwrapped by
-    :func:`_function_of`); and a lifecycle-running node class outside
-    ``embargo/nodes`` (:func:`_lifecycle_nodes`).  None of the nested or
-    cached kinds exists in ``vultron.core.models`` today.
-
-    Two model writes behind the one apply function stay unwalked, on
-    purpose (:data:`_UNWALKED_MODEL_WRITES`):
-    ``VulnerabilityCase.apply_embargo_register_step`` gives an *inline*
-    participant its ``UNINVITED`` rows so the register assignment validates,
-    and ``VulnerabilityCase.add_participant`` gives a seated record a row
-    for each register entry it lacks.  A carried record already holds every
-    row, so on a replica neither writes one; the rebuild-from-ledger check
-    (``test/support/ledger_rebuild.py``) compares every record whole and
-    would fail if one did.
-    """
-    reached: dict[str, set[str]] = {}
-    pending: list[object] = list(roots)
-    seen: set[int] = set()
-    while pending:
-        obj = pending.pop()
-        if id(obj) in seen:
-            continue
-        seen.add(id(obj))
-        names = _names_used(obj)
-        if isinstance(obj, types.FunctionType):
-            reached[f"{obj.__module__}.{obj.__qualname__}"] = names
-        module_globals = vars(sys.modules[cast(Any, obj).__module__])
-        for name in names:
-            value = module_globals.get(name)
-            if isinstance(
-                value, types.FunctionType
-            ) and value.__module__.startswith("vultron."):
-                pending.append(value)
-            if follow_methods:
-                pending.extend(_model_methods().get(name, ()))
-    return reached
 
 
 @functools.cache
@@ -358,17 +222,6 @@ def test_the_walk_follows_a_model_method() -> None:
     }
 
     assert any(f.endswith("CaseParticipant.sign_embargo") for f in offenders)
-
-
-def _tree_slot_classes() -> set[type]:
-    """Every apply node class ``AnnounceLogEntryReceivedBT`` runs."""
-    return {
-        type(node)
-        for node in create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
-        ).iterate()
-        if type(node).__name__.startswith("Apply")
-    }
 
 
 def _writes_embargo_state(cls: type) -> bool:

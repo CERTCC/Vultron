@@ -25,7 +25,7 @@ from vultron.adapters.driven.db_record import (
     Record,
     object_to_record,
 )
-from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
+from vultron.adapters.utils import id_lookup_candidates
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.errors import VultronAlreadyExistsError
@@ -110,9 +110,7 @@ def read(
     Returns:
         Reconstituted domain object or ``None``.
     """
-    candidates = [object_id]
-    if _UUID_RE.match(object_id):
-        candidates.append(f"{_URN_UUID_PREFIX}{object_id}")
+    candidates = id_lookup_candidates(object_id)
 
     with dl._session() as session:
         for candidate in candidates:

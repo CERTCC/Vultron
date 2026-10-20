@@ -141,8 +141,9 @@ POST /api/v2/actors/{vendor_id}/trigger/engage-case
    That `Create` carries the case with its participants inline.
    The Vendor accepts it, then sends the Reporter its own `Create(VulnerabilityCase)`, which carries the same case inline, names the Case Actor as `CASE_MANAGER`, and references the Reporter's report.
    That introduction is the [trust bootstrap](../topics/case_lifecycle/case_authority_and_trust.md#trust-bootstrap-how-a-participant-learns-whom-to-trust): the Reporter trusts it because it comes from the actor the Reporter sent its report to, and it then binds the Case Actor's identity to this case (CBT-01-001, CBT-01-005, [ADR-0132](../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
-4. The Vendor's `validate-report` trigger sends Report Valid (RV) to the Case Actor, and the Vendor's participant record advances to `RM.VALID`.
-5. The Vendor's `engage-case` trigger sends Report/Case Accepted (RA), and the record advances to `RM.ACCEPTED`.
+4. The Vendor's `validate-report` trigger sends Report Valid (RV) to the Case Actor.
+   The Case Actor advances the Vendor's participant record to `RM.VALID` and commits that status after the act, and the Vendor's replica copies it ([RSH-08-006](specs/protocol.md#rsh-08-006)).
+5. Once its replica holds `RM.VALID`, the Vendor's `engage-case` trigger sends Report/Case Accepted (RA), and the record advances to `RM.ACCEPTED` the same way.
 
 The case is created before validation, at `RM.RECEIVED`.
 [Propose a Case](../topics/behavior_logic/use-cases/propose-case.md) explains the cascade the Case Actor runs on acceptance, step by step.
@@ -284,6 +285,7 @@ POST /api/v2/actors/{vendor_id}/demo/notify-fix-ready
 1. The `notify-fix-ready` trigger sends two `Add(ParticipantStatus)` activities in sequence, one per hop of the vendor-path state: `vfd` → `Vfd` (vendor aware) and `Vfd` → `VFd` (fix ready).
    The two hops are separate because the Case State machine admits one event per step.
 2. The Case Actor validates the transition, appends the status to the Vendor's participant record, commits an `add_participant_status_to_participant` entry, and fans it out.
+   The Vendor's own replica changes only when it copies that entry: the trigger checks and sends each hop but writes neither ([RSH-08-006](specs/protocol.md#rsh-08-006)).
 3. The demo does not call `notify-fix-deployed`.
    The `D` dimension belongs to a Deployer, and a vendor-only participant stops at `VFd`.
 
@@ -404,28 +406,31 @@ No participant replica is checked for every closure: a closed participant is sen
 
 The Case Actor commits the entries below, in this order.
 Each entry's `eventType` names the protocol act; the actor column names the participant on whose behalf it was recorded.
-The exact count of `add_participant_status_to_participant` and `add_case_status_to_case` entries in the initialization block depends on how many participant and case status records the acceptance cascade writes, so the table shows the shape of one run rather than an invariant.
+The exact count of entries in the initialization block depends on how many participant records and statuses the acceptance cascade writes, so the table shows the shape of one run rather than an invariant.
+Each act that moves a participant's RM state is followed by the status the Case Actor wrote for it, which every replica copies ([CLP-07-013](specs/protocol.md#clp-07-013)).
 
 | Index | `eventType` | Recorded for | Phase |
 |------:|:------------|:-------------|:------|
 | 0 | `create_case` | Case Actor | 1 |
 | 1 | `add_report_to_case` | Case Actor | 1 |
-| 2–6 | `add_participant_status_to_participant` | Case Actor (initial RM states of all three participants) | 1 |
+| 2–6 | `create_case_participant`, `add_participant_status_to_participant` | Case Actor (each of the three participant records as it was created, then the Case Actor's own `VALID` and `ACCEPTED`) | 1 |
 | 7 | `add_case_status_to_case` | Vendor (initial case status, `EM.ACTIVE`) | 1 |
 | 8 | `validate_report` | Vendor | 1 |
-| 9 | `engage_case` | Vendor | 1 |
-| 10 | `add_note_to_case` | Reporter | 3 |
-| 11 | `add_note_to_case` | Vendor | 3 |
-| 12–15 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
-| 16–17 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
-| 18–19 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
-| 20–21 | `add_participant_status_to_participant`, `add_case_status_to_case` | Reporter's `Pxa` status and the case status that follows it | 5 |
-| 22 | `close_case` | Reporter | 6 |
-| 23 | `add_participant_status_to_participant` | Case Actor (the Reporter's `ACCEPTED → CLOSED`) | 6 |
-| 24 | `close_case` | Vendor | 6 |
-| 25 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
-| 26 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`) | 6 |
-| 27 | `case_fully_closed` | Case Actor (its own `Update(VulnerabilityCase)` closing the case on the Vendor's departure) | 6 |
+| 9 | `add_participant_status_to_participant` | Case Actor (the Vendor's `VALID` it recorded) | 1 |
+| 10 | `engage_case` | Vendor | 1 |
+| 11 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED` it recorded) | 1 |
+| 12 | `add_note_to_case` | Reporter | 3 |
+| 13 | `add_note_to_case` | Vendor | 3 |
+| 14–17 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
+| 18–19 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
+| 20–21 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
+| 22–23 | `add_participant_status_to_participant`, `add_case_status_to_case` | Reporter's `Pxa` status and the case status that follows it | 5 |
+| 24 | `close_case` | Reporter | 6 |
+| 25 | `add_participant_status_to_participant` | Case Actor (the Reporter's `ACCEPTED → CLOSED`) | 6 |
+| 26 | `close_case` | Vendor | 6 |
+| 27 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
+| 28 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`) | 6 |
+| 29 | `case_fully_closed` | Case Actor (its own `Update(VulnerabilityCase)` closing the case on the Vendor's departure) | 6 |
 
 The ledger ends at `case_fully_closed`: the Reporter left first, so no participant act follows the owner closure.
 

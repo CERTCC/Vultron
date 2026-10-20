@@ -116,19 +116,15 @@ CASE_PROPOSAL: Final = ReplicaEmitExemption(
 CASE_STATUS: Final = ReplicaEmitExemption(
     name="case-status",
     reason=(
-        "Add(CaseStatus) emits only as the executing actor: the CSB-18"
-        " diagnostic Note is its own note to the sender, skipped on a replica"
-        " that awaits the CASE_MANAGER's teardown entry (CSB-18-002,"
-        " RSH-03-004), and the threat teardown's terminate request runs in"
-        " the participant-replica arm of terminate_embargo_bt and asks the"
-        " CASE_MANAGER (RSH-03-001, RSH-03-004, EP-09-008).  Only the"
-        " ``CaseStatus`` append moved under the CASE_MANAGER gate (#3814); the"
-        " diagnostic and the ask stay ungated so a replica still signals a"
-        " threat it detects in a peer's status."
+        "Add(CaseStatus) emits only as the executing actor: the threat"
+        " teardown's terminate request runs in the participant-replica arm of"
+        " terminate_embargo_bt and asks the CASE_MANAGER (RSH-03-001,"
+        " RSH-03-004, EP-09-008).  The ``CaseStatus`` append (#3814) and the"
+        " CSB-18 diagnostic note, a committed CASE_MANAGER act (#4829), run"
+        " under the CASE_MANAGER gate; the ask stays ungated so a replica"
+        " still signals a threat it detects in a peer's status."
     ),
-    covers=frozenset(
-        {"PxaEmInvariantDiagnosticNode", "SendTerminateEmbargoActivityNode"}
-    ),
+    covers=frozenset({"SendTerminateEmbargoActivityNode"}),
 )
 
 EMBARGO_INVITE_ANSWER: Final = ReplicaEmitExemption(

@@ -11,24 +11,23 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Active-embargo register operations: activate and terminate.
+"""Active-embargo register operations: activate.
 
-Both change the register's ``ACTIVE`` entry rather than a consent row —
-activation is the case owner's ``Accept(EmbargoEvent, target=Case)`` (the
-creation-time accept is ``initialize_creation_embargo`` in ``creation.py``,
-one write per EP-04-002), termination is the ``ET`` teardown that
-terminates the embargo in force and cancels every open proposal
-in the same step (EP-08-004, ADR-0122).
+``activate_embargo`` changes the register's ``ACTIVE`` entry rather than a
+consent row — activation is the case owner's
+``Accept(EmbargoEvent, target=Case)`` (the creation-time accept is
+``initialize_creation_embargo`` in ``creation.py``, one write per
+EP-04-002).  Termination is handled by :func:`decide_termination` (the
+decide half) plus the one apply function
+:func:`~vultron.core.models.embargo_apply.apply_embargo_change` (ADR-0124).
 """
 
 import logging
 from datetime import datetime
-from typing import cast
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_apply import RegisterStep, RegisterStepKind
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.embargo_register import termination_changes
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     TerminationRequest,
@@ -163,107 +162,7 @@ def decide_termination(
 
 
 class _ActivationOperationsMixin(_PecActivationMixin):
-    """``terminate_active_embargo`` and ``activate_embargo``."""
-
-    def terminate_active_embargo(
-        self,
-        *,
-        case_id: str,
-        termination: TerminationRequest,
-        actor_id: str | None = None,
-        transition_mode: TransitionMode = TransitionMode.STRICT,
-        terminated_at: datetime | None = None,
-    ) -> EmbargoLifecycleResult:
-        """Terminate the active embargo on a case.
-
-        One register step: the ``ACTIVE`` entry is ``TERMINATED`` recording
-        *termination* and every ``PROPOSED`` entry is ``CANCELLED`` (EP-08-004,
-        ADR-0113: one active embargo makes every open proposal a revision of
-        it, and a revision of an embargo that no longer exists cannot be
-        accepted), so EM derives ``EXITED``.  No participant's consent is
-        written: with no ``ACTIVE`` entry nobody is bound, and nothing more
-        can be consented to (ADR-0118, ADR-0122).  No protocol path calls it
-        any more: each decides with :func:`decide_termination` and applies the
-        step through the one apply function after committing its ``Remove``
-        (ADR-0124, #4714).  It remains for fixtures that need an ended
-        embargo; in ``OBSERVED`` mode a case with none in force is left as it
-        is.
-
-        An ``END_TIME_REACHED`` termination claimed at *terminated_at*
-        before the embargo's end time is refused in either mode, before any
-        write (ADR-0122): a replica refuses the entry the same way the
-        CASE_MANAGER refuses the request.
-
-        Args:
-            case_id: ID of the ``VulnerabilityCase`` to update.
-            termination: How the embargo ended — the what and, when known,
-                the why — recorded on the ``TERMINATED`` entry.  A
-                :class:`ThreatSignalTermination` is resolved here against
-                the case's PXA state, so the entry names the signals set.
-            actor_id: Optional ID of the terminating actor (logging only).
-            transition_mode: ``STRICT`` (default) or ``OBSERVED``.
-            terminated_at: When the termination was claimed: the
-                ``Remove``'s ``published`` time, or the CASE_MANAGER's clock
-                for its own end-time check.  Required for
-                ``END_TIME_REACHED``.
-
-        Returns:
-            :class:`EmbargoLifecycleResult` describing what changed.
-
-        Raises:
-            VultronNotFoundError: If *case_id* does not resolve to a case.
-            VultronInvalidStateTransitionError: In ``STRICT`` mode, if the
-                case has no active embargo to terminate; in either mode, if
-                an ``END_TIME_REACHED`` termination is claimed before the
-                embargo's end time.
-        """
-        case = self._read_case(case_id)
-        em_before = case.em_state
-        embargo_id = case.active_embargo_id
-        if embargo_id is None:
-            if transition_mode == TransitionMode.STRICT:
-                raise VultronInvalidStateTransitionError(
-                    f"Case '{case_id}' has no active embargo to terminate."
-                )
-            logger.warning(
-                "OBSERVED mode: case '%s' has no active embargo to terminate"
-                " (EM %s); case left unchanged",
-                case_id,
-                em_before,
-            )
-            return self._unchanged_result(em_before)
-
-        step = decide_termination(
-            self._persistence, case, termination, terminated_at
-        )
-        recorded = cast(EmbargoTermination, step.termination)
-        if not self._apply_register_step(
-            case,
-            termination_changes(case.embargo_register, recorded),
-            transition_mode=transition_mode,
-            actor_id=actor_id,
-        ):
-            return self._unchanged_result(em_before)
-        self._persistence.save(case)
-
-        logger.info(
-            "Actor '%s' terminated embargo '%s' on case '%s' (%s, cause %s;"
-            " EM %s → %s)",
-            actor_id,
-            embargo_id,
-            case_id,
-            recorded.reason,
-            recorded.cause.kind if recorded.cause else None,
-            em_before,
-            case.em_state,
-        )
-
-        return EmbargoLifecycleResult(
-            em_before=em_before,
-            em_after=case.em_state,
-            case_changed=True,
-            case_embargo_changed=True,
-        )
+    """``activate_embargo``."""
 
     def activate_embargo(
         self,

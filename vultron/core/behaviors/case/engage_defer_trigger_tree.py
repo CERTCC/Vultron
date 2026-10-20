@@ -18,66 +18,90 @@ Trigger-side behavior trees for the engage-case and defer-case workflows.
 
 Each tree runs two steps in sequence:
 
-1. **CreateParticipantStatusNode** — updates the actor's RM state via the
-   single canonical writer (ADR-0089).
+1. **ValidateTriggerTransitionsNode** — checks that the actor has a
+   participant record and that its RM state may move to the decided state,
+   so an illegal decision is refused before anything is sent (BTND-10-001).
+   It writes nothing.
 2. **sender_side_bt** — resolves the Case Manager, constructs the outbound
    Engage/Defer activity, and queues it in the actor's outbox (PCR-08-001).
 
-This refactoring satisfies #712 AC-1: RM state transitions are performed
-inside the BT so they are visible to BT analysis and auditing tools.
-ADR-0089 AC-4: bypass nodes deleted, canonical writer used directly.
+The actor does not write its own RM state.  The CASE_MANAGER records the move
+when it accepts the activity and commits the status it wrote as its own
+ledger entry; the actor's replica copies that status from the ledger like any
+other (RSH-08-003, CLP-07-013, CM-23-016).  A local write here would give the
+actor a status with its own id and time, which no entry records.
 """
 
 from collections.abc import Callable
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.participant.status import (
-    CreateParticipantStatusNode,
+from vultron.core.behaviors.case.nodes.participant.trigger_validation import (
+    ValidateTriggerTransitionsNode,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.states.rm import RM
+
+
+def _decision_trigger_bt(
+    name: str,
+    case_id: str,
+    actor_id: str,
+    decided_rm: RM,
+    activity_builder: Callable[[str], list[str]],
+    result_out: dict | None,
+) -> py_trees.behaviour.Behaviour:
+    """Validate the RM move *decided_rm*, then send the decision."""
+    return py_trees.composites.Sequence(
+        name=name,
+        memory=False,
+        children=[
+            ValidateTriggerTransitionsNode(
+                case_id=case_id,
+                actor_id=actor_id,
+                rm_state=decided_rm,
+                vf_state=None,
+                d_state=None,
+                pxa_state=None,
+                result_out=result_out if result_out is not None else {},
+                name=f"ValidateRMto{decided_rm.name.title()}",
+                require_participant=True,
+            ),
+            sender_side_bt(case_id=case_id, activity_builder=activity_builder),
+        ],
+    )
 
 
 def engage_case_trigger_bt(
     case_id: str,
     actor_id: str,
     activity_builder: Callable[[str], list[str]],
+    result_out: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the engage-case (RM → ACCEPTED) workflow.
 
     Args:
-        case_id: ID of the VulnerabilityCase to engage.  Seeded on the
-            blackboard via ``BTBridge.execute_with_setup(case_id=case_id)``
-            by the calling use case so that ``CreateParticipantStatusNode``
-            can read it via ``CaseIdInputPortMixin`` (ADR-0089, BTND-10-005).
-        actor_id: ID of the actor engaging the case; passed explicitly to
-            ``CreateParticipantStatusNode`` as the subject actor.
+        case_id: ID of the VulnerabilityCase to engage.
+        actor_id: ID of the actor engaging the case; the subject of the
+            transition check.
         activity_builder: Callable invoked by the sender subtree with the
             resolved Case Manager actor ID; should return a list of outbound
             activity IDs to queue.
+        result_out: Receives the refusal under ``"error"`` when the move is
+            illegal (EH-05-002).
 
     Returns:
-        A ``py_trees.composites.Sequence`` that:
-
-        - Advances the actor's RM state to ACCEPTED via the canonical writer.
-        - Resolves the Case Manager, builds the Engage(Case) activity, and
-          queues it in the actor's outbox.
+        A ``py_trees.composites.Sequence`` that checks the move to ACCEPTED,
+        then resolves the Case Manager, builds the Engage(Case) activity, and
+        queues it in the actor's outbox.
     """
-    return py_trees.composites.Sequence(
-        name="EngageCaseTriggerBT",
-        memory=False,
-        children=[
-            CreateParticipantStatusNode(
-                actor_id=actor_id,
-                rm_state=RM.ACCEPTED,
-                vf_state=None,
-                d_state=None,
-                pxa_state=None,
-                name="TransitionRMtoAccepted",
-            ),
-            sender_side_bt(case_id=case_id, activity_builder=activity_builder),
-        ],
+    return _decision_trigger_bt(
+        "EngageCaseTriggerBT",
+        case_id,
+        actor_id,
+        RM.ACCEPTED,
+        activity_builder,
+        result_out,
     )
 
 
@@ -85,39 +109,30 @@ def defer_case_trigger_bt(
     case_id: str,
     actor_id: str,
     activity_builder: Callable[[str], list[str]],
+    result_out: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the defer-case (RM → DEFERRED) workflow.
 
     Args:
-        case_id: ID of the VulnerabilityCase to defer.  Seeded on the
-            blackboard via ``BTBridge.execute_with_setup(case_id=case_id)``
-            by the calling use case so that ``CreateParticipantStatusNode``
-            can read it via ``CaseIdInputPortMixin`` (ADR-0089, BTND-10-005).
-        actor_id: ID of the actor deferring the case; passed explicitly to
-            ``CreateParticipantStatusNode`` as the subject actor.
+        case_id: ID of the VulnerabilityCase to defer.
+        actor_id: ID of the actor deferring the case; the subject of the
+            transition check.
         activity_builder: Callable invoked by the sender subtree with the
             resolved Case Manager actor ID; should return a list of outbound
             activity IDs to queue.
+        result_out: Receives the refusal under ``"error"`` when the move is
+            illegal (EH-05-002).
 
     Returns:
-        A ``py_trees.composites.Sequence`` that:
-
-        - Advances the actor's RM state to DEFERRED via the canonical writer.
-        - Resolves the Case Manager, builds the Defer(Case) activity, and
-          queues it in the actor's outbox.
+        A ``py_trees.composites.Sequence`` that checks the move to DEFERRED,
+        then resolves the Case Manager, builds the Defer(Case) activity, and
+        queues it in the actor's outbox.
     """
-    return py_trees.composites.Sequence(
-        name="DeferCaseTriggerBT",
-        memory=False,
-        children=[
-            CreateParticipantStatusNode(
-                actor_id=actor_id,
-                rm_state=RM.DEFERRED,
-                vf_state=None,
-                d_state=None,
-                pxa_state=None,
-                name="TransitionRMtoDeferred",
-            ),
-            sender_side_bt(case_id=case_id, activity_builder=activity_builder),
-        ],
+    return _decision_trigger_bt(
+        "DeferCaseTriggerBT",
+        case_id,
+        actor_id,
+        RM.DEFERRED,
+        activity_builder,
+        result_out,
     )

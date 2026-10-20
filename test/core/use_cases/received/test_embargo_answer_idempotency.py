@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.received import received_record
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.answer_trees import (
@@ -97,7 +98,10 @@ def _answer_body(
     receiver: str = MANAGER,
 ) -> dict[str, Any]:
     """*actor*'s answer to *invite_id* under a fresh id, addressed to *receiver*."""
-    proposal = cast(Any, net.stores[actor].read(invite_id))
+    # The actor holds the Invite as intake archived it (DL-06-006).
+    record = received_record(net.stores[actor], invite_id)
+    assert record is not None
+    proposal = cast(Any, record.activity)
     build = (
         em_accept_embargo_activity if accept else em_reject_embargo_activity
     )
@@ -301,6 +305,8 @@ def test_a_repeat_accept_on_a_public_case_sends_no_refusal():
     _embargo_id, invite_id = _invited(net, BYSTANDER, "repeat-pxa")
     first = _answer(net, BYSTANDER, invite_id, accept=True, tag="1")
     assert first.disposition is HandlerDisposition.APPLIED, first.reason
+    # P/X/A set outside the ledger, as test setup (``bypass_ledger``).
+    net.bypass_ledger()
     case = net.case(MANAGER)
     case.current_status.pxa.state = CS_pxa.Pxa
     net.stores[MANAGER].save(case)

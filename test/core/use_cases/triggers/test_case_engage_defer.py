@@ -162,11 +162,14 @@ class TestEngageCaseRMTransitionViaBT:
         reset_datalayer(self.finder.id_)
         reset_datalayer(self.case_actor.id_)
 
-    def test_engage_case_updates_rm_to_accepted_via_bt(self):
-        """After SvcEngageCaseUseCase.execute(), the actor's RM state is ACCEPTED.
+    def test_engage_case_validates_in_the_bt_and_writes_no_status(self):
+        """The RM move is checked inside the BT, and nothing is written.
 
-        This verifies AC-1 + AC-3: the RM transition now runs inside the BT
-        (TransitionParticipantRMtoAccepted node), not in pre-BT procedural code.
+        This verifies AC-1 + AC-3 (#712): the check runs inside the BT
+        (ValidateRMtoAccepted node), not in pre-BT procedural code.  The
+        CASE_MANAGER records RM ACCEPTED when it accepts the decision; the
+        actor's replica copies that status from the ledger (RSH-08-003,
+        CM-23-016).
         """
         request = EngageCaseTriggerRequest(
             actor_id=self.vendor.id_,
@@ -176,16 +179,9 @@ class TestEngageCaseRMTransitionViaBT:
             self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
         ).execute()
 
-        # Re-read participant from DataLayer to confirm BT wrote the change
         updated = self.dl.read(self.vendor_participant.id_)
-        assert updated is not None
         assert isinstance(updated, CaseParticipant)
-        assert updated.participant_statuses, (
-            "Expected at least one as_ParticipantStatus after engage"
-        )
-        assert updated.participant_statuses[-1].rm.state == RM.ACCEPTED, (
-            f"Expected RM.ACCEPTED, got {updated.participant_statuses[-1].rm.state}"
-        )
+        assert updated.participant_statuses[-1].rm.state == RM.VALID
 
     def test_engage_case_rm_not_updated_when_no_participant(self):
         """When participant is NOT in case_participants, the BT transitions
@@ -239,11 +235,14 @@ class TestDeferCaseRMTransitionViaBT:
         reset_datalayer(self.finder.id_)
         reset_datalayer(self.case_actor.id_)
 
-    def test_defer_case_updates_rm_to_deferred_via_bt(self):
-        """After SvcDeferCaseUseCase.execute(), the actor's RM state is DEFERRED.
+    def test_defer_case_validates_in_the_bt_and_writes_no_status(self):
+        """The RM move is checked inside the BT, and nothing is written.
 
-        This verifies AC-1 + AC-3: the RM transition now runs inside the BT
-        (TransitionParticipantRMtoDeferred node), not in pre-BT procedural code.
+        This verifies AC-1 + AC-3 (#712): the check runs inside the BT
+        (ValidateRMtoDeferred node), not in pre-BT procedural code.  The
+        CASE_MANAGER records RM DEFERRED when it accepts the decision; the
+        actor's replica copies that status from the ledger (RSH-08-003,
+        CM-23-016).
         """
         request = DeferCaseTriggerRequest(
             actor_id=self.vendor.id_,
@@ -253,16 +252,9 @@ class TestDeferCaseRMTransitionViaBT:
             self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
         ).execute()
 
-        # Re-read participant from DataLayer to confirm BT wrote the change
         updated = self.dl.read(self.vendor_participant.id_)
-        assert updated is not None
         assert isinstance(updated, CaseParticipant)
-        assert updated.participant_statuses, (
-            "Expected at least one as_ParticipantStatus after defer"
-        )
-        assert updated.participant_statuses[-1].rm.state == RM.DEFERRED, (
-            f"Expected RM.DEFERRED, got {updated.participant_statuses[-1].rm.state}"
-        )
+        assert updated.participant_statuses[-1].rm.state == RM.VALID
 
 
 # ---------------------------------------------------------------------------

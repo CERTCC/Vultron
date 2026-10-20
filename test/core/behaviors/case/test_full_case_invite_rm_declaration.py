@@ -49,7 +49,7 @@ from test.support.rm_declaration import (
     assert_anomaly_flagged_and_noted,
     cases_declaring,
     current_status,
-    queued_notes,
+    recorded_notes,
     recorded_rm,
     seed_case,
     status_count,
@@ -255,7 +255,7 @@ class TestClosedInviteeReply:
         assert status_count(dl) == before
         assert ledger_tail_position(CASE_ID, dl) == ledger_before
         assert list(dl.outbox_list()) == outbox_before
-        assert queued_notes(dl) == []
+        assert recorded_notes(dl) == []
 
 
 @pytest.mark.executes_as(CASE_MANAGER_ID)

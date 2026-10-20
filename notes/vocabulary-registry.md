@@ -6,10 +6,12 @@ tags: [vocabulary, registry, wire, as2, deserialization]
 description: >
   Design rules for the AS2 vocabulary registry: auto-registration via
   __init_subclass__, flat dict, VocabNamespace, the generated JSON-LD
-  context, fail-fast lookup, CORE_TYPE_MAP, and disjoint registry keys.
+  context (types and marked properties), fail-fast lookup, CORE_TYPE_MAP,
+  and disjoint registry keys.
   Operating rules live in vultron/wire/as2/vocab/AGENTS.md.
 related_specs:
   - specs/vocabulary-model.yaml (VM-01 through VM-03, VM-06, VM-10)
+  - specs/em-behavior.yaml (EMB-13-005)
   - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010,
     ARCH-14-001, ARCH-20-002, ARCH-23-002, ARCH-25-003)
   - specs/docs-build-workflow.yaml (DOCBW-03-005)
@@ -82,6 +84,13 @@ own. When adding or renaming a wire type:
 - Keep the enumeration filter to classes defined under `vultron.wire.as2.vocab`:
   a class declared inside a test joins the subclass graph, and without the filter
   a test probe could inject a term into the normative document.
+- Give a Vultron-namespace wire *property* its term by marking the field with
+  `json_schema_extra=VULTRON_PROPERTY_EXTRA`; the generator keys it by the
+  field's wire name (`vultron_property_terms`). List it under "Declared
+  properties" in `docs/ns/index.md`, which
+  `test_namespace_index_page_lists_exactly_the_generated_terms` checks. An
+  unmarked Vultron property has no term, so a receiver cannot resolve it
+  (EMB-13-005's `terminationCause`).
 
 The document is normative but not reachable: `ns/` stays withheld from the
 published site until #3653 moves it to the versioned URL ADR-0106 decided, and

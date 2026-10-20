@@ -4,9 +4,13 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal, cast
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    TerminationCause,
+)
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.primitives import normalise_actor_id
@@ -102,12 +106,24 @@ class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
 
     ``termination_reason`` is the termination's what, parsed from the
     ``Remove``'s ``content`` at the edge (ADR-0122, ADR-0032).
+    ``termination_cause`` is its why, parsed from ``terminationCause``, or
+    ``None`` when the sender named none (EMB-13-005).  The two fit each
+    other: an ``END_TIME_REACHED`` termination has no cause.
     """
 
     semantic_type: Literal[MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE] = (
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE
     )
     termination_reason: TerminationReason
+    termination_cause: TerminationCause | None = None
+
+    @model_validator(mode="after")
+    def _cause_fits_reason(self) -> "RemoveEmbargoEventFromCaseReceivedEvent":
+        """Refuse a cause the what cannot have (EMB-13-004)."""
+        EmbargoTermination.from_reason(
+            self.termination_reason, self.termination_cause
+        )
+        return self
 
     @property
     def embargo_id(self) -> str | None:

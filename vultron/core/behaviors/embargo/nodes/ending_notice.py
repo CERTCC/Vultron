@@ -194,9 +194,10 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
     was requested by another actor (the Case Owner), that actor is
     ``attributedTo`` (CM-24-001, CM-24-002).
 
-    The notice is not committed to the ledger and carries nothing but the
-    embargo.  No notice owed, or nobody to send it to, is ``SUCCESS`` with
-    nothing sent.  A notice owed with no trigger-activity factory is a
+    The notice is not committed to the ledger.  It carries the embargo and,
+    for a termination, the what and the why the register records
+    (EMB-13-005).  No notice owed, or nobody to send it to, is ``SUCCESS``
+    with nothing sent.  A notice owed with no trigger-activity factory is a
     wiring fault and fails the node (BT-14-001); so does a capture node that
     never ran.  A factory or outbox error escapes to ``BTBridge``: the EM
     write is already done, so it is an internal fault, not a refusal.
@@ -244,12 +245,14 @@ class SendEmbargoEndingNoticesNode(_EmitSingleActivityBase):
                 f"{self.name}: case '{self.case_id}' records no termination"
             )
         else:
-            # The notice carries the what the register records (ADR-0122).
+            # The notice carries the what and the why the register records
+            # (ADR-0122, EMB-13-005).
             activity_id, blob = factory.terminate_embargo(
                 embargo_id=notice.notice_embargo_id,
                 case_id=self.case_id,
                 actor=actor,
                 reason=termination.reason,
+                cause=termination.cause,
                 to=[recipient],
                 attributed_to=authorship.attributed_to if authorship else None,
             )

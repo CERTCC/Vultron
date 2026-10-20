@@ -3,6 +3,7 @@
   "type": "Add",
   "id": "urn:uuid:0badc3bf-53a1-48f7-9f32-dd1a0272bd48",
   "name": "https://vultron.example/users/finndervul Add Note to urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+  "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "actor": "https://vultron.example/users/finndervul",
   "target": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "object": {

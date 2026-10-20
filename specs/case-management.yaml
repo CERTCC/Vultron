@@ -2236,14 +2236,24 @@ groups:
     kind: protocol
     statement: >-
       When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
-      still outstanding, the CASE_MANAGER MUST send a `Note` to the Case Owner's inbox
-      indicating that a reinforcing suggestion was received, including the second
-      recommender's identity and any `content` from the Offer.
+      still outstanding, the CASE_MANAGER MUST record a `Note` for the Case Owner
+      indicating that a reinforcing suggestion was received, including the Case Owner's
+      identity, the second recommender's identity and any `content` from the Offer. The
+      note is the CASE_MANAGER's own `add_note_to_case` entry, attached to the case, and
+      reaches the Case Owner's inbox as that entry's `Announce(CaseLedgerEntry)`
+      (SYNC-02-002); a direct `Add(Note)` to the Case Owner is refused there (HP-01-005).
     rationale: Notifying the Case Owner of reinforcing suggestions provides additional
       context for the pending decision without creating a duplicate offer workflow.
-    verification: Integration tests in `test/demo/` confirm that a duplicate `Offer(Actor X,
-      Case)` with a pending decision causes the CASE_MANAGER to send a `Note` to the Case Owner
-      naming the second recommender.
+      Every active participant sees the note; a private message to the Case Owner is not
+      implemented (#4885).
+    verification: >-
+      `test/core/use_cases/received/test_case_manager_note_replay.py` sends two
+      recommendations of one actor to the CASE_MANAGER and delivers what it queued to the
+      Case Owner's replica: nothing is refused, one `Offer(CaseParticipant)` is sent, and
+      the replica lists the note naming the second recommender.
+      `test/core/behaviors/case/nodes/test_suggest_actor_owner_recipient.py` asserts the
+      entry is announced to the Case Owner.
+
     stories:
     - story_2022_053
     - story_2022_046
@@ -3710,8 +3720,9 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST commit all canonical ledger entries for case
-      initialization (`create_case`, `add_report_to_case`, participant-status
-      entries, `add_case_status_to_case`) natively in its own DataLayer.  These
+      initialization (`create_case`, `add_report_to_case`, participant-record
+      and participant-status entries, `add_case_status_to_case`) natively in
+      its own DataLayer.  These
       entries MUST NOT be authored by the report receiver and back-filled via
       `WritePrologueLedgerEntriesNode` or any equivalent mechanism.
     rationale: >-
@@ -3721,8 +3732,9 @@ groups:
       entries fail this check (the root cause of Issue #1767).  Native
       CASE_MANAGER authorship is the only compliant path.
     verification: Inspection of `vultron/core/` confirms that the canonical initialization
-      ledger entries (`create_case`, `add_report_to_case`, participant-status entries,
-      `add_case_status_to_case`) are authored by the CASE_MANAGER, not the report receiver.
+      ledger entries (`create_case`, `add_report_to_case`, participant-record and
+      participant-status entries, `add_case_status_to_case`) are authored by the
+      CASE_MANAGER, not the report receiver.
     relationships:
     - rel_type: refines
       spec_id: CM-22-001

@@ -401,9 +401,12 @@ class TestSvcCreateCaseUseCase:
 # ---------------------------------------------------------------------------
 
 #: The record class each creation entry carries, and where in the snapshot.
+#: A participant record is created whole; a later status entry's ``target``
+#: carries the record with that status added (CLP-07-013).
 _CARRIED: dict[str, tuple[str, type[CoreObject]]] = {
     "create_case": ("object", VulnerabilityCase),
     "add_report_to_case": ("object", VulnerabilityReport),
+    "create_case_participant": ("object", CaseParticipant),
     "add_participant_status_to_participant": ("target", CaseParticipant),
     "add_case_status_to_case": ("object", CaseStatus),
 }
@@ -458,6 +461,12 @@ class TestCreateCaseTriggerLedger:
     @pytest.mark.spec("CM-22-003")
     @pytest.mark.parametrize("to", [None, [_RECIPIENT]], ids=["local", "sent"])
     def test_commits_genesis_then_an_entry_per_record(self, to):
+        """The creator's record is created whole, with its one status.
+
+        The owner holds one status, so its record is one
+        ``create_case_participant`` entry and no status entry follows it
+        (CLP-07-013).
+        """
         case = self._create(to=to)
 
         entries = ledger_entries(self.dl, case.id_)
@@ -465,7 +474,7 @@ class TestCreateCaseTriggerLedger:
         assert [e.event_type for e in entries] == [
             "create_case",
             "add_report_to_case",
-            "add_participant_status_to_participant",
+            "create_case_participant",
             "add_case_status_to_case",
         ]
         assert [
@@ -478,7 +487,7 @@ class TestCreateCaseTriggerLedger:
 
         assert [e.event_type for e in ledger_entries(self.dl, case.id_)] == [
             "create_case",
-            "add_participant_status_to_participant",
+            "create_case_participant",
             "add_case_status_to_case",
         ]
 
@@ -617,7 +626,7 @@ class TestCreateCaseTriggerLedger:
         assert [kind for kind, _ in events[1:]] == [
             "create_case",
             "add_report_to_case",
-            "add_participant_status_to_participant",
+            "create_case_participant",
             "add_case_status_to_case",
         ]
 

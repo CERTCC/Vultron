@@ -54,8 +54,10 @@ Every step keeps these invariants, and a step that would break one is refused:
 4. Once a step has left an entry `TERMINATED`, no later step adds or changes an entry.
 
 A termination records two things.
-What ended the embargo is `END_TIME_REACHED` or `EARLY`; why, when known, is a structured cause, such as a threat signal (`P`, `X` or `A`) that ended it early (EMB-13-004).
-The termination message carries only the what, so a replica that learns the termination from that message records the what alone.
+What ended the embargo is `END_TIME_REACHED` or `EARLY`.
+Why, when known, is a structured cause whose `kind` is `THREAT_SIGNAL` (with the signals `P`, `X` or `A`), `FIX_READY` (with the vendors whose readiness made the quorum), `FIX_DEPLOYED` or `OTHER` (EMB-13-004).
+Every cause is `EARLY`, and an `END_TIME_REACHED` termination has none.
+The termination message carries the what as `content` and the why as `terminationCause` (EMB-13-005).
 
 !!! note "Register status is not EM state"
     The register statuses and the EM states share the words *proposed* and *active*, but they name different things.

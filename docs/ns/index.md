@@ -11,7 +11,7 @@ level: 300
 
 ---
 
-This namespace defines the Vultron-specific vocabulary types used in [Vultron protocol](https://certcc.github.io/Vultron/) wire messages.
+This namespace defines the Vultron-specific vocabulary types and properties used in [Vultron protocol](https://certcc.github.io/Vultron/) wire messages.
 Vultron messages are ActivityStreams 2.0 (AS2) Activities; the Vultron vocabulary extends the AS2 core vocabulary with Coordinated Vulnerability Disclosure (CVD) object types.
 The shape of an activity is described in [Vultron and ActivityPub](../howto/activitypub/index.md).
 
@@ -38,6 +38,15 @@ The shape of an activity is described in [Vultron and ActivityPub](../howto/acti
 This table must list exactly the terms `context.jsonld` declares.
 Those terms come from the wire `type` value each class emits, never from its class name, so a class that emits another class's `type` value gets no term of its own.
 The stub form of a case is its own type: it is transmitted as `"type": "VulnerabilityCaseStub"` and gets its own term.
+
+## Declared properties
+
+| Property name | Description |
+|---------------|-------------|
+| `terminationCause` | Why an embargo ended early, on the `Remove` that terminates it: an object whose `kind` is `THREAT_SIGNAL`, `FIX_READY`, `FIX_DEPLOYED` or `OTHER` |
+
+This table must list exactly the properties `context.jsonld` declares.
+A property's term is its name in the wire message.
 
 ## Usage in wire messages
 

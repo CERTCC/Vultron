@@ -1,6 +1,6 @@
 # Issue Creation Requirements
 
-Every new issue created via `manage_github_issue.sh` **must** supply three fields plus a
+Every new issue created via `manage_github_issue.sh` **must** supply two fields plus a
 reason it exists (below). Missing any one causes the script to exit non-zero. Task and
 Bug bodies also need a `Governing specs:` line (see below).
 
@@ -10,7 +10,9 @@ Bug bodies also need a `Governing specs:` line (see below).
 |---|---|---|
 | **Issue type** | `--issue-type-id ID` | Determines the issue's workflow lane (Task, Bug, Idea, Concern). Without it the issue has no type and is invisible to type-filtered views. |
 | **Parent epic** | `--parent N` | Routes the issue into the epic forest so it appears in sprint planning and prioritisation. An orphaned issue is invisible to capacity planning. |
-| **Milestone** | `--milestone N` | Anchors the issue to a delivery target. Without it the issue floats outside every milestone filter. |
+
+A milestone is **not** required. Pass `--milestone N` only when the work belongs to a
+specific release milestone (e.g. "Release 2026.10" for publish-readiness work).
 
 ## Why the issue exists (`--opened-as` or `--planned`)
 
@@ -63,10 +65,6 @@ bash .agents/skills/shared/board-id.sh issue-type Task
 gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Epic") | "#\(.number): \(.title)"'
-
-# Open milestones with numbers
-gh api repos/CERTCC/Vultron/milestones \
-  --jq '.[] | "\(.number): \(.title)"'
 ```
 
 ## Determining the right values
@@ -75,9 +73,6 @@ gh api repos/CERTCC/Vultron/milestones \
   exploratory captures → `Idea` or `Concern`.
 - **Parent epic**: use `calve-epics` Mode 1 to find the best-fit open Epic; if none
   matches, run Mode 2 to propose a new one. Never leave an issue without a parent.
-- **Milestone**: inherit from the source issue (the Idea/Concern/Bug being planned or fixed)
-  when one exists; otherwise pick the milestone whose scope best matches the work.
-  "Project Health" (milestone 25) is the default for tooling and process improvements.
 
 ## Exemptions
 

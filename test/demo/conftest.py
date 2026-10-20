@@ -169,6 +169,20 @@ class _TestClientRouter:
                     recipient_id,
                 )
                 continue
+            if client.portal is None:
+                # The target's `with client` block has exited (a timeout trip
+                # or a failed assertion), but a delivery chain is still running
+                # in a worker thread.  Posting now would start a one-shot
+                # portal whose loop the inbox lock is not bound to, logging
+                # `is bound to a different event loop` as if it were the
+                # failure's cause (#4882).
+                logger.warning(
+                    "_TestClientRouter: client for %s is not entered,"
+                    " dropping delivery to %s",
+                    base,
+                    recipient_id,
+                )
+                continue
             inbox_path = parsed.path
             try:
                 # TestClient.post is blocking and drives the target app on its
