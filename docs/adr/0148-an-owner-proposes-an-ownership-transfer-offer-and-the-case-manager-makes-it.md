@@ -84,6 +84,8 @@ For ownership transfer:
 - A test delivers the owner's proposal to the CASE_MANAGER and asserts one `Offer(VulnerabilityCase)` leaves it, with an id the CASE_MANAGER minted, `attributedTo` the owner, and a ledger entry whose snapshot is that Offer.
 - A test answers that Offer from the transferee and asserts the answer closes it with no back-link lookup.
 - A test sends an inner Offer naming another case, or an inner id that collides with a stored object, and asserts the CASE_MANAGER refuses it or ignores the id.
+- A test sends the proposal from a participant that is not the Case Owner, and another while an Offer for the case is open, and asserts each is refused with no ledger commit and no outbound Offer (CM-21-019, CM-21-014).
+- A test sends the owner's `Undo` of its proposal and asserts the CASE_MANAGER ledgers the withdrawal of the Offer it made from it, which closes that Offer (CM-21-015).
 - An architecture test or grep asserts `VultronOwnershipTransferOfferRecord` no longer exists.
 
 ## Pros and Cons of the Options
@@ -113,5 +115,5 @@ For ownership transfer:
 ## More Information
 
 This record partially supersedes ADR-0053: the routing of the Offer and its answers through the CASE_MANAGER stands, and the forward of the owner's Offer is replaced by the CASE_MANAGER's own Offer.
-The requirements that change with it are CM-21-005 (the forward), CM-21-018 (the back-link, retired) and CM-21-019 (sender standing for the proposal and for the Offer at the transferee); each is amended in the implementation change that makes the code match.
+The requirements that change with it are CM-21-005 (the forward), CM-21-014 (the open-Offer gate, now applied to the proposal), CM-21-015 (the withdrawal, now an `Undo` of the proposal), CM-21-016 (the deadline, now carried on the inner Offer), CM-21-018 (the back-link, retired) and CM-21-019 (sender standing for the proposal and for the Offer at the transferee); each is amended in the implementation change that makes the code match.
 The same shape for the case proposal, `Offer(Create(VulnerabilityCase))` in place of `Offer(CaseProposal)`, is not decided here; it is captured for later consideration in #4936.
