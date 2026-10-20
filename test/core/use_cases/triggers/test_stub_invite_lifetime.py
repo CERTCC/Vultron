@@ -658,7 +658,7 @@ def test_a_replacement_whose_commit_failed_is_sent_once_by_the_next_run(
     raises=AssertionError,
     reason=(
         "CLP-07-015: the stub re-issue commits in its own transaction after"
-        " the termination it follows. Tracked by #4934."
+        " the termination it follows. Tracked by #4949."
     ),
 )
 def test_a_termination_whose_stub_re_issue_fails_is_not_kept(

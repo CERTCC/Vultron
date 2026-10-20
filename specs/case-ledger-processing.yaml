@@ -676,7 +676,7 @@ groups:
       atomicity gaps: a received act's own entry is committed by intake before its
       consequences (ADR-0111, #4933), and consequences a later node commits, such
       as the stub re-issue (CM-11-016) and a proposal's relay (EP-09-002), commit
-      after the act (#4934).
+      after the act (#4949).
     verification: >-
       A test fails the second commit of a two-entry act and asserts the
       CASE_MANAGER keeps no entry, no queued activity and no row change from it; a
@@ -684,7 +684,7 @@ groups:
       a test commits a two-entry act and asserts a replica that copies its
       announcements holds the CASE_MANAGER's rows. Two strict-xfail tests record
       the known gaps: a received act whose consequence fails keeps no entry for
-      it (#4933), and a termination whose stub re-issue fails is not kept (#4934).
+      it (#4933), and a termination whose stub re-issue fails is not kept (#4949).
     relationships:
     - rel_type: refines
       spec_id: CLP-07-013

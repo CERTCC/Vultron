@@ -308,7 +308,9 @@ block raises (DL-02-004, ADR-0146, CLP-07-015). The rules that keep it sound:
 - **One store only.** The block covers the store it was opened on; a write to
   another actor's store inside it commits on its own.
 - **Keep it short.** It takes the write lock (`BEGIN IMMEDIATE`) and, in memory,
-  the session lock, so other writers wait for the whole block.
+  the session lock, so other writers wait for the whole block. A waiter can be
+  the event loop (the outbox drain writes synchronously), and on a file store a
+  wait past SQLite's busy timeout (5 s by default) raises `database is locked`.
 
 ---
 

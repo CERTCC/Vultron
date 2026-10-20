@@ -189,7 +189,7 @@ stored plan, a finishing node or a per-act repair pass; put the act's writes
 inside the transaction instead (CLP-07-015, ADR-0146). Known gaps: intake commits
 a received act's own entry in its own transaction first (ADR-0111, #4933), and
 a later node's consequences (the stub re-issue, a proposal's relay) commit after
-the act (#4934).
+the act (#4949).
 
 ### Two Meanings of "Reject"
 

@@ -79,7 +79,7 @@ The stub re-issue is one: an act that changes the embargo in force makes every o
 The relay of a proposal is another: each relayed Invite, with its invitee's row, commits on its own after the proposal (EP-09-002).
 So a failure in a later node leaves the act committed and that consequence missing.
 Nothing is half-written, because each later commit is atomic, but the consequence waits for a later run, or for a redelivery that relays again.
-Closing this gap commits the act and these consequences in one transaction (#4934).
+Closing this gap commits the act and these consequences in one transaction (#4949).
 
 ### Why revision 1 was replaced
 
@@ -107,7 +107,7 @@ Option D was rejected: every register entry has a row on every participant (ADR-
 - A test fails the case-file save after every commit and asserts that no entry is kept.
 - A test commits a two-entry act and asserts that a replica copying its announcements holds the same rows as the CASE_MANAGER.
 - Adapter tests assert that a transaction commits every write together, rolls every write back when it raises, rolls back only its own writes when nested, and wakes the outbox monitor only after it commits (DL-02-004).
-- Two strict-xfail tests record the known atomicity requirements, one per gap (#4933, #4934).
+- Two strict-xfail tests record the known atomicity requirements, one per gap (#4933, #4949).
 
 ## More Information
 
@@ -117,4 +117,4 @@ Option D was rejected: every register entry has a row on every participant (ADR-
 - #4764 — the concern this record answers.
 - #4855 — the implementation, whose acceptance criteria the maintainer reworded for revision 2.
 
-Generated spec requirements: `case-ledger-processing.yaml` CLP-07-015.
+Generated spec requirements: `case-ledger-processing.yaml` CLP-07-015, `datalayer.yaml` DL-02-004.

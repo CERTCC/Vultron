@@ -63,11 +63,10 @@ class PendingCreationTimeRevisionRelay(CoreRecord):
             is its author.  Required: a revision with no report could never
             be relayed, so its writer raises instead of recording it.
         case_actor_id: URI of the CASE_MANAGER that owes the relay.
-        invite_queued: The receipt that the committed Invite reached the
-            outbox.  Delivery empties the outbox, so neither it nor the ledger
-            can tell a delivered Invite from one whose queueing failed after
-            its commit; a retry that finds the Invite committed queues it
-            again unless this is set.
+        invite_queued: No longer written or read: the relay sends, commits,
+            indexes and deletes this marker in one transaction (ADR-0146), so
+            no retry needs a queue receipt.  Kept only because removing a
+            stored field is a stored-shape change (#4950).
 
     Spec: EP-04-011.
     """
@@ -95,7 +94,7 @@ class PendingCreationTimeRevisionRelay(CoreRecord):
     )
     invite_queued: bool = Field(
         default=False,
-        description="Set once the committed Invite reached the outbox",
+        description="Unused; retired by #4950",
     )
 
     @classmethod

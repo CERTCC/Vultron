@@ -24,8 +24,7 @@ by the next run rather than lost (#4121).  These tests pin the relay's guards â€
 keeps the obligation â€” apart from the case-creation tree that places them.
 """
 
-from datetime import datetime
-from typing import Any, cast
+from typing import cast
 
 import pytest
 
@@ -57,7 +56,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_duration import EmbargoDurationSource
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -160,14 +158,14 @@ def test_a_revision_no_longer_open_is_discharged_unsent(
 def test_a_revision_already_in_the_ledger_is_not_relayed_again(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """The guard reads the ledger, so an obligation that survived a completed
-    send (its queued receipt written) sends no second Invite."""
+    """The guard reads the ledger, so an obligation recorded again after a
+    completed send sends no second Invite."""
     seed(bt_scenario)
     owe(bt_scenario)
     bt_scenario.assert_success(relay(bt_scenario))
     while bt_scenario.dl.outbox_pop() is not None:
         pass
-    owe(bt_scenario, invite_queued=True)
+    owe(bt_scenario)
 
     result = relay(bt_scenario)
 
@@ -176,14 +174,26 @@ def test_a_revision_already_in_the_ledger_is_not_relayed_again(
     assert owed(bt_scenario) is None
 
 
+def proposal_entries(scenario: BTTestScenario) -> list[object]:
+    """The ledger entries that record the relayed Invite."""
+    return [
+        e
+        for e in scenario.dl.list_objects("CaseLedgerEntry")
+        if getattr(e, "log_object_id", None) == PROPOSAL_ID
+    ]
+
+
 @pytest.mark.executes_as(MANAGER)
 @pytest.mark.spec("EP-04-011")
 @pytest.mark.spec("EP-08-002")
-def test_an_invite_committed_but_never_indexed_is_indexed_on_retry(
+@pytest.mark.spec("CLP-07-015")
+def test_a_failed_index_write_keeps_nothing_but_the_obligation(
     bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A relay that committed its Invite and then failed left no index entry;
-    the retry writes it without sending a second Invite (#4121)."""
+    """The send, the winner's row, the index and the discharge are one
+    transaction (ADR-0146): a failed index write leaves no Invite queued or
+    committed and no row moved, only the marker, and the retry relays the
+    Invite once, indexed (#4121)."""
     seed(bt_scenario)
     owe(bt_scenario)
 
@@ -196,16 +206,20 @@ def test_an_invite_committed_but_never_indexed_is_indexed_on_retry(
     bt_scenario.assert_failure(
         relay(bt_scenario), reason="index write failed", allow_internal=True
     )
+    assert invites(bt_scenario) == []
+    assert proposal_entries(bt_scenario) == []
+    assert winner_row(bt_scenario) is not EmbargoConsentState.INVITED
     assert index(bt_scenario) == {}
-    assert owed(bt_scenario) is not None
+    assert owed(bt_scenario) == marker()
     monkeypatch.undo()
-    while bt_scenario.dl.outbox_pop() is not None:
-        pass
 
     result = relay(bt_scenario)
 
     bt_scenario.assert_success(result)
-    assert invites(bt_scenario) == []
+    (invite,) = invites(bt_scenario)
+    assert invite.id_ == PROPOSAL_ID
+    assert len(proposal_entries(bt_scenario)) == 1
+    assert winner_row(bt_scenario) is EmbargoConsentState.INVITED
     assert index(bt_scenario) == {EMBARGO_ID: PROPOSAL_ID}
     assert owed(bt_scenario) is None
 
@@ -400,17 +414,14 @@ def test_an_owner_who_reported_to_itself_has_nobody_to_invite(
 
 @pytest.mark.executes_as(MANAGER)
 @pytest.mark.spec("EP-04-011")
-@pytest.mark.spec("EP-09-004")
-def test_an_invite_committed_but_never_queued_is_queued_on_retry(
+@pytest.mark.spec("CLP-07-015")
+def test_a_failed_outbox_write_keeps_nothing_but_the_obligation(
     bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The outbox write failed after the commit, so no queued receipt was
-    written: the retry queues the committed Invite under its own id, applies
-    the winner's consent INVITE and indexes it, without committing it again
-    (#4156)."""
+    """The outbox write fails before the commit: nothing is committed, and
+    the retry queues and commits the Invite once (ADR-0146)."""
     seed(bt_scenario)
     owe(bt_scenario)
-    outbox_append = bt_scenario.dl.outbox_append
 
     def _fail(_activity_id: str) -> None:
         raise RuntimeError("outbox unavailable")
@@ -419,66 +430,19 @@ def test_an_invite_committed_but_never_queued_is_queued_on_retry(
     bt_scenario.assert_failure(
         relay(bt_scenario), reason="outbox unavailable", allow_internal=True
     )
-    assert invites(bt_scenario) == []
-    stored = owed(bt_scenario)
-    assert stored is not None and stored.invite_queued is False
-    monkeypatch.setattr(bt_scenario.dl, "outbox_append", outbox_append)
-    invite_where_legal = RelayCreationTimeRevisionNode._invite_where_legal
-    applied: list[str] = []
-
-    def _spy(
-        self: RelayCreationTimeRevisionNode,
-        dl: CaseOutboxPersistence,
-        recipient_id: str,
-        deadline: datetime | None,
-        **kwargs: Any,
-    ) -> None:
-        applied.append(recipient_id)
-        invite_where_legal(self, dl, recipient_id, deadline, **kwargs)
-
-    monkeypatch.setattr(
-        RelayCreationTimeRevisionNode, "_invite_where_legal", _spy
-    )
+    assert proposal_entries(bt_scenario) == []
+    assert owed(bt_scenario) == marker()
+    monkeypatch.undo()
 
     result = relay(bt_scenario)
 
     bt_scenario.assert_success(result)
     (invite,) = invites(bt_scenario)
     assert invite.id_ == PROPOSAL_ID
-    committed = [
-        e
-        for e in bt_scenario.dl.list_objects("CaseLedgerEntry")
-        if getattr(e, "log_object_id", None) == PROPOSAL_ID
-    ]
-    assert len(committed) == 1
-    assert applied == [REPORTER]
+    assert len(proposal_entries(bt_scenario)) == 1
+    assert winner_row(bt_scenario) is EmbargoConsentState.INVITED
     assert index(bt_scenario) == {EMBARGO_ID: PROPOSAL_ID}
     assert owed(bt_scenario) is None
-
-
-@pytest.mark.executes_as(MANAGER)
-@pytest.mark.spec("EP-04-011")
-def test_a_sent_invite_writes_its_queued_receipt(
-    bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The receipt is written as soon as the Invite is queued, so a failure
-    after it (here, the index write) does not queue the Invite again."""
-    seed(bt_scenario)
-    owe(bt_scenario)
-
-    def _fail(*_args: object, **_kwargs: object) -> bool:
-        raise RuntimeError("index write failed")
-
-    monkeypatch.setattr(
-        embargo_revision_relay, "record_embargo_proposal_index", _fail
-    )
-
-    bt_scenario.assert_failure(
-        relay(bt_scenario), reason="index write failed", allow_internal=True
-    )
-
-    assert owed(bt_scenario) == marker(invite_queued=True)
-    assert len(invites(bt_scenario)) == 1
 
 
 @pytest.mark.spec("EP-04-011")
