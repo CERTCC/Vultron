@@ -317,27 +317,34 @@ block raises (DL-02-004, ADR-0146, CLP-07-015). The rules that keep it sound:
 
 ---
 
-## Renaming a Stored Field
+## Retiring a Stored Field (Rename, Move, or Delete)
 
-Stored data carries no backwards compatibility. A renamed persisted field gets
-no read alias (`AliasChoices`) and no conversion: the model declares the old key
-in `retired_stored_fields` via `RetiredFieldsRecord`
-(`vultron/core/models/retired_stored_fields.py`), and a row that still carries
-it, in either the field-name or camelCase spelling, fails to load with a
-message naming the old shape and saying the store must be reset (#4128). Every
-retired key the row carries is reported, not only the first (EH-07-001), and a
-retirement table whose replacement the model does not declare, or whose old key
-it still declares, fails at class definition.
+Stored data carries no backwards compatibility.
+A renamed, moved, or deleted persisted field gets no read alias (`AliasChoices`)
+and no conversion: the model declares the old key in `retired_stored_fields` via
+`RetiredFieldsRecord` (`vultron/core/models/retired_stored_fields.py`), and a
+row that still carries it, in either the field-name or camelCase spelling, fails
+to load with a message naming the old shape and saying the store must be reset
+(#4128).
+Every retired key the row carries is reported, not only the first (EH-07-001),
+and a retirement table whose replacement the model does not declare, or whose old
+key it still declares, fails at class definition.
 
-The declaration is what makes the refusal legible. `CoreRecord` refuses unknown
-keys (`extra="forbid"`), so an undeclared rename never loses a field silently,
-but the row fails with a bare "extra inputs are not permitted" plus a "field
-required" for a name the operator never wrote, and nothing says a rename
-happened. The SQLite read path logs the validation reason at WARNING when it
-reads such a row as absent, so `dl.read()` returning `None` always has a logged
-cause. Every PR that renames a stored field carries an operator note saying a
-file-backed store must be reset (`docker compose down -v`); an in-memory store is
-unaffected.
+Pass `RetiredStoredField(replacement, retired_by)` for a rename within the same
+model, `RetiredStoredField(replacement, retired_by, moved_to=OtherModel)` when
+the field moved to a different model, and `RetiredStoredField(None, retired_by)`
+when the field was deleted with no replacement.
+The camelCase spelling of the old key is refused in all three cases (#4950).
+
+The declaration is what makes the refusal legible.
+`CoreRecord` refuses unknown keys (`extra="forbid"`), so an undeclared change
+never loses a field silently, but the row fails with a bare "extra inputs are not
+permitted" (and a "field required" for a renamed field) that never says a change
+happened.
+The SQLite read path logs the validation reason at WARNING when it reads such a
+row as absent, so `dl.read()` returning `None` always has a logged cause.
+Every PR that retires a stored field carries an operator note saying a file-backed
+store must be reset (`docker compose down -v`); an in-memory store is unaffected.
 
 ## Changing a Table's Shape
 
