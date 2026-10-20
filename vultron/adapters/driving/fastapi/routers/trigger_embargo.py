@@ -146,6 +146,11 @@ def trigger_accept_embargo(
         "case, Reject(EmbargoEvent, target=Case), which rejects the proposal "
         "(EM state PROPOSED → NONE or REVISE → ACTIVE, or unchanged while "
         "another proposal is open). "
+        "When the owner is also the CASE_MANAGER and rejects the last open "
+        "revision while CS is public, exploited, or attacked, the rejection "
+        "also terminates the embargo in the same act (EM → EXITED), committed "
+        "as two ledger entries: the Reject entry and an ET "
+        "Remove(EmbargoEvent) entry (MSM-07-009, EMB-04-002). "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_reject_embargo",
