@@ -41,6 +41,10 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    ThreatSignal,
+)
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_SEMANTIC_TYPE,
     INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
@@ -178,12 +182,16 @@ def test_the_owner_rejecting_one_of_two_revisions_keeps_the_other_open():
 
 
 @pytest.mark.spec("EMB-04-002")
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.spec("EMB-13-005")
 @pytest.mark.spec("TB-06-007")
 def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
-    """EJ with P/X/A set terminates (ET) in every store, not ACTIVE again.
+    """EJ with P/X/A set ends EXITED in every store, not ACTIVE again.
 
     The owner's ``Reject(EmbargoEvent, target=Case)`` of the last open
-    revision (ADR-0122, EMB-04-002).
+    revision (ADR-0122, EMB-04-002): the revision ends ``REJECTED`` and the
+    embargo ``TERMINATED`` with the threat signal as its cause, as two
+    entries every replica copies (MSM-07-009, EMB-13-005).
     """
     net = _Network("https://example.org/cases/answer-after-disclosure")
     revision = _propose(net, "late", 90)
@@ -214,11 +222,28 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
         assert case.current_status.em.state == EM.EXITED, actor_id
         assert case.active_embargo_id is None, actor_id
         assert case.proposed_embargo_ids == [], actor_id
-        # Cancelled by the termination, not rejected (EP-08-004, ADR-0124).
+        # Rejected as decided, then the embargo terminated (MSM-07-009).
         assert case.embargo_register_status(revision) is (
-            EmbargoRegisterStatus.CANCELLED
+            EmbargoRegisterStatus.REJECTED
         ), actor_id
-    assert EMBARGO_TEARDOWN_SEMANTIC_TYPE in _semantic_types(net, BYSTANDER)
+        assert case.embargo_register_status(net.initial_embargo_id) is (
+            EmbargoRegisterStatus.TERMINATED
+        ), actor_id
+        assert case.embargo_termination == EmbargoTermination.threat(
+            [ThreatSignal.P]
+        ), actor_id
+    entries = sorted(
+        (
+            obj
+            for obj in net.stores[BYSTANDER].list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+        ),
+        key=lambda entry: entry.log_index,
+    )
+    types = [str(entry.semantic_type) for entry in entries]
+    assert types.index("reject_embargo_proposal_on_case") < types.index(
+        EMBARGO_TEARDOWN_SEMANTIC_TYPE
+    )
 
 
 @pytest.mark.spec("BT-17-001")

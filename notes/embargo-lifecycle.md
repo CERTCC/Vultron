@@ -193,21 +193,17 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   writes what the entry carries through `apply_embargo_change()` (ADR-0124).
 - **P/X/A guards** (EMB-01-002, EMB-02-002, EMB-04-002): `propose_embargo()` and
   `activate_embargo()` raise when any of P/X/A is set; consent recording is
-  never blocked. `reject_embargo_proposal()` raises when it would return a
-  `REVISE` case to the prior terms with P/X/A set — the correct path is to
-  terminate the embargo (ET, `terminate_embargo_bt`). The CASE_MANAGER still
-  commits that `Reject`, so the replica slot skips it under the same condition
-  (`rejection_ends_embargo`, `vultron/core/predicates/embargo.py`) and the
-  `Remove` entry that follows cancels the revision: manager and replicas both
-  end with it `CANCELLED` (#4364, #4784). Deciding that skip is lifecycle
-  logic on replay, a **tracked deviation from CM-23-016 (#4789)**: it reads
-  only the case file, so replicas still converge, but it evaluates EMB-04-002
-  rather than copying. It is the only `_left_to_a_later_entry` override, and
-  `test/architecture/test_embargo_replica_slots_copy.py` keeps it the only one.
-  The target design is decided (MSM-07-009): the CASE_MANAGER commits the
-  `Reject` carrying the `REJECT` step, then its own ET `Remove` carrying
-  `TERMINATE`, both trial-applied before either commits, so the revision ends
-  `REJECTED` and the replica copies both; #4850 builds it and removes the skip.
+  never blocked. `reject_embargo_proposal()` does not refuse a rejection that
+  returns a `REVISE` case to the prior terms with P/X/A set: the CASE_MANAGER
+  records the `REJECT` step and then terminates the embargo in the same act
+  (`end_embargo_outliving_disclosure_bt` around `terminate_embargo_bt`), so
+  the revision ends `REJECTED` and the embargo `TERMINATED` with the threat
+  signals as the cause its `Remove` carries (MSM-07-009, EMB-13-005).
+  `OwnerRejectionAppliesNode` trial-applies both steps among the guards, and
+  the act is one transaction, so a refused termination commits neither entry.
+  Only the CASE_MANAGER reads `rejection_ends_embargo`
+  (`vultron/core/predicates/embargo.py`); replicas copy both entries and
+  decide nothing (CM-23-016).
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
@@ -340,10 +336,8 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
 4. **Replay copies.** The proposal, relay, answer, re-invite, abandonment,
    teardown, withdrawal, activation, owner's-rejection and expiry slots copy
    the entry's step or row (a `Leave` carries none), and every other row
-   arrives as its own CASE_MANAGER entry (ADR-0124). The owner's-rejection
-   slot's skip of a `Reject` answered with ET is the one tracked deviation
-   from copy-only until #4850 (CM-23-016, MSM-07-009; see the P/X/A guards
-   above). One path
+   arrives as its own CASE_MANAGER entry (ADR-0124). No slot decides to skip
+   an entry (CM-23-016, MSM-07-009; see the P/X/A guards above). One path
    still passes
    `transition_mode=TransitionMode.OBSERVED`: a paused replica applying a
    CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
@@ -503,8 +497,9 @@ its persist (SYNC-12-001) and stalls every later entry (SYNC-14-001).
 
 **The owner's `Reject(EmbargoEvent)` decides one proposal**; EM stays
 `PROPOSED`/`REVISE` while another is open (EP-08-003). Rejecting the last open
-revision after P/X/A runs the terminate path (ET) instead of restoring the prior
-terms (EMB-04-002).
+revision after P/X/A rejects it and then, in the same act, runs the terminate
+path (ET), so the prior terms do not stand when the act ends (EMB-04-002,
+MSM-07-009).
 
 **RSH-04-002 on the relay trees.** These received trees add no
 `EmitCaseStatusUpdateNode`: the guarded commit records the causing activity and

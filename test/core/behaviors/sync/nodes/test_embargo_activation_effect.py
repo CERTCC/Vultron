@@ -48,6 +48,7 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import (
     RegisterChange,
+    rejection_changes,
     termination_changes,
 )
 from vultron.core.models.embargo_termination import EmbargoTermination
@@ -387,18 +388,25 @@ def test_a_rejection_naming_no_embargo_fails(bridge, datalayer):
 @pytest.mark.spec("EMB-04-002")
 @pytest.mark.spec("MSM-07-009")
 @pytest.mark.spec("CM-23-016")
-def test_the_rejection_of_the_last_revision_after_disclosure_changes_nothing(
+def test_the_rejection_of_the_last_revision_after_disclosure_is_copied(
     bridge, datalayer
 ):
-    """The CASE_MANAGER answered it with ET: the ``Remove`` that follows
-    cancels the revision, so the ``Reject`` entry writes nothing here."""
+    """The ``Reject`` entry is the REJECT step, after disclosure as before.
+
+    The replica decides nothing: the revision ends ``REJECTED`` and the prior
+    terms stand until the CASE_MANAGER's ``Remove`` entry that follows
+    carries the ``TERMINATE`` step (MSM-07-009).
+    """
     case = _seed(datalayer, EM.REVISE)
     case.append_case_status(pxa=CS_pxa.Pxa)
     datalayer.save(case)
-    before = _case(datalayer).model_dump()
 
     assert _apply(bridge, EMBARGO_ID, accept=False).status == Status.SUCCESS
-    assert _case(datalayer).model_dump() == before
+    held = _case(datalayer)
+    assert held.embargo_register_status(EMBARGO_ID) is (
+        EmbargoRegisterStatus.REJECTED
+    )
+    assert held.em_state == EM.ACTIVE
 
 
 @pytest.mark.spec("EMB-04-002")
@@ -422,28 +430,39 @@ def test_a_rejection_after_another_open_proposal_with_pxa_set_applies(
     assert held.em_state == EM.REVISE
 
 
-def _cancelled_revision(datalayer, *, pxa: CS_pxa) -> VulnerabilityCase:
-    """A replica whose embargo in force ended, cancelling the revision."""
+def _ended_embargo(datalayer, *, reject_first: bool) -> VulnerabilityCase:
+    """A replica whose embargo in force ended after P was set.
+
+    With *reject_first* the revision was rejected before the termination,
+    as the CASE_MANAGER's ET-answered rejection leaves it (MSM-07-009);
+    otherwise the termination cancelled it (EP-08-004).
+    """
     case = _seed(datalayer, EM.REVISE)
-    case.append_case_status(pxa=pxa)
+    case.append_case_status(pxa=CS_pxa.Pxa)
+    if reject_first:
+        case.apply_embargo_register_step(rejection_changes(EMBARGO_ID))
     case.apply_embargo_register_step(
         termination_changes(case.embargo_register, EmbargoTermination.early())
     )
     datalayer.save(case)
     assert _case(datalayer).embargo_register_status(EMBARGO_ID) is (
-        EmbargoRegisterStatus.CANCELLED
+        EmbargoRegisterStatus.REJECTED
+        if reject_first
+        else EmbargoRegisterStatus.CANCELLED
     )
     return case
 
 
 @pytest.mark.spec("CM-23-016")
-@pytest.mark.spec("EP-08-004")
+@pytest.mark.spec("MSM-07-009")
 @pytest.mark.spec("EMB-04-002")
-def test_a_seed_past_the_termination_skips_the_rejection(bridge, datalayer):
-    """The revision the ET cancelled after disclosure: the seed is past the
-    Reject entry the CASE_MANAGER answered with ET (ADR-0114), so it is a
-    no-op, not a refusal into the gap buffer."""
-    _cancelled_revision(datalayer, pxa=CS_pxa.Pxa)
+def test_a_seed_past_the_termination_replays_the_rejection_forward_only(
+    bridge, datalayer
+):
+    """A seed taken after the ET-answered rejection holds the revision
+    ``REJECTED``: the entry is in place, so it is a no-op, not a refusal
+    into the gap buffer (ADR-0114)."""
+    _ended_embargo(datalayer, reject_first=True)
     before = _case(datalayer).model_dump()
 
     assert _apply(bridge, EMBARGO_ID, accept=False).status == Status.SUCCESS
@@ -452,13 +471,14 @@ def test_a_seed_past_the_termination_skips_the_rejection(bridge, datalayer):
 
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.spec("SYNC-12-001")
-def test_a_revision_cancelled_without_disclosure_refuses_the_rejection(
+def test_a_revision_cancelled_by_a_termination_refuses_the_rejection(
     bridge, datalayer
 ):
-    """An early termination is not the EMB-04-002 answer: the CASE_MANAGER
-    never commits a Reject of a revision it cancelled, so this replica has
-    diverged and the entry is refused (ADR-0124)."""
-    _cancelled_revision(datalayer, pxa=CS_pxa.pxa)
+    """The CASE_MANAGER never commits a Reject of a revision a termination
+    cancelled, with P/X/A set or not, so this replica has diverged and the
+    entry is refused (ADR-0124).  No slot decides the case away (CM-23-016).
+    """
+    _ended_embargo(datalayer, reject_first=False)
     before = _case(datalayer).model_dump()
 
     assert _apply(bridge, EMBARGO_ID, accept=False).status == Status.FAILURE

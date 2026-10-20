@@ -32,9 +32,10 @@ participant-status slot; engage and defer exercise it end to end, and
 """
 
 import json
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 import pytest
+from py_trees.common import Status
 from pydantic import BaseModel
 
 from test.support.embargo_register import propose, write_consent_rows
@@ -45,6 +46,10 @@ from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     read_sealed_body_dict,
 )
+from vultron.core.behaviors.case.nodes.stub_reissue import (
+    ReissueStubInvitesNode,
+)
+from vultron.core.behaviors.embargo.nodes import termination_commit
 from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -54,6 +59,10 @@ from vultron.core.models.dimensions import (
     EmDimension,
     PxaDimension,
     RmDimension,
+)
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    ThreatSignal,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.pending_assertion import get_pending_assertion_store
@@ -75,6 +84,7 @@ from vultron.core.use_cases.triggers.requests import (
     AddObjectToCaseTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
     add_note_to_case_activity,
@@ -318,15 +328,16 @@ def test_a_replica_carries_signatories_over_to_a_shorter_activated_revision():
 @pytest.mark.spec("EMB-04-002")
 @pytest.mark.spec("MSM-07-009")
 @pytest.mark.spec("CM-23-016")
-@pytest.mark.spec("EP-08-004")
+@pytest.mark.spec("EMB-13-005")
 def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure():
     """Reject of the last revision with P set: both registers end the same.
 
-    The CASE_MANAGER terminates instead of returning to the prior terms
-    (EMB-04-002), cancelling the revision in the termination step
-    (EP-08-004).  The replica replays the reject entry and then the
-    termination entry, and must reach the same register — the revision
-    CANCELLED, not REJECTED (ADR-0124).
+    The CASE_MANAGER records the rejection as decided and then terminates
+    the embargo in the same act rather than returning to the prior terms
+    (EMB-04-002, MSM-07-009).  The replica copies the reject entry and then
+    the termination entry and decides nothing (CM-23-016), so it reaches
+    the same register: the revision REJECTED, the embargo TERMINATED with
+    the threat signal as its cause, and the same consent rows.
     """
     net = _owned(
         LedgerNetwork("https://example.org/cases/replay-reject-disclosed")
@@ -354,13 +365,87 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure()
         case = net.case(actor_id)
         assert case.em_state == EM.EXITED, actor_id
         assert case.embargo_register_status(revision.id_) is (
-            EmbargoRegisterStatus.CANCELLED
+            EmbargoRegisterStatus.REJECTED
         ), actor_id
         assert case.embargo_register_status(net.initial_embargo_id) is (
             EmbargoRegisterStatus.TERMINATED
         ), actor_id
+        assert case.embargo_termination == EmbargoTermination.threat(
+            [ThreatSignal.P]
+        ), actor_id
     assert _register(net, BYSTANDER) == _register(net, MANAGER)
     assert _ledger(net, BYSTANDER) == _ledger(net, MANAGER)
+    for embargo_id in (revision.id_, net.initial_embargo_id):
+        assert _consent(net, BYSTANDER, BYSTANDER, embargo_id) == _consent(
+            net, MANAGER, BYSTANDER, embargo_id
+        ), embargo_id
+
+
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.spec("CLP-07-015")
+def test_a_refused_termination_commits_neither_entry(monkeypatch):
+    """The rejection and the termination it causes are one act (MSM-07-009).
+
+    The guard's trial passes, but the termination node refuses its step:
+    the act fails as a whole, so neither the ``Reject`` entry nor a
+    ``Remove`` entry is committed and the revision stays open.
+    """
+    net = _owned(
+        LedgerNetwork("https://example.org/cases/replay-reject-refused")
+    )
+    revision = _propose_revision_everywhere(net, days=120)
+    _report_pxa(net, CS_pxa.Pxa)
+    ledger_before = _ledger(net, MANAGER)
+
+    def _refuse(*_args: object) -> NoReturn:
+        raise VultronInvalidStateTransitionError("termination refused")
+
+    monkeypatch.setattr(termination_commit, "decide_termination", _refuse)
+    reject = reject_embargo_proposal_activity(
+        revision, target=net.case_id, actor=OWNER, to=[MANAGER]
+    )
+    verdict = net.receive(MANAGER, json.loads(dump_outbound_body(reject)))
+
+    assert verdict.disposition is not HandlerDisposition.APPLIED
+    assert _ledger(net, MANAGER) == ledger_before
+    case = net.case(MANAGER)
+    assert case.proposed_embargo_ids == [revision.id_]
+    assert case.em_state == EM.REVISE
+
+
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.spec("CLP-07-015")
+def test_a_termination_failing_after_its_remove_commits_neither_entry(
+    monkeypatch,
+):
+    """A failure after the ``Remove`` is committed rolls the whole act back.
+
+    The termination's stub re-issue, which runs after its ``Remove`` entry
+    commits, fails: neither the ``Reject`` nor the ``Remove`` entry is kept,
+    and the fallback arm does not answer the failure (MSM-07-009).
+    """
+    net = _owned(
+        LedgerNetwork("https://example.org/cases/replay-reject-late-failure")
+    )
+    revision = _propose_revision_everywhere(net, days=120)
+    _report_pxa(net, CS_pxa.Pxa)
+    ledger_before = _ledger(net, MANAGER)
+
+    monkeypatch.setattr(
+        ReissueStubInvitesNode, "update", lambda _self: Status.FAILURE
+    )
+    reject = reject_embargo_proposal_activity(
+        revision, target=net.case_id, actor=OWNER, to=[MANAGER]
+    )
+    verdict = net.receive(MANAGER, json.loads(dump_outbound_body(reject)))
+
+    assert verdict.disposition is not HandlerDisposition.APPLIED
+    assert _ledger(net, MANAGER) == ledger_before
+    case = net.case(MANAGER)
+    assert case.proposed_embargo_ids == [revision.id_]
+    assert case.active_embargo_id == net.initial_embargo_id
+    assert case.em_state == EM.REVISE
+    assert not net.queued(MANAGER, to=BYSTANDER, type_="Remove")
 
 
 @pytest.mark.spec("RSH-08-004")

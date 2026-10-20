@@ -99,7 +99,9 @@ The Case Manager refuses an activation once the case is public, an exploit is pu
 If an embargo is active, it stays in force on its current terms (`EJ`); otherwise the case has no embargo (`ER`).
 While another proposal is still open, the case stays in negotiation.
 No participant's consent changes, the Case Owner's included.
-If the case is public, an exploit is public, or attacks are observed when the Case Owner rejects the last open revision, the Case Manager ends the embargo instead (`ET`).
+If the case is public, an exploit is public, or attacks are observed when the Case Owner rejects the last open revision, the Case Manager also ends the embargo in the same act (`ET`).
+The ledger then holds two entries: the `Reject`, which leaves the revision rejected, and the Case Manager's own `Remove`, which leaves the embargo terminated.
+If the termination is refused, neither entry is committed.
 
 {% include-markdown "./_occasions/sections/embargo-termination.md" %}
 
