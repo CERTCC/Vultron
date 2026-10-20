@@ -48,6 +48,9 @@ from typing import NamedTuple
 
 import py_trees
 
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
     ExpireOverdueOwnershipOfferNode,
     ExpiryPrompt,
@@ -128,7 +131,7 @@ def _reply_stages(
 
 
 def create_accept_ownership_transfer_tree(
-    case_id: str,
+    case_id: str | None,
     offer_id: str | None,
     sender_id: str,
     answer_id: str,
@@ -146,7 +149,9 @@ def create_accept_ownership_transfer_tree(
     names, never to the sender.
 
     Args:
-        case_id: URI of the case whose ownership is being transferred.
+        case_id: URI of the case whose ownership is being transferred; ``None``
+            builds the tree that archives the reply and refuses it
+            (CLP-10-018).
         offer_id: The Offer the Accept names (the recorded Offer or the
             CASE_MANAGER's forward of it).
         sender_id: The Accept's sender.  The sender guard checks it: at the
@@ -164,6 +169,13 @@ def create_accept_ownership_transfer_tree(
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
+    if case_id is None:
+        # Intake archives the reply; there is no case to judge it
+        # against (CLP-10-018).
+        return create_incomplete_activity_received_tree(
+            "AcceptOwnershipTransferBT",
+            "Accept(ownership transfer) names no case",
+        )
     stages = _reply_stages(
         case_id, offer_id, sender_id, answer_id, OfferParty.TRANSFEREE, now
     )
@@ -201,7 +213,7 @@ def create_accept_ownership_transfer_tree(
 
 
 def create_reject_ownership_transfer_tree(
-    case_id: str,
+    case_id: str | None,
     offer_id: str | None,
     sender_id: str,
     answer_id: str,
@@ -218,7 +230,9 @@ def create_reject_ownership_transfer_tree(
     the Offer (CM-21-014); ownership is unchanged, so nothing else is written.
 
     Args:
-        case_id: URI of the case the declined Offer would have transferred.
+        case_id: URI of the case the declined Offer would have transferred; ``None``
+            builds the tree that archives the reply and refuses it
+            (CLP-10-018).
         offer_id: The Offer the Reject names (the recorded Offer or the
             CASE_MANAGER's forward of it).
         sender_id: The Reject's sender, checked as for the Accept.
@@ -230,6 +244,13 @@ def create_reject_ownership_transfer_tree(
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
+    if case_id is None:
+        # Intake archives the reply; there is no case to judge it
+        # against (CLP-10-018).
+        return create_incomplete_activity_received_tree(
+            "RejectOwnershipTransferBT",
+            "Reject(ownership transfer) names no case",
+        )
     stages = _reply_stages(
         case_id, offer_id, sender_id, answer_id, OfferParty.TRANSFEREE, now
     )
@@ -255,7 +276,7 @@ def create_reject_ownership_transfer_tree(
 
 
 def create_undo_ownership_transfer_tree(
-    case_id: str,
+    case_id: str | None,
     offer_id: str | None,
     sender_id: str,
     undo_id: str,
@@ -273,7 +294,9 @@ def create_undo_ownership_transfer_tree(
     again.  Ownership is unchanged.
 
     Args:
-        case_id: URI of the case the withdrawn Offer would have transferred.
+        case_id: URI of the case the withdrawn Offer would have transferred; ``None``
+            builds the tree that archives the reply and refuses it
+            (CLP-10-018).
         offer_id: The Offer the Undo names.
         sender_id: The Undo's sender: at the CASE_MANAGER it must be the
             offerer, still the Case Owner; at a replica, the CASE_MANAGER.
@@ -285,6 +308,12 @@ def create_undo_ownership_transfer_tree(
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
+    if case_id is None:
+        # Intake archives the reply; there is no case to judge it
+        # against (CLP-10-018).
+        return create_incomplete_activity_received_tree(
+            "UndoOwnershipTransferBT", "Undo(ownership transfer) names no case"
+        )
     stages = _reply_stages(
         case_id, offer_id, sender_id, undo_id, OfferParty.OFFERER, now
     )

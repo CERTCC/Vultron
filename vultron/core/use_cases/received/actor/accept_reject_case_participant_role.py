@@ -11,8 +11,6 @@ See SE-08-003, ADR-0039.
 
 from typing import TYPE_CHECKING, ClassVar
 
-import py_trees
-
 from vultron.core.behaviors.case.role_offer_answer_tree import (
     create_accept_case_participant_role_tree,
     create_reject_case_participant_role_tree,
@@ -37,6 +35,7 @@ from vultron.core.use_cases.received._offer_reply import (
     run_offer_reply_tree,
 )
 from vultron.enums.roles import CVDRole
+from vultron.primitives import normalise_actor_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -55,11 +54,15 @@ def _carried_role_and_target(
 
     Read only to check them against the recorded Offer, never to find it
     (CM-33-005): the entry the CASE_MANAGER commits carries this copy, and
-    every replica grants what it names (CM-02-016).
+    every replica grants what it names (CM-02-016).  The target is
+    normalised, since the CASE_MANAGER's grant looks it up in the case's
+    participant index, as every replica does (OID-01-006).
     """
     offer = getattr(request.activity, "object_", None)
     role = getattr(getattr(offer, "object_", None), "role", None)
     target_id = _as_id(getattr(offer, "target", None))
+    if target_id is not None:
+        target_id = normalise_actor_id(target_id)
     return (role if isinstance(role, CVDRole) else None), target_id
 
 
@@ -111,24 +114,21 @@ class AcceptCaseParticipantRoleReceivedUseCase:
         case_id = _case_named(request)
         role, target_id = _carried_role_and_target(request)
 
-        def build_tree(case_id: str) -> py_trees.behaviour.Behaviour:
-            return create_accept_case_participant_role_tree(
-                case_id=case_id,
-                offer_id=request.object_id,
-                sender_id=request.actor_id,
-                answer_id=request.activity_id,
-                carried_role=role,
-                carried_target_id=target_id,
-                sender_rule=self.sender_entitlement,
-            )
-
+        tree = create_accept_case_participant_role_tree(
+            case_id=case_id,
+            offer_id=request.object_id,
+            sender_id=request.actor_id,
+            answer_id=request.activity_id,
+            carried_role=role,
+            carried_target_id=target_id,
+            sender_rule=self.sender_entitlement,
+        )
         return run_offer_reply_tree(
             dl=self._dl,
             request=request,
-            build_tree=build_tree,
+            tree=tree,
             label=label,
             case_id=case_id,
-            reply="Accept(role Offer)",
             subject="role offer",
             refine=role_offer_answer_verdict,
             applied_note="accepted",
@@ -172,24 +172,21 @@ class RejectCaseParticipantRoleReceivedUseCase:
         case_id = _case_named(request)
         role, target_id = _carried_role_and_target(request)
 
-        def build_tree(case_id: str) -> py_trees.behaviour.Behaviour:
-            return create_reject_case_participant_role_tree(
-                case_id=case_id,
-                offer_id=request.object_id,
-                sender_id=request.actor_id,
-                answer_id=request.activity_id,
-                carried_role=role,
-                carried_target_id=target_id,
-                sender_rule=self.sender_entitlement,
-            )
-
+        tree = create_reject_case_participant_role_tree(
+            case_id=case_id,
+            offer_id=request.object_id,
+            sender_id=request.actor_id,
+            answer_id=request.activity_id,
+            carried_role=role,
+            carried_target_id=target_id,
+            sender_rule=self.sender_entitlement,
+        )
         return run_offer_reply_tree(
             dl=self._dl,
             request=request,
-            build_tree=build_tree,
+            tree=tree,
             label=label,
             case_id=case_id,
-            reply="Reject(role Offer)",
             subject="role offer",
             refine=role_offer_answer_verdict,
             applied_note="rejected",

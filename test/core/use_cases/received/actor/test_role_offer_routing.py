@@ -1090,3 +1090,123 @@ def test_a_forged_redelivery_does_not_resume_the_grant(
     assert result.disposition is HandlerDisposition.SKIPPED
     assert not _target_holds(dl, CVDRole.COORDINATOR)
     assert not _target_holds(dl, CVDRole.VENDOR)
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CM-02-016")
+def test_accept_carrying_the_target_in_another_spelling_is_granted(
+    make_payload,
+):
+    """The CASE_MANAGER grants the role as every replica does, whatever the
+    spelling of the target the carried Offer names."""
+    dl = _store(_CASE_MANAGER_ID)
+    _deliver_offer(dl, make_payload, _offer())
+    # The recorded Offer's id and role, its target with a trailing slash.
+    respelled = _offer(target=f"{_TARGET_ID}/")
+
+    result = _deliver_answer(
+        dl, make_payload, respelled, accept=True, sender=_TARGET_ID
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    assert "accept_case_participant_role" in _semantic_types(dl)
+    assert _target_holds(dl, CVDRole.VENDOR)
+
+
+def _deliver_altered_answer(
+    dl: SqliteDataLayer, make_payload, *, update: dict[str, Any]
+) -> Any:
+    """Deliver the target's Accept of the Offer with *update* applied to it.
+
+    The update is applied to the received event and its activity alike.
+    """
+    answer = accept_case_participant_role_activity(
+        offer=_offer(), actor=_TARGET_ID, to=[_CASE_MANAGER_ID]
+    )
+    request = make_payload(answer, receiving_actor_id=dl.actor_id)
+    request = request.model_copy(
+        update={
+            **{
+                k: v
+                for k, v in update.items()
+                if k in type(request).model_fields
+            },
+            "activity": request.activity.model_copy(update=update),
+        }
+    )
+    return AcceptCaseParticipantRoleReceivedUseCase(
+        dl, request, **_ports(dl)
+    ).execute()
+
+
+@pytest.mark.spec("CM-33-005")
+@pytest.mark.spec("CLP-05-001")
+@pytest.mark.parametrize(
+    ("update", "reason"),
+    [
+        (
+            # This store is no CASE_MANAGER of a case it does not hold.
+            {"context": "https://example.org/cases/not-held"},
+            "No sender is entitled",
+        ),
+        ({"object_": None}, "names no role Offer"),
+    ],
+    ids=["unheld-case", "no-offer"],
+)
+def test_answer_with_no_standing_is_refused_with_no_notice(
+    make_payload, update, reason
+):
+    """An answer naming a case this store does not hold, or no Offer, has
+    nothing to establish the sender's standing against."""
+    dl = _store(_CASE_MANAGER_ID)
+    _deliver_offer(dl, make_payload, _offer())
+    entries_before = _semantic_types(dl)
+    queued_before = dl.outbox_list()
+
+    result = _deliver_altered_answer(dl, make_payload, update=update)
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert reason in (result.reason or "")
+    assert _semantic_types(dl) == entries_before
+    assert not _target_holds(dl, CVDRole.VENDOR)
+    assert _notices_to(dl, queued_before, _TARGET_ID) == []
+
+
+@pytest.mark.spec("CM-33-005")
+def test_answer_carrying_an_offer_with_no_readable_role_is_refused(
+    make_payload,
+):
+    """A carried copy with no role names no grant, so it never matches."""
+    dl = _store(_CASE_MANAGER_ID)
+    _deliver_offer(dl, make_payload, _offer())
+    entries_before = _semantic_types(dl)
+    answer = accept_case_participant_role_activity(
+        offer=_offer(), actor=_TARGET_ID, to=[_CASE_MANAGER_ID]
+    )
+    request = make_payload(answer, receiving_actor_id=dl.actor_id)
+    carried = request.activity.object_
+    role_obj = carried.object_
+    request = request.model_copy(
+        update={
+            "activity": request.activity.model_copy(
+                update={
+                    "object_": carried.model_copy(
+                        update={
+                            "object_": as_CaseParticipantRole.model_construct(
+                                id_=role_obj.id_
+                            )
+                        }
+                    )
+                }
+            )
+        }
+    )
+
+    result = AcceptCaseParticipantRoleReceivedUseCase(
+        dl, request, **_ports(dl)
+    ).execute()
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "carries an Offer naming role None" in (result.reason or "")
+    assert _semantic_types(dl) == entries_before
+    assert not _target_holds(dl, CVDRole.VENDOR)

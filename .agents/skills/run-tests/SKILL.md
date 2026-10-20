@@ -8,7 +8,7 @@ tags:
   - ci
 shell: "zsh"
 commands:
-  - "timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo \"exit: $rc\"; (exit $rc)"
+  - 'log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)'
 inputs:
   - name: repo_root
     description: "Repository root"
@@ -24,9 +24,9 @@ outputs:
 
 | Suite | Command |
 |---|---|
-| Unit (default) | `timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)` |
-| Integration | `timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)` |
-| All | `timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)` |
+| Unit (default) | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
+| Integration | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
+| All | `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)` |
 
 The shape is always the same: **redirect, capture `$?` immediately, tail the log,
 print the code last, then re-raise it.** `rc=$?` must come directly after the
@@ -136,6 +136,6 @@ Phase 5 Step 3 is the canonical caller.
 - Treat all failures as branch-owned by default; clean-base proof is required before
   classifying as pre-existing.
 - **Never re-run the test suite to get more output.** Full pytest output is
-  written to `/tmp/last-test-run.log` (or `"$logs-unit.log"` /
+  written to `"$log"` (or `"$logs-unit.log"` /
   `"$logs-integration.log"` when both suites run, `"$logs-gate.log"`
   for the targeted gate). Read or grep those files instead.

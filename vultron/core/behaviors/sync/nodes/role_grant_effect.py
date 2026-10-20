@@ -45,7 +45,10 @@ from vultron.core.models.protocol_pair import (
     ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.addressing import snapshot_actor_id
+from vultron.core.predicates.addressing import (
+    participant_id_for_actor,
+    snapshot_actor_id,
+)
 from vultron.enums.roles import CVDRole, validate_roles
 
 logger = logging.getLogger(__name__)
@@ -98,7 +101,10 @@ def grant_role_to_target(
     grant arrives with the roster the target joins through, or not at all).  No
     ``attributed_to`` is touched, so a single ``save`` is correct (CM-21-004).
     """
-    participant_id = case.actor_participant_index.get(target_actor_id)
+    # The index may key the target in another spelling (OID-01-006).
+    participant_id = participant_id_for_actor(
+        case.actor_participant_index, target_actor_id
+    )
     participant = datalayer.read(participant_id) if participant_id else None
     if not isinstance(participant, CaseParticipant):
         return False

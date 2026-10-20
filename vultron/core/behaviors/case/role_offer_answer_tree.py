@@ -45,6 +45,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.delegation import (
     GrantCaseParticipantRoleNode,
 )
@@ -90,7 +93,7 @@ def _answer_guards(
 
 
 def create_accept_case_participant_role_tree(
-    case_id: str,
+    case_id: str | None,
     offer_id: str | None,
     sender_id: str,
     answer_id: str,
@@ -107,7 +110,8 @@ def create_accept_case_participant_role_tree(
     CASE_MANAGER grants the role on its own replica (CM-02-016).
 
     Args:
-        case_id: The case the Accept names.
+        case_id: The case the Accept names; ``None`` builds the tree that
+            archives the Accept and refuses it (CLP-10-018).
         offer_id: The Offer the Accept names: the recorded Offer or the
             CASE_MANAGER's forward of it.
         sender_id: The Accept's sender.
@@ -116,6 +120,13 @@ def create_accept_case_participant_role_tree(
         carried_target_id: The target the Offer the Accept carries names.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
+    if case_id is None:
+        # Intake archives the answer; there is no case to judge it
+        # against (CLP-10-018).
+        return create_incomplete_activity_received_tree(
+            "AcceptCaseParticipantRoleReceivedBT",
+            "Accept(role Offer) names no case",
+        )
     context, guards = _answer_guards(
         case_id,
         offer_id,
@@ -124,10 +135,12 @@ def create_accept_case_participant_role_tree(
         carried_role,
         carried_target_id,
     )
-    # The grant takes the carried role and target, which the open-Offer guard
-    # checks against the recorded Offer before the commit, so the
-    # CASE_MANAGER grants what every replica grants from the entry.  An
-    # answer that carries no role or target is refused by that guard.
+    # The grant is the recorded Offer's role and target (ASK-01-004): the
+    # open-Offer guard refuses, before the commit, an answer whose carried
+    # copy names any other, so the carried values the grant takes are the
+    # recorded ones, and the CASE_MANAGER grants what every replica grants
+    # from the entry.  An answer that carries no role or target is refused
+    # by that guard.
     grant: list[py_trees.behaviour.Behaviour] | None = (
         [
             GrantCaseParticipantRoleNode(
@@ -158,7 +171,7 @@ def create_accept_case_participant_role_tree(
 
 
 def create_reject_case_participant_role_tree(
-    case_id: str,
+    case_id: str | None,
     offer_id: str | None,
     sender_id: str,
     answer_id: str,
@@ -175,7 +188,8 @@ def create_reject_case_participant_role_tree(
     entry closes the Offer; no role changes.
 
     Args:
-        case_id: The case the Reject names.
+        case_id: The case the Reject names; ``None`` builds the tree that
+            archives the Reject and refuses it (CLP-10-018).
         offer_id: The Offer the Reject names: the recorded Offer or the
             CASE_MANAGER's forward of it.
         sender_id: The Reject's sender.
@@ -184,6 +198,13 @@ def create_reject_case_participant_role_tree(
         carried_target_id: The target the Offer the Reject carries names.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
+    if case_id is None:
+        # Intake archives the answer; there is no case to judge it
+        # against (CLP-10-018).
+        return create_incomplete_activity_received_tree(
+            "RejectCaseParticipantRoleReceivedBT",
+            "Reject(role Offer) names no case",
+        )
     context, guards = _answer_guards(
         case_id,
         offer_id,

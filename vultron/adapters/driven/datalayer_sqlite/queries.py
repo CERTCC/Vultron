@@ -370,10 +370,11 @@ def find_protocol_pair(
     .. note::
        ``CaseLedgerEntry`` has no structural field linking a reply to the
        specific request that triggered it (``in_reply_to`` chain-following
-       is YAGNI per CLP-11-004).  This function is therefore most reliable
-       when at most one open offer of a given ``request_semantic_type`` exists
-       per case at a time, which is the expected protocol usage
-       (ADR-0026/CM-16).
+       is YAGNI per CLP-11-004).  With ``answering=None`` this function is
+       therefore most reliable when at most one open offer of a given
+       ``request_semantic_type`` exists per case at a time, which is the
+       expected protocol usage (ADR-0026/CM-16); an ``answering`` set scopes
+       the pair to replies naming one of its ids.
     """
     case_entries = sorted(
         (

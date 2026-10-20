@@ -20,11 +20,11 @@ A reply to an Offer the CASE_MANAGER relays — the target's ``Accept`` or
 Offer: an ownership-transfer Offer (CM-21) or a role Offer (CM-33).
 
 :func:`run_offer_reply_tree` runs the reply's one received tree as the
-receiving actor (CLP-10-005, ADR-0135).  A reply that names no case runs the
-intake-only tree, which archives it, and is refused (CLP-10-018).  Otherwise
-the handler's *refine* reads the reply tree's verdict, reporting a redelivery
-of the reply that closed the Offer as ``SKIPPED`` (HP-01-003), and a refusal
-is logged at WARNING with the sender and the case.
+receiving actor (CLP-10-005, ADR-0135).  The tree's factory composes every
+outcome, a reply that names no case included: that tree archives the reply
+and refuses it (CLP-10-018).  The handler's *refine* reads the verdict,
+reporting a redelivery of the reply that closed the Offer as ``SKIPPED``
+(HP-01-003), and a refusal is logged at WARNING with the sender and the case.
 """
 
 import logging
@@ -34,9 +34,6 @@ from typing import TYPE_CHECKING
 import py_trees
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_intake_only_received_tree,
-)
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -45,10 +42,7 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import (
-    applied_or_raise,
-    verdict_from_bt,
-)
+from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -61,18 +55,14 @@ VerdictRefinement = Callable[
     [py_trees.behaviour.Behaviour, HandlerResult], HandlerResult
 ]
 
-#: Builds the reply's received tree for the case it names.
-ReplyTreeBuilder = Callable[[str], py_trees.behaviour.Behaviour]
-
 
 def run_offer_reply_tree(
     *,
     dl: CaseOutboxPersistence,
     request: VultronEvent,
-    build_tree: ReplyTreeBuilder,
+    tree: py_trees.behaviour.Behaviour,
     label: str,
     case_id: str | None,
-    reply: str,
     subject: str,
     refine: VerdictRefinement,
     sync_port: SyncActivityPort | None,
@@ -85,12 +75,10 @@ def run_offer_reply_tree(
     Args:
         dl: The receiving actor's store.
         request: The received reply.
-        build_tree: Builds the reply's received tree for *case_id*.
+        tree: The reply's received tree, as its factory composed it for
+            the case the reply names (or names none).
         label: The tree's name, for the verdict and the logs.
-        case_id: The case the reply names; ``None`` runs the intake-only
-            tree, which archives the reply, and refuses it (CLP-10-018).
-        reply: The reply as a refusal names it, e.g.
-            ``"Accept(role Offer)"``.
+        case_id: The case the reply names, for the logs.
         subject: The Offer, as a log names it, e.g. ``"role offer"``.
         refine: Reads what the tree's guards say beyond success or failure,
             such as a redelivery reported ``SKIPPED`` (HP-01-003).
@@ -100,11 +88,6 @@ def run_offer_reply_tree(
             changes an applied reply causes.
         applied_note: When given, an applied reply is logged at INFO with it.
     """
-    tree = (
-        create_intake_only_received_tree(label)
-        if case_id is None
-        else build_tree(case_id)
-    )
     result = BTBridge(
         datalayer=dl,
         trigger_activity=trigger_activity,
@@ -115,15 +98,6 @@ def run_offer_reply_tree(
         actor_id=resolve_receiving_actor_id(dl, request.receiving_actor_id),
         activity=request,
     )
-    if case_id is None:
-        applied_or_raise(tree, result, label=label)
-        logger.warning(
-            "%s: '%s' from '%s' names no case",
-            reply,
-            request.activity_id,
-            request.actor_id,
-        )
-        return HandlerResult.refused(f"{reply} names no case")
     verdict = refine(tree, verdict_from_bt(tree, result, label=label))
     if verdict.disposition is HandlerDisposition.REFUSED:
         logger.warning(
@@ -147,7 +121,6 @@ def run_offer_reply_tree(
 
 
 __all__ = [
-    "ReplyTreeBuilder",
     "VerdictRefinement",
     "run_offer_reply_tree",
 ]

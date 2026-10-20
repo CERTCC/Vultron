@@ -3,8 +3,6 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
-import py_trees
-
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
@@ -276,22 +274,19 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         case_id = request.case_id
         now = now_utc()
 
-        def build_tree(case_id: str) -> py_trees.behaviour.Behaviour:
-            return create_accept_ownership_transfer_tree(
-                case_id=case_id,
-                offer_id=request.object_id,
-                sender_id=request.actor_id,
-                answer_id=request.activity_id,
-                now=now,
-                sender_rule=self.sender_entitlement,
-            )
-
+        tree = create_accept_ownership_transfer_tree(
+            case_id=case_id,
+            offer_id=request.object_id,
+            sender_id=request.actor_id,
+            answer_id=request.activity_id,
+            now=now,
+            sender_rule=self.sender_entitlement,
+        )
         return run_offer_reply_tree(
             dl=self._dl,
             request=request,
-            build_tree=build_tree,
+            tree=tree,
             case_id=case_id,
-            reply="Accept(ownership transfer)",
             subject="ownership transfer offer",
             refine=ownership_answer_verdict,
             label="AcceptOwnershipTransferBT",
@@ -343,22 +338,19 @@ class RejectCaseOwnershipTransferReceivedUseCase:
         case_id = request.case_id
         now = now_utc()
 
-        def build_tree(case_id: str) -> py_trees.behaviour.Behaviour:
-            return create_reject_ownership_transfer_tree(
-                case_id=case_id,
-                offer_id=request.object_id,
-                sender_id=request.actor_id,
-                answer_id=request.activity_id,
-                now=now,
-                sender_rule=self.sender_entitlement,
-            )
-
+        tree = create_reject_ownership_transfer_tree(
+            case_id=case_id,
+            offer_id=request.object_id,
+            sender_id=request.actor_id,
+            answer_id=request.activity_id,
+            now=now,
+            sender_rule=self.sender_entitlement,
+        )
         return run_offer_reply_tree(
             dl=self._dl,
             request=request,
-            build_tree=build_tree,
+            tree=tree,
             case_id=case_id,
-            reply="Reject(ownership transfer)",
             subject="ownership transfer offer",
             refine=ownership_answer_verdict,
             label="RejectOwnershipTransferBT",
@@ -412,22 +404,19 @@ class UndoCaseOwnershipTransferReceivedUseCase:
         case_id = request.case_id
         now = now_utc()
 
-        def build_tree(case_id: str) -> py_trees.behaviour.Behaviour:
-            return create_undo_ownership_transfer_tree(
-                case_id=case_id,
-                offer_id=request.object_id,
-                sender_id=request.actor_id,
-                undo_id=request.activity_id,
-                now=now,
-                sender_rule=self.sender_entitlement,
-            )
-
+        tree = create_undo_ownership_transfer_tree(
+            case_id=case_id,
+            offer_id=request.object_id,
+            sender_id=request.actor_id,
+            undo_id=request.activity_id,
+            now=now,
+            sender_rule=self.sender_entitlement,
+        )
         return run_offer_reply_tree(
             dl=self._dl,
             request=request,
-            build_tree=build_tree,
+            tree=tree,
             case_id=case_id,
-            reply="Undo(ownership transfer)",
             subject="ownership transfer offer",
             refine=ownership_answer_verdict,
             label="UndoOwnershipTransferBT",
