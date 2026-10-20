@@ -288,9 +288,9 @@ groups:
           A `docs-legacy-urls` mode (`vultron/metadata/docs/legacy_urls.py`)
           exits non-zero on an unrecorded built page and on an empty built-page
           set, covered by `test/metadata/docs/test_legacy_urls.py`;
-          `test/ci/test_publication_gates_in_workflows.py` asserts that
-          `docs-build-check.yml` triggers on pull requests to `publish` with no
-          path filter, and that the step is conditioned on a `publish` base
+          `test/ci/test_publication_gates_in_workflows.py` asserts that the
+          workflow running the step triggers on pull requests to `publish` with
+          no path filter, and that the step is conditioned on a `publish` base
           branch and does not set `continue-on-error`.
         relationships:
           - rel_type: depends_on
