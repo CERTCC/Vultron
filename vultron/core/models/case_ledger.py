@@ -64,12 +64,13 @@ import hashlib
 import json
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, Self
 
 from pydantic import BaseModel, Field, model_validator
 
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import NonEmptyString, ValidatedAssignmentMixin
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
 logger = logging.getLogger(__name__)
 
@@ -301,6 +302,62 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         Can be used to detect tampering or serialisation corruption.
         """
         return self.entry_hash == self._hash_content()
+
+    def to_ledger_entry(self) -> CaseLedgerEntry:
+        """Return the stored and replicated form of this record.
+
+        ``received_at`` is copied, never re-stamped, because it is hashed
+        content: an entry carrying a later time than the one ``entry_hash``
+        was computed over no longer reproduces its own hash (SYNC-01-003).
+        ``published`` is the CASE_MANAGER's commit stamp (CLP-14-002); the
+        record is committed at the instant it is stamped, so it takes the
+        same value.
+        """
+        return CaseLedgerEntry(
+            case_id=self.case_id,
+            log_index=self.log_index,
+            term=self.term,
+            log_object_id=self.object_id,
+            semantic_type=self.semantic_type,
+            payload_snapshot=dict(self.payload_snapshot),
+            prev_log_hash=self.prev_log_hash,
+            entry_hash=self.entry_hash,
+            received_at=self.received_at,
+            published=self.received_at,
+        )
+
+    @classmethod
+    def from_ledger_entry(cls, entry: CaseLedgerEntry) -> Self:
+        """Rebuild the hashed record from a stored or received entry.
+
+        The entry's ``entry_hash`` is carried as stated, not recomputed, so
+        :meth:`verify_hash` on the result tells whether the entry's content
+        reproduces the hash it claims.  An entry with no ``entry_hash`` gets
+        one computed here, so use :func:`ledger_entry_hash_intact` to check a
+        received entry.
+        """
+        return cls(
+            case_id=entry.case_id,
+            log_index=entry.log_index,
+            term=entry.term,
+            object_id=entry.log_object_id,
+            semantic_type=entry.semantic_type,
+            payload_snapshot=dict(entry.payload_snapshot),
+            prev_log_hash=entry.prev_log_hash,
+            entry_hash=entry.entry_hash,
+            received_at=entry.received_at,
+        )
+
+
+def ledger_entry_hash_intact(entry: CaseLedgerEntry) -> bool:
+    """Return ``True`` if *entry* states a hash its content reproduces.
+
+    An entry that states no hash is not intact: it carries nothing to check
+    (SYNC-03-006).
+    """
+    return bool(entry.entry_hash) and (
+        HashChainLedgerRecord.from_ledger_entry(entry).verify_hash()
+    )
 
 
 # ---------------------------------------------------------------------------

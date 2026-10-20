@@ -60,16 +60,7 @@ def require_case_id_from_activity(activity: Any, node_name: str) -> str:
 def _to_persistable_entry(
     chain_entry: HashChainLedgerRecord,
 ) -> CaseLedgerEntry:
-    return CaseLedgerEntry(
-        case_id=chain_entry.case_id,
-        log_index=chain_entry.log_index,
-        term=chain_entry.term,
-        log_object_id=chain_entry.object_id,
-        semantic_type=chain_entry.semantic_type,
-        payload_snapshot=dict(chain_entry.payload_snapshot),
-        prev_log_hash=chain_entry.prev_log_hash,
-        entry_hash=chain_entry.entry_hash,
-    )
+    return chain_entry.to_ledger_entry()
 
 
 class ReconstructChainTailNode(DataLayerActionWithPorts):

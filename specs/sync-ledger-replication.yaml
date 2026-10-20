@@ -281,6 +281,31 @@ groups:
       spec_id: SYNC-03-002
     adr:
     - ADR-0115
+  - id: SYNC-03-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST recompute the hash of a received `CaseLedgerEntry` from its content
+      and compare it with the entry's stated `entryHash` before buffering, applying or
+      storing the entry. An entry that states no hash, or whose content does not
+      reproduce it, MUST be refused and logged, and MUST NOT be buffered, applied or
+      stored.
+    rationale: >-
+      The predecessor check (SYNC-03-001) proves an entry claims the right place in the
+      chain, not that its content is what was hashed. A refused entry is not answered
+      with `Reject(CaseLedgerEntry)`: a replay resends the same entry, and the receiver's
+      unmoved tail already makes the next entry trigger one. See #3744.
+    verification: >-
+      Tests marked `SYNC-03-006` deliver an entry whose content no longer matches its
+      hash and assert it is not stored, not buffered, and logged at ERROR.
+    stories:
+    - story_2022_045
+    - story_2022_088
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-01-003
+    - rel_type: refines
+      spec_id: SYNC-08-001
 - id: SYNC-04
   title: Per-Peer Replication State
   specs:

@@ -54,22 +54,6 @@ CASE_URI = "https://example.org/cases/case1"
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
 
-def _to_persistable_entry(
-    chain_entry: HashChainLedgerRecord,
-) -> CaseLedgerEntry:
-    """Test helper: convert a HashChainLedgerRecord to a CaseLedgerEntry."""
-    return CaseLedgerEntry(
-        case_id=chain_entry.case_id,
-        log_index=chain_entry.log_index,
-        term=chain_entry.term,
-        log_object_id=chain_entry.object_id,
-        semantic_type=chain_entry.semantic_type,
-        payload_snapshot=dict(chain_entry.payload_snapshot),
-        prev_log_hash=chain_entry.prev_log_hash,
-        entry_hash=chain_entry.entry_hash,
-    )
-
-
 def _make_entry(
     case_id: str, log_index: int, prev_hash: str
 ) -> CaseLedgerEntry:
@@ -81,7 +65,7 @@ def _make_entry(
         payload_snapshot={"key": "value"},
         prev_log_hash=prev_hash,
     )
-    return _to_persistable_entry(chain)
+    return chain.to_ledger_entry()
 
 
 @pytest.fixture
@@ -801,6 +785,23 @@ class TestAnnounceLedgerEntryDisposition:
         assert result.reason is not None
         assert "SYNC-03-001" in result.reason
         assert gap_buffer.depth(CASE_URI) == 0
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("SYNC-03-006")
+    def test_entry_failing_its_own_hash_is_refused(
+        self, dl, genesis_entry, gap_buffer
+    ):
+        """A tampered entry is REFUSED with the integrity reason, not stored."""
+        tampered = genesis_entry.model_copy(
+            update={"payload_snapshot": {"tampered": True}}
+        )
+
+        result = self._run(dl, self._make_event(tampered), gap_buffer)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "SYNC-03-006" in result.reason
+        assert dl.read(tampered.id_) is None
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("SYNC-14-001")

@@ -44,6 +44,7 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
     BufferPreGenesisEntryNode,
+    CheckEntryHashIntactNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
     HandBackBufferedSuccessorNode,
@@ -405,6 +406,9 @@ def create_announce_log_entry_tree(
         name="ProcessAndStore",
         memory=False,
         children=[
+            # An entry that fails its own hash is refused before it can be
+            # buffered, applied or stored (SYNC-03-006).
+            CheckEntryHashIntactNode(name="CheckEntryHashIntact"),
             reconstruct_or_reject,
             CheckHashOrRejectOnMismatchNode(
                 name="CheckHashOrRejectOnMismatch"

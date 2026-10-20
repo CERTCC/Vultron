@@ -213,6 +213,9 @@ _PASS_THROUGH_SEMANTIC_TYPES = frozenset(
         "self.semantic_type",
         "self._semantic_type",
         "chain_entry.semantic_type",
+        # ``HashChainLedgerRecord.from_ledger_entry`` rebuilds a record from an
+        # entry already committed, to check its hash; it commits nothing.
+        "entry.semantic_type",
     }
 )
 

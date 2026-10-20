@@ -47,6 +47,7 @@ from vultron.core.models.case_ledger import (
     _canonical_bytes,
     _sha256_hex,
     compute_genesis_hash,
+    ledger_entry_hash_intact,
 )
 from vultron.core.models.replication_state import VultronReplicationState
 
@@ -743,3 +744,46 @@ class TestBTBridgeLeadershipGuard:
         finally:
             py_trees.blackboard.Blackboard.storage.pop("/is_leader", None)
             py_trees.blackboard.Blackboard.storage.pop("is_leader", None)
+
+
+# ---------------------------------------------------------------------------
+# Stored-entry round trip (#3744)
+# ---------------------------------------------------------------------------
+
+
+class TestLedgerEntryRoundTrip:
+    """The stored ``CaseLedgerEntry`` reproduces the record's hash."""
+
+    @pytest.mark.spec("SYNC-01-003")
+    @pytest.mark.spec("CLP-14-002")
+    def test_to_ledger_entry_keeps_hashed_received_at(
+        self, log_with_one_entry: CaseLedger
+    ) -> None:
+        record = log_with_one_entry.entries[0]
+
+        entry = record.to_ledger_entry()
+
+        assert entry.received_at == record.received_at
+        assert entry.published == record.received_at
+        assert entry.entry_hash == record.entry_hash
+        assert ledger_entry_hash_intact(entry)
+
+    @pytest.mark.spec("SYNC-03-006")
+    def test_changed_content_is_not_intact(
+        self, log_with_one_entry: CaseLedger
+    ) -> None:
+        entry = log_with_one_entry.entries[0].to_ledger_entry()
+
+        tampered = entry.model_copy(update={"semantic_type": "other"})
+
+        assert not ledger_entry_hash_intact(tampered)
+
+    @pytest.mark.spec("SYNC-03-006")
+    def test_entry_stating_no_hash_is_not_intact(
+        self, log_with_one_entry: CaseLedger
+    ) -> None:
+        entry = log_with_one_entry.entries[0].to_ledger_entry()
+
+        unhashed = entry.model_copy(update={"entry_hash": ""})
+
+        assert not ledger_entry_hash_intact(unhashed)
