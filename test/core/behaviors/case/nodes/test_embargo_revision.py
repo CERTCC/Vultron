@@ -302,15 +302,15 @@ def test_a_case_whose_creation_entries_are_not_committed_relays_nothing_yet(
 @pytest.mark.executes_as(MANAGER)
 @pytest.mark.spec("EP-04-011")
 @pytest.mark.spec("EP-09-004")
-def test_an_invite_committed_before_its_consent_write_is_completed_on_retry(
-    bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch
+def test_a_relay_whose_consent_write_fails_is_undone_and_sent_once_on_retry(
+    bt_scenario: BTTestScenario,
 ) -> None:
-    """A relay that committed and queued its Invite and then failed to commit
-    the winner's consent row (its ``Update(EmbargoConsent)`` entry, ADR-0124):
-    the retry commits and applies it, without a second Invite."""
+    """The relay's Invite, its queued receipt and the winner's consent row
+    (its ``Update(EmbargoConsent)`` entry, ADR-0124) are one transaction
+    (ADR-0146): when the row's commit fails, none of them is kept, and the
+    retry sends and records the Invite once, with its row."""
     seed(bt_scenario)
     owe(bt_scenario)
-    invite_where_legal = RelayCreationTimeRevisionNode._invite_where_legal
     with pytest.MonkeyPatch.context() as patch:
         fail_commits(
             patch,
@@ -325,29 +325,17 @@ def test_an_invite_committed_before_its_consent_write_is_completed_on_retry(
             allow_internal=True,
         )
     assert winner_row(bt_scenario) is EmbargoConsentState.UNINVITED
-    while bt_scenario.dl.outbox_pop() is not None:
-        pass
-    applied: list[str] = []
-
-    def _spy(
-        self: RelayCreationTimeRevisionNode,
-        dl: CaseOutboxPersistence,
-        recipient_id: str,
-        deadline: datetime | None,
-        **kwargs: Any,
-    ) -> None:
-        applied.append(recipient_id)
-        invite_where_legal(self, dl, recipient_id, deadline, **kwargs)
-
-    monkeypatch.setattr(
-        RelayCreationTimeRevisionNode, "_invite_where_legal", _spy
-    )
+    assert invites(bt_scenario) == []
+    assert owed(bt_scenario) == marker()
+    assert PROPOSAL_ID not in {
+        getattr(e, "log_object_id", None)
+        for e in bt_scenario.dl.list_objects("CaseLedgerEntry")
+    }
 
     result = relay(bt_scenario)
 
     bt_scenario.assert_success(result)
-    assert invites(bt_scenario) == []
-    assert applied == [REPORTER]
+    assert [a.id_ for a in invites(bt_scenario)] == [PROPOSAL_ID]
     assert winner_row(bt_scenario) is EmbargoConsentState.INVITED
     assert index(bt_scenario) == {EMBARGO_ID: PROPOSAL_ID}
     assert owed(bt_scenario) is None

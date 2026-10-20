@@ -367,7 +367,6 @@ class TestRelayEmbargoInviteToEachNode:
         recipients: list[str],
         actor_config: ActorConfig | None = None,
         answers: str | None = None,
-        withdraw_unrecorded: bool = False,
     ) -> BTExecutionResult:
         return scenario.run(
             RelayEmbargoInviteToEachNode(
@@ -376,7 +375,6 @@ class TestRelayEmbargoInviteToEachNode:
                 proposer_id=PROPOSER,
                 actor_config=actor_config,
                 answers=answers,
-                withdraw_unrecorded=withdraw_unrecorded,
             ),
             embargo_invite_recipients=recipients,
         )
@@ -536,18 +534,15 @@ class TestRelayEmbargoInviteToEachNode:
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("CLP-07-013")
     @pytest.mark.spec("SYNC-09-002")
-    @pytest.mark.parametrize("withdraw_unrecorded", [True, False])
-    def test_an_invite_whose_commit_fails_is_withdrawn_only_when_asked(
+    @pytest.mark.spec("CLP-07-015")
+    def test_an_invite_whose_commit_fails_is_not_left_in_the_outbox(
         self,
         bt_scenario: BTTestScenario,
         monkeypatch: pytest.MonkeyPatch,
-        withdraw_unrecorded: bool,
     ) -> None:
-        """A relay no retry rebuilds withdraws its unrecorded Invite.
-
-        The manager's own proposal asks for it; a received relay keeps the
-        Invite pending, for the redelivery that rebuilds it to record.
-        """
+        """The Invite is queued and committed in one transaction (ADR-0146):
+        a failed commit takes the queued Invite back out with it, so no
+        participant is sent an Invite the ledger does not record."""
         from test.support.ledger import fail_commits
         from vultron.core.behaviors.sync import commit_tree
 
@@ -560,17 +555,11 @@ class TestRelayEmbargoInviteToEachNode:
             ),
         )
 
-        result = self._relay(
-            bt_scenario,
-            [OTHER_A],
-            answers=EMBARGO_ID,
-            withdraw_unrecorded=withdraw_unrecorded,
-        )
+        result = self._relay(bt_scenario, [OTHER_A], answers=EMBARGO_ID)
 
         assert result.internal_error, result
-        (invite_id,) = failed
-        pending = [a.id_ for a in _queued_invites(bt_scenario)]
-        assert pending == ([] if withdraw_unrecorded else [invite_id])
+        assert len(failed) == 1
+        assert _queued_invites(bt_scenario) == []
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("OX-06-002")

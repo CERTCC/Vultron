@@ -94,8 +94,8 @@ class CommitEmbargoDecisionNode(
     in ``decision_from[EMBARGO_DECISION_KEY]``, and this node commits the act's
     entry first, carrying the decision's register step, then one CASE_MANAGER
     entry per consent row the decision changes, and only then applies them by
-    copying (``commit_and_apply_decision``).  A commit that fails leaves no
-    write behind but those of the entries committed before it.  A missing
+    copying (``commit_and_apply_decision``), all in one transaction: a commit
+    that fails leaves no write behind (ADR-0146).  A missing
     decision is a fault in the tree and raises.
     """
 
@@ -153,10 +153,10 @@ class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
     """Commit the CASE_MANAGER's own proposal, storing the embargo it names.
 
     The factory renders the stored ``EmbargoEvent`` (EP-09-003), so the
-    record is stored as the proposal is built.  A proposal whose entry does
+    record is stored as the proposal is built.  A proposal whose entries do
     not commit, or whose trial apply refuses it, takes a record it stored
-    back out, so a failed proposal leaves no orphan behind (CLP-07-013); the
-    failure itself propagates.
+    back out, so a failed proposal leaves no orphan behind (CLP-07-013,
+    ADR-0146); the failure itself propagates.
     """
 
     def __init__(
@@ -196,20 +196,15 @@ class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
     def _record(
         self, activity_id: str, send_and_commit: Callable[[], None]
     ) -> None:
-        committed = False
-
-        def _commit_act() -> None:
-            nonlocal committed
-            send_and_commit()
-            committed = True
-
+        recorded = False
         try:
-            super()._record(activity_id, _commit_act)
+            super()._record(activity_id, send_and_commit)
+            recorded = True
         finally:
-            # Once the proposal's own entry is committed, the embargo it
-            # names is case data: a later row commit that fails (#4764)
-            # leaves it stored.
-            if not committed:
+            # The proposal's entry and its rows commit as one transaction
+            # (ADR-0146): when any of them fails, none is kept, so the
+            # embargo the proposal names is not case data either.
+            if not recorded:
                 self._discard_stored()
 
     def _discard_stored(self) -> None:

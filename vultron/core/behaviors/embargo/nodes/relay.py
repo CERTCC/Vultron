@@ -193,11 +193,10 @@ class RelayEmbargoInviteToEachNode(
     the request, not the terms: the same terms re-proposed under a new
     Invite id are a counter-proposal that *is* relayed again.
 
-    *withdraw_unrecorded* is for a relay no retry rebuilds: the manager's own
-    proposal, which a repeated trigger answers with a new embargo.  An Invite
-    whose commit fails is then taken back out of the outbox before the
-    failure is raised, so no participant is sent an Invite the ledger does
-    not record (CLP-07-013).
+    Each Invite is queued, committed and followed by its invitee's row in
+    one transaction (ADR-0146), so an Invite whose commit fails is never left
+    in the outbox: no participant is sent an Invite the ledger does not
+    record (CLP-07-013).
     """
 
     def __init__(
@@ -209,7 +208,6 @@ class RelayEmbargoInviteToEachNode(
         actor_config: "ActorConfig | None" = None,
         *,
         answers: str | None = None,
-        withdraw_unrecorded: bool = False,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
@@ -217,7 +215,6 @@ class RelayEmbargoInviteToEachNode(
         self._proposer_id = proposer_id
         self._actor_config = actor_config
         self._answers = answers
-        self._withdraw_unrecorded = withdraw_unrecorded
         self._sync_port: SyncActivityPort | None = None
         self._recipients: list[str] = []
 
@@ -333,17 +330,10 @@ class RelayEmbargoInviteToEachNode(
 
         def _send_and_commit() -> None:
             # Sent, then recorded: the entry records a completed act
-            # (ADR-0119).
+            # (ADR-0119).  Both run in the act's transaction, so a failed
+            # commit takes the queued Invite back out with it (ADR-0146).
             self._queue(activity_id)
-            committed = False
-            try:
-                self._commit_emission(activity_id, blob)
-                committed = True
-            finally:
-                # The failure itself propagates (BT-14-001); an Invite no
-                # retry rebuilds is first taken back out of the outbox.
-                if not committed and self._withdraw_unrecorded:
-                    self._withdraw(activity_id)
+            self._commit_emission(activity_id, blob)
 
         self._invite_where_legal(
             dl,
@@ -376,28 +366,6 @@ class RelayEmbargoInviteToEachNode(
                 activity_id,
             )
         self._record_queued(activity_id)
-
-    def _withdraw(self, activity_id: str) -> None:
-        """Take an Invite whose commit failed back out of the outbox.
-
-        One delivery already took cannot be withdrawn, and is reported.
-        """
-        if cast(CaseOutboxPersistence, self.datalayer).outbox_withdraw(
-            activity_id
-        ):
-            self.logger.warning(
-                "%s: withdrew Invite '%s' from the outbox: its entry did not"
-                " commit",
-                self.name,
-                activity_id,
-            )
-            return
-        self.logger.error(
-            "%s: Invite '%s' was already taken for delivery, but its entry did"
-            " not commit",
-            self.name,
-            activity_id,
-        )
 
     def _record_queued(self, activity_id: str) -> None:
         """Note that *activity_id* reached the outbox; the base records nothing.

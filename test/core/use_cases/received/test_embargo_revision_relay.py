@@ -1216,15 +1216,15 @@ def test_a_redelivery_after_a_mid_relay_fault_sends_each_invite_once(
 
 @pytest.mark.spec("EP-09-002")
 @pytest.mark.spec("OX-06-002")
-def test_a_relay_whose_commit_failed_after_the_send_is_recorded_once_on_retry(
+def test_a_relay_whose_commit_failed_is_sent_and_recorded_once_on_retry(
     make_payload,
 ):
-    """Each relayed Invite is queued, then committed (ADR-0119).
+    """Each relayed Invite is queued, then committed (ADR-0119), in one
+    transaction with its invitee's row (ADR-0146).
 
-    The first delivery queues the first Invite and its commit fails.  The
-    redelivery rebuilds that Invite under the same id, so the outbox does not
-    queue it again (OX-06-002); the commit records it once, and the other
-    recipient is invited once.
+    The first delivery's first Invite commit fails, so that Invite is not
+    left queued.  The redelivery rebuilds it under the same id (OX-06-002):
+    it is queued and recorded once, and the other recipient is invited once.
     """
     from test.support.ledger import fail_commits
     from vultron.core.behaviors.sync import commit_tree
@@ -1257,7 +1257,7 @@ def test_a_relay_whose_commit_failed_after_the_send_is_recorded_once_on_retry(
         with pytest.raises(VultronBTInternalError):
             _deliver()
     (first_invite,) = failed
-    assert [a.id_ for a in _relayed_invites(dl)] == [first_invite]
+    assert [a.id_ for a in _relayed_invites(dl)] == []
     assert first_invite not in {
         e.log_object_id for e in _ledger_entries(dl, case_id)
     }

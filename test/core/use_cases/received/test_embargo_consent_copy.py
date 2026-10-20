@@ -138,7 +138,7 @@ def _rows(record: CaseParticipant) -> list[dict[str, Any]]:
 
 
 class TestCaseManagerCommitsThenApplies:
-    """AC-3: decide → trial apply → commit → apply."""
+    """Decide → trial apply → commit → apply, as one transaction."""
 
     @pytest.mark.spec("CLP-07-013")
     def test_each_changed_row_is_its_own_entry_and_is_applied(self):
@@ -182,13 +182,19 @@ class TestCaseManagerCommitsThenApplies:
         owner = _record(net, MANAGER, OWNER)
         assert owner.consent_for(net.initial_embargo_id) == _S.AGREED
 
-    @pytest.mark.spec("CLP-07-013")
-    def test_a_failed_commit_makes_only_the_changes_already_committed(
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_commit_failing_part_way_leaves_no_entry_and_no_row_change(
         self, monkeypatch
     ):
+        """The second row's commit fails: the first row's entry, its
+        activity and announcements, and both rows' changes are all undone
+        (ADR-0146)."""
         net = _net("cc-fail")
         dl = net.stores[MANAGER]
-        fail_commits(
+        held = {a: _rows(_record(net, MANAGER, a)) for a in (BYSTANDER, OWNER)}
+        before = committed_semantic_types(dl, net.case_id)
+        queued = dl.outbox_list()
+        failed = fail_commits(
             monkeypatch,
             commit_tree,
             allowed=1,
@@ -204,86 +210,74 @@ class TestCaseManagerCommitsThenApplies:
         with pytest.raises(RuntimeError):
             commit_and_apply_embargo_entries(dl, net.case_id, entries)
 
-        assert (
-            committed_semantic_types(dl, net.case_id).count(
-                UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
-            )
-            == 1
+        assert len(failed) == 2, (
+            "the first commit ran before the second failed"
         )
-        bystander = _record(net, MANAGER, BYSTANDER)
-        assert bystander.consent_for(net.initial_embargo_id) == _S.DECLINED
-        owner = _record(net, MANAGER, OWNER)
-        assert owner.consent_for(net.initial_embargo_id) == _S.AGREED
+        assert committed_semantic_types(dl, net.case_id) == before
+        assert dl.outbox_list() == queued
+        for activity_id in failed:
+            assert dl.read(activity_id) is None
+        for actor_id, rows in held.items():
+            assert _rows(_record(net, MANAGER, actor_id)) == rows
 
     @pytest.mark.spec("CLP-07-015")
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AttributeError,
-        reason="CLP-07-015: no step finishes an act's owed entries yet. #4855.",
-    )
-    def test_the_next_run_commits_the_entries_a_failed_commit_left_owed(
+    def test_a_save_that_fails_after_the_commits_keeps_no_entry(
         self, monkeypatch
     ):
-        net = _net("cc-finish")
-        dl = net.stores[MANAGER]
-        failing = [True]
-        fail_commits(
-            monkeypatch,
-            commit_tree,
-            allowed=1,
-            when=lambda kw: (
-                failing[0]
-                and kw["semantic_type"] == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
-            ),
-        )
-        entries = [
-            _entry(net, _row_change(net, BYSTANDER, _S.DECLINED)),
-            _entry(net, _row_change(net, OWNER, _S.DECLINED)),
-        ]
-        with pytest.raises(RuntimeError):
-            commit_and_apply_embargo_entries(dl, net.case_id, entries)
-        failing[0] = False
-
-        copy_commit.finish_owed_embargo_entries(dl, net.case_id)  # type: ignore[attr-defined]
-
-        assert (
-            committed_semantic_types(dl, net.case_id).count(
-                UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
-            )
-            == 2
-        )
-        owner = _record(net, MANAGER, OWNER)
-        assert owner.consent_for(net.initial_embargo_id) == _S.DECLINED
-
-    @pytest.mark.spec("CLP-07-015")
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AttributeError,
-        reason="CLP-07-015: no step finishes an act's owed entries yet. #4855.",
-    )
-    def test_the_next_run_commits_nothing_for_an_act_that_never_committed(
-        self, monkeypatch
-    ):
-        net = _net("cc-discard")
+        """The entries and the case-file changes they carry are one
+        transaction: a failed save undoes the committed entries too."""
+        net = _net("cc-fail-save")
         dl = net.stores[MANAGER]
         held = _rows(_record(net, MANAGER, BYSTANDER))
-        failing = [True]
-        fail_commits(monkeypatch, commit_tree, when=lambda kw: failing[0])
-        with pytest.raises(RuntimeError):
+        before = committed_semantic_types(dl, net.case_id)
+
+        def _fail(*_args: object) -> None:
+            raise OSError("disk full")
+
+        monkeypatch.setattr(copy_commit, "save_case_file", _fail)
+
+        with pytest.raises(OSError, match="disk full"):
             commit_and_apply_embargo_entries(
                 dl,
                 net.case_id,
                 [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
             )
-        failing[0] = False
 
-        copy_commit.finish_owed_embargo_entries(dl, net.case_id)  # type: ignore[attr-defined]
-
-        assert (
-            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
-            not in committed_semantic_types(dl, net.case_id)
-        )
+        assert committed_semantic_types(dl, net.case_id) == before
         assert _rows(_record(net, MANAGER, BYSTANDER)) == held
+
+    @pytest.mark.spec("CLP-07-015")
+    @pytest.mark.spec("CM-23-016")
+    def test_on_success_a_replica_holds_the_case_managers_rows(self):
+        """Both entries commit and are announced; a replica that copies them
+        holds every row the CASE_MANAGER holds."""
+        net = _net("cc-whole")
+        commit_and_apply_embargo_entries(
+            net.stores[MANAGER],
+            net.case_id,
+            [
+                _entry(net, _row_change(net, BYSTANDER, _S.DECLINED)),
+                _entry(net, _row_change(net, OWNER, _S.DECLINED)),
+            ],
+        )
+        bodies = _announcements(net, BYSTANDER)
+        assert len(bodies) == 2
+
+        for body in bodies:
+            verdict = net.receive(BYSTANDER, body)
+            assert verdict.disposition is HandlerDisposition.APPLIED, (
+                verdict.reason
+            )
+
+        for actor_id in (BYSTANDER, OWNER):
+            replica_rows = _rows(_record(net, BYSTANDER, actor_id))
+            assert replica_rows == _rows(_record(net, MANAGER, actor_id))
+            assert (
+                _record(net, BYSTANDER, actor_id).consent_for(
+                    net.initial_embargo_id
+                )
+                == _S.DECLINED
+            )
 
     def test_a_first_commit_that_fails_changes_nothing(self, monkeypatch):
         net = _net("cc-fail-first")

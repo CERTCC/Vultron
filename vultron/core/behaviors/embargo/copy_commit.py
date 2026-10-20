@@ -30,24 +30,32 @@ order.  :func:`commit_and_apply_embargo_entries` then:
    refusal (the register invariants, the EM check, or a starting-state check)
    raises :class:`~vultron.errors.VultronEntryRefusedError` before anything
    is committed or saved.
-2. **Commit** — commits each entry in order.  An entry whose activity is
-   already committed (a received act's own entry, intake, ADR-0111) has no
-   commit step.
-3. **Apply** — saves the case file the trial produced: every change whose
-   entry committed, and no other.  When a commit fails, the changes of the
-   entries committed before it are saved and the failure is raised, so no
-   change is ever made without its entry (CLP-07-013).
+2. **Commit** — inside one DataLayer transaction
+   (``CasePersistence.transaction()``), commits each entry in order.  An
+   entry whose activity is already committed (a received act's own entry,
+   intake, ADR-0111) has no commit step.
+3. **Apply** — in the same transaction, saves the case file the trial
+   produced.
+
+The act is atomic: every entry, the activities and outbox rows each commit
+writes, and the case-file changes they carry commit together, or, when any
+step raises, none of them is written (CLP-07-015, ADR-0146).  No failure
+leaves part of an act for a later run to finish.  The one known gap is a
+received act's own entry, which intake commits in its own transaction before
+this helper runs (ADR-0111): that entry stays committed when its
+consequences fail, so its own change is saved first, outside the
+transaction, and no committed entry is left without its change.
 
 The trial is the result: a replica applying the same entries through the same
 function reaches the same case file (CM-23-016).
 
-A **received** act's own entry is committed by intake before this helper runs
-(ADR-0111), so its trial must also run earlier, as a guard: call
+A **received** act's trial must also run earlier, as a guard: call
 :func:`trial_apply` on :func:`read_embargo_case_file`'s result in the guard
 phase, before the guarded commit, so a refused step refuses the act and no
 entry is committed for it.  The helper then repeats the trial, which passes
-unless the case changed in between, and commits the consequence entries.  Call it from a BT node's
-``update()``, never from a use case's ``execute()`` (CLP-10-020).
+unless the case changed in between, and commits the consequence entries.
+Call it from a BT node's ``update()``, never from a use case's ``execute()``
+(CLP-10-020).
 """
 
 from collections.abc import Callable, Sequence
@@ -124,30 +132,53 @@ def commit_and_apply_embargo_entries(
     case_id: str,
     entries: Sequence[PlannedEmbargoEntry],
 ) -> EmbargoCaseFile:
-    """Trial-apply *entries*, commit them in order, then apply them.
+    """Trial-apply *entries*, then commit and apply them as one transaction.
 
-    Returns the case file as saved.
+    The entries are one act and its consequences, in commit order, such as
+    an act's own entry followed by the consent rows it changes, or several
+    acts that must land together.  Returns the case file as saved.
+
+    The leading entries with no commit step are already committed (a
+    received act's own entry, ADR-0111): their changes are saved before the
+    transaction and are kept when it fails, the known gap ADR-0146 names.
+    Every other entry, and the case-file changes it carries, commits in one
+    transaction.
 
     Raises:
         VultronEntryRefusedError: the trial refused an entry; nothing was
             committed or saved.
         VultronNotFoundError: *datalayer* holds no case *case_id*.
-        Exception: whatever an entry's commit raised; the changes of the
-            entries committed before it are saved first.
+        Exception: whatever an entry's commit or the save raised; nothing
+            the transaction wrote is kept.
     """
     before = read_embargo_case_file(datalayer, case_id)
     states = trial_apply(before, [entry.change for entry in entries])
-    applied = before
-    try:
-        for entry, state in zip(entries, states, strict=True):
+    # The leading entries with no commit step are already committed: a
+    # received act's own entry, committed by intake (ADR-0111).  Their
+    # changes are saved first, on their own, because their entries stand
+    # whatever happens next; no change is left without its entry.
+    done = _committed_prefix(entries)
+    base = before
+    if done:
+        base = states[done - 1]
+        save_case_file(datalayer, before, base)
+    with datalayer.transaction():
+        for entry in entries[done:]:
             if entry.commit is not None:
                 entry.commit()
-            applied = state
-    finally:
-        # Save what committed.  A save that fails while a commit's failure
-        # is in flight chains that failure as its ``__context__``.
-        save_case_file(datalayer, before, applied)
+        applied = states[-1] if states else base
+        save_case_file(datalayer, base, applied)
     return applied
+
+
+def _committed_prefix(entries: Sequence[PlannedEmbargoEntry]) -> int:
+    """How many leading *entries* have no commit step (already committed)."""
+    count = 0
+    for entry in entries:
+        if entry.commit is not None:
+            break
+        count += 1
+    return count
 
 
 def consent_row_entry(

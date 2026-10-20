@@ -221,3 +221,11 @@ def test_delete_and_a_store_switch_are_refused(dl: SqliteDataLayer) -> None:
     with pytest.raises(StagedPersistenceError):
         staged.clone_for_actor("https://example.org/actors/other")
     assert dl.read(case.id_) is not None
+
+
+def test_a_transaction_is_refused(dl: SqliteDataLayer) -> None:
+    """A staged store already holds every write back until ``flush()``."""
+    staged = StagedCasePersistence(dl)
+
+    with pytest.raises(StagedPersistenceError, match="transaction"):
+        staged.transaction()
