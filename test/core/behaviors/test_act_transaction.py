@@ -312,3 +312,31 @@ def test_a_received_act_block_at_a_replica_keeps_no_replica_write(
     assert result.status is Status.FAILURE
     assert not _held(dl, "persisted")
     assert not _held(dl, "answer")
+
+
+def test_a_received_act_block_at_a_replica_keeps_its_replica_writes(
+    dl: SqliteDataLayer,
+):
+    """The control for the test above: when every replica effect succeeds,
+    the commit gate skips and both writes are kept, so the replica effects
+    do run inside the act block (ADR-0151)."""
+    from vultron.core.behaviors.case.receive_activity_tree import (
+        create_receive_activity_tree,
+    )
+
+    tree = create_receive_activity_tree(
+        name="ReplicaBT",
+        case_id="https://example.org/cases/not-held",
+        precondition_guards=[],
+        case_may_be_absent=True,
+        replica_effects=[_save(dl, "persisted"), _save(dl, "answer")],
+        as_one_act=True,
+    )
+    act = tree.children[-1]
+    assert isinstance(act, ActTransaction)
+
+    result = _run(dl, act)
+
+    assert result.status is Status.SUCCESS
+    assert _held(dl, "persisted")
+    assert _held(dl, "answer")

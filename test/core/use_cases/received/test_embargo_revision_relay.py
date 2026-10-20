@@ -1141,9 +1141,10 @@ def _assert_relay_kept_nothing(
     """The received proposal kept nothing (CLP-07-015, ADR-0146, ADR-0151).
 
     No Invite or announcement is queued, no consent row exists for the
-    revision, and no entry is new: the proposal's own entry commits in the same transaction
-    as its consequences, so it is gone with them, and with it its
-    ``PROPOSE`` step.  The idempotency latch is not written (ID-04-005).
+    revision, and no entry is new: the proposal's own entry commits in the
+    same transaction as its consequences, so it is gone with them, and with
+    it its ``PROPOSE`` step.  The idempotency latch is not written
+    (ID-04-005).
     """
     assert _relayed_invites(dl) == []
     assert [e.id_ for e in _ledger_entries(dl, case_id)] == entries_before

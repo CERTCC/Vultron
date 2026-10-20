@@ -66,7 +66,9 @@ Chosen option: **A, one transaction for the act's own entry and its consequences
 4. **A failed received act leaves no trace but intake's archive.**
    Because no entry is kept, the idempotency guards that read the ledger do not see the act: a later delivery of the activity is not stopped as a repeat, and runs the act again.
    Nothing redelivers it on its own, and nothing re-applies a change after a rollback.
-   The failure is an internal error: the handler raises, and the inbox, which answered the sender before processing, logs it.
+   A child that raises is an internal error: the handler raises, and the inbox, which answered the sender before processing, logs it.
+   An effect that returns failure without raising is read as the handler's verdict on that failure, `REFUSED` by default.
+   In both cases nothing of the act is kept.
 5. **The act block is the same at every receiver.**
    At a participant replica the commit gate skips, and the block holds the replica effects, such as storing a received Invite's embargo and queuing the replica's answer.
    A failure among them keeps none of their writes either, so a received act fails as a whole at a replica too.

@@ -328,9 +328,9 @@ def test_make_dispatcher_gives_a_received_consent_act_the_trigger_port(
 ):
     """A received consent act's effect commits each further row as the
     CASE_MANAGER's own factory-built ``Update(EmbargoConsent)`` entry after
-    the guarded commit commits the act (ADR-0124), so the inbox must hand it the trigger
-    port: without it the act is committed and the effect then raises, leaving
-    an act with no row entries (#4717)."""
+    the guarded commit commits the act (ADR-0124), so the inbox must hand it
+    the trigger port: without it the effect raises and the whole received act
+    rolls back, so no consent act could complete (#4717, ADR-0151)."""
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
