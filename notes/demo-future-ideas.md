@@ -92,7 +92,7 @@ spec group is written, and a `@scenario` decorator when its demo is.
 | Multi-reporter | #3671 | Two Reporters; the Coordinator adds the second report to the existing case and invites R2, with no merge | planned |
 | Concurrent cases | #3672 | Two independent cases through shared actors, one CaseActor managing both, with no cross-case bleed | planned |
 | RM non-linear paths | #2050 | R→I→V in `rvcv-handoff` (tentative rejection, then reconsideration) and A→D→A in `rcvcv` | planned |
-| Case Manager direct message | #4941 | The Case Manager sends one participant, possibly an inert one, a private note the case record does not carry (a MAY, never a MUST) | blocked: its wire form is undecided (`docs/topics/future_work/_oq-create-then-add.md`) |
+| Case Manager direct message | #4941 | The Case Manager sends one participant, possibly an inert one, a private note the case record does not carry (a MAY, never a MUST) | blocked by its undecided wire form (`docs/topics/future_work/_oq-create-then-add.md`) |
 
 The in-process fuzz scenario is misfiled here: it has a spec group, DEMOMA-18,
 so DEMOCI-11-010 places it in the [planned scenario

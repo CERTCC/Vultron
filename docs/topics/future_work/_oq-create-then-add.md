@@ -18,7 +18,7 @@
       ActivityPub servers post content this way with `Create(Note)`.
     - A note that is not part of any case.
     - A private note from the Case Manager to one participant about a case, which the case record does not carry.
-      The note could reach an inert participant, which receives no case content.
+      Because the note does not travel through the case record, it could also reach an inert participant, which receives no case content.
       If the protocol adds this form, the Case Manager may send it but is never required to.
 
     A participant that a precondition guard refused already learns why from the [refusal notice](../../reference/messages/faults_and_acknowledgements.md#refusal-notice), which is sent to that participant alone and is not recorded in the case.
