@@ -255,6 +255,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0147 The Protocol Specification Renders Its Normative Text from the YAML Requirements](0147-the-protocol-specification-renders-its-normative-text-from-the-yaml-requirements.md)
 - [ADR-0148 An Owner Proposes an Ownership-Transfer Offer and the CASE_MANAGER Makes It](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md) — partially supersedes 0053-ownership-transfer-routed-via-caseactor.md
 - [ADR-0149 The Received Archive Is the Sealed Received Body, Read Through a Read-Only View Parsed on Load](0149-the-received-archive-is-the-sealed-received-body-read-through-a-read-only-view.md) — partially supersedes 0035-core-activity-representation-and-envelope-reconstitution.md
+- [ADR-0150 A Reading-Path Thread Is Staged Data on Its Start Page, Rendered at Both Ends](0150-a-reading-path-thread-is-staged-data-on-its-start-page-rendered-at-both-ends.md)
 
 ## Rejected ADRs
 

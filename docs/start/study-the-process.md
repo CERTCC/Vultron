@@ -11,7 +11,7 @@ level: 100
 You work on Coordinated Vulnerability Disclosure (CVD) as a process: how cases unfold, how to measure them, and how to make the ecosystem healthier.
 Vultron grew out of that research, and its protocol is built on formal models you can reuse on their own.
 This page is a reading path through the models, the measurements, and the formal definition.
-Each step builds on the one before it.
+Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
 
 ## Start from the goals
 

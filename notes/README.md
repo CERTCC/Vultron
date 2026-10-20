@@ -363,8 +363,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   The Diátaxis compass for classifying a page, and the docs authoring tooling.
   **Load when**: writing a `docs/` page or deciding which quadrant it belongs to.
 - **`site-information-architecture.md`** · `guidance`
-  Stakeholder types versus CVD roles, page levels, routing and landing pages.
-  **Load when**: changing `docs/` structure, nav, page frontmatter, or landing pages.
+  Stakeholder types versus CVD roles, page levels, routing, landing pages, and
+  reading-path threads.
+  **Load when**: changing `docs/` structure, nav, page frontmatter, landing pages,
+  or threads.
 
 ---
 
