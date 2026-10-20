@@ -8,9 +8,15 @@ deciders: Allen D. Householder
 consulted: []
 informed: []
 stakeholder_type: [project-contributor]
+partially_superseded_by: 0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md
 ---
 
 # Route Ownership-Transfer Offer and Accept Through the CaseActor
+
+> **Partially superseded by [ADR-0148](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md).**
+> Its Concrete routing model is retained as history.
+> The owner no longer sends the Offer: it proposes one to the CaseActor as `Offer(Offer(VulnerabilityCase))`, and the CaseActor makes the one Offer the transferee answers, under its own id, instead of forwarding the owner's.
+> The routing of the Offer and its answers through the CaseActor stands.
 
 ## Context and Problem Statement
 

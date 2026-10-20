@@ -3,10 +3,11 @@ title: Ownership Transfer Protocol — Routing and Cascade Model
 status: active
 kind: guidance
 description: >
-  Rules for the ownership-transfer routing model (ADR-0053): the Offer and Accept
-  route through the CASE_MANAGER so every participant receives the CaseLedgerEntry
-  broadcast; what each component must preserve; replica-side materialization of
-  the Offer from the ledger; and the demo preconditions.
+  Rules for the ownership-transfer routing model (ADR-0053, partially superseded
+  by ADR-0148, proposed): the Offer and Accept route through the CASE_MANAGER so
+  every participant receives the CaseLedgerEntry broadcast; what each component
+  must preserve; replica-side materialization of the Offer from the ledger
+  (retiring under ADR-0148); and the demo preconditions.
 related_specs:
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
@@ -33,7 +34,8 @@ relevant_packages:
 
 # Ownership Transfer Protocol — Routing and Cascade Model
 
-Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053. The participant-facing
+Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053, partially superseded by
+ADR-0148 (proposed). The participant-facing
 description is `docs/topics/case_lifecycle/ownership_transfer.md`. The close paths
 without an answer (withdrawal and the binding deadline, both built) are in
 [ownership-transfer-close-paths](ownership-transfer-close-paths.md). A
@@ -242,6 +244,13 @@ CASE_MANAGER inbox receives Reject
 ---
 
 ## Replica-side Materialization (SYNC Path)
+
+**Retiring (ADR-0148).** The owner proposes the Offer as
+`Offer(Offer(VulnerabilityCase))` and the CASE_MANAGER makes the one Offer the
+transferee answers, under its own id. No replica then needs a ledger-derived record of
+the Offer, so this slot and its record are deleted rather than re-keyed: until then
+the record sits under an id the owner chose, the shape DL-06-006 rules out for
+received activities (#4911). Do not add a reader of it.
 
 On a replica that learns of an Offer only from the ledger, the Offer never arrives by
 inbox, so there is no archive. Yet `SvcAcceptCaseOwnershipTransferUseCase._prepare`
