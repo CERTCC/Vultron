@@ -578,6 +578,27 @@ def test_unprocessable_activity_is_not_committed_to_the_ledger() -> None:
     )
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "ASK-07-010: no internal-error failure class exists, so a received "
+        "use case that raises is only logged and its sender is never "
+        "answered. Tracked by #4981."
+    ),
+)
+@pytest.mark.spec("ASK-07-010")
+def test_a_raising_received_use_case_is_answered_with_a_fault() -> None:
+    """A raising received use case MUST be answered with a fault (ASK-07-010).
+
+    The inbox answered the sender before processing, and a failed act keeps
+    nothing but intake's archive, so the fault is the sender's only notice.
+    """
+    fault_classes = importlib.import_module(
+        "vultron.core.models.fault_classes"
+    )
+    assert hasattr(fault_classes, "VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR")
+
+
 # ---------------------------------------------------------------------------
 # ASK-08 — Lost-Reply Recovery
 # ---------------------------------------------------------------------------
