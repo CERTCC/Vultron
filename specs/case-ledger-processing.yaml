@@ -680,9 +680,11 @@ groups:
       those entries carry, and every consequence a later node in the act's tree
       commits, such as a re-issued stub Invite or a relayed Invite with its
       invitee's row, in one DataLayer transaction, so that when any of them fails
-      none of them is written. It MUST trial-apply every entry before the first
-      commit, so an entry that will not apply refuses the act before anything is
-      written.
+      none of them is written. For a received embargo act, the act's own entry is
+      one of those entries: the guarded commit of the received activity runs in
+      the same transaction as the consequences the act's tree commits after it.
+      It MUST trial-apply every entry before the first commit, so an entry that
+      will not apply refuses the act before anything is written.
     rationale: >-
       An act commits its own entry and then one entry per consent row it changes
       (CLP-07-013). Committed one at a time, a failure part-way left the act
@@ -695,11 +697,13 @@ groups:
       holds for the consequences a later node commits, such as the stub re-issue
       (CM-11-016) and a proposal's relay (EP-09-002): they run in the act's
       transaction, so a failed relay or re-issue keeps none of the act's
-      consequences, and a trigger act keeps nothing at all (#4949). Known
-      atomicity gap: a received act's own entry is committed by intake before its
-      consequences, and the change it carries stands with it, so a received
-      proposal whose relay fails stays in the register with no consent rows and
-      no Invites, and nothing relays it (ADR-0111, #4933).
+      consequences, and a trigger act keeps nothing at all (#4949). A received
+      act's own entry is in the same transaction: had it committed on its own
+      first, a received proposal whose relay failed would stay in the register
+      with no consent rows and no Invites, and its redelivery would be refused,
+      so nothing would ever relay it. With the entry in the act's transaction, a
+      failed received act keeps nothing, and a redelivery is processed as a new
+      delivery (ADR-0151, #4933).
     verification: >-
       A test fails the second commit of a two-entry act and asserts the
       CASE_MANAGER keeps no entry, no queued activity and no row change from it; a
@@ -708,13 +712,17 @@ groups:
       announcements holds the CASE_MANAGER's rows; tests fail the stub re-issue
       after a termination and an accept, and the relay after the CASE_MANAGER's
       own proposal and a received one, and assert the act keeps none of its
-      consequences. A strict-xfail test records the known gap: a received act
-      whose consequence fails keeps no entry for it (#4933).
+      consequences. Tests fail a received withdrawal's row commit and a received
+      proposal's relay and assert the received act's own entry is not kept, and
+      that a redelivery of the proposal is applied; an architecture test asserts
+      every received embargo tree commits its own entry inside the act's
+      `ActTransaction` (#4933).
     relationships:
     - rel_type: refines
       spec_id: CLP-07-013
     adr:
     - ADR-0146
+    - ADR-0151
     stories:
     - story_2022_045
   - id: CLP-07-003

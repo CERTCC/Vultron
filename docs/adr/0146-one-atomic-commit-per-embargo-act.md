@@ -3,7 +3,7 @@ status: proposed
 date: 2026-10-16
 created: 2026-10-16
 updated: 2026-10-20
-revision: 3
+revision: 4
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0111, ADR-0119, ADR-0122, ADR-0124;
@@ -37,7 +37,7 @@ The question this record settles: how does the CASE_MANAGER keep a failure part-
 
 - An act's consequences succeed all at once or fail all at once; a failure never leaves half-done work for a later run to finish.
 - An act's entries are decided once, before the first commit; nothing may decide them again later from a clock or policy that has moved on.
-- A received act's own entry is committed by intake, before the act's tree decides its consequences (ADR-0111).
+- A received act's own entry is committed by the guarded commit after intake and the guards, before the act's tree commits its consequences (ADR-0111).
 - Replicas receive entries one `Announce(CaseLedgerEntry)` at a time and apply them by copying (CM-23-016).
 - This is a prototype: no recovery machinery for a state that atomicity can rule out.
 
@@ -64,7 +64,7 @@ The stub re-issue is one: an act that changes the embargo in force makes every o
 The relay of a proposal is another: each relayed Invite commits with its invitee's row (EP-09-002).
 The tree runs the act's commit step and those later nodes inside the same transaction, as one composite node (`ActTransaction`).
 The commit step's own transaction is then part of the act's transaction, so a failure in any later node also rolls back the act.
-Each CASE_MANAGER arm of an embargo trigger tree, and the CASE_MANAGER effects of each received embargo tree whose later nodes commit consequences, is one such node.
+Each CASE_MANAGER arm of an embargo trigger tree is one such node, and so is each received embargo tree's commit of the act's own entry together with the effects after it (ADR-0151).
 A tree that includes another act's tree, such as a rejection that ends the embargo, nests one `ActTransaction` inside another, and the inner one is part of the outer one.
 
 The ledger and the sync shape do not change.
@@ -73,15 +73,13 @@ Each entry is still its own `CaseLedgerEntry` and its own announcement, so a rep
 The stub re-issue's repair passes are removed.
 Its replacement Invite is built, queued and committed in the act's transaction with the invitee's row, so a failure keeps neither the act nor the replacement, and no later run has anything to finish.
 
-### Known atomicity requirement: a received act's own entry
+### A received act's own entry
 
-For a received act, intake commits the act's own entry first, in its own transaction, before the tree decides the consequences (ADR-0111).
-The consequences then commit as one transaction after it.
-So a failure in the consequences leaves the received act's entry committed without them.
-The change that entry itself carries, such as the register step of a received proposal, is applied again after the rollback, so the CASE_MANAGER holds what every replica copies from the entry.
-The consent rows and the relayed Invites that follow it are not kept, so a received proposal whose relay fails stays in the register with no rows, and a redelivery of it is refused.
-Nothing finishes it later; closing the gap removes the entry with its consequences.
-Closing this gap moves the received act's own entry into the same transaction as its consequences, which needs a revision of ADR-0111 (#4933).
+For a received act, the guarded commit of the act's own entry runs after intake and the guards, and before the consequences (ADR-0111).
+That commit runs in the same transaction as the consequences, so a failure in any of them keeps neither the entry nor any consequence (ADR-0151).
+A redelivery of a failed received act is then processed as a new delivery.
+Revision 3 named this as a known gap: the entry was committed in its own transaction first, the change it carried was applied again after the rollback, and a received proposal whose relay failed stayed in the register with no rows, its redelivery refused.
+Revision 4 closes it (#4933).
 
 ### Why revision 1 was replaced
 
@@ -106,7 +104,6 @@ Option D was rejected: every register entry has a row on every participant (ADR-
 - Good, because no act needs a repair pass, and no run finishes another run's work.
 - Good, because the ledger, the entry ids and the sync shape are unchanged.
 - Bad, because a transaction holds the store's write lock for the whole act, including its later nodes, so another writer on the same store waits for it.
-- Bad, because a received act's own entry still commits before its consequences, until ADR-0111 is revised.
 
 ## Validation
 
@@ -116,7 +113,7 @@ Option D was rejected: every register entry has a row on every participant (ADR-
 - Adapter tests assert that a transaction commits every write together, rolls every write back when it raises, rolls back only its own writes when nested, and wakes the outbox monitor only after it commits (DL-02-004).
 - Tests fail the stub re-issue after a termination and after an accept, and the relay after the CASE_MANAGER's own proposal and after a received one.
   Each asserts that the act keeps no consent row change, no re-issued or relayed Invite and no queued activity, and that a trigger act keeps no entry (#4949).
-- A strict-xfail test records the known atomicity requirement for a received act's own entry (#4933).
+- Tests fail a received withdrawal's row commit and a received proposal's relay, and assert the received act keeps no entry, and that a redelivery of the proposal is applied (#4933).
 
 ## More Information
 
@@ -126,5 +123,7 @@ Option D was rejected: every register entry has a row on every participant (ADR-
 - #4764 — the concern this record answers.
 - #4855 — the implementation, whose acceptance criteria the maintainer reworded for revision 2.
 - #4949 — revision 3: one transaction for the act and the consequences its later nodes commit.
+- #4933 — revision 4: a received act's own entry commits in that transaction too (ADR-0151).
+- ADR-0151 — a received act commits its own entry with its consequences.
 
 Generated spec requirements: `case-ledger-processing.yaml` CLP-07-015, `datalayer.yaml` DL-02-004.

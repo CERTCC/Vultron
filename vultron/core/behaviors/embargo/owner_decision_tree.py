@@ -84,13 +84,14 @@ def activate_embargo_on_case_tree(
         ├─ IsOpenEmbargoProposalNode         # read-only guards (CLP-10-009)
         ├─ OwnerMayActivateEmbargoNode       # P/X/A clear (EMB-02-002)
         ├─ ActivationAppliesNode             # decide + trial apply (ADR-0124)
-        ├─ GuardedCommitCaseLedgerEntryBT    # the Accept: ACTIVATE (+ SUPERSEDE)
-        └─ ActivateEmbargoOnCaseBTIfCaseManager (CASE_MANAGER gate)
-           ├─ CaptureActiveEmbargoNode       # snapshot signatories before
-           ├─ CommitAndApplyEmbargoActivationNode  # CARRY_OVER entries, apply
-           ├─ SendEmbargoEndingNoticesNode   # tell dropped signatories (CM-31-009)
-           ├─ BackfillAdmittedParticipantsNode  # CM-10-006
-           └─ ReissueStubInvitesNode         # CM-11-016
+        └─ ActivateEmbargoOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
+           ├─ GuardedCommitCaseLedgerEntryBT    # the Accept: ACTIVATE (+ SUPERSEDE)
+           └─ ActivateEmbargoOnCaseBTIfCaseManager (CASE_MANAGER gate)
+              ├─ CaptureActiveEmbargoNode       # snapshot signatories before
+              ├─ CommitAndApplyEmbargoActivationNode  # CARRY_OVER entries, apply
+              ├─ SendEmbargoEndingNoticesNode   # tell dropped signatories (CM-31-009)
+              ├─ BackfillAdmittedParticipantsNode  # CM-10-006
+              └─ ReissueStubInvitesNode         # CM-11-016
 
     The guards refuse the activation before the commit when P/X/A is set
     (EMB-02-002) or the owner had declined the proposal (ADR-0122), so a
@@ -154,9 +155,9 @@ def activate_embargo_on_case_tree(
             ReissueStubInvitesNode(case_id=case_id, actor_config=actor_config),
         ],
         manager_case_id=case_id,
-        # The activation's rows, the backfill and the stub re-issue are one
-        # act (CLP-07-015, ADR-0146).
-        manager_effects_as_one_act=True,
+        # The Accept's own entry, the activation's rows, the backfill and the
+        # stub re-issue are one act (CLP-07-015, ADR-0146, ADR-0151).
+        as_one_act=True,
     )
     logger.info(
         "Created ActivateEmbargoOnCaseBT for case=%s embargo=%s sender=%s",
@@ -241,12 +242,13 @@ def reject_embargo_proposal_on_case_tree(
         ├─ SenderIsCaseOwnerNode             # sender guard (ADR-0115)
         ├─ ClockDecisionsIfCaseManager       # overdue invites (CM-28-015)
         ├─ IsOpenEmbargoProposalNode         # read-only guard (CLP-10-009)
-        ├─ GuardedCommitCaseLedgerEntryBT
-        └─ RejectEmbargoProposalOnCaseBTIfCaseManager (CASE_MANAGER gate)
-           ├─ DecideRejectedProposal (Selector)
-           │  ├─ TerminateOnRejectedRevision  # EJ with P/X/A → ET
-           │  └─ UnlessTerminating (Inverter)
-           └─ DecideRejectedEmbargoProposalNode  # REJECT; no consent
+        └─ RejectEmbargoProposalOnCaseBTAct (ActTransaction)  # one act (ADR-0151)
+           ├─ GuardedCommitCaseLedgerEntryBT
+           └─ RejectEmbargoProposalOnCaseBTIfCaseManager (CASE_MANAGER gate)
+              ├─ DecideRejectedProposal (Selector)
+              │  ├─ TerminateOnRejectedRevision  # EJ with P/X/A → ET
+              │  └─ UnlessTerminating (Inverter)
+              └─ DecideRejectedEmbargoProposalNode  # REJECT; no consent
 
     ``PROPOSED → NONE`` or ``REVISE → ACTIVE`` when it was the last open
     proposal, EM unchanged while another is open (EP-08-001), or ET when
@@ -287,9 +289,10 @@ def reject_embargo_proposal_on_case_tree(
             ),
         ],
         manager_case_id=case_id,
-        # A termination the rejection causes, with its stub re-issue, and the
-        # rejection itself are one act (CLP-07-015, ADR-0146).
-        manager_effects_as_one_act=True,
+        # The rejection's own entry, a termination it causes and that
+        # termination's stub re-issue are one act (CLP-07-015, ADR-0146,
+        # ADR-0151).
+        as_one_act=True,
     )
     logger.info(
         "Created RejectEmbargoProposalOnCaseBT for case=%s embargo=%s"

@@ -426,6 +426,9 @@ class TestRemoveEmbargoRoutingGuard:
         case = cast(as_VulnerabilityCase, read_case)
         activate(case, embargo.id_)
         dl.save(case)
+        # The teardown declines every row; the act fails as a whole without
+        # them (CLP-07-015, ADR-0151).
+        write_consent_rows(dl, case)
         return dl, case_actor, case, embargo
 
     def test_caseactor_commits_remove_embargo_ledger_entry(self, make_payload):

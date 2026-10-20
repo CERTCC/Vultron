@@ -1016,11 +1016,9 @@ def test_a_missing_trigger_port_is_a_wiring_fault_that_moves_no_state(
         VulnerabilityCase, dl.read(case_id)
     ).current_status.em.state == (EM.ACTIVE)
     assert _relayed_invites(dl) == []
-    # The received proposal was committed before the routing guard failed
-    # (CLP-10-006); the retry re-adjudicates under the idempotency guard.
-    assert [e.semantic_type for e in _ledger_entries(dl, case_id)] == [
-        "invite_to_embargo_on_case"
-    ]
+    # The received proposal's own entry commits in the act's transaction,
+    # so the fault keeps it neither (CLP-07-015, ADR-0151).
+    assert _ledger_entries(dl, case_id) == []
 
 
 def test_an_invite_naming_no_embargo_is_refused(make_payload):
@@ -1139,22 +1137,17 @@ def _assert_relay_kept_nothing(
     revision_id: str,
     entries_before: list[str],
 ) -> None:
-    """The relay's act kept none of its consequences (CLP-07-015, ADR-0146).
+    """The received proposal kept nothing (CLP-07-015, ADR-0146, ADR-0151).
 
-    No Invite is queued, no consent row exists for the revision, and the
-    only new entry is the received proposal's own, which intake commits
-    before the act's transaction opens (ADR-0111, #4933).  Its ``PROPOSE``
-    step stands with it, as every replica copying the entry holds it.  The
-    idempotency latch is not written (ID-04-005).
+    No Invite is queued, no consent row exists for the revision, and no
+    entry is new: the proposal's own entry commits in the same transaction
+    as its consequences, so it is gone with them, and with it its
+    ``PROPOSE`` step.  The idempotency latch is not written (ID-04-005).
     """
     assert _relayed_invites(dl) == []
-    assert [
-        e.semantic_type
-        for e in _ledger_entries(dl, case_id)
-        if e.id_ not in entries_before
-    ] == ["invite_to_embargo_on_case"], "only the proposal's own entry"
+    assert [e.id_ for e in _ledger_entries(dl, case_id)] == entries_before
     case = cast(VulnerabilityCase, dl.read(case_id))
-    assert case.current_status.em.state == EM.REVISE
+    assert case.current_status.em.state == EM.ACTIVE
     assert revision_id not in case.pending_embargo_proposal_index
     for actor_id in (OTHER_A, OTHER_B, PROPOSER):
         participant = _participant_of(dl, case_id, actor_id)
@@ -1167,12 +1160,12 @@ def _assert_relay_kept_nothing(
 def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
     make_payload,
 ):
-    """A fault mid-fan-out undoes the proposal's rows and its whole relay.
+    """A fault mid-fan-out undoes the whole received proposal.
 
-    The first delivery raises while building the second Invite.  The rows
-    the proposal creates, the relay and the manager's own consent are one
-    act (ADR-0146), so the first Invite, its row and every new row are
-    undone with it, and no redelivery finishes the act later.
+    The first delivery raises while building the second Invite.  The
+    proposal's own entry, the rows it creates, the relay and the manager's
+    own consent are one act (ADR-0146, ADR-0151), so all of them are undone,
+    and a redelivery is processed fresh, as if the first never arrived.
     """
     case_id = "https://example.org/cases/relay-partial"
     dl, revision = _active_case_with_revision(
@@ -1198,9 +1191,8 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
     assert adapter.calls == 2, "the fault came after the first Invite"
     _assert_relay_kept_nothing(dl, case_id, revision.id_, entries_before)
 
-    # Nothing finishes the act later.  The proposal's entry and its PROPOSE
-    # step stand without rows (the #4933 gap), so a redelivery is refused
-    # and relays nothing.  #4933 removes the entry with its consequences.
+    # Nothing was kept, so a redelivery is a fresh act: the proposal is
+    # committed, and relayed to each other participant.
     again = InviteToEmbargoOnCaseReceivedUseCase(
         dl,
         event,
@@ -1209,12 +1201,18 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
-    assert again.disposition is HandlerDisposition.REFUSED
-    # The refusal is the missing consent row, not some other guard.
-    assert again.reason is not None
-    assert "EmbargoConsent" in again.reason
-    assert "not found" in again.reason
-    assert _relayed_invites(dl) == []
+    assert again.disposition is HandlerDisposition.APPLIED, again.reason
+    assert [
+        e.semantic_type
+        for e in _ledger_entries(dl, case_id)
+        if e.id_ not in entries_before
+    ].count("invite_to_embargo_on_case") == 1 + len((OTHER_A, OTHER_B))
+    assert len(_relayed_invites(dl)) == len((OTHER_A, OTHER_B))
+    case = cast(VulnerabilityCase, dl.read(case_id))
+    assert case.current_status.em.state == EM.REVISE
+    for actor_id in (OTHER_A, OTHER_B, PROPOSER):
+        participant = _participant_of(dl, case_id, actor_id)
+        assert participant.held_row(revision.id_) is not None
 
 
 @pytest.mark.spec("CLP-07-015")

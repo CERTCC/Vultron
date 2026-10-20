@@ -118,8 +118,9 @@ def accept_invite_to_embargo_tree(
         ├─ HonourLateAccept / ReinviteLateAccepter / AcknowledgeLateAccept
         │                                       # late Accept arms (EMB-17)
         ├─ InviteNotExpiredNode                 # a late Accept is no answer
-        ├─ GuardedCommitCaseLedgerEntryBT
-        └─ RecordEmbargoAcceptance (CaseManagerGate)
+        └─ AcceptInviteToEmbargoBTAct (ActTransaction)  # one act (ADR-0151)
+           ├─ GuardedCommitCaseLedgerEntryBT
+           └─ RecordEmbargoAcceptance (CaseManagerGate)
 
     The CASE_MANAGER first evaluates the Invite's RSVP deadline, a clock
     decision the factory runs after the door guards (CLP-10-025, CM-28-014):
@@ -229,6 +230,9 @@ def accept_invite_to_embargo_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="RecordEmbargoAcceptance",
+        # The Accept's own entry, its row and the backfill are one act
+        # (CLP-07-015, ADR-0151).
+        as_one_act=True,
     )
     logger.info(
         "Created AcceptInviteToEmbargoBT for case=%s embargo=%s"
@@ -263,9 +267,10 @@ def reject_invite_to_embargo_tree(
         ├─ EmbargoAnswerNotRecorded (CASE_MANAGER gate)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-004)
         ├─ EmbargoAnswerApplies (CASE_MANAGER gate)  # the row can be written
-        ├─ GuardedCommitCaseLedgerEntryBT
-        └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
-           └─ RecordParticipantRejectionNode  # the row the Reject states
+        └─ RejectInviteToEmbargoBTAct (ActTransaction)  # one act (ADR-0151)
+           ├─ GuardedCommitCaseLedgerEntryBT
+           └─ AnswerRejectedEmbargo (CASE_MANAGER gate)
+              └─ RecordParticipantRejectionNode  # the row the Reject states
 
     The guard refuses a Reject naming an embargo that is neither active nor
     an open proposal (a late Reject of a decided proposal, or an unknown
@@ -332,6 +337,9 @@ def reject_invite_to_embargo_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="AnswerRejectedEmbargo",
+        # The Reject's own entry and its row are one act (CLP-07-015,
+        # ADR-0151).
+        as_one_act=True,
     )
     logger.info(
         "Created RejectInviteToEmbargoBT for case=%s rejecting_actor=%s"

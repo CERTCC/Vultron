@@ -22,21 +22,14 @@ as the stub re-issue (CM-11-016) and the relay of a proposal (EP-09-002).
 one ``Sequence`` inside one ``CasePersistence.transaction()``: when any child
 raises or fails, nothing any of them wrote is kept.
 
-:func:`act_transaction` is the block itself.  It also carries the one
-exception to "nothing is kept": an entry committed *before* the block opened.
-A received act's own entry is committed by intake in its own transaction
-(ADR-0111, the gap #4933 closes), so it stands when its consequences roll
-back.  The change that entry carries must stand with it, or the CASE_MANAGER
-holds a committed entry its own case file does not show, while every replica
-copies it.  :func:`commit_and_apply_embargo_entries` names that change with
-:func:`apply_after_rollback`, and the block applies it again after the
-rollback.
+A received act's own entry is one of them: the received-tree factory runs
+the guarded commit of that entry inside the same ``ActTransaction`` as the
+effects that commit its consequences (``as_one_act=True``, ADR-0151), so a
+received act succeeds or fails as a whole, as a trigger act does.
 """
 
 import logging
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
+from collections.abc import Iterator
 from typing import Any, cast
 
 import py_trees
@@ -44,77 +37,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.ports.case_persistence import CasePersistence
-
-#: The changes of already-committed entries to apply again when the open
-#: block rolls back; ``None`` with no block open.  Scoped to the running
-#: context (one tree tick on one thread), never shared between acts.
-_AFTER_ROLLBACK: ContextVar[list[Callable[[], None]] | None] = ContextVar(
-    "act_transaction_after_rollback", default=None
-)
-
-
-@contextmanager
-def act_transaction(datalayer: CasePersistence) -> Iterator[None]:
-    """Commit every write in the block as one act, or none of them.
-
-    A ``datalayer.transaction()``, plus the changes named with
-    :func:`apply_after_rollback`: when the block raises, they are applied
-    after its rollback, then the exception propagates (or, when any of
-    them raises, the last such failure, with the earlier ones and the
-    block's own failure as its context).  A block opened
-    inside another is part of it: the outer block also applies them if it
-    rolls back in turn, because the outer rollback undoes what the inner
-    one applied.
-
-    Raises:
-        Exception: whatever the block raised, after every write in it was
-            rolled back.
-    """
-    outer = _AFTER_ROLLBACK.get()
-    owed: list[Callable[[], None]] = []
-    token = _AFTER_ROLLBACK.set(owed)
-    committed = False
-    try:
-        with datalayer.transaction():
-            yield
-        committed = True
-    finally:
-        _AFTER_ROLLBACK.reset(token)
-        # The outer block owes them too, whatever happens below: its own
-        # rollback would undo what this block applies.
-        if outer is not None:
-            outer.extend(owed)
-        if not committed:
-            _apply_each(owed)
-
-
-def _apply_each(owed: list[Callable[[], None]]) -> None:
-    """Run every one of *owed*, in order, even when one of them raises.
-
-    A change that cannot be applied again raises after the rest have run,
-    with the block's own failure (and any earlier such failure) as its
-    context.
-    """
-    if not owed:
-        return
-    first, *rest = owed
-    try:
-        first()
-    finally:
-        _apply_each(rest)
-
-
-def apply_after_rollback(apply: Callable[[], None]) -> None:
-    """Have the open :func:`act_transaction` run *apply* if it rolls back.
-
-    *apply* re-applies the change of an entry committed before the block
-    opened (a received act's own entry, ADR-0111), so that change stands with
-    its entry.  With no block open there is nothing to roll back, so
-    *apply* is not kept.
-    """
-    owed = _AFTER_ROLLBACK.get()
-    if owed is not None:
-        owed.append(apply)
 
 
 class ActTransactionError(RuntimeError):
@@ -131,7 +53,7 @@ class _RolledBack(Exception):
 
 
 class ActTransaction(py_trees.composites.Sequence):
-    """Run *children* as a ``Sequence`` inside one :func:`act_transaction`.
+    """Run *children* as a ``Sequence`` inside one DataLayer transaction.
 
     Place the act's commit node and every later node that commits a
     consequence of it among *children* (CLP-07-015, ADR-0146).  Returns the
@@ -184,7 +106,7 @@ class ActTransaction(py_trees.composites.Sequence):
             yield self
             return
         try:
-            with act_transaction(datalayer):
+            with datalayer.transaction():
                 yield from self._tick_children()
         except _RolledBack:
             self.logger.info(
@@ -221,6 +143,4 @@ class ActTransaction(py_trees.composites.Sequence):
 __all__ = [
     "ActTransaction",
     "ActTransactionError",
-    "act_transaction",
-    "apply_after_rollback",
 ]

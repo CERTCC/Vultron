@@ -150,7 +150,8 @@ node that commits a consequence of the act (`ReissueStubInvitesNode`, a
 `RelayEmbargoInviteToEachNode`) must run with the act's commit node in one
 `ActTransaction` (`core/behaviors/act_transaction.py`): pass `as_one_act=True`
 to `create_case_manager_gated_tree` (every `_by_role` arm does) or
-`manager_effects_as_one_act=True` to `create_receive_activity_tree` (#4949).
+`as_one_act=True` to `create_receive_activity_tree`, which adds the
+received act's own commit (ADR-0151).
 Call it from a node's `update()`, never from `execute()`. The replica slot
 for the same entry subclasses `ApplyEmbargoChangeFromLedgerNode`
 (`sync/nodes/embargo_copy_effect.py`) and only names the change (`_change()`).

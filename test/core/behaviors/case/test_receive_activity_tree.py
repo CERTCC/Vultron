@@ -182,35 +182,63 @@ class TestStageOrder:
         assert gate.gated_branch.name == "EmitEffects"
 
     @pytest.mark.spec("CLP-07-015")
-    def test_manager_effects_can_run_as_one_act(self) -> None:
+    def test_the_commit_and_every_effect_can_run_as_one_act(self) -> None:
+        """The act's own commit, the replica effects and the gated manager
+        effects sit in one ``ActTransaction`` (ADR-0151)."""
         from vultron.core.behaviors.act_transaction import ActTransaction
+        from vultron.core.behaviors.case.receive_activity_tree import (
+            received_stages,
+        )
 
+        replica = _effect("ReplicaEffect")
         first, second = _Emitter("First"), _Emitter("Second")
         tree = create_receive_activity_tree(
             name="SampleBT",
             case_id=CASE_ID,
             precondition_guards=[],
+            replica_effects=[replica],
             manager_effects=[first, second],
             manager_case_id=CASE_ID,
             manager_gate_name="EmitIfCaseManager",
-            manager_effects_as_one_act=True,
+            as_one_act=True,
         )
 
-        gate = tree.children[-1]
+        act = tree.children[-1]
+        assert isinstance(act, ActTransaction)
+        assert act.name == "SampleBTAct"
+        commit, effect, gate = act.children
+        assert commit.name == COMMIT
+        assert effect is replica
         assert isinstance(gate, CaseManagerGate)
-        assert isinstance(gate.gated_branch, ActTransaction)
         assert gate.gated_branch.name == "EmitIfCaseManagerBody"
         assert list(gate.gated_branch.children) == [first, second]
-
-    def test_one_act_without_manager_effects_is_a_wiring_error(self) -> None:
-        with pytest.raises(
-            VultronWiringError, match="manager_effects_as_one_act"
-        ):
-            create_receive_activity_tree(
+        assert not any(
+            isinstance(n, ActTransaction) for n in gate.iterate()
+        ), "the act block is the one transaction"
+        # The stage order reads the same with or without the block.
+        assert received_stages(tree)[-3:] == [commit, effect, gate]
+        assert [s.name for s in received_stages(tree)] == [
+            c.name
+            for c in create_receive_activity_tree(
                 name="SampleBT",
                 case_id=CASE_ID,
                 precondition_guards=[],
-                manager_effects_as_one_act=True,
+                replica_effects=[_effect("ReplicaEffect")],
+                manager_effects=[_Emitter("First"), _Emitter("Second")],
+                manager_case_id=CASE_ID,
+                manager_gate_name="EmitIfCaseManager",
+            ).children
+        ]
+
+    def test_one_act_without_a_commit_is_a_wiring_error(self) -> None:
+        with pytest.raises(VultronWiringError, match="as_one_act"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=None,
+                precondition_guards=[],
+                manager_effects=[_Emitter()],
+                manager_case_id=CASE_ID,
+                as_one_act=True,
             )
 
     def test_the_gate_takes_its_own_case_id_when_the_commit_is_omitted(

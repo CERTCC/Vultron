@@ -36,25 +36,26 @@ force, and only the CASE_MANAGER announces (BT-17-008):
     ├─ ValidateCaseExistsNode             # case must exist as VulnerabilityCase
     ├─ TerminationCauseIsAdmissibleNode   # THREAT_SIGNAL: the CASE_MANAGER's only
     ├─ TerminationIsTimelyNode            # no END_TIME_REACHED before the end time
-    ├─ GuardedCommitCaseLedgerEntryBT     # record receipt before effects (CLP-10-006)
-    ├─ TeardownOnReplica (Selector)       # participant replica: paused only
-    │  ├─ SkipIfCaseManager
-    │  └─ ReplicaTeardownIfEndingNoticeAwaited (Selector)  # CM-31-010 only
-    │     ├─ SkipUnlessEndingNoticeAwaited (Inverter)      # active replica: skip
-    │     │  └─ AwaitsEmbargoEndingNoticeNode              # paused-stream check
-    │     └─ ReplicaTeardownIfActive (Selector)
-    │        ├─ EmbargoWasNotActive / EmbargoAlreadyExited # nothing to tear down
-    │        └─ ReplicaActiveTeardown: ClearActiveEmbargoNode   # sends nothing
-    └─ TeardownAndAnnounceIfCaseManager (CaseManagerGate, from the factory)
-       └─ TeardownIfActive (Selector)
-          ├─ EmbargoWasNotActive / EmbargoAlreadyExited   # nothing to tear down
-          └─ ActiveTeardown (Sequence)    # its FAILURE is the tree's FAILURE
-             ├─ CaptureActiveEmbargoNode     # the embargo in force before the write
-             ├─ ClearActiveEmbargoNode       # TERMINATE + CANCEL every proposal → EXITED
-             ├─ SendAnnounceEmbargoEventNode # Announce(EmbargoEvent) to the others
-             ├─ SendEmbargoEndingNoticesNode # ET to unreached signatories (CM-31-009)
-             ├─ BackfillAdmittedParticipantsNode  # backfill paused peers (CM-10-006)
-             └─ ReissueStubInvitesNode       # re-issue stale stub Invites (CM-11-016)
+    └─ RemoveEmbargoFromCaseBTAct (ActTransaction)  # one act (ADR-0151)
+       ├─ GuardedCommitCaseLedgerEntryBT     # record receipt before effects (CLP-10-006)
+       ├─ TeardownOnReplica (Selector)       # participant replica: paused only
+       │  ├─ SkipIfCaseManager
+       │  └─ ReplicaTeardownIfEndingNoticeAwaited (Selector)  # CM-31-010 only
+       │     ├─ SkipUnlessEndingNoticeAwaited (Inverter)      # active replica: skip
+       │     │  └─ AwaitsEmbargoEndingNoticeNode              # paused-stream check
+       │     └─ ReplicaTeardownIfActive (Selector)
+       │        ├─ EmbargoWasNotActive / EmbargoAlreadyExited # nothing to tear down
+       │        └─ ReplicaActiveTeardown: ClearActiveEmbargoNode   # sends nothing
+       └─ TeardownAndAnnounceIfCaseManager (CaseManagerGate, from the factory)
+          └─ TeardownIfActive (Selector)
+             ├─ EmbargoWasNotActive / EmbargoAlreadyExited   # nothing to tear down
+             └─ ActiveTeardown (Sequence)    # its FAILURE is the tree's FAILURE
+                ├─ CaptureActiveEmbargoNode     # the embargo in force before the write
+                ├─ ClearActiveEmbargoNode       # TERMINATE + CANCEL every proposal → EXITED
+                ├─ SendAnnounceEmbargoEventNode # Announce(EmbargoEvent) to the others
+                ├─ SendEmbargoEndingNoticesNode # ET to unreached signatories (CM-31-009)
+                ├─ BackfillAdmittedParticipantsNode  # backfill paused peers (CM-10-006)
+                └─ ReissueStubInvitesNode       # re-issue stale stub Invites (CM-11-016)
 
 At a replica the teardown is the CASE_MANAGER's ``Remove(EmbargoEvent)``,
 admitted by the sender guard only from the CASE_MANAGER (ADR-0115).  An active
@@ -354,9 +355,10 @@ def remove_embargo_from_case_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="TeardownAndAnnounceIfCaseManager",
-        # The teardown, the ending notices, the backfill and the stub
-        # re-issue are one act (CLP-07-015, ADR-0146).
-        manager_effects_as_one_act=True,
+        # The received act's own entry, the teardown, the ending notices, the
+        # backfill and the stub re-issue are one act (CLP-07-015, ADR-0146,
+        # ADR-0151).
+        as_one_act=True,
     )
     logger.info(
         "Created RemoveEmbargoFromCaseBT for case=%s embargo=%s",
@@ -638,9 +640,9 @@ def invite_to_embargo_on_case_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="AdjudicateEmbargoProposal",
-        # The proposal's rows, its relay and the manager's own consent are
-        # one act (CLP-07-015, ADR-0146).
-        manager_effects_as_one_act=True,
+        # The proposal's own entry, its rows, its relay and the manager's own
+        # consent are one act (CLP-07-015, ADR-0146, ADR-0151).
+        as_one_act=True,
     )
     logger.info(
         "Created InviteToEmbargoOnCaseBT for case=%s invitee=%s invite=%s"

@@ -909,9 +909,8 @@ def test_a_received_withdrawal_is_copied_by_every_replica(replica):
 
 @pytest.mark.spec("CLP-07-013")
 def test_a_received_withdrawal_whose_row_commit_fails_writes_no_row():
-    """The Leave is committed at intake; a row commit that fails saves no
-    row.  The Leave's own entry stays: intake commits it in its own
-    transaction, the known gap ADR-0146 names."""
+    """A row commit that fails saves no row, and the Leave's own entry is
+    gone with it: they commit in one transaction (ADR-0151)."""
     net, revision_id = _bystander_agreed_to_a_revision("withdraw-row-fails")
 
     with pytest.MonkeyPatch.context() as patch:
@@ -921,17 +920,12 @@ def test_a_received_withdrawal_whose_row_commit_fails_writes_no_row():
 
     assert _row(net, MANAGER, BYSTANDER, net.initial_embargo_id) is (_S.AGREED)
     assert _row(net, MANAGER, BYSTANDER, revision_id) is _S.AGREED
+    assert _LEAVE not in committed_semantic_types(
+        net.stores[MANAGER], net.case_id
+    )
 
 
 @pytest.mark.spec("CLP-07-015")
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "CLP-07-015: intake commits a received act's own entry in its own"
-        " transaction, before its consequences (ADR-0111). Tracked by #4933."
-    ),
-)
 def test_a_received_act_whose_consequence_fails_keeps_no_entry_for_it():
     """A received act and its consequences succeed or fail as one: when a
     row commit fails, the Leave's own entry is not kept either."""

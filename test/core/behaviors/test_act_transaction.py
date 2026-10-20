@@ -13,11 +13,9 @@
 
 """``ActTransaction``: an act and its later nodes' consequences commit as one.
 
-The composite runs its children as a ``Sequence`` inside one
-``act_transaction``; a failing or raising child keeps nothing any child
-wrote (CLP-07-015, ADR-0146).  ``apply_after_rollback`` names the change of
-an entry committed before the block opened, which the block applies again
-after its rollback.
+The composite runs its children as a ``Sequence`` inside one DataLayer
+transaction; a failing or raising child keeps nothing any child wrote
+(CLP-07-015, ADR-0146).
 """
 
 from collections.abc import Callable, Iterator
@@ -27,11 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.act_transaction import (
-    ActTransaction,
-    act_transaction,
-    apply_after_rollback,
-)
+from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
@@ -91,14 +85,6 @@ def _run(dl: SqliteDataLayer, tree: py_trees.behaviour.Behaviour):
 
 def _held(dl: SqliteDataLayer, name: str) -> bool:
     return dl.read(_note(name).id_) is not None
-
-
-def _context_chain(error: BaseException) -> Iterator[BaseException]:
-    """Yield each exception in *error*'s ``__context__`` chain."""
-    context = error.__context__
-    while context is not None:
-        yield context
-        context = context.__context__
 
 
 def test_children_that_succeed_commit_every_write(dl: SqliteDataLayer):
@@ -293,83 +279,3 @@ def test_a_missing_datalayer_fails_without_running_the_children():
 
     assert statuses == [Status.FAILURE]
     assert ran == []
-
-
-class TestApplyAfterRollback:
-    """The change of an entry committed before the act stands with it."""
-
-    def test_it_is_applied_after_the_rollback(self, dl: SqliteDataLayer):
-        with pytest.raises(_Boom):
-            with act_transaction(dl):
-                apply_after_rollback(lambda: dl.save(_note("committed")))
-                dl.save(_note("consequence"))
-                _raise()
-
-        assert _held(dl, "committed")
-        assert not _held(dl, "consequence")
-
-    def test_it_is_not_applied_when_the_act_commits(self, dl: SqliteDataLayer):
-        applied: list[str] = []
-        with act_transaction(dl):
-            apply_after_rollback(lambda: applied.append("again"))
-
-        assert applied == []
-
-    def test_an_outer_rollback_applies_it_again(self, dl: SqliteDataLayer):
-        """The inner act committed into the outer one, which then rolls back."""
-        with pytest.raises(_Boom):
-            with act_transaction(dl):
-                with act_transaction(dl):
-                    apply_after_rollback(lambda: dl.save(_note("committed")))
-                    dl.save(_note("inner"))
-                _raise()
-
-        assert _held(dl, "committed")
-        assert not _held(dl, "inner")
-
-    def test_an_inner_rollback_applies_it_inside_an_outer_act_that_commits(
-        self, dl: SqliteDataLayer
-    ):
-        with act_transaction(dl):
-            with pytest.raises(_Boom):
-                with act_transaction(dl):
-                    apply_after_rollback(lambda: dl.save(_note("committed")))
-                    dl.save(_note("inner"))
-                    _raise()
-            dl.save(_note("outer"))
-
-        assert _held(dl, "committed")
-        assert _held(dl, "outer")
-        assert not _held(dl, "inner")
-
-    def test_a_change_that_fails_again_does_not_stop_the_rest(
-        self, dl: SqliteDataLayer
-    ):
-        """Every owed change runs; the failure is raised with the act's own
-        failure as its context, and the outer act still owes them all."""
-        applied: list[str] = []
-
-        def _fails_again() -> None:
-            applied.append("first")
-            raise RuntimeError("cannot apply again")
-
-        with pytest.raises(RuntimeError, match="cannot apply again") as info:
-            with act_transaction(dl):
-                with act_transaction(dl):
-                    apply_after_rollback(_fails_again)
-                    apply_after_rollback(lambda: applied.append("second"))
-                    _raise()
-
-        assert any(isinstance(e, _Boom) for e in _context_chain(info.value))
-        # The inner rollback ran both, and so did the outer one.
-        assert applied == ["first", "second", "first", "second"]
-
-    def test_with_no_act_open_it_is_not_kept(self, dl: SqliteDataLayer):
-        applied: list[str] = []
-        apply_after_rollback(lambda: applied.append("again"))
-
-        with pytest.raises(_Boom):
-            with act_transaction(dl):
-                _raise()
-
-        assert applied == []
