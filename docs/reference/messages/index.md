@@ -14,7 +14,7 @@ The row names the activity to send, whom to send it to, who may send it, and the
 "Send to" is the addressee: the Case Manager, a participant, or, before a case exists, an actor outside any case.
 "Sent by" is the standing a receiver requires of the sender of an activity sent to that addressee.
 One activity sent to two addressees can therefore have two rows with different senders.
-Where several rows share one activity, a field value, the receiver's Embargo Management (EM) state, or the addressee tells them apart.
+Where several rows share one activity, a field value, the receiver's Embargo Management (EM) state, the register status of the embargo the activity names, the sender's standing, or the addressee tells them apart.
 The groups follow the case lifecycle, then the protocol mechanics that carry it.
 
 {% include-markdown "./_occasions/lookup.md" %}

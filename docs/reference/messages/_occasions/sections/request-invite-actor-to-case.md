@@ -7,11 +7,10 @@ Asks the Case Manager to invite the actor named by the object to the case named 
 - **When…** the Case Owner decides to invite an actor to the case
 - **Send:** `Offer(Actor)[target=VulnerabilityCase]`
 - **Send to:** the case manager
-- **Sent by:** a participant (usually: case owner)
+- **Sent by:** a participant
+- **Distinguished by:** sender is the case owner
 - **Seen in:** [How to Invite an Actor to a Case](../../../../howto/activitypub/activities/invite_actor.md)
 - **Mapping status:** [expansion](../../index.md#mapping-status)
-
-The wire form is the suggestion a participant sends; the Case Manager tells this request from a suggestion by whether the sender holds the Case Owner role on the case.
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

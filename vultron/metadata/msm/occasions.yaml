@@ -486,6 +486,7 @@ groups:
     send: Announce(Event)[context=VulnerabilityCase]
     send_to: a participant
     sent_by: the case manager
+    distinguished_by: register status of the named embargo `ACTIVE`
     semantics: announce_embargo_event_to_case
     status: none
     description: Tells participants the terms of the active embargo. It proposes nothing.
@@ -502,15 +503,14 @@ groups:
     send: Announce(Event)[context=VulnerabilityCase]
     send_to: a participant
     sent_by: the case manager
+    distinguished_by: register status of the named embargo `TERMINATED`
     semantics: announce_embargo_event_to_case
     status: none
     description: Tells the active participants other than the Case Manager and any Closed
       Participant that the embargo it names is terminated. It proposes nothing.
-    notes: 'The wire form is the same as the embargo announcement''s; the embargo it names,
-      which the case''s embargo register records as terminated, makes it a termination announcement.
-      A termination the Case Manager starts itself, or one at the end time, sends no announcement:
-      after the end time, the Case Manager''s own end-time check ends the embargo before it
-      applies a Case Owner''s termination.'
+    notes: 'A termination the Case Manager starts itself, or one at the end time, sends no
+      announcement: after the end time, the Case Manager''s own end-time check ends the embargo
+      before it applies a Case Owner''s termination.'
     seen_in:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
@@ -850,6 +850,7 @@ groups:
     send: Offer(Actor)[target=VulnerabilityCase]
     send_to: the case manager
     sent_by: a participant
+    distinguished_by: sender is not the case owner
     semantics: offer_actor_to_case
     shorthand: GI
     status: expansion
@@ -863,15 +864,14 @@ groups:
     when: the Case Owner decides to invite an actor to the case
     send: Offer(Actor)[target=VulnerabilityCase]
     send_to: the case manager
-    sent_by: 'a participant (usually: case owner)'
+    sent_by: a participant
+    distinguished_by: sender is the case owner
     semantics: offer_actor_to_case
     status: expansion
     description: Asks the Case Manager to invite the actor named by the object to the case
       named by the target, with the roles in `suggestedRoles`. For an actor with no record
       on the case, or an invitee that has not answered, the Case Manager answers with the
       Stub Invite to that actor, not with an offer to the Case Owner.
-    notes: The wire form is the suggestion a participant sends; the Case Manager tells this
-      request from a suggestion by whether the sender holds the Case Owner role on the case.
     seen_in:
     - path: howto/activitypub/activities/invite_actor.md
       title: How to Invite an Actor to a Case
