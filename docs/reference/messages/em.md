@@ -145,7 +145,8 @@ If the termination is refused, neither entry is committed.
 
 ## When the Case Manager Refuses a Message
 
-When the Case Manager refuses an embargo message because the case cannot take it, nothing is committed, and the Case Manager tells the sender why with a refusal notice (CLP-02-005, CLP-05-001).
+When the Case Manager refuses an embargo message because the case cannot take it, nothing is committed.
+The Case Manager tells the sender why with the [refusal notice](faults_and_acknowledgements.md#refusal-notice) (CLP-02-005, CLP-05-001).
 The notice is a `Reject` whose `object` is the refused activity, inline, whose `inReplyTo` names that activity's id, and whose `summary` gives the reason.
 It goes to the sender alone, and the sender closes its pending request when the notice arrives.
 
