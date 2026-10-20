@@ -96,7 +96,6 @@ def _seed_ledger_entry(
     ``commit_log_entry_trigger`` for use in test setup fixtures.
     """
     from vultron.core.models.case_ledger import HashChainLedgerRecord
-    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
     from vultron.core.sync_helpers import reconstruct_tail_hash
 
     tail_hash, tail_index = reconstruct_tail_hash(case_id, dl)
@@ -108,16 +107,7 @@ def _seed_ledger_entry(
         payload_snapshot=payload_snapshot or {},
         prev_log_hash=tail_hash,
     )
-    entry = CaseLedgerEntry(
-        case_id=chain_entry.case_id,
-        log_index=chain_entry.log_index,
-        term=chain_entry.term,
-        log_object_id=chain_entry.object_id,
-        semantic_type=chain_entry.semantic_type,
-        payload_snapshot=dict(chain_entry.payload_snapshot),
-        prev_log_hash=chain_entry.prev_log_hash,
-        entry_hash=chain_entry.entry_hash,
-    )
+    entry = chain_entry.to_ledger_entry()
     dl.save(entry)
     return entry
 

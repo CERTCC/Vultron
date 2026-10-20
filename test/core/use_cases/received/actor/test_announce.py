@@ -436,16 +436,7 @@ def _genesis_entry_for(case_id: str, genesis_hash: str) -> CaseLedgerEntry:
         payload_snapshot={"key": "value"},
         prev_log_hash=genesis_hash,
     )
-    return CaseLedgerEntry(
-        case_id=chain.case_id,
-        log_index=chain.log_index,
-        term=chain.term,
-        log_object_id=chain.object_id,
-        semantic_type=chain.semantic_type,
-        payload_snapshot=dict(chain.payload_snapshot),
-        prev_log_hash=chain.prev_log_hash,
-        entry_hash=chain.entry_hash,
-    )
+    return chain.to_ledger_entry()
 
 
 class TestAnnounceDrainsPreGenesisBuffer:

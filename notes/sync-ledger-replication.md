@@ -69,6 +69,12 @@ position is reported as a hash, not an index: a hash is self-verifying, and it
 survives renumbering after compaction or migration. The CASE_MANAGER replays
 everything after the last hash a participant reports.
 
+- **A receiver checks an entry's own hash before its place in the chain**
+  (SYNC-03-006). The predecessor check proves position, not content. Build the
+  stored entry with `HashChainLedgerRecord.to_ledger_entry()` and check one with
+  `ledger_entry_hash_intact()`, never a hand-built `CaseLedgerEntry`: hashed
+  fields such as `received_at` then default to a fresh clock (#3744).
+
 ## Canonical Serialization
 
 The hashed form must be fixed **before** entries are signed; changing it later

@@ -397,8 +397,6 @@ class TestFilterCsEmDimensionNodeBug2704:
         """
         from unittest.mock import PropertyMock, patch
 
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
         dl = self._build_dl()
         # STATUS_ID intentionally NOT written to DL — _resolve_asserted() returns None.
         wire_case = as_VulnerabilityCase(id_=CASE_ID, name="2704 Case")
@@ -534,8 +532,6 @@ class TestFilterCsPxaDimensionNodeBug2706:
         This test FAILS on pre-fix code and PASSES after the fix.
         """
         from unittest.mock import patch
-
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
         dl = self._build_dl()
         wire_case = as_VulnerabilityCase(id_=CASE_ID, name="2706 Case")
@@ -1553,16 +1549,7 @@ class TestThreatTerminationBranchNode:
             payload_snapshot={"id": ask_id},
             prev_log_hash="0" * 64,
         )
-        entry = CaseLedgerEntry(
-            case_id=record.case_id,
-            log_index=record.log_index,
-            term=record.term,
-            log_object_id=record.object_id,
-            semantic_type=record.semantic_type,
-            payload_snapshot=dict(record.payload_snapshot),
-            prev_log_hash=record.prev_log_hash,
-            entry_hash=record.entry_hash,
-        )
+        entry = record.to_ledger_entry()
         activity = announce_log_entry_activity(
             WireCaseLedgerEntry.model_validate(entry.model_dump(mode="json")),
             actor=CASE_MANAGER_ID,
@@ -1993,7 +1980,6 @@ class TestCaseLedgerEntryCreation:
         This test FAILS on pre-fix code where add_case_status_tree used a
         plain Sequence with no GuardedCommit.
         """
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
         dl = self._build_dl_with_case_manager()
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
@@ -2037,7 +2023,6 @@ class TestCaseLedgerEntryCreation:
         """An invalid EM transition is rejected in precondition_guards → zero
         CaseLedgerEntries (CLP-10-009: validators run before GuardedCommit).
         """
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
         dl = self._build_dl_with_case_manager()
         initial = as_CaseStatus(

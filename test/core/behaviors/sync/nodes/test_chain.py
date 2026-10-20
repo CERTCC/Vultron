@@ -22,7 +22,9 @@ from vultron.core.behaviors.sync.nodes import (
     ReconstructChainTailNode,
     UpdateReplicationStateNode,
 )
+from vultron.core.models import case_ledger as case_ledger_module
 from vultron.core.models._helpers import now_utc
+from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
@@ -415,3 +417,41 @@ def test_update_replication_state_node_upserts_existing_state(
     stored = owner_store.read(_replication_state_id(PARTICIPANT_ACTOR_ID))
     assert isinstance(stored, VultronReplicationState)
     assert stored.last_acknowledged_hash == entry1.entry_hash
+
+
+@pytest.mark.spec("SYNC-01-003")
+@pytest.mark.spec("CLP-14-002")
+def test_create_log_entry_node_entry_carries_hashed_received_at(
+    bridge, monkeypatch
+):
+    """The stored entry keeps the time its hash was computed over (#3744).
+
+    The hashed record's clock is pinned to a past second, so an entry that
+    stamped its own times would carry a different ``received_at`` and its
+    content would no longer reproduce ``entry_hash``.
+    """
+    hashed_at = now_utc().replace(year=2020)
+    monkeypatch.setattr(case_ledger_module, "now_utc", lambda: hashed_at)
+
+    result = bridge.execute_with_setup(
+        tree=CreateLogEntryNode(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-1",
+            semantic_type="note_added",
+            payload_snapshot=_canonical_note_snapshot(PARTICIPANT_ACTOR_ID),
+            name="CreateLogEntry",
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        tail_hash=_ZERO_HASH,
+        tail_index=-1,
+    )
+
+    assert result.status == Status.SUCCESS
+    blackboard = py_trees.blackboard.Client(name="assert-hashed-received-at")
+    blackboard.register_key(
+        key="log_entry", access=py_trees.common.Access.READ
+    )
+    entry = cast(CaseLedgerEntry, blackboard.log_entry)
+    assert entry.received_at == hashed_at
+    assert entry.published == hashed_at
+    assert HashChainLedgerRecord.from_ledger_entry(entry).verify_hash()

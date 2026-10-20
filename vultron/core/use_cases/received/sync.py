@@ -36,6 +36,7 @@ from vultron.core.behaviors.sync.announce_tree import (
 from vultron.core.behaviors.sync.nodes import (
     BufferOutOfOrderEntryNode,
     BufferPreGenesisEntryNode,
+    CheckEntryHashIntactNode,
     CheckHashMatchesNode,
     CheckLedgerEntryAlreadyStoredNode,
     ReconstructChainTailNode,
@@ -177,6 +178,11 @@ def _refused_announce_verdict(
             f" '{entry.case_id}', so its announcement of ledger entry"
             f" '{entry.id_}' is not accepted (SYNC-13-006, HP-01-006)"
         )
+    if node_failed(tree, CheckEntryHashIntactNode):
+        return HandlerResult.refused(
+            f"ledger entry '{entry.id_}' does not reproduce its entry_hash;"
+            " not applied or stored (SYNC-03-006)"
+        )
     if node_failed(tree, SendRejectLogEntryNode):
         if node_failed(tree, ReconstructChainTailNode):
             return HandlerResult.refused(
@@ -194,8 +200,10 @@ def _refused_announce_verdict(
 class AnnounceLedgerEntryReceivedUseCase:
     """Process a received ``Announce(CaseLedgerEntry)`` activity.
 
-    Validates the incoming entry against the local hash-chain tail and
-    persists it if the chain is consistent.  On mismatch, sends a
+    Refuses an entry whose content does not reproduce its own hash
+    (SYNC-03-006), then validates the incoming entry against the local
+    hash-chain tail and persists it if the chain is consistent.  On
+    mismatch, sends a
     ``Reject(CaseLedgerEntry)`` back to the CaseActor carrying the local
     tail hash (SYNC-03-001).
 

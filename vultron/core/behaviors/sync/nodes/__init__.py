@@ -142,6 +142,7 @@ from vultron.core.behaviors.sync.nodes.port_guard import (
 from vultron.core.behaviors.sync.nodes.receive import (
     BufferOutOfOrderEntryNode,
     BufferPreGenesisEntryNode,
+    CheckEntryHashIntactNode,
     CheckHashMatchesNode,
     CheckHashOrRejectOnMismatchNode,
     LogDeliveryConfirmationNode,
@@ -215,6 +216,7 @@ __all__ = [
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",
+    "CheckEntryHashIntactNode",
     "CheckHashMatchesNode",
     "BufferOutOfOrderEntryNode",
     "BufferPreGenesisEntryNode",

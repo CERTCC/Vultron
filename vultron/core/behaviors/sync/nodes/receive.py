@@ -29,6 +29,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
+from vultron.core.models.case_ledger import ledger_entry_hash_intact
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.errors import VultronError, VultronWiringError
@@ -87,6 +88,48 @@ class PersistReceivedLogEntryNode(DataLayerActionWithPorts):
             entry.case_id,
         )
         return Status.SUCCESS
+
+
+class CheckEntryHashIntactNode(DataLayerConditionWithPorts):
+    """Refuse a received entry whose content does not reproduce its hash.
+
+    Runs before the already-stored check and the tail lookup, so an entry
+    that fails it is refused and logged, and neither buffered, applied nor
+    stored.  No ``Reject(CaseLedgerEntry)`` is sent:
+    a replay would resend the same entry, and the replica's unmoved tail
+    already makes the next entry ask for one (SYNC-03-006, SYNC-08-001).
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.activity, self.name)
+        if ledger_entry_hash_intact(entry):
+            return Status.SUCCESS
+        self.logger.error(
+            "%s: refusing ledger entry '%s' (case '%s', log_index=%d) in"
+            " activity '%s' from actor '%s': its content does not reproduce"
+            " its entry_hash %.16s…",
+            self.name,
+            entry.id_,
+            entry.case_id,
+            entry.log_index,
+            getattr(self.activity, "activity_id", None),
+            getattr(self.activity, "actor_id", None),
+            entry.entry_hash,
+        )
+        return Status.FAILURE
 
 
 class CheckHashMatchesNode(DataLayerConditionWithPorts):
