@@ -31,6 +31,12 @@ entries last (CP-09-009):
   11. Relay a contested creation's pending revision to the party whose terms
       won (EP-04-011) — after initialization is complete (CM-14-007)
 
+Steps 1-10, with the admission record ahead of them, are one act: they run
+in one ``ActTransaction`` (ADR-0146), so a failed step rolls back the case,
+its records, the queued ``Accept`` and ``Create``, the retry marker and every
+creation entry already committed (CLP-07-013, #4442).  Step 11 keeps its own
+retry marker (#4121) and runs after the act commits.
+
 Admission (CP-05-002) and idempotency (CP-05-006):
 
 Ahead of the branches, the receive-tree factory composes the sender guard from
@@ -108,6 +114,7 @@ from typing import TYPE_CHECKING
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CASE_PROPOSAL_DETERMINISTIC,
 )
@@ -331,9 +338,11 @@ def create_case_proposal_received_tree(
          (EP-08-002) and deletes the marker, which a failure keeps for a
          retry (#4121); no modification precedes step 12 (CM-14-007).
 
-    If node 10 fails, the marker written in node 9 remains in the DataLayer so
-    that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
-    delivery independently.
+    Nodes from the admission record through node 12 run in one
+    ``ActTransaction`` (ADR-0146): if any of them fails, nothing they wrote is
+    kept, the ``Accept`` and the marker of node 9 included, and delivery is
+    told of neither activity (DL-02-004).  The marker therefore only matters
+    for a delivery failure after the commit (CP-05-005).
 
     Spec: CP-05-001 through CP-05-006, CP-05-008.
     Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``.
@@ -421,9 +430,16 @@ def create_case_proposal_received_tree(
 
     # Main flow: record admission → resolve case → native init → emit Accept →
     # write marker → emit Create → clear marker
-    main_flow = py_trees.composites.Sequence(
-        name="AcceptProposalFlow",
-        memory=False,
+    # The creation is one act (ADR-0146): everything from the admission
+    # record to the last creation entry is written in one ActTransaction, so
+    # a creation entry that fails, or an emit that fails, rolls back the case,
+    # its records, the queued Accept and Create and every entry already
+    # committed (CLP-07-013, #4442).  Delivery is told of the queued
+    # activities only once the block commits (DL-02-004), so nothing about a
+    # rolled-back case is ever sent, and a redelivery starts from the
+    # beginning.
+    creation_act = ActTransaction(
+        name="CreateCaseFromProposalAct",
         children=[
             # Ahead of case_resolution deliberately.  This is the proposal-keyed
             # evidence that the accept path began; without it the only marker of
@@ -516,8 +532,18 @@ def create_case_proposal_received_tree(
                 offer_id=offer_id,
                 offer_actor_id=offer_actor_id,
             ),
+        ],
+    )
+
+    main_flow = py_trees.composites.Sequence(
+        name="AcceptProposalFlow",
+        memory=False,
+        children=[
+            creation_act,
             # EP-04-011: relay the shortest-wins loser that step 6 recorded,
-            # only now that initialization is complete (CM-14-007).
+            # only now that initialization is complete (CM-14-007).  Outside
+            # the creation act: the relay keeps its own retry marker (#4121),
+            # so a failed relay does not undo a committed creation.
             RelayCreationTimeRevisionNode(actor_config=actor_config),
         ],
     )

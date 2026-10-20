@@ -384,10 +384,11 @@ what changed, so a retry hands back the first sealed body (ID-04-004).
 - **Every creation entry is required.** The first entry that fails to commit
   stops the sequence and the node returns FAILURE, so no later entry lands out
   of order (CLP-07-013, #4442). On both paths the node runs after the `Create`
-  is queued (CM-14-011, CP-09-009, SYNC-09-002). The trigger path writes the
-  case, its records, the `Create` and the entries in one `ActTransaction`
-  (ADR-0146), so a failed entry rolls back all of them; on the proposal path the
-  failure is surfaced, not prevented, and the records stay without entries (#4442).
+  is queued (CM-14-011, CP-09-009, SYNC-09-002). Both paths write the case, its
+  records, the queued `Accept`/`Create` and the entries in one `ActTransaction`
+  (ADR-0146), so a failed entry rolls back all of them and delivery is never told
+  of the activities (DL-02-004). A redelivered proposal starts afresh; nothing is
+  left half-built for it to finish.
 - **Step 4 names the vendor** because the vendor set the genesis status.
   `("Add", "CaseStatus")` is also in `_CASE_AUTHORED_SIGNATURES` (CLP-12-001), so
   single-actor deployments (vendor is the CASE_MANAGER) validate too. That

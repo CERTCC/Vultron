@@ -788,40 +788,33 @@ class TestQueuedNotMerelyStored:
 
 
 @pytest.mark.spec("CLP-10-009")
-class TestAHalfBuiltCaseIsNotRejected:
+class TestAHalfBuiltCaseIsNotKept:
     """``main_flow`` creates the case before it emits the ``Accept``.
 
-    A delivery that fails in between leaves a case with no stored ``Accept``. An
-    Accept-only "already answered" guard cannot see that, and a later declining
-    delivery would Reject a case this store had already half-built — then block
-    the accept arm forever, leaving the case permanently unfinishable.
+    A delivery that fails in between used to leave a case with no stored
+    ``Accept``.  The creation is now one act (ADR-0146), so the fault rolls
+    the case back with everything else the delivery wrote: the proposal is
+    still unanswered, and a later delivery is adjudicated afresh.
     """
 
-    def test_declining_redelivery_completes_the_case_instead(self):
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_fault_before_the_accept_leaves_the_proposal_unanswered(self):
         dl = _fault_store(_AcceptWriteFaults)
         try:
             assert _run_tree(dl, call_out=_admitting_bundle([])) == (
                 Status.FAILURE
             )
-            assert len(_cases(dl)) == 1, (
-                "the case was created before the fault"
-            )
+            assert _cases(dl) == [], "the case is rolled back with the fault"
             assert _types_in_outbox(dl) == []
 
             dl.fail = False
             status = _run_tree(dl, call_out=_declining_bundle([]))
 
             assert status == Status.SUCCESS
-            assert "Reject" not in _types_in_outbox(dl), (
-                "a case that already exists has been answered; refusing it now "
-                "would strand it with no Accept and no way to get one"
+            assert _types_in_outbox(dl) == ["Reject"], (
+                "nothing was answered or kept, so the decline is the answer"
             )
-            assert "Accept" in _types_in_outbox(dl)
-            assert (
-                dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI))
-                is None
-            )
-            assert len(_cases(dl)) == 1
+            assert _cases(dl) == []
         finally:
             dl.clear_all()
             dl.close()
