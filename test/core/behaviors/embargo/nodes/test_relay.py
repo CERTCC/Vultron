@@ -540,9 +540,10 @@ class TestRelayEmbargoInviteToEachNode:
         bt_scenario: BTTestScenario,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The Invite is queued and committed in one transaction (ADR-0146):
-        a failed commit takes the queued Invite back out with it, so no
-        participant is sent an Invite the ledger does not record."""
+        """The Invite is built, queued and committed in one transaction
+        (ADR-0146): a failed commit takes the stored and queued Invite back
+        out with it, so no participant is sent an Invite the ledger does not
+        record."""
         from test.support.ledger import fail_commits
         from vultron.core.behaviors.sync import commit_tree
 
@@ -558,8 +559,9 @@ class TestRelayEmbargoInviteToEachNode:
         result = self._relay(bt_scenario, [OTHER_A], answers=EMBARGO_ID)
 
         assert result.internal_error, result
-        assert len(failed) == 1
+        (invite_id,) = failed
         assert _queued_invites(bt_scenario) == []
+        assert bt_scenario.dl.read(invite_id) is None, "nor left stored"
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("OX-06-002")

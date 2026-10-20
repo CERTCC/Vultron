@@ -682,7 +682,9 @@ groups:
       CASE_MANAGER keeps no entry, no queued activity and no row change from it; a
       test fails the case-file save after the commits and asserts no entry is kept;
       a test commits a two-entry act and asserts a replica that copies its
-      announcements holds the CASE_MANAGER's rows.
+      announcements holds the CASE_MANAGER's rows. Two strict-xfail tests record
+      the known gaps: a received act whose consequence fails keeps no entry for
+      it (#4933), and a termination whose stub re-issue fails is not kept (#4934).
     relationships:
     - rel_type: refines
       spec_id: CLP-07-013

@@ -17,8 +17,10 @@ related_specs:
   - specs/outbox.yaml (OX-06-002)
   - specs/inbox-endpoint.yaml (IE-10-001)
   - specs/vocabulary-model.yaml (VM-08-002)
+  - specs/case-ledger-processing.yaml (CLP-07-015)
 related_notes:
   - notes/architecture-hexagonal.md
+  - notes/case-ledger-authority.md
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
   - notes/testing-pitfalls.md
@@ -292,7 +294,7 @@ are in `test/adapters/driven/test_sqlite_save_if_unchanged.py`.
 
 `with dl.transaction():` makes every call on that store, from that thread, one
 SQLite transaction: it commits once at the end, or rolls everything back when the
-block raises (ADR-0146, CLP-07-015). The rules that keep it sound:
+block raises (DL-02-004, ADR-0146, CLP-07-015). The rules that keep it sound:
 
 - **Every session goes through `SqliteDataLayer._session()`.** Inside the block
   that seam binds the session to the block's connection and joins it by

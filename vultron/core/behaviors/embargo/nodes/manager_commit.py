@@ -120,6 +120,18 @@ class CommitEmbargoDecisionNode(
         self._result_out = result_out
         self._decision_from = decision_from
 
+    def update(self) -> Status:
+        """Build, queue and commit the act, with its rows, in one transaction.
+
+        The build stores the activity, so it joins the transaction the
+        commits run in: an act that fails anywhere leaves nothing it wrote
+        behind (ADR-0146).
+        """
+        if self.datalayer is None:
+            return super().update()  # reports the missing store
+        with cast(CaseOutboxPersistence, self.datalayer).transaction():
+            return super().update()
+
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         activity_id, blob = self._builder(to)
         if self._result_out is not None:
@@ -153,9 +165,9 @@ class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
     """Commit the CASE_MANAGER's own proposal, storing the embargo it names.
 
     The factory renders the stored ``EmbargoEvent`` (EP-09-003), so the
-    record is stored as the proposal is built.  A proposal whose entries do
-    not commit, or whose trial apply refuses it, takes a record it stored
-    back out, so a failed proposal leaves no orphan behind (CLP-07-013,
+    record is stored as the proposal is built.  The build runs in the node's
+    transaction, so a proposal whose entries do not commit, or whose trial
+    apply refuses it, leaves no embargo behind either (CLP-07-013,
     ADR-0146); the failure itself propagates.
     """
 
@@ -177,50 +189,14 @@ class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
             decision_from=result_out,
         )
         self._embargo = embargo
-        self._stored_here = False
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         assert self.datalayer is not None
-        self._stored_here = self.datalayer.read(self._embargo.id_) is None
-        if self._stored_here:
+        if self.datalayer.read(self._embargo.id_) is None:
+            # Inside the node's transaction: a proposal that fails anywhere
+            # takes the stored embargo back out with it (ADR-0146).
             self.datalayer.create(self._embargo)
-        built = False
-        try:
-            result = super()._build(to)
-            built = True
-        finally:
-            if not built:
-                self._discard_stored()
-        return result
-
-    def _record(
-        self, activity_id: str, send_and_commit: Callable[[], None]
-    ) -> None:
-        recorded = False
-        try:
-            super()._record(activity_id, send_and_commit)
-            recorded = True
-        finally:
-            # The proposal's entry and its rows commit as one transaction
-            # (ADR-0146): when any of them fails, none is kept, so the
-            # embargo the proposal names is not case data either.
-            if not recorded:
-                self._discard_stored()
-
-    def _discard_stored(self) -> None:
-        """Take the embargo this node stored back out of the store."""
-        if not self._stored_here:
-            return
-        assert self.datalayer is not None
-        self.datalayer.delete(str(self._embargo.type_), self._embargo.id_)
-        self._stored_here = False
-        self.logger.warning(
-            "%s: proposal of embargo '%s' on case '%s' was not recorded;"
-            " its stored record is removed",
-            self.name,
-            self._embargo.id_,
-            self._case_id,
-        )
+        return super()._build(to)
 
 
 class IndexOwnEmbargoProposalNode(DataLayerActionWithPorts):

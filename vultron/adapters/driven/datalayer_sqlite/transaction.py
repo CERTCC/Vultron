@@ -38,6 +38,7 @@ block commits (:func:`run_after_commit`), so an outbox monitor is never woken
 to drain a row another connection cannot yet see, or one that is rolled back.
 """
 
+import logging
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -46,6 +47,8 @@ from dataclasses import dataclass, field
 from sqlalchemy.engine import Connection, Engine
 
 from .engine import session_guard
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -88,15 +91,20 @@ def run_after_commit(engine: Engine, callback: Callable[[], None]) -> None:
 def transaction(engine: Engine) -> Iterator[None]:
     """Commit every write inside the block together, or none of them.
 
-    A block opened inside another on the same engine and thread joins the
-    outer one: its writes commit, or roll back, with the outer block's.
+    A block opened inside another on the same engine and thread is a
+    SAVEPOINT in the outer one: when it raises, its own writes (and the
+    after-commit callbacks they registered) are rolled back, and the outer
+    block decides the rest; otherwise its writes commit, or roll back, with
+    the outer block's.
 
     Raises:
         Exception: whatever the block raised, after every write in it was
             rolled back.
     """
-    if open_transaction(engine) is not None:
-        yield
+    outer = open_transaction(engine)
+    if outer is not None:
+        with _savepoint(outer):
+            yield
         return
     with session_guard(engine):
         with engine.connect() as connection:
@@ -116,7 +124,27 @@ def transaction(engine: Engine) -> Iterator[None]:
             finally:
                 del _REGISTRY.open[id(engine)]
     for callback in state.after_commit:
-        callback()
+        # The block has committed: a callback that fails must not make the
+        # caller read a committed act as a failed one.
+        try:
+            callback()
+        except Exception:
+            logger.exception("after-commit callback %r raised", callback)
+
+
+@contextmanager
+def _savepoint(state: OpenTransaction) -> Iterator[None]:
+    """Run a nested block as a SAVEPOINT of the open transaction *state*."""
+    nested = state.connection.begin_nested()
+    pending = len(state.after_commit)
+    try:
+        yield
+    except BaseException:
+        nested.rollback()
+        del state.after_commit[pending:]
+        raise
+    else:
+        nested.commit()
 
 
 __all__ = [

@@ -26,9 +26,15 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.datalayer_sqlite.schema import (
+    VultronObjectRecord as DBRecord,
+)
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+pytestmark = pytest.mark.spec("DL-02-004")
 
 _ACTOR = "https://example.org/actors/tx-actor"
 
@@ -51,6 +57,10 @@ def dl(
         yield store
     finally:
         store.close()
+
+
+def _row(id_: str) -> DBRecord:
+    return DBRecord(id_=id_, type_="Note", data={"id": id_, "type": "Note"})
 
 
 def _note(name: str) -> as_Note:
@@ -129,28 +139,116 @@ def test_a_block_inside_another_joins_it(dl: SqliteDataLayer):
     assert dl.read(outer.id_) is None
 
 
-def test_a_helper_rollback_undoes_only_that_helpers_writes(
+def test_a_session_rollback_undoes_only_that_sessions_writes(
     dl: SqliteDataLayer,
 ):
-    """``save_if_unchanged`` rolls back its own session when the record
-    moved; the block's other writes stand (SAVEPOINT join)."""
-    note = _note("cas")
-    dl.save(note)
-    stale = note.model_copy(update={"content": "stale"})
-    other = _note("other")
+    """A CRUD helper's ``rollback()`` inside the block undoes only what its
+    own session wrote; the block's other writes stand (SAVEPOINT join)."""
+    before, after = _note("before"), _note("after")
 
     with dl.transaction():
-        dl.save(other)
-        assert (
-            dl.save_if_unchanged(
-                note.model_copy(update={"content": "new"}), stale
-            )
-            is False
-        )
-        dl.save(_note("after"))
+        dl.save(before)
+        with dl._session() as session:
+            session.add(_row("https://example.org/notes/undone"))
+            session.flush()
+            session.rollback()
+        dl.save(after)
 
-    assert dl.read(other.id_) is not None
-    assert dl.read(_note("after").id_) is not None
+    assert dl.read(before.id_) is not None
+    assert dl.read(after.id_) is not None
+    assert dl.read("https://example.org/notes/undone") is None
+
+
+def test_a_failed_flush_inside_the_block_does_not_poison_it(
+    dl: SqliteDataLayer,
+):
+    """A helper whose flush fails (here a duplicate key) and whose error the
+    caller handles leaves the block usable, and the block's writes commit."""
+    kept = _note("kept")
+    dl.save(kept)
+    after = _note("after-flush")
+
+    with dl.transaction():
+        with pytest.raises(IntegrityError):
+            with dl._session() as session:
+                session.add(_row(kept.id_))
+                session.flush()
+        dl.save(after)
+
+    assert dl.read(after.id_) is not None
+
+
+def test_an_inner_block_that_raises_rolls_back_only_its_own_writes(
+    dl: SqliteDataLayer,
+):
+    calls: list[str] = []
+    dl.set_enqueue_callback(calls.append)
+    outer, inner = _note("outer-kept"), _note("inner-undone")
+
+    with dl.transaction():
+        dl.save(outer)
+        with pytest.raises(_Boom):
+            with dl.transaction():
+                dl.save(inner)
+                dl.outbox_append(inner.id_)
+                raise _Boom
+
+    assert dl.read(outer.id_) is not None
+    assert dl.read(inner.id_) is None
+    assert dl.outbox_list() == []
+    assert calls == [], "the inner block's callback is dropped with it"
+
+
+def test_a_failing_after_commit_callback_does_not_fail_the_block(
+    dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
+):
+    """The block has committed when its callbacks run, so a callback that
+    raises is logged and the caller sees the commit succeed."""
+    from vultron.adapters.driven.datalayer_sqlite.transaction import (
+        run_after_commit,
+    )
+
+    note = _note("committed")
+
+    def _broken() -> None:
+        raise RuntimeError("callback broke")
+
+    with dl.transaction():
+        dl.save(note)
+        run_after_commit(dl._engine, _broken)
+
+    assert dl.read(note.id_) is not None
+    assert "after-commit callback" in caplog.text
+
+
+def test_a_store_opened_on_another_thread_does_not_end_the_block(
+    dl: SqliteDataLayer,
+):
+    """Opening the same store on another thread runs its schema check; on
+    an in-memory store that waits for the block, so it cannot roll the
+    block back by closing the shared connection (#3602)."""
+    first, second = _note("tx-first"), _note("tx-second")
+    errors: list[BaseException] = []
+
+    def _open() -> None:
+        try:
+            dl.clone_for_actor(_ACTOR)
+        except BaseException as exc:  # noqa: BLE001 — surfaced below
+            errors.append(exc)
+
+    with pytest.raises(_Boom):
+        with dl.transaction():
+            dl.save(first)
+            thread = threading.Thread(target=_open)
+            thread.start()
+            thread.join(timeout=2)
+            dl.save(second)
+            raise _Boom
+    thread.join(timeout=5)
+
+    assert errors == []
+    assert dl.read(first.id_) is None
+    assert dl.read(second.id_) is None
 
 
 def test_the_enqueue_callback_fires_only_after_the_commit(

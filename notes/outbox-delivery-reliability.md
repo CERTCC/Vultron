@@ -151,13 +151,16 @@ emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
   outbox is the only thing that stops a retry sending it again. A retry that rebuilds
   the activity under a fresh id defeats it: any emit node whose tree can run again
   after its commit failed — a redelivered request, a resumed tree, a level-triggered
-  node — MUST derive the id. A node that cannot tell from the store that its send
-  is unrecorded (the stub re-issue reads stored Invites) must look for the sent,
-  unrecorded activity itself and commit it (`ReissueStubInvitesNode`).
-- A send that no retry rebuilds (the embargo teardown, which its own EM write stops
-  from rerunning; the manager's own proposal relay) MUST withdraw the activity with
-  `outbox_withdraw` when its commit fails, then raise: left pending it reaches
-  participants with no entry recording it (CLP-07-013). See
+  node — MUST derive the id. Where the build, the queue write and the commit run
+  in one `transaction()` (the embargo acts, the stub re-issue and the relay,
+  ADR-0146), a failed commit leaves nothing stored or queued, so a retry starts
+  from the beginning; prefer that to a node that looks for its own sent,
+  unrecorded activity.
+- A send that no retry rebuilds and that is not in a transaction (a
+  `_CommitCaseManagerActivityBase` node whose act opens none, such as the case
+  closure) MUST withdraw the activity with `outbox_withdraw` when its commit
+  fails, then raise: left pending it reaches participants with no entry
+  recording it (CLP-07-013). See
   `_CommitCaseManagerActivityBase._withdraw_unrecorded`.
 - A commit that fails after the outbox write MUST escape the node, never return
   FAILURE: an enclosing Selector would read it as a guard miss and send another

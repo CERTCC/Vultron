@@ -179,24 +179,20 @@ class RelayEmbargoInviteToEachNode(
     the exception escapes to ``BTBridge``, which reports the tree as FAILURE
     with ``internal_error`` set, and the handler raises rather than reporting
     REFUSED (BT-14-001 without the masking the pitfalls table warns of).
-    Partial relays are visible in the ledger as the Invites that were
-    committed.  The idempotency latch (``pending_embargo_proposal_index``)
+    Every Invite of the relay is built, queued and committed, each followed
+    by its invitee's row, in one transaction (ADR-0146): a fault for any
+    recipient leaves no Invite stored, queued or committed for any of them,
+    so no participant is sent an Invite the ledger does not record
+    (CLP-07-013).  The idempotency latch (``pending_embargo_proposal_index``)
     is written by the handler only after the whole tree succeeded
     (ID-04-005), so a redelivery after a mid-relay fault passes the
     :class:`EmbargoProposalNotYetRecordedNode` guard and re-adjudicates: the
     proposal's own commit is deduplicated by the ledger and the EM write is a
-    no-op counter-proposal, but this node relays to *every* recipient again —
-    each recipient is relayed to again.  With *answers* given, the retry
-    rebuilds each Invite under its first id, so a recipient the failed run
-    already invited is not sent a second one and its entry is not committed
-    twice; its consent row, already ``INVITED``, is unchanged.  The key is
-    the request, not the terms: the same terms re-proposed under a new
-    Invite id are a counter-proposal that *is* relayed again.
-
-    Each Invite is queued, committed and followed by its invitee's row in
-    one transaction (ADR-0146), so an Invite whose commit fails is never left
-    in the outbox: no participant is sent an Invite the ledger does not
-    record (CLP-07-013).
+    no-op counter-proposal, and this node relays to every recipient again.
+    With *answers* given, the retry rebuilds each Invite under the id the
+    failed run gave it.  The key is the request, not the terms: the same
+    terms re-proposed under a new Invite id are a counter-proposal that *is*
+    relayed again.
     """
 
     def __init__(
@@ -280,8 +276,12 @@ class RelayEmbargoInviteToEachNode(
         if (f := self._require_factory()) is not None:
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return f
-        for recipient_id in self._recipients:
-            self._relay_to(recipient_id)
+        # Every Invite is built (which stores it), queued and committed, with
+        # its invitee's row, in one transaction: a failure for any recipient
+        # leaves no Invite and no row for any of them (ADR-0146).
+        with cast(CaseOutboxPersistence, self.datalayer).transaction():
+            for recipient_id in self._recipients:
+                self._relay_to(recipient_id)
         self.feedback_message = (
             f"Relayed embargo '{self._embargo_id}' on case '{self._case_id}'"
             f" to {len(self._recipients)} participant(s)"

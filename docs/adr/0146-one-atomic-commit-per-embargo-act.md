@@ -106,7 +106,8 @@ Option D was rejected: every register entry has a row on every participant (ADR-
 - A test fails an act's second commit and asserts that the CASE_MANAGER holds no entry, no queued activity and no row change from the act.
 - A test fails the case-file save after every commit and asserts that no entry is kept.
 - A test commits a two-entry act and asserts that a replica copying its announcements holds the same rows as the CASE_MANAGER.
-- Adapter tests assert that a transaction commits every write together, rolls every write back when it raises, joins an enclosing one, and wakes the outbox monitor only after it commits.
+- Adapter tests assert that a transaction commits every write together, rolls every write back when it raises, rolls back only its own writes when nested, and wakes the outbox monitor only after it commits (DL-02-004).
+- Two strict-xfail tests record the known atomicity requirements, one per gap (#4933, #4934).
 
 ## More Information
 

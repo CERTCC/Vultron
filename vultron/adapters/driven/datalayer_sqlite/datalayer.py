@@ -83,12 +83,14 @@ class SqliteDataLayer:
         self._engine = get_actor_engine(db_url, actor_id)
         self._enqueue_callback: Callable[[str], None] | None = enqueue_callback
         if open_transaction(self._engine) is None:
-            # A store with a transaction open in this thread is already
-            # open, and its schema checked; a second connection here would
-            # share an in-memory store's one connection and roll the
-            # transaction back when it closed.
-            SQLModel.metadata.create_all(self._engine)
-            require_outbox_pending_index(self._engine)
+            # Under the session lock: on an in-memory store these
+            # connections are the one shared connection, and closing them
+            # would roll back a transaction another thread holds open
+            # (#3602).  A store with a transaction open in this thread is
+            # already open and its schema checked, so it skips the check.
+            with session_guard(self._engine):
+                SQLModel.metadata.create_all(self._engine)
+                require_outbox_pending_index(self._engine)
 
     @contextmanager
     def _session(self) -> Iterator[Session]:
@@ -122,8 +124,8 @@ class SqliteDataLayer:
         this instance or any other on the same store, reads the block's own
         writes and commits with it; when the block raises, all of them are
         rolled back and the exception propagates.  A block opened inside
-        another joins it.  Enqueue callbacks fire after the commit.  See
-        :mod:`.transaction`.
+        another is a SAVEPOINT in it.  Enqueue callbacks fire after the
+        commit.  See :mod:`.transaction`.
         """
         return _transaction(self._engine)
 

@@ -84,8 +84,10 @@ class CasePersistence(Protocol):
         Use as ``with store.transaction(): ...``.  Every call on this store
         inside the block reads the block's own writes; when the block ends
         they all commit at once, and when it raises they are all rolled back
-        and the exception propagates.  A block opened inside another joins
-        it.  This is how an act and its consequences commit as one: no
+        and the exception propagates.  A block opened inside another is
+        part of it: when the inner block raises, only its own writes are
+        rolled back, and otherwise they commit or roll back with the outer
+        block's.  This is how an act and its consequences commit as one: no
         failure part-way leaves some of them written (CLP-07-015, ADR-0146).
         """
         ...

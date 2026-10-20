@@ -1140,17 +1140,15 @@ class _AdapterFailingOnSecondInvite(TriggerActivityAdapter):
 def test_a_redelivery_after_a_mid_relay_fault_sends_each_invite_once(
     make_payload,
 ):
-    """A fault mid-fan-out leaves the latch unwritten; the retry re-relays.
+    """A fault mid-fan-out undoes the whole relay; the retry re-relays.
 
     Pins what ``RelayEmbargoInviteToEachNode``'s docstring says happens: the
-    first delivery raises after one Invite went out, writes no
-    ``pending_embargo_proposal_index`` latch (ID-04-005), and the redelivery
-    therefore passes the idempotency guard and relays to *every* recipient
-    again.  Each Invite's id is derived from the proposal it relays, so the
-    recipient already invited is not sent a second one: its Invite, still
-    pending, is not queued again (OX-06-002) and its entry is not committed
-    twice.  The received proposal's own entry is reused, and the one the
-    fault skipped is invited now.
+    first delivery raises while building the second Invite, and the relay is
+    one transaction (ADR-0146), so the first Invite and its row are undone
+    with it.  It writes no ``pending_embargo_proposal_index`` latch
+    (ID-04-005), so the redelivery passes the idempotency guard and relays
+    to every recipient, each once.  The received proposal's own entry,
+    committed by intake, stands and is reused.
     """
     case_id = "https://example.org/cases/relay-partial"
     dl, revision = _active_case_with_revision(
@@ -1171,16 +1169,12 @@ def test_a_redelivery_after_a_mid_relay_fault_sends_each_invite_once(
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-    first_round = _relayed_invites(dl)
-    assert len(first_round) == 1
-    (invited_first,) = first_round[0].to or []
-    (not_yet,) = {OTHER_A, OTHER_B} - {invited_first}
-    invited = EmbargoConsentState.INVITED
-    assert _consent_of(dl, case_id, invited_first, revision.id_) == invited
-    assert (
-        _consent_of(dl, case_id, not_yet, revision.id_)
-        == EmbargoConsentState.UNINVITED
-    )
+    assert _relayed_invites(dl) == []
+    for recipient in (OTHER_A, OTHER_B):
+        assert (
+            _consent_of(dl, case_id, recipient, revision.id_)
+            == EmbargoConsentState.UNINVITED
+        )
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.current_status.em.state == EM.REVISE
     assert revision.id_ not in case.pending_embargo_proposal_index
@@ -1188,7 +1182,8 @@ def test_a_redelivery_after_a_mid_relay_fault_sends_each_invite_once(
         e.semantic_type
         for e in _ledger_entries(dl, case_id)
         if e.semantic_type == "invite_to_embargo_on_case"
-    ] == ["invite_to_embargo_on_case"] * 2
+    ] == ["invite_to_embargo_on_case"], "only the proposal's own entry"
+    invited = EmbargoConsentState.INVITED
 
     second = InviteToEmbargoOnCaseReceivedUseCase(
         dl,
@@ -1200,13 +1195,11 @@ def test_a_redelivery_after_a_mid_relay_fault_sends_each_invite_once(
 
     assert second.disposition is HandlerDisposition.APPLIED
     recipients = sorted(r for a in _relayed_invites(dl) for r in (a.to or []))
-    assert recipients == sorted([invited_first, not_yet])
-    assert _relayed_invites(dl)[0].id_ == first_round[0].id_
-    assert _consent_of(dl, case_id, invited_first, revision.id_) == invited
-    assert _consent_of(dl, case_id, not_yet, revision.id_) == invited
-    # One entry for the proposal (reused, not duplicated) and one per Invite,
-    # and one per invitee's row: the rebuilt Invite carries the deadline the
-    # row already holds, so its rerun commits no second row (ADR-0124).
+    assert recipients == sorted([OTHER_A, OTHER_B])
+    for recipient in (OTHER_A, OTHER_B):
+        assert _consent_of(dl, case_id, recipient, revision.id_) == invited
+    # One entry for the proposal (reused, not duplicated), one per Invite,
+    # and one per invitee's row.
     semantic_types = [e.semantic_type for e in _ledger_entries(dl, case_id)]
     assert semantic_types.count("invite_to_embargo_on_case") == 3
     assert semantic_types.count(UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE) == 2
@@ -1258,6 +1251,7 @@ def test_a_relay_whose_commit_failed_is_sent_and_recorded_once_on_retry(
             _deliver()
     (first_invite,) = failed
     assert [a.id_ for a in _relayed_invites(dl)] == []
+    assert dl.read(first_invite) is None
     assert first_invite not in {
         e.log_object_id for e in _ledger_entries(dl, case_id)
     }

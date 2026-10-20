@@ -652,6 +652,46 @@ def test_a_replacement_whose_commit_failed_is_sent_once_by_the_next_run(
     assert [i.id_ for i in replacements] == [replacement_id]
 
 
+@pytest.mark.spec("CLP-07-015")
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "CLP-07-015: the stub re-issue commits in its own transaction after"
+        " the termination it follows. Tracked by #4934."
+    ),
+)
+def test_a_termination_whose_stub_re_issue_fails_is_not_kept(
+    actor_store,
+) -> None:
+    """An act and the re-issue it makes due succeed or fail as one: when
+    the replacement's commit fails, the termination is not kept either."""
+    from test.support.ledger import fail_commits
+    from vultron.core.behaviors.sync import commit_tree
+    from vultron.errors import VultronBTInternalError
+
+    owner, dl = actor_store("Vendor Owner")
+    finder, _ = actor_store("Finder")
+    invitee, _ = actor_store("Vendor Two")
+    dl.create(finder)
+    dl.create(invitee)
+    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
+    _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
+
+    with pytest.MonkeyPatch.context() as mp:
+        fail_commits(
+            mp,
+            commit_tree,
+            when=lambda kw: kw["semantic_type"] == "invite_actor_to_case",
+        )
+        with pytest.raises(VultronBTInternalError, match="commit failed"):
+            _terminate(dl, owner.id_, case.id_)
+
+    stored = dl.read_case(case.id_)
+    assert stored is not None
+    assert stored.active_embargo_id == case.active_embargo_id
+
+
 @pytest.mark.spec("CM-11-016")
 def test_a_received_embargo_removal_re_issues_the_outstanding_stub(
     actor_store,

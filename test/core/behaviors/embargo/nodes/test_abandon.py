@@ -320,25 +320,25 @@ def test_a_failed_commit_leaves_the_case_unchanged(monkeypatch):
     assert _abandonment_entries(dl, case.id_) == []
 
 
-@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("EP-09-007")
-def test_a_later_failed_commit_keeps_only_the_committed_cancels(monkeypatch):
-    """The first ER commits and its proposal is cancelled; the second stays.
-
-    The CASE_MANAGER then holds exactly what a replica that replayed the one
-    committed entry holds.
+def test_a_later_failed_commit_abandons_no_proposal(monkeypatch):
+    """The first ER commits and the second fails: the abandonment is one
+    transaction (ADR-0146), so neither ER, nor the stored rejection, nor any
+    cancel is kept, and the CASE_MANAGER holds what it held before.
     """
     case, dl, proposals = _proposed_case("abandon-second-fails")
-    first, second = proposals
+    before = cast(VulnerabilityCase, dl.read(case.id_)).model_dump(mode="json")
+    stored = {a.id_ for a in dl.list_objects("Reject")}
     _fail_commits_after(monkeypatch, allowed=1)
 
     assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.FAILURE
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))
-    assert updated.proposed_embargo_ids == [second]
-    assert updated.current_status.em.state == EM.PROPOSED
-    (entry,) = _abandonment_entries(dl, case.id_)
-    assert entry.payload_snapshot["object"]["id"] == proposals[first]
+    assert updated.model_dump(mode="json") == before
+    assert updated.proposed_embargo_ids == list(proposals)
+    assert _abandonment_entries(dl, case.id_) == []
+    assert {a.id_ for a in dl.list_objects("Reject")} == stored
 
 
 @pytest.mark.spec("CLP-07-013")
