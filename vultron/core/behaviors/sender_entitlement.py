@@ -983,12 +983,20 @@ class SenderIsCaseManagerNode(SenderEntitlementConditionNode):
         self._sender_actor_id = sender_actor_id
 
     def _recorded_anchor(self, case_id: str) -> str | None:
-        """The CASE_MANAGER recorded when the receiver got the stub Invite."""
+        """The CASE_MANAGER recorded when the receiver got the stub Invite.
+
+        Only a stub Invite anchors trust (PCR-03-004 path b).  The
+        pre-bootstrap queue shares the record and records the sender of the
+        first deferred activity as its replay target (CBT-03-004), which is
+        no anchor until an Invite confirms it (``invite_anchored``).
+        """
         assert self.datalayer is not None
         pending = self.datalayer.read(
             VultronPendingCaseInbox.build_id(case_id)
         )
-        if isinstance(pending, VultronPendingCaseInbox):
+        if isinstance(pending, VultronPendingCaseInbox) and (
+            pending.invite_anchored
+        ):
             return pending.case_actor_id
         return None
 

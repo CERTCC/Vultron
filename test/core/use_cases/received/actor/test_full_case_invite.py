@@ -559,6 +559,7 @@ def invitee_without_replica(joining_case):  # noqa: F811
         VultronPendingCaseInbox(
             case_id=joining_case.case.id_,
             case_actor_id=joining_case.case_actor_id,
+            invite_anchored=True,
         )
     )
     return dl

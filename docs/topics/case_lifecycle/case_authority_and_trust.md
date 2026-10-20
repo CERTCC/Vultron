@@ -290,6 +290,7 @@ Messages can arrive in any order.
 A message from a CASE_MANAGER can reach a participant before the bootstrap that would make it trusted.
 
 The participant holds such a message for a short time and does not apply it ([CBT-03-001](../../reference/specs/protocol.md#cbt-03-001), [CBT-03-002](../../reference/specs/protocol.md#cbt-03-002)).
+Holding a message does not make its sender trusted: only an invitation or the bootstrap creates a trust anchor ([PCR-03-004](../../reference/specs/protocol.md#pcr-03-004)).
 If the bootstrap arrives in time, normal checks resume.
 If it does not, the participant drops the held message and logs a warning.
 The sender must send that message again after the bootstrap ([CBT-03-003](../../reference/specs/protocol.md#cbt-03-003)).

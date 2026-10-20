@@ -276,14 +276,52 @@ class TestRecordInviteTrustAnchorNodeMarksTheAnchor:
             for r in caplog.records
         ), "promoting the queue's sender to the anchor is a state change"
 
-    def test_a_conflicting_invite_marks_nothing(self):
+    def test_a_conflicting_invite_leaves_the_anchor(self):
         scenario = BTTestScenario(actor_id=INVITEE_ID)
         scenario.dl.create(
             VultronPendingCaseInbox(
-                case_id=CASE_ID, case_actor_id=OTHER_CASE_ACTOR_ID
+                case_id=CASE_ID,
+                case_actor_id=OTHER_CASE_ACTOR_ID,
+                invite_anchored=True,
             )
         )
+        scenario.assert_failure(scenario.run(_anchor_node()))
+        record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
+        assert isinstance(record, VultronPendingCaseInbox)
+        assert record.case_actor_id == OTHER_CASE_ACTOR_ID
+
+
+@pytest.mark.spec("PCR-03-004", "CBT-03-004")
+class TestRecordInviteTrustAnchorNodeOverQueueRecordedSender:
+    """A sender the queue recorded is a replay target, not an anchor (#4931).
+
+    The first deferred activity from any actor records its sender
+    (CBT-03-004).  A stub Invite naming another CaseActor is not a second
+    Invite, so it anchors trust in place of that sender.
+    """
+
+    def _scenario_with_queued_sender(self) -> BTTestScenario:
+        scenario = BTTestScenario(actor_id=INVITEE_ID)
+        scenario.dl.create(
+            VultronPendingCaseInbox(
+                case_id=CASE_ID,
+                activity_ids=["https://example.org/activities/a1"],
+                case_actor_id=OTHER_CASE_ACTOR_ID,
+            )
+        )
+        return scenario
+
+    def test_stub_invite_anchors_over_queue_recorded_sender(self):
+        scenario = self._scenario_with_queued_sender()
+        scenario.assert_success(scenario.run(_anchor_node()))
+        record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
+        assert isinstance(record, VultronPendingCaseInbox)
+        assert record.case_actor_id == CASE_ACTOR_ID
+        assert record.invite_anchored
+
+    def test_the_queued_activities_are_kept(self):
+        scenario = self._scenario_with_queued_sender()
         scenario.run(_anchor_node())
         record = scenario.dl.read(VultronPendingCaseInbox.build_id(CASE_ID))
         assert isinstance(record, VultronPendingCaseInbox)
-        assert not record.invite_anchored
+        assert record.activity_ids == ["https://example.org/activities/a1"]

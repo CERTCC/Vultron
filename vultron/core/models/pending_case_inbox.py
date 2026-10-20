@@ -65,7 +65,9 @@ class VultronPendingCaseInbox(CoreRecord):
         default=False,
         description=(
             "True once a stub Invite recorded ``case_actor_id`` as its trust "
-            "anchor (PCR-03-004 path b); queue expiry then keeps the record."
+            "anchor (PCR-03-004 path b).  Until then ``case_actor_id`` is "
+            "only a replay target and admits no sender; queue expiry keeps "
+            "an anchored record."
         ),
     )
 

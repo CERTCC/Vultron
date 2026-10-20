@@ -81,11 +81,14 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
       CaseActor is REFUSED: the existing anchor is unchanged and a WARNING
       names both ids.
 
-    Idempotent on an exact duplicate (same ``case_actor_id``).  A record with
-    ``case_actor_id=None`` — created by the pre-bootstrap queue for an earlier
-    ledger entry — gains the sender (first-write semantics).  Every record
-    the node writes or confirms is marked ``invite_anchored``, so the
-    pre-bootstrap queue's expiry keeps the anchor (PCR-03-004, CBT-03-003).
+    Idempotent on an exact duplicate (same ``case_actor_id``).  A record no
+    Invite has anchored yet — created by the pre-bootstrap queue for an
+    earlier activity, whose sender it records only as its replay target
+    (CBT-03-004) — takes the Invite's CaseActor in place of that sender: it
+    is not a second Invite (#4931).  Every record the node writes or confirms
+    is marked ``invite_anchored``, so the anchored CASE_MANAGER check trusts
+    it and the pre-bootstrap queue's expiry keeps it (PCR-03-004,
+    CBT-03-003).
 
     Note: whether the named CaseActor is genuine cannot be verified until
     actor identity and signatures are in place (#2841).
@@ -136,8 +139,9 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
                 self.case_id,
                 self.case_actor_id,
             )
-        elif existing.case_actor_id is None:
-            # Pre-bootstrap queue had no actor yet — fill it in.
+        elif not existing.invite_anchored or existing.case_actor_id is None:
+            # The pre-bootstrap queue wrote the record; the sender it may
+            # name is a replay target, not an anchor — the Invite sets one.
             self.datalayer.save(
                 existing.model_copy(
                     update={
@@ -146,19 +150,9 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
                     }
                 )
             )
-            self.logger.info(
-                "%s: trust anchor filled in for case '%s' (CaseActor '%s')",
-                self.name,
-                self.case_id,
-                self.case_actor_id,
-            )
-        elif same_actor_id(existing.case_actor_id, self.case_actor_id):
-            if not existing.invite_anchored:
-                # The queue recorded this sender first; the Invite makes it
-                # the anchor, which then outlives the queue's expiry.
-                self.datalayer.save(
-                    existing.model_copy(update={"invite_anchored": True})
-                )
+            if existing.case_actor_id is not None and same_actor_id(
+                existing.case_actor_id, self.case_actor_id
+            ):
                 self.logger.info(
                     "%s: queue's sender for case '%s' confirmed as trust"
                     " anchor (CaseActor '%s')",
@@ -167,12 +161,21 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
                     self.case_actor_id,
                 )
             else:
-                # Idempotent re-delivery of the same Invite — no action.
-                self.logger.debug(
-                    "%s: trust anchor already set for case '%s' (idempotent)",
+                self.logger.info(
+                    "%s: trust anchor recorded for case '%s' (CaseActor"
+                    " '%s'), replacing queue-recorded sender '%s'",
                     self.name,
                     self.case_id,
+                    self.case_actor_id,
+                    existing.case_actor_id,
                 )
+        elif same_actor_id(existing.case_actor_id, self.case_actor_id):
+            # Idempotent re-delivery of the same Invite — no action.
+            self.logger.debug(
+                "%s: trust anchor already set for case '%s' (idempotent)",
+                self.name,
+                self.case_id,
+            )
         else:
             # AC-3: Conflicting anchor — refuse and leave the existing one.
             self.feedback_message = (

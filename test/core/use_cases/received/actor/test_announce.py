@@ -96,7 +96,11 @@ def _anchor_expected_authority(
     record ``InviteActorToCaseReceivedUseCase`` actually writes: locally derived,
     not forgeable by the sender, and unaffected by where anyone is hosted.
     """
-    dl.save(VultronPendingCaseInbox(case_id=case_id, case_actor_id=actor_id))
+    dl.save(
+        VultronPendingCaseInbox(
+            case_id=case_id, case_actor_id=actor_id, invite_anchored=True
+        )
+    )
 
 
 @pytest.fixture()
@@ -340,6 +344,7 @@ class TestAnnounceFirstContactTrustGap:
             VultronPendingCaseInbox(
                 case_id=_CASE_ID,
                 case_actor_id=_CASE_ACTOR_ID,
+                invite_anchored=True,
             )
         )
 
@@ -349,6 +354,26 @@ class TestAnnounceFirstContactTrustGap:
         assert result is not None, (
             "Case MUST be seeded when an invite trust anchor for the sender exists"
         )
+
+    @pytest.mark.spec("PCR-03-004", "CBT-03-004")
+    def test_announce_from_queue_recorded_sender_is_refused(self, dl, event):
+        """#4931: the sender the pre-bootstrap queue recorded is no anchor.
+
+        The queue records the sender of the first deferred activity as its
+        replay target (CBT-03-004); only a stub Invite anchors trust.
+        """
+        dl.save(
+            VultronPendingCaseInbox(
+                case_id=_CASE_ID,
+                activity_ids=["https://example.org/activities/queued"],
+                case_actor_id=_CASE_ACTOR_ID,
+            )
+        )
+
+        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert dl.read(_CASE_ID) is None
 
     def test_rejects_announce_when_pending_record_has_no_case_actor_id(
         self, dl, event
@@ -380,6 +405,7 @@ class TestAnnounceFirstContactTrustGap:
             VultronPendingCaseInbox(
                 case_id=_CASE_ID,
                 case_actor_id=_CASE_ACTOR_ID,  # trust anchor names expected sender
+                invite_anchored=True,
             )
         )
         # Build an announce from a *different* actor (the imposter)

@@ -76,6 +76,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor-4915"
+_IMPOSTER_ID = "https://example.org/actors/imposter-4931"
 _VENDOR_ID = "https://example.org/users/vendor-4915"
 _INVITEE_ID = "https://example.org/users/invitee-4915"
 _CASE_ID = "https://example.org/cases/case-4915"
@@ -149,14 +150,14 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]) -> InboxOutcome:
     )
 
 
-def _note_body(note_id: str) -> dict[str, Any]:
+def _note_body(note_id: str, actor: str = _CASE_ACTOR_ID) -> dict[str, Any]:
     """A case-scoped activity the invitee cannot process before the case."""
     note = as_Note(id_=note_id, content="pre-bootstrap", context=_CASE_ID)
     add = add_note_to_case_activity(
         note,
         target=_CASE_ID,
         context=_CASE_ID,
-        actor=_CASE_ACTOR_ID,
+        actor=actor,
         to=[_INVITEE_ID],
     )
     return _wire_body(add)
@@ -181,6 +182,19 @@ def _age_queue(dl: SqliteDataLayer, by: timedelta) -> None:
 
 
 _LONG_AGO = timedelta(hours=1)
+
+
+def _announce_body(case_manager_dl: SqliteDataLayer, actor: str) -> dict:
+    """``Announce(VulnerabilityCase)`` of the case *case_manager_dl* holds."""
+    case = case_manager_dl.read(_CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    seed_case_participant(case_manager_dl, case, _INVITEE_ID)
+    case_manager_dl.save(case)
+    return _wire_body(
+        announce_vulnerability_case_activity(
+            case, actor=actor, to=[_INVITEE_ID]
+        )
+    )
 
 
 @pytest.mark.spec("PCR-06-005", "CLP-10-017", "PCR-03-004")
@@ -361,3 +375,68 @@ def test_a_bootstrap_after_queue_expiry_drops_the_anchored_record(
     )
     assert isinstance(invitee_dl.read(_CASE_ID), VulnerabilityCase)
     assert invitee_dl.read(_PENDING_ID) is None
+
+
+@pytest.mark.spec("PCR-03-004", "CBT-03-004", "PCR-06-002")
+def test_announce_from_queue_recorded_sender_is_refused(invitee_dl):
+    """#4931 AC-1: a deferred activity's sender is no trust anchor.
+
+    The queue records the sender of the first deferred activity as its
+    replay target (CBT-03-004).  An imposter that sends one first must not
+    then be admitted as CASE_MANAGER of a case it announces.
+    """
+    imposter_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_IMPOSTER_ID)
+    try:
+        case = _case()
+        seed_case_manager_participant(imposter_dl, case, _IMPOSTER_ID)
+        imposter_dl.create(case)
+        assert (
+            _deliver(
+                invitee_dl,
+                _note_body("https://example.org/notes/n9", _IMPOSTER_ID),
+            ).status
+            is InboxOutcomeStatus.DEFERRED
+        )
+        assert _pending(invitee_dl).case_actor_id == _IMPOSTER_ID
+
+        outcome = _deliver(
+            invitee_dl, _announce_body(imposter_dl, _IMPOSTER_ID)
+        )
+    finally:
+        imposter_dl.close()
+
+    assert outcome.status is not InboxOutcomeStatus.PROCESSED
+    assert invitee_dl.read(_CASE_ID) is None
+
+
+@pytest.mark.spec("PCR-03-004", "CBT-03-004")
+def test_stub_invite_anchors_after_another_senders_deferred_activity(
+    case_actor_dl, invitee_dl
+):
+    """#4931 AC-2: an earlier third-party activity does not pre-empt it."""
+    assert (
+        _deliver(
+            invitee_dl,
+            _note_body("https://example.org/notes/n10", _IMPOSTER_ID),
+        ).status
+        is InboxOutcomeStatus.DEFERRED
+    )
+    _, body = _stub_invite_body(case_actor_dl)
+
+    invited = _deliver(invitee_dl, body)
+
+    assert invited.status is InboxOutcomeStatus.PROCESSED, (
+        invited.failure_reason
+    )
+    pending = _pending(invitee_dl)
+    assert pending.case_actor_id == _CASE_ACTOR_ID
+    assert pending.invite_anchored
+
+    outcome = _deliver(
+        invitee_dl, _announce_body(case_actor_dl, _CASE_ACTOR_ID)
+    )
+
+    assert outcome.status is InboxOutcomeStatus.PROCESSED, (
+        outcome.failure_reason
+    )
+    assert isinstance(invitee_dl.read(_CASE_ID), VulnerabilityCase)
