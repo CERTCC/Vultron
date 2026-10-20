@@ -171,7 +171,11 @@ def test_case_copy_replaces_an_existing_replica() -> None:
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_REPLICA_ID)
     dl.save(
-        VultronPendingCaseInbox(case_id=_CASE_ID, case_actor_id=_CASE_ACTOR_ID)
+        VultronPendingCaseInbox(
+            case_id=_CASE_ID,
+            case_actor_id=_CASE_ACTOR_ID,
+            invite_anchored=True,
+        )
     )
     dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="diverged copy"))
     activity = announce_vulnerability_case_activity(

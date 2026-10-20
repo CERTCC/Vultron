@@ -25,6 +25,7 @@ relevant_packages:
   - vultron/core/use_cases/received
   - vultron/core/use_cases/triggers
   - vultron/adapters/driving/fastapi
+  - vultron/core/behaviors
   - vultron/wire/as2/factories
 ---
 
@@ -94,6 +95,12 @@ The queue record also carries the stub Invite's trust anchor (`invite_anchored`,
 PCR-03-004 path b), so expiry empties an anchored record but keeps it, and the window
 opens with the first activity queued, not with the Invite: the time an invitee takes
 to answer must not cost it the anchor that admits the case's `Announce` (#4915).
+
+The queue's `case_actor_id` is a replay target until an Invite sets `invite_anchored`:
+the first deferred activity's sender writes it, so any actor could otherwise anchor
+itself as CASE_MANAGER of a case the receiver lacks. Read it as an anchor only when
+the flag is set, and let a stub Invite replace an unconfirmed sender
+(PCR-03-004, #4931).
 
 ## Layer Rules
 
