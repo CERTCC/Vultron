@@ -142,7 +142,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0032 Validate at the Edge, Promote to Strict Core Types](0032-validate-at-edge-promote-to-core.md)
 - [ADR-0033 Lifecycle-Staged Domain Types Anchored on Guaranteed-Field Changes](0033-lifecycle-staged-case-types.md)
 - [ADR-0034 DataLayer Port Returns Core Domain Objects](0034-datalayer-returns-core-objects.md)
-- [ADR-0035 Core Activity Representation and Envelope Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md)
+- [ADR-0035 Core Activity Representation and Envelope Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md) — partially superseded by 0148-the-received-archive-is-the-bytes-that-arrived-read-through-a-read-only-view.md
 - [ADR-0036 Per-Machine Dimension Objects for CaseStatus and ParticipantStatus](0036-status-dimension-objects.md)
 - [ADR-0037 Buffer Out-of-Order `Announce(CaseLedgerEntry)` Instead of Dropping](0037-buffer-out-of-order-ledger-entries.md)
 - [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy](0038-four-tier-specification-taxonomy.md) — partially superseded by 0134-who-must-obey-a-rule-decides-its-spec-kind.md
@@ -253,6 +253,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0143 A Fix Commit's Local Gate Escalates Only for Shared Test Infrastructure](0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 - [ADR-0146 An Embargo Act Stores Its Planned Entries Before It Commits, and the Next Run Finishes Them](0146-an-embargo-act-stores-its-planned-entries-and-the-next-run-finishes-them.md)
 - [ADR-0147 The Protocol Specification Renders Its Normative Text from the YAML Requirements](0147-the-protocol-specification-renders-its-normative-text-from-the-yaml-requirements.md)
+- [ADR-0148 The Received Archive Is the Bytes That Arrived, Read Through a Read-Only View Parsed on Load](0148-the-received-archive-is-the-bytes-that-arrived-read-through-a-read-only-view.md) — partially supersedes 0035-core-activity-representation-and-envelope-reconstitution.md
 
 ## Rejected ADRs
 
