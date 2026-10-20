@@ -31,7 +31,7 @@ the build, and whoever landed it must replace the placeholder assertion with a
 real behavioural one. That promotion is the point: this module is a ratchet, not
 a substitute for testing the feature.
 
-Specs: ASK-01 through ASK-08 (including ASK-07-010), CP-05-007, OX-14-002, RSH-07-004, RSH-07-005.
+Specs: ASK-01 through ASK-08, CP-05-007, OX-14-002, RSH-07-004, RSH-07-005.
 See `notes/protocol-asks.md` and ADR-0080.
 """
 

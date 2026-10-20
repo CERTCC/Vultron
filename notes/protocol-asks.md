@@ -6,6 +6,7 @@ tracks:
   - "#2884"
   - "#3188"
   - "#3471"
+  - "#4981"
 description: >
   Design guidance for the protocol-ask primitive: asking and terminating rather
   than suspending, conversation-state routing, the outstanding-ask register, ask
@@ -266,18 +267,24 @@ Design points that are easy to get wrong:
 
 ### What is recorded, and what is not
 
-Three things that look alike and are not:
+Four things that look alike and are not:
 
 | Situation | Where it lands |
 |---|---|
 | I read your assertion, understood it, refuse it | refusal notice (`Reject`) to you alone, not recorded (CLP-05-001, CLP-05-002) |
 | I read your ask, my answer is no | `Reject` reply, ordinary recorded entry |
 | I could not read what you sent | a fault; the unreadable message is **not** recorded |
+| I read what you sent, but processing it failed | an internal-error fault, once, after the rollback (ASK-07-010) |
 
 The third is not a decision — nothing was adjudicated, so there is no legible
 assertion to snapshot, and CLP-03-002 already excludes unrouteable inbound from
 the ledger. Do **not** reach for the refusal notice here: it answers an
 assertion that was *understood and refused*.
+
+The fourth row is the inbox's job, not a tree's: one catch covers every received
+use case. Send no fault for an attempt that will be retried, only when none
+follows, or a retry that succeeds leaves a false fault that closes the ask
+(ASK-07-010, ASK-07-007).
 
 The **fault statement itself** is different. "B could not process A's message" is
 a true, legible statement about a message that arrived, so it is recorded as an

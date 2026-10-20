@@ -813,28 +813,36 @@ groups:
     kind: protocol
     statement: >
       When a received-side use case raises while processing an inbound activity
-      whose sender it can name, the inbox MUST answer that sender with
+      from an authenticated sender, the inbox MUST answer that sender with
       `Create(ProcessingFault)` of an internal-error failure class, emitted
-      after the act's DataLayer transaction has rolled back. It MUST cover every
-      received use case, not only the trees that commit an act. A deferred
-      activity replayed from the pending queue MUST be answered only when it is
-      dead-lettered, never on an attempt that is retried. The fault id MUST be
-      derived from the failed activity and the failure class, so a repeated
-      failure of the same activity emits no second fault.
+      after any DataLayer transaction the act opened has rolled back. It MUST
+      cover every received use case, not only the trees that commit an act. An
+      attempt the inbox will retry (IE-06-004) MUST NOT be answered: a deferred
+      activity replayed from the pending queue is answered only when it is
+      dead-lettered. The fault id MUST be derived from the failed activity and
+      the failure class, so a repeated failure of the same activity emits no
+      second fault.
     rationale: >
-      A failed received act keeps nothing but intake's archive (CLP-07-015), and
-      the inbox answered the sender before processing, so without this fault
-      the sender is never told and waits out its ask deadline in silence.
-      Emitting after the rollback keeps the fault from being undone with the
-      act; answering a deferred activity only at dead-letter keeps a retry
-      that later succeeds from sending a false fault.
+      A failed received act keeps only intake's archive (CLP-07-015), and the
+      inbox answered before processing, so without this fault the sender waits
+      out its ask deadline in silence. Emitting after the rollback keeps the
+      fault from being undone with the act; answering only when no retry
+      follows keeps a retry that later succeeds from sending a false fault that
+      closes the ask early (ASK-07-007). ASK-07-008 decides whether the fault
+      is ledgered, as for any fault.
     verification: >
       A received act whose consequence raises through the inbox leaves one
       queued `Create(ProcessingFault)` to the sender with the internal-error
       class and no diagnostics; a second failing delivery of the same body
-      queues nothing new.
+      queues nothing new. A deferred activity whose replay raises queues no
+      fault while it is re-queued, and one fault when it is dead-lettered.
     adr:
     - ADR-0080
+    relationships:
+    - rel_type: refines
+      spec_id: ASK-07-001
+    - rel_type: depends_on
+      spec_id: IE-06-004
     tags:
     - error-handling
 - id: ASK-08
