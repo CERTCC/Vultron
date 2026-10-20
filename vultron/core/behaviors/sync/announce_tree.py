@@ -36,7 +36,6 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyInviteAcceptFromLedgerNode,
     ApplyInviteRejectFromLedgerNode,
     ApplyNoteFromLedgerNode,
-    ApplyOfferOwnershipTransferFromLedgerNode,
     ApplyOfferReportFromLedgerNode,
     ApplyOwnershipTransferFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
@@ -62,7 +61,6 @@ from vultron.core.behaviors.sync.nodes import (
     IsInviteExpiryEventNode,
     IsInviteExpiryNoopEventNode,
     IsInviteRejectEventNode,
-    IsOfferOwnershipTransferEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
     IsReinstateCaseParticipantEventNode,
@@ -355,11 +353,10 @@ def create_announce_log_entry_tree(
                 IsOwnershipTransferEventNode,
                 ApplyOwnershipTransferFromLedgerNode,
             ),
-            _event_effect_slot(
-                "OfferOwnershipTransfer",
-                IsOfferOwnershipTransferEventNode,
-                ApplyOfferOwnershipTransferFromLedgerNode,
-            ),
+            # No OfferOwnershipTransfer slot: the transferee answers the
+            # CASE_MANAGER's Offer from its intake archive, the owner holds
+            # its own proposal, and a bystander never answers, so the entry
+            # has nothing to apply at a replica (ADR-0148, SYNC-12-001).
             # Accepting a delegated role grants it to the target participant
             # (CM-02-016, ADR-0039); the offer half carries no grant (#3764).
             _event_effect_slot(

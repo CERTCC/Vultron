@@ -100,7 +100,6 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.ADD_NOTE_TO_CASE.value,
         MS.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
         MS.ADD_REPORT_TO_CASE.value,
-        MS.OFFER_CASE_OWNERSHIP_TRANSFER.value,
         MS.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
         MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
         MS.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
@@ -195,6 +194,12 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " from it follows as its own offer_case_ownership_transfer entry, and"
         " no owner or role moves until that Offer is accepted (ADR-0148,"
         " CM-21-005)"
+    ),
+    MS.OFFER_CASE_OWNERSHIP_TRANSFER.value: (
+        "records the Offer the CASE_MANAGER made; the transferee answers it"
+        " from its intake archive, the owner holds its own proposal and a"
+        " bystander never answers, so no replica keeps a record of it, and no"
+        " owner or role moves until it is accepted (ADR-0148, CM-21-005)"
     ),
     MS.ACCEPT_CASE_OWNERSHIP_TRANSFER.value: (
         "records the received Accept and closes the ownership-transfer Offer;"

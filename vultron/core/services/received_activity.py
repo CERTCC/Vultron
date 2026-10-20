@@ -90,8 +90,7 @@ def read_held_activity(
     proposal.  A received activity is read as :func:`read_received_activity`
     reads it.  Anything else is read under its own id: an activity this
     actor sent, the one record of an activity type a receiver keeps under the
-    activity's id (DL-06-006), or a core record kept under that id (the
-    ledger-replayed ownership-transfer Offer).
+    activity's id (DL-06-006).
 
     Args:
         dl: This actor's DataLayer.
