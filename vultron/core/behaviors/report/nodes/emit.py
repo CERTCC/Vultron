@@ -292,7 +292,7 @@ class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
     Calls ``trigger_activity_factory.close_report()`` and queues the
     resulting activity ID via ``outbox_append``.
 
-    Used by both the reject-report and close-report trigger workflows.
+    Used by the reject-report trigger workflow.
 
     Per issue #849 AC-1, AC-2: emit nodes must be BT leaf nodes, not inline
     procedural calls in ``execute()``.

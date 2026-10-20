@@ -69,7 +69,7 @@ def _entry(snapshot: dict[str, Any]):
             case_id=CASE_ID,
             log_index=0,
             object_id="https://example.org/activities/accept-role",
-            event_type="accept_case_participant_role",
+            semantic_type="accept_case_participant_role",
             payload_snapshot=snapshot,
             prev_log_hash="0" * 64,
         )
@@ -156,5 +156,18 @@ def test_a_different_role_is_granted_as_offered(bridge, datalayer):
     _seed_participant(datalayer)
 
     snapshot = _accept_snapshot(role=CVDRole.COORDINATOR.value)
+    assert _apply_node(bridge, datalayer, snapshot) == Status.SUCCESS
+    assert _target(datalayer).has_role(CVDRole.COORDINATOR)
+
+
+@pytest.mark.spec("OID-01-006")
+def test_a_slash_spelled_target_is_granted_the_role_canonically(
+    bridge, datalayer
+):
+    """The snapshot keeps the target's trailing slash; the grant still reaches
+    the participant the index keys canonically."""
+    _seed_participant(datalayer)
+
+    snapshot = _accept_snapshot(target=TARGET + "/")
     assert _apply_node(bridge, datalayer, snapshot) == Status.SUCCESS
     assert _target(datalayer).has_role(CVDRole.COORDINATOR)

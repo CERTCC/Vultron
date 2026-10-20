@@ -117,7 +117,7 @@ upstream of Vultron, which starts at `Offer(VulnerabilityReport)`.
 | `>_RmReceived_414` + `?_RMValidateBt_416` | RM=RECEIVED → validate | `SvcValidateReportUseCase` (`report/validate_tree.py`) |
 | `>__InvalidateReport_440` | validate → RM.INVALID | `SvcInvalidateReportUseCase` |
 | `>_RmValid_503` + `?_RMPrioritizeBt_505` | RM=VALID → prioritize | `SvcEngageCaseUseCase` / `SvcDeferCaseUseCase` |
-| `?_RMCloseBt_451/549/613` | RM=VALID/DEFERRED/ACCEPTED → close | `SvcCloseCaseUseCase` |
+| `?_RMCloseBt_451/549/613` | RM=VALID/DEFERRED/ACCEPTED → close | `SvcLeaveCaseUseCase` (`leave-case`, once a case holds the report); `SvcRejectReportUseCase` before one does |
 
 `?_RMValidateBt_416` and `?_RMPrioritizeBt_505` run in sequence in the same RM
 branch, so **the validate→prioritize (engage/defer) cascade MUST be a BT

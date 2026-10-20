@@ -16,6 +16,11 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.inbox_hand_back import (
+    HandedBack,
+    RecordingInboxHandBack,
+    deliver_handed_back,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.actor import VultronService
@@ -31,7 +36,11 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+)
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -41,6 +50,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 _OWNER_ID = "https://example.org/actors/owner"
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _IMPOSTER_ID = "https://example.org/actors/imposter"
+# The store every test runs as; the Announce is addressed to it (HP-01-005).
+_RECEIVER_ID = "https://test.example/api/v2/actors/test-actor"
 _VENDOR_ID = "https://example.org/actors/vendor"
 _CASE_ID = "https://example.org/cases/case-ann-001"
 _CASE_ID2 = "https://example.org/cases/case-ann-002"
@@ -53,7 +64,7 @@ _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
 def dl():
     return SqliteDataLayer(
         "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
+        actor_id=_RECEIVER_ID,
     )
 
 
@@ -85,7 +96,11 @@ def _anchor_expected_authority(
     record ``InviteActorToCaseReceivedUseCase`` actually writes: locally derived,
     not forgeable by the sender, and unaffected by where anyone is hosted.
     """
-    dl.save(VultronPendingCaseInbox(case_id=case_id, case_actor_id=actor_id))
+    dl.save(
+        VultronPendingCaseInbox(
+            case_id=case_id, case_actor_id=actor_id, invite_anchored=True
+        )
+    )
 
 
 @pytest.fixture()
@@ -93,6 +108,7 @@ def announce_activity(case, case_actor):
     return announce_vulnerability_case_activity(
         case,
         actor=case_actor.id_,
+        to=[_RECEIVER_ID],
         context=case.id_,
     )
 
@@ -159,6 +175,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
             announce_vulnerability_case_activity(
                 case,
                 actor=case_actor.id_,
+                to=[_RECEIVER_ID],
                 context=case.id_,
             )
         )
@@ -223,7 +240,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         # so we inject via model_copy to simulate a malformed incoming payload.
         good_case = as_VulnerabilityCase(id_=_CASE_ID2, name="Placeholder")
         announce = announce_vulnerability_case_activity(
-            good_case, actor=_OWNER_ID
+            good_case, actor=_OWNER_ID, to=[_RECEIVER_ID]
         )
         event = make_payload(announce)
 
@@ -249,6 +266,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         announce = announce_vulnerability_case_activity(
             case,
             actor=_IMPOSTER_ID,
+            to=[_RECEIVER_ID],
             context=case.id_,
         )
         event = make_payload(announce)
@@ -296,7 +314,8 @@ class TestAnnounceFirstContactTrustGap:
         result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
-        assert result.reason is not None and "untrusted" in result.reason
+        assert result.reason is not None
+        assert "No CASE_MANAGER is known" in result.reason
         # CLP-10-018: the refused Announce is still archived, and no case row
         # was seeded from it.
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
@@ -325,6 +344,7 @@ class TestAnnounceFirstContactTrustGap:
             VultronPendingCaseInbox(
                 case_id=_CASE_ID,
                 case_actor_id=_CASE_ACTOR_ID,
+                invite_anchored=True,
             )
         )
 
@@ -334,6 +354,26 @@ class TestAnnounceFirstContactTrustGap:
         assert result is not None, (
             "Case MUST be seeded when an invite trust anchor for the sender exists"
         )
+
+    @pytest.mark.spec("PCR-03-004", "CBT-03-004")
+    def test_announce_from_queue_recorded_sender_is_refused(self, dl, event):
+        """#4931: the sender the pre-bootstrap queue recorded is no anchor.
+
+        The queue records the sender of the first deferred activity as its
+        replay target (CBT-03-004); only a stub Invite anchors trust.
+        """
+        dl.save(
+            VultronPendingCaseInbox(
+                case_id=_CASE_ID,
+                activity_ids=["https://example.org/activities/queued"],
+                case_actor_id=_CASE_ACTOR_ID,
+            )
+        )
+
+        result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert dl.read(_CASE_ID) is None
 
     def test_rejects_announce_when_pending_record_has_no_case_actor_id(
         self, dl, event
@@ -365,11 +405,12 @@ class TestAnnounceFirstContactTrustGap:
             VultronPendingCaseInbox(
                 case_id=_CASE_ID,
                 case_actor_id=_CASE_ACTOR_ID,  # trust anchor names expected sender
+                invite_anchored=True,
             )
         )
         # Build an announce from a *different* actor (the imposter)
         imposter_announce = announce_vulnerability_case_activity(
-            case, actor=_IMPOSTER_ID, context=case.id_
+            case, actor=_IMPOSTER_ID, to=[_RECEIVER_ID], context=case.id_
         )
         event = make_payload(imposter_announce)
 
@@ -391,7 +432,7 @@ def _genesis_entry_for(case_id: str, genesis_hash: str) -> CaseLedgerEntry:
         case_id=case_id,
         log_index=0,
         object_id="https://example.org/activities/genesis",
-        event_type="test_event",
+        semantic_type="test_event",
         payload_snapshot={"key": "value"},
         prev_log_hash=genesis_hash,
     )
@@ -400,7 +441,7 @@ def _genesis_entry_for(case_id: str, genesis_hash: str) -> CaseLedgerEntry:
         log_index=chain.log_index,
         term=chain.term,
         log_object_id=chain.object_id,
-        event_type=chain.event_type,
+        semantic_type=chain.semantic_type,
         payload_snapshot=dict(chain.payload_snapshot),
         prev_log_hash=chain.prev_log_hash,
         entry_hash=chain.entry_hash,
@@ -408,26 +449,61 @@ def _genesis_entry_for(case_id: str, genesis_hash: str) -> CaseLedgerEntry:
 
 
 class TestAnnounceDrainsPreGenesisBuffer:
-    """Seeding a VulnerabilityCase must drain any pre-genesis ledger entries.
+    """Seeding a VulnerabilityCase hands pre-genesis ledger entries back.
 
     Regression for #2186 (root cause) / #2180 (symptom): an
     ``Announce(CaseLedgerEntry)`` that arrives before the ``VulnerabilityCase``
     is seeded is parked in the actor-local gap buffer (SYNC-15-004) instead of
     being permanently dropped.  Once the case seed lands — anchoring the
-    deterministic per-case genesis hash — the buffered entry MUST drain into the
-    local ledger via the same effects-before-persist path (SYNC-15-005).
+    deterministic per-case genesis hash — the buffered entry is handed back to
+    the receiving actor's own inbox as a delivery of its own, attributed to the
+    CASE_MANAGER, and never applied inside the seed's delivery (SYNC-15-005,
+    SYNC-14-009, ADR-0135).
     """
 
     @pytest.fixture()
     def case_with_actor(self):
-        """A case whose attributed_to yields a deterministic genesis hash."""
+        """A case whose attributed_to yields a deterministic genesis hash.
+
+        It embeds its CASE_MANAGER participant, as every seeded replica does
+        (CP-09-004): the hand-back attributes the entry to that participant's
+        actor (SYNC-14-009).
+        """
+        manager = as_CaseParticipant(
+            case_roles=[CVDRole.CASE_MANAGER],
+            id_=_CASE_ACTOR_PARTICIPANT_ID,
+            attributed_to=_CASE_ACTOR_ID,
+            context=_CASE_ID,
+        )
         return as_VulnerabilityCase(
             id_=_CASE_ID,
             name="DR-10 Announce Case (pre-genesis drain)",
             attributed_to=_CASE_ACTOR_ID,
+            case_participants=[manager],
+            actor_participant_index={
+                _CASE_ACTOR_ID: _CASE_ACTOR_PARTICIPANT_ID
+            },
         )
 
-    def test_pre_genesis_entry_drains_when_case_is_announced(
+    def _seed(self, dl, make_payload, case_with_actor, **ports: Any):
+        # Establish the locally-derived trust anchor so the authority check
+        # (PCR-03-004) admits the Announce from _CASE_ACTOR_ID before the case
+        # replica exists.  Not a hosting `Service` — ADR-0088 retired that.
+        _anchor_expected_authority(dl)
+        activity = announce_vulnerability_case_activity(
+            case_with_actor,
+            actor=_CASE_ACTOR_ID,
+            to=[_RECEIVER_ID],
+            context=_CASE_ID,
+        )
+        event = make_payload(activity)
+        return event, AnnounceVulnerabilityCaseReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl), **ports
+        ).execute()
+
+    @pytest.mark.spec("SYNC-14-009")
+    @pytest.mark.spec("SYNC-15-005")
+    def test_pre_genesis_entry_is_handed_back_when_case_is_announced(
         self, dl, make_payload, case_with_actor
     ):
         genesis_hash = case_with_actor.genesis_hash
@@ -436,33 +512,60 @@ class TestAnnounceDrainsPreGenesisBuffer:
 
         gap_buffer = LedgerGapBuffer()
         assert gap_buffer.buffer(entry) is True
-        assert gap_buffer.depth(_CASE_ID) == 1
         assert dl.read(entry.id_) is None  # not yet applicable — case absent
+        hand_back = RecordingInboxHandBack()
 
-        # Establish the locally-derived trust anchor so the authority check
-        # (PCR-03-004) admits the Announce from _CASE_ACTOR_ID before the case
-        # replica exists.  Not a hosting `Service` — ADR-0088 retired that.
-        _anchor_expected_authority(dl)
-
-        activity = announce_vulnerability_case_activity(
-            case_with_actor,
-            actor=_CASE_ACTOR_ID,
-            context=_CASE_ID,
-        )
-        event = make_payload(activity)
-
-        AnnounceVulnerabilityCaseReceivedUseCase(
+        _, result = self._seed(
             dl,
-            event,
-            sync_port=SyncActivityAdapter(dl),
+            make_payload,
+            case_with_actor,
             gap_buffer=gap_buffer,
-        ).execute()
+            inbox_hand_back=hand_back,
+        )
 
-        # Case seeded ...
+        assert result.disposition is HandlerDisposition.APPLIED
         assert dl.read(_CASE_ID) is not None
-        # ... and the buffered pre-genesis entry drained into the ledger.
-        assert dl.read(entry.id_) is not None
+        # Handed back once, from the CASE_MANAGER, to the receiving actor ...
+        assert hand_back.handed_back == [
+            HandedBack(
+                entry=entry,
+                case_manager_id=_CASE_ACTOR_ID,
+                receiving_actor_id=dl.actor_id,
+            )
+        ]
         assert gap_buffer.depth(_CASE_ID) == 0
+        # ... and not applied here: no second tree ran in this delivery.
+        assert dl.read(entry.id_) is None
+
+        # Delivered as its own Announce, the entry applies.
+        deliver_handed_back(
+            hand_back,
+            lambda ev: AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                ev,
+                sync_port=SyncActivityAdapter(dl),
+                gap_buffer=gap_buffer,
+                inbox_hand_back=hand_back,
+            ).execute(),
+        )
+        assert dl.read(entry.id_) is not None
+
+    @pytest.mark.spec("SYNC-14-009")
+    def test_missing_hand_back_port_is_a_wiring_error(
+        self, dl, make_payload, case_with_actor
+    ):
+        """No port means a composition fault, never an inline apply."""
+        entry = _genesis_entry_for(_CASE_ID, case_with_actor.genesis_hash)
+        gap_buffer = LedgerGapBuffer()
+        gap_buffer.buffer(entry)
+
+        with pytest.raises(VultronBTInternalError, match="inbox_hand_back"):
+            self._seed(
+                dl, make_payload, case_with_actor, gap_buffer=gap_buffer
+            )
+
+        assert dl.read(entry.id_) is None
+        assert gap_buffer.depth(_CASE_ID) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -492,7 +595,7 @@ class TestAnnounceStoresEmbeddedParticipants:
         """
         _dl = SqliteDataLayer(
             "sqlite:///:memory:",
-            actor_id="https://test.example/api/v2/actors/test-actor",
+            actor_id=_RECEIVER_ID,
         )
         _anchor_expected_authority(_dl)
         return _dl
@@ -533,6 +636,7 @@ class TestAnnounceStoresEmbeddedParticipants:
         activity = announce_vulnerability_case_activity(
             case,
             actor=_CASE_ACTOR_ID,
+            to=[_RECEIVER_ID],
             context=_CASE_ID,
         )
         return make_payload(activity)
@@ -581,7 +685,7 @@ class TestAnnounceStoresEmbeddedParticipants:
             case_participants=[_VENDOR_PARTICIPANT_ID],  # bare string ref
         )
         activity = announce_vulnerability_case_activity(
-            case, actor=_CASE_ACTOR_ID, context=_CASE_ID
+            case, actor=_CASE_ACTOR_ID, to=[_RECEIVER_ID], context=_CASE_ID
         )
         event = make_payload(activity)
 
@@ -601,10 +705,9 @@ class TestAnnounceStoresEmbeddedParticipants:
     ):
         """Participants are stored even when the case already exists locally.
 
-        Regression: the inbox ingress helper ``_store_nested_inbox_object`` can seed
-        the case before dispatch, so the Announce use-case may enter the
-        idempotent early-return path.  Embedded participants must still be
-        persisted on that path (#566).
+        Regression (#566): a replica that already holds the case, from an
+        earlier Announce, takes the existing-case path.  Embedded participants
+        must still be persisted on that path.
         """
         case, _, _ = case_with_participants
         # Pre-seed the case so the use-case hits the existing-case branch.

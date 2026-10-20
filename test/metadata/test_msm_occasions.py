@@ -81,7 +81,7 @@ class _StubEvent(VultronEvent):
 
 def _entry(
     *occasions: Occasion,
-    semantics: MessageSemantics = MessageSemantics.CREATE_NOTE,
+    semantics: MessageSemantics = MessageSemantics.ADD_NOTE_TO_CASE,
 ) -> SemanticEntry:
     return SemanticEntry(
         semantics=semantics,
@@ -432,7 +432,7 @@ def test_shared_shorthand_without_a_heading_fails():
     second = _occasion(anchor="other", shorthand=ProtocolShorthand.GI)
     registry = [
         _entry(first),
-        _entry(second, semantics=MessageSemantics.ADD_NOTE_TO_CASE),
+        _entry(second, semantics=MessageSemantics.REMOVE_NOTE_FROM_CASE),
     ]
     with pytest.raises(ValueError, match="needs a plain-English heading"):
         section_heading(first, registry)
@@ -462,6 +462,19 @@ def test_distinguished_by_names_a_dimension_field_by_its_wire_spelling():
         )
     )
     assert distinguished_by(occasion) == "`pxaState` = `Pxa`"
+
+
+def test_distinguished_by_names_an_embedded_field_by_its_dotted_path():
+    """A field read within an embedded model renders as its wire path."""
+    occasion = _occasion(
+        distinguisher=FieldValue(
+            object_type=ParticipantStatus,
+            within="case_status",
+            field="pxa",
+            value=CS_pxa.Pxa,
+        )
+    )
+    assert distinguished_by(occasion) == "`caseStatus.pxaState` = `Pxa`"
 
 
 def test_distinguished_by_renders_a_state_context():
@@ -781,7 +794,10 @@ def _docs_page(root: Path, docs_path: str, body: str) -> None:
     page.write_text(body, encoding="utf-8")
 
 
-_OWNERS = {"fix-readiness": MessagePage.CS, "create-note": MessagePage.GENERAL}
+_OWNERS = {
+    "fix-readiness": MessagePage.CS,
+    "add-note-to-case": MessagePage.GENERAL,
+}
 
 
 def test_embedding_pages_reads_include_directives_under_docs(tmp_path):
@@ -949,7 +965,7 @@ def test_derive_lists_each_embedding_page_by_its_title(tmp_path):
     (note,) = [
         e
         for e in SEMANTIC_REGISTRY
-        if e.semantics is MessageSemantics.CREATE_NOTE
+        if e.semantics is MessageSemantics.ADD_NOTE_TO_CASE
     ]
     entry = dataclasses.replace(note, occasions=(_occasion(howto=guide),))
 

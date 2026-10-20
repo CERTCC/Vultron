@@ -28,7 +28,6 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    addressee_refusal,
     verdict_from_bt,
 )
 
@@ -100,6 +99,7 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             embargo_id=embargo_id,
             sender_actor_id=request.actor_id,
             termination_reason=request.termination_reason,
+            termination_cause=request.termination_cause,
             terminated_at=(
                 request.activity.published
                 if request.activity is not None
@@ -123,8 +123,6 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RemoveEmbargoFromCaseBT"
         )
-        if (refusal := addressee_refusal(tree)) is not None:
-            verdict = refusal
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning(
                 "%s (embargo '%s', case '%s')",

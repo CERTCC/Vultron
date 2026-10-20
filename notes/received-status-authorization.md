@@ -50,8 +50,10 @@ property of the pipeline:
 
 - **Only the CASE_MANAGER turns an announcement into case state.** It applies the
   state machine's acceptance rule to the *sender's* declaration, whichever
-  message carried it (RSH-06-006, RSH-08-001). Every other participant applies
-  the ledger (PCR-03-001, RSH-08-003).
+  message carried it (RSH-06-006, RSH-08-001). A participant declares in
+  `Add(ParticipantStatus)`; `Add(CaseStatus)` is the CASE_MANAGER's own
+  (RSH-04-005). Every other participant applies the ledger (PCR-03-001,
+  RSH-08-003).
 - **One RM acceptance rule, from one place.** The activity-typed RM handlers and
   `FilterParticipantStatusDimensionsNode` share `classify_rm_declaration`
   (`core/states/rm.py`), composed by `report/rm_declaration_tree.py`. Tests on
@@ -60,10 +62,10 @@ property of the pipeline:
 - **Received-side state writes are CASE_MANAGER-gated** (`manager_effects`); a
   replica stores the activity and converges on the `Announce(CaseLedgerEntry)`
   fan-out. `test/architecture/test_received_tree_state_writes_are_gated.py`
-  enforces it, and every committed event type must be replayed
-  (`test/architecture/test_ledger_event_types_are_replayed.py`).
+  enforces it, and every committed semantic type must be replayed
+  (`test/architecture/test_ledger_semantic_types_are_replayed.py`).
 - **Add the replay node before gating the effect.** Gating a state-writing
-  effect whose event type no replica replays blinds every replica (RSH-08-004
+  effect whose semantic type no replica replays blinds every replica (RSH-08-004
   before RSH-08-003).
 - **The one exception** is a signatory whose ledger stream is paused: the
   CASE_MANAGER's direct `Remove(EmbargoEvent)` or `Announce(EmbargoEvent)` is its
@@ -191,17 +193,20 @@ sender check: authorization happened at the gates.
 - **A CASE_MANAGER-declared status is torn down by the CASE_MANAGER.** At any
   other actor the branch does nothing (`_DeclaredByCaseManagerNode`, RSH-03-004);
   the replica waits for the committed teardown entry. The skip decides *who*
-  tears down, not *whether*. `PxaEmInvariantDiagnosticNode` skips on the same
-  condition.
+  tears down, not *whether*.
 - **A blocked teardown leaves the PXA↔EM entailment violated** (CSB-18-002 to
-  CSB-18-004). `PxaEmInvariantDiagnosticNode` detects it after the cascade and
-  posts a Note to the case.
+  CSB-18-004). `PxaEmInvariantDiagnosticNode` detects it after the cascade, at
+  the CASE_MANAGER only, and commits a note as its own `add_note_to_case`
+  entry, so a lagging replica never reports the gap (RSH-06-004, #4829).
 
 ## CaseStatus emission authority (RSH-04)
 
 - **Only the CASE_MANAGER emits `Add(CaseStatus)`.** Other participants embed a
   suggested `CaseStatus` in `Add(ParticipantStatus)` and let the gates decide
   (RSH-04-001).
+- **Refuse `Add(CaseStatus)` from anyone else.** `add_case_status_tree` has no
+  adoption gate, so admitting it from a participant skips the Case Owner's
+  approval (RSH-04-005, RSH-07-001).
 - **Every CASE_MANAGER-side EM or P/X/A mutation is followed by a canonical
   `CaseStatus` ledger write** through `EmitCaseStatusUpdateNode` (RSH-04-002,
   RSH-04-003); without it every replica stays stale. Wire it after any new EM

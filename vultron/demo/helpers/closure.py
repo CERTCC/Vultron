@@ -18,7 +18,7 @@ The Case Owner's ``Leave(VulnerabilityCase)`` closes the case for everyone
 (CM-23-013).  So the owner leaves after every other participant has left
 (CM-23-015), and only once the CASE_MANAGER has recorded each of those
 departures: a trigger returns 202 and the ``Leave`` commits later on another
-container, so "the Finder closed, then the Vendor closed" in script order is
+container, so "the Reporter closed, then the Vendor closed" in script order is
 not the same as that order on the ledger (EDF-06-002).
 
 :func:`close_case_owner_last` is the one place that sequence lives, so no
@@ -56,7 +56,9 @@ from vultron.demo.helpers.milestones import (
     verify_case_closure_recorded,
 )
 from vultron.demo.helpers.polling import (
+    LEDGER_COVERAGE_TIMEOUT,
     case_manager_store,
+    wait_for_case_em_state,
     wait_for_participant_rm_state,
 )
 from vultron.demo.helpers.sync import wait_for_replica_ledger_ending_at
@@ -160,8 +162,9 @@ def close_case_owner_last(
         departed.append(leaver.actor.id_)
 
     with demo_gate(
-        "every other participant's departure recorded before the Case Owner"
-        " leaves (CM-23-015)"
+        "every other participant's departure recorded, and the Case Owner's"
+        " replica caught up with the canonical EM state, before the Case"
+        " Owner leaves (CM-23-015, TRIG-13-003)"
     ):
         manager = _case_manager_reader(authority_client, case.id_)
         for leaver in others:
@@ -171,6 +174,7 @@ def close_case_owner_last(
                 actor_id=leaver.actor.id_,
                 expected_states={RM.CLOSED},
             )
+        _wait_for_owner_replica_em(manager, owner, case.id_)
         _leave(owner, case)
         departed.append(owner_id)
         _verify_closure(
@@ -178,6 +182,57 @@ def close_case_owner_last(
         )
 
     return departed
+
+
+def wait_for_owner_replica_embargo_state(
+    *,
+    authority_client: DataLayerClient,
+    owner: CaseLeaver,
+    case_id: str,
+) -> None:
+    """Wait until the Case Owner's own replica reads the CASE_MANAGER's EM state.
+
+    ``leave-case`` refuses the Case Owner while *its own replica* records an
+    active embargo (TRIG-13-003), and the replica applies an embargo's
+    termination from the ledger fan-out some time after the CASE_MANAGER
+    committed it (EDF-06-002).  So the owner's ``Leave`` is gated on its
+    replica having caught up with the canonical EM state, not on the
+    CASE_MANAGER's state alone.  When the canonical case still has an active
+    embargo the gate passes at once, and the owner's ``leave-case`` call fails
+    loudly with its 409, which names the missing termination.
+
+    Args:
+        authority_client: Client for the container that hosts the CASE_MANAGER.
+        owner: The Case Owner about to leave, bound to its own container.
+        case_id: The case it leaves.
+
+    Raises:
+        AssertionError: When the owner's replica does not reach the canonical
+            EM state in time.
+    """
+    _wait_for_owner_replica_em(
+        _case_manager_reader(authority_client, case_id), owner, case_id
+    )
+
+
+def _wait_for_owner_replica_em(
+    manager: DataLayerClient, owner: CaseLeaver, case_id: str
+) -> None:
+    """Wait until *owner*'s replica reads the EM state *manager*'s store holds.
+
+    *manager* is bound to the CASE_MANAGER's own store
+    (:func:`_case_manager_reader`).
+    """
+    canonical = as_VulnerabilityCase.model_validate(
+        manager.get(manager.dl_path(case_id))
+    )
+    wait_for_case_em_state(
+        owner.client,
+        case_id,
+        canonical.em_state,
+        LEDGER_COVERAGE_TIMEOUT,
+        dl_actor_id=owner.actor.id_,
+    )
 
 
 def _case_manager_reader(
@@ -255,4 +310,4 @@ def _leave(leaver: CaseLeaver, case: as_VulnerabilityCase) -> None:
     with demo_step(f"Actor {ref_id(leaver.actor)} closes case"):
         ActorSession(client=leaver.client, actor=leaver.actor).with_case(
             case
-        ).quiet().close_case()
+        ).quiet().leave_case()

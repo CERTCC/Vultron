@@ -53,10 +53,10 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_consent_event_types import (
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+from vultron.core.models.embargo_consent_semantic_types import (
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
-from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
+from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_SEMANTIC_TYPE
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.participant_embargo_consent import (
@@ -205,13 +205,15 @@ def _ledger(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
     )
 
 
-def _event_types(dl: SqliteDataLayer) -> list[str]:
-    return [str(e.event_type) for e in _ledger(dl)]
+def _semantic_types(dl: SqliteDataLayer) -> list[str]:
+    return [str(e.semantic_type) for e in _ledger(dl)]
 
 
 def _expiries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
     return [
-        e for e in _ledger(dl) if e.event_type == INVITE_EXPIRED_EVENT_TYPE
+        e
+        for e in _ledger(dl)
+        if e.semantic_type == INVITE_EXPIRED_SEMANTIC_TYPE
     ]
 
 
@@ -251,11 +253,11 @@ class TestOwnerDecision:
         result = _decide(dl, make_payload, factory, use_case, embargo)
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
-        types = _event_types(dl)
-        expiry = types.index(INVITE_EXPIRED_EVENT_TYPE)
+        types = _semantic_types(dl)
+        expiry = types.index(INVITE_EXPIRED_SEMANTIC_TYPE)
         # The expiry, then the CASE_MANAGER's TIMED_OUT row, then the
         # owner's decision (CM-28-014, ADR-0124).
-        assert types[expiry + 1] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+        assert types[expiry + 1] == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
         assert expiry < types.index(decided)
         assert _consent(dl, _INVITEE) == EmbargoConsentState.TIMED_OUT
         (entry,) = _expiries(dl)
@@ -272,7 +274,7 @@ class TestOwnerDecision:
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
         assert _expiries(dl) == []
-        assert decided in _event_types(dl)
+        assert decided in _semantic_types(dl)
         assert _consent(dl, _INVITEE) == EmbargoConsentState.INVITED
 
 
@@ -314,9 +316,9 @@ class TestDoorGuardsFirst:
         result = _decide(dl, make_payload, factory, use_case, stray)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert _event_types(dl) == [
-            INVITE_EXPIRED_EVENT_TYPE,
-            UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        assert _semantic_types(dl) == [
+            INVITE_EXPIRED_SEMANTIC_TYPE,
+            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
         ]
         assert _consent(dl, _INVITEE) == EmbargoConsentState.TIMED_OUT
 
@@ -492,8 +494,8 @@ class TestOtherEmbargoActivity:
         result = self._reject_invite(dl, make_payload, SyncActivityAdapter(dl))
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
-        types = _event_types(dl)
-        assert types.index(INVITE_EXPIRED_EVENT_TYPE) < types.index(
+        types = _semantic_types(dl)
+        assert types.index(INVITE_EXPIRED_SEMANTIC_TYPE) < types.index(
             "reject_invite_to_embargo_on_case"
         )
         assert _consent(dl, _INVITEE) == EmbargoConsentState.TIMED_OUT
@@ -530,7 +532,7 @@ class TestOtherEmbargoActivity:
             by_actor[_INVITEE].payload_snapshot["published"]
         )
         assert other > sent_at  # the CASE_MANAGER's clock
-        types = _event_types(dl)
+        types = _semantic_types(dl)
         assert types[-1] == "reject_invite_to_embargo_on_case"
         assert _consent(dl, _OTHER) == EmbargoConsentState.DECLINED
 
@@ -550,13 +552,13 @@ class TestOtherEmbargoActivity:
         announced: dict[str, set[str]] = {}
         for c in sync.send_announce_log_entry.call_args_list:
             announced.setdefault(
-                str(c.kwargs["entry"].event_type), set()
+                str(c.kwargs["entry"].semantic_type), set()
             ).update(c.kwargs["to"])
-        for event_type in (
-            INVITE_EXPIRED_EVENT_TYPE,
+        for semantic_type in (
+            INVITE_EXPIRED_SEMANTIC_TYPE,
             "reject_invite_to_embargo_on_case",
         ):
-            assert _OWNER in announced[event_type], announced
+            assert _OWNER in announced[semantic_type], announced
         # No notification activity besides the fan-out (MSM-07-007): the
         # stubbed fan-out queues nothing, so the outbox stays empty.
         assert dl.outbox_list() == []
@@ -605,8 +607,8 @@ class TestOwnerTrigger:
             **_ports(dl),
         ).execute()
 
-        types = _event_types(dl)
-        assert types.index(INVITE_EXPIRED_EVENT_TYPE) < types.index(decided)
+        types = _semantic_types(dl)
+        assert types.index(INVITE_EXPIRED_SEMANTIC_TYPE) < types.index(decided)
         assert _consent(dl, _INVITEE) == EmbargoConsentState.TIMED_OUT
 
 

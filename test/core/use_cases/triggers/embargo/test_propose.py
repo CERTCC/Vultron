@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from test.support.ledger import committed_event_types
+from test.support.ledger import committed_semantic_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -12,7 +12,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_INVITE_SEMANTIC_TYPE
 from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.embargo import SvcProposeEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
@@ -85,7 +85,7 @@ def test_propose_embargo_updates_case_state_via_bt_path(
     assert len(updated_case.proposed_embargo_ids) == 1
     # The CASE_MANAGER's own proposal is committed (#4085); it has no other
     # participant to relay it to, so nothing is addressed to itself.
-    assert EMBARGO_INVITE_EVENT_TYPE in committed_event_types(
+    assert EMBARGO_INVITE_SEMANTIC_TYPE in committed_semantic_types(
         finder_dl, case.id_
     )
     assert not activity_of(result).get("to")

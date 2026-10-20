@@ -18,8 +18,11 @@ Trigger-side behavior tree for the add-participant-status workflow.
 
 The tree runs two steps in sequence:
 
-1. **CreateParticipantStatusNode** — creates the ParticipantStatus snapshot
-   record and appends it to the participant's history.  The resulting
+1. **CreateParticipantStatusNode** — validates the move and stores the
+   ParticipantStatus snapshot the activity carries, without appending it to
+   the participant's history (``attach=False``).  The CASE_MANAGER appends
+   it when it accepts the assertion, and the actor's replica copies that
+   from the ledger (RSH-08-003, CLP-07-013, CM-23-016).  The resulting
    ``status_id`` and ``participant_id`` are written to a shared
    ``result_out`` dict so the activity-builder closure can reference them.
 
@@ -58,6 +61,7 @@ def add_participant_status_trigger_bt(
     pxa_state: "CS_pxa | None",
     result_out: dict,
     activity_builder: Callable[[str], list[str]],
+    follows: list[str] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the add-participant-status workflow.
 
@@ -93,6 +97,9 @@ def add_participant_status_trigger_bt(
             called by ``sender_side_bt`` after resolving the Case Manager;
             must create the ``Add(ParticipantStatus)`` activity and return
             its ID in a list.
+        follows: Ids of statuses an earlier step of the same request stored
+            and sent; the move is validated as the step after them, since
+            neither is on the record yet (RSH-08-003, CSB-16-001).
 
     Returns:
         A ``py_trees.composites.Sequence`` that:
@@ -129,6 +136,7 @@ def add_participant_status_trigger_bt(
                 d_state=d_state,
                 pxa_state=pxa_state,
                 result_out=result_out,
+                follows=follows,
             ),
             CreateParticipantStatusNode(
                 actor_id=actor_id,
@@ -137,6 +145,8 @@ def add_participant_status_trigger_bt(
                 d_state=d_state,
                 pxa_state=pxa_state,
                 result_out=result_out,
+                attach=False,
+                follows=follows,
             ),
             sender_side_bt(case_id=case_id, activity_builder=activity_builder),
         ]

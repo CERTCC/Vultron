@@ -98,7 +98,10 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import SenderCheckContext
+from vultron.core.behaviors.sender_guard import (
+    ClosedSenderCheck,
+    SenderCheckContext,
+)
 
 
 class MaybeSignEmbargoConsentNode(py_trees.composites.Selector):
@@ -219,6 +222,10 @@ def create_accept_invite_actor_to_case_tree(
     return create_receive_activity_tree(
         name="AcceptInviteActorToCaseBT",
         case_id=case_id,
+        # An invitee the case already records as closed (its stub Reject was
+        # applied) may act on nothing further: its Accept would join a
+        # participant whose RM is terminal (CM-23-018, CM-11-015).
+        closed_sender=ClosedSenderCheck(sender_id=invitee_id),
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=invitee_id,
@@ -276,7 +283,7 @@ def create_accept_invite_actor_to_case_tree(
             # the announce it would hand the invitee a ledger entry for
             # a case it does not hold yet (SYNC-15 pre-genesis Reject,
             # then a from-genesis replay interleaved with the backfill —
-            # fcvcv V2/C2, #2898); placed between announce and backfill
+            # rcvcv V2/C2, #2898); placed between announce and backfill
             # it would arrive as a forward gap ahead of the entries it
             # extends.  Here it reaches the invitee as the next entry in
             # chain order.  No Add(CaseParticipant) precedes it

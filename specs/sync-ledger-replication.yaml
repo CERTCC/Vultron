@@ -687,7 +687,7 @@ groups:
     kind: protocol
     statement: >-
       After a participant successfully enqueues an assertion activity toward the CASE_MANAGER,
-      the participant SHOULD record the (case_id, event_type, activity_id) triple in its
+      the participant SHOULD record the (case_id, semantic_type, activity_id) triple in its
       pending-assertion store so that duplicate near-term re-emits of the same assertion are
       suppressed while the round-trip is pending
   - id: SYNC-11-003
@@ -1209,7 +1209,7 @@ groups:
       The reject/replay backstop (SYNC-15-001) does not converge under adversarial reordering
       for the same reason forward gaps are buffered (SYNC-14): replay re-announces entries
       individually over the same unordered transport and each pre-genesis entry Rejects again,
-      amplifying churn (issue #2169) and, for the fvcv-handoff demo, dropping the
+      amplifying churn (issue #2169) and, for the rvcv-handoff demo, dropping the
       add_report_to_case entry so no VultronOfferRecord is ever created (issue #2180). Holding
       the entry lets it drain deterministically once the case is seeded.
     verification: >-
@@ -1286,6 +1286,56 @@ groups:
       popped; `test/core/behaviors/sync/nodes/test_replay.py` confirms a replay through the
       adapter adds only the entries not already pending and records no position when it
       adds none.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-15-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Each consecutive non-empty replay the CASE_MANAGER sends to a peer from an unchanged
+      replication position MUST lengthen the cooldown before the next one (doubling it, up
+      to a fixed ceiling), and a replay from a different position MUST reset the cooldown
+      to its base value.
+    rationale: >-
+      A fixed cooldown ends the Reject/replay loop only when one round trip finishes inside
+      it. A loaded host, or a peer that can never anchor its chain, kept the loop running
+      for as long as the peer kept rejecting (#4882). A growing cooldown bounds a stuck peer
+      to a logarithmic number of replays over any period, whatever the round-trip time.
+      The ceiling keeps it a rate limit rather than suppression (SYNC-15-011 note).
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-003
+    - rel_type: depends_on
+      spec_id: SYNC-15-008
+      note: The per-peer record carries the count of replays at its position
+    verification: >-
+      `test/core/behaviors/sync/nodes/test_replay_guard.py` (`TestNoProgressBackoff`)
+      confirms the cooldown doubles per replay, resets on progress and stays capped;
+      `test/demo/test_rvcv_handoff_demo.py` (`TestUnanchoredPeerRejectStormIsBounded`)
+      confirms the loop to two unanchored peers settles under a clock that makes every
+      round slower than the base cooldown.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-15-014
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT send the genesis `Announce(VulnerabilityCase)` pre-seed
+      (SYNC-15-002) in answer to a genesis Reject whose replay the cooldown suppresses.
+    rationale: >-
+      The pre-seed exists to anchor the replay that follows it; while that replay is
+      rate-limited the peer already holds the case sent with the last one. Sending the
+      case once per Reject anyway kept one message per Reject flowing in the loop
+      SYNC-15-003 bounds (#4882).
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-003
+    verification: >-
+      `test/core/behaviors/sync/test_reject_tree.py`
+      (`test_genesis_announce_skipped_when_replay_rate_limited`) confirms five genesis
+      Rejects in one cooldown send the case once.
     stories:
     - story_2022_045
     - story_2022_088

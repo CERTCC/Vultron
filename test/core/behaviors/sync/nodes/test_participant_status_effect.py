@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Tests for ApplyParticipantStatusFromLedgerNode and EmitImpossibleStateFaultNode.
 
-Covers the participant-status round-trip: a ratcheted ParticipantStatus is saved
+Covers the participant-status round-trip: the carried ParticipantStatus is saved
 to the DataLayer and then appended directly to the participant record.  The node
 uses the in-memory ``status_obj`` rather than re-reading from the DataLayer,
 since ParticipantStatus has no reference fields that rehydrate_fields would
@@ -107,7 +107,7 @@ def _make_status_entry(
             case_id=CASE_ID,
             log_index=0,
             object_id="https://example.org/activities/add-status",
-            event_type="add_participant_status_to_participant",
+            semantic_type="add_participant_status_to_participant",
             payload_snapshot=snapshot,
             prev_log_hash=CASE_GENESIS_HASH,
         )
@@ -315,19 +315,18 @@ class TestApplyParticipantStatusCompositeStateViolation:
             "FAILURE must not write to DataLayer"
         )
 
-    @pytest.mark.spec("RSH-05-007")
-    def test_rm_ratchet_interacts_correctly_with_composite_state_check(
+    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("CM-23-016")
+    def test_composite_state_check_reads_the_entry_as_carried(
         self, bridge, datalayer, case_actor, participant
     ):
-        """RSH-05-007 ratchet runs before RSH-05-021 composite-state check.
+        """The entailment check judges the entry's status, not a blend.
 
         Apply a valid entry first to establish rm=ACCEPTED on the replica.
-        Then send an entry asserting rm=VALID (which would regress) + vf=VF.
-        The ratchet carries rm forward to ACCEPTED, producing rm=ACCEPTED+vf=VF
-        which is a valid composite state — so the node returns SUCCESS.
-
-        This verifies that the two invariants compose correctly: ratchet first,
-        entailment check on the effective (post-ratchet) state.
+        Then send an entry recording rm=VALID + vf=VF.  The replica never
+        carries its own RM over the entry's (CM-23-016), so the status is
+        judged as carried, rm=VALID+vf=VF, which is impossible: the node
+        fails and appends nothing.
         """
         initial_count = len(participant.participant_statuses)
 
@@ -357,13 +356,9 @@ class TestApplyParticipantStatusCompositeStateViolation:
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=_make_event(entry2, actor_id=case_actor.id_),
         )
-        assert result2.status == Status.SUCCESS, (
-            "After ratcheting rm=VALID → rm=ACCEPTED the effective state is "
-            "rm=ACCEPTED+vf=VF which is valid — the entailment check must use "
-            "the post-ratchet state, not the raw asserted state"
-        )
+        assert result2.status == Status.FAILURE
         updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
-        assert len(updated.participant_statuses) == initial_count + 2
+        assert len(updated.participant_statuses) == initial_count + 1
 
 
 class TestEmitImpossibleStateFaultNode:

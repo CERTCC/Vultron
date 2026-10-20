@@ -38,10 +38,12 @@ These tests pin both halves of the fix:
 """
 
 import logging
+from unittest.mock import MagicMock
 
 import anyio
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
+from fastapi.testclient import TestClient
 
 from test.demo.conftest import (
     _CASE_ACTOR_SERVICE_URL,
@@ -205,7 +207,7 @@ class TestNoFixtureLeakedConfig:
     """No demo fixture may leak config during the session.
 
     This is what pins the ``monkeypatch.undo()``-before-``reload_config()``
-    fixes in ``test_fvcv_handoff_demo.py``, ``test_pcr_late_joiner.py``,
+    fixes in ``test_rvcv_handoff_demo.py``, ``test_pcr_late_joiner.py``,
     ``test_case_proposal_round_trip.py``, and ``test_pcr_engage_case.py``.  The
     autouse guard repairs leaks, which keeps one bad teardown from cascading —
     but without this assertion the repair would also make a regression of those
@@ -270,10 +272,41 @@ class TestTestClientRouterDropLogging:
                 router.emit,
                 _ACTIVITY_ID,
                 _BODY,
-                ["https://vultron.example/users/finder"],
+                ["https://vultron.example/users/reporter"],
             )
         router_records = [
             r for r in caplog.records if r.name == "test.demo.conftest"
         ]
         assert not any(r.levelname == "WARNING" for r in router_records)
         assert any(r.levelname == "DEBUG" for r in router_records)
+
+
+class TestTestClientRouterRefusesExitedClients:
+    """emit() does not deliver into a client whose context is not entered."""
+
+    def test_unentered_client_is_not_posted_to(self, caplog):
+        """A delivery into an exited client would start a one-shot event loop.
+
+        After a test's ``with client`` blocks exit (a pytest-timeout trip, an
+        assertion), a delivery chain still running in a worker thread kept
+        posting.  Each post started a fresh portal, so the inbox lock — bound
+        to the old loop — raised ``is bound to a different event loop``, which
+        read as the cause of a hang it was only a symptom of (#4882).
+        """
+        router = _TestClientRouter()
+        client = MagicMock(spec=TestClient)
+        client.portal = None
+        router.register("http://exited.test", client)
+        with caplog.at_level(logging.DEBUG):
+            anyio.run(
+                router.emit,
+                _ACTIVITY_ID,
+                _BODY,
+                ["http://exited.test/api/v2/actors/a1"],
+            )
+
+        client.post.assert_not_called()
+        router_records = [
+            r for r in caplog.records if r.name == "test.demo.conftest"
+        ]
+        assert any(r.levelname == "WARNING" for r in router_records)

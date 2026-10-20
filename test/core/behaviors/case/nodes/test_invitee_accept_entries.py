@@ -144,7 +144,7 @@ def test_creating_the_record_emits_its_own_entry_carrying_it(roles):
     s = _scenario(roles, embargo=True)
 
     created = [
-        e for e in _entries(s) if e.event_type == "create_case_participant"
+        e for e in _entries(s) if e.semantic_type == "create_case_participant"
     ]
     assert len(created) == 1
     carried = created[0].payload_snapshot["object"]
@@ -170,7 +170,7 @@ def test_the_accept_commits_only_a_vendors_status_entry(roles, embargo):
 
     assert _accept(s, embargo) == Status.SUCCESS
 
-    new = [e.event_type for e in _entries(s)[before:]]
+    new = [e.semantic_type for e in _entries(s)[before:]]
     assert new == (
         ["add_participant_status_to_participant"]
         if CVDRole.VENDOR in roles

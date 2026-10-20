@@ -174,7 +174,7 @@ def test_the_stub_invite_entry_fans_out_and_gives_a_replica_the_inert_record(
     entry_types = [
         (read_sealed_body_dict(net.stores[MANAGER], a.id_) or {})
         .get("object", {})
-        .get("eventType")
+        .get("semanticType")
         for a in announced
     ]
     assert "invite_actor_to_case" in entry_types, entry_types
@@ -276,7 +276,8 @@ def _entry_types(net: LedgerNetwork) -> list[str]:
         if isinstance(e, CaseLedgerEntry) and e.case_id == net.case_id
     ]
     return [
-        str(e.event_type) for e in sorted(entries, key=lambda e: e.log_index)
+        str(e.semantic_type)
+        for e in sorted(entries, key=lambda e: e.log_index)
     ]
 
 

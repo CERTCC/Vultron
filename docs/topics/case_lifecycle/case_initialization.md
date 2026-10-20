@@ -41,7 +41,7 @@ The CASE_MANAGER accepts a proposal and creates the case, or an actor creates a 
 Either way, the CASE_MANAGER commits the same ledger entries, in the same order, from the case file it has just written.
 These are the entries [CLP-07-013](../../reference/specs/protocol.md#clp-07-013) requires for a new case, in the `Add` shapes the table shows.
 
-| Order | Entry (`eventType`) | What it carries |
+| Order | Entry (`semanticType`) | What it carries |
 |---|---|---|
 | 1 | `create_case` | The genesis entry: `Create(VulnerabilityCase)` with the case in full; it is the root of the case's hash chain |
 | 2 | `add_report_to_case`, once per linked report | `Add(VulnerabilityReport)` with the report in full, and the report's `Offer` provenance when it is known |

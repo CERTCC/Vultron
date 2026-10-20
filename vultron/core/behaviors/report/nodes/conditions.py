@@ -28,7 +28,6 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from vultron.errors import VultronInvalidStateTransitionError
 
 
 class _CheckReportPhaseRMStateBase(DataLayerConditionWithPorts):
@@ -108,10 +107,11 @@ class CheckRMStateValid(_CheckReportPhaseRMStateBase):
 
 
 class CheckRMStateReceivedOrInvalid(_CheckReportPhaseRMStateBase):
-    """Check if report is in RM.RECEIVED or RM.INVALID state.
+    """Check the report is not already in RM.VALID.
 
-    Returns SUCCESS if report is in acceptable precondition state.
-    Returns FAILURE if report is in any other state (e.g., CLOSED, VALID).
+    Returns SUCCESS for any state but VALID; FAILURE when the report is
+    already VALID.  An illegal source state such as CLOSED passes here and is
+    refused by the RM transition that follows (``TransitionRMtoValid``).
 
     Input ports (inherited + declared):
         datalayer (object, required): CasePersistence, remapped to /datalayer.
@@ -378,76 +378,5 @@ class EvaluateCasePriority(DataLayerConditionWithPorts):
             "%s: Evaluating priority for case %s (stub: always engage)",
             self.name,
             self.case_id,
-        )
-        return Status.SUCCESS
-
-
-class CheckReportNotClosed(DataLayerConditionWithPorts):
-    """Check that the report does NOT already have an RM.CLOSED status record.
-
-    Returns SUCCESS when the report is not yet closed (the transition is
-    permitted).  Returns FAILURE and writes a
-    :class:`~vultron.errors.VultronInvalidStateTransitionError` into
-    ``result_out["error"]`` when the report is already closed, so the calling
-    use case can re-raise the domain exception.
-
-    Per issue #849 AC-3: the duplicate-close guard must be expressed as a BT
-    condition node, not as a procedural raise in ``execute()``.
-    """
-
-    def __init__(
-        self,
-        report_id: str,
-        result_out: dict,
-        name: str | None = None,
-    ) -> None:
-        """Initialize CheckReportNotClosed.
-
-        Args:
-            report_id: ID of the VulnerabilityReport to check.
-            result_out: Mutable dict; on FAILURE, the
-                ``VultronInvalidStateTransitionError`` is written to
-                ``result_out["error"]`` so the use case can re-raise it.
-            name: Optional custom node name.
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.report_id = report_id
-        self._result_out = result_out
-
-    def update(self) -> Status:
-        """Guard against closing an already-closed report.
-
-        Returns:
-            SUCCESS when not yet closed;
-            FAILURE (+ ``result_out["error"]``) when already closed or
-            the DataLayer is unavailable.
-        """
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        link_id = VultronReportCaseLink.build_id(self.report_id)
-        link = self.datalayer.read(link_id)
-        is_closed = (
-            isinstance(link, VultronReportCaseLink)
-            and link.rm_state == RM.CLOSED
-        )
-        if is_closed:
-            error = VultronInvalidStateTransitionError(
-                f"Report '{self.report_id}' is already CLOSED."
-            )
-            self._result_out["error"] = error
-            self.feedback_message = str(error)
-            self.logger.warning(
-                "%s: Report '%s' is already CLOSED — transition blocked",
-                self.name,
-                self.report_id,
-            )
-            return Status.FAILURE
-
-        self.logger.debug(
-            "%s: Report '%s' not yet closed — proceeding",
-            self.name,
-            self.report_id,
         )
         return Status.SUCCESS

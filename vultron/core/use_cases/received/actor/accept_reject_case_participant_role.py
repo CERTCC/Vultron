@@ -11,6 +11,8 @@ See SE-08-003, ADR-0039.
 
 from typing import TYPE_CHECKING, ClassVar
 
+import py_trees
+
 from vultron.core.behaviors.case.role_offer_answer_tree import (
     create_accept_case_participant_role_tree,
     create_reject_case_participant_role_tree,
@@ -32,7 +34,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     role_offer_answer_verdict,
 )
 from vultron.core.use_cases.received._offer_reply import (
-    refuse_reply_naming_no_case,
     run_offer_reply_tree,
 )
 from vultron.enums.roles import CVDRole
@@ -108,32 +109,26 @@ class AcceptCaseParticipantRoleReceivedUseCase:
         request = self._request
         label = "AcceptCaseParticipantRoleReceivedBT"
         case_id = _case_named(request)
-        if case_id is None:
-            return refuse_reply_naming_no_case(
-                dl=self._dl,
-                request=request,
-                label=label,
-                verb="Accept",
-                subject="role Offer",
-                sync_port=self._sync_port,
-                wire_render_port=self._wire_render_port,
-            )
         role, target_id = _carried_role_and_target(request)
-        tree = create_accept_case_participant_role_tree(
-            case_id=case_id,
-            offer_id=request.object_id,
-            sender_id=request.actor_id,
-            answer_id=request.activity_id,
-            carried_role=role,
-            carried_target_id=target_id,
-            sender_rule=self.sender_entitlement,
-        )
+
+        def build_tree(case_id: str) -> py_trees.behaviour.Behaviour:
+            return create_accept_case_participant_role_tree(
+                case_id=case_id,
+                offer_id=request.object_id,
+                sender_id=request.actor_id,
+                answer_id=request.activity_id,
+                carried_role=role,
+                carried_target_id=target_id,
+                sender_rule=self.sender_entitlement,
+            )
+
         return run_offer_reply_tree(
             dl=self._dl,
             request=request,
-            tree=tree,
+            build_tree=build_tree,
             label=label,
             case_id=case_id,
+            reply="Accept(role Offer)",
             subject="role offer",
             refine=role_offer_answer_verdict,
             applied_note="accepted",
@@ -175,32 +170,26 @@ class RejectCaseParticipantRoleReceivedUseCase:
         request = self._request
         label = "RejectCaseParticipantRoleReceivedBT"
         case_id = _case_named(request)
-        if case_id is None:
-            return refuse_reply_naming_no_case(
-                dl=self._dl,
-                request=request,
-                label=label,
-                verb="Reject",
-                subject="role Offer",
-                sync_port=self._sync_port,
-                wire_render_port=self._wire_render_port,
-            )
         role, target_id = _carried_role_and_target(request)
-        tree = create_reject_case_participant_role_tree(
-            case_id=case_id,
-            offer_id=request.object_id,
-            sender_id=request.actor_id,
-            answer_id=request.activity_id,
-            carried_role=role,
-            carried_target_id=target_id,
-            sender_rule=self.sender_entitlement,
-        )
+
+        def build_tree(case_id: str) -> py_trees.behaviour.Behaviour:
+            return create_reject_case_participant_role_tree(
+                case_id=case_id,
+                offer_id=request.object_id,
+                sender_id=request.actor_id,
+                answer_id=request.activity_id,
+                carried_role=role,
+                carried_target_id=target_id,
+                sender_rule=self.sender_entitlement,
+            )
+
         return run_offer_reply_tree(
             dl=self._dl,
             request=request,
-            tree=tree,
+            build_tree=build_tree,
             label=label,
             case_id=case_id,
+            reply="Reject(role Offer)",
             subject="role offer",
             refine=role_offer_answer_verdict,
             applied_note="rejected",

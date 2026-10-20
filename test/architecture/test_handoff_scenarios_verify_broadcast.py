@@ -21,8 +21,8 @@ transfer and would see the change through the offer/accept exchange itself.
 
 This is a structural ratchet rather than a per-scenario behavioural test because
 the defect it guards is an *omission*, and an omission in a scenario nobody
-thought to check is exactly what slipped through: ``fvcv_handoff_demo`` gained
-this check in #2789 while its sibling ``fccv_handoff_demo`` — same phase, same
+thought to check is exactly what slipped through: ``rvcv_handoff_demo`` gained
+this check in #2789 while its sibling ``rccv_handoff_demo`` — same phase, same
 topology, same protocol hop — did not, and every test stayed green.  A ratchet
 over "all scenarios defining this phase" also covers handoff scenarios that do
 not exist yet.
@@ -44,10 +44,10 @@ SCENARIO_DIR = _corpus.REPO_ROOT / "vultron/demo/scenario"
 PHASE_NAME = "_phase_ownership_handoff"
 
 #: The ledger event a completed transfer commits (CM-21-007).
-TRANSFER_EVENT_TYPE = "accept_case_ownership_transfer"
+TRANSFER_SEMANTIC_TYPE = "accept_case_ownership_transfer"
 
 #: The gate helper that reads a named actor's ledger replica.
-LEDGER_WAIT_FN = "wait_for_event_type_in_ledger"
+LEDGER_WAIT_FN = "wait_for_semantic_type_in_ledger"
 
 
 def _scenarios_with_handoff_phase() -> list[tuple[str, ast.AST]]:
@@ -84,7 +84,7 @@ def _keyword(call: ast.Call, name: str) -> ast.expr | None:
 
 
 def _transfer_ledger_waits(phase: ast.FunctionDef) -> list[ast.Call]:
-    """Return the ledger waits in *phase* that name the transfer event type."""
+    """Return the ledger waits in *phase* that name the transfer semantic type."""
     calls = []
     for node in ast.walk(phase):
         if not isinstance(node, ast.Call):
@@ -97,10 +97,10 @@ def _transfer_ledger_waits(phase: ast.FunctionDef) -> list[ast.Call]:
         )
         if fn_name != LEDGER_WAIT_FN:
             continue
-        event_type = _keyword(node, "event_type")
+        semantic_type = _keyword(node, "semantic_type")
         if (
-            isinstance(event_type, ast.Constant)
-            and event_type.value == TRANSFER_EVENT_TYPE
+            isinstance(semantic_type, ast.Constant)
+            and semantic_type.value == TRANSFER_SEMANTIC_TYPE
         ):
             calls.append(node)
     return calls
@@ -121,7 +121,7 @@ def test_handoff_phase_verifies_transfer_reached_a_non_party_replica(
     waits = _transfer_ledger_waits(phase)
     assert waits, (
         f"{scenario_name}::{PHASE_NAME} never waits for a"
-        f" {TRANSFER_EVENT_TYPE!r} ledger entry. ADR-0053's validation criterion"
+        f" {TRANSFER_SEMANTIC_TYPE!r} ledger entry. ADR-0053's validation criterion"
         " is that an actor outside the negotiation learns of the transfer from"
         " the CM-21-007 broadcast; asserting attributed_to on the old and new"
         " owners does not establish that, because both are parties to it."
@@ -143,7 +143,7 @@ def test_handoff_phase_verifies_transfer_reached_a_non_party_replica(
         clients.append(client.id if isinstance(client, ast.Name) else None)
 
     assert any(c is not None and c not in party_hints for c in clients), (
-        f"{scenario_name}::{PHASE_NAME} waits for {TRANSFER_EVENT_TYPE!r} but"
+        f"{scenario_name}::{PHASE_NAME} waits for {TRANSFER_SEMANTIC_TYPE!r} but"
         f" only on a party to the transfer (clients={clients!r}). Read it on a"
         " non-party's own container — the reporter/finder — so the assertion"
         " tests the broadcast rather than the exchange (EDF-06-002)."

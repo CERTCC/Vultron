@@ -38,11 +38,17 @@ from vultron.demo.helpers.verification import (
 )
 from vultron.demo.utils import (
     CASE_ACTOR_SLUG,
+    RECEIVED_ACTIVITY_RECORD_TYPE,
     DataLayerClient,
     case_actor_id_for_report,
     case_references_report,
     demo_check,
     logfmt,
+    not_received_error,
+    read_received_activity,
+    read_stored_of_types,
+    received_activity_in,
+    served_field,
 )
 from vultron.enums.object_types import VultronObjectType
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -270,8 +276,8 @@ def wait_for_case_on_container(
     )
 
 
-def wait_for_finder_case(
-    finder_client: DataLayerClient,
+def wait_for_reporter_case(
+    reporter_client: DataLayerClient,
     case_id: str,
     timeout_seconds: float = 30.0,
     poll_interval: float = 0.5,
@@ -279,13 +285,13 @@ def wait_for_finder_case(
     """Backward-compatible alias for :func:`wait_for_case_on_container`.
 
     Args:
-        finder_client: DataLayerClient connected to the Finder container.
+        reporter_client: DataLayerClient connected to the Reporter container.
         case_id: Full URI of the ``as_VulnerabilityCase`` to wait for.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
     """
     wait_for_case_on_container(
-        finder_client, case_id, timeout_seconds, poll_interval
+        reporter_client, case_id, timeout_seconds, poll_interval
     )
 
 
@@ -302,7 +308,7 @@ def wait_for_case_participants(
 
     Gates on identity: all actors in *expected_actor_ids* must appear in
     ``actor_participant_index``.  A count check (``>= N``) would accept the
-    wrong participant set — for example CaseActor + Finder instead of
+    wrong participant set — for example CaseActor + Reporter instead of
     CaseActor + Vendor — masking a missing invite delivery (EDF-06-002).
 
     Args:
@@ -361,7 +367,7 @@ def wait_for_participants_on_replicas(
     This is the single implementation of the per-scenario replica
     participant-wait loop: previously each scenario carried its own copy of
     ``for replica_client in (...): p_timeout = 30.0 if ... else 10.0; ...``.
-    fvv omitted the loop entirely — its two bare
+    rvv omitted the loop entirely — its two bare
     :func:`wait_for_case_participants` calls used the 15 s default, so the
     late joiner (Vendor2) never received the extended budget and could time
     out spuriously under CI load (#2852, extending the #2202/#2337
@@ -452,21 +458,21 @@ def wait_for_note_in_case(
     )
 
 
-def wait_for_finder_log_entry(
-    finder_client: DataLayerClient,
+def wait_for_reporter_log_entry(
+    reporter_client: DataLayerClient,
     case_id: str,
     entry_hash: str,
     timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
 ) -> None:
-    """Poll finder's DataLayer until a ``CaseLedgerEntry`` with *entry_hash* appears.
+    """Poll reporter's DataLayer until a ``CaseLedgerEntry`` with *entry_hash* appears.
 
     Proves that the vendor's ``Announce(CaseLedgerEntry)`` outbox activity was
-    delivered to the finder's inbox and processed by
+    delivered to the reporter's inbox and processed by
     ``AnnounceLedgerEntryReceivedUseCase`` (LedgerFanout receive side).
 
     Args:
-        finder_client: DataLayerClient connected to the Finder container.
+        reporter_client: DataLayerClient connected to the Reporter container.
         case_id: Full URI of the ``as_VulnerabilityCase`` (used for filtering).
         entry_hash: ``entry_hash`` value of the expected log entry.
         timeout_seconds: Maximum time to wait before raising.
@@ -479,7 +485,7 @@ def wait_for_finder_log_entry(
     """
 
     def _check_with_log() -> bool:
-        raw = finder_client.get(finder_client.dl_path("CaseLedgerEntrys/"))
+        raw = reporter_client.get(reporter_client.dl_path("CaseLedgerEntrys/"))
         if not isinstance(raw, dict):
             return False
         for v in raw.values():
@@ -489,7 +495,7 @@ def wait_for_finder_log_entry(
                 and v.get("entry_hash") == entry_hash
             ):
                 logger.info(
-                    "Log entry with hash=%s found in finder's DataLayer",
+                    "Log entry with hash=%s found in reporter's DataLayer",
                     entry_hash[:16],
                 )
                 return True
@@ -500,7 +506,7 @@ def wait_for_finder_log_entry(
         timeout_seconds,
         poll_interval,
         f"Timed out waiting for log entry (hash={entry_hash!r}) for case "
-        f"{case_id!r} to appear in finder's DataLayer — replication may "
+        f"{case_id!r} to appear in reporter's DataLayer — replication may "
         "not have completed",
         swallow_exceptions=True,
     )
@@ -509,14 +515,14 @@ def wait_for_finder_log_entry(
 def _ledger_entry_matches(
     entry: dict,
     case_id: str,
-    event_type: str,
+    semantic_type: str,
     log_object_id: "str | None",
     min_log_index: "int | None",
 ) -> bool:
     """Return True if *entry* satisfies all supplied ledger-event criteria."""
     if entry.get("case_id") != case_id:
         return False
-    if entry.get("event_type") != event_type:
+    if entry.get("semantic_type") != semantic_type:
         return False
     if (
         log_object_id is not None
@@ -533,7 +539,7 @@ def _ledger_entry_matches(
 def wait_for_ledger_event(
     client: DataLayerClient,
     case_id: str,
-    event_type: str,
+    semantic_type: str,
     log_object_id: "str | None" = None,
     min_log_index: "int | None" = None,
     timeout_seconds: float = PARTICIPANT_JOIN_TIMEOUT,
@@ -542,8 +548,8 @@ def wait_for_ledger_event(
 ) -> None:
     """Poll *client*'s DataLayer until a ``CaseLedgerEntry`` matches the given criteria.
 
-    More precise than :func:`wait_for_event_type_in_ledger`: when *log_object_id*
-    is provided the gate is keyed on ``(event_type, log_object_id)``; when
+    More precise than :func:`wait_for_semantic_type_in_ledger`: when *log_object_id*
+    is provided the gate is keyed on ``(semantic_type, log_object_id)``; when
     *min_log_index* is provided the gate additionally requires the matching entry
     to have ``log_index >= min_log_index``.  With neither supplied the behaviour
     is match-any (same as the legacy helper).
@@ -551,7 +557,7 @@ def wait_for_ledger_event(
     Args:
         client: DataLayerClient connected to the authoritative container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
-        event_type: The ``event_type`` value to wait for (e.g. ``"close_case"``).
+        semantic_type: The ``semantic_type`` value to wait for (e.g. ``"close_case"``).
         log_object_id: When supplied, the ledger entry's ``log_object_id`` must
             also match.  Use this to distinguish multiple events of the same
             type on different objects (EDF-06-002).
@@ -582,13 +588,13 @@ def wait_for_ledger_event(
             if not isinstance(v, dict):
                 continue
             if not _ledger_entry_matches(
-                v, case_id, event_type, log_object_id, min_log_index
+                v, case_id, semantic_type, log_object_id, min_log_index
             ):
                 continue
             logger.info(
                 "Ledger event %r found for case %s"
                 " (log_object_id=%r, log_index=%r)",
-                event_type,
+                semantic_type,
                 case_id,
                 v.get("log_object_id"),
                 v.get("log_index"),
@@ -596,7 +602,7 @@ def wait_for_ledger_event(
             return True
         return False
 
-    parts = [f"event_type={event_type!r}"]
+    parts = [f"semantic_type={semantic_type!r}"]
     if log_object_id is not None:
         parts.append(f"log_object_id={log_object_id!r}")
     if min_log_index is not None:
@@ -611,15 +617,15 @@ def wait_for_ledger_event(
     )
 
 
-def wait_for_event_type_in_ledger(
+def wait_for_semantic_type_in_ledger(
     client: DataLayerClient,
     case_id: str,
-    event_type: str,
+    semantic_type: str,
     timeout_seconds: float = 20.0,
     poll_interval: float = 0.5,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll *client*'s DataLayer until a ``CaseLedgerEntry`` with *event_type* appears.
+    """Poll *client*'s DataLayer until a ``CaseLedgerEntry`` with *semantic_type* appears.
 
     Use this before reading the authoritative tail index when a later step
     depends on an entry the CaseActor commits asynchronously, so the tail
@@ -634,7 +640,7 @@ def wait_for_event_type_in_ledger(
     Args:
         client: DataLayerClient connected to the authoritative container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
-        event_type: The ``event_type`` value to wait for (e.g. ``"close_case"``).
+        semantic_type: The ``semantic_type`` value to wait for (e.g. ``"close_case"``).
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Read this actor's store instead of *client*'s own.  Pass
@@ -647,14 +653,14 @@ def wait_for_event_type_in_ledger(
             CaseActor (CLP-10-006) with no participant effect to announce.
 
     Raises:
-        AssertionError: If no entry with *event_type* appears within
+        AssertionError: If no entry with *semantic_type* appears within
             *timeout_seconds*.
     """
 
     wait_for_ledger_event(
         client=client,
         case_id=case_id,
-        event_type=event_type,
+        semantic_type=semantic_type,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
         dl_actor_id=dl_actor_id,
@@ -671,7 +677,7 @@ def wait_for_contiguous_ledger_coverage(
 ) -> None:
     """Poll *client*'s DataLayer until it holds all log indices 0…*expected_tail_index*.
 
-    :func:`wait_for_finder_log_entry` only confirms that the tail entry (by
+    :func:`wait_for_reporter_log_entry` only confirms that the tail entry (by
     hash) has arrived.  Because ``Announce(CaseLedgerEntry)`` activities are
     delivered independently, an intermediate entry (e.g. logIndex=17) can
     arrive *after* the tail entry, so the dump may still capture a gapped log.
@@ -811,26 +817,24 @@ def _poll_datalayer_for(
         timeout_seconds,
         progress_ceiling if progress_fn is not None else timeout_seconds,
     )
-    params = {"type": list(object_types)}
     while not deadline.expired():
         try:
-            objects = client.get(client.dl_path(), params=params)
-            if isinstance(objects, dict):
-                for raw_id, obj_data in objects.items():
-                    if not isinstance(obj_data, dict):
-                        continue
-                    if discriminator_fn(obj_data):
-                        obj_id = (
-                            id_fn(str(raw_id), obj_data)
-                            if id_fn is not None
-                            else str(raw_id)
-                        )
-                        logger.info(log_msg, obj_id)
-                        return obj_id
-                # Read progress only after the match, so a reading that raises
-                # can never hide an object that has already arrived.
-                if progress_fn is not None:
-                    deadline.observe(progress_fn())
+            objects = read_stored_of_types(client, object_types)
+            for raw_id, obj_data in objects.items():
+                if not isinstance(obj_data, dict):
+                    continue
+                if discriminator_fn(obj_data):
+                    obj_id = (
+                        id_fn(str(raw_id), obj_data)
+                        if id_fn is not None
+                        else str(raw_id)
+                    )
+                    logger.info(log_msg, obj_id)
+                    return obj_id
+            # Read progress only after the match, so a reading that raises
+            # can never hide an object that has already arrived.
+            if progress_fn is not None:
+                deadline.observe(progress_fn())
         except Exception:  # noqa: BLE001, S110  # ruff-baseline #3326
             pass
         time.sleep(poll_interval)
@@ -844,10 +848,23 @@ def _poll_datalayer_for(
 # ---------------------------------------------------------------------------
 
 
-#: The stored types a received Invite can be held as: intake's archive record,
-#: or the bare activity while the inbox defers it (see
-#: :func:`_received_activity`).
-_RECEIVED_INVITE_TYPES: tuple[str, ...] = ("ReceivedActivityRecord", "Invite")
+#: The stored type a received activity is read from: intake's archive record,
+#: kept under the receiver's key (CLP-10-017, ADR-0111).  A row of an activity
+#: type under the sender's id is never read as a received one (DL-06-006).
+_RECEIVED_ACTIVITY_TYPES: tuple[str, ...] = (RECEIVED_ACTIVITY_RECORD_TYPE,)
+
+#: The stored type of the row ingress keeps for a stub Invite under the
+#: sender's id, until #4871 retires it.  The invitee processes the Invite on
+#: arrival, though it holds no case (PCR-06-005), so intake's archive record
+#: is normally there first; the row is read only while no record exists yet
+#: (see :func:`_received_activity`).
+_DEFERRED_INVITE_TYPE = "Invite"
+
+#: The stored types a received stub Invite can be held as.
+_RECEIVED_OR_DEFERRED_INVITE_TYPES: tuple[str, ...] = (
+    *_RECEIVED_ACTIVITY_TYPES,
+    _DEFERRED_INVITE_TYPE,
+)
 
 
 def _received_activity(obj_data: dict) -> dict:
@@ -855,22 +872,16 @@ def _received_activity(obj_data: dict) -> dict:
 
     Intake archives a dispatched activity as a ``ReceivedActivityRecord``
     (CLP-10-017, ADR-0111), which wraps it.  An activity the inbox deferred
-    until its case is known — an invitee's Invite, usually — is held bare
-    under the sender's id instead.  Mirrors
-    :func:`vultron.core.use_cases._helpers.read_received_activity`.
+    until its case is known is held bare under the sender's id instead.
+    Mirrors
+    :func:`vultron.core.services.received_activity.read_received_activity`.
 
     Raises:
         AssertionError: when a ``ReceivedActivityRecord`` wraps no activity.
     """
-    if obj_data.get("type") != "ReceivedActivityRecord":
+    if obj_data.get("type") != RECEIVED_ACTIVITY_RECORD_TYPE:
         return obj_data
-    activity = obj_data.get("activity")
-    if not isinstance(activity, dict):
-        raise AssertionError(  # noqa: TRY004 — demo_check assertion, not a type error
-            f"received-activity record {obj_data.get('id')!r} wraps no"
-            f" activity: {activity!r}"
-        )
-    return activity
+    return received_activity_in(obj_data)
 
 
 def _received_activity_id(raw_id: str, obj_data: dict) -> str:
@@ -882,7 +893,7 @@ def _received_activity_id(raw_id: str, obj_data: dict) -> str:
     Raises:
         AssertionError: when a record's activity carries no id.
     """
-    if obj_data.get("type") != "ReceivedActivityRecord":
+    if obj_data.get("type") != RECEIVED_ACTIVITY_RECORD_TYPE:
         return raw_id
     activity_id = _received_activity(obj_data).get("id")
     if not activity_id:
@@ -890,6 +901,16 @@ def _received_activity_id(raw_id: str, obj_data: dict) -> str:
             f"received-activity record {raw_id!r} holds an activity with no id"
         )
     return str(activity_id)
+
+
+def _stub_case_id(stub: dict) -> object:
+    """The case a served ``VulnerabilityCaseStub`` names (CM-11-013).
+
+    The archive record serves the objects nested in its activity under their
+    field names (``case_id``); a bare activity row serves them under their
+    wire names (``caseId``).
+    """
+    return served_field(stub, "caseId", "case_id")
 
 
 def _is_case_invite_for(
@@ -915,7 +936,7 @@ def _is_case_invite_for(
         return False
     if isinstance(target_raw, dict):
         target_case_id = (
-            target_raw.get("caseId") if is_stub else target_raw.get("id")
+            _stub_case_id(target_raw) if is_stub else target_raw.get("id")
         )
     else:
         target_case_id = target_raw
@@ -926,28 +947,39 @@ def _is_case_invite_for(
     return inner_id == invitee_id
 
 
-def read_received_activity_for(
-    client: DataLayerClient, activity_id: str
-) -> dict:
-    """The activity *activity_id* as the actor behind *client* holds it.
+def _read_deferred_activity(
+    client: DataLayerClient, activity_id: str, deferred_type: str
+) -> dict | None:
+    """The *deferred_type* activity *activity_id* the inbox holds for replay.
 
-    Reads intake's archive record or the inbox's deferred copy, as
-    :func:`_received_activity` describes.
+    ``None`` when the inbox holds no such activity.
+    """
+    row = read_stored_of_types(client, [deferred_type]).get(activity_id)
+    return row if isinstance(row, dict) else None
+
+
+def read_received_activity_for(
+    client: DataLayerClient,
+    activity_id: str,
+    *,
+    deferred_type: str | None = None,
+) -> dict:
+    """The activity *activity_id* as the actor behind *client* received it.
+
+    Reads intake's archive record (:func:`read_received_activity`).  A caller
+    that names *deferred_type*, the activity's type, also reads the row
+    ingress keeps under the sender's id when no record exists yet, as
+    :data:`_DEFERRED_INVITE_TYPE` describes.
 
     Raises:
         AssertionError: If the actor holds no activity *activity_id*.
     """
-    all_objects = client.get(client.dl_path())
-    if isinstance(all_objects, dict):
-        for raw_id, obj_data in all_objects.items():
-            if (
-                isinstance(obj_data, dict)
-                and _received_activity_id(str(raw_id), obj_data) == activity_id
-            ):
-                return _received_activity(obj_data)
-    raise AssertionError(
-        f"{client.base_url} holds no received activity {activity_id!r}"
-    )
+    activity = read_received_activity(client, activity_id)
+    if activity is None and deferred_type is not None:
+        activity = _read_deferred_activity(client, activity_id, deferred_type)
+    if activity is None:
+        raise not_received_error(client, activity_id)
+    return activity
 
 
 def assert_received_from(
@@ -955,6 +987,8 @@ def assert_received_from(
     activity_id: str,
     sender_id: str,
     consequence: str,
+    *,
+    deferred_type: str | None = None,
 ) -> None:
     """Assert the actor behind *client* received *activity_id* from *sender_id*.
 
@@ -963,11 +997,15 @@ def assert_received_from(
         activity_id: The sender's id for the received activity.
         sender_id: The actor the activity must have been emitted as.
         consequence: What goes wrong when it was not, for the failure message.
+        deferred_type: The activity's type, when the inbox may still be
+            deferring it (:func:`read_received_activity_for`).
 
     Raises:
         AssertionError: If the activity is not held, or another actor sent it.
     """
-    actor = read_received_activity_for(client, activity_id).get("actor")
+    actor = read_received_activity_for(
+        client, activity_id, deferred_type=deferred_type
+    ).get("actor")
     emitted_as = actor.get("id") if isinstance(actor, dict) else actor
     assert emitted_as == sender_id, (
         f"'{activity_id}' was emitted as '{emitted_as}', not as"
@@ -989,8 +1027,9 @@ def find_case_invite_for_actor(
     (CM-17-007, ADR-0109); the invitee must then send Accept(Invite) to
     trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
     replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
-    for that Invite — archived by intake, or held by the inbox until the case
-    bootstrap — so the demo can drive the accept step.
+    for that Invite — archived by intake on arrival (PCR-06-005), or, until
+    #4871, the row ingress keeps under the sender's id — so the demo can drive
+    the accept step.
 
     Args:
         client: DataLayerClient connected to the invitee container.
@@ -1007,7 +1046,7 @@ def find_case_invite_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=_RECEIVED_INVITE_TYPES,
+        object_types=_RECEIVED_OR_DEFERRED_INVITE_TYPES,
         discriminator_fn=lambda obj: _is_case_invite_for(
             obj, case_id, invitee_id
         ),
@@ -1083,7 +1122,7 @@ def find_full_case_invite_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=_RECEIVED_INVITE_TYPES,
+        object_types=_RECEIVED_ACTIVITY_TYPES,
         discriminator_fn=lambda obj: _is_case_invite_for(
             obj, case_id, invitee_id, full_case=True
         ),
@@ -1113,22 +1152,24 @@ def _is_ownership_transfer_offer_for(
     to the transferee (CM-21-005).  The forwarded Offer has::
 
         type   = "Offer"
-        target = transferee_id      # the actor being offered ownership
+        target = transferee_id      # the actor being offered ownership,
+                                    # inline Actor or its id (DL-08-003)
         object = case_id            # the VulnerabilityCase being transferred
 
     The original Vendor Offer (addressed to the CaseActor, target=case_actor_id)
     does NOT match this discriminator, so polling for the forwarded Offer on
     Coordinator's DataLayer correctly skips the original.
     """
-    if obj_data.get("type") != "Offer":
+    offer = _received_activity(obj_data)
+    if offer.get("type") != "Offer":
         return False
-    target_raw = obj_data.get("target")
+    target_raw = offer.get("target")
     target_id = (
         target_raw.get("id") if isinstance(target_raw, dict) else target_raw
     )
     if target_id != transferee_id:
         return False
-    inner = obj_data.get("object")
+    inner = offer.get("object")
     inner_id = inner.get("id") if isinstance(inner, dict) else inner
     return inner_id == case_id
 
@@ -1150,7 +1191,8 @@ def find_ownership_transfer_offer_for_actor(
     because the original Offer is only stored in the CaseActor's DataLayer.
 
     This helper scans *client*'s DataLayer for any
-    ``Offer(target=transferee_id, object=case_id)`` and returns its ID so the
+    ``Offer(target=transferee_id, object=case_id)`` (``target`` an inline Actor
+    or its id) and returns its ID so the
     demo can drive the ``accept-case-ownership-transfer`` trigger with the correct
     (forwarded) offer ID.
 
@@ -1171,10 +1213,11 @@ def find_ownership_transfer_offer_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=("Offer",),
+        object_types=_RECEIVED_ACTIVITY_TYPES,
         discriminator_fn=lambda obj: _is_ownership_transfer_offer_for(
             obj, case_id, transferee_id
         ),
+        id_fn=_received_activity_id,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
         log_msg=(
@@ -1191,16 +1234,17 @@ def find_ownership_transfer_offer_for_actor(
 
 
 def _is_cp_offer_for_case(obj_data: dict, case_id: str) -> bool:
-    """Return True if *obj_data* looks like an Offer(CaseParticipant) for *case_id*."""
-    if obj_data.get("type") != "Offer":
+    """Return True if *obj_data* holds an Offer(CaseParticipant) for *case_id*."""
+    offer = _received_activity(obj_data)
+    if offer.get("type") != "Offer":
         return False
-    target_raw = obj_data.get("target")
+    target_raw = offer.get("target")
     target_id = (
         target_raw.get("id") if isinstance(target_raw, dict) else target_raw
     )
     if target_id != case_id:
         return False
-    inner = obj_data.get("object")
+    inner = offer.get("object")
     if not isinstance(inner, dict):
         return False
     return bool(
@@ -1220,8 +1264,9 @@ def find_cp_offer_for_case(
     After a Coordinator sends suggest-actor-to-case, the CaseActor processes the
     Offer(Actor, Case) and forwards an Offer(CaseParticipant) to the Case
     Owner's inbox (ADR-0026).  This helper polls the Case Owner's DataLayer for
-    any Offer whose ``target`` matches *case_id* and whose ``object`` resembles
-    a CaseParticipant, so the demo can drive the approve step.
+    any received Offer whose ``target`` matches *case_id* and whose ``object``
+    resembles a CaseParticipant, so the demo can drive the approve step.  It
+    reads intake's archive, the only record holding the participant inline.
 
     Args:
         client: DataLayerClient connected to the Case Owner's container.
@@ -1237,8 +1282,9 @@ def find_cp_offer_for_case(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=("Offer",),
+        object_types=_RECEIVED_ACTIVITY_TYPES,
         discriminator_fn=lambda obj: _is_cp_offer_for_case(obj, case_id),
+        id_fn=_received_activity_id,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
         log_msg=f"Found Offer(CaseParticipant) for case {case_id}: %s",
@@ -1299,11 +1345,11 @@ def find_case_actor_participant_id(
 def wait_for_case_actor_ledger_event(
     client: DataLayerClient,
     case_id: str,
-    event_type: str,
+    semantic_type: str,
     timeout_seconds: float = PARTICIPANT_JOIN_TIMEOUT,
     poll_interval: float = 0.5,
 ) -> None:
-    """Poll the CaseActor's *own* ledger, read through *client*, for *event_type*.
+    """Poll the CaseActor's *own* ledger, read through *client*, for *semantic_type*.
 
     The gate for "the CASE_MANAGER committed it": the commit lands in the
     CaseActor's store the moment its received-side tree runs, before any
@@ -1322,17 +1368,17 @@ def wait_for_case_actor_ledger_event(
     Args:
         client: DataLayerClient for the container that hosts the CaseActor.
         case_id: Full URI of the ``as_VulnerabilityCase``.
-        event_type: The ``event_type`` value to wait for.
+        semantic_type: The ``semantic_type`` value to wait for.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
 
     Raises:
         AssertionError: If no such entry appears within *timeout_seconds*.
     """
-    wait_for_event_type_in_ledger(
+    wait_for_semantic_type_in_ledger(
         client=client,
         case_id=case_id,
-        event_type=event_type,
+        semantic_type=semantic_type,
         timeout_seconds=timeout_seconds,
         poll_interval=poll_interval,
         dl_actor_id=resolve_case_actor_store_id(client, case_id),
@@ -1455,6 +1501,11 @@ def wait_for_object_stored(
 ) -> None:
     """Poll *client*'s DataLayer until *obj_id* appears.
 
+    For an object the actor stores under its own id.  An activity the actor
+    *received* is not one: it is held in the receiver's archive record, never
+    under the sender's id (DL-06-006), so wait on it with
+    :func:`wait_for_received_activity`.
+
     .. warning::
         **Only valid when the recipient stores the same object ID.**  When the
         receiving actor creates a *new* derived object in response (the
@@ -1503,6 +1554,48 @@ def wait_for_object_stored(
     )
 
 
+def wait_for_received_activity(
+    client: DataLayerClient,
+    activity_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+    actor_id: str | None = None,
+) -> None:
+    """Poll the receiver's store until it has archived *activity_id*.
+
+    The gate for "the receiver took in this delivery": intake archives every
+    activity it receives as a ``ReceivedActivityRecord`` under the receiver's
+    key (CLP-10-017, ADR-0111), and that record is the only place a received
+    activity is read from (DL-06-006), so the wait is on it rather than on a
+    row under the sender's id (EDF-06-002).
+
+    Args:
+        client: DataLayerClient connected to the receiver's container.
+        activity_id: The sender's id for the activity.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between poll attempts.
+        actor_id: Whose store to poll.  Defaults to *client*'s own actor;
+            name the recipient when it is not the actor *client* is bound to
+            (ADR-0073).
+
+    Raises:
+        AssertionError: If the activity is not archived within
+            *timeout_seconds*.
+    """
+    _poll_until(
+        lambda: (
+            read_received_activity(client, activity_id, actor_id=actor_id)
+            is not None
+        ),
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for {actor_id or client.actor_id!r} at"
+        f" {client.base_url} to archive received activity {activity_id!r} —"
+        " outbox delivery may not have completed",
+        swallow_exceptions=True,
+    )
+
+
 def wait_for_report_submission_stored(
     client: DataLayerClient,
     receiver_id: str,
@@ -1535,10 +1628,20 @@ def wait_for_report_submission_stored(
     """
     missing: set[str] = {report_id, offer_id}
 
+    def _stored(obj_id: str) -> bool:
+        # The Offer is a received activity, read from the receiver's archive
+        # record (DL-06-006); the report it carried is stored under its own id.
+        if obj_id == offer_id:
+            return (
+                read_received_activity(client, offer_id, actor_id=receiver_id)
+                is not None
+            )
+        return bool(client.get(client.dl_path(obj_id, actor_id=receiver_id)))
+
     def _check() -> bool:
         for obj_id in sorted(missing):
             try:
-                if client.get(client.dl_path(obj_id, actor_id=receiver_id)):
+                if _stored(obj_id):
                     missing.discard(obj_id)
             except Exception:  # noqa: BLE001, S110
                 pass
@@ -1572,8 +1675,9 @@ def wait_for_reporter_introduction(
     binds that link to the case only on the trusted route, and records the
     receiver as ``case_creator_id`` (CBT-01-001, CBT-01-006).  So a bound link
     naming *receiver_id* is the committed effect of a trusted introduction, read
-    where it commits (EDF-06-002).  An introduction refused on the unanchored
-    route (CBT-01-011) leaves no such link, and this wait times out.
+    where it commits (EDF-06-002).  An introduction refused because no trust
+    anchor names its sender (CBT-01-011) leaves no such link, and this wait
+    times out.
 
     Args:
         client: DataLayerClient connected to the reporter's container.
@@ -1946,7 +2050,7 @@ def find_embargo_invite_for_actor(
     """
     return _poll_datalayer_for(
         client=client,
-        object_types=_RECEIVED_INVITE_TYPES,
+        object_types=_RECEIVED_ACTIVITY_TYPES,
         discriminator_fn=lambda obj: _is_embargo_invite_for(
             obj, embargo_id, invitee_id
         ),
@@ -2321,8 +2425,8 @@ def wait_for_case_attributed_to(
         case_data = client.get(client.dl_path(case_id))
         if not isinstance(case_data, dict):
             return False
-        attributed_to = case_data.get("attributedTo") or case_data.get(
-            "attributed_to"
+        attributed_to = served_field(
+            case_data, "attributedTo", "attributed_to"
         )
         if isinstance(attributed_to, dict):
             attributed_to = attributed_to.get("id") or attributed_to.get("id_")

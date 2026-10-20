@@ -13,6 +13,10 @@
 """Unit tests for InvalidateReportReceivedUseCase and CloseReportReceivedUseCase:
 which store the tree runs in, and whose RM state it writes.
 
+``Close(Report)`` writes no one's RM state any more: once a case holds the
+report every sender's is refused (CM-23-019), so only its refusal is pinned
+here.
+
 Two rules, deliberately kept apart (``notes/bt-pitfalls.md`` § "The Store Is
 Not the Subject"):
 
@@ -27,8 +31,7 @@ Not the Subject"):
 - **The subject** — RSH-08-001, HP-00-001: a received activity is an assertion
   about the *sender's* state, so the RM write is about ``request.actor_id``.
   ``TentativeReject(Offer(Report))`` moves the sender's participant to
-  ``INVALID`` and ``Reject(Offer(Report))`` moves it to ``CLOSED``; the
-  receiving actor's own participant is unchanged.
+  ``INVALID``; the receiving actor's own participant is unchanged.
 
 These tests once read "the tree runs as the receiver" as "the write is about the
 receiver" and pinned the receiver's RM moving (CONCERN-3473, #3812); they now
@@ -47,6 +50,9 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_participant import CaseParticipant
@@ -252,6 +258,7 @@ def _run_invalidate(dl, request):
         dl=dl,
         request=request,
         sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
 
@@ -351,87 +358,6 @@ class TestInvalidateReportReceivedSubject:
 
 
 # ---------------------------------------------------------------------------
-# Tests — CloseReportReceivedUseCase
-# ---------------------------------------------------------------------------
-
-
-class TestCloseReportReceivedSubject:
-    """The tree runs as the receiver (BT-17-006); the write is the sender's.
-
-    ``Reject(Offer(Report))`` declares the *sender's* RM state (RSH-08-001), so
-    the sender's participant reaches CLOSED and the receiving actor's
-    participant is unchanged.
-    """
-
-    @pytest.mark.spec("RSH-08-001")
-    def test_sender_participant_transitions_to_closed(self):
-        """RM.CLOSED is recorded for the sender, the activity's subject."""
-        dl = _make_dl(receiving_rm=RM.RECEIVED, sender_rm=RM.INVALID)
-
-        _run_close(
-            dl, _make_close_report_event(receiving_actor_id=RECEIVING_ACTOR_ID)
-        )
-
-        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED, (
-            "the sender's participant must reach RM.CLOSED: the activity"
-            " declares the sender's state (RSH-08-001)"
-        )
-
-    @pytest.mark.spec("RSH-08-001")
-    @pytest.mark.spec("BT-17-006")
-    def test_receiving_actor_participant_unchanged(self):
-        """The receiving actor's own RM does not move on receipt."""
-        dl = _make_dl(receiving_rm=RM.INVALID, sender_rm=RM.INVALID)
-
-        _run_close(
-            dl, _make_close_report_event(receiving_actor_id=RECEIVING_ACTOR_ID)
-        )
-
-        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.INVALID, (
-            "the receiving actor is not the mover, so its participant must"
-            " stay RM.INVALID (RSH-08-001)"
-        )
-
-    @pytest.mark.spec("BT-17-006")
-    @pytest.mark.parametrize(
-        "store_owner_id", [RECEIVING_ACTOR_ID, SENDER_ACTOR_ID]
-    )
-    def test_fallback_runs_in_the_store_owners_replica(
-        self, store_owner_id, monkeypatch
-    ):
-        """With no receiving_actor_id, the tree runs in the store it was handed.
-
-        Parametrized over both actors so the assertion cannot pass by
-        coincidence: whichever actor owns the store, the write lands in *that*
-        store's replica, and it is always about the sender.
-        """
-        dl = _make_dl(
-            receiving_rm=RM.INVALID,
-            sender_rm=RM.INVALID,
-            actor_id=store_owner_id,
-        )
-
-        executed_as = _spy_executing_actor(monkeypatch)
-
-        result = _run_close(
-            dl, _make_close_report_event(receiving_actor_id=None)
-        )
-
-        assert result.disposition == HandlerDisposition.APPLIED, result.reason
-        # The received tree executes as the store's owner (BT-17-006).  The
-        # store owner is the CASE_MANAGER here, so the gated canonical commit
-        # now runs (CLP-10-013, #4304); that inner commit tree runs under its
-        # own actor, so assert only that the *received* tree — the first run —
-        # executed as the store owner, never as the sender.
-        assert executed_as[0] == store_owner_id, (
-            "absent receiving_actor_id, the tree executes as the store's"
-            " owner, never as the sender (BT-17-006)"
-        )
-        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED
-        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.INVALID
-
-
-# ---------------------------------------------------------------------------
 # Tests — handler disposition (#2255)
 # ---------------------------------------------------------------------------
 
@@ -444,37 +370,21 @@ class TestCloseInvalidateDisposition:
         result = _run_invalidate(_make_dl(), _make_invalidate_event())
         assert result.disposition == HandlerDisposition.APPLIED
 
-    @pytest.mark.spec("HP-01-003")
-    def test_close_is_applied(self):
-        result = _run_close(
-            _make_dl(sender_rm=RM.INVALID), _make_close_report_event()
-        )
-        assert result.disposition == HandlerDisposition.APPLIED
+    @pytest.mark.spec("CM-23-019")
+    @pytest.mark.parametrize(
+        "sender_rm", [RM.RECEIVED, RM.INVALID, RM.VALID], ids=lambda r: r.name
+    )
+    def test_close_on_a_case_is_refused(self, sender_rm):
+        """No ``Close(Report)`` for a report a case holds is applied.
 
-    @pytest.mark.spec("HP-01-003")
-    @pytest.mark.spec("RMB-14-004")
-    @pytest.mark.spec("RSH-08-001")
-    def test_close_from_received_is_applied(self):
-        """RECEIVED → CLOSED is an RM transition (ADR-0114), so it applies."""
-        dl = _make_dl()
-        result = _run_close(dl, _make_close_report_event())
-        assert result.disposition == HandlerDisposition.APPLIED, result.reason
-        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED
-
-    @pytest.mark.spec("HP-01-003")
-    @pytest.mark.spec("RSH-06-001")
-    @pytest.mark.spec("RSH-06-006")
-    def test_close_from_valid_is_a_recorded_gap(self):
-        """VALID → CLOSED is a non-adjacent forward move, so it is recorded.
-
-        VALID has no close edge (VP-02-004), which binds an actor moving its
-        own RM; a *declared* forward jump is accepted under the received-side
-        rule, never refused for adjacency (RSH-06-006).
+        Whatever the sender's RM state, nothing moves: the sender closes by
+        ``Leave(VulnerabilityCase)`` instead (CM-23-019).
         """
-        dl = _make_dl(sender_rm=RM.VALID)
+        dl = _make_dl(sender_rm=sender_rm)
         result = _run_close(dl, _make_close_report_event())
-        assert result.disposition == HandlerDisposition.APPLIED, result.reason
-        assert _rm_state(dl, SENDER_ACTOR_ID) == RM.CLOSED
+        assert result.disposition == HandlerDisposition.REFUSED, result.reason
+        assert _rm_state(dl, SENDER_ACTOR_ID) == sender_rm
+        assert _rm_state(dl, RECEIVING_ACTOR_ID) == RM.RECEIVED
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("RSH-06-002")

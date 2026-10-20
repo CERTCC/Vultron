@@ -45,6 +45,34 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 
+def _addressed_to_inviter(invite, also_to: tuple[str, ...]) -> list[str]:
+    """The answer's ``to``: the inviter, as the trigger adapter derives it.
+
+    ``accept_case_invite`` / ``reject_case_invite`` address the answer to the
+    invite's ``actor`` (OX-08-001); *also_to* adds a copy-holder, so a test of
+    what a non-CASE_MANAGER does with its copy gets past the addressee door
+    (HP-01-005).
+    """
+    inviter = (
+        invite.actor if isinstance(invite.actor, str) else invite.actor.id_
+    )
+    return [inviter, *also_to]
+
+
+def _accept_invite(invite, *, actor: str, also_to: tuple[str, ...] = ()):
+    """``Accept(Invite)`` addressed as the trigger adapter sends it."""
+    return rm_accept_invite_to_case_activity(
+        invite, actor=actor, to=_addressed_to_inviter(invite, also_to)
+    )
+
+
+def _reject_invite(invite, *, actor: str, also_to: tuple[str, ...] = ()):
+    """``Reject(Invite)`` addressed as the trigger adapter sends it."""
+    return rm_reject_invite_to_case_activity(
+        invite, actor=actor, to=_addressed_to_inviter(invite, also_to)
+    )
+
+
 def _outbound_blob(activity) -> str:
     """The sealed body the real adapter returns alongside the activity id."""
     return str(
@@ -58,7 +86,7 @@ def _seed_ledger_entry(
     dl,
     case_id: str,
     object_id: str,
-    event_type: str,
+    semantic_type: str,
     actor_id: str,
     payload_snapshot: dict | None = None,
 ):
@@ -69,14 +97,14 @@ def _seed_ledger_entry(
     """
     from vultron.core.models.case_ledger import HashChainLedgerRecord
     from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-    from vultron.core.sync_helpers import _reconstruct_tail_hash
+    from vultron.core.sync_helpers import reconstruct_tail_hash
 
-    tail_hash, tail_index = _reconstruct_tail_hash(case_id, dl)
+    tail_hash, tail_index = reconstruct_tail_hash(case_id, dl)
     chain_entry = HashChainLedgerRecord(
         case_id=case_id,
         log_index=tail_index + 1,
         object_id=object_id,
-        event_type=event_type,
+        semantic_type=semantic_type,
         payload_snapshot=payload_snapshot or {},
         prev_log_hash=tail_hash,
     )
@@ -85,7 +113,7 @@ def _seed_ledger_entry(
         log_index=chain_entry.log_index,
         term=chain_entry.term,
         log_object_id=chain_entry.object_id,
-        event_type=chain_entry.event_type,
+        semantic_type=chain_entry.semantic_type,
         payload_snapshot=dict(chain_entry.payload_snapshot),
         prev_log_hash=chain_entry.prev_log_hash,
         entry_hash=chain_entry.entry_hash,
@@ -160,7 +188,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
         dl,
         case_id=case.id_,
         object_id=f"{case.id_}/events/0",
-        event_type="submit_report",
+        semantic_type="submit_report",
         actor_id=case_actor_id,
         payload_snapshot={"index": 0},
     )
@@ -168,7 +196,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
         dl,
         case_id=case.id_,
         object_id=f"{case.id_}/events/1",
-        event_type="add_participant_status",
+        semantic_type="add_participant_status",
         actor_id=case_actor_id,
         payload_snapshot={"index": 1},
     )
@@ -390,15 +418,23 @@ class TestInviteActorUseCases:
         )
 
     @pytest.mark.spec("PCR-03-004")
-    def test_invite_trust_anchor_is_first_invite_wins(self, make_payload):
-        """A second invite naming a different CaseActor is refused; anchor unchanged.
+    def test_an_accepted_invite_anchor_refuses_another_case_actor(
+        self, make_payload
+    ):
+        """Once the invitee accepts, an Invite naming another CaseActor is refused.
 
-        AC-3 (PCR-03-004 path b): the existing anchor is never overwritten.
+        AC-3 (PCR-03-004 path b): the accepted anchor is never overwritten.
         The second Invite disposition is REFUSED, naming both CaseActor ids.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.pending_case_inbox import (
             VultronPendingCaseInbox,
+        )
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseInviteUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseInviteTriggerRequest,
         )
 
         case_id = "https://example.org/cases/case-trust-2"
@@ -429,6 +465,17 @@ class TestInviteActorUseCases:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        dl.create(as_Actor(id_=invitee_id, name="invitee"))
+        accepted = SvcAcceptCaseInviteUseCase(
+            dl,
+            AcceptCaseInviteTriggerRequest(
+                actor_id=invitee_id, invite_id=invite1.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        assert accepted.activity is not None
         second_result = InviteActorToCaseReceivedUseCase(
             dl,
             make_payload(invite2),
@@ -447,7 +494,7 @@ class TestInviteActorUseCases:
         pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
         assert isinstance(pending, VultronPendingCaseInbox)
         assert pending.case_actor_id == first_sender, (
-            "First-invite-wins: trust anchor MUST NOT be overwritten by a second invite"
+            "An accepted trust anchor MUST NOT be overwritten by a second invite"
         )
 
     @pytest.mark.spec("HP-01-003")
@@ -770,7 +817,7 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        reject = rm_reject_invite_to_case_activity(
+        reject = _reject_invite(
             invite,
             actor=invitee_id,
         )
@@ -799,8 +846,8 @@ class TestInviteActorUseCases:
         assert len(entries) >= 1, (
             "Expected at least one CaseLedgerEntry after reject-invite"
         )
-        assert any("reject" in e.event_type for e in entries), (
-            f"Expected a reject-invite ledger entry; got: {[e.event_type for e in entries]}"
+        assert any("reject" in e.semantic_type for e in entries), (
+            f"Expected a reject-invite ledger entry; got: {[e.semantic_type for e in entries]}"
         )
 
     def test_accept_invite_actor_to_case_adds_participant(
@@ -839,7 +886,7 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(
+        accept = _accept_invite(
             invite,
             actor=invitee_id,
         )
@@ -904,7 +951,7 @@ class TestInviteActorUseCases:
         dl.create(embargo)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(
+        accept = _accept_invite(
             invite,
             actor=invitee_id,
         )
@@ -971,7 +1018,7 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(
+        accept = _accept_invite(
             invite,
             actor=invitee_id,
         )
@@ -1054,7 +1101,7 @@ class TestInviteActorUseCases:
         dl.create(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(
+        accept = _accept_invite(
             invite,
             actor=invitee_id,
         )
@@ -1101,7 +1148,7 @@ class TestInviteActorUseCases:
         self, monkeypatch, make_payload
     ):
         """AcceptInviteActorToCaseReceivedUseCase commits a canonical
-        as_CaseLedgerEntry with event_type 'accept_invite_actor_to_case'
+        as_CaseLedgerEntry with semantic_type 'accept_invite_actor_to_case'
         (CM-02-009).
 
         record_event('participant_joined') was removed in #789; the trust
@@ -1164,7 +1211,7 @@ class TestInviteActorUseCases:
         dl.save(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(
+        accept = _accept_invite(
             invite,
             actor=invitee_id,
         )
@@ -1186,7 +1233,7 @@ class TestInviteActorUseCases:
         ]
         assert len(entries) >= 1
         assert any(
-            e.event_type == "accept_invite_actor_to_case" for e in entries
+            e.semantic_type == "accept_invite_actor_to_case" for e in entries
         )
 
     def test_accept_invite_backfills_canonical_ledger_from_genesis(
@@ -1202,7 +1249,7 @@ class TestInviteActorUseCases:
         trigger_activity = lj["trigger_activity"]
         sync_port = MagicMock()
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1232,12 +1279,12 @@ class TestInviteActorUseCases:
         #   genesis (#2898), and last the full-case Invite (4).  No
         #   add_case_participant entry is committed (CM-31-012).
         assert announced_log_indices == [0, 1, 2, 3, 4]
-        assert [e.event_type for e in announced_entries[3:]] == [
+        assert [e.semantic_type for e in announced_entries[3:]] == [
             "add_participant_status_to_participant",
             "invite_actor_to_full_case",
         ]
         assert "add_case_participant" not in {
-            e.event_type for e in dl.list_objects("CaseLedgerEntry")
+            e.semantic_type for e in dl.list_objects("CaseLedgerEntry")
         }
         assert announced_entries[0].entry_hash == first.entry_hash
         assert announced_entries[1].entry_hash == second.entry_hash
@@ -1273,7 +1320,7 @@ class TestInviteActorUseCases:
         dl, invitee_id, invite = lj["dl"], lj["invitee_id"], lj["invite"]
         events = record_sends_and_commits(monkeypatch, lj["case_actor_id"])
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
             make_payload(accept),
@@ -1323,13 +1370,13 @@ class TestInviteActorUseCases:
         lj = _seed_late_joiner_case()
         dl, invitee_id, invite = lj["dl"], lj["invitee_id"], lj["invite"]
         case_id = lj["case"].id_
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         with pytest.MonkeyPatch.context() as mp:
             failed = fail_commits(
                 mp,
                 commit_tree,
                 when=lambda kw: (
-                    kw["event_type"] == "invite_actor_to_full_case"
+                    kw["semantic_type"] == "invite_actor_to_full_case"
                 ),
             )
             # The Invite is queued, so the failed commit escapes rather than
@@ -1361,7 +1408,7 @@ class TestInviteActorUseCases:
         recorded = [
             e.log_object_id
             for e in dl.list_objects("CaseLedgerEntry")
-            if getattr(e, "event_type", None) == "invite_actor_to_full_case"
+            if getattr(e, "semantic_type", None) == "invite_actor_to_full_case"
         ]
         assert recorded == [invite_id]
 
@@ -1374,7 +1421,7 @@ class TestInviteActorUseCases:
 
         A late joiner that receives a ledger entry before its case seed enters
         the SYNC-15 pre-genesis path — Reject, then a from-genesis replay that
-        interleaves with the join backfill (fcvcv V2/C2, #2898).  The two
+        interleaves with the join backfill (rcvcv V2/C2, #2898).  The two
         channels are observed on one mock manager so their relative order is
         what is asserted, not each channel alone.
         """
@@ -1386,7 +1433,7 @@ class TestInviteActorUseCases:
         manager.attach_mock(trigger_activity, "trigger")
         manager.attach_mock(sync_port, "sync")
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1476,7 +1523,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/0",
-            event_type="submit_report",
+            semantic_type="submit_report",
             actor_id=case_actor_id,
             payload_snapshot={"index": 0},
         )
@@ -1484,7 +1531,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/1",
-            event_type="add_participant_status",
+            semantic_type="add_participant_status",
             actor_id=case_actor_id,
             payload_snapshot={"index": 1},
         )
@@ -1526,7 +1573,7 @@ class TestInviteActorUseCases:
         )
         sync_port = MagicMock()
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1635,7 +1682,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/0",
-            event_type="submit_report",
+            semantic_type="submit_report",
             actor_id=case_actor_id,
             payload_snapshot={"index": 0},
         )
@@ -1643,7 +1690,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/1",
-            event_type="add_participant_status",
+            semantic_type="add_participant_status",
             actor_id=case_actor_id,
             payload_snapshot={"index": 1},
         )
@@ -1654,7 +1701,7 @@ class TestInviteActorUseCases:
         )
         sync_port = MagicMock()
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1740,7 +1787,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/0",
-            event_type="submit_report",
+            semantic_type="submit_report",
             actor_id=case_actor_id,
             payload_snapshot={"index": 0},
         )
@@ -1748,7 +1795,7 @@ class TestInviteActorUseCases:
             dl,
             case_id=case.id_,
             object_id=f"{case.id_}/events/1",
-            event_type="add_participant_status",
+            semantic_type="add_participant_status",
             actor_id=case_actor_id,
             payload_snapshot={"index": 1},
         )
@@ -1760,7 +1807,7 @@ class TestInviteActorUseCases:
         trigger_activity.announce_vulnerability_case.side_effect = (
             RuntimeError("announce unavailable")
         )
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1829,7 +1876,7 @@ class TestAcceptInviteRolesAC4:
         dl.create(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1888,7 +1935,7 @@ class TestAcceptInviteRolesAC4:
         dl.create(case)
         dl.create(invite)
 
-        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         result = AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -2010,7 +2057,7 @@ class TestInviteDispositions:
         dl = self._dl()
         self._seed_case(dl, case_id, manager_id=self._OWNER)
         event = make_payload(
-            rm_reject_invite_to_case_activity(
+            _reject_invite(
                 self._recorded_invite(dl, case_id), actor=self._INVITEE
             )
         )
@@ -2040,8 +2087,10 @@ class TestInviteDispositions:
         case = self._seed_case(dl, case_id, manager_id=self._OWNER)
         invite = self._invite(case_id)
         dl.create(invite)
+        # The copy names this store too, so the CASE_MANAGER gate, not the
+        # addressee door (HP-01-005), is what refuses it.
         event = make_payload(
-            rm_accept_invite_to_case_activity(invite, actor=self._INVITEE)
+            _accept_invite(invite, actor=self._INVITEE, also_to=(dl.actor_id,))
         )
 
         result = AcceptInviteActorToCaseReceivedUseCase(
@@ -2062,7 +2111,7 @@ class TestInviteDispositions:
     def test_reject_invite_for_unknown_case_is_refused(self, make_payload):
         dl = self._dl()
         event = make_payload(
-            rm_reject_invite_to_case_activity(
+            _reject_invite(
                 self._recorded_invite(
                     dl, "https://example.org/cases/d-rj-missing"
                 ),
@@ -2095,7 +2144,7 @@ class TestInviteDispositions:
         dl = self._dl(actor_id=self._OWNER)
         self._seed_case(dl, case_id, manager_id=self._OWNER)
         event = make_payload(
-            rm_reject_invite_to_case_activity(
+            _reject_invite(
                 self._recorded_invite(dl, case_id), actor=self._INVITEE
             ),
             receiving_actor_id=self._OWNER,
@@ -2160,7 +2209,7 @@ class TestInviteDispositions:
         dl.save(_case)
 
         event = make_payload(
-            rm_reject_invite_to_case_activity(
+            _reject_invite(
                 self._recorded_invite(dl, case_id), actor=self._INVITEE
             ),
             receiving_actor_id=self._OWNER,
@@ -2199,7 +2248,7 @@ class TestInviteDispositions:
     def test_accept_invite_for_unknown_case_is_refused(self, make_payload):
         dl = self._dl()
         event = make_payload(
-            rm_accept_invite_to_case_activity(
+            _accept_invite(
                 self._recorded_invite(
                     dl, "https://example.org/cases/d-ac-missing"
                 ),
@@ -2233,9 +2282,7 @@ class TestInviteDispositions:
         self._seed_case(dl, case_id, manager_id=dl.actor_id)
         invite = self._invite(case_id, issuer=dl.actor_id)
         dl.create(invite)
-        event = make_payload(
-            rm_accept_invite_to_case_activity(invite, actor=self._INVITEE)
-        )
+        event = make_payload(_accept_invite(invite, actor=self._INVITEE))
         sync_port = MagicMock()
 
         result = AcceptInviteActorToCaseReceivedUseCase(
@@ -2260,7 +2307,7 @@ class TestInviteDispositions:
             if isinstance(e, CaseLedgerEntry)
         ]
         assert not any(
-            e.event_type == "accept_invite_actor_to_case" for e in ledger
+            e.semantic_type == "accept_invite_actor_to_case" for e in ledger
         )
         sync_port.send_announce_log_entry.assert_not_called()
 
@@ -2277,9 +2324,7 @@ class TestInviteDispositions:
         assert isinstance(seeded, VulnerabilityCase)
         seed_inert_invitee(dl, seeded, self._INVITEE)
         dl.save(seeded)
-        event = make_payload(
-            rm_accept_invite_to_case_activity(invite, actor=self._INVITEE)
-        )
+        event = make_payload(_accept_invite(invite, actor=self._INVITEE))
 
         first = AcceptInviteActorToCaseReceivedUseCase(
             dl,

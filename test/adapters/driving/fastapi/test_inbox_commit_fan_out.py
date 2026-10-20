@@ -17,7 +17,7 @@ factory returns.  ``OFFER_ACTOR_TO_CASE`` got no ``SyncActivityPort``, so the
 receipt commit (``offer_actor_to_case``) and the owner-direct ``Invite`` it
 commits (``invite_actor_to_case``) were persisted but never announced to the
 participants (SYNC-02-003).  Replicas learned of them only through
-``Reject(CaseLedgerEntry)`` catch-up, which made the ``fcv-reject`` demo's
+``Reject(CaseLedgerEntry)`` catch-up, which made the ``rcv-reject`` demo's
 ledger-coverage gate time out.
 
 These tests dispatch through the real :func:`make_dispatcher` wiring, so a
@@ -135,12 +135,12 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
         for obj in dl.list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
     ]
-    event_types = {entry.event_type for entry in entries}
-    assert {"offer_actor_to_case", "invite_actor_to_case"} <= event_types
+    semantic_types = {entry.semantic_type for entry in entries}
+    assert {"offer_actor_to_case", "invite_actor_to_case"} <= semantic_types
 
     announced = _announced(dl)
     for entry in entries:
         assert _FINDER_ID in announced.get(entry.id_, set()), (
-            f"{entry.event_type} entry '{entry.id_}' was committed but never"
+            f"{entry.semantic_type} entry '{entry.id_}' was committed but never"
             " announced to the finder (SYNC-02-003)"
         )

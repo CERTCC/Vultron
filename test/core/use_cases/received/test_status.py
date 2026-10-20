@@ -18,12 +18,19 @@ from typing import cast
 import pytest
 
 from test.core.use_cases.received.conftest import (
+    queued_bodies,
     seed_case_manager_participant,
+    seed_case_participant,
     seed_store_owner_as_case_manager,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.sender_entitlement import (
+    AddresseeSide,
+    SenderEntitlementKind,
+    SenderRule,
+)
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.dimensions import (
@@ -79,11 +86,16 @@ class TestStatusUseCases:
         # so the store's own actor must hold the role for the write to run,
         # which also runs the guarded commit (sync_port injected below).
         seed_store_owner_as_case_manager(dl, case)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, "https://example.org/users/vendor")
         dl.create(case)
         dl.create(status)
 
         activity = add_status_to_case_activity(
-            status, target=case, actor="https://example.org/users/vendor"
+            status,
+            target=case,
+            actor="https://example.org/users/vendor",
+            to=[dl.actor_id],
         )
         event = make_payload(activity)
 
@@ -142,7 +154,10 @@ class TestStatusUseCases:
         dl.create(bad_status)
 
         activity = add_status_to_case_activity(
-            bad_status, target=case, actor="https://example.org/users/vendor"
+            bad_status,
+            target=case,
+            actor="https://example.org/users/vendor",
+            to=[dl.actor_id],
         )
         event = make_payload(activity)
 
@@ -160,8 +175,14 @@ class TestStatusUseCases:
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason
 
-    def test_refused_case_status_emits_processing_fault(self, make_payload):
-        """On genuine BT FAILURE, emit_processing_fault is called toward the sender (ASK-07-001)."""
+    @pytest.mark.spec("CLP-05-001")
+    def test_refused_case_status_emits_no_processing_fault(self, make_payload):
+        """A refused CaseStatus is answered by no ProcessingFault.
+
+        A guard's refusal is "received and understood but declined", so its
+        one answer is the refusal notice (CLP-05-001, MSM-05-001); the
+        notice itself is driven end to end in ``test_refusal_notice.py``.
+        """
         from unittest.mock import MagicMock
 
         receiver_id = "https://test.example/api/v2/actors/test-actor"
@@ -180,6 +201,8 @@ class TestStatusUseCases:
             em=EmDimension(state=EM.NONE),
         )
         case.case_statuses.append(initial_status)  # type: ignore[arg-type]
+        # The sender holds standing, so its content is refused, not it.
+        seed_case_participant(dl, case, sender_id)
         dl.create(case)
 
         bad_status = as_CaseStatus(
@@ -190,7 +213,7 @@ class TestStatusUseCases:
         dl.create(bad_status)
 
         activity = add_status_to_case_activity(
-            bad_status, target=case, actor=sender_id
+            bad_status, target=case, actor=sender_id, to=[receiver_id]
         )
         event = make_payload(activity)
         event = event.model_copy(update={"receiving_actor_id": receiver_id})
@@ -198,22 +221,20 @@ class TestStatusUseCases:
         mock_trigger = MagicMock()
         mock_trigger.emit_processing_fault.return_value = "urn:uuid:fault-1"
 
-        AddCaseStatusToCaseReceivedUseCase(
+        result = AddCaseStatusToCaseReceivedUseCase(
             dl,
             event,
             trigger_activity=mock_trigger,
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        mock_trigger.emit_processing_fault.assert_called_once()
-        call_kwargs = mock_trigger.emit_processing_fault.call_args
-        to_arg = call_kwargs.kwargs.get("to") or call_kwargs.args[3]
-        assert sender_id in to_arg
+        assert result.disposition == HandlerDisposition.REFUSED
+        mock_trigger.emit_processing_fault.assert_not_called()
 
-    def test_refused_case_status_no_fault_without_trigger_activity(
+    def test_refused_case_status_without_trigger_activity_queues_nothing(
         self, make_payload
     ):
-        """No error when trigger_activity is None (fault is silently skipped)."""
+        """With no trigger port the refusal still stands and nothing is queued."""
         receiver_id = "https://test.example/api/v2/actors/test-actor"
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -242,20 +263,29 @@ class TestStatusUseCases:
             bad_status,
             target=case,
             actor="https://example.org/users/vendor",
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
         event = make_payload(activity)
 
-        AddCaseStatusToCaseReceivedUseCase(
+        result = AddCaseStatusToCaseReceivedUseCase(
             dl,
             event,
             trigger_activity=None,
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-    def test_refused_participant_status_emits_processing_fault(
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert queued_bodies(dl) == []
+
+    @pytest.mark.spec("CLP-05-001")
+    def test_refused_participant_status_emits_no_processing_fault(
         self, make_payload
     ):
-        """On BT FAILURE for AddParticipantStatus, emit_processing_fault is called (ASK-07-001)."""
+        """A refused ParticipantStatus is answered by no ProcessingFault.
+
+        A guard's refusal is "received and understood but declined", so its
+        one answer is the refusal notice (CLP-05-001, MSM-05-001).
+        """
         from unittest.mock import MagicMock
 
         receiver_id = "https://example.org/users/vendor-ps-fault"
@@ -299,6 +329,7 @@ class TestStatusUseCases:
             dup_status,
             target=participant,
             actor=sender_id,
+            to=[receiver_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=receiver_id)
@@ -314,10 +345,7 @@ class TestStatusUseCases:
         ).execute()
         assert result.disposition == HandlerDisposition.REFUSED
 
-        mock_trigger.emit_processing_fault.assert_called_once()
-        call_kwargs = mock_trigger.emit_processing_fault.call_args
-        to_arg = call_kwargs.kwargs.get("to") or call_kwargs.args[3]
-        assert sender_id in to_arg
+        mock_trigger.emit_processing_fault.assert_not_called()
 
     @pytest.mark.spec("HP-01-003")
     def test_wholly_refused_participant_status_returns_refused(
@@ -375,6 +403,7 @@ class TestStatusUseCases:
             dup_status,
             target=participant,
             actor=sender_id,
+            to=[receiver_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=receiver_id)
@@ -427,6 +456,7 @@ class TestStatusUseCases:
             asserted_status,
             target=case,
             actor="https://example.org/users/vendor",
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
         event = make_payload(activity)
 
@@ -555,6 +585,7 @@ class TestStatusUseCases:
             pstatus,
             target=participant,
             actor=vendor_id,
+            to=[vendor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=None)
@@ -724,6 +755,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -742,7 +774,7 @@ class TestParticipantStatusLogEntryCascade:
             and cast(CaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(CaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).semantic_type == (
             "add_participant_status_to_participant"
         )
 
@@ -775,6 +807,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -839,6 +872,7 @@ class TestParticipantStatusLogEntryCascade:
             duplicate_closed_status,
             target=participant,
             actor=actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -899,6 +933,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -939,6 +974,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -992,6 +1028,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=case_actor_id,
+            to=[non_case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=non_case_actor_id)
@@ -1044,6 +1081,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=reporter_actor_id,
+            to=[case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
@@ -1130,6 +1168,7 @@ class TestParticipantStatusLogEntryCascade:
             pstatus,
             target=participant,
             actor=actor_id,
+            to=[_case_actor_id],
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=None)
@@ -1151,6 +1190,25 @@ class TestParticipantStatusLogEntryCascade:
             "Absent receiving_actor_id must fall back to dl.actor_id (store owner)"
             " and commit an add_participant_status_to_participant ledger entry"
         )
-        assert cast(CaseLedgerEntry, entries[0]).event_type == (
+        assert cast(CaseLedgerEntry, entries[0]).semantic_type == (
             "add_participant_status_to_participant"
         )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "RSH-04-005: Add(CaseStatus) is still exempt from a sender check."
+        " Tracked by #4851."
+    ),
+)
+@pytest.mark.spec("RSH-04-005")
+def test_add_case_status_admits_only_the_case_manager_at_a_participant():
+    rule = AddCaseStatusToCaseReceivedUseCase.sender_entitlement
+
+    assert isinstance(rule, SenderRule)
+    assert rule.side(AddresseeSide.PARTICIPANT) == frozenset(
+        {SenderEntitlementKind.CASE_MANAGER}
+    )
+    assert rule.side(AddresseeSide.CASE_MANAGER) == frozenset()
+    assert rule.side(AddresseeSide.OUTSIDE_CASE) == frozenset()

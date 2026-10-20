@@ -17,15 +17,18 @@
 
 A ``Create(VulnerabilityCase)`` tells the receiver that *someone else* made
 the case.  Whether to trust that depends on how the receiver came to expect it,
-so the tree picks one of three routes (CBT-01-005, CBT-01-006, CBT-01-011):
+so the tree picks one of two routes (CBT-01-005, CBT-01-006):
 
 - ``trusted``: the receiver sent a report to the sender and holds a pending
   :class:`~vultron.core.models.report_case_link.VultronReportCaseLink` for it;
 - ``redelivery``: a link already binds the case to the sender, so the
-  bootstrap was accepted before;
-- ``unanchored``: no anchor the receiver wrote names the sender, so the
-  bootstrap is refused and nothing is stored.  A snapshot naming its sender
-  CASE_MANAGER is not an anchor: the sender wrote it (ADR-0132).
+  bootstrap was accepted before.
+
+A sender no anchor the receiver wrote names never reaches the routes: the
+sender guard the factory composes from the use case's declared rule refuses
+it first and nothing is stored (CBT-01-011, HP-01-008,
+``SenderIsExpectedCaseCreatorNode``).  A snapshot naming its sender
+CASE_MANAGER is not an anchor: the sender wrote it (ADR-0132).
 
 :class:`ClassifyBootstrapRouteNode` makes that choice once and records it on a
 shared :class:`BootstrapRoute`.  It cannot be re-derived later: the trusted
@@ -59,7 +62,7 @@ from vultron.core.services.case_replica_seeding import (
 )
 from vultron.errors import VultronAlreadyExistsError
 
-BootstrapRouteName = Literal["trusted", "redelivery", "unanchored"]
+BootstrapRouteName = Literal["trusted", "redelivery"]
 
 
 @dataclass
@@ -76,7 +79,9 @@ class ClassifyBootstrapRouteNode(DataLayerActionWithPorts):
 
     Always ``SUCCESS`` once the DataLayer is available: the choice is not a
     verdict.  The order is the order of trust: a pending link first, then a
-    redelivery; with neither, no anchor names the sender.
+    redelivery.  The sender guard has already admitted the sender, so one of
+    them names it; were neither to, no route is chosen and
+    :class:`RefuseBootstrapNode` refuses.
     """
 
     def __init__(
@@ -106,8 +111,6 @@ class ClassifyBootstrapRouteNode(DataLayerActionWithPorts):
             self.datalayer, self.sender_id, self.case_id
         ):
             self.route.name = "redelivery"
-        else:
-            self.route.name = "unanchored"
         return Status.SUCCESS
 
 
@@ -130,49 +133,6 @@ class BootstrapRouteIsNode(py_trees.behaviour.Behaviour):
             if self.route.name == self.expected
             else Status.FAILURE
         )
-
-
-class CheckTrustedCreatorNode(DataLayerActionWithPorts):
-    """Trusted route: the sender must be the creator the link expects.
-
-    CBT-01-005.  A link with no recorded ``case_creator_id`` accepts
-    unchecked, with a warning.
-    """
-
-    def __init__(
-        self,
-        route: BootstrapRoute,
-        sender_id: str,
-        case_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.route = route
-        self.sender_id = sender_id
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        link = self.route.link
-        if link is None:
-            self.feedback_message = "no pending ReportCaseLink to check"
-            return Status.FAILURE
-        if link.case_creator_id is None:
-            self.logger.warning(
-                "%s: no case_creator_id in link for case '%s'; accepting"
-                " bootstrap unchecked",
-                self.name,
-                self.case_id,
-            )
-            return Status.SUCCESS
-        if self.sender_id != link.case_creator_id:
-            self.feedback_message = (
-                f"bootstrap of case '{self.case_id}' rejected: sender"
-                f" '{self.sender_id}' is not the trusted case creator"
-                " (CBT-01-005)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        return Status.SUCCESS
 
 
 class CheckReportReferenceNode(py_trees.behaviour.Behaviour):
@@ -246,35 +206,6 @@ class CheckInlineParticipantsNode(py_trees.behaviour.Behaviour):
         return Status.FAILURE
 
 
-class RefuseUnanchoredBootstrapNode(py_trees.behaviour.Behaviour):
-    """Unanchored route: refuse a bootstrap no local anchor vouches for.
-
-    Always ``FAILURE``.  The receiver wrote no record naming the sender, so it
-    has nothing to check the sender against; the roster in the snapshot is the
-    sender's own claim and does not count (CBT-01-011, ADR-0132).
-    """
-
-    logger: logging.Logger  # type: ignore[assignment]
-
-    def __init__(
-        self, sender_id: str, case_id: str, name: str | None = None
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.sender_id = sender_id
-        self.case_id = case_id
-        self.logger = node_logger(self)  # type: ignore[assignment]
-
-    def update(self) -> Status:
-        self.feedback_message = (
-            f"bootstrap of case '{self.case_id}' refused: no trust anchor"
-            f" this actor wrote names '{self.sender_id}', and a snapshot"
-            " naming its sender CASE_MANAGER does not make it trusted"
-            " (CBT-01-011)"
-        )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
-
-
 class SeedCaseReplicaNode(DataLayerActionWithPorts, StateWriteCapable):
     """Persist the received case as this actor's replica, unless one exists.
 
@@ -327,7 +258,9 @@ class BindReportCaseLinkNode(DataLayerActionWithPorts):
 
     Sets ``case_id`` and the CASE_MANAGER the snapshot names
     (``case_manager_id``, CBT-01-003).  A snapshot naming none is accepted, with
-    a warning that Announce validation will be bypassed.  Idempotent, and
+    a warning: the link then anchors no ``Announce(VulnerabilityCase)``, so
+    the receiver checks one against its replica's CASE_MANAGER alone, or
+    refuses it (PCR-03-004).  Idempotent, and
     re-applied when the replica was already seeded.
     """
 
@@ -355,7 +288,7 @@ class BindReportCaseLinkNode(DataLayerActionWithPorts):
         if manager_id is None:
             self.logger.warning(
                 "%s: no CASE_MANAGER participant in bootstrap snapshot for"
-                " case '%s'; Announce validation will be bypassed",
+                " case '%s'; the link anchors no Announce(VulnerabilityCase)",
                 self.name,
                 self.case_id,
             )

@@ -206,8 +206,8 @@ def _seed_case(
 
     The case is seeded **under an active embargo**, and that is load-bearing
     rather than incidental colour.  ``_project_case_to_stub`` enriches the
-    Invite's ``target`` only when ``em_state == EM.ACTIVE`` and the case names
-    an ``active_embargo`` (CM-17-002); with no embargo it returns a stub
+    Invite's ``target`` only while an embargo is in force (EM ``ACTIVE`` or
+    ``REVISE``, CM-17-002); with no embargo it returns a stub
     carrying nothing but an id, which AS2 serialises to a bare URI string —
     exactly what a *failed* case read produces.  Under an active embargo the two
     outcomes differ, so
@@ -492,8 +492,8 @@ class TestOwnerInviteThroughARemoteCaseActor:
     def test_the_invitee_receives_the_invite(self, topology):
         """The CaseActor's Invite reaches the invitee's container.
 
-        The invitee holds no case yet, so its inbox defers the Invite until the
-        bootstrap its Accept brings; ``read_received_activity`` reads the Invite
+        The invitee holds no case yet, but its inbox processes the stub Invite
+        on arrival (PCR-06-005); ``read_received_activity`` reads the Invite
         however the invitee holds it.
         """
         case_id = "urn:uuid:remote-ca-delivery"

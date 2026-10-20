@@ -226,10 +226,10 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
       sender's (DL-08-003) — the same reason ``_RmInviteToCaseActivity``
       declares its invitee.
 
-    Unlike ``_OfferCaseOwnershipTransferActivity.target``, this ``target`` is
-    typed ``as_Actor`` rather than a ref union, so an id there is not merely
-    unresolvable but off-type: read-back yields a plain ``as_Offer`` that no
-    longer matches this class, and the receiver cannot dispatch it at all.
+    This ``target`` is typed ``as_Actor`` rather than a ref union, so an id
+    there is not merely unresolvable but off-type: read-back yields a plain
+    ``as_Offer`` that no longer matches this class, and the receiver cannot
+    dispatch it at all.
 
     See SE-08-003, ADR-0039.
     """
@@ -283,13 +283,24 @@ class _OfferCaseOwnershipTransferActivity(as_Offer):
     dispatch.
 
     object_: as_VulnerabilityCase (inline — not a bare string ID)
-    target: as_Actor
+    target: as_Actor (the transferee)
+
+    Declares ``target`` in :attr:`inline_required_refs` (DL-08-003). The
+    transferee is a *peer*: under ADR-0073 its record lives in the store of
+    whichever actor knows it, and neither the offerer nor the CASE_MANAGER is
+    obliged to hold it. Dehydrated to its id, the stored Offer had nothing to
+    read the transferee back from, and the CASE_MANAGER's ledger commit then
+    refused the bare ``target`` (CLP-07-006, #4843).
+    :func:`~vultron.wire.as2.factories.offer_case_ownership_transfer_activity`
+    wraps a bare transferee id as an ``as_Actor`` so it travels inline.
     """
 
     object_: as_VulnerabilityCase = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_ActorRef = None
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"target"})
 
 
 class _AcceptCaseOwnershipTransferActivity(as_Accept):
@@ -348,7 +359,7 @@ class _RmInviteToCaseActivity(as_Invite):
     read it back from, so the stored Invite came back carrying a bare string and
     outbox delivery refused it (AKM-03-003) after exhausting its retries. The
     invitation never arrived, and the invitee's ``reject-case-invite`` then
-    answered 404 for an invite it had never been told about (#2548, fcv-reject).
+    answered 404 for an invite it had never been told about (#2548, rcv-reject).
     """
 
     object_: as_Actor = Field(

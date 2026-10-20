@@ -293,7 +293,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
         and e.case_id == case.id_
-        and e.event_type == "invite_actor_to_case"
+        and e.semantic_type == "invite_actor_to_case"
         and invitee.id_ in json.dumps(e.payload_snapshot, default=str)
     ]
     assert creation_entries, "the participant's creation must be committed"
@@ -301,7 +301,7 @@ def test_stub_invite_creates_inert_invitee_participant(actor_store) -> None:
         e
         for e in dl.list_objects("CaseLedgerEntry")
         if isinstance(e, CaseLedgerEntry)
-        and e.event_type == "add_case_participant"
+        and e.semantic_type == "add_case_participant"
     ]
 
 
@@ -582,7 +582,10 @@ def test_embargo_change_reissues_outstanding_stub_invite(actor_store) -> None:
     result = route_received(
         dl,
         as_Accept(
-            actor=invitee.id_, object_=original, in_reply_to=original_id
+            actor=invitee.id_,
+            object_=original,
+            in_reply_to=original_id,
+            to=[owner.id_],
         ),
         receiving_actor_id=owner.id_,
     )
@@ -599,7 +602,12 @@ def _accept_stub_invite(
     assert isinstance(invite, as_Invite)
     result = route_received(
         dl,
-        as_Accept(actor=invitee_id, object_=invite, in_reply_to=invite_id),
+        as_Accept(
+            actor=invitee_id,
+            object_=invite,
+            in_reply_to=invite_id,
+            to=[manager_id],
+        ),
         receiving_actor_id=manager_id,
     )
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
@@ -699,7 +707,10 @@ def test_reject_of_superseded_stub_invite_is_honoured(actor_store) -> None:
     result = route_received(
         dl,
         as_Reject(
-            actor=invitee.id_, object_=original, in_reply_to=original_id
+            actor=invitee.id_,
+            object_=original,
+            in_reply_to=original_id,
+            to=[owner.id_],
         ),
         receiving_actor_id=owner.id_,
     )

@@ -279,7 +279,7 @@ def test_removed_participant_gets_no_case_content(
 
 def _entry(
     log_index: int,
-    event_type: str,
+    semantic_type: str,
     *,
     object_id: str,
     actor: str = _SENDER,
@@ -288,7 +288,7 @@ def _entry(
         case_id=_CASE_ID,
         log_index=log_index,
         log_object_id=object_id,
-        event_type=event_type,
+        semantic_type=semantic_type,
         payload_snapshot={"type": "Add", "actor": actor},
         prev_log_hash="0" * 64,
         entry_hash=f"{log_index:064d}",
@@ -389,6 +389,23 @@ def test_own_closure_entries_never_widen_entitlement(
         assert ledger_entry_recipients(
             case, dl, entry, excluding={_SENDER}
         ) == [_SIGNATORY]
+
+
+@pytest.mark.spec("CM-23-004")
+@pytest.mark.spec("OID-01-006")
+def test_a_slash_spelled_leave_still_records_the_leavers_own_closure(
+    dl: SqliteDataLayer,
+) -> None:
+    """The ``close_case`` snapshot keeps the leaver's trailing slash; the
+    roster names it canonically, and the two are one actor."""
+    case = _embargoed_case(dl)
+    closed = dl.read(case.actor_participant_index[_CLOSED])
+    assert isinstance(closed, CaseParticipant)
+    entry = _close_case_entry(5, _CLOSED + "/")
+    assert entry_records_own_closure(entry, _CLOSED, closed)
+    assert not entry_records_own_closure(
+        _close_case_entry(6, _SIGNATORY + "/"), _CLOSED, closed
+    )
 
 
 @pytest.mark.spec("CM-23-004")

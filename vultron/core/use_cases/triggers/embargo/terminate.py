@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 
 
 class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
-    _assertion_event_type: ClassVar[str] = (
+    _assertion_semantic_type: ClassVar[str] = (
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value
     )
     # Its own tree takes the end-time path once the end time has passed,
@@ -100,12 +100,17 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
             )
             self._reason = TerminationReason.END_TIME_REACHED
 
+        # The termination this request asks for: its what, and no cause yet
+        # (a chosen cause is #4858).  The Remove carries both, and the
+        # CASE_MANAGER records them on its TERMINATED entry (EMB-13-005).
+        self._termination = EmbargoTermination.from_reason(self._reason)
+
         # An end-time request before the end time is refused on every actor,
         # so a participant never asks the CASE_MANAGER for one (ADR-0122).
         violations = termination_timing_violations(
             dl,
             self._case,
-            EmbargoTermination.from_reason(self._reason),
+            self._termination,
             self._now,
         )
         if violations:
@@ -122,7 +127,8 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
                 embargo_id=self._embargo_id,
                 case_id=self._case.id_,
                 actor=self._actor_id,
-                reason=self._reason,
+                reason=self._termination.reason,
+                cause=self._termination.cause,
                 to=to,
             )
             self._captured["activity"] = json.loads(remove_blob)
@@ -138,7 +144,7 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         return terminate_embargo_bt(
             case_id=self._case.id_,
             result_out=self._result_out,
-            termination=EmbargoTermination.early(),
+            termination=self._termination,
             activity_builder=_build_activity,
         )
 

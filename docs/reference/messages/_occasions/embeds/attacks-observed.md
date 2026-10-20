@@ -1,15 +1,15 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-!!! info "Attacks Observed (CA)"
+!!! info "Attacks observed in a case status"
 
     Announces evidence that attackers are exploiting the vulnerability.
 
     - **When…** a Participant observes attacks that exploit the vulnerability
     - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
     - **Send to:** the case manager
-    - **Sent by:** not yet checked
+    - **Sent by:** a participant
     - **Distinguished by:** `pxaState` = `pxA`
-    - **Reference:** [Attacks Observed (CA)](../../cs.md#attacks-observed)
+    - **Reference:** [Attacks observed in a case status](../../cs.md#attacks-observed)
 
     ??? example "Example activity"
 

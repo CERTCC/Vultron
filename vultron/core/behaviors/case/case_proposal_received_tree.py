@@ -505,8 +505,8 @@ def create_case_proposal_received_tree(
             # ledger entries for a case it does not hold yet: each one takes
             # the SYNC-15 pre-genesis path (buffer, Reject, from-genesis
             # replay) while the Create waits behind the whole fan-out.  That
-            # queue position is what timed out the replica gates in fv and
-            # fcv-reject (#3033) and congested the CaseActor outbox in fcvcv
+            # queue position is what timed out the replica gates in rv and
+            # rcv-reject (#3033) and congested the CaseActor outbox in rcvcv
             # (#2898).  CM-14-011 states the rule and its rationale: the
             # receiver's system must hold the case object before any
             # Announce(CaseLedgerEntry) fan-out that references it.

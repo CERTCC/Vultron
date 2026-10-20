@@ -24,36 +24,45 @@ Per specs/received-status-handling.yaml RSH-06-004, RSH-06-005.
 
 import logging
 
-from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
-    _EmitSingleActivityBase,
+)
+from vultron.core.behaviors.note.case_manager_note import (
+    CaseManagerNote,
+    _CommitCaseManagerNoteBase,
 )
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
 
 logger = logging.getLogger(__name__)
 
 
-class EmitRMGapNoteNode(_EmitSingleActivityBase):
-    """Emit ``Add(Note, VulnerabilityCase)`` when an RM transition anomaly is detected.
+class EmitRMGapNoteNode(_CommitCaseManagerNoteBase):
+    """Record the RSH-06-004 note when an RM transition anomaly is detected.
 
     Reads the ``rm_transition_anomaly`` blackboard key written by
     :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`
     (non-adjacent forward jump) or
     :class:`~vultron.core.behaviors.status.nodes.rm_validation.ValidateRMTransitionNode`
     (backward regression on the standalone path).  When the key is ``None``
-    (no anomaly), returns SUCCESS without doing anything.
+    (no anomaly), or the tree has no case context, returns SUCCESS without
+    doing anything.
 
-    When an anomaly is present, creates a note describing the anomaly and
-    queues an ``Add(Note, VulnerabilityCase)`` addressed to the sender.
-    Returns SUCCESS in all cases — note emission is SHOULD-level (RSH-06-004);
-    failures degrade gracefully so the enclosing Sequence is not aborted.
+    When an anomaly is present, the CASE_MANAGER records a note asking the
+    sender to clarify the anomaly as its own ``add_note_to_case`` entry and
+    attaches it to the case; the sender learns of it from the ledger
+    fan-out, as every active participant does
+    (:class:`~vultron.core.behaviors.note.case_manager_note._CommitCaseManagerNoteBase`,
+    #4829).  The note is SHOULD-level (RSH-06-004), so a missing
+    trigger-activity port or a refused commit is logged and the node
+    succeeds; an internal error propagates.
 
     Per specs/received-status-handling.yaml RSH-06-004, RSH-06-005.
     """
+
+    _BEST_EFFORT = True
 
     def __init__(
         self,
@@ -61,7 +70,8 @@ class EmitRMGapNoteNode(_EmitSingleActivityBase):
         case_id: str | None,
         name: str | None = None,
     ):
-        super().__init__(name=name or self.__class__.__name__)
+        # No case context is a no-op (``_compose``), never a commit.
+        super().__init__(case_id=case_id or "", name=name)
         self.sender_actor_id = sender_actor_id
         self.case_id = case_id
 
@@ -81,91 +91,35 @@ class EmitRMGapNoteNode(_EmitSingleActivityBase):
         except (NoDataAvailable, NotImplementedError):
             self.rm_anomaly = None
 
-    def update(self) -> Status:
-        if not self.case_id:
-            return Status.SUCCESS
-
+    def _compose(self) -> CaseManagerNote | None:
         anomaly = self.rm_anomaly
-        if anomaly is None:
-            return Status.SUCCESS
-
-        if self._require_datalayer_and_actor() is not None:
-            self.logger.warning(
-                "EmitRMGapNoteNode: no datalayer/actor — cannot emit note"
-                " for RM anomaly in case '%s'",
-                self.case_id,
-            )
-            return Status.SUCCESS
-
-        if self.trigger_activity_factory is None:
-            self.logger.warning(
-                "EmitRMGapNoteNode: no TriggerActivityPort — cannot emit"
-                " Add(Note,Case) for RM anomaly in case '%s'",
-                self.case_id,
-            )
-            return Status.SUCCESS
+        if not self.case_id or anomaly is None:
+            return None
 
         anomaly_type = anomaly.get("anomaly_type", "unknown")
         from_rm = anomaly.get("from_rm", "?")
         to_rm = anomaly.get("to_rm", "?")
 
         if anomaly_type == "gap":
-            note_name = f"RM state gap reported by {self.sender_actor_id}"
-            note_content = (
-                f"Actor '{self.sender_actor_id}' reported a non-adjacent forward"
-                f" RM state jump from {from_rm} to {to_rm}."
-                f" Intermediate transitions were not reported."
-                f" Please clarify the path taken between these states (RSH-06-001)."
+            return CaseManagerNote(
+                name=f"RM state gap reported by {self.sender_actor_id}",
+                content=(
+                    f"Actor '{self.sender_actor_id}' reported a non-adjacent"
+                    f" forward RM state jump from {from_rm} to {to_rm}."
+                    f" Intermediate transitions were not reported."
+                    f" Please clarify the path taken between these states"
+                    f" (RSH-06-001)."
+                ),
             )
-        else:
-            note_name = (
-                f"RM state regression reported by {self.sender_actor_id}"
-            )
-            note_content = (
+        return CaseManagerNote(
+            name=f"RM state regression reported by {self.sender_actor_id}",
+            content=(
                 f"Actor '{self.sender_actor_id}' reported a backward RM"
                 f" state transition from {from_rm} to {to_rm}."
                 f" RM is monotonic; this transition was refused (RSH-06-002)."
                 f" Please clarify or resync your RM state."
-            )
-
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        assert self.trigger_activity_factory is not None
-        try:
-            note_id, _ = self.trigger_activity_factory.create_note(
-                name=note_name,
-                content=note_content,
-                context_id=self.case_id,
-                attributed_to=self.actor_id,
-            )
-            activity_id, _ = self.trigger_activity_factory.add_note_to_case(
-                note_id=note_id,
-                case_id=self.case_id,
-                actor=self.actor_id,
-                to=[self.sender_actor_id],
-            )
-            # Route through the shared emit seam (OX-14-001, ASK-04-008).
-            # factory.add_note_to_case returns (id, blob); pass empty blob
-            # since no captured dict is present.
-            self._emit_through_seam(activity_id, "")
-            self.logger.info(
-                "EmitRMGapNoteNode: queued Add(Note,Case) '%s' for RM %s"
-                " anomaly (%s → %s) in case '%s' (RSH-06-004)",
-                activity_id,
-                anomaly_type,
-                from_rm,
-                to_rm,
-                self.case_id,
-            )
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
-            self.logger.warning(
-                "EmitRMGapNoteNode: failed to emit note for RM anomaly"
-                " in case '%s': %s",
-                self.case_id,
-                e,
-            )
-
-        return Status.SUCCESS
+            ),
+        )
 
 
 def rm_gap_note(

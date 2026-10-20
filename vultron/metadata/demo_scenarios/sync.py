@@ -30,7 +30,7 @@ instead, committing no table at all (DEMOCI-11-009).
 ``--check`` is wired into pre-commit as ``demo-scenarios-sync``, exactly as
 ``docs/adr/index.md`` is gated by ``adr-index-sync``.  It also reports the
 *checked* consumers — the ``mkdocs.yml`` nav, the ``notes/`` scenario tables and
-their harness-derived event-type columns, the DEMOCI-06-002/003 spec
+their harness-derived semantic-type columns, the DEMOCI-06-002/003 spec
 enumerations, the planned-scenario register, restated counts and stray include
 directives — via :func:`prose_checks.consistency_problems`, so one command covers
 both halves of ADR-0098's generate-vs-check split.  Those findings are reported

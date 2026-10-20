@@ -3,10 +3,11 @@ title: Ownership Transfer Protocol — Routing and Cascade Model
 status: active
 kind: guidance
 description: >
-  Rules for the ownership-transfer routing model (ADR-0053): the Offer and Accept
-  route through the CASE_MANAGER so every participant receives the CaseLedgerEntry
-  broadcast; what each component must preserve; replica-side materialization of
-  the Offer from the ledger; and the demo preconditions.
+  Rules for the ownership-transfer routing model (ADR-0053, partially superseded
+  by ADR-0148, proposed): the Offer and Accept route through the CASE_MANAGER so
+  every participant receives the CaseLedgerEntry broadcast; what each component
+  must preserve; replica-side materialization of the Offer from the ledger
+  (retiring under ADR-0148); and the demo preconditions.
 related_specs:
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
@@ -15,6 +16,7 @@ related_specs:
   - specs/triggerable-behaviors.yaml
   - specs/handler-protocol.yaml
   - specs/participant-case-replica.yaml
+  - specs/datalayer.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
@@ -26,13 +28,14 @@ relevant_packages:
   - vultron/core/behaviors/case/nodes/
   - vultron/core/use_cases/received/actor/
   - vultron/demo/exchange/transfer_ownership_demo.py
-  - vultron/demo/scenario/fvcv_handoff_demo.py
-  - vultron/demo/scenario/fccv_handoff_demo.py
+  - vultron/demo/scenario/rvcv_handoff_demo.py
+  - vultron/demo/scenario/rccv_handoff_demo.py
 ---
 
 # Ownership Transfer Protocol — Routing and Cascade Model
 
-Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053. The participant-facing
+Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053, partially superseded by
+ADR-0148 (proposed). The participant-facing
 description is `docs/topics/case_lifecycle/ownership_transfer.md`. The close paths
 without an answer (withdrawal and the binding deadline, both built) are in
 [ownership-transfer-close-paths](ownership-transfer-close-paths.md). A
@@ -53,7 +56,7 @@ Case Owner calls trigger: offer-case-ownership-transfer
   → SvcOfferCaseOwnershipTransferUseCase._prepare() sets:
       self._actor_id = offering_actor_id   ← the owner sends its own Offer
   → EmitOfferCaseOwnershipTransferNode
-      constructs: Offer(VulnerabilityCase, target=transferee_id)
+      constructs: Offer(VulnerabilityCase, target=Actor(id=transferee_id))
       actor:      offering_actor_id        ← no attributedTo
       addressed:  to=[case_actor_id]       ← MUST (CM-21-005)
       queued in:  the owner's own outbox   ← CM-24-004, ADR-0109
@@ -147,8 +150,13 @@ actor's `case.attributed_to` changes on its own replica (`test/ci/invariants/`).
   an executing actor this container does not host (BT-05-005).
 - A case always has a CASE_MANAGER (CM-24-006): when none resolves, fail; never send
   to the transferee directly.
-- `to=[case_actor_id]`; the Offer's `target` carries `transferee_id`. The CASE_MANAGER
+- `to=[case_actor_id]`; the Offer's `target` names the transferee. The CASE_MANAGER
   is never sent an Offer by itself: the delegated emit is its forward.
+- **The transferee travels and is stored inline**, as an `Actor` object, never a
+  bare id (DL-08-003). The CASE_MANAGER need not hold the transferee's profile, and
+  its ledger snapshot must carry the transferee inline (CLP-07-006), so no
+  actor-profile write is needed. The factory wraps a bare id; storage keeps it
+  inline for a received Offer too, by the semantic class's declaration (#4843).
 
 ### `EmitAcceptCaseOwnershipTransferNode`
 
@@ -157,7 +165,8 @@ address the Accept to the offerer.
 
 ### `OfferCaseOwnershipTransferReceivedUseCase`
 
-`create_offer_ownership_transfer_tree()` stores the Offer (idempotency guard), commits
+`create_offer_ownership_transfer_tree()` keeps the Offer only as intake's
+`ReceivedActivityRecord`, never under the id its sender chose (DL-06-006). It commits
 through the guarded commit, and forwards via `ForwardOfferToTransfereeNode` passed as
 `manager_effects`, so the factory wraps it in the CASE_MANAGER gate (BT-17-008). The
 forwarded Offer has `actor=case_actor_id`, `attributed_to=` the original offerer,
@@ -236,8 +245,16 @@ CASE_MANAGER inbox receives Reject
 
 ## Replica-side Materialization (SYNC Path)
 
+**Retiring (ADR-0148).** The owner proposes the Offer as
+`Offer(Offer(VulnerabilityCase))` and the CASE_MANAGER makes the one Offer the
+transferee answers, under its own id. No replica then needs a ledger-derived record of
+the Offer, so this slot and its record are deleted rather than re-keyed: until then
+the record sits under an id the owner chose, the shape DL-06-006 rules out for
+received activities (#4911). Do not add a reader of it.
+
 On a replica that learns of an Offer only from the ledger, the Offer never arrives by
-inbox, yet `SvcAcceptCaseOwnershipTransferUseCase._prepare` must `dl.read(offer_id)`.
+inbox, so there is no archive. Yet `SvcAcceptCaseOwnershipTransferUseCase._prepare`
+must still find it through `read_held_activity`.
 The announce tree's `OfferOwnershipTransferEffects` slot
 (`IsOfferOwnershipTransferEventNode`, `ApplyOfferOwnershipTransferFromLedgerNode`)
 materializes a `VultronOwnershipTransferOfferRecord` from the entry's snapshot.
@@ -246,8 +263,8 @@ materializes a `VultronOwnershipTransferOfferRecord` from the entry's snapshot.
   satisfies the read and fails on the case lookup one line later.
 - **Name the field `case_id`, not `object_`.** The DataLayer rehydrates AS2 reference
   fields (`object_`, `target`, `origin`, `result`, `instrument`) into typed objects on
-  read. `_prepare` reads `case_id`, then falls back to `object_` for the wire Offer the
-  inbox path stores.
+  read. `_prepare` reads `case_id`, then falls back to `object_` for an Offer activity
+  (the archived forward, or the offerer's own Offer).
 - **Status (SYNC-12-001):** SUCCESS when there is nothing to apply; FAILURE only when a
   well-formed record could not be written, which blocks `PersistReceivedLogEntry`.
 
@@ -270,9 +287,9 @@ import wire (ARCH-03-001). So the record also carries `actor_id` and `target_id`
 ## Demos
 
 - **Address the Accept to the CASE_MANAGER and hand-deliver nothing.** The handoff
-  scenarios (`fvcv_handoff_demo.py`, `fccv_handoff_demo.py`) gate on the
+  scenarios (`rvcv_handoff_demo.py`, `rccv_handoff_demo.py`) gate on the
   `accept_case_ownership_transfer` entry on a **non-party** actor's own replica (the
-  Finder), since only the CASE_MANAGER's fan-out can put it there (CM-21-007,
+  Reporter), since only the CASE_MANAGER's fan-out can put it there (CM-21-007,
   EDF-06-002). `test/architecture/test_handoff_scenarios_verify_broadcast.py` enforces
   this for every scenario defining `_phase_ownership_handoff`.
 - **Accept the forwarded Offer, not the original.** The CASE_MANAGER forwards a new

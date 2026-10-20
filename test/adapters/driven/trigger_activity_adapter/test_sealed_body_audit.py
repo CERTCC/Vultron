@@ -47,7 +47,10 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi.outbox_delivery import (
     _INLINE_OBJECT_ACTIVITY_TYPES,
 )
-from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.adapters.outbox_sealed_body import (
+    dump_outbound_body,
+    read_sealed_body,
+)
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -62,6 +65,9 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.examples.status import (
+    add_fix_readiness_to_participant,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -254,9 +260,6 @@ Recipe = Callable[[_World], Any]
 
 RECIPES: dict[str, Recipe] = {
     # notes
-    "create_note_activity": lambda w: w.adapter.create_note_activity(
-        actor=_ACTOR, note_id=w.note_id, to=[_PEER]
-    ),
     "add_note_to_case": lambda w: w.adapter.add_note_to_case(
         note_id=w.note_id, case_id=w.case_id, actor=_ACTOR, to=[_PEER]
     ),
@@ -358,7 +361,7 @@ RECIPES: dict[str, Recipe] = {
     "record_case_announced": lambda w: w.adapter.record_case_announced(
         case_id=w.case_id,
         actor=_CASE_ACTOR,
-        event_type="demo_event",
+        semantic_type="demo_event",
         object_id=w.case_id,
     ),
     "add_object_to_case": lambda w: w.adapter.add_object_to_case(
@@ -520,16 +523,6 @@ RECIPES: dict[str, Recipe] = {
             to=[_PEER],
         )
     ),
-    "accept_actor_recommendation": lambda w: (
-        w.adapter.accept_actor_recommendation(
-            recommended_id=_PEER,
-            recommender_id=_PEER,
-            recommendation_id=w.recommendation_id(),
-            case_id=w.case_id,
-            actor=_ACTOR,
-            to=[_PEER],
-        )
-    ),
     "add_participant_to_case": lambda w: w.adapter.add_participant_to_case(
         participant_id=str(w.participant.id_),
         case_id=w.case_id,
@@ -610,6 +603,15 @@ RECIPES: dict[str, Recipe] = {
         failed_activity_id="https://example.org/activities/failed-1",
         failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
         to=[_PEER],
+    ),
+    "refusal_notice": lambda w: w.adapter.refusal_notice(
+        case_id="https://example.org/cases/refused-1",
+        actor=_ACTOR,
+        refused_activity=json.loads(
+            dump_outbound_body(add_fix_readiness_to_participant())
+        ),
+        asserter=_PEER,
+        reason="a precondition did not hold",
     ),
 }
 

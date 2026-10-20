@@ -142,7 +142,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,
             object_id=new_status.id_,
-            event_type="add_case_status_to_case",
+            semantic_type="add_case_status_to_case",
             payload_snapshot=payload,
         )
         result = BTBridge(

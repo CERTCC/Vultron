@@ -49,6 +49,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.embargo_register import TerminationReason
@@ -81,22 +82,6 @@ class TriggerActivityPort(Protocol):
         in_reply_to: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist a Note object; return ``(note_id, note_json)``."""
-        ...
-
-    def create_note_activity(
-        self,
-        actor: str,
-        note_id: str,
-        to: list[str] | None = None,
-    ) -> tuple[str, str]:
-        """Create and persist a ``Create(Note)`` activity.
-
-        The note's ``context`` names its case; the ``Create`` has no
-        ``target``.  The id is derived from *actor* and the note, so a re-run
-        names the same activity (ID-04-004).
-
-        Returns ``(activity_id, activity_body)``, the body as sealed JSON.
-        """
         ...
 
     def add_note_to_case(
@@ -145,7 +130,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Reject(Offer)`` close-report activity.
+        """Create and persist a ``Reject(Offer)`` Report Closed (RC) activity.
 
         Returns ``(activity_id, activity_dict)``.
         """
@@ -261,7 +246,7 @@ class TriggerActivityPort(Protocol):
         for the stored object against the receive-side patterns, without
         persisting it.  The add-object trigger asks this
         before its tree runs so it can refuse an object the CASE_MANAGER
-        could not route, and the answer names the ledger ``event_type`` the
+        could not route, and the answer names the ledger ``semantic_type`` the
         CASE_MANAGER's commit of the ``Add`` will carry (TRIG-10-001,
         SYNC-11-002).
 
@@ -414,7 +399,8 @@ class TriggerActivityPort(Protocol):
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``VulnerabilityCase`` (the adapter projects it
-        to an enriched stub including ``end_time`` when ``em_state == EM.ACTIVE``),
+        to an enriched stub carrying the embargo in force, EM ``ACTIVE`` or
+        ``REVISE``),
         a pre-built stub, or a bare URI string.  When ``None``, the adapter reads
         the case from the DataLayer by ``case_id`` (CM-17-002).
         ``rsvp_deadline`` becomes the Invite's ``endTime``, the reply deadline
@@ -682,13 +668,13 @@ class TriggerActivityPort(Protocol):
         self,
         case_id: str,
         actor: str,
-        event_type: str,
+        semantic_type: str,
         object_id: str,
     ) -> tuple[str, str]:
         """``Announce(VulnerabilityCase)`` for the demo ``sync-log-entry`` verb.
 
         The stored case is carried inline.  The id is derived from the
-        CASE_MANAGER, the case, *event_type* and *object_id*, so one request
+        CASE_MANAGER, the case, *semantic_type* and *object_id*, so one request
         repeated commits one entry.
         """
         ...
@@ -779,26 +765,6 @@ class TriggerActivityPort(Protocol):
 
         Sent by the CaseActor to the original recommender after the Case Owner
         rejects the Offer(CaseParticipant) (CM-16-007 step 3).
-        Returns ``(activity_id, activity_dict)``.
-        """
-        ...
-
-    def accept_actor_recommendation(
-        self,
-        recommended_id: str,
-        recommender_id: str,
-        recommendation_id: str,
-        case_id: str,
-        actor: str,
-        to: list[str] | None = None,
-        id_: str | None = None,
-    ) -> tuple[str, str]:
-        """Create and persist an ``Accept(Offer)`` actor-recommendation activity.
-
-        The recommendation offer is reconstructed ephemerally from
-        ``recommended_id``, ``recommender_id``, ``recommendation_id``, and
-        ``case_id``; it does not need to already exist in the DataLayer.
-        ``id_`` allows callers to supply a deterministic ID for idempotency.
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -1090,6 +1056,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         *,
         reason: TerminationReason,
+        cause: TerminationCause | None = None,
         to: list[str] | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, str]:
@@ -1097,7 +1064,9 @@ class TriggerActivityPort(Protocol):
 
         Corresponds to the ET (Embargo Termination) protocol message.
         *reason* is the termination's what, carried as ``content``
-        (ADR-0122); the why stays on the sender's register entry.
+        (ADR-0122); *cause* is its why, carried as ``terminationCause``
+        when given (EMB-13-005).  The CASE_MANAGER passes the cause it
+        records on its own ``TERMINATED`` entry.
         *attributed_to*, when given, names the actor whose request the
         CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
         to a bound signatory the ledger no longer reaches.
@@ -1190,6 +1159,29 @@ class TriggerActivityPort(Protocol):
 
         Returns:
             The activity ID.
+        """
+        ...
+
+    def refusal_notice(
+        self,
+        case_id: str | None,
+        actor: str,
+        refused_activity: dict[str, Any],
+        asserter: str,
+        reason: str,
+    ) -> tuple[str, str]:
+        """Create and persist the CASE_MANAGER's refusal notice.
+
+        The ``Reject`` a precondition guard's refusal owes the asserting
+        participant (CLP-02-005, CLP-05-001, ADR-0141): ``refused_activity``
+        is the refused activity in its AS2 JSON form, as recorded when
+        received, carried inline; ``inReplyTo`` names its id; ``asserter``
+        is the sole ``to`` recipient; ``reason`` is the refusing guard's
+        reason, carried in ``summary``; ``case_id``, when given, is the
+        notice's ``context``.  ``actor`` is the CASE_MANAGER.  The id is
+        derived from the CASE_MANAGER and the refused activity, so one
+        refused activity is answered by one notice (ID-04-004).
+        Returns ``(activity_id, activity_blob)``.
         """
         ...
 

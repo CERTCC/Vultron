@@ -7,31 +7,37 @@ Agent guidance for suggest-actor BT nodes in this package.
 
 ---
 
-## suggest-actor Accept Path Does Not Thread Roles Into Invite
+## The Case Owner's Answer Reads the Recorded Offer From the Blackboard
 
-(ISSUE-1406, 2026-07-14)
+The Accept and Reject trees take only the answer's id. Their first precondition
+guard, `RequireRecordedOfferAnswerNode`, looks up the recorded
+`Offer(CaseParticipant)` and the recommendation behind it, and publishes a
+`RecordedOfferAnswer` (recommender, invitee, roles) under
+`recorded_offer_answer_{answer id segment}`. Every later node reads it through
+`RecordedOfferAnswerInputMixin`.
 
-`create_accept_actor_recommendation_received_tree` (CaseActor receives
-`Accept(Offer(CaseParticipant))` from Case Owner) never writes the
-`suggested_roles` blackboard key. `EmitInviteActorToCaseNode` reads this key
-via `_read_suggested_roles()`, gets a `KeyError`, and passes `roles=None` to
-`factory.invite_actor_to_case()`. The resulting `Invite` carries `roles=None`,
-so after `Accept(Invite)` the new `CaseParticipant.case_roles` is `[]`.
-
-This is documented behavior (ADR-0032, BT-HELPER-01: no silent default
-substitution), not a bug.
-
-**Test implication**: Only the owner-direct branch of
-`create_recommend_actor_to_case_received_tree` (the CASE_MANAGER receives the
-case owner's own `Offer`, whose roles `EvaluateDefaultRolesNode` injects; #3821,
-ADR-0109) produces a non-empty `case_roles`. The `AcceptOfferCaseParticipant`
-received-side use case always produces `roles=None` in the Invite. Tests that
-verify roles end up on a participant MUST exercise the owner-direct branch, not
-the accept-recommendation path.
+- **Never resolve these ids in `execute()`.** A lookup there refuses before
+  intake archives the answer and before the addressee door runs (CLP-10-005,
+  CLP-10-018, HP-01-005; #4863).
+- **A new answer-path node mixes in `RecordedOfferAnswerInputMixin`.** Taking
+  the ids at construction needs them before the tree runs.
+- **An override of `update()` reads the answer first.** The mixin's
+  `update()` checks for the published answer before the node runs, so a tree
+  without the lookup guard is an internal error, not a refusal. A node that
+  replaces `update()` without `super()` must call `_recorded_answer()` first.
+- **Roles come from the recorded Offer, never the Accept** (CM-16-019). An
+  Offer that carries none seats no participant (CM-11-019).
 
 **Blackboard key contrast**:
 
 | Tree factory | Key written | Namespaced? |
 |---|---|---|
 | `create_recommend_actor_to_case_received_tree` | `suggested_roles_{id_segment}` | ✅ |
-| `create_accept_actor_recommendation_received_tree` | *(never written)* | N/A |
+| `create_accept_actor_recommendation_received_tree` | `recorded_offer_answer_{id_segment}` | ✅ |
+| `create_reject_actor_recommendation_received_tree` | `recorded_offer_answer_{id_segment}` | ✅ |
+
+The accept/reject factories above route the Case Owner's decision
+(`ACCEPT_`/`REJECT_OFFER_CASE_PARTICIPANT`), despite their names. The
+recommender's receipt of the CASE_MANAGER's answer
+(`ACCEPT_`/`REJECT_ACTOR_RECOMMENDATION`) is
+`create_recommendation_answer_received_tree`, which writes no key.

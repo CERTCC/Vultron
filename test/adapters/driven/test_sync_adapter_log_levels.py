@@ -48,7 +48,7 @@ def entry() -> CaseLedgerEntry:
         case_id=_CASE_URI,
         log_index=0,
         object_id="https://example.org/activities/act-sync-log",
-        event_type="test_event",
+        semantic_type="test_event",
         payload_snapshot={"key": "value"},
         prev_log_hash=_ZERO_HASH,
     )
@@ -57,7 +57,7 @@ def entry() -> CaseLedgerEntry:
         log_index=chain.log_index,
         term=chain.term,
         log_object_id=chain.object_id,
-        event_type=chain.event_type,
+        semantic_type=chain.semantic_type,
         payload_snapshot=dict(chain.payload_snapshot),
         prev_log_hash=chain.prev_log_hash,
         entry_hash=chain.entry_hash,

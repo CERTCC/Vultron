@@ -11,9 +11,9 @@ RCVV-embargo-specific invariants (DEMOMA-21-007):
 
 - the ledger records, in order, the embargo proposal, the owner's activation,
   the revision proposal and the owner's activation of the revision, under the
-  event types the CASE_MANAGER's commit path emits.  The strings are imported
+  semantic types the CASE_MANAGER's commit path emits.  The strings are imported
   from that code, never hand-listed here, so the check cannot drift from what
-  the manager writes.  A proposal and a revision proposal share one event type,
+  the manager writes.  A proposal and a revision proposal share one semantic type,
   as do both of the owner's activations, so the order is checked on the
   entries of each type.
 - the embargo is torn down exactly once, by the CS.P collapse (DEMOMA-21-004).
@@ -34,28 +34,28 @@ import pytest
 
 from test.ci.invariants.common import (
     auth_entries,
-    check_event_type_count,
-    check_event_type_present,
     check_late_joiner_has_full_history,
-    event_type,
+    check_semantic_type_count,
+    check_semantic_type_present,
     load_devlogs,
     log_index,
+    semantic_type,
 )
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
 from vultron.core.behaviors.embargo.nodes import (
-    EMBARGO_ACTIVATION_EVENT_TYPE,
-    EMBARGO_INVITE_EVENT_TYPE,
-    EMBARGO_TEARDOWN_EVENT_TYPE,
+    EMBARGO_ACTIVATION_SEMANTIC_TYPE,
+    EMBARGO_INVITE_SEMANTIC_TYPE,
+    EMBARGO_TEARDOWN_SEMANTIC_TYPE,
 )
 from vultron.core.models.events.base import MessageSemantics
 
 _DEMO_NAME = "rcvv-embargo"
 
-_ACCEPT_EVENT_TYPE = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
-_ACTIVATE_EVENT_TYPE = EMBARGO_ACTIVATION_EVENT_TYPE
+_ACCEPT_SEMANTIC_TYPE = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
+_ACTIVATE_SEMANTIC_TYPE = EMBARGO_ACTIVATION_SEMANTIC_TYPE
 
-#: Expected protocol eventTypes in a complete RCVV-embargo run.
-_RCVV_EMBARGO_EXPECTED_EVENT_TYPES = [
+#: Expected protocol semanticTypes in a complete RCVV-embargo run.
+_RCVV_EMBARGO_EXPECTED_SEMANTIC_TYPES = [
     pytest.param("validate_report", id="validate_report"),
     pytest.param(
         "add_participant_status_to_participant",
@@ -71,7 +71,7 @@ _RCVV_EMBARGO_EXPECTED_EVENT_TYPES = [
     ),
     # DEMOMA-21-007: the embargo lifecycle.  Spelled out because the notes
     # tables are ratcheted against this literal (ISSUE-3505);
-    # test_rcvv_embargo_event_type_literals_match_the_commit_path pins each
+    # test_rcvv_embargo_semantic_type_literals_match_the_commit_path pins each
     # string to the constant the CASE_MANAGER's commit path emits.
     pytest.param("invite_to_embargo_on_case", id="invite_to_embargo_on_case"),
     pytest.param(
@@ -104,26 +104,26 @@ globals().update(
     make_universal_invariant_tests(
         replicas_fixture="rcvv_embargo_replicas",
         chain_actors=_CHAIN_ACTORS,
-        expected_event_types=_RCVV_EMBARGO_EXPECTED_EVENT_TYPES,
+        expected_semantic_types=_RCVV_EMBARGO_EXPECTED_SEMANTIC_TYPES,
         narrative_path="docs/topics/scenarios/rcvv-embargo.md",
         joined_invitees=2,
     )
 )
 
 
-def test_rcvv_embargo_event_type_literals_match_the_commit_path() -> None:
+def test_rcvv_embargo_semantic_type_literals_match_the_commit_path() -> None:
     """The literals in the expected list are the strings the manager commits.
 
-    DEMOMA-21-007 requires the invariant check to use the event types the
+    DEMOMA-21-007 requires the invariant check to use the semantic types the
     CASE_MANAGER's commit path emits, read from the code.  The expected list
     must be a literal for the notes ratchet, so this pins it to the code.
     """
-    listed = {p.values[0] for p in _RCVV_EMBARGO_EXPECTED_EVENT_TYPES}
+    listed = {p.values[0] for p in _RCVV_EMBARGO_EXPECTED_SEMANTIC_TYPES}
     assert {
-        EMBARGO_INVITE_EVENT_TYPE,
-        _ACCEPT_EVENT_TYPE,
-        _ACTIVATE_EVENT_TYPE,
-        EMBARGO_TEARDOWN_EVENT_TYPE,
+        EMBARGO_INVITE_SEMANTIC_TYPE,
+        _ACCEPT_SEMANTIC_TYPE,
+        _ACTIVATE_SEMANTIC_TYPE,
+        EMBARGO_TEARDOWN_SEMANTIC_TYPE,
     } <= listed
 
 
@@ -149,21 +149,21 @@ def test_rcvv_embargo_proposal_then_revision_then_teardown_in_order(
         pytest.skip("no authoritative log; cannot check embargo ordering")
 
     def indices(kind: str) -> list[int]:
-        return sorted(log_index(e) for e in auth if event_type(e) == kind)
+        return sorted(log_index(e) for e in auth if semantic_type(e) == kind)
 
-    invites = indices(EMBARGO_INVITE_EVENT_TYPE)
-    accepts = indices(_ACTIVATE_EVENT_TYPE)
-    teardowns = indices(EMBARGO_TEARDOWN_EVENT_TYPE)
+    invites = indices(EMBARGO_INVITE_SEMANTIC_TYPE)
+    accepts = indices(_ACTIVATE_SEMANTIC_TYPE)
+    teardowns = indices(EMBARGO_TEARDOWN_SEMANTIC_TYPE)
     missing = [
         kind
         for kind, found in (
-            (EMBARGO_INVITE_EVENT_TYPE, invites),
-            (_ACTIVATE_EVENT_TYPE, accepts),
-            (EMBARGO_TEARDOWN_EVENT_TYPE, teardowns),
+            (EMBARGO_INVITE_SEMANTIC_TYPE, invites),
+            (_ACTIVATE_SEMANTIC_TYPE, accepts),
+            (EMBARGO_TEARDOWN_SEMANTIC_TYPE, teardowns),
         )
         if not found
     ]
-    assert not missing, f"embargo event types never committed: {missing}"
+    assert not missing, f"embargo semantic types never committed: {missing}"
 
     violations = []
     if not invites[0] < accepts[0]:
@@ -200,9 +200,9 @@ def test_rcvv_embargo_torn_down_exactly_once(
 
     Spec: DEMOMA-21-004, DEMOMA-21-014.
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rcvv_embargo_replicas,
-        EMBARGO_TEARDOWN_EVENT_TYPE,
+        EMBARGO_TEARDOWN_SEMANTIC_TYPE,
         min_count=1,
         max_count=1,
     )
@@ -220,7 +220,7 @@ def test_rcvv_embargo_invite_actor_to_case_exactly_twice(
 
     Spec: DEMOMA-21-008 (phases 1 and 4).
     """
-    violations = check_event_type_count(
+    violations = check_semantic_type_count(
         rcvv_embargo_replicas, "invite_actor_to_case", min_count=2, max_count=2
     )
     assert not violations, violations[0] if violations else ""
@@ -230,11 +230,13 @@ def test_rcvv_embargo_invite_actor_to_case_exactly_twice(
 def test_rcvv_embargo_close_case_present(
     rcvv_embargo_replicas: dict[str, list[dict]],
 ) -> None:
-    """``close_case`` event type is present in the log.
+    """``close_case`` semantic type is present in the log.
 
     Spec: DEMOMA-21-008 (phase 7).
     """
-    violations = check_event_type_present(rcvv_embargo_replicas, "close_case")
+    violations = check_semantic_type_present(
+        rcvv_embargo_replicas, "close_case"
+    )
     assert not violations, violations[0] if violations else ""
 
 

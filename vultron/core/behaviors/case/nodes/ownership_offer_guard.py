@@ -40,6 +40,7 @@ from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -52,7 +53,9 @@ from vultron.core.participants.ownership_offer import (
 from vultron.errors import VultronBTInternalError, VultronNotFoundError
 
 
-class NoOpenOwnershipOfferNode(DataLayerConditionWithPorts):
+class NoOpenOwnershipOfferNode(
+    FlaggedRepeatGuardMixin, DataLayerConditionWithPorts
+):
     """Guard: the case has no earlier ownership-transfer Offer still open.
 
     The CASE_MANAGER refuses a new ownership-transfer Offer while an earlier
@@ -76,6 +79,8 @@ class NoOpenOwnershipOfferNode(DataLayerConditionWithPorts):
     holds the replicated entries too, and the forward it receives must not be
     judged against the Offer it stands for.
     """
+
+    _REPEAT_FLAG = "is_redelivery"
 
     def __init__(
         self, case_id: str, offer_id: str, name: str | None = None
@@ -150,7 +155,9 @@ _LATE_SPEC: dict[OfferParty, str] = {
 }
 
 
-class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
+class OwnershipOfferOpenNode(
+    FlaggedRepeatGuardMixin, DataLayerConditionWithPorts
+):
     """Guard: the ownership-transfer Offer a reply names is still open.
 
     Runs right after the reply's sender check, which has established that
@@ -180,6 +187,8 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
 
     Spec: CM-21-011, CM-21-013, CM-21-014, CM-21-015, CM-21-016, HP-01-003.
     """
+
+    _REPEAT_FLAG = "is_redelivery"
 
     def __init__(
         self,
@@ -292,7 +301,7 @@ class OwnershipOfferOpenNode(DataLayerConditionWithPorts):
             return self._refuse(
                 f"Ownership-transfer Offer '{offer.offer_id}' for case"
                 f" '{self._case_id}' was already closed by"
-                f" '{offer.answer_id}' ({offer.closed_by_event_type})",
+                f" '{offer.answer_id}' ({offer.closed_by_semantic_type})",
                 f"{_CLOSED_SPEC[self._party]}, CM-21-014",
             )
         if offer.is_past_deadline(self._now or now_utc()):

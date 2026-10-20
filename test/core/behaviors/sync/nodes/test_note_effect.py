@@ -33,7 +33,7 @@ def _make_note_entry(note_id: str = NOTE_ID):
             case_id=CASE_ID,
             log_index=0,
             object_id="https://example.org/activities/add-note",
-            event_type="add_note_to_case",
+            semantic_type="add_note_to_case",
             payload_snapshot={"object": {"id": note_id}},
             prev_log_hash="0" * 64,
         )
@@ -119,7 +119,7 @@ def _make_remove_note_entry(note_id: str = NOTE_ID):
             case_id=CASE_ID,
             log_index=0,
             object_id="https://example.org/activities/remove-note",
-            event_type="remove_note_from_case",
+            semantic_type="remove_note_from_case",
             payload_snapshot={"object": {"id": note_id}},
             prev_log_hash="0" * 64,
         )

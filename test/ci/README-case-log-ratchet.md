@@ -21,17 +21,17 @@ in each row is derived from the scenario name by convention rather than stored
 
 | Scenario | Test file | In PR set |
 |---|---|---|
-| FCCV-extension | `test/ci/invariants/test_fccv_extension_invariants.py` |  |
-| FCCV-handoff | `test/ci/invariants/test_fccv_handoff_invariants.py` |  |
-| FCV | `test/ci/invariants/test_fcv_invariants.py` |  |
-| FCV-reject | `test/ci/invariants/test_fcv_reject_invariants.py` | ✓ |
-| FCVCV | `test/ci/invariants/test_fcvcv_invariants.py` | ✓ |
-| FV | `test/ci/invariants/test_fv_invariants.py` | ✓ |
-| FVCV-extension | `test/ci/invariants/test_fvcv_extension_invariants.py` |  |
-| FVCV-handoff | `test/ci/invariants/test_fvcv_handoff_invariants.py` | ✓ |
-| FVV | `test/ci/invariants/test_fvv_invariants.py` |  |
+| RCCV-extension | `test/ci/invariants/test_rccv_extension_invariants.py` |  |
+| RCCV-handoff | `test/ci/invariants/test_rccv_handoff_invariants.py` |  |
+| RCV | `test/ci/invariants/test_rcv_invariants.py` |  |
 | RCV embargo | `test/ci/invariants/test_rcv_embargo_invariants.py` | ✓ |
+| RCV-reject | `test/ci/invariants/test_rcv_reject_invariants.py` | ✓ |
+| RCVCV | `test/ci/invariants/test_rcvcv_invariants.py` | ✓ |
 | RCVV embargo | `test/ci/invariants/test_rcvv_embargo_invariants.py` | ✓ |
+| rv | `test/ci/invariants/test_rv_invariants.py` | ✓ |
+| RVCV-extension | `test/ci/invariants/test_rvcv_extension_invariants.py` |  |
+| RVCV-handoff | `test/ci/invariants/test_rvcv_handoff_invariants.py` | ✓ |
+| RVV | `test/ci/invariants/test_rvv_invariants.py` |  |
 
 <!-- END GENERATED SCENARIO TABLE -->
 
@@ -40,7 +40,7 @@ minimum validation set); all of them run on push-to-main and
 `workflow_dispatch`.
 
 The other files in `test/ci/invariants/` are not scenario harnesses and need no
-demo artifacts: `test_universal_event_types.py` and `test_diagnostic_map_sync.py`
+demo artifacts: `test_universal_semantic_types.py` and `test_diagnostic_map_sync.py`
 are structural ratchets over the harness constants, the DEMOMA-16-001 spec
 statement and the diagnostic map, while `test_common.py`, `test_late_joiner.py`
 and `test_causal_edges_negative.py` unit-test the `common.py` check helpers.
@@ -76,7 +76,7 @@ Or target a specific scenario directly, using the harness file the scenario
 table above names for it:
 
 ```bash
-uv run pytest test/ci/invariants/test_fv_invariants.py -v
+uv run pytest test/ci/invariants/test_rv_invariants.py -v
 ```
 
 ### Locally (without demo artifacts)
@@ -153,7 +153,7 @@ pass/fail to CI.
 ### Scenario-specific invariant
 
 1. Open the appropriate per-scenario file (e.g.,
-   `test/ci/invariants/test_fv_invariants.py`).
+   `test/ci/invariants/test_rv_invariants.py`).
 
 2. Write a new `test_<scenario>_<slug>` function using helpers from
    `common.py` rather than duplicating logic inline.
@@ -187,7 +187,7 @@ pass/fail to CI.
    would silently under-report:
 
    - **`marks=pytest.mark.xfail(...)` on a `pytest.param` entry** in a
-     harness's `_CHAIN_ACTORS` or `_XXX_EXPECTED_EVENT_TYPES` list. That xfails
+     harness's `_CHAIN_ACTORS` or `_XXX_EXPECTED_SEMANTIC_TYPES` list. That xfails
      only *some* cases of a universal invariant, and the map has one Status
      cell per invariant. Put the marker on the invariant in
      `universal_harness.py`, or make the check tolerate that actor.
@@ -214,7 +214,7 @@ pass/fail to CI.
        make_universal_invariant_tests(
            replicas_fixture="<scenario>_replicas",
            chain_actors=_CHAIN_ACTORS,
-           expected_event_types=_<SCENARIO>_EXPECTED_EVENT_TYPES,
+           expected_semantic_types=_<SCENARIO>_EXPECTED_SEMANTIC_TYPES,
            narrative_path="docs/topics/scenarios/<scenario>.md",
        )
    )
@@ -248,18 +248,18 @@ pass/fail to CI.
 
 ## JSONL Artifact Location
 
-The FV demo writes one JSONL file per actor under:
+The `rv` demo writes one JSONL file per actor under:
 
 ```text
 devlogs/<demo_name>/<actor_name>/<case_id_slug>-case-ledger.jsonl
 ```
 
-For the standard FV run this produces:
+For the standard `rv` run this produces:
 
 ```text
-devlogs/fv/finder/...jsonl
-devlogs/fv/vendor/...jsonl
-devlogs/fv/case-actor/...jsonl
+devlogs/rv/reporter/...jsonl
+devlogs/rv/vendor/...jsonl
+devlogs/rv/case-actor/...jsonl
 ```
 
 These files are collected by the `Upload case ledger JSONL files` step in

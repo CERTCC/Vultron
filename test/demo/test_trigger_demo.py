@@ -48,11 +48,12 @@ def demo_env(client):
 
 
 def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
-    """Run *demo_fn*; return ``(link, vendor_rm)`` read before teardown.
+    """Run *demo_fn*; return ``(link, vendor_rm, vendor_rms)`` read before teardown.
 
     *link* is the vendor's report link; *vendor_rm* is the vendor's RM state as
-    a participant of the linked case, or ``None`` when there is no such case.
-    The finder must take the vendor's case introduction on the trusted route
+    a participant of the linked case, or ``None`` when there is no such case;
+    *vendor_rms* is every RM state its participant record holds, in order.
+    The reporter must take the vendor's case introduction on the trusted route
     (CBT-01-005, #4675).
     """
     reset_demo_failures()
@@ -60,9 +61,9 @@ def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
     with (
         caplog.at_level(logging.WARNING),
         expect_trusted_introductions(caplog),
-        demo_environment(client) as (finder, vendor, coordinator),
+        demo_environment(client) as (reporter, vendor, coordinator),
     ):
-        demo_fn(client, finder, vendor, coordinator)
+        demo_fn(client, reporter, vendor, coordinator)
         assert_demo_success()
         dl = get_datalayer(vendor.id_)
         (link,) = [
@@ -71,6 +72,7 @@ def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
             if isinstance(obj, VultronReportCaseLink)
         ]
         vendor_rm = None
+        vendor_rms: list[RM] = []
         case = dl.read(link.case_id) if link.case_id else None
         if isinstance(case, VulnerabilityCase):
             pid = case.actor_participant_index.get(vendor.id_)
@@ -79,29 +81,43 @@ def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
                 status = participant.participant_status
                 assert status is not None
                 vendor_rm = status.rm.state
-        return link, vendor_rm
+                vendor_rms = [
+                    s.rm.state for s in participant.participant_statuses
+                ]
+        return link, vendor_rm, vendor_rms
 
 
 def test_validate_and_engage_settles_on_an_accepted_case(demo_env, caplog):
-    """Validate then engage: the report is VALID and the vendor ACCEPTED a case."""
-    link, vendor_rm = _run(demo_env, demo.demo_validate_and_engage, caplog)
-    assert link.rm_state == RM.VALID
+    """Validate then engage: the vendor's record went VALID, then ACCEPTED.
+
+    The validate trigger sends and writes nothing, its report link included
+    (RSH-08-006): the vendor's VALID is the CASE_MANAGER's status, copied
+    into its replica from the ledger, so it is read from the participant
+    record, not the link.
+    """
+    link, vendor_rm, vendor_rms = _run(
+        demo_env, demo.demo_validate_and_engage, caplog
+    )
     assert link.case_id is not None
+    assert RM.VALID in vendor_rms
+    assert vendor_rms.index(RM.VALID) < vendor_rms.index(RM.ACCEPTED)
     assert vendor_rm == RM.ACCEPTED
 
 
+@pytest.mark.spec("CM-23-019")
 def test_invalidate_and_close_settles_closed(demo_env, caplog):
-    """Invalidate then close: the report is RM.CLOSED, never engaged.
+    """Invalidate then close: the vendor leaves its case RM.CLOSED, never engaged.
 
     The CaseActor still creates the case when the report arrives (the vendor's
     ``Create(CaseProposal)``), so a case exists; what distinguishes this run
-    is that the vendor is never ``RM.ACCEPTED`` on it and the report ends
-    closed.  The CaseActor ledgers the vendor's ``Reject(Offer)``
-    (CLP-10-013) and the vendor's replica replays that entry, so its own
-    participant ends ``RM.CLOSED`` too.
+    is that the vendor is never ``RM.ACCEPTED`` on it.  Once the case holds
+    the report, the vendor closes it by ``Leave(VulnerabilityCase)``, not
+    ``Close(Report)`` (CM-23-019): the CaseActor ledgers the owner's closure
+    and the vendor's replica replays it, so its participant ends
+    ``RM.CLOSED``.  Its report link keeps the ``INVALID`` it recorded.
     """
-    link, vendor_rm = _run(demo_env, demo.demo_invalidate_and_close, caplog)
-    assert link.rm_state == RM.CLOSED
+    link, vendor_rm, _ = _run(demo_env, demo.demo_invalidate_and_close, caplog)
+    assert link.rm_state == RM.INVALID
     assert link.case_id is not None
     assert vendor_rm == RM.CLOSED
 

@@ -1,7 +1,7 @@
 """Shared module-level source + AST corpus for test/architecture/ ratchet tests.
 
 Reads all ``*.py`` source strings from ``vultron/`` and ``test/`` at import
-time (module-level — outside the 5-second per-test timeout window).  ASTs are
+time (module-level — outside the per-test timeout window).  ASTs are
 cached lazily on first demand so only the files actually needed by each ratchet
 are ever parsed.
 

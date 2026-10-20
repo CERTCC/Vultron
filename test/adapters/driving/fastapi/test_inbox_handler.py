@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from test.support.received import assert_held_only_as_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi import inbox_handler as ih
@@ -1038,7 +1039,7 @@ def test_make_dispatcher_gives_every_semantic_a_sync_port(monkeypatch):
     CASE_MANAGER announces each entry to the participants through this port
     (SYNC-02-003).  A semantic left off a hand-kept list committed without
     fan-out: ``OFFER_ACTOR_TO_CASE``, ``VALIDATE_REPORT`` and
-    ``REJECT_INVITE_ACTOR_TO_CASE`` did, and the ``fcv-reject`` demo's ledger
+    ``REJECT_INVITE_ACTOR_TO_CASE`` did, and the ``rcv-reject`` demo's ledger
     coverage gate timed out on the gap (#4113).
     """
     from vultron.semantic_registry import use_case_map
@@ -1225,7 +1226,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
 
     With _resolve_actor_config returning auto_create_case=False,
     dispatching an inbound Offer(Report) via DirectActivityDispatcher must
-    store the report and Offer activity but must NOT create a
+    store the report and archive the Offer but must NOT create a
     as_VulnerabilityCase and must leave the actor's outbox empty (CM-15-001,
     issue #1319).
     """
@@ -1275,10 +1276,10 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
 
     dispatcher.dispatch(event, dl)
 
-    # Report and Offer are persisted.
+    # The report is persisted; the Offer is held as intake archived it,
+    # never under the id its sender chose (DL-06-006).
     assert dl.read(REPORT_ID) is not None, "VulnerabilityReport must be stored"
-    offer_ids = [row.get("id_") for row in dl.get_all("Offer")]
-    assert OFFER_ID in offer_ids, "Offer activity must be stored"
+    assert_held_only_as_received(dl, OFFER_ID)
     # No case created.
     assert dl.get_all("VulnerabilityCase") == [], (
         "No as_VulnerabilityCase should be created when auto_create_case=False"
@@ -1377,3 +1378,167 @@ def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
 
     assert isinstance(event, InviteToEmbargoOnCaseReceivedEvent)
     assert event.rsvp_deadline == published + timedelta(days=14)
+
+
+@pytest.mark.spec("SYNC-14-009")
+def test_make_dispatcher_gives_ledger_hand_back_semantics_the_inbox_port(
+    monkeypatch,
+):
+    """The two received paths that can make a buffered entry appliable get an
+    ``InboxHandBackPort`` writing to the receiving actor's own store, and no
+    other semantic does: the port is not part of every use case's signature
+    (SYNC-14-009, SYNC-15-005)."""
+    import inspect
+
+    from vultron.adapters.driven.inbox_hand_back_adapter import (
+        InboxHandBackAdapter,
+    )
+    from vultron.core.models.events import MessageSemantics
+    from vultron.semantic_registry import use_case_map
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        ih.inbox_port_factories, "_resolve_actor_config", lambda: None
+    )
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    hand_back_semantics = {
+        MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
+    }
+    for sem, use_case in use_case_map().items():
+        port = captured["port_factories"][sem](real_dl).get("inbox_hand_back")
+        if sem in hand_back_semantics:
+            assert isinstance(port, InboxHandBackAdapter), sem.name
+            assert port._dl is real_dl
+            assert "inbox_hand_back" in inspect.signature(use_case).parameters
+        else:
+            assert port is None, f"{sem.name} was given an inbox hand-back"
+
+
+@pytest.mark.spec("PCR-06-005")
+def test_dispatch_or_defer_inbox_item_dispatches_stub_invite_for_unknown_case(
+    monkeypatch,
+):
+    """The stub Invite precedes its case, so it is dispatched, not queued.
+
+    The invitee holds no replica until it answers the Invite (MV-10-005);
+    deferring it until the case is known would hold it until the Announce its
+    own Accept brings (#4915).
+    """
+    actor_id = "https://example.org/actors/invitee"
+    case_id = "https://example.org/cases/case-not-held"
+    item_id = "https://example.org/activities/stub-invite-1"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    item = as_Activity(
+        id_=item_id,
+        type_="Invite",
+        actor="https://example.org/actors/case-actor",
+        context=case_id,
+        name="stub-invite",
+    )
+    fake_event = VultronEvent(
+        semantic_type=MessageSemantics.INVITE_ACTOR_TO_CASE,
+        activity_id=item_id,
+        actor_id="https://example.org/actors/case-actor",
+    )
+    monkeypatch.setattr(
+        ih, "prepare_for_dispatch", lambda activity: fake_event
+    )
+    mock_dispatcher = Mock()
+    mock_dispatcher.dispatch.return_value = HandlerResult.applied()
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
+
+    result = ih._dispatch_or_defer_inbox_item(
+        actor_id=actor_id,
+        obj=item,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+    )
+
+    assert result is not None
+    mock_dispatcher.dispatch.assert_called_once()
+    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
+
+
+@pytest.mark.spec("CBT-03-003", "PCR-03-004")
+def test_expired_queue_keeps_a_stub_invite_trust_anchor():
+    """Expiry drops what was queued but keeps the Invite's anchor (#4915)."""
+    from datetime import datetime, timedelta
+
+    actor_id = "https://example.org/actors/invitee"
+    case_id = "https://example.org/cases/anchored"
+    activity_id = "https://example.org/activities/anchored-note"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    pending = VultronPendingCaseInbox(
+        case_id=case_id,
+        activity_ids=[activity_id],
+        case_actor_id="https://example.org/actors/case-actor",
+        invite_anchored=True,
+        queued_at=datetime.now(UTC) - timedelta(minutes=10),
+    )
+    queue_dl.save(pending)
+
+    expired = ih._expire_pending_case_activities(
+        case_id=case_id,
+        actor_id=actor_id,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+        timeout_seconds=60,
+    )
+
+    assert expired is True
+    kept = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
+    assert isinstance(kept, VultronPendingCaseInbox)
+    assert kept.activity_ids == []
+    assert kept.case_actor_id == "https://example.org/actors/case-actor"
+    assert kept.invite_anchored
+
+
+@pytest.mark.spec("CBT-03-001")
+def test_a_queue_holding_no_activity_does_not_expire():
+    """A stub Invite's anchor alone queues nothing, so nothing expires."""
+    from datetime import datetime, timedelta
+
+    actor_id = "https://example.org/actors/invitee"
+    case_id = "https://example.org/cases/anchor-only"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    queue_dl.save(
+        VultronPendingCaseInbox(
+            case_id=case_id,
+            case_actor_id="https://example.org/actors/case-actor",
+            invite_anchored=True,
+            queued_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+    )
+
+    assert not ih._expire_pending_case_activities(
+        case_id=case_id,
+        actor_id=actor_id,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+        timeout_seconds=60,
+    )
+    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is not None

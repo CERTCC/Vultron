@@ -62,10 +62,10 @@ Participant status is self-declaratory, so a participant asserting another parti
 
 Use a case status for public awareness, exploit publication, and observed attacks — the dimensions that are properties of the vulnerability rather than of any one participant.
 
-Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all implemented in ActivityStreams as `Add(CaseStatus)`.
+Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all implemented in ActivityStreams as `Add(CaseStatus)`, or in your own participant status (see [Report it in your own participant status](#report-it-in-your-own-participant-status)).
 All three set `pxaState`; which one you are sending is determined by which letter in it changes case.
 
-In every case, send `Add(CaseStatus)` naming the case in `target`, with the new status, carrying the new `pxaState`, inline as its `object`.
+When you send a case status, send `Add(CaseStatus)` naming the case in `target`, with the new status, carrying the new `pxaState`, inline as its `object`.
 The protocol names `Add(CaseStatus)` as the one form; a received `Create(CaseStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 ### Report that the vulnerability is public
@@ -91,6 +91,22 @@ That is Attacks Observed (CA).
 
 The state change hangs off the `Add`, because that is the activity that asserts the attachment.
 
+### Report it in your own participant status
+
+A participant status embeds a case status that carries your own view of `pxaState`.
+Only the CASE_MANAGER sends `Add(CaseStatus)` directly; every other participant reports public awareness, exploit publication or observed attacks in its own participant status (RSH-04-001).
+Send `Add(ParticipantStatus)` targeting your own participant record, and make the same change to `pxaState` in its embedded case status.
+Your report is your view of the case status, not a change to it.
+The CASE_MANAGER records the status on your participant record and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization (RSH-07-001).
+If it adopts the change, the CASE_MANAGER records it in its own `Add(CaseStatus)`, and while an embargo is active or proposed, ends or abandons the embargo (RSH-03-001).
+The Reporter + Vendor (`rv`) demo reports public awareness this way.
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-public-awareness.md" %}
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-exploit-public.md" %}
+
+{% include-markdown "../../../reference/messages/_occasions/embeds/participant-attacks-observed.md" %}
+
 ---
 
 ## Post a note to the case
@@ -101,13 +117,14 @@ A note goes to the case participants, not to the public.
 To post a note, send one `Add(Note)` to the CASE_MANAGER, targeting the case, with the note carried inline as its `object`.
 Set the note's `context` to the case as well.
 The CASE_MANAGER stores the note, attaches it to the case and commits an `add_note_to_case` entry to the case ledger.
-This implementation sends every note this way and does not send a separate `Create(Note)` (VAM-01-010).
+The CASE_MANAGER accepts a note only from an active participant whose closure the case does not record, and refuses it from any other sender, including a closed participant (CM-23-018).
+A refused note is not stored, attached, committed or sent on.
+A participant's replica accepts a note only from the CASE_MANAGER.
+`Add(Note)` is the one message that attaches a note (VAM-01-011).
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/add-note-to-case.md" %}
 
-A receiver still accepts a received `Create(Note)` whose note names the case, sent alone or ahead of an `Add(Note)` of the same note.
-
-{% include-markdown "../../../reference/messages/_occasions/embeds/create-note.md" %}
+A received `Create` of a note is not a protocol message, and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 To withdraw a note, send `Remove(Note)` to the CASE_MANAGER, targeting the case.
 The CASE_MANAGER admits it from the note's author while that author is an active participant, or from the Case Owner, and refuses it from anyone else.

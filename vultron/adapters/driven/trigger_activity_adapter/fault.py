@@ -14,21 +14,28 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from typing import Any
 
 from vultron.adapters.outbox_sealed_body import requeue_if_sealed
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.errors import VultronAlreadyExistsError
-from vultron.wire.as2.factories.fault import create_processing_fault_activity
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronAlreadyExistsError,
+)
+from vultron.wire.as2.factories.fault import (
+    create_processing_fault_activity,
+    refusal_notice_activity,
+)
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
-from ._base import _seal
+from ._base import _create_and_seal, _seal
 
 logger = logging.getLogger(__name__)
 
 
 class _FaultMixin:
-    """Trigger activity methods for ProcessingFault NACK messages."""
+    """Trigger activity methods for ProcessingFault NACKs and refusal notices."""
 
     _dl: CaseOutboxPersistence
 
@@ -108,3 +115,42 @@ class _FaultMixin:
             to,
         )
         return activity_id
+
+    def refusal_notice(
+        self,
+        case_id: str | None,
+        actor: str,
+        refused_activity: dict[str, Any],
+        asserter: str,
+        reason: str,
+    ) -> tuple[str, str]:
+        """Create and persist the CASE_MANAGER's refusal notice (CLP-05-001).
+
+        A ``Reject`` of the refused activity, carried inline, threaded to it
+        by ``inReplyTo``, addressed to *asserter* alone, with *reason* in
+        ``summary`` and the case, when given, in ``context``.  The id is
+        derived from the CASE_MANAGER and the refused activity, so a retry
+        rebuilds the notice under the same id and the outbox queues it once
+        (ID-04-004, OX-06-002).
+
+        Raises:
+            VultronActivityConstructionError: *refused_activity* has no id or
+                does not parse as an activity.
+        """
+        refused_id = refused_activity.get("id")
+        if not isinstance(refused_id, str) or not refused_id:
+            raise VultronActivityConstructionError(
+                "refusal_notice: the refused activity has no id"
+            )
+        context: dict[str, Any] = (
+            {} if case_id is None else {"context": case_id}
+        )
+        activity = refusal_notice_activity(
+            refused_activity,
+            reason,
+            actor=actor,
+            to=[asserter],
+            id_=derived_activity_id("refusal-notice", actor, refused_id),
+            **context,
+        )
+        return _create_and_seal(self._dl, activity, "refusal_notice")

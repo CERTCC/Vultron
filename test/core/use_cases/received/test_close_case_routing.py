@@ -61,7 +61,7 @@ def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
 
 
 def _make_case_actor_dl() -> SqliteDataLayer:
-    """DataLayer as seen by the CaseActor: case + CASE_MANAGER participant."""
+    """DataLayer as seen by the CaseActor: case, CASE_MANAGER and a vendor."""
     dl = _make_dl()
 
     ca_svc = VultronService(id_=CASE_ACTOR_ID, context=CASE_ID)
@@ -81,6 +81,16 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     dl.create(cm_participant)
     case.case_participants.append(cm_participant.id_)
     case.actor_participant_index[CASE_ACTOR_ID] = cm_participant.id_
+
+    # The Leave's default sender: a participant may leave (HP-01-006).
+    vendor_participant = as_CaseParticipant(
+        attributed_to=VENDOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.VENDOR],
+    )
+    dl.create(vendor_participant)
+    case.case_participants.append(vendor_participant.id_)
+    case.actor_participant_index[VENDOR_ID] = vendor_participant.id_
     dl.save(case)
 
     return dl
@@ -104,6 +114,7 @@ def _make_close_case_event(
         id_="https://example.org/activities/leave-case",
         type_="Leave",
         actor=leave_actor_id,
+        to=[CASE_ACTOR_ID],
         object_=case_obj,
     )
     return CloseCaseReceivedEvent(
@@ -116,9 +127,9 @@ def _make_close_case_event(
     )
 
 
-def _ledger_event_types(dl: SqliteDataLayer) -> list[str]:
+def _ledger_semantic_types(dl: SqliteDataLayer) -> list[str]:
     return [
-        getattr(e, "event_type", "")
+        getattr(e, "semantic_type", "")
         for e in dl.list_objects("CaseLedgerEntry")
     ]
 
@@ -143,12 +154,14 @@ class TestCloseCaseLedgerRouting:
             request=_make_close_case_event(receiving_actor_id=CASE_ACTOR_ID),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            # The leaver's closure steps are factory-built (VM-08-003).
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "close_case" in event_types, (
-            "Expected a CaseLedgerEntry with event_type='close_case';"
-            f" found: {event_types}"
+        semantic_types = _ledger_semantic_types(dl)
+        assert "close_case" in semantic_types, (
+            "Expected a CaseLedgerEntry with semantic_type='close_case';"
+            f" found: {semantic_types}"
         )
 
     def test_non_caseactor_does_not_commit_ledger_entry(self):
@@ -164,10 +177,10 @@ class TestCloseCaseLedgerRouting:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "close_case" not in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "close_case" not in semantic_types, (
             "Non-CaseActor receiving actor must NOT write a close_case"
-            f" ledger entry; found: {event_types}"
+            f" ledger entry; found: {semantic_types}"
         )
 
     def test_caseactor_self_leave_commits_close_case_ledger_entry(self):
@@ -199,11 +212,11 @@ class TestCloseCaseLedgerRouting:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "close_case" in event_types, (
-            "Expected a CaseLedgerEntry with event_type='close_case'"
+        semantic_types = _ledger_semantic_types(dl)
+        assert "close_case" in semantic_types, (
+            "Expected a CaseLedgerEntry with semantic_type='close_case'"
             " when the case-actor is both sender and receiver (AutoClose path);"
-            f" found: {event_types}"
+            f" found: {semantic_types}"
         )
 
     def test_absent_stamp_uses_store_owner_for_commit(self):
@@ -219,10 +232,12 @@ class TestCloseCaseLedgerRouting:
             request=_make_close_case_event(receiving_actor_id=None),
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
+            # The leaver's closure steps are factory-built (VM-08-003).
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "close_case" in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "close_case" in semantic_types, (
             "Store-owner fallback (CaseActor) MUST write a close_case"
-            f" ledger entry when receiving_actor_id is absent; found: {event_types}"
+            f" ledger entry when receiving_actor_id is absent; found: {semantic_types}"
         )

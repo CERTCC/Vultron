@@ -27,11 +27,16 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.enums.object_types import VultronObjectType
+from vultron.semantic_registry import (
+    find_matching_semantics,
+    semantics_to_activity_class,
+)
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType,
     as_TransitiveActivityType,
 )
 from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
@@ -214,6 +219,37 @@ def _rekey_wire_identity(data: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _declared_inline_required_refs(cls: type) -> frozenset[str]:
+    """The ``inline_required_refs`` *cls* declares, or an empty set."""
+    declared = getattr(cls, "inline_required_refs", None)
+    if isinstance(declared, frozenset | set):
+        return frozenset(declared)
+    return frozenset()
+
+
+def _inline_required_refs(
+    obj: "PersistableModel | BaseModel",
+) -> frozenset[str]:
+    """The fields of *obj* that storage must keep inline (DL-08-001).
+
+    Read from *obj*'s own class and, for an activity held as a
+    base-vocabulary class, from the semantic class it matches.  A received
+    activity is parsed to its base class (``as_Offer``), not to the semantic
+    class that declares the contract, and is stored as parsed.  Without the
+    second lookup a received ownership-transfer Offer had its transferee
+    collapsed to an id the CASE_MANAGER could not read back, and its ledger
+    commit refused the bare ``target`` (DL-08-003, CLP-07-006, #4843).
+    """
+    inline_required = _declared_inline_required_refs(type(obj))
+    if isinstance(obj, as_Activity):
+        semantic_cls = semantics_to_activity_class().get(
+            find_matching_semantics(obj)
+        )
+        if semantic_cls is not None and not isinstance(obj, semantic_cls):
+            inline_required |= _declared_inline_required_refs(semantic_cls)
+    return inline_required
+
+
 def _dehydrate_data(
     data: dict[str, Any], obj: "PersistableModel | BaseModel | None" = None
 ) -> dict[str, Any]:
@@ -232,8 +268,9 @@ def _dehydrate_data(
     Two things are never collapsed:
 
     - a nested value whose ``type_`` is in ``_KEEP_INLINE_NESTED_TYPES``;
-    - a field named in *obj*'s ``inline_required_refs``, for models whose
-      protocol contract is to carry the object rather than reference it.
+    - a field named in *obj*'s ``inline_required_refs`` (or its semantic
+      class's, see :func:`_inline_required_refs`), for models whose protocol
+      contract is to carry the object rather than reference it.
 
     Both exist for the same reason: dehydration is only reversible when the
     nested object has a record of its own to be read back from.  It often does
@@ -264,9 +301,7 @@ def _dehydrate_data(
     ref_fields = _activity_object_ref_properties()
     if obj is not None:
         ref_fields = object_ref_fields(type(obj))
-        declared = getattr(type(obj), "inline_required_refs", None)
-        if isinstance(declared, frozenset | set):
-            inline_required = frozenset(declared)
+        inline_required = _inline_required_refs(obj)
 
     result: dict[str, Any] = {}
     for key, value in data.items():
@@ -330,7 +365,7 @@ def _retype_inline_object_refs(
     Base-vocabulary reconstruction (``find_in_vocabulary(type_).model_validate``)
     validates an inline ``object_``/``target``/… against the base ``as_Object``
     union, which silently drops domain-specific fields (``case_id``,
-    ``event_type``, …) because ``as_Object`` ignores extras.  Those fields are
+    ``semantic_type``, …) because ``as_Object`` ignores extras.  Those fields are
     still present in the raw stored ``data`` dict, so this helper re-parses each
     inline reference with its specific vocabulary class and writes the typed
     object back onto *obj*.
@@ -402,7 +437,7 @@ class Record(StorableRecord):
             type_=obj_type,
             # serialize_as_any=True serializes each nested object by its runtime
             # type, preserving subtype fields (e.g. a CaseLedgerEntry inline in
-            # an Announce keeps case_id/event_type/…).  Without it, an inline
+            # an Announce keeps case_id/semantic_type/…).  Without it, an inline
             # object_ typed only as the base union on the parent model would be
             # serialized against the base schema and lose its domain fields —
             # breaking read/replay reconstruction (SYNC-13-004).

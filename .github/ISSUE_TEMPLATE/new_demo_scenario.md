@@ -51,15 +51,15 @@ Every new multi-actor demo scenario MUST update all of the following in the
 ### Invariant harness
 
 - [ ] **Invariant test file** — `test/ci/invariants/test_<scenario_name>_invariants.py`
-  - Define `_<SCENARIO_NAME>_EXPECTED_EVENT_TYPES` extending the four
-    universal types with any scenario-specific required event types
+  - Define `_<SCENARIO_NAME>_EXPECTED_SEMANTIC_TYPES` extending the four
+    universal types with any scenario-specific required semantic types
     (DEMOMA-16-001–16-008).
   - Add `test_<scenario_name>_<event>_at_least_N` functions for events
     that must appear more than once.
-  - See `test/ci/invariants/test_fv_invariants.py` for the canonical
+  - See `test/ci/invariants/test_rv_invariants.py` for the canonical
     structure.
 - [ ] **Spec** — `specs/multi-actor-demo.yaml`
-  - Add DEMOMA-16-XXX entries for each scenario-specific required event type
+  - Add DEMOMA-16-XXX entries for each scenario-specific required semantic type
     (DEMOMA-16-008: spec and test MUST change in the same PR).
 
 ### Documentation

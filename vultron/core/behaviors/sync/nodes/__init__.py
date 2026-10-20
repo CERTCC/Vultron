@@ -23,6 +23,7 @@ continue to work without modification.
 Submodules:
 - ``conditions``: Idempotency guard and sender verification condition nodes
 - ``receive``: Log entry delivery and validation action nodes
+- ``hand_back``: Hand a buffered ledger successor back to the inbox (SYNC-14-009)
 - ``chain``: Chain reconstruction and log entry creation action nodes
 - ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
 - ``replay``: Reject-driven replay action nodes for replication
@@ -32,18 +33,19 @@ Submodules:
 - ``fanout``: Fan-out action nodes; RM.CLOSED participants are skipped
   except for the entries recording their own closure (CM-23-004)
 - ``effects``: Ledger-apply side-effect nodes (note, invite-accept)
-- ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, with the
-  monotonic-RM ratchet (ADR-0061)
+- ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, copying
+  the status the entry carries (CM-23-016)
 - ``offer_report_effect``, ``ownership_effects``, ``ownership_offer_effect``,
   ``participant_removal_effect``: per-effect ledger-apply nodes
-- ``case_status_effect``: Ledger-apply of ``add_case_status_to_case``, under
-  the RSH-05-023/019 acceptance rules
-- ``rm_verdict_effect``: Ledger-apply of the activity-typed RM moves (report
-  verdicts, engage/defer) to the sender's participant
+- ``case_status_effect``: Ledger-apply of ``add_case_status_to_case``, copying
+  the status the entry carries (CM-23-016)
 
 A ``close_case`` entry has no effect slot: it records the received Leave, and
 the RM transitions the Leave caused arrive as the status entries after it
-(CM-23-001, CM-23-016).
+(CM-23-001, CM-23-016).  The activity-typed RM moves (report verdicts,
+engage/defer, the full-case Invite replies) have none either, for the same
+reason: the status the CASE_MANAGER wrote follows as its own entry
+(CLP-07-013).
 
 Every case node that commits imports
 :mod:`~vultron.core.behaviors.sync.commit_tree`, which loads this package, so
@@ -98,6 +100,9 @@ from vultron.core.behaviors.sync.nodes.fanout import (
 from vultron.core.behaviors.sync.nodes.genesis_announce import (
     AnnounceCaseOnGenesisRejectNode,
 )
+from vultron.core.behaviors.sync.nodes.hand_back import (
+    HandBackBufferedSuccessorNode,
+)
 from vultron.core.behaviors.sync.nodes.ledger_authority import (
     DeclineForeignLedgerCommitNode,
 )
@@ -149,11 +154,6 @@ from vultron.core.behaviors.sync.nodes.replay import (
     FindDivergenceIndexNode,
     ReplayMissingEntriesNode,
     SendMissingEntriesNode,
-)
-from vultron.core.behaviors.sync.nodes.rm_verdict_effect import (
-    RM_VERDICT_TARGETS,
-    ApplyRmVerdictFromLedgerNode,
-    IsRmVerdictEventNode,
 )
 from vultron.core.behaviors.sync.nodes.role_grant_effect import (
     ApplyCaseParticipantRoleGrantFromLedgerNode,
@@ -212,15 +212,14 @@ __all__ = [
     "IsRemoveCaseParticipantEventNode",
     "ApplyCaseStatusFromLedgerNode",
     "IsAddCaseStatusEventNode",
-    "RM_VERDICT_TARGETS",
-    "ApplyRmVerdictFromLedgerNode",
-    "IsRmVerdictEventNode",
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",
     "CheckHashMatchesNode",
     "BufferOutOfOrderEntryNode",
     "BufferPreGenesisEntryNode",
+    # hand_back
+    "HandBackBufferedSuccessorNode",
     "SendRejectLogEntryNode",
     "CheckHashOrRejectOnMismatchNode",
     # chain

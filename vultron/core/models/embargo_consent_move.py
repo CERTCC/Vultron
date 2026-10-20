@@ -34,6 +34,8 @@ position, and both write the same row (CM-23-016):
 - :func:`joiner_agreement` — an invitee's ``Accept`` of the stub Invite
   agrees to the embargo in force; a ``DECLINED`` row is left as it is, as
   seeding never overrides an answer the participant gave (CM-10-001).
+- :func:`joiner_decline` — an invitee's ``Reject`` of the stub Invite
+  declines the embargo in force (CM-11-007).
 
 Reads only the case file: no id is minted beyond the row's derived one, no
 clock is read and no store is read.
@@ -136,4 +138,30 @@ def joiner_agreement(
     return consent_row_move(case_file, actor_id, embargo_id, PEC_Trigger.AGREE)
 
 
-__all__ = ["consent_row_move", "joiner_agreement", "owner_agreement"]
+def joiner_decline(
+    case_file: EmbargoCaseFile, actor_id: str
+) -> ConsentRowChange | None:
+    """The ``DECLINED`` row an invitee's ``Reject`` of the stub Invite states.
+
+    Its refusal of the embargo in force (CM-11-007).  ``None`` with no
+    embargo in force, or when ``DECLINE`` is not a legal move from the row
+    (CM-18-003), such as a row that already declined.
+
+    Raises:
+        VultronNotFoundError: the participant holds no row for the embargo
+            in force (ADR-0122).
+    """
+    embargo_id = case_file.case.active_embargo_id
+    if embargo_id is None:
+        return None
+    return consent_row_move(
+        case_file, actor_id, embargo_id, PEC_Trigger.DECLINE
+    )
+
+
+__all__ = [
+    "consent_row_move",
+    "joiner_agreement",
+    "joiner_decline",
+    "owner_agreement",
+]

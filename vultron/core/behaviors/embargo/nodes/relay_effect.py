@@ -5,7 +5,7 @@ negotiation: the proposal it received, each ``Invite(EmbargoEvent)`` it relays
 to a participant, and each participant's ``Accept`` or ``Reject`` of its
 Invite — the case owner's included, which is the owner's consent (ADR-0122).
 The re-invite of a late accepter whose embargo went stale (EMB-17-003) has an
-event type of its own, and so has the owner's decision on a proposal
+semantic type of its own, and so has the owner's decision on a proposal
 (``activation_effect.py``).  A participant replica writes none
 of that state when the activity reaches it directly (EP-09-003, RSH-08-003); it
 copies the state from the ``Announce(CaseLedgerEntry)`` broadcast through
@@ -59,6 +59,7 @@ from vultron.core.models.embargo_apply import (
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.services.carried_embargo import (
     carried_entry_embargo,
     entry_embargo,
@@ -100,7 +101,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         embargo_id = _extract_id_from_field(embargo_data)
         if not embargo_id:
             self.feedback_message = (
-                f"'{entry.event_type}' entry on case '{entry.case_id}' names"
+                f"'{entry.semantic_type}' entry on case '{entry.case_id}' names"
                 " no embargo"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
@@ -145,7 +146,8 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
     ) -> None:
         """Index the Invite on the proposer's replica only (EP-08-002)."""
         assert self.datalayer is not None
-        proposer_id = _extract_id_from_field(
+        # Normalised: the snapshot keeps the relay's spelling (OID-01-006).
+        proposer_id = snapshot_actor_id(
             snapshot.get(wire_key("attributed_to"))
         )
         invite_id = _extract_id_from_field(snapshot.get("id"))
@@ -180,7 +182,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         case, embargo_id = resolved
         entry = self._get_entry()
         self.feedback_message = (
-            f"'{entry.event_type}' entry '{entry.id_}' of embargo"
+            f"'{entry.semantic_type}' entry '{entry.id_}' of embargo"
             f" '{embargo_id}' on case '{case.id_}': each consent row it"
             " changes follows as its own entry"
         )
@@ -340,7 +342,9 @@ class _ApplyEmbargoAnswerFromLedgerNode(_CopiedEmbargoEntryNode):
     def _change_for(
         self, entry: CaseLedgerEntry, embargo: EmbargoEvent
     ) -> EmbargoChange:
-        actor_id = _extract_id_from_field(entry.payload_snapshot.get("actor"))
+        # The answerer's row is keyed by its canonical id; the snapshot keeps
+        # the sender's spelling (OID-01-006).
+        actor_id = snapshot_actor_id(entry.payload_snapshot.get("actor"))
         if not actor_id:
             raise TypeError("the answer names no actor")
         return ConsentRowChange.answer(

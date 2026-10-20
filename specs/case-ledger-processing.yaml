@@ -103,7 +103,18 @@ groups:
   - id: CLP-02-005
     priority: MUST
     kind: protocol
-    verification_debt: '#3612'
+    verification: >-
+      `test/architecture/test_received_tree_refusal_notice.py` builds every
+      received tree as it runs and asserts that each one that commits to a case
+      and has a precondition guard holds exactly one refusal notice among the
+      refusal effects of its guard stage, unless it was built with a registered
+      `RefusalNoticeExemption`; it pins which tree passes each exemption, each
+      with its reason and the node that answers instead, and pins with a
+      reason every received tree that commits nothing.
+      `test/core/use_cases/received/test_refusal_notice.py` drives production
+      trees end to end: a refused RM regression and a refused `Add(Note)` at
+      the CASE_MANAGER each queue one `Reject` of the refused activity to its
+      sender and commit nothing of it, and a sender-guard refusal queues none.
     statement: When a precondition guard at the CASE_MANAGER refuses an incoming
       assertion, the refusal MUST be emitted as a `Reject` protocol activity
       directed at the asserting participant (CLP-05-001); a refusal MUST NOT be
@@ -220,8 +231,10 @@ groups:
       deliberately leaves unledgered, namely a replica's receipt of
       `Announce(VulnerabilityCase)` (ADR-0111); an activity only the CASE_MANAGER
       sends, received by a participant (the bootstrap `Create(VulnerabilityCase)`,
-      its `Announce(EmbargoEvent)` notice): a participant never commits (CLP-09-001), so such an activity is
-      ledgered, if it is a case event, where the CASE_MANAGER sends it
+      its `Announce(EmbargoEvent)` notice, its `Accept` or `Reject` answering a
+      recommender's `Offer(Actor)`): a participant never commits (CLP-09-001), so
+      such an activity is ledgered, if it is a case event, where the CASE_MANAGER
+      sends it
       (CLP-09-003); a `Create(ProcessingFault)` NACK (ADR-0080), which reports on
       message handling rather than changing the case; and a message no pattern
       matches or whose object cannot be resolved. The list is closed: a new kind
@@ -240,6 +253,36 @@ groups:
       spec_id: CLP-02-001
     - rel_type: refines
       spec_id: CLP-09-003
+    stories:
+    - story_2022_045
+  - id: CLP-02-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `CaseLedgerEntry` MUST carry the entry's semantic type in a field named
+      `semantic_type`, serialized under the wire key `semanticType`. A stored or
+      received entry that still carries the retired key `eventType` MUST be
+      refused with a message naming the rename, never read through an alias.
+      `HashChainLedgerRecord` MUST carry the same value as `semantic_type` and
+      hash it under that key.
+    rationale: >-
+      The field holds a semantic type, the registry's label for the entry's
+      payload (ADR-0140), and the glossary lists "event type" as a term to avoid
+      for it. Received events already carry the same value as
+      `VultronEvent.semantic_type`, so one name serves both sides. Stored data
+      has no backwards-compatibility requirement, so the old key is refused,
+      not translated (#4128, #4734).
+    verification: >-
+      A test marked `CLP-02-014` confirms that a `CaseLedgerEntry` serializes its
+      semantic type under `semanticType`, that a payload carrying `eventType`
+      beside `semanticType` is refused with an error naming the rename, and that
+      a `HashChainLedgerRecord` hashes the value under `semantic_type` and
+      verifies its own hash.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-02-001
+    adr:
+    - ADR-0140
     stories:
     - story_2022_045
 - id: CLP-03
@@ -357,7 +400,7 @@ groups:
       not written as ledger entries. Freshness-gate and tail-reconstruction helpers
       operate on the ledger directly and therefore require no disposition filter.
     verification: '`test/core/test_sync_helpers.py` confirms that `is_ledger_fresh_for_case`
-      and `_reconstruct_tail_hash` return correct results with a ledger containing
+      and `reconstruct_tail_hash` return correct results with a ledger containing
       only canonical entries, and that no `disposition` field exists on
       `HashChainLedgerRecord` or `CaseLedgerEntry`.'
     stories:
@@ -374,7 +417,16 @@ groups:
   - id: CLP-05-001
     priority: MUST
     kind: protocol
-    verification_debt: '#3612'
+    verification: >-
+      `test/core/use_cases/received/test_refusal_notice.py` asserts the
+      factory queues one notice of the specified shape and derived id on a
+      precondition refusal at the CASE_MANAGER, and none on a sender-guard
+      refusal, a `SKIPPED` repeat, a redelivery or at a replica, and that the
+      participant that receives it closes its pending assertion, writes no
+      case state, sends nothing, and refuses a notice from anyone else;
+      `test/wire/as2/test_refusal_notice_wire.py` asserts the notice's pattern
+      takes no `Reject` of an `Invite` or an `Offer` and changes no existing
+      example's semantics.
     statement: >-
       The refusal notice CLP-02-005 requires MUST be a `Reject` whose object is
       the refused activity, inline, with `inReplyTo` naming that activity's id,
@@ -397,6 +449,12 @@ groups:
       `Reject` of an `Invite` or an `Offer` already means a decline, and a
       decline and a refusal leave the sender in the same place, so the shapes
       need not differ.
+    note: >-
+      The notice is the refusal's one answer. A refused `Add(CaseStatus)` or
+      `Add(ParticipantStatus)` gets no `Create(ProcessingFault)` beside it,
+      since a guard's refusal is "received and understood but declined"
+      (MSM-05-001; #4756). The replica's ImpossibleState fault for a ledger
+      entry it cannot apply (RSH-05-021) is a different failure and stays.
     adr:
     - ADR-0141
     stories:
@@ -572,10 +630,18 @@ groups:
       Full records are ledger content the hash chain must cover, not the inline-object
       shortcut (CLP-07-006).
     verification: >-
-      A rebuild-from-ledger test replays every demo and integration scenario's
-      CASE_MANAGER ledger into an empty store and asserts the result equals the
-      CASE_MANAGER's case file; a test per consequence-producing act asserts one entry
-      per changed object follows the act's entry.
+      A rebuild-from-ledger check replays the CASE_MANAGER's ledger into an empty
+      store and asserts that the roster, every participant record (consent rows
+      and every participant status included, ids and times too), the case
+      statuses and the embargo register, each termination's cause included,
+      equal the CASE_MANAGER's. It runs after every in-process exchange demo and
+      every per-actor-store scenario; the multi-container scenario demos are
+      covered by those in-process equivalents.
+      `test/core/use_cases/received/test_rebuild_from_ledger.py` and
+      `test/demo/test_rebuild_from_ledger.py` pin it. A test per
+      consequence-producing act asserts that the act's own entry carries its whole
+      register step and that one entry per other changed record (each consent row
+      as its own `Create` or `Update`) follows it.
     relationships:
     - rel_type: refines
       spec_id: CLP-07-002
@@ -604,6 +670,41 @@ groups:
       spec_id: CLP-04-006
     adr:
     - ADR-0124
+    stories:
+    - story_2022_045
+  - id: CLP-07-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When an embargo act's own entry is committed and an entry the act's
+      consequences require is not, the CASE_MANAGER MUST commit the entries it
+      still owes, unchanged from what it decided before the act's first commit and
+      in that order, before any later embargo act on the case reads a consent row.
+      An act whose own entry is not committed owes nothing.
+    rationale: >-
+      The entries after an act's own are committed one at a time, so a failed commit
+      leaves the act committed without its consent rows, a state no single act
+      produces: a proposal in the register that some participant holds no row for,
+      or an invitee whose row never moved to its invitation (ADR-0122). Nothing else
+      re-commits them, because a repeated trigger starts a new act and a redelivered
+      act is stopped by its idempotency guard (#4764). Re-deciding the entries later
+      could decide a different row once the clock or local policy has moved, so the
+      entries are the ones already decided (ADR-0146). The stored plan is case
+      bookkeeping read only to commit those entries unchanged, never to decide a
+      case-file value, so CLP-07-014 still holds.
+    verification: >-
+      A test fails an act's second commit, then runs a CASE_MANAGER embargo tree for
+      the case, and asserts the owed entries are committed in their planned order and
+      the case file equals the one a run with no failure produces; a test stores a
+      plan whose act's own entry did not commit, runs the finishing step, and asserts
+      it commits nothing and discards the plan.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-07-013
+    - rel_type: depends_on
+      spec_id: CLP-07-014
+    adr:
+    - ADR-0146
     stories:
     - story_2022_045
   - id: CLP-07-003
@@ -974,7 +1075,7 @@ groups:
     rationale: 'Before ADR-0021, several trigger trees (e.g., `validate_report`, `ack_report`,
       `close_case`) emitted no activity addressed to the CASE_MANAGER. The CASE_MANAGER
       therefore had no protocol event to commit, and the canonical ledger was missing
-      those event types entirely. Delivery to the CASE_MANAGER''s own inbox already ran
+      those semantic types entirely. Delivery to the CASE_MANAGER''s own inbox already ran
       over the uniform HTTP path like any other recipient (OX-12-001); the missing piece
       was the emit node itself. The self-routing requirement also
       applies when the CASE_MANAGER is the originator: `invite_actor_to_case_trigger_bt`
@@ -992,9 +1093,9 @@ groups:
       (CLP-10-013), so a self-addressed copy would add no record — see EMB-19-001 for
       the worked case, where addressing the manager also made the announce reach
       nobody.
-    verification: For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the
-      CASE_MANAGER's canonical ledger contains at least one entry with that `eventType`
-      after a full FV demo run.
+    verification: For each entry in `EXPECTED_SEMANTIC_TYPES`, a test verifies that the
+      CASE_MANAGER's canonical ledger contains at least one entry with that `semanticType`
+      after a full rv demo run.
     adr:
     - ADR-0021
     - ADR-0109
@@ -1045,7 +1146,7 @@ groups:
       An `Announce(CaseLedgerEntry)` replication envelope MUST NOT itself be recorded as the
       `payloadSnapshot` of a canonical ledger entry; it is the envelope that carries
       canonical entries to participants, not a ledger event.
-    rationale: 'Including `announce_case_ledger_entry` in `EXPECTED_EVENT_TYPES` creates
+    rationale: 'Including `announce_case_ledger_entry` in `EXPECTED_SEMANTIC_TYPES` creates
       a circular requirement: the CASE_MANAGER would need to commit a ledger entry whose
       payload is the `Announce` activity used to broadcast ledger entries, which is
       self-referential and unachievable without corrupting the hash chain. The `Announce(CaseLedgerEntry)`
@@ -1062,14 +1163,14 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      The `announce_case_ledger_entry` event type MUST NOT appear in `EXPECTED_EVENT_TYPES`
+      The `announce_case_ledger_entry` semantic type MUST NOT appear in `EXPECTED_SEMANTIC_TYPES`
       for the case-actor canonical log.
     rationale: >-
       How this codebase meets CLP-10-004; split from it so CLP-10-004 states only what other
       participants observe (MS-12-010).
     verification: >-
-      `test_invariant_5_expected_event_types_present` (after parameterization) does not
-      include `announce_case_ledger_entry` as a required event type for the case-actor
+      `test_invariant_5_expected_semantic_types_present` (after parameterization) does not
+      include `announce_case_ledger_entry` as a required semantic type for the case-actor
       replica.
     relationships:
     - rel_type: implements
@@ -1122,12 +1223,22 @@ groups:
       any match outside the guarded-commit factory''s own module is a violation. Known
       violations are tracked as a ratchet set (`KNOWN_VIOLATIONS`) that must shrink
       to empty as each use case migrates to the single-tree shape. Its hard invariant
-      counts every `execute_with_setup()` call a received-side `execute()` reaches,
-      directly or through use-case-package helpers resolved transitively, and asserts
-      at most one, with no exemption set; detector self-tests assert that a helper
-      call, a helper two calls deep, and two calls on alternative branches are each
-      counted. A reviewer MUST still confirm no other domain-significant code remains
-      in `execute()` when closing each migration.'
+      counts every `execute_with_setup()` call that an `execute()` under
+      `vultron/core/use_cases/received/` reaches, directly or through functions and
+      methods under `vultron/core/use_cases/` or `vultron/core/services/` resolved
+      transitively over the call shapes `_use_case_call_graph.py` lists as followed
+      (the walk shared with `test_no_dl_mutations_in_execute.py`), with a `self`
+      or `super()` method dispatched in the concrete class''s method resolution
+      order, sums calls on alternative branches, and asserts at most one, with no
+      exemption set; a received `execute()` that reaches none is named in the exact
+      `RUNS_NO_TREE` set, and every class `use_case_map()` routes to must appear in
+      the count. Trigger-side `execute()` bodies are counted body-only, since their
+      helpers are governed by BT-15-001. Detector self-tests on synthetic sources
+      assert that a helper call, a helper two calls deep, two calls on alternative
+      branches, a subclass override and a `super()` call are each counted, and that a
+      call inside a BT node the tree runs is not. A reviewer MUST still confirm no
+      other domain-significant code remains in `execute()` when closing each
+      migration.'
     adr:
     - ADR-0021
     - ADR-0022
@@ -1151,9 +1262,10 @@ groups:
     statement: The guarded-commit subtree MUST be composed as a child of the tree-factory
       function, not invoked as a separate `execute_with_setup()` call.
     verification: '`test/architecture/test_single_bt_execution_received_side.py` confirms
-      that no received-side `execute()` method calls `BTBridge.execute_with_setup()`
-      more than once, enforcing that the guarded-commit subtree is composed into the
-      single tree rather than invoked separately.'
+      that no received-side `execute()` method reaches `BTBridge.execute_with_setup()`
+      more than once, directly or through use-case or core-services helpers,
+      enforcing that the guarded-commit subtree is composed into the single tree
+      rather than invoked separately.'
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005
@@ -1298,8 +1410,8 @@ groups:
       it the Case Owner''s reinstatement request: its commit landed together with
       its replica apply node (`ApplyReinstateCaseParticipantFromLedgerNode`,
       RSH-08-004), so it now commits. The `Reject(Offer)` and `TentativeReject(Offer)` trees
-      carry canonical signatures their CASE_MANAGER receivers ledger and replicas
-      replay (`ApplyRmVerdictFromLedgerNode`), so they commit. `Offer(CaseParticipantRole)`
+      carry canonical signatures their CASE_MANAGER receivers ledger, followed by
+      the status each verdict writes as its own entry (CLP-07-013), so they commit. `Offer(CaseParticipantRole)`
       (ADR-0039) was missing from `_CANONICAL_PAYLOAD_SIGNATURES`, so the role-offer
       received tree — which passes `case_id` and gates a commit on the CASE_MANAGER —
       had every commit refused as non-canonical and the handler reported `rejected`
@@ -1601,40 +1713,59 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A receive-side tree that owes the sender feedback when a precondition
-      guard refuses its assertion MUST pass that feedback to
-      `create_receive_activity_tree` as `refusal_effects`. The factory MUST run
+      `create_receive_activity_tree` MUST itself add the refusal notice
+      (CLP-05-001) as the first refusal effect of every tree that commits to a
+      case and has a precondition guard, unless the tree names a registered
+      exemption that says what answers its refusals instead. A receive-side
+      tree that owes the sender further feedback when a precondition guard
+      refuses its assertion MUST pass that feedback to the factory as
+      `refusal_effects`. The factory MUST run
       the refusal effects only when a precondition guard refuses, never when
-      the sender guard refuses or the guards pass; MUST run them only at the
+      the sender guard refuses or the guards pass, and never when a guard's
+      failure is an idempotent repeat the handler reports `SKIPPED`; MUST run
+      them only at the
       case's CASE_MANAGER; MUST NOT run them again for a redelivery that intake
-      found already archived; and MUST leave the tree failing with the guard's
-      refusal, so nothing is committed and the handler reports `REFUSED` for
-      the guard's reason. Every refusal effect MUST be emit-capable and MUST
-      contain no state-write node: a refusal commits nothing, so it changes no
-      state.
+      found already archived; MUST run each refusal effect whether or not an
+      earlier one failed; and MUST leave the tree failing with the guard's
+      refusal, so nothing of the refused assertion is committed and the handler
+      reports `REFUSED` for the guard's reason. Every refusal effect MUST be
+      emit-capable and MUST contain no state-write node: a refusal commits
+      nothing of the assertion, so it changes no state the ledger does not
+      record. The one exception is the CASE_MANAGER's own note
+      (`_CommitCaseManagerNoteBase`, RSH-06-004), which commits itself as its
+      own `add_note_to_case` entry before it attaches the note to the case.
     rationale: >-
-      A receiver should not silently drop an assertion it can answer in the
-      moment, such as a refused backward RM declaration (RSH-06-004). An emit
-      beside the guard would precede the commit on an admitted delivery
-      (CLP-10-006), and per-tree scaffolding would repeat the structure
-      (CS-22-001). The CASE_MANAGER adjudicates, so only it answers
-      (BT-17-008); an unentitled sender is owed no answer (HP-01-006); a
-      redelivery changes nothing, so a second answer is noise.
+      A refusal the receiver can answer in the moment should be answered, such
+      as a backward RM declaration (RSH-06-004). An emit beside the guard would
+      precede the commit on an admitted delivery (CLP-10-006); per-tree copies
+      would repeat the structure (CS-22-001). Only the CASE_MANAGER adjudicates
+      and answers (BT-17-008); an unentitled sender is owed no answer
+      (HP-01-006), nor is a redelivery; a repeat whose effect is in place was
+      not refused, so a `Reject` of it would contradict that effect.
     note: >-
       The redelivery skip keys on intake finding the activity already
       archived, not on a record that the refusal effects ran: a refusal
-      effect writes no state, so no such record exists. A redelivery whose
+      effect writes no state of the assertion, so no such record exists. The
+      note exception exists because a note reaches the sender only as a
+      ledger entry: a participant refuses a direct `Add(Note)` (HP-01-005,
+      #4829). A redelivery whose
       first delivery never reached the refusal effects (the sender guard
       refused it, the receiver was not yet the CASE_MANAGER, or the effect
       failed) is therefore not answered either.
     verification: >-
       `test/core/behaviors/case/test_receive_activity_tree.py` asserts the
       factory wraps the guards in the refusal stage ahead of the commit, gates
-      the refusal effects on the CASE_MANAGER, and refuses a refusal effect
-      that is not emit-capable; `test/core/behaviors/case/nodes/test_refusal_stage.py`
+      the refusal effects on the CASE_MANAGER, adds the refusal notice first
+      and wraps each effect on its own, honours only a registered exemption
+      (`TestRefusalNotice`), and refuses a refusal effect that is not
+      emit-capable; `test/core/behaviors/case/nodes/test_refusal_stage.py`
       asserts the effects never run on an admitted delivery, run once on a
-      refusal, are skipped on a redelivery, and leave the guard's failure
-      reason; `TestRefusedRegressionIsNoted` in
+      refusal, are skipped on a redelivery and on a guard's idempotent repeat,
+      and leave the guard's failure reason;
+      `test_a_skipped_repeat_answer_under_a_new_id_queues_no_notice` in
+      `test/core/use_cases/received/test_refusal_notice.py` asserts a repeat
+      embargo answer under a new activity id is answered by no refusal notice;
+      `TestRefusedRegressionIsNoted` in
       `test/core/behaviors/report/test_rm_declaration_adjudication.py`
       asserts the end-to-end behaviour for the RSH-06-004 note.
     relationships:
@@ -1659,7 +1790,7 @@ groups:
       (EMB-13-003), MUST be a clock decision of every receive-side tree that
       names a case and has a sender guard and the post-close boundary, with no
       argument from the tree; a tree still exempt from a sender check takes it
-      once it declares its sender rule (ISSUE-4522). A clock decision MUST
+      once it declares its sender rule (HP-01-007). A clock decision MUST
       commit only
       CASE_MANAGER-authored entries, one for each AS2 activity needed to express
       what it decided, and the case-file changes those entries record, and
@@ -1831,15 +1962,15 @@ groups:
     statement: '`ProtocolPair` MUST be the shared value type for both `find_protocol_pair()`
       and `PendingAssertionStore`. Named reply-type constants (`OFFER_CASE_PARTICIPANT_REPLY_TYPES`,
       `INVITE_ACTOR_TO_CASE_REPLY_TYPES`) MUST be used when constructing or querying
-      a `ProtocolPair` to avoid hard-coding reply event-type strings at call sites.'
+      a `ProtocolPair` to avoid hard-coding reply semantic-type strings at call sites.'
     verification: Static analysis (grep) confirms that all call sites constructing
       or querying a `ProtocolPair` use the named constants `OFFER_CASE_PARTICIPANT_REPLY_TYPES`
-      or `INVITE_ACTOR_TO_CASE_REPLY_TYPES` rather than inline event-type strings.
+      or `INVITE_ACTOR_TO_CASE_REPLY_TYPES` rather than inline semantic-type strings.
   - id: CLP-11-004
     priority: SHOULD
     kind: protocol
     statement: When searching for a reply entry in `find_protocol_pair()`, the implementation
-      SHOULD use the `event_type` field of `CaseLedgerEntry` (derived from `MessageSemantics.value`)
+      SHOULD use the `semantic_type` field of `CaseLedgerEntry` (derived from `MessageSemantics.value`)
       as the primary key, scoped to `case_id`. `in_reply_to` chain-following is an
       internal implementation detail and MUST NOT be exposed as a public port primitive.
 - id: CLP-12

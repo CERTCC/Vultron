@@ -1,15 +1,15 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-!!! info "Public Awareness (CP)"
+!!! info "Public awareness in a case status"
 
     Announces evidence that the vulnerability is known to the public.
 
     - **When…** a Participant learns that the public knows of the vulnerability
     - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
     - **Send to:** the case manager
-    - **Sent by:** not yet checked
+    - **Sent by:** a participant
     - **Distinguished by:** `pxaState` = `Pxa`
-    - **Reference:** [Public Awareness (CP)](../../cs.md#public-awareness)
+    - **Reference:** [Public awareness in a case status](../../cs.md#public-awareness)
 
     ??? example "Example activity"
 

@@ -21,13 +21,13 @@ This demo script showcases the Report Management (RM) process:
 1. Engage Path: submit → validate → create_case → engage → close
 2. Defer and Re-engage Path: submit → validate → create_case →
    defer → re-engage → close
-3. Invalidate Path: submit → invalidate → close_report
+3. Invalidate Path: submit → invalidate → close the case (Leave)
 
 The manage_case workflow corresponds to:
     docs/howto/activitypub/activities/manage_case.md
 
 Key activities demonstrated:
-- Report Submission (as:Offer) — finder submits a report to vendor through
+- Report Submission (as:Offer) — reporter submits a report to vendor through
   its own ``submit-report`` trigger
 - RmValidateReportActivity (as:Accept) — vendor validates the report
 - RmInvalidateReportActivity (as:TentativeReject) — vendor invalidates the report
@@ -35,7 +35,6 @@ Key activities demonstrated:
 - RmEngageCaseActivity (as:Join) — actor actively engages the case (RM → ACCEPTED)
 - RmDeferCaseActivity (as:Ignore) — actor defers the case (RM → DEFERRED)
 - RmCloseCaseActivity (as:Leave) — actor closes the case (RM → CLOSED)
-- RmCloseReportActivity (as:Reject) — vendor closes an invalid report
 
 Note on re-engagement:
 Per implementation notes, re-engaging a deferred case is done by sending
@@ -48,7 +47,7 @@ When run as a script, this module will:
    - demo_engage_path: submit → validate → create_case → engage → close
    - demo_defer_reengage_path: submit → validate → create_case →
      defer → re-engage → close
-   - demo_invalidate_path: submit → invalidate → close_report
+   - demo_invalidate_path: submit → invalidate → close the case (Leave)
 3. Verify side effects in the data layer for each workflow
 """
 
@@ -61,6 +60,7 @@ from vultron.demo.helpers.workflow import (
     reporter_submits_report,
     submit_validate_and_create_case,
     verify_reporter_trusts_introduction,
+    wait_for_case_for_offer,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -73,11 +73,10 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     post_to_inbox_and_wait,
     ref_id,
     setup_demo_logging,
-    verify_object_stored,
+    verify_received_activity_stored,
 )
 from vultron.wire.as2.factories import (
     rm_close_case_activity,
-    rm_close_report_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
     rm_invalidate_report_activity,
@@ -97,7 +96,7 @@ logger = logging.getLogger(__name__)
 
 def setup_report_and_case(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     report_name: str,
     report_content: str,
@@ -113,7 +112,7 @@ def setup_report_and_case(
     # The trigger-minted case already lists the vendor as participant.
     return submit_validate_and_create_case(
         client,
-        finder,
+        reporter,
         vendor,
         report_name=report_name,
         report_content=report_content,
@@ -125,7 +124,7 @@ def setup_report_and_case(
 
 def demo_engage_path(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ):
@@ -134,7 +133,7 @@ def demo_engage_path(
     submit → validate → create_case → engage → close.
 
     Workflow steps:
-    1. Finder submits report; vendor validates it
+    1. Reporter submits report; vendor validates it
     2. Vendor creates as_VulnerabilityCase; adds vendor participant and report
     3. Vendor engages the case (RmEngageCaseActivity — RM → ACCEPTED)
     4. Vendor closes the case (RmCloseCaseActivity — RM → CLOSED)
@@ -150,7 +149,7 @@ def demo_engage_path(
     ):
         report, case = setup_report_and_case(
             client=client,
-            finder=finder,
+            reporter=reporter,
             vendor=vendor,
             report_name="Buffer Overflow in Image Parser",
             report_content=(
@@ -174,20 +173,20 @@ def demo_engage_path(
         engage = rm_engage_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, engage)
         with demo_check("RmEngageCaseActivity activity stored"):
-            verify_object_stored(client, engage.id_)
+            verify_received_activity_stored(client, engage.id_)
 
     with demo_step("Step 4: Vendor closes the case (RmCloseCaseActivity)"):
         close = rm_close_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close)
         with demo_check("RmCloseCaseActivity activity stored"):
-            verify_object_stored(client, close.id_)
+            verify_received_activity_stored(client, close.id_)
 
     logger.info("✅ DEMO 1 COMPLETE: Case engaged then closed.")
 
 
 def demo_defer_reengage_path(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ):
@@ -200,7 +199,7 @@ def demo_defer_reengage_path(
     The RM state machine allows a direct DEFERRED → ACCEPTED transition.
 
     Workflow steps:
-    1. Finder submits report; vendor validates it
+    1. Reporter submits report; vendor validates it
     2. Vendor creates case with vendor participant and linked report
     3. Vendor defers the case (RmDeferCaseActivity — RM → DEFERRED)
     4. Vendor re-engages via RmEngageCaseActivity (RM → ACCEPTED)
@@ -220,7 +219,7 @@ def demo_defer_reengage_path(
     ):
         _report, case = setup_report_and_case(
             client=client,
-            finder=finder,
+            reporter=reporter,
             vendor=vendor,
             report_name="SQL Injection in Login Form",
             report_content=(
@@ -237,7 +236,7 @@ def demo_defer_reengage_path(
         defer = rm_defer_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, defer)
         with demo_check("RmDeferCaseActivity activity stored"):
-            verify_object_stored(client, defer.id_)
+            verify_received_activity_stored(client, defer.id_)
         logger.info("Case is now deferred (RM → DEFERRED).")
 
     with demo_step(
@@ -246,7 +245,7 @@ def demo_defer_reengage_path(
         reengage = rm_engage_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, reengage)
         with demo_check("RmEngageCaseActivity (re-engage) activity stored"):
-            verify_object_stored(client, reengage.id_)
+            verify_received_activity_stored(client, reengage.id_)
         logger.info(
             "Case re-engaged via RmEngageCaseActivity (RM → ACCEPTED). "
             "Note: re-engagement uses the same RmEngageCaseActivity activity as initial "
@@ -257,38 +256,40 @@ def demo_defer_reengage_path(
         close = rm_close_case_activity(case, actor=vendor.id_)
         post_to_inbox_and_wait(client, vendor.id_, close)
         with demo_check("RmCloseCaseActivity activity stored"):
-            verify_object_stored(client, close.id_)
+            verify_received_activity_stored(client, close.id_)
 
     logger.info("✅ DEMO 2 COMPLETE: Case deferred, re-engaged, then closed.")
 
 
 def demo_invalidate_path(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ):
     """
-    Demonstrates the invalidation path: submit → invalidate → close_report.
+    Demonstrates the invalidation path: submit → invalidate → close.
 
-    When a report is invalid, a case is not created. Instead the vendor
-    closes the report directly after invalidation.
+    The vendor opened a case for the report on receipt, so once the report is
+    invalid the vendor, as Case Owner, closes that case with
+    ``Leave(VulnerabilityCase)``: no actor sends ``Close(Report)`` for a
+    report a case holds (CM-23-019).  The case is never engaged.
 
     Workflow steps:
-    1. Finder submits a report to the vendor
+    1. Reporter submits a report to the vendor
     2. Vendor invalidates the report (RmInvalidateReportActivity — RM → INVALID)
-    3. Vendor closes the report (RmCloseReportActivity — RM → CLOSED)
+    3. Vendor closes the case (RmCloseCaseActivity — as:Leave)
     """
     logger.info("=" * 80)
-    logger.info("DEMO 3: Invalidate Path (submit → invalidate → close_report)")
+    logger.info("DEMO 3: Invalidate Path (submit → invalidate → close case)")
     logger.info("=" * 80)
 
     report = offer = None
-    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        # Through the finder's own submit-report trigger (CBT-01-005, #4675).
+    with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
+        # Through the reporter's own submit-report trigger (CBT-01-005, #4675).
         report, offer = reporter_submits_report(
             client,
-            finder,
+            reporter,
             vendor,
             reporter_client=client,
             report_name="Alleged Username Enumeration",
@@ -314,21 +315,18 @@ def demo_invalidate_path(
         )
         post_to_inbox_and_wait(client, vendor.id_, invalidate)
         with demo_check("RmInvalidateReportActivity activity stored"):
-            verify_object_stored(client, invalidate.id_)
+            verify_received_activity_stored(client, invalidate.id_)
 
-    with demo_step("Step 3: Vendor closes the report (RmCloseReportActivity)"):
-        close_report = rm_close_report_activity(
-            stored_offer,
-            actor=vendor.id_,
-            content="Report closed — assessed as not a valid vulnerability.",
-        )
-        post_to_inbox_and_wait(client, vendor.id_, close_report)
-        with demo_check("RmCloseReportActivity activity stored"):
-            verify_object_stored(client, close_report.id_)
+    with demo_step("Step 3: Vendor closes the case (RmCloseCaseActivity)"):
+        case = wait_for_case_for_offer(client, stored_offer.id_)
+        close = rm_close_case_activity(case, actor=vendor.id_)
+        post_to_inbox_and_wait(client, vendor.id_, close)
+        with demo_check("RmCloseCaseActivity activity stored"):
+            verify_received_activity_stored(client, close.id_)
 
     # The case was created on receipt (auto_create_case), so the vendor still
-    # introduces it to the finder (CBT-01-001); it is never engaged.
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    # introduces it to the reporter (CBT-01-001); it is never engaged.
+    verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
         "✅ DEMO 3 COMPLETE: Report invalidated and closed (no case engaged)."

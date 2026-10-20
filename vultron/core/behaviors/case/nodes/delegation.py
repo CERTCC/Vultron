@@ -43,8 +43,8 @@ from vultron.core.behaviors.sync.nodes.role_grant_effect import (
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocol_pair import (
-    ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE,
-    REJECT_CASE_PARTICIPANT_ROLE_EVENT_TYPE,
+    ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE,
+    REJECT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_offer import role_offer_forward_id
@@ -202,11 +202,11 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
     that sender is the CASE_MANAGER whose forward it answers (CM-33-004), not
     the Case Owner that made the Offer; the name is the port's.
 
-    Subclasses set ``_EVENT_TYPE`` (the kind label of the derived id) and
+    Subclasses set ``_SEMANTIC_TYPE`` (the kind label of the derived id) and
     ``_ANSWER`` (for logs), and implement :meth:`_factory_method`.
     """
 
-    _EVENT_TYPE: ClassVar[str]
+    _SEMANTIC_TYPE: ClassVar[str]
     _ANSWER: ClassVar[str]
 
     def __init__(
@@ -244,7 +244,7 @@ class _AnswerCaseParticipantRoleOfferBase(_EmitSingleActivityBase):
             actor=self.actor_id,
             to=[self._case_manager_id],
             id_=derived_activity_id(
-                self._EVENT_TYPE, self.actor_id, self.case_id, self.offer_id
+                self._SEMANTIC_TYPE, self.actor_id, self.case_id, self.offer_id
             ),
         )
 
@@ -325,7 +325,7 @@ class AutoAcceptCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
     See SE-08-003, ADR-0039.
     """
 
-    _EVENT_TYPE = ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE
+    _SEMANTIC_TYPE = ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE
     _ANSWER = "Accept"
 
     def _factory_method(self) -> Callable[..., tuple[str, str]]:
@@ -411,7 +411,7 @@ class EmitRejectCaseParticipantRoleNode(_AnswerCaseParticipantRoleOfferBase):
     See SE-08-003, ADR-0039.
     """
 
-    _EVENT_TYPE = REJECT_CASE_PARTICIPANT_ROLE_EVENT_TYPE
+    _SEMANTIC_TYPE = REJECT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE
     _ANSWER = "Reject"
 
     def _factory_method(self) -> Callable[..., tuple[str, str]]:

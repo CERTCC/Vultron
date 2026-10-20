@@ -103,12 +103,12 @@ def _replica(entries: list[dict]) -> dict[str, list[dict]]:
 def _harness_entry(
     log_index: int,
     published: str | None,
-    event_type: str = "add_note_to_case",
+    semantic_type: str = "add_note_to_case",
 ) -> dict:
     entry: dict = {
         "caseId": CASE_ID,
         "logIndex": log_index,
-        "eventType": event_type,
+        "semanticType": semantic_type,
         "payloadSnapshot": {"actor": ACTOR_ID},
     }
     if published is not None:
@@ -126,10 +126,10 @@ def test_clp_14_001_log_index_causal_order_by_construction():
     """CaseLedger.append() assigns sequential log_index, enforcing causal order."""
     lg = _make_ledger()
     e1 = lg.append(
-        object_id=OBJ_ID, event_type="test", payload_snapshot={"x": 1}
+        object_id=OBJ_ID, semantic_type="test", payload_snapshot={"x": 1}
     )
     e2 = lg.append(
-        object_id=OBJ_ID, event_type="test", payload_snapshot={"x": 2}
+        object_id=OBJ_ID, semantic_type="test", payload_snapshot={"x": 2}
     )
     assert e1.log_index < e2.log_index
 
@@ -141,7 +141,7 @@ def test_clp_14_002_published_non_null_enforced_by_model():
         CaseLedgerEntry(
             case_id=CASE_ID,
             log_object_id=OBJ_ID,
-            event_type="test",
+            semantic_type="test",
             published=None,  # type: ignore[arg-type]
         )
 
@@ -159,7 +159,7 @@ def test_clp_14_003_published_timestamps_monotonic():
     violations = check_clp14_timestamp_invariants(
         _replica(
             [
-                _harness_entry(0, T1.isoformat(), event_type="create_case"),
+                _harness_entry(0, T1.isoformat(), semantic_type="create_case"),
                 _harness_entry(1, T0.isoformat()),
             ]
         )
@@ -174,7 +174,7 @@ def test_clp_14_003_monotonic_timestamps_accepted():
     violations = check_clp14_timestamp_invariants(
         _replica(
             [
-                _harness_entry(0, T0.isoformat(), event_type="create_case"),
+                _harness_entry(0, T0.isoformat(), semantic_type="create_case"),
                 _harness_entry(1, T1.isoformat()),
             ]
         )
@@ -188,7 +188,7 @@ def test_clp_14_004_same_case_id_enforced_by_ledger():
     """CaseLedger entries always carry the ledger's own case_id."""
     lg = _make_ledger()
     e = lg.append(
-        object_id=OBJ_ID, event_type="test", payload_snapshot={"x": 1}
+        object_id=OBJ_ID, semantic_type="test", payload_snapshot={"x": 1}
     )
     assert e.case_id == CASE_ID
 
@@ -198,10 +198,10 @@ def test_clp_14_005_log_index_unique_by_construction():
     """CaseLedger.append() assigns unique log_index values."""
     lg = _make_ledger()
     e1 = lg.append(
-        object_id=OBJ_ID, event_type="test", payload_snapshot={"x": 1}
+        object_id=OBJ_ID, semantic_type="test", payload_snapshot={"x": 1}
     )
     e2 = lg.append(
-        object_id=OBJ_ID + "2", event_type="test", payload_snapshot={"x": 2}
+        object_id=OBJ_ID + "2", semantic_type="test", payload_snapshot={"x": 2}
     )
     assert e1.log_index != e2.log_index
 
@@ -219,7 +219,7 @@ def test_clp_14_006_entry_not_before_case_creation():
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-006"):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            event_type="test",
+            semantic_type="test",
             payload_snapshot=_minimal_payload(
                 published=(case_created - timedelta(hours=1)).isoformat()
             ),
@@ -233,7 +233,7 @@ def test_clp_14_006_harness_flags_entry_predating_case_creation():
     violations = check_clp14_timestamp_invariants(
         _replica(
             [
-                _harness_entry(0, T1.isoformat(), event_type="create_case"),
+                _harness_entry(0, T1.isoformat(), semantic_type="create_case"),
                 _harness_entry(1, T2.isoformat()),
                 # logIndex 2 predates the create_case entry at logIndex 0.
                 _harness_entry(2, T0.isoformat()),
@@ -251,7 +251,7 @@ def test_clp_14_007_future_timestamp_payload_rejected():
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-007"):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            event_type="test",
+            semantic_type="test",
             payload_snapshot=_minimal_payload(published=far_future),
             case_published=T0,
         )
@@ -265,7 +265,7 @@ def test_clp_14_008_stale_timestamp_payload_rejected():
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-008"):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            event_type="test",
+            semantic_type="test",
             payload_snapshot=_minimal_payload(published=far_past.isoformat()),
             case_published=case_created,
         )
@@ -308,10 +308,12 @@ def test_clp_15_001_002_out_of_order_emission_detected_at_ledger_order():
     edges = [{"antecedent": "offer_report", "consequent": "add_note_to_case"}]
     replicas = _replica(
         [
-            _harness_entry(0, T0.isoformat(), event_type="create_case"),
+            _harness_entry(0, T0.isoformat(), semantic_type="create_case"),
             # Consequent recorded before its antecedent.
-            _harness_entry(1, T1.isoformat(), event_type="add_note_to_case"),
-            _harness_entry(2, T2.isoformat(), event_type="offer_report"),
+            _harness_entry(
+                1, T1.isoformat(), semantic_type="add_note_to_case"
+            ),
+            _harness_entry(2, T2.isoformat(), semantic_type="offer_report"),
         ]
     )
 
@@ -319,9 +321,11 @@ def test_clp_15_001_002_out_of_order_emission_detected_at_ledger_order():
 
     ordered = _replica(
         [
-            _harness_entry(0, T0.isoformat(), event_type="create_case"),
-            _harness_entry(1, T1.isoformat(), event_type="offer_report"),
-            _harness_entry(2, T2.isoformat(), event_type="add_note_to_case"),
+            _harness_entry(0, T0.isoformat(), semantic_type="create_case"),
+            _harness_entry(1, T1.isoformat(), semantic_type="offer_report"),
+            _harness_entry(
+                2, T2.isoformat(), semantic_type="add_note_to_case"
+            ),
         ]
     )
 
@@ -348,7 +352,7 @@ def test_clp_15_003_regression_is_reported_not_refused(caplog):
     ):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            event_type="test",
+            semantic_type="test",
             payload_snapshot=_minimal_payload(
                 published=T0.isoformat(), obj_id=OBJ_ID + "/y"
             ),
@@ -370,7 +374,7 @@ def test_clp_15_003_monotonicity_is_scoped_to_one_actor():
     """
     _validate_canonical_entry(
         case_id=CASE_ID,
-        event_type="test",
+        semantic_type="test",
         payload_snapshot=_minimal_payload(
             published=T0.isoformat(), obj_id=OBJ_ID + "/y"
         ),
@@ -394,7 +398,7 @@ def test_clp_15_004_participant_timestamp_reflects_event_time():
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-007"):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            event_type="test",
+            semantic_type="test",
             payload_snapshot=_minimal_payload(published=far_future),
             case_published=T0,
         )
@@ -406,12 +410,12 @@ def test_clp_15_005_caseactor_records_observation_order():
     lg = _make_ledger()
     e1 = lg.append(
         object_id=OBJ_ID + "/first",
-        event_type="first",
+        semantic_type="first",
         payload_snapshot={"x": 1},
     )
     e2 = lg.append(
         object_id=OBJ_ID + "/second",
-        event_type="second",
+        semantic_type="second",
         payload_snapshot={"x": 2},
     )
     assert e1.log_index < e2.log_index

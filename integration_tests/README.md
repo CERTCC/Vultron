@@ -56,29 +56,29 @@ Four scenarios are supported:
 
 | Scenario          | Actors                                                    |
 |:------------------|:----------------------------------------------------------|
-| `fv`              | Finder + Vendor + CaseActor                               |
-| `fvv`             | Finder + Vendor + Vendor2 (no Coordinator)                |
-| `fvcv-extension`  | Finder + Vendor + Coordinator + Vendor2 + CaseActor       |
-| `fvcv-handoff`    | Finder + Vendor + Coordinator + Vendor2 + CaseActor       |
+| `rv`              | Reporter + Vendor + CaseActor                               |
+| `rvv`             | Reporter + Vendor + Vendor2 (no Coordinator)                |
+| `rvcv-extension`  | Reporter + Vendor + Coordinator + Vendor2 + CaseActor       |
+| `rvcv-handoff`    | Reporter + Vendor + Coordinator + Vendor2 + CaseActor       |
 
 ### Running a specific scenario
 
 Pass the scenario name as a positional argument:
 
 ```bash
-./integration_tests/demo/run_multi_actor_integration_test.sh fv
-./integration_tests/demo/run_multi_actor_integration_test.sh fvv
-./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-extension
-./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-handoff
+./integration_tests/demo/run_multi_actor_integration_test.sh rv
+./integration_tests/demo/run_multi_actor_integration_test.sh rvv
+./integration_tests/demo/run_multi_actor_integration_test.sh rvcv-extension
+./integration_tests/demo/run_multi_actor_integration_test.sh rvcv-handoff
 ```
 
 Or via Makefile targets:
 
 ```bash
-make integration-test-multi-actor    # fv (default)
-make integration-test-fvv            # fvv
-make integration-test-fvcv-extension # fvcv-extension
-make integration-test-fvcv-handoff   # fvcv-handoff
+make integration-test-multi-actor    # rv (default)
+make integration-test-rvv            # rvv
+make integration-test-rvcv-extension # rvcv-extension
+make integration-test-rvcv-handoff   # rvcv-handoff
 ```
 
 ### What success looks like
@@ -103,8 +103,8 @@ with a running development stack. Override it to run multiple scenarios in
 parallel:
 
 ```bash
-PROJECT_NAME=vultron-it-fv  DEMO=fv  ./integration_tests/demo/run_multi_actor_integration_test.sh
-PROJECT_NAME=vultron-it-fvv DEMO=fvv ./integration_tests/demo/run_multi_actor_integration_test.sh
+PROJECT_NAME=vultron-it-rv  DEMO=rv  ./integration_tests/demo/run_multi_actor_integration_test.sh
+PROJECT_NAME=vultron-it-rvv DEMO=rvv ./integration_tests/demo/run_multi_actor_integration_test.sh
 ```
 
 **Host port conflicts** — by default each actor service binds container
@@ -114,7 +114,7 @@ use. If you need to pin specific host ports (e.g. for manual debugging or
 to run concurrent scenarios), use the `*_HOST_PORT` env vars:
 
 ```bash
-FINDER_HOST_PORT=17901 VENDOR_HOST_PORT=17902 \
+REPORTER_HOST_PORT=17901 VENDOR_HOST_PORT=17902 \
 CASE_ACTOR_HOST_PORT=17903 COORDINATOR_HOST_PORT=17904 \
 VENDOR2_HOST_PORT=17905 \
 ./integration_tests/demo/run_multi_actor_integration_test.sh

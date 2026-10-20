@@ -27,7 +27,7 @@ uv run pytest -m integration
 uv run pytest test/test_config.py --tb=short
 
 # Gate form: redirect, read the exit line (never end a gate command with a pipe)
-uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 ### 2) Test Layout
@@ -79,11 +79,12 @@ uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /
     A new core package is forbidden by default, and the rule is keyed on the importing directory so relocating a file cannot evade it.
     Imports under `if TYPE_CHECKING:` are exempt.
   - Case-ledger invariant tests require `devlogs/` JSONL artifacts (skipped when absent; `case_ledger_invariants` marker).
-    The structural ratchets in the same directory (`test_universal_event_types.py`, `test_diagnostic_map_sync.py`) and the `test_common.py` helper tests carry no marker and run everywhere.
+    The structural ratchets in the same directory (`test_universal_semantic_types.py`, `test_diagnostic_map_sync.py`) and the `test_common.py` helper tests carry no marker and run everywhere.
     The `_AllSkipGuard` in that directory's `conftest.py` (DEMOCI-10-005) fails a session in which every test skipped, so CI invokes one harness file at a time rather than the whole directory.
   - Demo CI integration tests run against Docker Compose and are not part of `uv run pytest`.
   - The pytest-timeout unit tier is 30 s (raised from 5 s in #2270; integration tier 60 s).
-    `timeout_method = "thread"` kills the whole pytest process on a trip and prints no summary line, so a killed run can look like a passing run when piped through `tail`.
+    `timeout_method = "signal"` fails only the test that trips, and the run goes on to its summary.
+    `--max-worker-restart=0` in `addopts` fails the run when an xdist worker dies, instead of hanging it.
     Run with `--timeout=0` to disable when diagnosing suite-level hangs.
   - `caplog` captures log records emitted during fixture setup, not just the test body; set `caplog.set_level()` inside the test, not in a fixture.
   - Test-only TODO: `test/core/use_cases/test_reporting_workflow.py:111` asks whether dispatcher routing to the right handler should be tested there.

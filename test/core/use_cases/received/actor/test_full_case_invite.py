@@ -73,7 +73,9 @@ def test_stub_accept_sends_announce_then_replay_then_full_case_invite(
 
     joining_case.route(
         rm_accept_invite_to_case_activity(
-            joining_case.stub_invite, actor=invitee_id
+            joining_case.stub_invite,
+            actor=invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
 
@@ -101,7 +103,7 @@ def test_stub_accept_sends_announce_then_replay_then_full_case_invite(
 
     entries = _ledger_tail(joining_case)
     invite_entry = next(
-        e for e in entries if e.event_type == "invite_actor_to_full_case"
+        e for e in entries if e.semantic_type == "invite_actor_to_full_case"
     )
     floor_entry = entries[invite_entry.log_index - 1]
     invite_kwargs = ordered[invite_at][1]
@@ -114,7 +116,9 @@ def test_a_resumed_join_does_not_send_a_second_full_case_invite(
     joining_case,  # noqa: F811
 ) -> None:
     accept = rm_accept_invite_to_case_activity(
-        joining_case.stub_invite, actor=joining_case.invitee_id
+        joining_case.stub_invite,
+        actor=joining_case.invitee_id,
+        to=[joining_case.case_actor_id],
     )
     joining_case.route(accept)
     joining_case.route(accept)
@@ -287,7 +291,7 @@ def test_a_reply_is_recorded_in_the_ledger_with_its_position(
     recorded = [
         e
         for e in _ledger_tail(joining_case)
-        if e.event_type == "accept_invite_actor_to_full_case"
+        if e.semantic_type == "accept_invite_actor_to_full_case"
     ]
     assert len(recorded) == 1
     assert (
@@ -353,7 +357,7 @@ def test_confirmation_and_gap_replies_are_accepted(
     committed, but no new status record is written, so it reads ``SKIPPED``
     (RSH-08-002).
     A Reject after Accept (VALID→CLOSED, a gap) is a forward move and is also
-    accepted, and a new status record *is* written.
+    accepted, and a new status record *is* written and committed.
     """
     tail = _ledger_tail(joining_case)[-1]
     invite = _full_case_invite_at(
@@ -375,9 +379,16 @@ def test_confirmation_and_gap_replies_are_accepted(
     assert result.disposition is expected_disposition, result.reason
     assert _rm_history(joining_case)[-1] == expected_rm
     assert len(_rm_history(joining_case)) == records_before + new_records
-    assert len(_ledger_tail(joining_case)) == before + 1, (
-        "the receipt is committed even for a confirmation or gap"
-    )
+    committed = [e.semantic_type for e in _ledger_tail(joining_case)[before:]]
+    gap = second == "reject"
+    # The receipt is committed even for a confirmation or gap; each status
+    # written follows it as its own entry (CLP-07-013), and a gap also gets
+    # the CASE_MANAGER's RSH-06-004 note, its own entry (#4829).
+    assert len(committed) == 1 + new_records + gap, committed
+    assert (
+        committed.count("add_participant_status_to_participant") == new_records
+    ), committed
+    assert committed.count("add_note_to_case") == int(gap), committed
 
 
 @pytest.mark.spec("RSH-06-006")
@@ -405,7 +416,11 @@ def test_a_regression_reply_is_refused_before_receipt(
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
     assert _rm_history(joining_case)[-1] == RM.VALID
-    assert len(_ledger_tail(joining_case)) == before
+    # Nothing of the reply is committed; only the CASE_MANAGER's RSH-06-004
+    # note is (CLP-10-022, #4829).
+    assert [e.semantic_type for e in _ledger_tail(joining_case)[before:]] == [
+        "add_note_to_case"
+    ]
 
 
 @pytest.mark.spec("CM-11-010")
@@ -452,7 +467,9 @@ def test_an_invite_for_another_case_or_invitee_does_not_suppress_the_invite(
 
     joining_case.route(
         rm_accept_invite_to_case_activity(
-            joining_case.stub_invite, actor=joining_case.invitee_id
+            joining_case.stub_invite,
+            actor=joining_case.invitee_id,
+            to=[joining_case.case_actor_id],
         )
     )
 
@@ -542,6 +559,7 @@ def invitee_without_replica(joining_case):  # noqa: F811
         VultronPendingCaseInbox(
             case_id=joining_case.case.id_,
             case_actor_id=joining_case.case_actor_id,
+            invite_anchored=True,
         )
     )
     return dl
@@ -568,6 +586,32 @@ def test_before_the_announce_the_recorded_trust_anchor_is_the_case_manager(
 
     assert accepted.disposition is not HandlerDisposition.REFUSED
     assert refused.disposition is HandlerDisposition.REFUSED
+
+
+@pytest.mark.spec("PCR-03-004")
+@pytest.mark.spec("CBT-03-004")
+def test_a_queue_recorded_sender_does_not_admit_a_full_case_invite(
+    joining_case,  # noqa: F811
+) -> None:
+    """The pre-bootstrap queue's sender is a replay target, not an anchor (#4931)."""
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id=joining_case.invitee_id
+    )
+    dl.save(
+        VultronPendingCaseInbox(
+            case_id=joining_case.case.id_,
+            activity_ids=["https://example.org/activities/queued"],
+            case_actor_id=_IMPOSTOR_ID,
+        )
+    )
+
+    result = _receive_as_invitee(
+        dl,
+        joining_case,
+        _full_case_invite_from(joining_case, _IMPOSTOR_ID, "q"),
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
 
 
 @pytest.mark.spec("CM-11-010")

@@ -169,6 +169,20 @@ class _TestClientRouter:
                     recipient_id,
                 )
                 continue
+            if client.portal is None:
+                # The target's `with client` block has exited (a timeout trip
+                # or a failed assertion), but a delivery chain is still running
+                # in a worker thread.  Posting now would start a one-shot
+                # portal whose loop the inbox lock is not bound to, logging
+                # `is bound to a different event loop` as if it were the
+                # failure's cause (#4882).
+                logger.warning(
+                    "_TestClientRouter: client for %s is not entered,"
+                    " dropping delivery to %s",
+                    base,
+                    recipient_id,
+                )
+                continue
             inbox_path = parsed.path
             try:
                 # TestClient.post is blocking and drives the target app on its
@@ -266,7 +280,7 @@ def create_isolated_actor_app(
     live.
 
     Args:
-        base_url: Base URL for this actor (e.g. ``"http://finder.test"``).
+        base_url: Base URL for this actor (e.g. ``"http://reporter.test"``).
             Actor IDs will use this as their URL prefix.
         router: Shared :class:`_TestClientRouter` instance that all apps
             register with so cross-app deliveries are routed correctly.
@@ -651,14 +665,15 @@ def client():
     ``api_app`` back to *test_client* (so cc:-to-self loopback deliveries work
     in-process), while silently dropping deliveries to fictional external URLs
     (e.g. ``https://vultron.example/users/...``) that are unreachable in the
-    test environment.  Without this, the ``HttpDeliveryAdapter`` on
-    ``api_app.state.emitter`` would attempt real HTTP POST requests with
-    retries, which caused the integration suite to take 17+ min in CI (#527).
+    test environment.  Without this, the lifespan's ``HttpDeliveryAdapter``
+    would attempt real HTTP POST requests with retries, which caused the
+    integration suite to take 17+ min in CI (#527).
 
-    Both the module-level default emitter (used by trigger-endpoint
-    BackgroundTasks) *and* ``api_app.state.emitter`` (used by inbox-endpoint
-    BackgroundTasks) are replaced, so all outbox drains route through the
-    same ``_TestClientRouter``.
+    The default emitter is the only path the routes reach: they read
+    ``request.app.state.emitter``, and inside a route ``request.app`` is the
+    mounted ``app_v2``, whose lifespan never runs, so it is ``None`` and every
+    outbox drain falls back to the default emitter.  ``api_app.state.emitter``
+    is left as the lifespan set it; no route reads it.
 
     See also: #530 (actors sharing a single DataLayer in tests).
     """
@@ -699,9 +714,7 @@ def client():
                 router.register(cfg_netloc_base, test_client)
 
         previous_emitter = get_default_emitter()
-        previous_app_emitter = getattr(api_app.state, "emitter", None)
         configure_default_emitter(router)  # type: ignore[arg-type]
-        api_app.state.emitter = router  # type: ignore[assignment]
 
         # Tell the serving app which node it is. These tests address actors as
         # `{TestClient base}/api/v2/actors/{slug}` — TestClient's base_url, not
@@ -717,8 +730,27 @@ def client():
             yield test_client
         finally:
             configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-            api_app.state.emitter = previous_app_emitter
             app_v2.state.node_base_url = previous_node_base_url
+
+
+@pytest.fixture(autouse=True)
+def every_demo_case_rebuilds_from_its_ledger():
+    """No exchange demo leaves a case its ledger cannot rebuild (#4294 AC-5).
+
+    ``route_exchange_demo_at_testclient`` records each case that differs
+    when it is rebuilt from its CASE_MANAGER's ledger into an empty store
+    (CLP-07-013, CM-23-016); this fails the test that left it.
+    """
+    from test.demo._helpers import (
+        REBUILD_FAILURES,
+        REBUILT_CASES,
+        assert_no_rebuild_failures,
+    )
+
+    REBUILD_FAILURES.clear()
+    REBUILT_CASES.clear()
+    yield
+    assert_no_rebuild_failures()
 
 
 @pytest.fixture(autouse=True)

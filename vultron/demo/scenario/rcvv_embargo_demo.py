@@ -39,7 +39,7 @@ Spec: DEMOMA-21, DEMOCI-07 (GitHub issue #2072).
 import logging
 from dataclasses import dataclass
 
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
@@ -70,8 +70,8 @@ from vultron.demo.helpers.notes import reporter_asks_vendor_answers
 from vultron.demo.helpers.polling import (
     wait_for_case_em_state,
     wait_for_case_em_terminated,
-    wait_for_event_type_in_ledger,
     wait_for_participant_embargo_consent,
+    wait_for_semantic_type_in_ledger,
 )
 from vultron.demo.helpers.runner import check_all_containers
 from vultron.demo.helpers.seeding import (
@@ -95,17 +95,16 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 logger = logging.getLogger(__name__)
 
-# Default container base URLs — override via environment variables.  The
-# Reporter runs in the ``finder`` container slot and Vendor2 in ``actor5``:
-# compose service names are routing labels, not CVD roles
-# (vultron/demo/AGENTS.md).
+# Default container base URLs — override via environment variables.  Vendor2
+# runs in the ``actor5`` container slot: compose service names are routing
+# labels, not CVD roles (vultron/demo/AGENTS.md).
 ROLES: list[ActorRole] = [
     ActorRole(
         name="reporter",
-        url_env="VULTRON_FINDER_BASE_URL",
+        url_env="VULTRON_REPORTER_BASE_URL",
         default_url="http://localhost:7901/api/v2",
         url_help="Base URL of the Reporter container API "
-        "(env: VULTRON_FINDER_BASE_URL).",
+        "(env: VULTRON_REPORTER_BASE_URL).",
         has_id=True,
         id_help="Deterministic full URI for the Reporter actor (optional).",
     ),
@@ -474,10 +473,10 @@ def _phase_accidental_collapse(
     # The teardown is the CASE_MANAGER's own commit, so it is read where it
     # commits before any replica is expected to show it (EDF-06-002).
     with demo_gate("The CASE_MANAGER commits the embargo teardown"):
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=cast.case_manager,
             case_id=case.id_,
-            event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
+            semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             timeout_seconds=COMMIT_TIMEOUT_SECONDS,
         )
     assert_canonical_em_state(

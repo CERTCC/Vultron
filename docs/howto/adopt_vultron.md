@@ -144,7 +144,7 @@ Vultron is a protocol, not a product, so the last step is to obtain software tha
 - If a tracker or coordination platform you already use claims Vultron support, ask its maintainers for the conformance claim it makes, and compare it with yours.
 - If your own team builds or integrates your tracker, hand them your conformance claim, your state mapping, and your decision register, and point them to [You maintain a vulnerability tracker and want it to talk to your partners](../start/connect-your-tracker.md).
 - If you want to see the protocol run before committing, run the reference implementation's demos.
-  [Run the FV Demo](../tutorials/fv-demo.md) runs the Finder + Vendor (FV) scenario, in which a Reporter and a Vendor take a case from report to publication, and the reference implementation can act as a test peer for a system your team is building.
+  [Run the `rv` Demo](../tutorials/rv-demo.md) runs the Reporter + Vendor (`rv`) scenario, in which a Reporter and a Vendor take a case from report to publication, and the reference implementation can act as a test peer for a system your team is building.
 
 !!! note "Work in progress"
 

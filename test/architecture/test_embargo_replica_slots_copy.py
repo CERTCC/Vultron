@@ -11,36 +11,60 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The copying replica slots run no lifecycle logic (#4715 AC-4, CM-23-016).
+"""The replica embargo slots run no lifecycle logic (#4294 AC-3, CM-23-016).
 
 A replica writes the embargo register and consent rows by copying the
 CASE_MANAGER's entries through the one apply function (ADR-0124), never by
 re-running ``EmbargoLifecycle`` or a consent transition on its own state.
+Every slot of ``AnnounceLogEntryReceivedBT`` that writes either is covered:
+relay, activation, the owner's rejection, abandonment, expiry, teardown,
+withdrawal, the consent-row copy, and the stub Invite answers that carry a
+joiner's consent (:data:`_SLOTS`), and
+:func:`test_every_replica_embargo_slot_is_checked` keeps that list whole.
+
 The check is per class, over every class in each slot's MRO that this
 codebase defines, because ``abandon.py`` and ``withdrawal.py`` also hold the
 CASE_MANAGER's own nodes, which decide through ``EmbargoLifecycle`` as they
-must (#4717 added the withdrawal slot; #4784 the owner's activation and
-rejection slots).
+must.  It also follows every module-level function and core model method a
+slot reaches, however indirectly, so a slot cannot hand the work to a helper
+or a model method that runs it.
+
+The one tracked deviation is the owner's-rejection slot's skip of a
+``Reject`` the CASE_MANAGER answered with ET (#4789): it reads one shared
+predicate rather than copying, and
+:func:`test_only_the_owner_rejection_slot_decides_a_skip` keeps it the only
+one.  The CM-31-010 notice path (``ending_notice_replica.py``) applies no
+ledger entry and is outside CM-23-016's scope.
 """
 
-import ast
 import functools
 import importlib
 import inspect
 import pkgutil
-import textwrap
+from typing import Any
 
 import pytest
 
 import vultron.core.behaviors.embargo.nodes as embargo_nodes
 import vultron.core.behaviors.sync.nodes as sync_nodes
-from test.architecture import _corpus
+from test.architecture._replica_slots import (
+    _functions_reached,
+    _names_used,
+    _own_classes,
+    _reach,
+    _tree_slot_classes,
+)
 from vultron.core.behaviors.embargo.nodes.abandon import (
     ApplyEmbargoAbandonmentFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.activation_effect import (
     ApplyEmbargoActivationFromLedgerNode,
     ApplyEmbargoProposalRejectionFromLedgerNode,
+)
+from vultron.core.behaviors.embargo.nodes.expiry import (
+    ApplyHonourLateAcceptFromLedgerNode,
+    ApplyInviteExpiryFromLedgerNode,
+    ApplyInviteExpiryNoopFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
     ApplyEmbargoAcceptanceFromLedgerNode,
@@ -49,11 +73,22 @@ from vultron.core.behaviors.embargo.nodes.relay_effect import (
     ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
 )
+from vultron.core.behaviors.embargo.nodes.teardown import (
+    ApplyEmbargoTeardownNode,
+)
 from vultron.core.behaviors.embargo.nodes.withdrawal import (
     ApplyEmbargoWithdrawalFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoChangeFromLedgerNode,
+    ApplyEmbargoConsentFromLedgerNode,
+)
+from vultron.core.behaviors.sync.nodes.participant_record_effect import (
+    ApplyCreateCaseParticipantFromLedgerNode,
+)
+from vultron.core.behaviors.sync.nodes.stub_reply_effect import (
+    ApplyInviteAcceptFromLedgerNode,
+    ApplyInviteRejectFromLedgerNode,
 )
 
 #: Names a copying slot must never reach for (CM-23-016, CM-18-005).
@@ -65,36 +100,54 @@ _LIFECYCLE_NAMES = frozenset(
         "EmbargoLifecycle",
         "TransitionMode",
         "apply_pec_transition",
+        "apply_pec_transition_if_legal",
+        "accepts_pec_trigger",
         "write_uninvited_rows",
     }
 )
 
+#: Every replica slot that writes the embargo register or a consent row.
 _SLOTS = [
+    # relay (EP-09-007)
     ApplyEmbargoProposalFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
-    ApplyEmbargoAbandonmentFromLedgerNode,
-    ApplyEmbargoWithdrawalFromLedgerNode,
+    # the owner's activation and rejection (ADR-0122)
     ApplyEmbargoActivationFromLedgerNode,
     ApplyEmbargoProposalRejectionFromLedgerNode,
+    # abandonment (EMB-16-001)
+    ApplyEmbargoAbandonmentFromLedgerNode,
+    # expiry and late Accepts (CM-28-014, EMB-17)
+    ApplyInviteExpiryFromLedgerNode,
+    ApplyInviteExpiryNoopFromLedgerNode,
+    ApplyHonourLateAcceptFromLedgerNode,
+    # teardown (EP-08-004)
+    ApplyEmbargoTeardownNode,
+    # withdrawal (MSM-07-010)
+    ApplyEmbargoWithdrawalFromLedgerNode,
+    # the CASE_MANAGER's own consent-row entries (ADR-0124)
+    ApplyEmbargoConsentFromLedgerNode,
+    # the stub Invite answers, which carry a joiner's consent (CM-11-016)
+    ApplyInviteAcceptFromLedgerNode,
+    ApplyInviteRejectFromLedgerNode,
+    # the roster entry, which seats a record carried with all its rows
+    ApplyCreateCaseParticipantFromLedgerNode,
 ]
 
-
-def _names_used(cls: type) -> set[str]:
-    tree = _corpus.parse_inline(textwrap.dedent(inspect.getsource(cls)))
-    names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name):
-            names.add(node.id)
-        elif isinstance(node, ast.Attribute):
-            names.add(node.attr)
-    return names
-
-
-def _own_classes(slot: type) -> list[type]:
-    return [c for c in slot.__mro__ if c.__module__.startswith("vultron.")]
+#: Names whose use marks a slot as writing the register or a consent row:
+#: the one apply function and the model writes behind it, and every
+#: lifecycle name.  A slot of the announce tree that reaches one must be in
+#: :data:`_SLOTS`.
+_WRITER_NAMES = _LIFECYCLE_NAMES | {
+    "apply_embargo_change",
+    "apply_embargo_register_step",
+    "copy_consent_row",
+    "embargo_consents",
+    "embargo_register",
+    "add_participant",
+}
 
 
 def _uses_lifecycle(cls: type) -> bool:
@@ -133,6 +186,77 @@ def test_a_copying_replica_slot_runs_no_lifecycle_logic(slot: type) -> None:
     assert not used & forbidden, (
         f"{slot.__name__} reaches {sorted(used & forbidden)}"
     )
+
+
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.parametrize("slot", _SLOTS, ids=lambda c: c.__name__)
+def test_no_function_a_slot_reaches_runs_lifecycle_logic(slot: type) -> None:
+    """A slot cannot run the lifecycle through a helper it calls."""
+    forbidden = _LIFECYCLE_NAMES | _lifecycle_nodes()
+    offenders = {
+        function: sorted(names & forbidden)
+        for function, names in _functions_reached(slot).items()
+        if names & forbidden
+    }
+    assert not offenders, f"{slot.__name__} reaches {offenders}"
+
+
+def test_the_walk_follows_a_slots_helpers() -> None:
+    """The walk is not vacuous: it reaches the one apply function."""
+    reached = _functions_reached(ApplyEmbargoConsentFromLedgerNode)
+
+    assert "vultron.core.models.embargo_apply.apply_embargo_change" in reached
+
+
+def test_the_walk_follows_a_model_method() -> None:
+    """A PEC transition behind a model method is caught where it runs."""
+
+    class _SignsOnReplica:
+        def update(self, record: Any) -> None:
+            record.sign_embargo("https://example.org/embargoes/1")
+
+    offenders = {
+        function
+        for function, names in _reach([_SignsOnReplica]).items()
+        if names & _LIFECYCLE_NAMES
+    }
+
+    assert any(f.endswith("CaseParticipant.sign_embargo") for f in offenders)
+
+
+def _writes_embargo_state(cls: type) -> bool:
+    """A slot that writes embargo state, by what it reaches or where it lives.
+
+    It reaches a writer name through its own functions, reaches a lifecycle
+    name through any model method, copies through the frame, or lives with
+    the embargo nodes (the store-only relay slots, which write the embargo
+    record itself).  A model method counts only for a lifecycle name: many
+    of them merely read ``embargo_register`` (``VulnerabilityCase.em_state``).
+    """
+    names = set().union(*(_names_used(c) for c in _own_classes(cls)))
+    for reached in _functions_reached(cls, follow_methods=False).values():
+        names |= reached
+    through_methods = set().union(*_functions_reached(cls).values())
+    return bool(
+        names & _WRITER_NAMES
+        or through_methods & _LIFECYCLE_NAMES
+        or issubclass(cls, ApplyEmbargoChangeFromLedgerNode)
+        or cls.__module__.startswith(f"{embargo_nodes.__name__}.")
+    )
+
+
+@pytest.mark.spec("CM-23-016")
+def test_every_replica_embargo_slot_is_checked() -> None:
+    """A new embargo slot in the announce tree joins the ratchet."""
+    embargo_slots = {
+        c for c in _tree_slot_classes() if _writes_embargo_state(c)
+    }
+
+    assert embargo_slots, "the announce tree runs no embargo slot"
+    missing = sorted(c.__name__ for c in embargo_slots - set(_SLOTS))
+    assert not missing, f"add {missing} to _SLOTS"
+    absent = sorted(c.__name__ for c in set(_SLOTS) - _tree_slot_classes())
+    assert not absent, f"{absent} no longer run in the announce tree"
 
 
 def test_the_check_sees_a_lifecycle_node() -> None:

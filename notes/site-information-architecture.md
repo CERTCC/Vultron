@@ -269,10 +269,12 @@ page about CERT/CC's codebase, such as the Trigger API or a demo, is basement
 material however protocol-shaped its subject is.
 
 **The normative protocol is the Protocol Specification plus the Protocol and
-Foundation requirement tiers**, all on Engineering and labeled *Protocol
-Requirements* there. The YAML is the source of truth; prose in the
-specification that diverges from it is a bug (#4749 renders the YAML into the
-specification so the two cannot drift). In the basement, the Architecture,
+Foundation requirement tiers**, all on Engineering; *Protocol Requirements* there
+labels the specification's Requirements Catalog, which replaces the per-kind
+pages (ADR-0147). The YAML is the source of truth: the specification
+renders both tiers in its Requirements Catalog body section and shows rules in
+its narrative only as rendered callouts, so the two cannot drift (DF-12,
+ADR-0147). In the basement, the Architecture,
 Project and Process tiers are *Implementation Requirements*: how we build ours,
 not how others must build theirs. Messages, the Conformance Matrix, the Quick
 Reference and Formal Protocol are companions that never add to the normative
@@ -298,7 +300,7 @@ a test bench. One about running, configuring or extending the code is basement.
 |---|---|---|
 | `tutorials/worked_example.md` | Engineering | sequence diagrams of protocol scenarios |
 | `tutorials/submit-a-report.md` | Engineering | teaches the `Create(VulnerabilityReport)` message; the implementation is the test bench |
-| `tutorials/fv-demo.md` | Engineering | walks a whole case through the protocol states |
+| `tutorials/rv-demo.md` | Engineering | walks a whole case through the protocol states |
 | `tutorials/receive_report_demo.md` | basement | running the demo environment |
 | `tutorials/container_demos.md` | basement | running the multi-actor containers |
 | `tutorials/other_demos.md` | basement | running the remaining demos |

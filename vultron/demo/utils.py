@@ -44,6 +44,9 @@ from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
 from vultron.core.models.base import NonEmptyString
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.errors import DemoFailureError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -413,23 +416,23 @@ def _log_discovered_actor(role: str, actor: as_Actor) -> None:
 def discover_actors(
     client: DataLayerClient,
 ) -> tuple[as_Actor, as_Actor, as_Actor]:
-    """Retrieve the Finder, Vendor, and Coordinator actors from the DataLayer.
+    """Retrieve the Reporter, Vendor, and Coordinator actors from the DataLayer.
 
     Returns:
-        A tuple of ``(finder, vendor, coordinator)`` actor objects.
+        A tuple of ``(reporter, vendor, coordinator)`` actor objects.
 
     Raises:
         ValueError: If any of the three expected actors are not found.
     """
-    finder = vendor = coordinator = None
+    reporter = vendor = coordinator = None
     logger.info("Discovering actors in the data layer...")
     actors = client.get("/actors/")
 
     for actor_json in actors:
         actor = as_Actor(**actor_json)
         if actor.name and actor.name.startswith("Finn"):
-            finder = actor
-            _log_discovered_actor("finder", finder)
+            reporter = actor
+            _log_discovered_actor("reporter", reporter)
         elif actor.name and actor.name.startswith("Vendor"):
             vendor = actor
             _log_discovered_actor("vendor", vendor)
@@ -437,14 +440,14 @@ def discover_actors(
             coordinator = actor
             _log_discovered_actor("coordinator", coordinator)
 
-    if finder is None:
-        raise ValueError("Finder actor not found.")
+    if reporter is None:
+        raise ValueError("Reporter actor not found.")
     if vendor is None:
         raise ValueError("Vendor actor not found.")
     if coordinator is None:
         raise ValueError("Coordinator actor not found.")
 
-    return finder, vendor, coordinator
+    return reporter, vendor, coordinator
 
 
 def init_actor_ios(actors: Sequence[as_Actor]) -> None:
@@ -568,28 +571,220 @@ def verify_object_stored(
     return as_Object(**obj)
 
 
+def read_stored_of_types(
+    client: DataLayerClient,
+    types: Sequence[str],
+    actor_id: str | None = None,
+) -> dict:
+    """The actor's stored objects of *types*, keyed by id, as the store serves them.
+
+    One read of the type-filtered store route: a poll never dumps the whole
+    store, whose rehydration slowed the container being polled as it grew
+    (#4600).  A reply that is not a mapping reads as holding nothing.
+
+    Args:
+        client: DataLayerClient for the actor's container.
+        types: The stored types to read.
+        actor_id: Whose store to read.  Defaults to *client*'s own actor.
+    """
+    objects = client.get(
+        client.dl_path(actor_id=actor_id), params={"type": list(types)}
+    )
+    return objects if isinstance(objects, dict) else {}
+
+
+#: The stored type a received activity is read from: intake's archive record,
+#: kept under a key the receiver derives (CLP-10-017, ADR-0111).  A row of an
+#: activity type under its own id is one the actor authored, never one it
+#: received (DL-06-006).
+RECEIVED_ACTIVITY_RECORD_TYPE = ReceivedActivityRecord.__name__
+
+
+def received_activity_in(record: dict) -> dict:
+    """The activity a served ``ReceivedActivityRecord`` *record* wraps.
+
+    Raises:
+        AssertionError: when the record wraps no activity.
+    """
+    activity = record.get("activity")
+    if not isinstance(activity, dict):
+        raise AssertionError(  # noqa: TRY004 — demo_check assertion, not a type error
+            f"received-activity record {record.get('id')!r} wraps no"
+            f" activity: {activity!r}"
+        )
+    return activity
+
+
+def served_field(obj: dict, wire_key: str, field_name: str) -> object:
+    """*obj*'s field served as *wire_key* or, failing that, as *field_name*.
+
+    The store route serves a stored object's own fields under their wire
+    (camelCase) names, but the objects nested in an archive record's activity
+    under their field names (``case_id``), so a reader that may get either
+    shape reads both.  The wire name wins when both are present.
+    """
+    return obj[wire_key] if wire_key in obj else obj.get(field_name)
+
+
+def _received_activity_records(
+    client: DataLayerClient, actor_id: str | None
+) -> dict:
+    """The actor's ``ReceivedActivityRecord`` rows, keyed by record id."""
+    return read_stored_of_types(
+        client, [RECEIVED_ACTIVITY_RECORD_TYPE], actor_id=actor_id
+    )
+
+
+def read_received_activity(
+    client: DataLayerClient, activity_id: str, actor_id: str | None = None
+) -> dict | None:
+    """The activity *activity_id* as the receiving actor archived it, or ``None``.
+
+    Reads the actor's ``ReceivedActivityRecord`` rows only and looks the record
+    up by the key the receiver derives from the sender's id
+    (:meth:`ReceivedActivityRecord.build_id`).  A row stored under the sender's
+    id is never read: ingress writes one today, but a receiver holds no
+    received activity under the sender's id (DL-06-006).
+
+    Unlike the core
+    :func:`~vultron.core.use_cases._helpers.read_received_activity`, which
+    falls back to that row for an activity the inbox deferred and raises when
+    nothing is held, this reads the record only and returns ``None``.
+
+    Args:
+        client: DataLayerClient for the receiving actor's container.
+        activity_id: The sender's id for the activity.
+        actor_id: Whose store to read.  Defaults to *client*'s own actor.
+
+    Raises:
+        AssertionError: when the record found wraps no activity.
+    """
+    record = _received_activity_records(client, actor_id).get(
+        ReceivedActivityRecord.build_id(activity_id)
+    )
+    if not isinstance(record, dict):
+        return None
+    return received_activity_in(record)
+
+
+def not_received_error(
+    client: DataLayerClient,
+    activity_id: str,
+    actor_id: str | None = None,
+    what: str = "activity",
+) -> AssertionError:
+    """The failure for an actor that holds no received *what* *activity_id*."""
+    return AssertionError(
+        f"{actor_id or client.actor_id!r} at {client.base_url} holds no"
+        f" received {what} {activity_id!r}"
+    )
+
+
+def require_received_activity(
+    client: DataLayerClient,
+    activity_id: str,
+    actor_id: str | None = None,
+    what: str = "activity",
+) -> dict:
+    """The activity *activity_id* the actor received, as archived.
+
+    :func:`read_received_activity`, failing when nothing is archived.
+
+    Args:
+        client: DataLayerClient for the receiving actor's container.
+        activity_id: The sender's id for the activity.
+        actor_id: Whose store to read.  Defaults to *client*'s own actor.
+        what: What the activity is, for the failure message.
+
+    Raises:
+        AssertionError: If the actor holds no received activity *activity_id*.
+    """
+    activity = read_received_activity(client, activity_id, actor_id)
+    if activity is None:
+        raise not_received_error(client, activity_id, actor_id, what)
+    return activity
+
+
+def read_received_activities(
+    client: DataLayerClient, activity_type: str, actor_id: str | None = None
+) -> list[dict]:
+    """Every *activity_type* activity the actor received, as archived.
+
+    Read from the actor's ``ReceivedActivityRecord`` rows only, as
+    :func:`read_received_activity` reads one.
+
+    Args:
+        client: DataLayerClient for the receiving actor's container.
+        activity_type: The wire ``type`` of the activities wanted, e.g.
+            ``"Accept"``.
+        actor_id: Whose store to read.  Defaults to *client*'s own actor.
+
+    Raises:
+        AssertionError: when a record found wraps no activity.
+    """
+    activities = (
+        received_activity_in(record)
+        for record in _received_activity_records(client, actor_id).values()
+        if isinstance(record, dict)
+    )
+    return [a for a in activities if a.get("type") == activity_type]
+
+
+def verify_received_activity_stored(
+    client: DataLayerClient, activity_id: str, actor_id: str | None = None
+) -> dict:
+    """Verify the receiving actor archived *activity_id*, and log it.
+
+    The received-activity counterpart of :func:`verify_object_stored`: an
+    activity delivered to an actor's inbox is held in its archive record,
+    never under the sender's id (DL-06-006).
+
+    Args:
+        client: DataLayerClient for the receiving actor's container.
+        activity_id: The sender's id for the activity.
+        actor_id: Whose store to read.  Defaults to *client*'s own actor.
+
+    Returns:
+        The archived activity, as the store serves it.
+
+    Raises:
+        AssertionError: If the actor holds no received activity *activity_id*.
+    """
+    activity = require_received_activity(client, activity_id, actor_id)
+    logger.info(
+        "Received activity archived: %s",
+        json.dumps(activity, indent=2, default=str),
+    )
+    return activity
+
+
 def get_offer_from_datalayer(
     client: DataLayerClient, vendor_id: str, offer_id: str
 ) -> as_Offer:
-    """Retrieve a specific Offer from a vendor's DataLayer store.
+    """Retrieve an Offer the vendor received, from its DataLayer store.
+
+    The Offer is read from the vendor's archive record for it
+    (:func:`require_received_activity`), so the read does not depend on the
+    row inbox ingress keeps under the sender's id (DL-06-006).
 
     Args:
         client: DataLayerClient instance.
-        vendor_id: ID of the vendor actor that owns the offer.  Names the store
-            to read, so the lookup does not depend on *client*'s own binding.
+        vendor_id: ID of the vendor actor that received the offer.  Names the
+            store to read, so the lookup does not depend on *client*'s own
+            binding.
         offer_id: ID of the offer to retrieve.
 
     Returns:
         The retrieved offer as :class:`as_Offer`.
+
+    Raises:
+        AssertionError: If the vendor holds no received Offer *offer_id*.
     """
-    offer_obj_id = parse_id(offer_id)["object_id"]
-    # `Offers/{id}` sits under the actor-scoped prefix, so the owning actor is
-    # already in the path.  The old key nested a second `Actors/{segment}/`
-    # inside it, which addressed nothing once `dl_path` supplied the prefix.
-    offer_data = client.get(
-        client.dl_path(f"Offers/{offer_obj_id}", actor_id=vendor_id)
+    raw = as_Offer.model_validate(
+        require_received_activity(
+            client, offer_id, actor_id=vendor_id, what="Offer"
+        )
     )
-    raw = as_Offer(**offer_data)
     logger.info("Retrieved Offer: %s", logfmt(raw))
     return raw
 
@@ -647,7 +842,7 @@ _EXCHANGE_ACTORS: tuple[tuple[str, str, str], ...] = (
 def seed_exchange_actors(
     client: DataLayerClient,
 ) -> tuple[as_Actor, as_Actor, as_Actor]:
-    """Create the Finder, Vendor and Coordinator actors on *client*'s node.
+    """Create the Reporter, Vendor and Coordinator actors on *client*'s node.
 
     Each gets its own store, holding its own record, which is the whole of what
     a single-container exchange demo needs: the three actors reach each other by
@@ -657,7 +852,7 @@ def seed_exchange_actors(
     Idempotent, because ``POST /actors/`` is.
 
     Returns:
-        A tuple of ``(finder, vendor, coordinator)`` actors as created.
+        A tuple of ``(reporter, vendor, coordinator)`` actors as created.
     """
     seeded = tuple(
         seed_actor(
@@ -667,19 +862,19 @@ def seed_exchange_actors(
     )
     for actor in seeded:
         logger.info("Seeded exchange actor: %s", actor.id_)
-    finder, vendor, coordinator = seeded
+    reporter, vendor, coordinator = seeded
 
     # One client serves a node hosting three actors, so it cannot infer whose
     # replica a `dl_path` read is about.  Bind it to the vendor: the exchange
     # demos are receiver-side stories and the vendor is the recipient in the
-    # large majority of them.  Reads about the finder's or coordinator's replica
+    # large majority of them.  Reads about the reporter's or coordinator's replica
     # pass `actor_id=` explicitly at the call site, which is what makes those
     # reads legible as cross-actor rather than silently answering from the wrong
     # store (ADR-0073#cross-actor-access-must-be-named).
     client.actor_id = vendor.id_
     logger.debug("Exchange demo reads bound to vendor replica: %s", vendor.id_)
 
-    return finder, vendor, coordinator
+    return reporter, vendor, coordinator
 
 
 def setup_clean_environment(
@@ -687,20 +882,20 @@ def setup_clean_environment(
 ) -> tuple[as_Actor, as_Actor, as_Actor]:
     """Reset the node and provision the three default demo actors.
 
-    Clears every store on the node, then creates the Finder, Vendor and
+    Clears every store on the node, then creates the Reporter, Vendor and
     Coordinator actors.  The seeding step is explicit because clearing a node
     leaves it hosting nothing at all: under ADR-0073 there is no store that
     outlives the reset for a server-side ``init`` to populate.
 
     Returns:
-        A tuple of ``(finder, vendor, coordinator)`` actors.
+        A tuple of ``(reporter, vendor, coordinator)`` actors.
     """
     logger.info("Setting up clean environment...")
     reset = reset_datalayer(client=client)
     logger.info("Reset status: %s", reset)
-    finder, vendor, coordinator = seed_exchange_actors(client=client)
+    reporter, vendor, coordinator = seed_exchange_actors(client=client)
     logger.info("Clean environment setup complete.")
-    return finder, vendor, coordinator
+    return reporter, vendor, coordinator
 
 
 @contextmanager
@@ -713,11 +908,11 @@ def demo_environment(
     when the demo raises an exception (DC-03-001, DC-03-003).
 
     Yields:
-        Tuple of (finder, vendor, coordinator) actors.
+        Tuple of (reporter, vendor, coordinator) actors.
     """
-    finder, vendor, coordinator = setup_clean_environment(client)
+    reporter, vendor, coordinator = setup_clean_environment(client)
     try:
-        yield finder, vendor, coordinator
+        yield reporter, vendor, coordinator
     finally:
         logger.info("Tearing down demo environment...")
         reset_datalayer(client=client)

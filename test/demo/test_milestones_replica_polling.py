@@ -31,6 +31,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.states.cs import CS_pxa
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -49,7 +52,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 _CASE_ID = "urn:uuid:test-case-replica-0001"
 _RECEIVER_ID = "http://coordinator:7999/api/v2/actors/coordinator"
-_REPORTER_ID = "http://finder:7999/api/v2/actors/finder"
+_REPORTER_ID = "http://reporter:7999/api/v2/actors/reporter"
 _CASE_ACTOR_ID = "http://coordinator:7999/api/v2/actors/case-actor-1"
 
 
@@ -115,7 +118,7 @@ class _LateReporterClient:
         return _real_dl_path(self.base_url, self.actor_id, key)
 
     def __init__(self, delay: int) -> None:
-        self.base_url = "http://finder:7999/api/v2"
+        self.base_url = "http://reporter:7999/api/v2"
         self.actor_id = _REPORTER_ID
         self._delay = delay
         self.calls = 0
@@ -266,9 +269,9 @@ class TestIsOwnershipTransferOfferFor:
 class _LateOTOfferClient:
     """Coordinator client where the forwarded Offer appears only after *delay* GET calls."""
 
-    def dl_path(self, key: str = "") -> str:
+    def dl_path(self, key: str = "", actor_id: str | None = None) -> str:
         """Delegate to the real client; see :func:`_real_dl_path`."""
-        return _real_dl_path(self.base_url, self.actor_id, key)
+        return _real_dl_path(self.base_url, actor_id or self.actor_id, key)
 
     def __init__(self, delay: int) -> None:
         self.base_url = "http://coordinator:7999/api/v2"
@@ -278,13 +281,23 @@ class _LateOTOfferClient:
 
     def get(self, path: str, params: dict | None = None) -> dict | None:
         if path == self.dl_path():
-            # The finder reads only the type the forwarded Offer is stored as
-            # (#4600), never the whole store.
-            assert params == {"type": ["Offer"]}, params
+            # The finder reads only the receiver's archive records (#4600,
+            # DL-06-006), never the whole store or a row under the sender's id.
+            assert params == {"type": ["ReceivedActivityRecord"]}, params
             self.calls += 1
             if self.calls <= self._delay:
                 return {}
-            return {_OT_FORWARDED_OFFER_ID: _forwarded_offer_payload()}
+            record_id = ReceivedActivityRecord.build_id(_OT_FORWARDED_OFFER_ID)
+            return {
+                record_id: {
+                    "id": record_id,
+                    "type": "ReceivedActivityRecord",
+                    "activity": {
+                        "id": _OT_FORWARDED_OFFER_ID,
+                        **_forwarded_offer_payload(),
+                    },
+                }
+            }
         return None
 
 
@@ -331,11 +344,17 @@ class TestFindOwnershipTransferOfferForActor:
         """Original Offer (target=CaseActor) must never satisfy the poll — Bug #2178 root cause."""
         client = MagicMock()
         client.base_url = "http://coordinator:7999/api/v2"
+        record_id = ReceivedActivityRecord.build_id(_OT_ORIGINAL_OFFER_ID)
         client.get.return_value = {
-            _OT_ORIGINAL_OFFER_ID: {
-                "type": "Offer",
-                "target": _OT_CASE_ACTOR_ID,  # sent to CaseActor, NOT to transferee
-                "object": {"id": _OT_CASE_ID, "type": "VulnerabilityCase"},
+            record_id: {
+                "type": "ReceivedActivityRecord",
+                "activity": {
+                    "id": _OT_ORIGINAL_OFFER_ID,
+                    "type": "Offer",
+                    # sent to CaseActor, NOT to transferee
+                    "target": _OT_CASE_ACTOR_ID,
+                    "object": {"id": _OT_CASE_ID, "type": "VulnerabilityCase"},
+                },
             }
         }
         with pytest.raises(AssertionError, match="Timed out"):

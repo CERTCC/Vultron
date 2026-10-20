@@ -26,9 +26,12 @@ for a single case, starving the actor until unrelated DataLayer reads timed out.
 The guard breaks the loop by tracking, per peer, the replication position of
 the last replay actually sent.  A Reject that reports the *same* position as
 the previous replay carries no new information, so replaying again cannot help
-immediately and is rate-limited to at most one replay per
-:data:`REPLAY_COOLDOWN_SECONDS`.  A Reject at an advanced position always
-replays, so a peer that is making progress is never delayed.
+immediately and is rate-limited: the first repeat waits
+:data:`REPLAY_COOLDOWN_SECONDS`, and each further replay from the same position
+doubles the wait up to :data:`MAX_REPLAY_COOLDOWN_SECONDS` (SYNC-15-013).  A
+fixed cooldown stopped the loop only when a round trip beat it, so on a slow
+host the loop never stopped (#4882).  A Reject at an advanced position always
+replays and resets the wait, so a peer that is making progress is never delayed.
 
 The position is recorded (:func:`record_replay`) only after entries have really
 been sent, separately from the decision to replay (:func:`should_replay`).  A
@@ -64,6 +67,11 @@ REPLAY_COOLDOWN_SECONDS: float = 30.0
 #: non-zero so a peer that never anchors cannot drive an unbounded storm.
 GENESIS_REPLAY_COOLDOWN_SECONDS: float = 2.0
 
+#: Ceiling on the doubled cooldown, so a peer stuck for hours is still retried
+#: every few minutes: the guard is a rate limit, never permanent suppression
+#: (SYNC-15-011).
+MAX_REPLAY_COOLDOWN_SECONDS: float = 600.0
+
 
 def replay_from_hash(entries: list[CaseLedgerEntry], from_index: int) -> str:
     """Return the ``entry_hash`` a replay resumes from, or ``""`` for genesis.
@@ -84,6 +92,38 @@ def replay_from_hash(entries: list[CaseLedgerEntry], from_index: int) -> str:
         if log_entry.log_index == from_index:
             return log_entry.entry_hash
     return ""
+
+
+def replay_cooldown_seconds(
+    from_hash: str, *, replays_at_position: int
+) -> float:
+    """Return the wait before another replay from an unchanged *from_hash*.
+
+    The base cooldown doubles with each replay already sent from that position,
+    up to :data:`MAX_REPLAY_COOLDOWN_SECONDS`.  A fixed cooldown ends the
+    Reject/replay loop only when one round trip finishes inside it, so a slow
+    host — or a peer that can never anchor its chain — kept the loop running
+    for as long as the peer kept rejecting (#4882).  Doubling bounds a stuck
+    peer to a logarithmic number of replays over any period, whatever the
+    round-trip time.
+
+    Args:
+        from_hash: The replay position; ``""`` is genesis, whose base is
+            :data:`GENESIS_REPLAY_COOLDOWN_SECONDS`.
+        replays_at_position: Non-empty replays already sent from *from_hash*;
+            a record written before the count existed reads as ``0`` and is
+            treated as one.
+
+    Spec: SYNC-15-003, SYNC-15-013.
+    """
+    base = (
+        GENESIS_REPLAY_COOLDOWN_SECONDS
+        if from_hash == ""
+        else REPLAY_COOLDOWN_SECONDS
+    )
+    doublings = max(replays_at_position, 1) - 1
+    # Capping the exponent keeps the arithmetic finite for a long-stuck peer.
+    return min(base * 2.0 ** min(doublings, 32), MAX_REPLAY_COOLDOWN_SECONDS)
 
 
 def _read_state(
@@ -125,9 +165,10 @@ def should_replay(
     Returns:
         ``True`` when the replay should proceed — the peer's position has moved
         since the last replay we sent it, or the cooldown for an unchanged
-        position has elapsed.  ``False`` when the position is unchanged and
-        still within the cooldown, which is what breaks the amplification loop
-        described in this module's docstring.
+        position (:func:`replay_cooldown_seconds`) has elapsed.  ``False``
+        when the position is unchanged and still within the cooldown, which
+        is what breaks the amplification loop described in this module's
+        docstring.
 
     Genesis (``from_hash == ""``) gets a much shorter cooldown
     (:data:`GENESIS_REPLAY_COOLDOWN_SECONDS`) rather than the full one.  A peer
@@ -148,10 +189,8 @@ def should_replay(
         return True
     if state.last_replayed_from_hash != from_hash:
         return True
-    cooldown = (
-        GENESIS_REPLAY_COOLDOWN_SECONDS
-        if from_hash == ""
-        else REPLAY_COOLDOWN_SECONDS
+    cooldown = replay_cooldown_seconds(
+        from_hash, replays_at_position=state.replays_at_position
     )
     if now_utc() - state.last_replayed_at >= timedelta(seconds=cooldown):
         return True
@@ -185,7 +224,10 @@ def record_replay(
     out the cooldown having received nothing, which is the stall this guard
     exists to prevent.
 
-    Spec: SYNC-15-003.
+    A replay from the position already recorded counts one more replay there,
+    lengthening the next cooldown; one from a new position restarts the count.
+
+    Spec: SYNC-15-003, SYNC-15-013.
     """
     now = now_utc()
     state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
@@ -196,9 +238,15 @@ def record_replay(
                 peer_id=peer_id,
                 last_replayed_from_hash=from_hash,
                 last_replayed_at=now,
+                replays_at_position=1,
             )
         )
         return
+    state.replays_at_position = (
+        state.replays_at_position + 1
+        if state.last_replayed_from_hash == from_hash
+        else 1
+    )
     state.last_replayed_from_hash = from_hash
     state.last_replayed_at = now
     state.updated_at = now

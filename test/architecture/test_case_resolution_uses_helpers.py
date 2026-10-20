@@ -181,6 +181,10 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         ),
         # R3 — optional addressing / stub enrichment; factory tolerates None.
         (f"{_NODES}/invite_actor_emit.py", "build_stub_invite"),
+        # R3 — addressing: a ``{case}/participants`` address names a case the
+        # receiver may not hold; then it does not belong to it, so the
+        # addressee door guard reads the copy as unaddressed (HP-01-005).
+        (f"{_NODES}/addressee.py", "_belongs_to_collection"),
         (
             f"{_NODES}/ownership_transfer.py",
             "EmitOfferCaseOwnershipTransferNode._call_factory",
@@ -219,7 +223,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         # LEN — lenient guards / diagnostics; never fail the tree on absence.
         (
             "vultron/core/behaviors/status/nodes/cs_invariant_diagnostic.py",
-            "PxaEmInvariantDiagnosticNode.update",
+            "PxaEmInvariantDiagnosticNode._compose",
         ),
         (
             "vultron/core/behaviors/status/nodes/threat_termination.py",

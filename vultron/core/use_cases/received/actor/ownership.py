@@ -3,10 +3,9 @@
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
+import py_trees
+
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.store_received_object import (
-    StoreReceivedObjectNode,
-)
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
     create_offer_ownership_transfer_tree,
@@ -27,8 +26,8 @@ from vultron.core.models.use_case_result import (
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.use_cases._helpers import (
-    is_recipient,
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
@@ -40,7 +39,6 @@ from vultron.core.use_cases.received._bt_verdict import (
     verdict_from_bt,
 )
 from vultron.core.use_cases.received._offer_reply import (
-    refuse_reply_naming_no_case,
     run_offer_reply_tree,
 )
 
@@ -115,6 +113,9 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         delegated_author = _as_id(request.activity.attributed_to)
         if delegated_author is None:
             return request.actor_id
+        # Recorded as the offerer, so normalised where it is extracted, like
+        # the sender id (OID-01-006).
+        delegated_author = normalise_actor_id(delegated_author)
         case = self._dl.read_case(case_id)
         case_actor_id = (
             resolve_case_manager_id(case, self._dl)
@@ -145,22 +146,16 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 
         # Two receivers are entitled to this Offer: the CASE_MANAGER it is
         # addressed to (CM-21-005) and the transferee the CASE_MANAGER forwards
-        # it to.  Both are named in `to`; anyone else holds a misaddressed
-        # copy, refuses, and stores nothing (HP-01-005, #3752).
-        if not is_recipient(receiving_actor_id, request.activity):
-            verdict = HandlerResult.refused(
-                f"'{receiving_actor_id}' is not a recipient of ownership"
-                f"-transfer Offer '{request.activity_id}'"
-            )
-            logger.warning(
-                "OfferCaseOwnershipTransferReceived: refused '%s': %s",
-                request.activity_id,
-                verdict.reason,
-            )
-            return verdict
-
+        # it to.  The tree's addressee door guard refuses a copy not addressed
+        # to this store before it stores anything (HP-01-005, #3752); the
+        # sender guard then refuses a sender's own copy at a replica, which
+        # takes the Offer from the CASE_MANAGER alone (PCR-03-001).
         case_id = _as_id(request.activity.object_)
+        # The transferee becomes the case owner if it accepts, so it is
+        # normalised where it is extracted (OID-01-006).
         transferee_id = _as_id(request.activity.target)
+        if transferee_id is not None:
+            transferee_id = normalise_actor_id(transferee_id)
         original_actor_id = (
             self._resolve_offering_actor_id(case_id)
             if case_id is not None
@@ -182,20 +177,6 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             transferee_id=transferee_id,
             original_actor_id=original_actor_id,
             answer_deadline=request.answer_deadline,
-            # An Offer naming no case is refused below, so only intake's
-            # archive keeps it (CLP-10-018); storing it would let any sender
-            # leave an Offer behind (#4737).
-            store_offer=(
-                StoreReceivedObjectNode(
-                    request.activity_type,
-                    request.activity_id,
-                    request.activity,
-                    "OfferCaseOwnershipTransfer",
-                    request.activity_id,
-                )
-                if case_id is not None
-                else None
-            ),
             offer_id=request.activity_id,
             now=now_utc(),
             sender_rule=self.sender_entitlement,
@@ -213,8 +194,13 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             activity=request,
         )
         if case_id is None:
-            # Intake archived the Offer; there is no case to act on.
-            applied_or_raise(tree, result, label="OfferOwnershipTransferBT")
+            # Intake archived the Offer; there is no case to act on.  A door
+            # guard's refusal (an unaddressed copy, HP-01-005) is its own.
+            verdict = applied_or_raise(
+                tree, result, label="OfferOwnershipTransferBT"
+            )
+            if verdict.disposition is HandlerDisposition.REFUSED:
+                return verdict
             logger.warning(
                 "OfferCaseOwnershipTransferReceived: missing case_id"
                 " on offer '%s' — refusing",
@@ -237,9 +223,11 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             )
             return verdict
         if not_case_manager(tree):
-            # The cascade is the CASE_MANAGER's; the transferee (an addressee,
-            # checked above) only stores the forwarded Offer, so what it did
-            # is what intake and the store did (HP-01-003).
+            # The cascade is the CASE_MANAGER's; the transferee (admitted by
+            # the tree's door and sender guards) only keeps the forwarded
+            # Offer, which intake archived, so what it did is what intake did
+            # (HP-01-003).  The transferee answers it from that archive; it
+            # is never stored under the id its sender chose (DL-06-006).
             return intake_verdict(
                 tree, result, label="OfferOwnershipTransferBT"
             )
@@ -252,7 +240,9 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
     At the CASE_MANAGER the sender must be the transferee named in an open
     ownership-transfer Offer it recorded for the case; at any other replica
     it must be the CASE_MANAGER (CM-21-011, PCR-03-001).  Anyone else is
-    ``REFUSED`` with ownership unchanged, nothing committed and nothing sent.
+    ``REFUSED`` with ownership unchanged, nothing committed and nothing sent
+    (HP-01-006).  An Accept of an Offer already closed is ``REFUSED`` the
+    same way and answered with the refusal notice (CM-21-018, CLP-05-001).
     The new owner is read from the recorded Offer, never from the sender.
     A redelivery of the Accept that already closed the Offer changes nothing
     and is ``SKIPPED`` (HP-01-003).
@@ -284,30 +274,24 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
-        if case_id is None:
-            return refuse_reply_naming_no_case(
-                dl=self._dl,
-                request=request,
-                label="AcceptOwnershipTransferBT",
-                verb="Accept",
-                subject="ownership transfer",
-                sync_port=self._sync_port,
-                wire_render_port=self._wire_render_port,
-            )
         now = now_utc()
-        tree = create_accept_ownership_transfer_tree(
-            case_id=case_id,
-            offer_id=request.object_id,
-            sender_id=request.actor_id,
-            answer_id=request.activity_id,
-            now=now,
-            sender_rule=self.sender_entitlement,
-        )
+
+        def build_tree(case_id: str) -> py_trees.behaviour.Behaviour:
+            return create_accept_ownership_transfer_tree(
+                case_id=case_id,
+                offer_id=request.object_id,
+                sender_id=request.actor_id,
+                answer_id=request.activity_id,
+                now=now,
+                sender_rule=self.sender_entitlement,
+            )
+
         return run_offer_reply_tree(
             dl=self._dl,
             request=request,
-            tree=tree,
+            build_tree=build_tree,
             case_id=case_id,
+            reply="Accept(ownership transfer)",
             subject="ownership transfer offer",
             refine=ownership_answer_verdict,
             label="AcceptOwnershipTransferBT",
@@ -324,7 +308,9 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     sender must be the transferee named in an open ownership-transfer Offer
     it recorded for the case; at any other replica it must be the
     CASE_MANAGER.  Anyone else is ``REFUSED`` with nothing committed and
-    nothing sent, and the Offer stays open.
+    nothing sent, and the Offer stays open (HP-01-006).  A Reject of an Offer
+    already closed is ``REFUSED`` the same way and answered with the refusal
+    notice (CM-21-018, CLP-05-001).
 
     An admitted Reject commits a ``reject_case_ownership_transfer`` entry and
     broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every
@@ -355,30 +341,24 @@ class RejectCaseOwnershipTransferReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
-        if case_id is None:
-            return refuse_reply_naming_no_case(
-                dl=self._dl,
-                request=request,
-                label="RejectOwnershipTransferBT",
-                verb="Reject",
-                subject="ownership transfer",
-                sync_port=self._sync_port,
-                wire_render_port=self._wire_render_port,
-            )
         now = now_utc()
-        tree = create_reject_ownership_transfer_tree(
-            case_id=case_id,
-            offer_id=request.object_id,
-            sender_id=request.actor_id,
-            answer_id=request.activity_id,
-            now=now,
-            sender_rule=self.sender_entitlement,
-        )
+
+        def build_tree(case_id: str) -> py_trees.behaviour.Behaviour:
+            return create_reject_ownership_transfer_tree(
+                case_id=case_id,
+                offer_id=request.object_id,
+                sender_id=request.actor_id,
+                answer_id=request.activity_id,
+                now=now,
+                sender_rule=self.sender_entitlement,
+            )
+
         return run_offer_reply_tree(
             dl=self._dl,
             request=request,
-            tree=tree,
+            build_tree=build_tree,
             case_id=case_id,
+            reply="Reject(ownership transfer)",
             subject="ownership transfer offer",
             refine=ownership_answer_verdict,
             label="RejectOwnershipTransferBT",
@@ -395,8 +375,9 @@ class UndoCaseOwnershipTransferReceivedUseCase:
     At the CASE_MANAGER the sender must be the Case Owner that made an open
     ownership-transfer Offer it recorded for the case; at any other replica
     it must be the CASE_MANAGER.  Anyone else, or a withdrawal of an Offer
-    already answered or withdrawn, is ``REFUSED`` with nothing committed and
-    nothing sent.
+    already answered or withdrawn, is ``REFUSED`` with nothing committed; the
+    withdrawal of a closed Offer is answered with the refusal notice, anyone
+    else with nothing (CLP-05-001, HP-01-006).
 
     An admitted Undo commits an ``undo_case_ownership_transfer`` entry and
     broadcasts ``Announce(CaseLedgerEntry)``, which closes the Offer on every
@@ -429,30 +410,24 @@ class UndoCaseOwnershipTransferReceivedUseCase:
     def execute(self) -> HandlerResult:
         request = self._request
         case_id = request.case_id
-        if case_id is None:
-            return refuse_reply_naming_no_case(
-                dl=self._dl,
-                request=request,
-                label="UndoOwnershipTransferBT",
-                verb="Undo",
-                subject="ownership transfer",
-                sync_port=self._sync_port,
-                wire_render_port=self._wire_render_port,
-            )
         now = now_utc()
-        tree = create_undo_ownership_transfer_tree(
-            case_id=case_id,
-            offer_id=request.object_id,
-            sender_id=request.actor_id,
-            undo_id=request.activity_id,
-            now=now,
-            sender_rule=self.sender_entitlement,
-        )
+
+        def build_tree(case_id: str) -> py_trees.behaviour.Behaviour:
+            return create_undo_ownership_transfer_tree(
+                case_id=case_id,
+                offer_id=request.object_id,
+                sender_id=request.actor_id,
+                undo_id=request.activity_id,
+                now=now,
+                sender_rule=self.sender_entitlement,
+            )
+
         return run_offer_reply_tree(
             dl=self._dl,
             request=request,
-            tree=tree,
+            build_tree=build_tree,
             case_id=case_id,
+            reply="Undo(ownership transfer)",
             subject="ownership transfer offer",
             refine=ownership_answer_verdict,
             label="UndoOwnershipTransferBT",

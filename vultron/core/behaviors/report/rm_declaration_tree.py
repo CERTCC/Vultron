@@ -52,6 +52,7 @@ Placement in the tree::
     ├─ Idempotent<name> (Selector)           # record_rm_declaration
     │   ├─ CheckParticipantRMState           # already recorded → skip
     │   └─ CreateParticipantStatusNode(rm_rule=DECLARATION)
+    ├─ Record<name>                          # the status as its own entry
     └─ EmitRMGapNoteNode                     # RSH-06-004
 """
 
@@ -59,6 +60,9 @@ import py_trees
 
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
+)
+from vultron.core.behaviors.case.nodes.participant.status_entries import (
+    CommitParticipantStatusEntriesNode,
 )
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckParticipantRMState,
@@ -91,6 +95,12 @@ def record_rm_declaration(
 ) -> list[py_trees.behaviour.Behaviour]:
     """Return the effect nodes that record the sender's declared RM state.
 
+    The status the write appends is committed as its own
+    ``add_participant_status_to_participant`` entry right after it, so a
+    replica copies the CASE_MANAGER's status instead of building its own
+    (CLP-07-013, CM-23-016).  A status whose entry does not commit is taken
+    back.  An already-recorded state writes and commits nothing.
+
     Args:
         sender_actor_id: The subject — ``request.actor_id`` (RSH-08-001).
         declared_rm: The RM state the activity declares.
@@ -98,6 +108,7 @@ def record_rm_declaration(
         name: Name of the write node (e.g. ``"TransitionRMtoInvalid"``); the
             idempotent Selector around it is named ``Idempotent<name>``.
     """
+    written: list[str] = []
     return [
         py_trees.composites.Selector(
             name=f"Idempotent{name}",
@@ -117,8 +128,15 @@ def record_rm_declaration(
                     pxa_state=None,
                     name=name,
                     rm_rule=RMRule.DECLARATION,
+                    written_ids=written,
                 ),
             ],
+        ),
+        CommitParticipantStatusEntriesNode(
+            subject_actor_id=sender_actor_id,
+            case_id=case_id,
+            status_ids=written,
+            name=f"Record{name}",
         ),
         rm_gap_note(sender_actor_id, case_id),
     ]

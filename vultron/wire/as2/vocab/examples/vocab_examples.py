@@ -102,11 +102,13 @@ from vultron.wire.as2.vocab.examples.embargo import (
     remove_embargo,
     withdraw_from_embargo,
 )
-from vultron.wire.as2.vocab.examples.fault import create_processing_fault
+from vultron.wire.as2.vocab.examples.fault import (
+    create_processing_fault,
+    refusal_notice,
+)
 from vultron.wire.as2.vocab.examples.note import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.note import (  # noqa: F401
     add_note_to_case,
-    create_note,
     note,
     remove_note_from_case,
 )
@@ -142,10 +144,13 @@ from vultron.wire.as2.vocab.examples.report import (
 from vultron.wire.as2.vocab.examples.status import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.status import (
     add_attacks_observed_to_case,
+    add_attacks_observed_to_participant,
     add_exploit_public_to_case,
+    add_exploit_public_to_participant,
     add_fix_deployment_to_participant,
     add_fix_readiness_to_participant,
     add_public_awareness_to_case,
+    add_public_awareness_to_participant,
     add_status_to_case,
     add_status_to_participant,
     add_vendor_awareness_to_participant,
@@ -358,9 +363,6 @@ def main(outdir=None):
     _remove_embargo = remove_embargo()
     obj_to_file(_remove_embargo, f"{outdir}/remove_embargo.json")
 
-    _create_note = create_note()
-    obj_to_file(_create_note, f"{outdir}/create_note.json")
-
     # announce case (ANNOUNCE_VULNERABILITY_CASE — sent after Accept(Invite))
     _announce_case = announce_case()
     obj_to_file(_announce_case, f"{outdir}/announce_case.json")
@@ -405,6 +407,9 @@ def main(outdir=None):
         add_vendor_awareness_to_participant,
         add_fix_readiness_to_participant,
         add_fix_deployment_to_participant,
+        add_public_awareness_to_participant,
+        add_exploit_public_to_participant,
+        add_attacks_observed_to_participant,
         add_public_awareness_to_case,
         add_exploit_public_to_case,
         add_attacks_observed_to_case,
@@ -421,6 +426,7 @@ def main(outdir=None):
         tentative_reject_full_case_invite,
         reject_full_case_invite,
         create_processing_fault,
+        refusal_notice,
     ):
         obj_to_file(
             occasion_example(), f"{outdir}/{occasion_example.__name__}.json"

@@ -440,7 +440,7 @@ effect handler based on its type.  The effect should fire if and only if the
 type matches; a non-match is a silent no-op.
 
 ```text
-Selector                            ← effect slot (one per event type)
+Selector                            ← effect slot (one per semantic type)
   ├─ Sequence
   │    ├─ IsFooLedgerEntryNode      ← SUCCESS iff entry IS this type
   │    └─ ApplyFooEffectNode        ← fires only when IsFoo succeeded

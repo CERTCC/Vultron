@@ -1,0 +1,318 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Architecture ratchet: every committed ledger semantic type is replayed (RSH-08-004).
+
+A participant replica takes case state from the CASE_MANAGER's ledger
+(PCR-03-001, ADR-0108).  A ``semantic_type`` the CASE_MANAGER commits with no
+effect slot in ``AnnounceLogEntryReceivedBT`` is stored and ignored, so the
+replica silently stops following the case — and gating a received-side effect
+behind the CASE_MANAGER role (RSH-08-003) before the slot exists blinds every
+replica.
+
+The committed set is derived from code (``_ledger_commit_inventory``), and each
+member is classified here exactly once:
+
+* :data:`REPLAYED` — matched by exactly one effect-slot condition of the
+  announce tree, evaluated against a real entry rather than by slot name;
+* :data:`NO_REPLICA_EFFECT` — the entry changes no state a replica holds, with
+  the reason;
+
+The set of known violations of RSH-08-004 (an entry with a replica effect that
+no slot applies) is empty: the stub Invite path's entries were the last rows,
+and each change the CASE_MANAGER makes there is now its own replayed entry
+(ADR-0114).  A new committed type with a replica effect and no slot fails here.
+
+The declared set is matched by no slot, so the change that adds a replay
+fails here until it moves the row to :data:`REPLAYED`.  The classification and
+the committed set are held to equality (TB-10-002): a new committed type, or a
+row for a type no longer committed, fails the ratchet.
+
+:data:`AWAITING_COMMIT` lists types classified ahead of the commit that will
+produce them; it must stay disjoint from the committed set.
+
+Every declared row carries a one-line reason.  The derivation is cached per process and
+routed through ``_corpus`` (TB-13-001 through TB-13-003), which keeps each
+test inside the TB-13-004 budget.
+"""
+
+from typing import Any
+
+import pytest
+
+from test.architecture._announce_slots import (
+    MANAGER,
+    PROPOSER,
+    matching_slots,
+)
+from test.architecture._ledger_commit_inventory import (
+    committed_semantic_types,
+    explicit_semantic_types,
+    received_commit_semantics,
+)
+from vultron.core.models.events.base import MessageSemantics as MS
+from vultron.core.models.participant_semantic_types import (
+    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    UPDATE_CASE_OWNER_SEMANTIC_TYPE,
+    UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+)
+from vultron.core.models.protocol_pair import (
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
+)
+from vultron.core.models.rsvp_deadline import (
+    EMBARGO_REINVITE_SEMANTIC_TYPE,
+    HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
+    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
+    INVITE_EXPIRED_SEMANTIC_TYPE,
+)
+
+_EMBARGO = {"type": "EmbargoEvent", "id": "urn:uuid:embargo"}
+_ABANDONED = f"{MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value}_abandoned"
+
+#: Replayed semantic types and an entry snapshot that identifies each.  Only the
+#: proposal-versus-relay split of ``invite_to_embargo_on_case`` depends on the
+#: snapshot; ``test_embargo_relay_entries_are_replayed.py`` covers its shapes.
+REPLAYED: dict[str, dict[str, Any]] = {
+    semantic_type: {"actor": MANAGER, "object": _EMBARGO}
+    for semantic_type in (
+        "accept_case_participant_role",
+        CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        UPDATE_CASE_OWNER_SEMANTIC_TYPE,
+        UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        MS.ACCEPT_INVITE_ACTOR_TO_CASE.value,
+        MS.REJECT_INVITE_ACTOR_TO_CASE.value,
+        MS.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
+        MS.ACTIVATE_EMBARGO_ON_CASE.value,
+        MS.ADD_CASE_PARTICIPANT_TO_CASE.value,
+        MS.ADD_CASE_STATUS_TO_CASE.value,
+        MS.ADD_NOTE_TO_CASE.value,
+        MS.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
+        MS.ADD_REPORT_TO_CASE.value,
+        MS.OFFER_CASE_OWNERSHIP_TRANSFER.value,
+        MS.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
+        MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
+        MS.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
+        MS.REMOVE_CASE_PARTICIPANT_FROM_CASE.value,
+        MS.REMOVE_NOTE_FROM_CASE.value,
+        MS.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
+        EMBARGO_REINVITE_SEMANTIC_TYPE,
+        HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
+        INVITE_EXPIRED_SEMANTIC_TYPE,
+        INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
+        _ABANDONED,
+    )
+} | {
+    MS.INVITE_TO_EMBARGO_ON_CASE.value: {
+        "actor": PROPOSER,
+        "object": _EMBARGO,
+    },
+}
+
+_RM_VERDICT = (
+    "an act declaring its sender's RM state: the entry records the act, and"
+    " the status the CASE_MANAGER wrote for it follows as its own"
+    " add_participant_status_to_participant entry, which a replica copies"
+    " (CLP-07-013, CM-23-016)"
+)
+
+_RECOMMENDATION = (
+    "suggest-actor bookkeeping between the recommender, the CASE_MANAGER"
+    " and the case owner (CM-16); no case state moves, and the member it may"
+    " lead to arrives with accept_invite_actor_to_case"
+)
+
+_STUB_REPLY = (
+    "the stub Invite is a message to the invitee; the record it leads to has"
+    " its own entry (create_case_participant), and the invitee's Accept and"
+    " Reject are the entries for their own effects (ADR-0114)"
+)
+
+#: Committed semantic types that change no state a replica holds.  A pinned
+#: exemption set (ARCH-18-005): each row is a decision, not awaiting a fix.
+# permanent: RSH-08-004 (the recorded no-replica-effect declarations)
+NO_REPLICA_EFFECT: dict[str, str] = {
+    "create_case": (
+        "the genesis entry anchors the chain; a replica is seeded by the"
+        " Create or Announce(VulnerabilityCase) it receives (CM-14-011,"
+        " SYNC-15-002)"
+    ),
+    MS.INVITE_ACTOR_TO_FULL_CASE.value: (
+        "an ask the CASE_MANAGER emits to a joined participant; it writes no"
+        " case state, and the reply that judges the case carries the RM move"
+        " (CM-11-010, CM-11-011)"
+    ),
+    "case_fully_closed": (
+        "the CASE_MANAGER's Update(VulnerabilityCase) marking the write"
+        " boundary; it carries the case a replica at that ledger position"
+        " already holds, and the transitions it follows arrive as the"
+        " add_participant_status_to_participant entries before it"
+        " (CM-23-002, CM-23-005, CM-23-016)"
+    ),
+    MS.CLOSE_CASE.value: (
+        "records the received Leave; the RM transitions it caused arrive as"
+        " the add_participant_status_to_participant entries after it, and a"
+        " replica never walks a closure path itself (CM-23-001, CM-23-016,"
+        " #4091)"
+    ),
+    MS.INVITE_ACTOR_TO_CASE.value: _STUB_REPLY,
+    MS.VALIDATE_REPORT.value: _RM_VERDICT,
+    MS.INVALIDATE_REPORT.value: _RM_VERDICT,
+    MS.CLOSE_REPORT.value: (
+        "no CASE_MANAGER commits it once a case holds the report (CM-23-019);"
+        " an entry already in a ledger records the act only"
+    ),
+    MS.ENGAGE_CASE.value: _RM_VERDICT,
+    MS.DEFER_CASE.value: _RM_VERDICT,
+    MS.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value: _RM_VERDICT,
+    MS.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE.value: _RM_VERDICT,
+    MS.REJECT_INVITE_ACTOR_TO_FULL_CASE.value: _RM_VERDICT,
+    MS.OFFER_ACTOR_TO_CASE.value: (
+        "the receipt of a suggestion (CM-16-002); the one thing the"
+        " CASE_MANAGER keeps from it, who recommended whom, is its own"
+        " ActorRecommendationRecord, case bookkeeping outside the case file"
+        " that no replica holds (CLP-07-014), and the member it may lead to"
+        " arrives with accept_invite_actor_to_case"
+    ),
+    MS.OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
+    MS.ACCEPT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
+    MS.REJECT_OFFER_CASE_PARTICIPANT.value: _RECOMMENDATION,
+    "accept_actor_recommendation": _RECOMMENDATION,
+    "reject_actor_recommendation": _RECOMMENDATION,
+    MS.ACCEPT_CASE_OWNERSHIP_TRANSFER.value: (
+        "records the received Accept and closes the ownership-transfer Offer;"
+        " each change it causes follows as the CASE_MANAGER's own entry, the"
+        " update_case_participant entries moving CASE_OWNER and the"
+        " update_case_owner entry naming the new owner (CLP-07-013, #4439)"
+    ),
+    MS.REJECT_CASE_OWNERSHIP_TRANSFER.value: (
+        "the transferee's decline closes the ownership-transfer Offer and"
+        " changes no owner or role; the open state is read from the ledger"
+        " itself, not from replica state (CM-21-012, CM-21-014)"
+    ),
+    MS.UNDO_CASE_OWNERSHIP_TRANSFER.value: (
+        "the offerer's withdrawal closes the ownership-transfer Offer and"
+        " changes no owner or role; the open state is read from the ledger"
+        " itself, not from replica state (CM-21-014, CM-21-015)"
+    ),
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE: (
+        "the CASE_MANAGER's expiry record closes the ownership-transfer Offer"
+        " and changes no owner or role; the open state is read from the ledger"
+        " itself, so a replica learns the expiry from the entry and never"
+        " computes one (CM-21-014, CM-21-017)"
+    ),
+    MS.OFFER_CASE_PARTICIPANT_ROLE.value: (
+        "the CASE_MANAGER records the role-delegation offer as an assertion"
+        " (ADR-0039, CLP-07-001), but an offer is a proposal, not the grant;"
+        " it moves no case state, like Offer(CaseParticipant) (SE-08-003,"
+        " #3764)"
+    ),
+    "reject_case_participant_role": (
+        "a Reject closes the role offer without granting the role; it moves"
+        " no case state a replica holds (ADR-0039, #4588)"
+    ),
+}
+
+#: Classified ahead of the commit that will produce them (semantic type → issue).
+AWAITING_COMMIT: dict[str, str] = {}
+
+
+def test_the_derivation_finds_both_commit_paths():
+    """Guard against a vacuous pass: both scans find what they must."""
+    received = received_commit_semantics()
+    assert {
+        MS.ADD_NOTE_TO_CASE.value,
+        MS.ACTIVATE_EMBARGO_ON_CASE.value,
+        MS.VALIDATE_REPORT.value,
+    } <= received
+    # A Create(VulnerabilityCase) is not ledgered as received (CLP-10-013).
+    assert MS.CREATE_CASE.value not in received
+    assert {
+        "create_case",
+        "case_fully_closed",
+        INVITE_EXPIRED_SEMANTIC_TYPE,
+    } <= explicit_semantic_types()
+    # A replay slot's own constant is compared, never committed, so defining
+    # it must not make its type look committed: Remove(Note) is committed
+    # only on the receive side.
+    assert MS.REMOVE_NOTE_FROM_CASE.value not in explicit_semantic_types()
+
+
+@pytest.mark.spec("RSH-08-004")
+def test_every_committed_semantic_type_is_classified_exactly_once():
+    """The classification equals the committed set (TB-10-002)."""
+    tables = {
+        "REPLAYED": set(REPLAYED) - set(AWAITING_COMMIT),
+        "NO_REPLICA_EFFECT": set(NO_REPLICA_EFFECT) - set(AWAITING_COMMIT),
+    }
+    names = list(tables)
+    for i, first in enumerate(names):
+        for second in names[i + 1 :]:
+            assert not tables[first] & tables[second], (first, second)
+    classified = set().union(*tables.values())
+    committed = committed_semantic_types()
+    assert committed - classified == set(), (
+        "committed but unclassified — add a replay slot, or declare it"
+    )
+    assert classified - committed == set(), (
+        "classified but no longer committed — remove the row"
+    )
+
+
+@pytest.mark.spec("RSH-08-004")
+def test_types_replayed_ahead_of_their_commit_are_not_committed_yet():
+    """When the commit lands, the row moves out of ``AWAITING_COMMIT``."""
+    assert set(AWAITING_COMMIT) <= set(REPLAYED) | set(NO_REPLICA_EFFECT)
+    assert not set(AWAITING_COMMIT) & committed_semantic_types()
+
+
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.parametrize("semantic_type", sorted(REPLAYED))
+def test_each_replayed_type_has_exactly_one_slot(semantic_type):
+    matched = matching_slots(semantic_type, REPLAYED[semantic_type])
+    assert len(matched) == 1, f"{semantic_type}: {matched}"
+
+
+@pytest.mark.spec("RSH-08-004")
+@pytest.mark.parametrize("semantic_type", sorted(NO_REPLICA_EFFECT))
+def test_declared_types_have_no_slot(semantic_type):
+    """A slot here means the type is replayed: move it to ``REPLAYED``."""
+    assert matching_slots(semantic_type, {"actor": MANAGER}) == []
+
+
+@pytest.mark.parametrize("semantic_type", sorted(AWAITING_COMMIT))
+def test_each_owned_gap_names_its_issue(semantic_type):
+    reason = AWAITING_COMMIT[semantic_type]
+    assert reason.startswith("#"), reason
+
+
+@pytest.mark.parametrize(
+    ("table", "semantic_type"),
+    [
+        (name, semantic_type)
+        for name, rows in (
+            ("NO_REPLICA_EFFECT", NO_REPLICA_EFFECT),
+            ("AWAITING_COMMIT", AWAITING_COMMIT),
+        )
+        for semantic_type in sorted(rows)
+    ],
+)
+def test_each_declared_row_carries_a_one_line_reason(table, semantic_type):
+    """A row is a recorded decision: a reason, on one line (RSH-08-004)."""
+    reason = {
+        "NO_REPLICA_EFFECT": NO_REPLICA_EFFECT,
+        "AWAITING_COMMIT": AWAITING_COMMIT,
+    }[table][semantic_type]
+    assert reason.strip(), f"{table}[{semantic_type!r}] has no reason"
+    assert "\n" not in reason, f"{table}[{semantic_type!r}] spans lines"

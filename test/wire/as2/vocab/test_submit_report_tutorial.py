@@ -44,10 +44,11 @@ def test_payload_parses_as_create_vulnerability_report():
 
 
 def test_activity_is_addressed_to_the_vendor():
-    """The activity must address the vendor, or the inbox gate refuses it."""
+    """The activity must address the vendor's id, or the vendor refuses it
+    as an unaddressed copy (HP-01-005)."""
     body = t.create_report_activity_body()
 
-    assert body["to"] == [t.VENDOR_SLUG]
+    assert body["to"] == [t.VENDOR_ID]
     assert body["actor"] == t.FINDER_ID
 
 

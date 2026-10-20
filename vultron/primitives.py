@@ -81,9 +81,60 @@ def _valid_uri(v: str) -> str:
 
 UriString = Annotated[NonEmptyString, AfterValidator(_valid_uri)]
 
+
+def normalise_actor_id(actor_id: str) -> str:
+    """Return *actor_id* without a trailing slash, its canonical spelling.
+
+    Use it where an id a sender wrote becomes an identity the receiver looks
+    up, so a recipient spelled ``…/vendor/`` still names ``…/vendor``
+    (OID-01-006).
+
+    Normalisation deliberately stops at the trailing slash.  A bare slug such
+    as ``vendor`` names an actor under *some* authority, not necessarily this
+    one, so matching it against a full URI would accept mail addressed to
+    another host's ``vendor``.
+
+    It lives here, below both ``vultron/wire/`` and ``vultron/core/models/``,
+    because the wire extractor normalises the sender id with it and the
+    received event refuses an id it would change, and neither may import
+    ``vultron/core/predicates/`` (ARCH-22-001, OID-01-007).
+    """
+    return actor_id.rstrip("/")
+
+
+def same_actor_id(a: str, b: str) -> bool:
+    """Return True when *a* and *b* identify the same actor.
+
+    The two differ at most by a trailing slash.
+    """
+    return normalise_actor_id(a) == normalise_actor_id(b)
+
+
+def _normalised_actor_id(v: str) -> str:
+    if normalise_actor_id(v) != v:
+        raise ValueError(
+            f"actor id {v!r} is not normalised: it ends in a trailing slash"
+            " (OID-01-007); normalise it where it is extracted"
+        )
+    return v
+
+
+NormalisedActorId = Annotated[
+    NonEmptyString, AfterValidator(_normalised_actor_id)
+]
+"""A non-empty actor id with no trailing slash (OID-01-006, OID-01-007).
+
+A field of this type refuses an id :func:`normalise_actor_id` would change,
+so a value that skipped normalisation fails where it is built rather than
+storing the other spelling (ARCH-10-001).
+"""
+
 __all__ = [
     "NonEmptyString",
+    "NormalisedActorId",
     "UriString",
     "is_blank_string",
+    "normalise_actor_id",
     "require_non_empty",
+    "same_actor_id",
 ]

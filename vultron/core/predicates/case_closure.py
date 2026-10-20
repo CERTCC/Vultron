@@ -28,23 +28,25 @@ BT guard, the demo invariants, and the tests cannot disagree about what
 from collections.abc import Iterable
 from typing import Protocol
 
-CASE_FULLY_CLOSED_EVENT_TYPE = "case_fully_closed"
-"""``event_type`` of the ledger entry that marks the write boundary."""
+CASE_FULLY_CLOSED_SEMANTIC_TYPE = "case_fully_closed"
+"""``semantic_type`` of the ledger entry that marks the write boundary."""
 
 
-class _HasEventType(Protocol):
+class _HasSemanticType(Protocol):
     @property
-    def event_type(self) -> str: ...
+    def semantic_type(self) -> str: ...
 
 
-def ledger_records_full_closure(entries: Iterable[_HasEventType]) -> bool:
+def ledger_records_full_closure(entries: Iterable[_HasSemanticType]) -> bool:
     """True when *entries* include the ``case_fully_closed`` entry.
 
     Pure: the caller supplies the case's ledger entries (from a store, or
     from an exported ledger).  Order does not matter, because the boundary
     is a fact once committed.
     """
-    return any(e.event_type == CASE_FULLY_CLOSED_EVENT_TYPE for e in entries)
+    return any(
+        e.semantic_type == CASE_FULLY_CLOSED_SEMANTIC_TYPE for e in entries
+    )
 
 
-__all__ = ["CASE_FULLY_CLOSED_EVENT_TYPE", "ledger_records_full_closure"]
+__all__ = ["CASE_FULLY_CLOSED_SEMANTIC_TYPE", "ledger_records_full_closure"]

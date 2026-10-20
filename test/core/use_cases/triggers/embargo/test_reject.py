@@ -4,7 +4,7 @@ from typing import cast
 
 import pytest
 
-from test.support.ledger import committed_event_types
+from test.support.ledger import committed_semantic_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -87,7 +87,7 @@ def test_non_manager_reject_embargo_asks_the_case_manager(
         case_id=case.id_,
         manager_id=owner.id_,
         activity_type="Reject",
-        event_type=MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
+        semantic_type=MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
     )
 
 
@@ -124,7 +124,7 @@ def test_manager_reject_embargo_commits_the_decision(
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.NONE
     assert updated.proposed_embargo_ids == []
-    committed = committed_event_types(dl, case.id_)
+    committed = committed_semantic_types(dl, case.id_)
     assert MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value in committed
     assert (
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
@@ -176,7 +176,7 @@ def test_non_manager_owner_reject_asks_the_manager_to_reject(
         case_id=case.id_,
         manager_id=manager.id_,
         activity_type="Reject",
-        event_type=MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
+        semantic_type=MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
     )
 
 
@@ -219,7 +219,7 @@ def test_non_owner_manager_reject_is_consent_and_moves_no_register_entry(
         manager_participant.consent_for(embargo_id)
         == EmbargoConsentState.DECLINED
     )
-    committed = committed_event_types(dl, case.id_)
+    committed = committed_semantic_types(dl, case.id_)
     assert MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value in committed
     assert (
         MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value not in committed

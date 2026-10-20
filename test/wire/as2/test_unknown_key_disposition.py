@@ -243,6 +243,74 @@ def test_retired_name_on_inline_object_is_refused(retired: str) -> None:
     assert retired in str(exc_info.value)
 
 
+def _inline_ledger_entry(**keys: Any) -> dict[str, Any]:
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+    entry = CaseLedgerEntry(
+        case_id="https://example.org/cases/1",
+        log_index=0,
+        log_object_id="https://example.org/activities/0",
+        semantic_type="create_case",
+    )
+    body = entry.model_dump(by_alias=True, mode="json", exclude_none=True)
+    body.update(keys)
+    return {key: value for key, value in body.items() if value is not None}
+
+
+@pytest.mark.spec("CLP-02-014")
+@pytest.mark.spec("MV-11-002")
+@pytest.mark.parametrize(
+    "keys",
+    [
+        pytest.param({"eventType": "create_case"}, id="beside-semanticType"),
+        pytest.param(
+            {"eventType": "create_case", "semanticType": None},
+            id="instead-of-semanticType",
+        ),
+    ],
+)
+def test_received_ledger_entry_carrying_event_type_is_refused(
+    keys: dict[str, Any],
+) -> None:
+    """A received entry still spelling ``eventType`` is refused (CLP-02-014).
+
+    The parse edge decides the key before the core class sees it, so the
+    refusal must name the rename whether or not ``semanticType`` rides along;
+    setting ``eventType`` aside would accept the entry, and refusing it only as
+    a missing ``semanticType`` would not say a rename happened.
+    """
+    body = _envelope(type="Announce", object=_inline_ledger_entry(**keys))
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert "eventType" in message
+    assert "renamed semanticType" in message
+
+
+@pytest.mark.spec("CLP-02-014")
+@pytest.mark.spec("MV-11-002")
+def test_event_type_on_a_non_ledger_object_is_refused_too() -> None:
+    """``eventType`` is a retired name on every inline object, not only an entry.
+
+    ``RETIRED_NAMES`` is consulted for any object whose class does not declare
+    the key, so a ``Note`` carrying ``eventType`` is refused rather than having
+    the key set aside, and the refusal must still be true for a non-entry.
+    """
+    body = _with_inline_object(
+        {
+            "type": "Note",
+            "id": "https://example.org/notes/1",
+            "content": "hello",
+            "eventType": "create_case",
+        }
+    )
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(body)
+    message = str(exc_info.value)
+    assert "eventType is retired on every object" in message
+    assert "renamed semanticType" in message
+
+
 def _inline_case_status(**extra: Any) -> dict[str, Any]:
     return {
         "type": "CaseStatus",

@@ -28,6 +28,7 @@ from py_trees.common import Status
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.clock_decisions import clock_decision_node_ids
 from test.support.embargo_register import activate, register
+from test.support.refusal_effects import refusal_effect_node_ids
 from vultron.core.behaviors.case.nodes import (
     ActivateInviteeParticipantNode,
     InviteeHasParticipantRecordNode,
@@ -499,8 +500,9 @@ def test_every_accept_invite_effect_is_inside_the_case_manager_gate():
 
     effect_prefixes = ("Activate", "Advance", "Emit", "Backfill")
     # The CASE_MANAGER's clock decisions run in their own gated stage before
-    # the guards; they are not effects of the Accept (CLP-10-025).
-    decisions = clock_decision_node_ids(tree)
+    # the guards, and the refusal notice answers only a refusal; neither is
+    # an effect of the Accept (CLP-10-025, CLP-10-022).
+    decisions = clock_decision_node_ids(tree) | refusal_effect_node_ids(tree)
     effects = [
         n
         for n in tree.iterate()
@@ -534,7 +536,7 @@ def test_case_announce_and_backfill_precede_the_first_committing_effect():
     entry for a case it does not hold yet (SYNC-15 pre-genesis reject, then a
     replay that interleaves with the join backfill); CM-17-004 orders the
     announce and the backfill with no fan-out to the invitee in between, so
-    every committing effect belongs after both (#2898, fcvcv late joiners).
+    every committing effect belongs after both (#2898, rcvcv late joiners).
     No ``Add(CaseParticipant)`` is emitted at all (CM-31-012).
     """
     from vultron.core.behaviors.case.accept_invite_tree import (

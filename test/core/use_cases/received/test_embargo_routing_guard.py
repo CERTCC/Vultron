@@ -119,9 +119,9 @@ def _make_embargo_case(
     return dl, case_actor, case, embargo
 
 
-def _ledger_event_types(dl: SqliteDataLayer) -> list[str]:
+def _ledger_semantic_types(dl: SqliteDataLayer) -> list[str]:
     return [
-        getattr(e, "event_type", "")
+        getattr(e, "semantic_type", "")
         for e in dl.list_objects("CaseLedgerEntry")
     ]
 
@@ -173,11 +173,11 @@ class TestInviteToEmbargoRoutingGuard:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "invite_to_embargo_on_case" in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "invite_to_embargo_on_case" in semantic_types, (
             "Store-owner fallback (CaseActor) MUST write an"
             " invite_to_embargo_on_case ledger entry when receiving_actor_id"
-            f" is absent; found: {event_types}"
+            f" is absent; found: {semantic_types}"
         )
 
     def test_caseactor_commits_invite_to_embargo_ledger_entry(
@@ -207,10 +207,10 @@ class TestInviteToEmbargoRoutingGuard:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "invite_to_embargo_on_case" in event_types, (
-            "Expected CaseLedgerEntry with event_type='invite_to_embargo_on_case';"
-            f" found: {event_types}"
+        semantic_types = _ledger_semantic_types(dl)
+        assert "invite_to_embargo_on_case" in semantic_types, (
+            "Expected CaseLedgerEntry with semantic_type='invite_to_embargo_on_case';"
+            f" found: {semantic_types}"
         )
 
     def test_non_caseactor_does_not_commit_invite_ledger_entry(
@@ -261,10 +261,10 @@ class TestInviteToEmbargoRoutingGuard:
             "the Invite must reach the tree, so the absent entry is the"
             f" guard's doing: {result.reason}"
         )
-        event_types = _ledger_event_types(dl)
-        assert "invite_to_embargo_on_case" not in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "invite_to_embargo_on_case" not in semantic_types, (
             "Non-CaseActor (invitee) must NOT write an invite_to_embargo_on_case"
-            f" ledger entry; found: {event_types}"
+            f" ledger entry; found: {semantic_types}"
         )
 
 
@@ -329,11 +329,11 @@ class TestAcceptInviteToEmbargoRoutingGuard:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "accept_invite_to_embargo_on_case" in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "accept_invite_to_embargo_on_case" in semantic_types, (
             "Expected CaseLedgerEntry with"
-            " event_type='accept_invite_to_embargo_on_case';"
-            f" found: {event_types}"
+            " semantic_type='accept_invite_to_embargo_on_case';"
+            f" found: {semantic_types}"
         )
 
     def test_non_caseactor_does_not_commit_accept_invite_ledger_entry(
@@ -355,10 +355,10 @@ class TestAcceptInviteToEmbargoRoutingGuard:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "accept_invite_to_embargo_on_case" not in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "accept_invite_to_embargo_on_case" not in semantic_types, (
             "Non-CaseActor must NOT write an accept_invite_to_embargo_on_case"
-            f" ledger entry; found: {event_types}"
+            f" ledger entry; found: {semantic_types}"
         )
 
     def test_absent_stamp_uses_store_owner_accept_invite_to_embargo(
@@ -381,11 +381,11 @@ class TestAcceptInviteToEmbargoRoutingGuard:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "accept_invite_to_embargo_on_case" in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "accept_invite_to_embargo_on_case" in semantic_types, (
             "Store-owner fallback (CaseActor) MUST write an"
             " accept_invite_to_embargo_on_case ledger entry when"
-            f" receiving_actor_id is absent; found: {event_types}"
+            f" receiving_actor_id is absent; found: {semantic_types}"
         )
 
 
@@ -454,11 +454,11 @@ class TestRemoveEmbargoRoutingGuard:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "remove_embargo_event_from_case" in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "remove_embargo_event_from_case" in semantic_types, (
             "Expected CaseLedgerEntry with"
-            " event_type='remove_embargo_event_from_case';"
-            f" found: {event_types}"
+            " semantic_type='remove_embargo_event_from_case';"
+            f" found: {semantic_types}"
         )
 
     def test_non_caseactor_does_not_commit_remove_embargo_ledger_entry(
@@ -489,10 +489,10 @@ class TestRemoveEmbargoRoutingGuard:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "remove_embargo_event_from_case" not in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "remove_embargo_event_from_case" not in semantic_types, (
             "Non-CaseActor must NOT write a remove_embargo_event_from_case"
-            f" ledger entry; found: {event_types}"
+            f" ledger entry; found: {semantic_types}"
         )
 
     def test_absent_stamp_uses_store_owner_remove_embargo(self, make_payload):
@@ -521,9 +521,9 @@ class TestRemoveEmbargoRoutingGuard:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        event_types = _ledger_event_types(dl)
-        assert "remove_embargo_event_from_case" in event_types, (
+        semantic_types = _ledger_semantic_types(dl)
+        assert "remove_embargo_event_from_case" in semantic_types, (
             "Store-owner fallback (CaseActor) MUST write a"
             " remove_embargo_event_from_case ledger entry when"
-            f" receiving_actor_id is absent; found: {event_types}"
+            f" receiving_actor_id is absent; found: {semantic_types}"
         )

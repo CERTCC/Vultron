@@ -142,7 +142,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0032 Validate at the Edge, Promote to Strict Core Types](0032-validate-at-edge-promote-to-core.md)
 - [ADR-0033 Lifecycle-Staged Domain Types Anchored on Guaranteed-Field Changes](0033-lifecycle-staged-case-types.md)
 - [ADR-0034 DataLayer Port Returns Core Domain Objects](0034-datalayer-returns-core-objects.md)
-- [ADR-0035 Core Activity Representation and Envelope Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md)
+- [ADR-0035 Core Activity Representation and Envelope Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md) — partially superseded by 0149-the-received-archive-is-the-sealed-received-body-read-through-a-read-only-view.md
 - [ADR-0036 Per-Machine Dimension Objects for CaseStatus and ParticipantStatus](0036-status-dimension-objects.md)
 - [ADR-0037 Buffer Out-of-Order `Announce(CaseLedgerEntry)` Instead of Dropping](0037-buffer-out-of-order-ledger-entries.md)
 - [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy](0038-four-tier-specification-taxonomy.md) — partially superseded by 0134-who-must-obey-a-rule-decides-its-spec-kind.md
@@ -160,7 +160,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0050 Leave(VulnerabilityCase) Is the Canonical RM Case Closure Mechanism](0050-leave-vul-case-canonical-rm-closure.md)
 - [ADR-0051 CaseActor Has Its Own RM Lifecycle Tracked via CaseParticipant](0051-caseactor-rm-lifecycle.md)
 - [ADR-0052 Demo CI Job Structure: Accept Barrier + Concurrency Group Over Job Consolidation](0052-demo-ci-job-structure-barrier-accepted.md)
-- [ADR-0053 Route Ownership-Transfer Offer and Accept Through the CaseActor](0053-ownership-transfer-routed-via-caseactor.md)
+- [ADR-0053 Route Ownership-Transfer Offer and Accept Through the CaseActor](0053-ownership-transfer-routed-via-caseactor.md) — partially superseded by 0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md
 - [ADR-0054 Retain plan/incoming/learnings/ as a File Queue; Do Not Migrate to GitHub Issues](0054-learnings-queue-as-files-not-issues.md)
 - [ADR-0055 CI Failure Alerting via GitHub Issues on Main-Branch and Scheduled Workflows](0055-ci-failure-alerting-via-github-issues.md)
 - [ADR-0057 Rename `CVDRole.OTHER` to `CVDRole.OBSERVER` and Define Observer Participant Semantics](0057-observer-participant-role.md)
@@ -223,8 +223,9 @@ General information about architectural decision records is available at <https:
 - [ADR-0119 The Case Ledger Records Completed Acts](0119-case-ledger-records-completed-acts.md) *(revision 2)* *(provisional)*
 - [ADR-0120 ADR Lifecycle: Three Epochs and Tiered Edits](0120-adr-lifecycle-epochs-and-edit-tiers.md) *(revision 2)* *(provisional)*
 - [ADR-0121 A Joined Participant Judges the Case by Answering a Full-Case Invite; Status Is Self-Declared and Asserted Only for Existing Participants](0121-joined-participant-judges-the-case-by-full-case-invite.md) *(provisional)* — supersedes 0070-invited-actor-rm-triage-via-ledger-backfill.md, 0084-participant-assertion-authority.md
-- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 6)* *(provisional)* — supersedes 0056-embargo-adherence-computed-field.md; partially supersedes 0048-pec-no-embargo-is-absence-not-pre-consent.md, 0091-rename-pec-no-embargo-to-unbound.md, 0093-signatory-declined-pec-transition.md, 0118-pec-expired-and-unbound-exited-states.md
+- [ADR-0122 Participant Embargo Consent Is Recorded per (Participant, Embargo), Against an Embargo Register on the Case](0122-per-embargo-participant-consent.md) *(revision 7)* *(provisional)* — supersedes 0056-embargo-adherence-computed-field.md; partially supersedes 0048-pec-no-embargo-is-absence-not-pre-consent.md, 0091-rename-pec-no-embargo-to-unbound.md, 0093-signatory-declined-pec-transition.md, 0118-pec-expired-and-unbound-exited-states.md
 - [ADR-0123 An Embargo Invite May Name Its Terms by URI](0123-embargo-invite-may-name-its-terms-by-uri.md) *(provisional)*
+- [ADR-0124 The Case Is a Projection of Its Ledger: Every Change Is an Entry, and Replicas Copy](0124-case-is-a-projection-of-its-ledger.md) *(revision 2)* *(provisional)*
 - [ADR-0127 Decision Records Leave Routine Agent Context; Specs and Notes Carry the Current State](0127-decision-records-leave-routine-agent-context.md) *(provisional)*
 - [ADR-0129 A Sender Rule States Every Position on Both Sides, and Is the Source of "Sent By"](0129-a-sender-rule-states-every-position-on-both-sides-and-is-the-source-of-sent-by.md) *(provisional)*
 - [ADR-0131 Post-Close Traffic Is Dropped, and Only a Late Leave May Be Answered](0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md) *(provisional)*
@@ -235,11 +236,12 @@ General information about architectural decision records is available at <https:
 - [ADR-0137 Case Records and Notes Are Attached by One Message, Never Created First](0137-case-records-are-attached-by-one-message-never-created-first.md) *(revision 2)* *(provisional)*
 - [ADR-0141 A Refused Assertion Is Answered With a Reject of the Refused Activity](0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md) *(provisional)*
 - [ADR-0142 A Diverged Replica Is Repaired by a Fresh Case Copy That Names Its Ledger Position](0142-a-diverged-replica-is-repaired-by-a-fresh-case-copy-that-names-its-ledger-position.md) *(provisional)*
+- [ADR-0144 Once a Report Belongs to a Case, Only Its Owner Closes It, by Leave](0144-once-a-report-belongs-to-a-case-only-its-owner-closes-it-by-leave.md) *(provisional)*
+- [ADR-0145 A Case Is Left Through the Leave-Case Trigger, Whose Actor Runs Its Pre-Close Step First](0145-a-case-is-left-through-the-leave-case-trigger-whose-actor-runs-its-pre-close-step-first.md) *(provisional)*
 
 ## Proposed ADRs
 
 - [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 3)*
-- [ADR-0124 The Case Is a Projection of Its Ledger: Every Change Is an Entry, and Replicas Copy](0124-case-is-a-projection-of-its-ledger.md) *(revision 2)*
 - [ADR-0125 A Case Splits by Its Owner Proposing a Child Case: the Child Links Its Parent and Inherits the Embargo Terms Only](0125-case-split-child-case-inherits-the-embargo-only.md)
 - [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)* — partially superseded by 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md
 - [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
@@ -249,6 +251,10 @@ General information about architectural decision records is available at <https:
 - [ADR-0139 A Fresh Agent Reviews the Branch Before Its First Push](0139-a-fresh-agent-reviews-the-branch-before-its-first-push.md)
 - [ADR-0140 A Ledger Entry's Semantic Type Is the Registry Label of Its AS2 Payload](0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md)
 - [ADR-0143 A Fix Commit's Local Gate Escalates Only for Shared Test Infrastructure](0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
+- [ADR-0146 An Embargo Act Stores Its Planned Entries Before It Commits, and the Next Run Finishes Them](0146-an-embargo-act-stores-its-planned-entries-and-the-next-run-finishes-them.md)
+- [ADR-0147 The Protocol Specification Renders Its Normative Text from the YAML Requirements](0147-the-protocol-specification-renders-its-normative-text-from-the-yaml-requirements.md)
+- [ADR-0148 An Owner Proposes an Ownership-Transfer Offer and the CASE_MANAGER Makes It](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md) — partially supersedes 0053-ownership-transfer-routed-via-caseactor.md
+- [ADR-0149 The Received Archive Is the Sealed Received Body, Read Through a Read-Only View Parsed on Load](0149-the-received-archive-is-the-sealed-received-body-read-through-a-read-only-view.md) — partially supersedes 0035-core-activity-representation-and-envelope-reconstitution.md
 
 ## Rejected ADRs
 

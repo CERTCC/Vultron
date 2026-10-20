@@ -94,7 +94,7 @@ creating a new issue — cheapest check first:
 
 - For unit tests: exact match on pytest node ID (e.g.
   `test/bt/test_vultrabot.py::MyTestCase::test_main`).
-- For CI/demo jobs: exact match on job name (e.g. `fvcv-extension`).
+- For CI/demo jobs: exact match on job name (e.g. `rvcv-extension`).
 - If match found: `gh issue view <N> --json state,title`
   - `open` → post a comment on the issue:
 

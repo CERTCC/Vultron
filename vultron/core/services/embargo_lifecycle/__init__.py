@@ -46,7 +46,7 @@ into :class:`EmbargoLifecycle` in ``service.py``:
 - ``proposals.py``  — ``propose_embargo``
 - ``answers.py``    — ``accept_embargo_invite`` (a sender's consent),
   ``reject_embargo_proposal`` (the case owner's decision, ADR-0122)
-- ``activation.py`` — ``terminate_active_embargo``, ``activate_embargo``
+- ``activation.py`` — ``activate_embargo``
   (the case owner's decision, ADR-0122)
 - ``activation_decision.py`` — ``decide_activation``, the CASE_MANAGER's
   decision of an activation before it commits (ADR-0124)

@@ -113,6 +113,7 @@ The offer is open until the Case Manager records an `Accept` or `Reject` of it.
 An answer that names the forward is matched to the recorded offer through the forward's `inReplyTo`, never through the copy of the offer your answer carries.
 That copy must still name the offered role and you as the target, because every participant grants the role from it.
 The Case Manager refuses an answer from anyone else, an answer to an offer that is no longer open, and an answer whose copy names another role or target, and records nothing for it.
+If it refuses your own answer because the offer is no longer open or your copy differs, it sends you the [refusal notice](../../../reference/messages/faults_and_acknowledgements.md#refusal-notice): a `Reject` of your answer, with the reason in `summary`.
 If your answer is delivered again after the Case Manager recorded it, the Case Manager changes nothing.
 
 When it admits your answer, the Case Manager records it in the case ledger and announces the entry to every participant in the case ([CM-33-006](../../../reference/specs/protocol.md#cm-33-006)).

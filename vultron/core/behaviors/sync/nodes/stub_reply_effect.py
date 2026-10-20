@@ -46,7 +46,6 @@ from datetime import datetime
 from py_trees.common import Status
 
 from vultron.core.behaviors.sync.nodes._helpers import (
-    _extract_id_from_field,
     _LedgerEffectNode,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -56,18 +55,13 @@ from vultron.core.participants.stub_reply import (
     apply_stub_reject,
     parse_published,
 )
+from vultron.core.predicates.addressing import snapshot_actor_id
 
 #: Apply a reply to the replying actor's record; the changed record to save,
 #: or ``None`` when nothing changed.
 _Effect = Callable[
     [VulnerabilityCase, CaseParticipant, datetime], CaseParticipant | None
 ]
-
-
-def _stub_reject_effect(
-    case: VulnerabilityCase, record: CaseParticipant, published: datetime
-) -> CaseParticipant | None:
-    return record if apply_stub_reject(case, record, published) else None
 
 
 class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
@@ -82,7 +76,8 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
 
         entry = self._get_entry()
         snapshot = entry.payload_snapshot
-        actor_id = _extract_id_from_field(snapshot.get("actor"))
+        # Normalised: the snapshot keeps the sender's spelling (OID-01-006).
+        actor_id = snapshot_actor_id(snapshot.get("actor"))
         if not actor_id or not entry.case_id:
             self.logger.debug(
                 "%s: payload_snapshot missing the replying actor or the case"
@@ -99,7 +94,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
         record = self.datalayer.read(held_id) if held_id else None
         if not isinstance(record, CaseParticipant):
             self.feedback_message = (
-                f"{entry.event_type} entry {entry.log_index} for '{actor_id}'"
+                f"{entry.semantic_type} entry {entry.log_index} for '{actor_id}'"
                 f" in case '{entry.case_id}' but this replica holds no"
                 " participant record: the create_case_participant entry has"
                 " not been applied, so the chain is incomplete or out of"
@@ -112,7 +107,7 @@ class _ApplyStubReplyFromLedgerNode(_LedgerEffectNode):
             published = parse_published(snapshot.get("published"))
         except ValueError as exc:
             self.feedback_message = (
-                f"{entry.event_type} entry {entry.log_index} for '{actor_id}':"
+                f"{entry.semantic_type} entry {entry.log_index} for '{actor_id}':"
                 f" {exc} (CLP-15-006)"
             )
             self.logger.exception("%s: %s", self.name, self.feedback_message)
@@ -146,4 +141,4 @@ class ApplyInviteAcceptFromLedgerNode(_ApplyStubReplyFromLedgerNode):
 class ApplyInviteRejectFromLedgerNode(_ApplyStubReplyFromLedgerNode):
     """Apply a ``reject_invite_actor_to_case`` entry: consent ``DECLINED``."""
 
-    effect = staticmethod(_stub_reject_effect)
+    effect = staticmethod(apply_stub_reject)

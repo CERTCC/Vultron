@@ -23,6 +23,7 @@ Verifies TRIG-09-001 through TRIG-09-005, TRIG-10-003, TRIG-10-004.
 
 import json
 import threading
+from typing import cast
 
 import pytest
 from fastapi import FastAPI, status
@@ -209,13 +210,25 @@ class TestDemoNotifyFixReady:
 
     @pytest.mark.spec("DEMOMA-07-001")
     @pytest.mark.spec("TRIG-01-002")
-    def test_two_hops_leave_the_vendor_at_vf_fix_ready(
+    @pytest.mark.spec("RSH-08-006")
+    def test_two_hops_are_sent_in_order_and_left_to_the_case_manager(
         self, client_demo: TestClient, dl, actor, vendor_case
     ):
-        """One request walks vf→Vf→VF; the response is the second hop's
-        status and the stored participant status reads ``VF``."""
+        """One request sends vf→Vf then Vf→VF; the response is the second
+        hop's status, which follows the first.
+
+        Neither hop is appended to the vendor's record: the CASE_MANAGER
+        records each, and the replica copies them (RSH-08-003, CM-23-016).
+        So the second hop is validated as following the first, not the
+        record's ``vf``.
+        """
         from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.cs import CS_vf
+
+        participant_id = vendor_case.actor_participant_index[actor.id_]
+        before = cast(CaseParticipant, dl.read(participant_id))
+        statuses_before = list(before.participant_statuses)
 
         response = client_demo.post(
             f"/actors/{actor.id_}/demo/notify-fix-ready",
@@ -224,19 +237,13 @@ class TestDemoNotifyFixReady:
         assert response.status_code == status.HTTP_202_ACCEPTED, response.text
         body = response.json()
         assert set(body) == {"activity_id", "status_id"}
-        assert body["status_id"] is not None
 
-        participant = dl.read(vendor_case.actor_participant_index[actor.id_])
-        assert isinstance(participant, CaseParticipant)
-        vf_states = [
-            ps.vf.state
-            for ps in participant.participant_statuses
-            if ps.vf is not None
-        ]
-        assert vf_states[-1] == CS_vf.VF
-        assert CS_vf.Vf in vf_states, "the first hop (vf→Vf) must be recorded"
         status_obj = dl.read(body["status_id"])
-        assert status_obj is not None
+        assert isinstance(status_obj, ParticipantStatus)
+        assert status_obj.vf is not None
+        assert status_obj.vf.state == CS_vf.VF
+        participant = cast(CaseParticipant, dl.read(participant_id))
+        assert participant.participant_statuses == statuses_before
 
     @pytest.mark.spec("TRIG-07-001")
     def test_both_hops_are_queued_and_drained(
@@ -402,7 +409,7 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": managed_case.id_,
                 "object_id": managed_case.id_,
-                "event_type": "demo_sync",
+                "semantic_type": "demo_sync",
             },
         )
         assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
@@ -418,7 +425,7 @@ class TestDemoSyncLogEntry:
         entry = dl.read(body["log_entry_id"])
         assert entry is not None
         assert entry.entry_hash == body["entry_hash"]
-        assert entry.event_type == "demo_sync"
+        assert entry.semantic_type == "demo_sync"
 
     @pytest.mark.spec("TRIG-01-003")
     def test_unknown_actor_returns_404(
@@ -429,13 +436,13 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": managed_case.id_,
                 "object_id": managed_case.id_,
-                "event_type": "demo_sync",
+                "semantic_type": "demo_sync",
             },
         )
         assert resp.status_code == status.HTTP_404_NOT_FOUND
         assert resp.json()["detail"]["error"] == "NotFound"
 
-    def test_missing_event_type_returns_422(
+    def test_missing_semantic_type_returns_422(
         self, client_demo: TestClient, actor, managed_case
     ):
         resp = client_demo.post(
@@ -490,7 +497,7 @@ class TestDemoSyncLogEntry:
                 json={
                     "case_id": case.id_,
                     "object_id": case.id_,
-                    "event_type": "single_server",
+                    "semantic_type": "single_server",
                 },
             )
 
@@ -530,7 +537,7 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": case.id_,
                 "object_id": case.id_,
-                "event_type": "foreign",
+                "semantic_type": "foreign",
             },
         )
         assert resp.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -689,7 +696,7 @@ class TestDemoGetCaseLedgerEntry:
         data = response.json()
         assert data["logIndex"] == 1
         assert data["caseId"] == case_with_actor.id_
-        assert data["eventType"] == "test_event_1"
+        assert data["semanticType"] == "test_event_1"
 
     def test_returns_404_for_missing_index(
         self, client_demo: TestClient, actor, case_with_actor
@@ -741,11 +748,11 @@ class TestDemoGetCaseLedgerEntry:
         data = response.json()
         # camelCase aliases should be present
         assert "logObjectId" in data
-        assert "eventType" in data
+        assert "semanticType" in data
         assert "logIndex" in data
         assert "caseId" in data
         assert "log_object_id" not in data
-        assert "event_type" not in data
+        assert "semantic_type" not in data
 
 
 # ---------------------------------------------------------------------------
@@ -923,83 +930,4 @@ class TestDemoStreamCaseLedgerMounting:
             )
         # With the demo route absent, the general ``/actors/{actor_id:path}``
         # profile route is what answers — and it finds no such actor.
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-# ---------------------------------------------------------------------------
-# Tests: POST /actors/{actor_id}/demo/close-case  (TRIG-09-001, DEMOMA-07-001)
-# ---------------------------------------------------------------------------
-
-
-class TestDemoCloseCase:
-    """Tests for the demo close-case endpoint."""
-
-    def test_returns_202_on_success(
-        self, client_demo: TestClient, actor, case_with_actor
-    ):
-        """Successful close-case returns 202 Accepted."""
-        response = client_demo.post(
-            f"/actors/{actor.id_}/demo/close-case",
-            json={"case_id": case_with_actor.id_},
-        )
-        assert response.status_code == status.HTTP_202_ACCEPTED
-
-    def test_leave_activity_in_response(
-        self, client_demo: TestClient, actor, case_with_actor
-    ):
-        """Response body contains a Leave activity with correct type and actor fields."""
-        response = client_demo.post(
-            f"/actors/{actor.id_}/demo/close-case",
-            json={"case_id": case_with_actor.id_},
-        )
-        assert response.status_code == status.HTTP_202_ACCEPTED
-        data = response.json()
-        assert "activity" in data, "Response must contain 'activity' key"
-        activity = data["activity"]
-        assert activity.get("type") == "Leave", (
-            f"Activity type must be 'Leave'; got {activity.get('type')}"
-        )
-        assert activity.get("actor") == actor.id_, (
-            f"Activity actor must be actor.id_; got {activity.get('actor')}"
-        )
-
-    def test_rm_not_closed_at_send_time(
-        self, client_demo: TestClient, actor, case_with_actor, dl
-    ):
-        """RM.CLOSED must NOT appear at send time — only after ledger round-trip (AC-2)."""
-        from vultron.core.models.case import VulnerabilityCase
-        from vultron.core.models.case_participant import CaseParticipant
-        from vultron.core.states.rm import RM
-
-        client_demo.post(
-            f"/actors/{actor.id_}/demo/close-case",
-            json={"case_id": case_with_actor.id_},
-        )
-        case = dl.read(case_with_actor.id_)
-        assert isinstance(case, VulnerabilityCase)
-        participant_id = case.actor_participant_index.get(actor.id_)
-        assert participant_id is not None, (
-            "actor must have a participant entry in actor_participant_index"
-        )
-        participant = dl.read(participant_id)
-        assert isinstance(participant, CaseParticipant), (
-            f"dl.read({participant_id!r}) must return CaseParticipant;"
-            f" got {type(participant)}"
-        )
-        rm_states = [
-            ps.rm.state
-            for ps in participant.participant_statuses
-            if hasattr(ps, "rm") and ps.rm is not None
-        ]
-        assert RM.CLOSED not in rm_states, (
-            "RM.CLOSED must not be set at send time (AC-2);"
-            f" rm_states={rm_states}"
-        )
-
-    def test_unknown_case_returns_404(self, client_demo: TestClient, actor):
-        """Request for a non-existent case must return 404."""
-        response = client_demo.post(
-            f"/actors/{actor.id_}/demo/close-case",
-            json={"case_id": "urn:uuid:no-such-case"},
-        )
         assert response.status_code == status.HTTP_404_NOT_FOUND

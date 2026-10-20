@@ -125,10 +125,22 @@ from its role (CLP-09).
   capped at its own closure entries (`closed_participant_ledger_cutoff()`). Its guard
   stays the bare active check (SYNC-03-005), so its use case declares the
   `LEDGER_PEER` kind, never `ACTIVE_PARTICIPANT`. A repeat of an act that would
-  close it again (`Leave`, `Close(Report)`, a `Reject` of its Invite) is `SKIPPED`,
-  with no entry, whatever its activity id: `closed_sender_preflight()` asks
-  `closure_recorded()` before the tree runs. Any other invitee reply from it is
-  `REFUSED` there too, since its guard is `INVITEE`, not the shared predicate.
+  close it again (`Leave`, a `Reject` of its Invite) is `SKIPPED`, with no entry,
+  whatever its activity id: the closed-sender door guard asks `closure_recorded()`
+  after the post-close boundary (the factory's `closed_sender` argument), and the
+  handler reads it with `closed_sender_verdict()`. The Case Owner's `Leave` is the
+  exception until `case_fully_closed`: it closes the case too, so its redelivery
+  runs again to finish a closure a failed first delivery left part-way
+  (`case_owner_completes=True`, CM-23-002). Any other invitee reply from it is
+  `REFUSED` at the same door, before its `INVITEE` guard runs. A `Close(Report)`
+  on a case is refused from every sender, closed or not (CM-23-019).
+- **A closed Case Owner holds no `CASE_OWNER` standing.** The factory composes the
+  closure check ahead of the role check for that kind (`_case_owner_node()`), and
+  leaves `SenderIsCaseOwnerNode` asking the role alone, since the Leave, status,
+  suggest-actor and embargo trees read it to pick an arm (CM-23-018). The one
+  exception is the owner's `Leave`, whose repeat finishes the case's closure: its
+  context sets `closing_case_owner`, so the kind asks the role alone and the
+  closed-sender door guard decides the repeat.
 - **A repeat is decided by its effect, not its id (ID-05-003).** An act whose effect
   is already in place is a no-op, even under a new activity id: you cannot leave
   twice.
@@ -238,7 +250,9 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
 
 - The CASE_MANAGER and the replica apply the same writes
   (`core/participants/stub_reply.py`), storing what the entry carries; the replica
-  derives nothing (ADR-0103, CLP-15-007).
+  derives nothing (ADR-0103, CLP-15-007). The consent row each reply states
+  (`joiner_agreement`, `joiner_decline`) is written through the one apply function,
+  never by a consent transition on the replica's own row (CM-23-016, #4718).
 - Entries are built from the objects the CASE_MANAGER stored, so ids and times match.
 - The Accept's VF status is committed after the announce and backfill, so it reaches
   the invitee after its case seed (#2898). Replay from genesis may run over a seed that

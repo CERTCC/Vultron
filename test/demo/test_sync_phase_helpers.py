@@ -17,7 +17,7 @@
 ``vultron/demo/helpers/sync.py`` replace the per-scenario copies of the
 read-authority-tail-then-poll-each-replica loop and of the sync-verification
 phase body (DEMOMA-23-005, DEMOMA-23-007, #3846).  The eight per-scenario
-"skip the coverage wait when the Finder case never arrives" tests collapsed
+"skip the coverage wait when the Reporter case never arrives" tests collapsed
 into this module.
 
 Every test runs the real ``demo_gate`` / ``demo_check`` context managers —
@@ -268,12 +268,12 @@ class TestWaitForReplicaLedgerCoverage:
         ):
             wait_for_replica_ledger_coverage(
                 auth_client=_client("auth"),
-                replicas=[(_client("r"), "Finder")],
+                replicas=[(_client("r"), "Reporter")],
                 case_id=_CASE_ID,
             )
         (failure,) = demo_utils._demo_failures
         assert failure.startswith("GATE FAILED")
-        assert "Finder ledger coverage (sync-verification phase)" in failure
+        assert "Reporter ledger coverage (sync-verification phase)" in failure
 
 
 # ---------------------------------------------------------------------------
@@ -303,25 +303,29 @@ def _run_phase(mocks, **kwargs):
 
 
 class TestRunSyncVerificationPhase:
-    def _kwargs(self, finder, auth, replicas, **extra):
+    def _kwargs(self, reporter, auth, replicas, **extra):
         base = dict(
             auth_client=auth,
             auth_label="Authority",
             auth_actor_id="urn:test:authority",
-            finder_client=finder,
-            finder_actor_id="urn:test:finder",
+            reporter_client=reporter,
+            reporter_actor_id="urn:test:reporter",
             replicas=replicas,
             case_id=_CASE_ID,
         )
         base.update(extra)
         return base
 
-    def test_skips_coverage_wait_when_finder_case_not_seeded(self):
-        """The SYNC-15 gate skips the coverage waits when the Finder lacks the case.
+    def test_skips_coverage_wait_when_reporter_case_not_seeded(self):
+        """The SYNC-15 gate skips the coverage waits when the Reporter lacks the case.
 
         Collapses the eight identical per-scenario tests (AC-5, #3846).
         """
-        finder, auth, other = _client("finder"), _client("auth"), _client("o")
+        reporter, auth, other = (
+            _client("reporter"),
+            _client("auth"),
+            _client("o"),
+        )
         mocks = _phase_patches(
             wait_for_case_on_container=MagicMock(
                 side_effect=AssertionError("timed out waiting for case")
@@ -330,7 +334,7 @@ class TestRunSyncVerificationPhase:
         _run_phase(
             mocks,
             **self._kwargs(
-                finder, auth, [(finder, "Finder"), (other, "Other")]
+                reporter, auth, [(reporter, "Reporter"), (other, "Other")]
             ),
         )
         mocks["wait_for_contiguous_ledger_coverage"].assert_not_called()
@@ -341,11 +345,15 @@ class TestRunSyncVerificationPhase:
     def test_composes_gate_coverage_participants_and_state_checks_in_order(
         self,
     ):
-        finder, auth, late = _client("finder"), _client("auth"), _client("l")
+        reporter, auth, late = (
+            _client("reporter"),
+            _client("auth"),
+            _client("l"),
+        )
         order: list[str] = []
         mocks = _phase_patches(
             wait_for_case_on_container=MagicMock(
-                side_effect=lambda **kw: order.append("finder-case")
+                side_effect=lambda **kw: order.append("reporter-case")
             ),
             wait_for_contiguous_ledger_coverage=MagicMock(
                 side_effect=lambda **kw: order.append("coverage")
@@ -360,16 +368,16 @@ class TestRunSyncVerificationPhase:
         _run_phase(
             mocks,
             **self._kwargs(
-                finder,
+                reporter,
                 auth,
-                [(finder, "Finder"), (late, "Late")],
+                [(reporter, "Reporter"), (late, "Late")],
                 expected_participant_ids={"a", "b"},
                 late_joiners=(late,),
-                state_checks=[(finder, "Finder"), (late, "Late")],
+                state_checks=[(reporter, "Reporter"), (late, "Late")],
             ),
         )
         assert order == [
-            "finder-case",
+            "reporter-case",
             "coverage",
             "coverage",
             "participants",
@@ -377,50 +385,56 @@ class TestRunSyncVerificationPhase:
             "state",
         ]
         mocks["wait_for_case_on_container"].assert_called_once_with(
-            client=finder, case_id=_CASE_ID
+            client=reporter, case_id=_CASE_ID
         )
         mocks["wait_for_participants_on_replicas"].assert_called_once_with(
-            replica_clients=[finder, late],
+            replica_clients=[reporter, late],
             case_id=_CASE_ID,
             expected_actor_ids={"a", "b"},
             late_joiners=(late,),
         )
         state_calls = mocks["verify_replica_state"].call_args_list
         assert [c.kwargs["replica_client"] for c in state_calls] == [
-            finder,
+            reporter,
             late,
         ]
         assert all(c.kwargs["auth_client"] is auth for c in state_calls)
         assert all(
             c.kwargs["vendor_actor_id"] == "urn:test:authority"
-            and c.kwargs["reporter_actor_id"] == "urn:test:finder"
+            and c.kwargs["reporter_actor_id"] == "urn:test:reporter"
             for c in state_calls
         )
         assert demo_utils._demo_failures == []
 
     def test_declares_no_participant_wait_when_no_participants_expected(self):
-        """fcv-reject declares no participant set: no participant poll runs."""
-        finder, auth = _client("finder"), _client("auth")
+        """rcv-reject declares no participant set: no participant poll runs."""
+        reporter, auth = _client("reporter"), _client("auth")
         mocks = _phase_patches()
-        _run_phase(mocks, **self._kwargs(finder, auth, [(finder, "Finder")]))
+        _run_phase(
+            mocks, **self._kwargs(reporter, auth, [(reporter, "Reporter")])
+        )
         mocks["wait_for_participants_on_replicas"].assert_not_called()
         mocks["verify_replica_state"].assert_not_called()
         mocks["wait_for_contiguous_ledger_coverage"].assert_called_once()
 
     def test_late_joiners_and_coverage_budgets_reach_the_coverage_loop(self):
-        finder, auth, late = _client("finder"), _client("auth"), _client("l")
+        reporter, auth, late = (
+            _client("reporter"),
+            _client("auth"),
+            _client("l"),
+        )
         timeouts, fake = _capture_coverage_timeouts()
         mocks = _phase_patches(wait_for_contiguous_ledger_coverage=fake)
         _run_phase(
             mocks,
             **self._kwargs(
-                finder,
+                reporter,
                 auth,
-                [(finder, "Finder"), (late, "Late")],
+                [(reporter, "Reporter"), (late, "Late")],
                 late_joiners=(late,),
             ),
         )
-        assert timeouts[id(finder)] == LEDGER_COVERAGE_TIMEOUT
+        assert timeouts[id(reporter)] == LEDGER_COVERAGE_TIMEOUT
         assert timeouts[id(late)] == LATE_JOINER_COVERAGE_TIMEOUT
 
     def test_state_check_is_skipped_for_a_replica_whose_coverage_gate_failed(
@@ -428,25 +442,29 @@ class TestRunSyncVerificationPhase:
     ):
         """One causal event → one recorded failure, not a cascade (#1911, #2361).
 
-        Successor to fv's ``test_sync_verification_skips_replica_check_when_
+        Successor to rv's ``test_sync_verification_skips_replica_check_when_
         ledger_coverage_times_out``: the state comparison depends on coverage,
         so an unmet coverage gate must prevent it (EDF-06-005) — for the failed
         replica only; a replica that covered is still compared.
         """
-        finder, auth, other = _client("finder"), _client("auth"), _client("o")
+        reporter, auth, other = (
+            _client("reporter"),
+            _client("auth"),
+            _client("o"),
+        )
 
         def _coverage(client, case_id, expected_tail_index, timeout_seconds):
-            if client is finder:
+            if client is reporter:
                 raise AssertionError("Timed out waiting for coverage")
 
         mocks = _phase_patches(wait_for_contiguous_ledger_coverage=_coverage)
         _run_phase(
             mocks,
             **self._kwargs(
-                finder,
+                reporter,
                 auth,
-                [(finder, "Finder"), (other, "Other")],
-                state_checks=[(finder, "Finder"), (other, "Other")],
+                [(reporter, "Reporter"), (other, "Other")],
+                state_checks=[(reporter, "Reporter"), (other, "Other")],
             ),
         )
         compared = [
@@ -456,10 +474,10 @@ class TestRunSyncVerificationPhase:
         assert compared == [other]
         (failure,) = demo_utils._demo_failures
         assert failure.startswith("GATE FAILED")
-        assert "Finder ledger coverage" in failure
+        assert "Reporter ledger coverage" in failure
 
-    def test_state_checks_are_skipped_when_the_finder_gate_fails(self):
-        finder, auth = _client("finder"), _client("auth")
+    def test_state_checks_are_skipped_when_the_reporter_gate_fails(self):
+        reporter, auth = _client("reporter"), _client("auth")
         mocks = _phase_patches(
             wait_for_case_on_container=MagicMock(
                 side_effect=AssertionError("timed out waiting for case")
@@ -468,10 +486,10 @@ class TestRunSyncVerificationPhase:
         _run_phase(
             mocks,
             **self._kwargs(
-                finder,
+                reporter,
                 auth,
-                [(finder, "Finder")],
-                state_checks=[(finder, "Finder")],
+                [(reporter, "Reporter")],
+                state_checks=[(reporter, "Reporter")],
             ),
         )
         mocks["verify_replica_state"].assert_not_called()
@@ -484,17 +502,17 @@ class TestRunSyncVerificationPhase:
         misattributed failure ("Replica has no CaseLedgerEntry") for a fault
         that sits with the writer (EDF-06-005).
         """
-        finder, auth = _client("finder"), _client("auth")
+        reporter, auth = _client("reporter"), _client("auth")
         mocks = _phase_patches(
             _get_log_entries_for_case=MagicMock(return_value=[]),
         )
         _run_phase(
             mocks,
             **self._kwargs(
-                finder,
+                reporter,
                 auth,
-                [(finder, "Finder")],
-                state_checks=[(finder, "Finder")],
+                [(reporter, "Reporter")],
+                state_checks=[(reporter, "Reporter")],
             ),
         )
         mocks["wait_for_contiguous_ledger_coverage"].assert_not_called()
@@ -504,7 +522,7 @@ class TestRunSyncVerificationPhase:
         assert auth.base_url in failure
 
     def test_state_check_failure_is_accumulated_with_authority_label(self):
-        finder, auth = _client("finder"), _client("auth")
+        reporter, auth = _client("reporter"), _client("auth")
         mocks = _phase_patches(
             verify_replica_state=MagicMock(
                 side_effect=AssertionError("hash mismatch")
@@ -513,13 +531,15 @@ class TestRunSyncVerificationPhase:
         _run_phase(
             mocks,
             **self._kwargs(
-                finder,
+                reporter,
                 auth,
-                [(finder, "Finder")],
+                [(reporter, "Reporter")],
                 auth_label="Vendor1",
-                state_checks=[(finder, "Finder")],
+                state_checks=[(reporter, "Reporter")],
             ),
         )
         (failure,) = demo_utils._demo_failures
         assert failure.startswith("CHECK FAILED")
-        assert "Finder replica matches authoritative Vendor1 state" in failure
+        assert (
+            "Reporter replica matches authoritative Vendor1 state" in failure
+        )

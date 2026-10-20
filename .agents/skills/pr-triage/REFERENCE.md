@@ -132,7 +132,7 @@ changed classes, functions, messages, and CLI commands.
 | Case ledger | `case-ledger-authority.md` | `docs/topics/case_lifecycle/case_manager_and_ledger.md`, `docs/topics/case_lifecycle/case_ledger_sync.md`, `docs/reference/messages/ledger_replication.md` |
 | Inbox processing | `inbox-orchestration.md` | `docs/topics/protocol_flow.md`, `docs/topics/reference_architecture.md` |
 | Participant routing | `case-communication-model.md` | `docs/topics/protocol_flow.md`, `docs/topics/actor-knowledge-model.md` |
-| `demo/` | `demo-scenario-authoring.md` | `docs/tutorials/` demo pages, `docs/howto/demos/`, `docs/reference/fv-demo-protocol.md` |
+| `demo/` | `demo-scenario-authoring.md` | `docs/tutorials/` demo pages, `docs/howto/demos/`, `docs/reference/rv-demo-protocol.md` |
 | Dev tooling, `metadata/`, `.agents/skills/` | — | `docs/developer/` (draft docs) |
 
 Spec pages under `docs/reference/specs/`, the mkdocstrings `:::` API pages,

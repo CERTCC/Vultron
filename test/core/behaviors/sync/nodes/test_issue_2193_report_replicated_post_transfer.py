@@ -41,8 +41,8 @@ from vultron.core.behaviors.sync.announce_tree import (
 )
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.participant_event_types import (
-    UPDATE_CASE_OWNER_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    UPDATE_CASE_OWNER_SEMANTIC_TYPE,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
@@ -110,7 +110,7 @@ def _ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
         object_id="https://example.org/activities/ownership-0",
         # The CASE_MANAGER's own record of the new owner, which follows the
         # Accept and carries the case (CLP-07-013, #4439).
-        event_type=UPDATE_CASE_OWNER_EVENT_TYPE,
+        semantic_type=UPDATE_CASE_OWNER_SEMANTIC_TYPE,
         payload_snapshot={
             "type": "Update",
             "object": {
@@ -134,7 +134,7 @@ def _add_report_record(prev_hash: str) -> HashChainLedgerRecord:
         case_id=CASE_ID,
         log_index=1,
         object_id=REPORT_ID,
-        event_type="add_report_to_case",
+        semantic_type="add_report_to_case",
         payload_snapshot={
             "type": "Add",
             "actor": NEW_OWNER_ACTOR_ID,
@@ -178,7 +178,9 @@ def test_report_replicated_to_post_transfer_participant(
     # --- Step 1: ownership transfer entry (chains from the genesis anchor).
     transfer_record = _ownership_transfer_record(case_replica.genesis_hash)
     transfer_entry = _to_persistable_entry(transfer_record)
-    transfer_event = _make_event(transfer_entry, actor_id=case_actor.id_)
+    transfer_event = _make_event(
+        transfer_entry, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+    )
 
     transfer_result = bridge.execute_with_setup(
         tree=tree(),
@@ -198,7 +200,9 @@ def test_report_replicated_to_post_transfer_participant(
     # --- Step 2: add_report_to_case entry (chains from the transfer entry).
     report_record = _add_report_record(transfer_record.entry_hash)
     report_entry = _to_persistable_entry(report_record)
-    report_event = _make_event(report_entry, actor_id=case_actor.id_)
+    report_event = _make_event(
+        report_entry, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+    )
 
     report_result = bridge.execute_with_setup(
         tree=tree(),

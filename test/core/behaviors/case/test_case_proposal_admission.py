@@ -44,7 +44,7 @@ from py_trees.common import Status
 
 from test.support.ledger import (
     commit_case_fully_closed,
-    committed_event_types,
+    committed_semantic_types,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -1365,7 +1365,7 @@ class TestTheClosedCaseCheckFailsTowardRefusal:
 def test_another_proposer_for_a_closed_cases_report_gets_its_own_case(dl):
     """Another party's closed case does not decline this proposer (CP-05-008)."""
     closed = _accepted_then_closed(dl)
-    closed_ledger = committed_event_types(dl, str(closed.id_))
+    closed_ledger = committed_semantic_types(dl, str(closed.id_))
 
     status = _run_tree(
         dl,
@@ -1378,7 +1378,7 @@ def test_another_proposer_for_a_closed_cases_report_gets_its_own_case(dl):
     assert "Reject" not in _types_in_outbox(dl)
     owners = sorted(str(c.attributed_to) for c in _cases(dl))
     assert owners == sorted([_VENDOR_URI, _OTHER_PROPOSER_URI])
-    assert committed_event_types(dl, str(closed.id_)) == closed_ledger, (
+    assert committed_semantic_types(dl, str(closed.id_)) == closed_ledger, (
         "the closed case gains nothing"
     )
 

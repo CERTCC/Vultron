@@ -781,7 +781,7 @@ class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
                 e
                 for e in dl.list_objects("CaseLedgerEntry")
                 if isinstance(e, CaseLedgerEntry)
-                and e.event_type == "invite_actor_to_case"
+                and e.semantic_type == "invite_actor_to_case"
             ]
 
         ledger_at_append: list[list[str | None]] = []
@@ -959,7 +959,7 @@ class TestEmitOwnershipTransferNodes:
     production: both parties have a replica naming the same CaseActor.
     """
 
-    @pytest.mark.spec("CM-21-005")
+    @pytest.mark.spec("CM-21-005", "DL-08-003")
     def test_emit_offer_to_is_case_actor_id(self, store_for):
         """AC-5a: EmitOfferCaseOwnershipTransferNode sets to=[case_actor_id]."""
         dl = store_for(_OT_OWNER_ID)
@@ -1001,10 +1001,15 @@ class TestEmitOwnershipTransferNodes:
         assert "attributedTo" not in activity
         # Queued in the owner's own outbox, not the CASE_MANAGER's.
         assert activity["id"] in dl.outbox_list()
-        # The transferee is named as the intended new owner in the target field.
-        assert activity.get("target") == _OT_TRANSFEREE_ID, (
+        # The transferee is named as the intended new owner in the target
+        # field, carried inline as an Actor, never a bare id (DL-08-003).
+        target = activity.get("target")
+        assert isinstance(target, dict), (
+            f"Offer.target must carry the transferee inline; got {target!r}"
+        )
+        assert target.get("id") == _OT_TRANSFEREE_ID, (
             f"Offer.target must name the transferee ({_OT_TRANSFEREE_ID}); "
-            f"got target={activity.get('target')!r}"
+            f"got target={target!r}"
         )
 
     @pytest.mark.spec("CM-21-006")

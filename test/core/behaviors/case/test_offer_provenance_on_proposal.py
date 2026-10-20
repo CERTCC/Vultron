@@ -30,7 +30,7 @@ The chain this pins, end to end:
 Step 2 was missing. Nothing complained at any link: the CaseActor's
 ``_find_offer_id_for_report`` scanned its own (correct, empty) store,
 ``build_add_report_to_case_snapshot`` omits ``offerId`` when not given one, so
-the ledger lost the report's Offer provenance without a sound (#2548, fcvcv).
+the ledger lost the report's Offer provenance without a sound (#2548, rcvcv).
 """
 
 from datetime import UTC, datetime
@@ -246,7 +246,7 @@ def _add_report_snapshot(dl: SqliteDataLayer) -> dict[str, Any]:
     entries = [
         e
         for e in dl.list_objects("CaseLedgerEntry")
-        if getattr(e, "event_type", None) == "add_report_to_case"
+        if getattr(e, "semantic_type", None) == "add_report_to_case"
     ]
     assert len(entries) == 1, "one canonical add_report_to_case entry (AC-4)"
     snapshot = getattr(entries[0], "payload_snapshot", None)
@@ -312,7 +312,11 @@ class TestProposalCarriesTheOfferItself:
     _END = datetime(2099, 6, 1, tzinfo=UTC)
 
     def _stored_offer(self, datalayer, report, *, with_terms: bool) -> str:
-        """Store the Reporter's Offer (as the inbox does) and its record."""
+        """Keep the Reporter's Offer as intake archives it, and its record.
+
+        Nothing holds the Offer under the id its sender chose (DL-06-006).
+        """
+        from test.support.received import archive_received
         from vultron.wire.as2.factories import rm_submit_report_activity
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             as_VulnerabilityReport,
@@ -332,7 +336,8 @@ class TestProposalCarriesTheOfferItself:
             actor=_REPORTER_URI,
             proposed_embargo=terms,
         )
-        datalayer.create(offer)
+        archive_received(datalayer, offer)
+        assert datalayer.read(offer.id_) is None
         datalayer.save(
             VultronOfferRecord(
                 offer_id=offer.id_,
@@ -356,6 +361,7 @@ class TestProposalCarriesTheOfferItself:
 
     @pytest.mark.spec("CP-01-008")
     @pytest.mark.spec("EP-04-004")
+    @pytest.mark.spec("DL-06-006")
     def test_the_offer_and_its_proposed_terms_are_carried_inline(
         self, datalayer, actor, report, bridge
     ):

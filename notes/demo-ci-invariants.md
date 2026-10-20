@@ -6,7 +6,7 @@ description: >
   Rules for the demo CI case-ledger invariant harness: separate demo and
   harness jobs, an artifact that exists even when the demo fails, the narrative
   causal-edge schema, harness file conventions, the per-scenario expected
-  event types table (ratcheted), keeping DEMOMA-16 and the harness constants in
+  semantic types table (ratcheted), keeping DEMOMA-16 and the harness constants in
   one PR, reading a red harness job, post-merge runs on `main`, and
   cancellation-safe failure notification.
 related_specs:
@@ -103,8 +103,8 @@ ledger must show:
 
 ```yaml
 causal_edges:
-  - antecedent: <event_type>     # eventType of the earlier ledger entry
-    consequent: <event_type>     # eventType of the later ledger entry
+  - antecedent: <semantic_type>     # semanticType of the earlier ledger entry
+    consequent: <semantic_type>     # semanticType of the later ledger entry
     consequent_actor: <name>     # actorName of the recorded emitter
     note: <text>                 # optional
     observable: true             # optional; false = not a ledger event
@@ -130,11 +130,11 @@ causal_edges:
   `invite_actor_to_case`, and each `invite_actor_to_case` edge is followed by
   exactly one accept-or-reject edge from a different actor.
 - **Update together (DEMOMA-22-006).** A change to a scenario's causal flow
-  updates both the narrative's `causal_edges:` and, if it adds an event type that
-  must always appear, the harness's `_XXX_EXPECTED_EVENT_TYPES`. Neither check
+  updates both the narrative's `causal_edges:` and, if it adds a semantic type that
+  must always appear, the harness's `_XXX_EXPECTED_SEMANTIC_TYPES`. Neither check
   substitutes for the other.
 
-An edge may name an event type the expected list does not require: the handoff
+An edge may name a semantic type the expected list does not require: the handoff
 narratives declare `offer_case_ownership_transfer →
 accept_case_ownership_transfer` (ADR-0053), while DEMOMA-16-005/006 require only
 the acceptance. Requiring the offer would need the spec and harness edits to land
@@ -149,7 +149,7 @@ Each scenario has one self-contained harness,
 Copy an existing one:
 
 1. Declare `_DEMO_NAME`, `_CHAIN_ACTORS` (scenario-role names, not docker service
-   names) and `_<SCENARIO>_EXPECTED_EVENT_TYPES`.
+   names) and `_<SCENARIO>_EXPECTED_SEMANTIC_TYPES`.
 2. Define a module-scoped replicas fixture calling
    `load_devlogs(demo_name=_DEMO_NAME)`.
 3. Inject the universal invariants with
@@ -175,14 +175,14 @@ synthetic fixtures for unit-testing `common.py` (CONCERN-2004).
 
 ---
 
-## Per-Scenario Expected Event Types (DEMOMA-16)
+## Per-Scenario Expected Semantic Types (DEMOMA-16)
 
-Each scenario's `_XXX_EXPECTED_EVENT_TYPES` extends the universal types
+Each scenario's `_XXX_EXPECTED_SEMANTIC_TYPES` extends the universal types
 (DEMOMA-16-001) with the phases that scenario must exercise, so a scenario-specific
 phase cannot regress silently. The DEMOMA-16 requirements are normative; the
 constants implement them.
 
-### Scenario required event types
+### Scenario required semantic types
 
 One row per scenario. `Scenario` is the registry's `label` in name order, `Spec`
 is resolved from the spec corpus, and `Additional required` is checked against
@@ -192,30 +192,30 @@ annotations such as `(≥3)` belong to the count tests and are not checked.
 
 | Scenario | Spec | Universal 5 | Additional required |
 |---|---|---|---|
-| FCCV-extension | DEMOMA-16-010 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
-| FCCV-handoff | DEMOMA-16-006 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
-| FCV | DEMOMA-16-007 | same | invite_actor_to_case, accept_invite_actor_to_case |
-| FCV-reject | DEMOMA-16-011 | same | invite_actor_to_case, reject_invite_actor_to_case |
-| FCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
-| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
-| FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
-| FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
-| FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| RCCV-extension | DEMOMA-16-010 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
+| RCCV-handoff | DEMOMA-16-006 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
+| RCV | DEMOMA-16-007 | same | invite_actor_to_case, accept_invite_actor_to_case |
 | RCV embargo | DEMOMA-16-016 | same | invite_actor_to_case, accept_invite_actor_to_case, invite_to_embargo_on_case, accept_invite_to_embargo_on_case, activate_embargo_on_case, remove_embargo_event_from_case |
+| RCV-reject | DEMOMA-16-011 | same | invite_actor_to_case, reject_invite_actor_to_case |
+| RCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
 | RCVV embargo | DEMOMA-16-017 | same | invite_actor_to_case, accept_invite_actor_to_case, invite_to_embargo_on_case, accept_invite_to_embargo_on_case, activate_embargo_on_case, remove_embargo_event_from_case |
+| rv | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
+| RVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
+| RVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
+| RVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
 
 ### Relationship to scenario-specific test functions
 
 Invariant 5 checks that each expected type is **present**. A scenario that needs
 an event **N or more times** adds a `test_XXX_<event>_at_least_N` test built on
-`check_event_type_count`.
+`check_semantic_type_count`.
 
-`check_event_type_count` also takes a keyword-only `max_count`. Add one where a
+`check_semantic_type_count` also takes a keyword-only `max_count`. Add one where a
 count above the scenario's own sends would itself be a defect that the universal
 duplicate-commit check (`test_invariant_clp07_unique_payload_snapshot_ids`,
-CLP-07-002) cannot see, such as a second Invite with its own activity id. FCV
+CLP-07-002) cannot see, such as a second Invite with its own activity id. RCV
 pins `invite_actor_to_case` to exactly one: the Coordinator invites only the
-Vendor, because the CASE_MANAGER seats the reporting Finder at case creation
+Vendor, because the CASE_MANAGER seats the Reporter at case creation
 (CM-22-002).
 
 ### Audit an invariant against the scenario before copying it
@@ -223,7 +223,7 @@ Vendor, because the CASE_MANAGER seats the reporting Finder at case creation
 An invariant holds only on its scenario's protocol path. Before copying a check
 to a new harness, check it against that scenario's participants and phases. A
 check asserting "event X was observed" is a false failure where X is impossible
-by design: in `fcv-reject` no Vendor joins, so the VFD `VFd` state is
+by design: in `rcv-reject` no Vendor joins, so the VFD `VFd` state is
 unreachable, and its harness passes `check_fix_ready=False` (DEMOCI-06-001). Use
 the check's parameter; do not skip the invariant.
 
@@ -232,14 +232,14 @@ the check's parameter; do not skip the invariant.
 ## Keeping Spec and Code in Sync
 
 When a scenario phase is added or removed, change the DEMOMA-16 requirement in
-`specs/multi-actor-demo.yaml` and the harness's `_XXX_EXPECTED_EVENT_TYPES` in
+`specs/multi-actor-demo.yaml` and the harness's `_XXX_EXPECTED_SEMANTIC_TYPES` in
 the **same PR** (DEMOMA-16-008). They cannot be split across a docs PR and a
 later implementation PR.
 
 `test/metadata/test_demo_scenario_artifacts.py` ratchets one direction:
-`test_per_scenario_demoma_16_names_every_harness_event_type` fails when a harness
+`test_per_scenario_demoma_16_names_every_harness_semantic_type` fails when a harness
 expects a non-universal type its requirement does not name, and
-`test_democi_06_002_names_exactly_the_pr_set_event_types` holds DEMOCI-06-002
+`test_democi_06_002_names_exactly_the_pr_set_semantic_types` holds DEMOCI-06-002
 equal to the PR-set harnesses' types. The reverse is not checked, because some
 statements name a type to exclude it (DEMOMA-16-002, DEMOMA-16-011).
 
@@ -267,10 +267,10 @@ file finds nothing:
   `receiver_engages_case()` for the direct receiver in every multi-actor
   scenario;
 - `run_invite_path_rm_triage()` calls it for an invitee whose invite is accepted
-  (CM-11-002) — not in `fcv-reject`, whose Vendor rejects;
-- `fv_demo.py` calls it through `vendor_engages_case()`.
+  (CM-11-002) — not in `rcv-reject`, whose Vendor rejects;
+- `rv_demo.py` calls it through `vendor_engages_case()`.
 
-The `fvcv-handoff` `check_event_type_count(..., "engage_case", min_count=2)`
+The `rvcv-handoff` `check_semantic_type_count(..., "engage_case", min_count=2)`
 stays scenario-specific: it asserts the count Vendor2's post-join triage implies.
 
 ---

@@ -40,14 +40,14 @@ def test_demo(demo_env, demo_fn, caplog):
     Tests that the suggest_actor demo workflows complete successfully.
 
     For the accept path, verifies:
-    - Case initialized with finder participant
-    - Finder recommends coordinator to vendor
+    - Case initialized with reporter participant
+    - Reporter recommends coordinator to vendor
     - Vendor accepts the recommendation
     - Acceptance stored in data layer
 
     For the reject path, verifies:
-    - Case initialized with finder participant
-    - Finder recommends coordinator to vendor
+    - Case initialized with reporter participant
+    - Reporter recommends coordinator to vendor
     - Vendor rejects the recommendation
     - Participant list unchanged after rejection
     """

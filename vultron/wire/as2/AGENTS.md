@@ -78,7 +78,7 @@ come before general ones:
 | 6 | Ownership transfer | `OFFER_CASE_OWNERSHIP_TRANSFER`, `ACCEPT_CASE_OWNERSHIP_TRANSFER`, ... |
 | 7 | Case log entries | `ANNOUNCE_LOG_ENTRY`, `REJECT_LOG_ENTRY` |
 | 8 | Vulnerability case announcements | `ANNOUNCE_VULNERABILITY_CASE` |
-| 9 | Notes | `CREATE_NOTE`, `ADD_NOTE_TO_CASE`, `REMOVE_NOTE_FROM_CASE` |
+| 9 | Notes | `ADD_NOTE_TO_CASE`, `REMOVE_NOTE_FROM_CASE` |
 | 10 | Participants | `ADD_CASE_PARTICIPANT_TO_CASE`, `REMOVE_CASE_PARTICIPANT_FROM_CASE` |
 | 11 | Fallback sentinels | `UNKNOWN_UNRESOLVABLE_OBJECT`, `UNKNOWN` |
 
@@ -89,7 +89,8 @@ specific than an existing entry in the same `activity_` group, place it
 ### Import-Time Order Guard
 
 `_validate_registry_order()` is called at module load — a mis-ordered registry
-**prevents the module from loading**. Also run
+**prevents the module from loading**. An `InlineActivityObjectPattern` catch-all
+(`RefusalNoticePattern`) is checked by `_check_inline_activity_order()` instead. Also run
 `test/test_semantic_activity_patterns.py` after any registry edit (belt-and-
 suspenders for edge cases the runtime guard might miss).
 

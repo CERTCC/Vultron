@@ -32,7 +32,7 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoRejectionFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay import (
-    EMBARGO_INVITE_EVENT_TYPE,
+    EMBARGO_INVITE_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
@@ -126,13 +126,13 @@ def _answer_snapshot(verb: str, actor: str) -> dict[str, Any]:
     }
 
 
-def _entry(event_type: str, snapshot: dict[str, Any]) -> CaseLedgerEntry:
+def _entry(semantic_type: str, snapshot: dict[str, Any]) -> CaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
-            object_id=str(snapshot.get("id") or f"urn:{event_type}"),
-            event_type=event_type,
+            object_id=str(snapshot.get("id") or f"urn:{semantic_type}"),
+            semantic_type=semantic_type,
             payload_snapshot=snapshot,
             prev_log_hash="0" * 64,
         )
@@ -267,6 +267,33 @@ class TestIsRelayedEmbargoInvite:
     @pytest.mark.spec("EP-09-007")
     def test_without_a_case_authorship_alone_decides(self, datalayer):
         assert is_relayed_embargo_invite(_invite_snapshot(), None, datalayer)
+
+    @pytest.mark.spec("OID-01-006")
+    def test_slash_spelled_manager_emission_is_still_a_relay(
+        self, datalayer, revising_case
+    ):
+        """The snapshot keeps the manager's trailing slash; the stored role
+        holder has none, and the two still name one actor."""
+        assert is_relayed_embargo_invite(
+            _invite_snapshot(actor=MANAGER_ACTOR_ID + "/"),
+            revising_case,
+            datalayer,
+        )
+
+    @pytest.mark.spec("OID-01-006")
+    def test_slash_spelled_self_attribution_is_the_proposal(
+        self, datalayer, revising_case
+    ):
+        """``attributedTo`` naming the sender in the other spelling is the
+        sender itself, not a third party."""
+        assert not is_relayed_embargo_invite(
+            _invite_snapshot(
+                actor=PROPOSER_ACTOR_ID,
+                attributed_to=PROPOSER_ACTOR_ID + "/",
+            ),
+            None,
+            datalayer,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -561,6 +588,30 @@ class TestApplyEmbargoInvite:
             REVISION_ID: INVITE_ID
         }
 
+    @pytest.mark.spec("OID-01-006")
+    @pytest.mark.spec("EP-08-002")
+    def test_a_slash_spelled_proposer_attribution_still_indexes_the_invite(
+        self, bridge, datalayer, revising_case
+    ):
+        """The relay's ``attributedTo`` keeps the proposer's trailing slash;
+        it still names this replica's actor, so the Invite is indexed."""
+        result = _run(
+            bridge,
+            ApplyEmbargoInviteFromLedgerNode(name="Invite"),
+            _entry(
+                "invite_to_embargo_on_case",
+                _invite_snapshot(
+                    attributed_to=PARTICIPANT_ACTOR_ID + "/",
+                    to=[OWNER_ACTOR_ID],
+                ),
+            ),
+        )
+
+        assert result.status == Status.SUCCESS
+        assert _case(datalayer).pending_embargo_proposal_index == {
+            REVISION_ID: INVITE_ID
+        }
+
     @pytest.mark.spec("EP-08-002")
     def test_the_proposers_replica_keeps_its_own_proposal_id(
         self, bridge, datalayer, revising_case
@@ -602,7 +653,7 @@ class TestApplyEmbargoInvite:
 # ApplyEmbargoAcceptanceFromLedgerNode / ApplyEmbargoRejectionFromLedgerNode
 # ---------------------------------------------------------------------------
 
-_ANSWER_EVENT_TYPE = {
+_ANSWER_SEMANTIC_TYPE = {
     "Accept": "accept_invite_to_embargo_on_case",
     "Reject": "reject_invite_to_embargo_on_case",
 }
@@ -618,7 +669,7 @@ def _replay_answer(bridge, verb: str, actor: str):
     return _run(
         bridge,
         _answer_node(verb),
-        _entry(_ANSWER_EVENT_TYPE[verb], _answer_snapshot(verb, actor)),
+        _entry(_ANSWER_SEMANTIC_TYPE[verb], _answer_snapshot(verb, actor)),
     )
 
 
@@ -660,6 +711,27 @@ class TestApplyEmbargoAnswers:
         )
         assert record.is_signatory(ACTIVE_EMBARGO_ID)
 
+    @pytest.mark.spec("OID-01-006")
+    @pytest.mark.spec("CM-23-016")
+    @pytest.mark.parametrize("verb", ["Accept", "Reject"])
+    def test_a_slash_spelled_answer_copies_the_canonical_row(
+        self, bridge, datalayer, revising_case, verb
+    ):
+        """The answer's snapshot keeps the sender's trailing slash; the row
+        it states is copied onto the sender's canonically keyed record."""
+        _replay_proposal_with_rows(bridge, datalayer)
+
+        result = _replay_answer(bridge, verb, PARTICIPANT_ACTOR_ID + "/")
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        assert _record(datalayer, PARTICIPANT_ACTOR_ID).consent_for(
+            REVISION_ID
+        ) is (
+            EmbargoConsentState.AGREED
+            if verb == "Accept"
+            else EmbargoConsentState.DECLINED
+        )
+
     @pytest.mark.spec("SYNC-12-003")
     @pytest.mark.parametrize("verb", ["Accept", "Reject"])
     def test_a_repeated_answer_replays_as_a_no_op(
@@ -668,7 +740,7 @@ class TestApplyEmbargoAnswers:
         """An answer already in place is no fault on a second delivery."""
         _replay_proposal_with_rows(bridge, datalayer)
         entry = _entry(
-            _ANSWER_EVENT_TYPE[verb],
+            _ANSWER_SEMANTIC_TYPE[verb],
             _answer_snapshot(verb, PARTICIPANT_ACTOR_ID),
         )
         for _ in range(2):
@@ -708,7 +780,7 @@ class TestApplyEmbargoAnswers:
 
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("RSH-08-004")
-def test_announce_tree_carries_a_slot_per_relay_event_type():
+def test_announce_tree_carries_a_slot_per_relay_semantic_type():
     names = {
         node.name
         for node in create_announce_log_entry_tree(
@@ -737,7 +809,7 @@ def test_classifying_an_invite_entry_without_a_store_is_a_wiring_fault(
     """FAILURE would read as "not this slot" in both Inverters (#3915)."""
     node = node_cls(name=node_cls.__name__)
     node.activity = _make_event(
-        _entry(EMBARGO_INVITE_EVENT_TYPE, _invite_snapshot()),
+        _entry(EMBARGO_INVITE_SEMANTIC_TYPE, _invite_snapshot()),
         actor_id=MANAGER_ACTOR_ID,
     )
     node.datalayer = None

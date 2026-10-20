@@ -51,9 +51,9 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.embargo_consent_event_types import (
-    CREATE_EMBARGO_CONSENT_EVENT_TYPE,
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+from vultron.core.models.embargo_consent_semantic_types import (
+    CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
@@ -834,13 +834,13 @@ def test_each_relayed_invite_is_committed_after_the_proposal(make_payload):
 
     _deliver(dl, _proposal(revision, case_id), make_payload, MANAGER)
 
-    everything = [e.event_type for e in _ledger_entries(dl, case_id)]
+    everything = [e.semantic_type for e in _ledger_entries(dl, case_id)]
     # The proposal (the PROPOSE step), each participant's new row, then each
     # relayed Invite followed by its invitee's row (ADR-0124, CLP-07-013).
     invite, created, updated = (
         "invite_to_embargo_on_case",
-        CREATE_EMBARGO_CONSENT_EVENT_TYPE,
-        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
+        UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
     )
     rows = len(
         cast(VulnerabilityCase, dl.read(case_id)).actor_participant_index
@@ -856,7 +856,7 @@ def test_each_relayed_invite_is_committed_after_the_proposal(make_payload):
     entries = [
         e
         for e in _ledger_entries(dl, case_id)
-        if e.event_type == "invite_to_embargo_on_case"
+        if e.semantic_type == "invite_to_embargo_on_case"
     ]
     assert len(entries) == 3
     snapshots = [e.payload_snapshot for e in entries]
@@ -1019,7 +1019,7 @@ def test_a_missing_trigger_port_is_a_wiring_fault_that_moves_no_state(
     assert _relayed_invites(dl) == []
     # The received proposal was committed before the routing guard failed
     # (CLP-10-006); the retry re-adjudicates under the idempotency guard.
-    assert [e.event_type for e in _ledger_entries(dl, case_id)] == [
+    assert [e.semantic_type for e in _ledger_entries(dl, case_id)] == [
         "invite_to_embargo_on_case"
     ]
 
@@ -1185,9 +1185,9 @@ def test_a_redelivery_after_a_mid_relay_fault_sends_each_invite_once(
     assert case.current_status.em.state == EM.REVISE
     assert revision.id_ not in case.pending_embargo_proposal_index
     assert [
-        e.event_type
+        e.semantic_type
         for e in _ledger_entries(dl, case_id)
-        if e.event_type == "invite_to_embargo_on_case"
+        if e.semantic_type == "invite_to_embargo_on_case"
     ] == ["invite_to_embargo_on_case"] * 2
 
     second = InviteToEmbargoOnCaseReceivedUseCase(
@@ -1207,9 +1207,9 @@ def test_a_redelivery_after_a_mid_relay_fault_sends_each_invite_once(
     # One entry for the proposal (reused, not duplicated) and one per Invite,
     # and one per invitee's row: the rebuilt Invite carries the deadline the
     # row already holds, so its rerun commits no second row (ADR-0124).
-    event_types = [e.event_type for e in _ledger_entries(dl, case_id)]
-    assert event_types.count("invite_to_embargo_on_case") == 3
-    assert event_types.count(UPDATE_EMBARGO_CONSENT_EVENT_TYPE) == 2
+    semantic_types = [e.semantic_type for e in _ledger_entries(dl, case_id)]
+    assert semantic_types.count("invite_to_embargo_on_case") == 3
+    assert semantic_types.count(UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE) == 2
     case = cast(VulnerabilityCase, dl.read(case_id))
     assert case.pending_embargo_proposal_index[revision.id_] == proposal.id_
 
@@ -1252,7 +1252,7 @@ def test_a_relay_whose_commit_failed_after_the_send_is_recorded_once_on_retry(
         failed = fail_commits(
             mp,
             commit_tree,
-            when=lambda kw: kw["event_type"] == "invite_to_embargo_on_case",
+            when=lambda kw: kw["semantic_type"] == "invite_to_embargo_on_case",
         )
         with pytest.raises(VultronBTInternalError):
             _deliver()
@@ -1299,3 +1299,40 @@ def test_attribution_without_a_local_case_falls_back_to_the_sender(
     caplog.set_level("WARNING")
     assert resolve_proposer_id(event, dl) == MANAGER
     assert any("holds no case" in r.message for r in caplog.records)
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CM-24-002")
+def test_a_slash_spelled_relay_attribution_names_the_stored_proposer(
+    make_payload,
+):
+    """``attributedTo`` is extracted without its trailing slash, so the
+    proposer is the stored participant: its row is agreed, it is left out of
+    the relay and the relays attribute it canonically."""
+    case_id = "https://example.org/cases/relay-attributed-slash"
+    dl, revision = _active_case_with_revision(
+        case_id,
+        store_actor=MANAGER,
+        participants=[PROPOSER, OTHER_A, OTHER_B],
+    )
+    invite = _proposal(
+        revision, case_id, actor=MANAGER, attributed_to=PROPOSER + "/"
+    )
+
+    assert (
+        resolve_proposer_id(
+            make_payload(invite, receiving_actor_id=MANAGER), dl
+        )
+        == PROPOSER
+    )
+    _deliver(dl, invite, make_payload, MANAGER)
+
+    relayed = _relayed_invites(dl)
+    assert sorted(r for a in relayed for r in (a.to or [])) == sorted(
+        [OTHER_A, OTHER_B]
+    )
+    assert {a.attributed_to for a in relayed} == {PROPOSER}
+    assert (
+        _consent_of(dl, case_id, PROPOSER, revision.id_)
+        == EmbargoConsentState.AGREED
+    )

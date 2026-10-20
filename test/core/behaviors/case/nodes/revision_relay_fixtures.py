@@ -29,7 +29,7 @@ from vultron.core.behaviors.case.nodes.embargo_revision_relay import (
     RelayCreationTimeRevisionNode,
 )
 from vultron.core.behaviors.case.nodes.proposal_ledger import (
-    CREATE_CASE_EVENT_TYPE,
+    CREATE_CASE_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import days_from_now_utc
@@ -126,7 +126,7 @@ def seed(
                     case_id=CASE_ID,
                     log_index=0,
                     object_id=CASE_ID,
-                    event_type=CREATE_CASE_EVENT_TYPE,
+                    semantic_type=CREATE_CASE_SEMANTIC_TYPE,
                     payload_snapshot={},
                     prev_log_hash=case.genesis_hash,
                 )

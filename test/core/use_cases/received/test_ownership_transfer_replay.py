@@ -29,9 +29,9 @@ from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.participant_event_types import (
-    UPDATE_CASE_OWNER_EVENT_TYPE,
-    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    UPDATE_CASE_OWNER_SEMANTIC_TYPE,
+    UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.enums.roles import CVDRole
@@ -114,14 +114,14 @@ def test_each_changed_object_follows_the_accept_as_its_own_entry():
     net = _transferred("https://example.org/cases/ot-replay-entries")
 
     entries = _entries(net, MANAGER)
-    event_types = [e.event_type for e in entries]
-    accept_at = event_types.index(_ACCEPT)
+    semantic_types = [e.semantic_type for e in entries]
+    accept_at = semantic_types.index(_ACCEPT)
     consequences = entries[accept_at + 1 :]
 
-    assert [e.event_type for e in consequences] == [
-        UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
-        UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
-        UPDATE_CASE_OWNER_EVENT_TYPE,
+    assert [e.semantic_type for e in consequences] == [
+        UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        UPDATE_CASE_OWNER_SEMANTIC_TYPE,
     ]
     for entry in consequences:
         assert entry.payload_snapshot["type"] == "Update"
@@ -149,7 +149,7 @@ def test_a_replica_holds_the_managers_owner_after_a_transfer(replica: str):
 
     delivered = net.replay_ledger(replica)
 
-    assert UPDATE_CASE_OWNER_EVENT_TYPE in delivered
+    assert UPDATE_CASE_OWNER_SEMANTIC_TYPE in delivered
     assert _owners(net, replica) == _owners(net, MANAGER)
     assert _owners(net, replica)[BYSTANDER] is True
     assert net.case(replica).attributed_to == BYSTANDER

@@ -30,8 +30,8 @@ from vultron.core.behaviors.embargo.nodes.activation_commit import (
     CommitAndApplyEmbargoActivationNode,
 )
 from vultron.core.behaviors.embargo.nodes.activation_effect import (
-    EMBARGO_ACTIVATION_EVENT_TYPE,
-    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
+    EMBARGO_ACTIVATION_SEMANTIC_TYPE,
+    EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
     ApplyEmbargoActivationFromLedgerNode,
     ApplyEmbargoProposalRejectionFromLedgerNode,
     IsActivateEmbargoEventNode,
@@ -42,7 +42,6 @@ from vultron.core.behaviors.embargo.nodes.cascade import (
 )
 from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
-    HasCaseStatusesNode,
     IsActiveEmbargoNode,
     IsCloseBlockedByActiveEmbargoNode,
     IsProposedEmbargoNode,
@@ -91,7 +90,7 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
 )
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     COMMITTED_ACTIVITY_KEY,
-    EMBARGO_TEARDOWN_EVENT_TYPE,
+    EMBARGO_TEARDOWN_SEMANTIC_TYPE,
     CommitEmbargoDecisionNode,
     CommitEmbargoProposalNode,
     EmbargoActivityBuilder,
@@ -109,7 +108,6 @@ from vultron.core.behaviors.embargo.nodes.owner_decision import (
     SendOwnerEmbargoDecisionNode,
 )
 from vultron.core.behaviors.embargo.nodes.proposal import (
-    CreateAndStoreInviteNode,
     IndexReceivedEmbargoProposalNode,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
@@ -122,7 +120,7 @@ from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     OwnerRejectsRevisionAfterDisclosureNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay import (
-    EMBARGO_INVITE_EVENT_TYPE,
+    EMBARGO_INVITE_SEMANTIC_TYPE,
     CollectEmbargoInviteRecipientsNode,
     EmbargoProposalNotYetRecordedNode,
     EmStateAdmitsProposalNode,
@@ -146,6 +144,9 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
 from vultron.core.behaviors.embargo.nodes.terminate import (
     TeardownAskPendingNode,
     ask_case_manager_to_terminate_once,
+)
+from vultron.core.behaviors.embargo.nodes.termination_cause_guard import (
+    TerminationCauseIsAdmissibleNode,
 )
 from vultron.core.behaviors.embargo.nodes.termination_commit import (
     CommitAndApplyEmbargoTerminationNode,
@@ -171,7 +172,6 @@ __all__ = [
     "IsCloseBlockedByActiveEmbargoNode",
     "IsProposedEmbargoNode",
     "HasActiveEmbargoNode",
-    "HasCaseStatusesNode",
     "LookupParticipantNode",
     # EM state read
     "ReadEmStateNode",
@@ -180,6 +180,7 @@ __all__ = [
     "HasEmbargoActiveNode",
     "ClearActiveEmbargoNode",
     "TerminationIsTimelyNode",
+    "TerminationCauseIsAdmissibleNode",
     "ApplyEmbargoTeardownNode",
     "SendAnnounceEmbargoEventNode",
     # The case owner's decision on a proposal (ADR-0122) and its replay
@@ -196,21 +197,21 @@ __all__ = [
     "SendEmbargoEndingNoticesNode",
     "embargo_ending_notice_nodes",
     # The case owner's decision replayed from the ledger (RSH-08-004)
-    "EMBARGO_ACTIVATION_EVENT_TYPE",
-    "EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE",
+    "EMBARGO_ACTIVATION_SEMANTIC_TYPE",
+    "EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE",
     "ApplyEmbargoActivationFromLedgerNode",
     "ApplyEmbargoProposalRejectionFromLedgerNode",
     "IsActivateEmbargoEventNode",
     "IsRejectEmbargoProposalEventNode",
     # Relay (EP-09)
-    "EMBARGO_INVITE_EVENT_TYPE",
+    "EMBARGO_INVITE_SEMANTIC_TYPE",
     "CollectEmbargoInviteRecipientsNode",
     "EmStateAdmitsProposalNode",
     "EmbargoProposalNotYetRecordedNode",
     "ReinviteStaleAccepterNode",
     "RelayEmbargoInviteToEachNode",
     # CASE_MANAGER decision commit (EP-09-008, #4085)
-    "EMBARGO_TEARDOWN_EVENT_TYPE",
+    "EMBARGO_TEARDOWN_SEMANTIC_TYPE",
     "CommitEmbargoDecisionNode",
     "CommitEmbargoProposalNode",
     "CommitAndApplyEmbargoTerminationNode",
@@ -245,7 +246,6 @@ __all__ = [
     "InviteExpiryChangedConsentNode",
     "InviteExpiryNeedsApplyNode",
     # Proposal
-    "CreateAndStoreInviteNode",
     "RecordParticipantAcceptanceNode",
     "RecordParticipantRejectionNode",
     # Lifecycle

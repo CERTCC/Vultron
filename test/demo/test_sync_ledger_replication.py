@@ -106,14 +106,14 @@ def _make_log_entry(
     case_id: str,
     log_index: int,
     prev_hash: str,
-    event_type: str,
+    semantic_type: str,
 ) -> CaseLedgerEntry:
     record = HashChainLedgerRecord(
         case_id=case_id,
         log_index=log_index,
         object_id=case_id,
-        event_type=event_type,
-        payload_snapshot={"event_type": event_type},
+        semantic_type=semantic_type,
+        payload_snapshot={"semantic_type": semantic_type},
         prev_log_hash=prev_hash,
     )
     return _to_persistable_entry(record)
@@ -214,7 +214,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
         json={
             "case_id": case.id_,
             "object_id": case.id_,
-            "event_type": "sync_901_happy_path",
+            "semantic_type": "sync_901_happy_path",
         },
     )
     assert response.status_code == 202, response.text
@@ -231,7 +231,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     assert peer_entry.log_index == payload["log_index"]
     assert peer_entry.entry_hash == payload["entry_hash"]
     assert peer_entry.log_object_id == case.id_
-    assert peer_entry.event_type == "sync_901_happy_path"
+    assert peer_entry.semantic_type == "sync_901_happy_path"
 
     # AC-4 guard: each actor app uses its own isolated DataLayer.
     assert case_actor_iso.dl is not peer_iso.dl

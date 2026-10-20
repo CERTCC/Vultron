@@ -71,14 +71,15 @@ def request_invite_actor_to_case() -> as_Offer:
 
 
 def accept_actor_recommendation() -> as_Accept:
-    _vendor = vendor()
+    """The CASE_MANAGER accepts a recommender's suggestion (CM-16-006)."""
     _coordinator = _COORDINATOR
     _finder = finder()
     _case = case()
     _recommendation = recommend_actor()
     _activity = accept_actor_recommendation_activity(
         _recommendation,
-        actor=_vendor.id_,
+        actor=case_actor().id_,
+        in_reply_to=_recommendation.id_,
         context=_case.id_,
         target=_case.id_,
         to=_finder.id_,
@@ -89,14 +90,15 @@ def accept_actor_recommendation() -> as_Accept:
 
 
 def reject_actor_recommendation() -> as_Reject:
-    _vendor = vendor()
+    """The CASE_MANAGER declines a recommender's suggestion (CM-16-007)."""
     _coordinator = _COORDINATOR
     _finder = finder()
     _case = case()
     _recommendation = recommend_actor()
     _activity = reject_actor_recommendation_activity(
         _recommendation,
-        actor=_vendor.id_,
+        actor=case_actor().id_,
+        in_reply_to=_recommendation.id_,
         context=_case.id_,
         target=_case.id_,
         to=_finder.id_,

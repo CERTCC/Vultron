@@ -38,9 +38,10 @@ from py_trees.common import Status
 
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
+    seed_case_participant,
 )
 from test.support.embargo_register import activate, propose
-from test.support.note_wire import assert_add_note_carries_note_inline
+from test.support.note_wire import assert_case_manager_note_recorded
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -54,7 +55,7 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
-    EMBARGO_TEARDOWN_EVENT_TYPE,
+    EMBARGO_TEARDOWN_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.status.add_case_status_tree import (
     add_case_status_tree,
@@ -116,6 +117,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-bt-01"
+#: The declared rule the factory composes the sender guard from (HP-01-008).
+_CASE_STATUS_RULE = AddCaseStatusToCaseReceivedUseCase.sender_entitlement
 STATUS_ID = "https://example.org/cases/case-bt-01/statuses/s1"
 STATUS2_ID = "https://example.org/cases/case-bt-01/statuses/s2"
 
@@ -410,7 +413,9 @@ class TestFilterCsEmDimensionNodeBug2704:
             type(event), "status", new_callable=PropertyMock, return_value=None
         ):
             tree = add_case_status_tree(
-                request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+                sender_rule=_CASE_STATUS_RULE,
+                request=event,
+                call_out=STATUS_AUTHORIZATION_PERMISSIVE,
             )
             bridge = BTBridge(
                 datalayer=dl,
@@ -558,7 +563,9 @@ class TestFilterCsPxaDimensionNodeBug2706:
             FilterCsPxaDimensionNode, "get_input", new=_copy_returning
         ):
             tree = add_case_status_tree(
-                request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+                sender_rule=_CASE_STATUS_RULE,
+                request=event,
+                call_out=STATUS_AUTHORIZATION_PERMISSIVE,
             )
             bridge = BTBridge(
                 datalayer=dl,
@@ -601,7 +608,9 @@ class TestAddCaseStatusTree:
         event = make_payload(activity)
 
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=populated_dl,
@@ -630,7 +639,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event
+        )
         bridge = BTBridge(
             datalayer=populated_dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -670,7 +681,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event
+        )
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -718,7 +731,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event
+        )
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -772,7 +787,9 @@ class TestAddCaseStatusTree:
         event = make_payload(activity)
 
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -807,6 +824,8 @@ class TestAddCaseStatusTree:
             id_=CASE_ID, name="EM Carried", attributed_to=ACTOR_ID
         )
         propose(case, f"{CASE_ID}/embargo_events/carried")
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
 
         asserted = as_CaseStatus(
@@ -822,7 +841,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -863,6 +884,8 @@ class TestAddCaseStatusTree:
             id_=CASE_ID, name="PXA Refusal Log", attributed_to=ACTOR_ID
         )
         case.append_case_status(pxa=CS_pxa.Pxa)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
 
         # The case's own EM + PXA regression → PXA dimension refused and
@@ -881,7 +904,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -923,6 +948,8 @@ class TestAddCaseStatusTree:
             id_=CASE_ID, name="EM Refusal Log", attributed_to=ACTOR_ID
         )
         case.append_case_status(pxa=CS_pxa.pxa)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
 
         # EM other than the case's (NONE → ACTIVE) + valid PXA advance → EM
@@ -940,7 +967,9 @@ class TestAddCaseStatusTree:
         )
         event = make_payload(activity)
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -980,6 +1009,8 @@ class TestAddCaseStatusTree:
             id_=CASE_ID, name="EM PXA Split", attributed_to=ACTOR_ID
         )
         propose(case, f"{CASE_ID}/embargo_events/serialized")
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
 
         # EM PROPOSED→ACTIVE refused (carried forward as PROPOSED) + PXA
@@ -998,7 +1029,9 @@ class TestAddCaseStatusTree:
         event = make_payload(activity)
 
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
 
         # The override is a within-execution hand-off (FinalizeCsFilterNode
@@ -1066,11 +1099,13 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         )
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         seed_case_manager_participant(dl, case, CASE_MANAGER_ID)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
         dl.create(status_obj)
 
         activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID
+            status_obj, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
         )
         event = make_payload(activity)
 
@@ -1096,11 +1131,13 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         case = as_VulnerabilityCase(id_=CASE_ID, name="Idempotent Case")
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         case.case_statuses.append(status_obj)  # type: ignore[arg-type]
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         dl.create(case)
         dl.create(status_obj)
 
         activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID
+            status_obj, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
         )
         event = make_payload(activity)
 
@@ -1146,7 +1183,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         dl.create(bad_status)
 
         activity = add_status_to_case_activity(
-            bad_status, target=case, actor=ACTOR_ID
+            bad_status, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
         )
         event = make_payload(activity)
 
@@ -1183,7 +1220,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         # Construct a status with no ID to force status_id=None via factory
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID
+            status_obj, target=case, actor=ACTOR_ID, to=[CASE_MANAGER_ID]
         )
         event = make_payload(activity)
 
@@ -1498,7 +1535,7 @@ class TestThreatTerminationBranchNode:
     def _ask_pending(self) -> PendingAssertion | None:
         return get_pending_assertion_store(ACTOR_ID).pending_for_subject(
             CASE_ID,
-            EMBARGO_TEARDOWN_EVENT_TYPE,
+            EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             f"{CASE_ID}/embargo_events/e1",
         )
 
@@ -1512,7 +1549,7 @@ class TestThreatTerminationBranchNode:
             case_id=CASE_ID,
             log_index=0,
             object_id=ask_id,
-            event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
+            semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             payload_snapshot={"id": ask_id},
             prev_log_hash="0" * 64,
         )
@@ -1521,7 +1558,7 @@ class TestThreatTerminationBranchNode:
             log_index=record.log_index,
             term=record.term,
             log_object_id=record.object_id,
-            event_type=record.event_type,
+            semantic_type=record.semantic_type,
             payload_snapshot=dict(record.payload_snapshot),
             prev_log_hash=record.prev_log_hash,
             entry_hash=record.entry_hash,
@@ -1529,6 +1566,7 @@ class TestThreatTerminationBranchNode:
         activity = announce_log_entry_activity(
             WireCaseLedgerEntry.model_validate(entry.model_dump(mode="json")),
             actor=CASE_MANAGER_ID,
+            to=[ACTOR_ID],
         )
         event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
         AnnounceLedgerEntryReceivedUseCase(
@@ -1737,6 +1775,8 @@ class TestAddCaseStatusTreeSeam2:
         )
         case.add_participant(cm_participant)
         activate(case, embargo.id_)
+        # The sender must hold a participant record (HP-01-006).
+        seed_case_participant(dl, case, ACTOR_ID)
         status_obj = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
         )
@@ -1749,6 +1789,7 @@ class TestAddCaseStatusTreeSeam2:
             status_obj,
             target=as_VulnerabilityCase(id_=CASE_ID),
             actor=ACTOR_ID,
+            to=[CASE_MANAGER_ID],
         )
         event = cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
 
@@ -1763,7 +1804,9 @@ class TestAddCaseStatusTreeSeam2:
             add_case_status_tree,
         )
 
-        tree = add_case_status_tree(request=event, call_out=call_out)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event, call_out=call_out
+        )
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -1789,7 +1832,9 @@ class TestAddCaseStatusTreeSeam2:
             add_case_status_tree,
         )
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event
+        )
 
         def _collect_node_types(node):
             yield type(node).__name__
@@ -1961,7 +2006,9 @@ class TestCaseLedgerEntryCreation:
         event = make_payload(activity)
 
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -2018,7 +2065,9 @@ class TestCaseLedgerEntryCreation:
         )
         event = make_payload(activity)
 
-        tree = add_case_status_tree(request=event)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event
+        )
         bridge = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
@@ -2189,9 +2238,9 @@ class TestPxaEmInvariantDiagnosticNode:
     """PxaEmInvariantDiagnosticNode posts a Note iff invariant still violated.
 
     AC-2: PERMISSIVE gate — teardown fires, EM becomes EXITED, no violation →
-          no Note queued in outbox.
+          no Note recorded.
     AC-3: Blocked gate (AlwaysFail) — teardown blocked, EM stays ACTIVE,
-          violation detected → Note queued in outbox.
+          violation detected → Note committed and attached to the case.
     """
 
     def _build_dl_with_active_embargo(self, actor_id: str = DIAG_CM_ID):
@@ -2216,6 +2265,9 @@ class TestPxaEmInvariantDiagnosticNode:
         )
         case.add_participant(cm_participant)
         activate(case, embargo.id_)
+        # The senders must hold participant records (HP-01-006).
+        for sender in (DIAG_ACTOR_ID, PEER_ID):
+            seed_case_participant(dl, case, sender)
         status_obj = as_CaseStatus(
             id_=DIAG_STATUS_ID,
             context=DIAG_CASE_ID,
@@ -2227,13 +2279,14 @@ class TestPxaEmInvariantDiagnosticNode:
         dl.create(status_obj)
         return dl, status_obj
 
-    def _make_event(self, dl, status_obj):
+    def _make_event(self, dl, status_obj, receiver_id: str = DIAG_CM_ID):
         from vultron.semantic_registry import extract_event
 
         activity = add_status_to_case_activity(
             status_obj,
             target=as_VulnerabilityCase(id_=DIAG_CASE_ID),
             actor=DIAG_ACTOR_ID,
+            to=[receiver_id],
         )
         return cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
 
@@ -2250,7 +2303,9 @@ class TestPxaEmInvariantDiagnosticNode:
         event = self._make_event(dl, status_obj)
 
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -2281,12 +2336,16 @@ class TestPxaEmInvariantDiagnosticNode:
         dl, status_obj = self._build_dl_with_active_embargo(
             actor_id=f"{DIAG_CM_ID}-blocked"
         )
-        event = self._make_event(dl, status_obj)
+        event = self._make_event(
+            dl, status_obj, receiver_id=f"{DIAG_CM_ID}-blocked"
+        )
 
         call_out = StatusAuthorizationCallOutBundle(
             embargo_teardown_authorization_gate_factory=AlwaysFail
         )
-        tree = add_case_status_tree(request=event, call_out=call_out)
+        tree = add_case_status_tree(
+            sender_rule=_CASE_STATUS_RULE, request=event, call_out=call_out
+        )
         bridge = BTBridge(
             datalayer=dl,
             trigger_activity=TriggerActivityAdapter(dl),
@@ -2302,14 +2361,10 @@ class TestPxaEmInvariantDiagnosticNode:
         updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
         assert updated.current_status.em.state == EM.ACTIVE
 
-        # AlwaysFail gate blocks teardown — only the diagnostic node can post.
-        # Exactly one Note activity must be in the outbox.
-        outbox = dl.outbox_list()
-        assert len(outbox) == 1, (
-            "PxaEmInvariantDiagnosticNode must post exactly one Note when the"
-            " gate blocks teardown and the CSB-18 invariant is still violated"
-        )
-        assert_add_note_carries_note_inline(dl, outbox[0], DIAG_CASE_ID)
+        # AlwaysFail gate blocks teardown — only the diagnostic node can note
+        # it, as the CASE_MANAGER's own committed note (#4829).
+        note = assert_case_manager_note_recorded(dl, DIAG_CASE_ID)
+        assert "Cross-machine entailment violated" in note["content"]
 
 
 # ---------------------------------------------------------------------------
@@ -2324,11 +2379,14 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
     """``add_case_status_tree`` gives the branch the status's sender, so at a
     replica a P/X/A status the CASE_MANAGER declared tears nothing down and
     asks for nothing (RSH-03-004, #4149); the manager's committed entry
-    carries the teardown.  The same tree at a replica still asks when the
-    status came from anyone else.
+    carries the teardown.  A peer's status never reaches the branch at a
+    replica: the replica takes case state from the CASE_MANAGER alone, so
+    the sender guard refuses it (PCR-03-001, RSH-04-001, HP-01-006).
     """
 
-    def _run(self, sender: str) -> SqliteDataLayer:
+    def _run(
+        self, sender: str, expected: Status = Status.SUCCESS
+    ) -> SqliteDataLayer:
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
         )
@@ -2344,7 +2402,14 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         case = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
         cm = cast(CaseParticipant, dl.read(f"{DIAG_CASE_ID}/participants/cm"))
         dl.save(cm.model_copy(update={"attributed_to": DIAG_CM_ID}))
-        case.actor_participant_index = {DIAG_CM_ID: cm.id_}
+        case.actor_participant_index = {
+            **{
+                actor: pid
+                for actor, pid in case.actor_participant_index.items()
+                if actor != REPLICA_ID
+            },
+            DIAG_CM_ID: cm.id_,
+        }
         dl.save(case)
 
         event = cast(
@@ -2354,11 +2419,14 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
                     status_obj,
                     target=as_VulnerabilityCase(id_=DIAG_CASE_ID),
                     actor=sender,
+                    to=[REPLICA_ID],
                 )
             ),
         )
         tree = add_case_status_tree(
-            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+            sender_rule=_CASE_STATUS_RULE,
+            request=event,
+            call_out=STATUS_AUTHORIZATION_PERMISSIVE,
         )
         bridge = BTBridge(
             datalayer=dl,
@@ -2369,7 +2437,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         result = bridge.execute_with_setup(
             tree=tree, actor_id=REPLICA_ID, activity=event
         )
-        assert result.status == Status.SUCCESS, result.feedback_message
+        assert result.status == expected, result.feedback_message
         return dl
 
     @pytest.mark.spec("RSH-03-004")
@@ -2381,13 +2449,12 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
         assert [a.type_ for a in queued] == [], [a.type_ for a in queued]
 
-    @pytest.mark.spec("RSH-03-004")
-    @pytest.mark.spec("EP-09-008")
-    def test_a_peers_declaration_still_asks_at_a_replica(self):
-        dl = self._run(sender=PEER_ID)
+    @pytest.mark.spec("PCR-03-001")
+    @pytest.mark.spec("HP-01-006")
+    def test_a_peers_declaration_is_refused_at_a_replica(self):
+        """Even from a participant: only the CASE_MANAGER emits it."""
+        dl = self._run(sender=PEER_ID, expected=Status.FAILURE)
 
         updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
         assert updated.current_status.em.state == EM.ACTIVE
-        queued = [cast(VultronActivity, dl.read(i)) for i in dl.outbox_list()]
-        asks = [a for a in queued if DIAG_CM_ID in (a.to or [])]
-        assert asks, [a.type_ for a in queued]
+        assert dl.outbox_list() == []

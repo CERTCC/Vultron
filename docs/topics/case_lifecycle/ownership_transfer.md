@@ -49,6 +49,8 @@ The owner asks for the transfer by sending its own offer to the CASE_MANAGER —
 The owner's offer leaves from the owner's own outbox, under the owner's own identity: no container sends a message as an actor it does not host ([CM-24-004](../../reference/specs/architecture.md#cm-24-004), [ADR-0109](../../adr/0109-a-container-emits-only-as-actors-it-hosts.md)).
 The CASE_MANAGER records the offer in the ledger, so every participant learns that a transfer is being offered, and then forwards the offer to the proposed new owner.
 It admits an offer only from the current Case Owner, and refuses one from anyone else before it writes or sends anything ([CM-21-019](../../reference/specs/protocol.md#cm-21-019)).
+The offer carries the proposed new owner (`target`) as a full actor object, not as an `id` alone.
+The CASE_MANAGER need not already know that actor, and its ledger entry must contain every object the offer names in full ([CLP-07-006](../../reference/specs/protocol.md#clp-07-006)).
 The proposed new owner, in turn, takes the offer only as the CASE_MANAGER's forward.
 The forwarded `Offer` is a new activity with its own `id`: the proposed new owner never sees the original offer, whose `id` exists only in the owner's and the CASE_MANAGER's stores.
 The forwarded offer points back to the recorded offer: its `inReplyTo` is the recorded offer's `id` ([CM-21-018](../../reference/specs/protocol.md#cm-21-018)).
@@ -80,7 +82,7 @@ The proposed owner answers the CASE_MANAGER, not the participant who made the of
 The CASE_MANAGER acts on an acceptance only when its sender is the proposed owner named in an offer it recorded for the case ([CM-21-011](../../reference/specs/protocol.md#cm-21-011)).
 That offer must also still be open, with no other answer to it recorded.
 The proposed owner answers the forwarded offer, so the CASE_MANAGER matches the answer to its recorded offer through the forwarded offer's `inReplyTo` link, never by when the offers were sent ([CM-21-018](../../reference/specs/protocol.md#cm-21-018)).
-An answer to a forwarded offer that carries no link, or whose link names no recorded offer for that case and proposed owner, is refused, and nothing is recorded or sent.
+An answer to a forwarded offer that carries no link, or whose link names no recorded offer for that case and proposed owner, is refused, and nothing is recorded.
 It refuses an `Accept` from anyone else, or a second `Accept` of the same offer, and ownership stays where it was.
 The new owner is the actor the recorded offer names, not whoever sent the acceptance.
 A participant's own copy of the case takes the ownership change only from the CASE_MANAGER.
@@ -126,6 +128,7 @@ Ownership stays where it was: the ledger entry closes the offer, and no particip
 A case has at most one open offer at a time ([CM-21-014](../../reference/specs/protocol.md#cm-21-014)).
 An offer stays open until the ledger records that it was accepted, declined, withdrawn, or expired.
 While it is open, the CASE_MANAGER refuses a new offer for the case, and neither records nor forwards it.
+It answers the refused offer with a `Reject` of it, the [refusal notice](../../reference/messages/faults_and_acknowledgements.md#refusal-notice), which the owner reads as the decline of its offer ([CLP-05-001](../../reference/specs/protocol.md#clp-05-001)).
 Once it is closed, the owner may offer the case again to anyone, including a participant that declined, with nothing to clear first.
 A closed offer cannot be answered again: an `Accept` after a `Reject`, or a `Reject` after an `Accept`, is refused.
 
@@ -144,7 +147,8 @@ Case Actor inbox receives Undo:
 The owner that made an offer may withdraw it while it is open, with the `withdraw-case-ownership-transfer` trigger, which sends an `Undo` of the offer to the CASE_MANAGER ([CM-21-015](../../reference/specs/protocol.md#cm-21-015), [TRIG-11-006](../../reference/specs/protocol.md#trig-11-006)).
 The CASE_MANAGER acts on a withdrawal only when its sender is the Case Owner that made an offer it recorded for the case, and that offer is still open.
 It records the withdrawal in the ledger and sends the entry to every participant, so the proposed owner learns that it can no longer accept, and the offer is closed.
-It refuses a withdrawal from anyone else, or of an offer already accepted, declined, withdrawn, or expired, and records and sends nothing.
+It refuses a withdrawal from anyone else, or of an offer already accepted, declined, withdrawn, or expired, and records nothing.
+It answers a withdrawal of a closed offer with the refusal notice, and a withdrawal from anyone else with nothing.
 Ownership stays where it was, and the owner may offer the case again at once.
 
 ```text

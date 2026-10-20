@@ -392,7 +392,7 @@ def _make_wire_case_ledger_entry():
     return as_CaseLedgerEntry(
         case_id=_CASE_ID_2401,
         log_object_id=_LOG_OBJ_ID_2401,
-        event_type="RS",
+        semantic_type="RS",
     )
 
 
@@ -508,7 +508,7 @@ def test_case_proposal_object_survives_storage_as_an_inline_report():
 
     Regression for #2482.  ``object_`` is a generic object-reference field, so it
     was dehydrated like any other reference — but CP-01-004 requires the report to be
-    carried inline, and ingress stores only the *first* level of nesting, so the
+    carried inline, and ingress stored only the *first* level of nesting, so the
     report had no record of its own to rehydrate from.  The by-ID re-read at
     delivery therefore handed the receiver a bare URI, and every consequence of
     the report (participant, ledger entries, signatory seed) degraded to a
@@ -727,7 +727,7 @@ def test_invite_keeps_the_invited_peer_inline():
     back from, so the stored Invite returned a bare string and outbox delivery
     refused it for AKM-03-003 after exhausting its retries. The invitation never
     arrived and the invitee's ``reject-case-invite`` answered 404 for an invite
-    it had never been told about (#2548, fcv-reject).
+    it had never been told about (#2548, rcv-reject).
     """
     invite = _invite_naming_a_peer()
 
@@ -780,19 +780,44 @@ def _role_offer_naming_a_peer():
     )
 
 
+def _ownership_offer_naming_a_peer():
+    """An ``Offer(VulnerabilityCase, target=Actor)`` — the ownership transfer.
+
+    Names the transferee by a bare id, as the trigger adapter passes it; the
+    factory wraps it as an ``as_Actor`` (DL-08-003, #4843).
+    """
+    from vultron.wire.as2.factories import (
+        offer_case_ownership_transfer_activity,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    return offer_case_ownership_transfer_activity(
+        as_VulnerabilityCase(
+            id_="urn:uuid:case-dl08003-0000-0000-000000000001"
+        ),
+        target=_PEER_ACTOR_ID,
+        id_="urn:uuid:own-dl08003-0000-0000-000000000001",
+        actor="http://vendor:7999/api/v2/actors/vendor-owner",
+        to=[_CASE_ACTOR_ID],
+    )
+
+
 @pytest.mark.parametrize(
     "builder, fields",
     [
         (_invite_naming_a_peer, {"object_"}),
         (_recommendation_naming_a_peer, {"object_"}),
         (_role_offer_naming_a_peer, {"object_", "target"}),
+        (_ownership_offer_naming_a_peer, {"target"}),
     ],
-    ids=["invite", "recommendation", "role-offer"],
+    ids=["invite", "recommendation", "role-offer", "ownership-offer"],
 )
 def test_peer_actor_ref_is_declared_inline_required(builder, fields):
     """Every activity naming a *peer actor* in a ref field declares that field.
 
-    These are the only three, and the role offer is the only one that names its
+    These are the only four; the role offer and the ownership offer name their
     peer in ``target``.  Every other required-and-typed ``object_`` in the
     vocabulary is either an activity (kept inline by
     ``_KEEP_INLINE_NESTED_TYPES``) or a case/report/status/participant/embargo,
@@ -800,9 +825,6 @@ def test_peer_actor_ref_is_declared_inline_required(builder, fields):
     object is the one that never does — and the role offer's ``object_`` is the
     one other kind that never does, since the factory mints the
     ``CaseParticipantRole`` inline and no code path persists it (DL-08-001).
-
-    ``_OfferCaseOwnershipTransferActivity.target`` is deliberately excluded: it
-    is typed as a ref union, so an id there is the declared shape.
 
     Asserted on the class the *factory* returns rather than an imported vocab
     class, so it also pins the factory to a class that carries the declaration.
@@ -839,6 +861,60 @@ def test_stored_activity_still_matches_its_semantic_class(
     coerced = coerce_to_semantic_class(cast(Any, stored))
 
     assert type(coerced).__name__ == semantic_cls_name
+
+
+def _as_received(activity: Any) -> Any:
+    """*activity* as the inbox parser yields it: its base class, ``as_Offer``."""
+    from vultron.wire.as2.parser import parse_activity
+
+    return parse_activity(
+        activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    )
+
+
+@pytest.mark.parametrize(
+    "received", [False, True], ids=["as-built", "as-received"]
+)
+def test_ownership_transferee_round_trips_as_an_object(received):
+    """The transferee survives storage as an object, sent or received (#4843).
+
+    The CASE_MANAGER holds no record of the transferee, so a stored Offer
+    whose ``target`` collapsed to an id could not be read back whole, and the
+    ledger commit refused the bare ``target`` (CLP-07-006).  A received Offer
+    is stored as the parser's base ``as_Offer``, which declares nothing, so
+    storage must also honour the declaration of the semantic class the
+    activity matches (DL-08-001).
+
+    Read back through a store holding the case, as the CASE_MANAGER's does:
+    the case is dehydrated to its id like any object with a record of its
+    own, and the Offer is only recognised once it is expanded again.
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+    offer = _ownership_offer_naming_a_peer()
+    if received:
+        offer = _as_received(offer)
+        assert type(offer).__name__ == "as_Offer"
+
+    stored = object_to_record(cast(Any, offer)).data_.get("target")
+    assert isinstance(stored, dict), (
+        f"the transferee collapsed to {stored!r}; nothing in this store can"
+        " expand it again (DL-08-003)"
+    )
+    assert stored.get("id") == _PEER_ACTOR_ID
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+    try:
+        dl.create(cast(Any, offer).object_)
+        dl.create(cast(Any, offer))
+        assert dl.read(_PEER_ACTOR_ID) is None
+        back = dl.read(offer.id_)
+    finally:
+        dl.close()
+    assert type(back).__name__ == "_OfferCaseOwnershipTransferActivity"
+    assert getattr(getattr(back, "target", None), "id_", None) == (
+        _PEER_ACTOR_ID
+    )
 
 
 def test_recommended_peer_round_trips_as_an_object():

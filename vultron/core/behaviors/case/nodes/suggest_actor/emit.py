@@ -42,6 +42,10 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.node_logger import port_wiring_logger
+from vultron.core.behaviors.note.case_manager_note import (
+    CaseManagerNote,
+    _CommitCaseManagerNoteBase,
+)
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.actor_recommendation_record import (
@@ -51,9 +55,9 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
 
-#: Ledger ``event_type`` of the forwarded ``Offer(CaseParticipant)``, and the
+#: Ledger ``semantic_type`` of the forwarded ``Offer(CaseParticipant)``, and the
 #: kind label of its derived id.
-OFFER_CASE_PARTICIPANT_EVENT_TYPE = "offer_case_participant"
+OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE = "offer_case_participant"
 
 
 def _resolve_owner_recipient(
@@ -65,7 +69,7 @@ def _resolve_owner_recipient(
 
     A DM the CaseActor addresses to itself never reaches the owner, who then
     never sees the ``Offer(CaseParticipant)`` it is required to decide on
-    (CM-16-004): the fcvcv ADR-0026 chain stalls, and
+    (CM-16-004): the rcvcv ADR-0026 chain stalls, and
     ``accept-actor-recommendation`` returns 422 because no offer arrived.
     ``attributed_to`` names the owner (CP-09-001), but a store may hold a case
     attributed to the CaseActor itself, so that field alone is not enough.
@@ -243,7 +247,7 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
                 to=[owner_id],
                 roles=roles,
                 id_=derived_activity_id(
-                    OFFER_CASE_PARTICIPANT_EVENT_TYPE,
+                    OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
                     self.actor_id,
                     self.case_id,
                     self.recommendation_id,
@@ -268,7 +272,7 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
             case_id=self.case_id,
             activity_id=activity_id,
             activity_blob=activity_blob,
-            event_type=OFFER_CASE_PARTICIPANT_EVENT_TYPE,
+            semantic_type=OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
         )
         self.logger.info(
             "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"
@@ -280,18 +284,24 @@ class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
         return Status.SUCCESS
 
 
-class EmitNoteDuplicateRecommendationToOwnerNode(_EmitSingleActivityBase):
-    """Send a Note DM to the Case Owner noting reinforcing demand.
+class EmitNoteDuplicateRecommendationToOwnerNode(_CommitCaseManagerNoteBase):
+    """Record a note for the Case Owner noting reinforcing demand.
 
     Used when a second ``Offer(Actor, Case)`` arrives while a first
     ``Offer(CaseParticipant)`` is still pending the Case Owner's
-    Accept/Reject decision (AC-6, CM-16-008).  Sends a
-    ``Add(Note, Case)`` carrying the note to the Case Owner without
-    issuing a second ``Offer(CaseParticipant)``.
+    Accept/Reject decision (AC-6, CM-16-008, CM-16-016).  No second
+    ``Offer(CaseParticipant)`` is issued.  The CASE_MANAGER records the note
+    as its own ``add_note_to_case`` entry and attaches it to the case; the
+    Case Owner learns of it from the ledger fan-out, as every active
+    participant does (#4829).  A direct ``Add(Note)`` to the owner would be
+    refused there (HP-01-005).
 
     When ``offer_content`` is provided (non-None, non-empty), it is appended
-    to the Note body per CM-16-008's requirement to forward the incoming
+    to the Note body per CM-16-016's requirement to forward the incoming
     Offer's ``content`` field to the Case Owner.
+
+    Fails when the case names no Case Owner other than the executing actor:
+    there is nobody the note is for.
     """
 
     def __init__(
@@ -303,7 +313,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(_EmitSingleActivityBase):
         offer_content: str | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(case_id=case_id, name=name)
         self.recommendation_id = recommendation_id
         self.recommender_id = recommender_id
         self.recommended_id = recommended_id
@@ -311,71 +321,42 @@ class EmitNoteDuplicateRecommendationToOwnerNode(_EmitSingleActivityBase):
         self.offer_content = (
             (offer_content.strip() or None) if offer_content else None
         )
+        self._owner_id: str | None = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        if (f := self._require_factory()) is not None:
-            self.logger.error("%s", self.feedback_message)
-            return f
-        assert self.trigger_activity_factory is not None
-
-        factory = self.trigger_activity_factory  # guaranteed non-None
-        try:
-            owner_id = _resolve_owner_recipient(
-                self.datalayer, self.case_id, self.actor_id
-            )
-            if not owner_id:
-                self.feedback_message = (
-                    f"case '{self.case_id}' names no Case Owner other than "
-                    f"'{self.actor_id}' — cannot address the "
-                    "duplicate-recommendation Note"
-                )
-                self.logger.error("%s", self.feedback_message)
-                return Status.FAILURE
-
-            actor_segment = self.recommended_id.split("/")[-1]
-            content = (
-                f"Duplicate actor recommendation: '{self.recommender_id}' "
-                f"also recommends actor '{actor_segment}' for case "
-                f"'{self.case_id}'.  An Offer(CaseParticipant) is already "
-                f"pending your decision (no second offer sent)."
-            )
-            if self.offer_content:
-                content = (
-                    f"{content}\n\nRecommender note: {self.offer_content}"
-                )
-            note_id, _ = factory.create_note(
-                name=f"Duplicate recommendation — {actor_segment}",
-                content=content,
-                context_id=self.case_id,
-                attributed_to=self.actor_id,
-                in_reply_to=self.recommendation_id,
-            )
-            activity_id, _ = factory.add_note_to_case(
-                note_id=note_id,
-                case_id=self.case_id,
-                actor=self.actor_id,
-                to=[owner_id],
-            )
-            # Route through the shared emit seam (OX-14-001, ASK-04-008).
-            self._emit_through_seam(activity_id, "")
-            self.logger.info(
-                "%s: sent duplicate-recommendation Note to Case Owner '%s'"
-                " for case '%s'",
-                self.name,
-                owner_id,
-                self.case_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+        self._owner_id = _resolve_owner_recipient(
+            self.datalayer, self.case_id, self.actor_id
+        )
+        if not self._owner_id:
             self.feedback_message = (
-                f"EmitNoteDuplicateRecommendationToOwner failed: {e}"
+                f"case '{self.case_id}' names no Case Owner other than "
+                f"'{self.actor_id}' — nobody to record the "
+                "duplicate-recommendation Note for"
             )
-            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
+        return super().update()
+
+    def _compose(self) -> CaseManagerNote:
+        actor_segment = self.recommended_id.split("/")[-1]
+        content = (
+            f"Duplicate actor recommendation for the Case Owner "
+            f"'{self._owner_id}': '{self.recommender_id}' also recommends "
+            f"actor '{actor_segment}' for case '{self.case_id}'.  An "
+            f"Offer(CaseParticipant) is already pending your decision (no "
+            f"second offer sent)."
+        )
+        if self.offer_content:
+            content = f"{content}\n\nRecommender note: {self.offer_content}"
+        return CaseManagerNote(
+            name=f"Duplicate recommendation — {actor_segment}",
+            content=content,
+            in_reply_to=self.recommendation_id,
+        )
 
 
 __all__ = [

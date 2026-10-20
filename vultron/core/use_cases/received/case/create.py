@@ -11,8 +11,9 @@ from vultron.core.behaviors.case.nodes.replica_bootstrap import (
     ClassifyBootstrapRouteNode,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
-    exempt,
+    SenderEntitlementKind,
+    SenderRule,
+    any_of,
 )
 from vultron.core.models.events.case import CreateCaseReceivedEvent
 from vultron.core.models.use_case_result import (
@@ -40,9 +41,13 @@ class CreateCaseReceivedUseCase:
 
     The trust decision and every write run in
     :func:`~vultron.core.behaviors.case.create_case_received_tree.create_create_case_received_tree`
-    (CLP-10-005, CLP-10-007): a sender the receiver expected (a pending
-    ``VultronReportCaseLink``, CBT-01-005 / CBT-01-006) or a redelivery of a
-    bootstrap already accepted.  Any other sender is refused and nothing is
+    (CLP-10-005, CLP-10-007).  The sender must be the addressee of the
+    request that asked for the case, as this receiver recorded it on a
+    ``VultronReportCaseLink`` before the case arrived: the case actor
+    service its ``CaseProposal`` went to, or the report receiver its report
+    ``Offer`` went to (CBT-01-005), or the creator of a bootstrap it already
+    accepted (CBT-01-006).  The factory composes that guard from the
+    declared rule (HP-01-008); any other sender is refused and nothing is
     stored, whatever its snapshot claims (CBT-01-011, ADR-0132).
     ``execute()`` builds the tree, runs it once, and reports the outcome.
 
@@ -51,8 +56,12 @@ class CreateCaseReceivedUseCase:
     (CBT-01-001, ADR-0132), which it builds through *trigger_activity*.
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check defined for case creation"
+    # The bootstrap reaches a participant that holds no case yet, so the
+    # guard is the outside-any-case side; the participant side states the
+    # same standing for the occasion's addressee (HP-01-008, MSM-08-009).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_participant=any_of(SenderEntitlementKind.NAMED_ACTOR),
+        outside_case=any_of(SenderEntitlementKind.NAMED_ACTOR),
     )
 
     def __init__(
@@ -92,7 +101,10 @@ class CreateCaseReceivedUseCase:
             )
 
         tree = create_create_case_received_tree(
-            request.case, case_id, request.actor_id
+            request.case,
+            case_id,
+            request.actor_id,
+            sender_rule=self.sender_entitlement,
         )
         result = BTBridge(
             datalayer=self._dl,

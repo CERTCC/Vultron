@@ -22,6 +22,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.addressee import (
+    ActivityAddressedToReceiverNode,
+)
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
@@ -34,21 +37,21 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_consent_event_types import (
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+from vultron.core.models.embargo_consent_semantic_types import (
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
-from vultron.core.models.participant_event_types import (
-    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
-    UPDATE_CASE_OWNER_EVENT_TYPE,
-    UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+    UPDATE_CASE_OWNER_SEMANTIC_TYPE,
+    UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.rsvp_deadline import (
-    INVITE_EXPIRED_EVENT_TYPE,
+    INVITE_EXPIRED_SEMANTIC_TYPE,
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -126,7 +129,7 @@ def _make_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
-            event_type="test_event",
+            semantic_type="test_event",
             payload_snapshot={"log_index": log_index},
             prev_log_hash=prev_hash,
         )
@@ -134,18 +137,29 @@ def _make_entry(
 
 
 def _make_event(
-    entry: CaseLedgerEntry, actor_id: str
+    entry: CaseLedgerEntry,
+    actor_id: str,
+    to: list[str] | None = None,
 ) -> AnnounceLogEntryReceivedEvent:
+    """Build the received Announce, addressed to the replica that receives it.
+
+    The fan-out names each participant in ``to`` (SYNC-09-002); the tree's
+    addressee door refuses a copy that names nobody it executes as (HP-01-005).
+    """
+    recipients = [PARTICIPANT_ACTOR_ID] if to is None else to
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
-    activity = announce_log_entry_activity(entry=wire_entry, actor=actor_id)
+    activity = announce_log_entry_activity(
+        entry=wire_entry, actor=actor_id, to=recipients
+    )
     event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
     event.activity = VultronActivity(
         id_=event.activity_id,
         type_="Announce",
         actor=actor_id,
+        to=recipients,
         object_=entry,
     )
     return event
@@ -157,13 +171,14 @@ def test_create_announce_log_entry_tree_is_intake_then_role_selector():
     )
     assert tree.name == "AnnounceLogEntryReceivedBT"
     # Intake first (CLP-10-017), the post-close guard (CM-23-013), the
-    # sender guard the factory composes (HP-01-008, #4696), then the
-    # CASE_MANAGER / participant arms.
+    # addressee door (HP-01-005), the sender guard the factory composes
+    # (HP-01-008, #4696), then the CASE_MANAGER / participant arms.
     assert tree.children[0].name == "IntakeReceivedActivityNode"
     assert tree.children[1].name == "CaseOpenToExternalWrites"
-    assert tree.children[2].name == "SenderIsCaseManagerNode"
-    assert len(tree.children) == 4
-    assert len(tree.children[3].children) == 2
+    assert isinstance(tree.children[2], ActivityAddressedToReceiverNode)
+    assert tree.children[3].name == "SenderIsCaseManagerNode"
+    assert len(tree.children) == 5
+    assert len(tree.children[4].children) == 2
 
 
 def _archived(datalayer, event) -> bool:
@@ -405,7 +420,7 @@ def _make_remove_embargo_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
-            event_type="remove_embargo_event_from_case",
+            semantic_type="remove_embargo_event_from_case",
             payload_snapshot={
                 "log_index": log_index,
                 "object": {"id": ACTIVE_EMBARGO_ID, "type": "EmbargoEvent"},
@@ -542,7 +557,7 @@ def _make_relayed_invite_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/invite-{log_index}",
-            event_type="invite_to_embargo_on_case",
+            semantic_type="invite_to_embargo_on_case",
             payload_snapshot={
                 "type": "Invite",
                 "id": f"https://example.org/activities/invite-{log_index}",
@@ -574,7 +589,7 @@ def _make_invite_expired_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=invite_id,
-            event_type=INVITE_EXPIRED_EVENT_TYPE,
+            semantic_type=INVITE_EXPIRED_SEMANTIC_TYPE,
             payload_snapshot={
                 "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
                 "actor": PARTICIPANT_ACTOR_ID,
@@ -607,7 +622,7 @@ def _make_consent_row_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=activity_id,
-            event_type=UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+            semantic_type=UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
             payload_snapshot={
                 "type": "Update",
                 "id": activity_id,
@@ -745,7 +760,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
                     case_id=CASE_ID,
                     log_index=1,
                     object_id=json.loads(blob)["id"],
-                    event_type=UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+                    semantic_type=UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
                     payload_snapshot=json.loads(blob),
                     prev_log_hash=entry.entry_hash,
                 )
@@ -757,13 +772,13 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
 def _make_add_note_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
 ) -> CaseLedgerEntry:
-    """Create a ledger entry with event_type='add_note_to_case'."""
+    """Create a ledger entry with semantic_type='add_note_to_case'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/add-note-{log_index}",
-            event_type="add_note_to_case",
+            semantic_type="add_note_to_case",
             payload_snapshot={"object": NOTE_ID},
             prev_log_hash=prev_hash,
         )
@@ -830,10 +845,10 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
     def test_note_not_attached_for_non_note_entry(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """NoteEffects Selector short-circuits for unrelated event types."""
+        """NoteEffects Selector short-circuits for unrelated semantic types."""
         entry = _make_entry(
             0, case_obj.genesis_hash
-        )  # event_type="test_event"
+        )  # semantic_type="test_event"
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
@@ -866,7 +881,7 @@ class TestAnnounceLogEntryAppliesNoteRemoval:
                 case_id=CASE_ID,
                 log_index=0,
                 object_id="https://example.org/activities/remove-note-0",
-                event_type="remove_note_from_case",
+                semantic_type="remove_note_from_case",
                 payload_snapshot={"object": NOTE_ID},
                 prev_log_hash=case_obj.genesis_hash,
             )
@@ -903,7 +918,7 @@ class TestAnnounceLogEntryAppliesReportAddition:
                 case_id=CASE_ID,
                 log_index=0,
                 object_id="https://example.org/activities/add-report-0",
-                event_type="add_report_to_case",
+                semantic_type="add_report_to_case",
                 payload_snapshot={"object": report_id},
                 prev_log_hash=case_obj.genesis_hash,
             )
@@ -932,13 +947,13 @@ PARTICIPANT_ID = "https://example.org/participants/reporter-participant"
 def _make_participant_status_entry(
     log_index: int, prev_hash: str = _ZERO_HASH
 ) -> CaseLedgerEntry:
-    """Create a ledger entry with event_type='add_participant_status_to_participant'."""
+    """Create a ledger entry with semantic_type='add_participant_status_to_participant'."""
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/status-{log_index}",
-            event_type="add_participant_status_to_participant",
+            semantic_type="add_participant_status_to_participant",
             payload_snapshot={
                 "object": {
                     "id": PARTICIPANT_STATUS_ID,
@@ -991,13 +1006,13 @@ class TestAnnounceLogEntryAppliesParticipantStatus:
         ]
         assert PARTICIPANT_STATUS_ID in status_ids
 
-    def test_participant_status_not_applied_for_other_event_types(
+    def test_participant_status_not_applied_for_other_semantic_types(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """ParticipantStatusEffects Selector short-circuits for unrelated event types."""
+        """ParticipantStatusEffects Selector short-circuits for unrelated semantic types."""
         entry = _make_entry(
             0, case_obj.genesis_hash
-        )  # event_type="test_event"
+        )  # semantic_type="test_event"
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
@@ -1067,7 +1082,7 @@ def _create_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=record.id_,
-            event_type=CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+            semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
             payload_snapshot=snapshot,
             prev_log_hash=prev_hash,
         )
@@ -1075,18 +1090,19 @@ def _create_entry(
 
 
 def _reply_entry(
-    event_type: str,
+    semantic_type: str,
     activity_type: str,
     log_index: int,
     prev_hash: str,
     published: datetime | None = _REPLIED_AT,
+    actor: str = INVITEE_ACTOR_ID,
 ) -> CaseLedgerEntry:
     """The entry for the invitee's own reply message: its actor, the stub
     Invite it answers, and its ``published``, verbatim."""
     snapshot: dict[str, object] = {
         "type": activity_type,
         "id": f"urn:uuid:reply-{log_index}",
-        "actor": INVITEE_ACTOR_ID,
+        "actor": actor,
         "object": {
             "type": "Invite",
             "id": "https://example.org/invites/1",
@@ -1101,7 +1117,7 @@ def _reply_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"urn:uuid:reply-{log_index}",
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=snapshot,
             prev_log_hash=prev_hash,
         )
@@ -1195,6 +1211,33 @@ class TestAnnounceLogEntryAppliesStubPath:
         assert [s.vf.state for s in held.participant_statuses if s.vf] == [
             CS_vf.vf
         ]
+
+    @pytest.mark.spec("OID-01-006")
+    @pytest.mark.spec("CM-31-012")
+    def test_a_slash_spelled_accept_reaches_the_canonical_record(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """The Accept's snapshot keeps the invitee's trailing slash; the
+        replica's index names it canonically, and the reply still lands."""
+        self._embargoed_case(datalayer, case_obj)
+        create = self._seat(bridge, datalayer, case_actor, case_obj)
+        accept = _reply_entry(
+            "accept_invite_actor_to_case",
+            "Accept",
+            1,
+            create.entry_hash,
+            actor=INVITEE_ACTOR_ID + "/",
+        )
+
+        assert (
+            self._announce(bridge, case_actor, accept).status == Status.SUCCESS
+        )
+
+        held = self._held(datalayer)
+        assert held.joined is True
+        assert held.consent_for(ACTIVE_EMBARGO_ID) == (
+            EmbargoConsentState.AGREED
+        )
 
     @pytest.mark.spec("CM-11-007")
     def test_the_reject_entry_declines_the_embargo_in_force(
@@ -1330,12 +1373,12 @@ class TestAnnounceLogEntryAppliesStubPath:
 
         assert self._held(datalayer).model_dump(mode="json") == before
 
-    def test_the_stub_path_slots_do_not_apply_to_other_event_types(
+    def test_the_stub_path_slots_do_not_apply_to_other_semantic_types(
         self, bridge, datalayer, case_actor, case_obj
     ):
         entry = _make_entry(
             0, case_obj.genesis_hash
-        )  # event_type="test_event"
+        )  # semantic_type="test_event"
 
         assert (
             self._announce(bridge, case_actor, entry).status == Status.SUCCESS
@@ -1486,7 +1529,7 @@ def _make_close_case_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/leave-{log_index}",
-            event_type="close_case",
+            semantic_type="close_case",
             payload_snapshot={"actor": DEPARTING_ACTOR_ID},
             prev_log_hash=prev_hash,
         )
@@ -1610,7 +1653,7 @@ def _make_ownership_transfer_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/ownership-{log_index}",
-            event_type=UPDATE_CASE_OWNER_EVENT_TYPE,
+            semantic_type=UPDATE_CASE_OWNER_SEMANTIC_TYPE,
             payload_snapshot={
                 "type": "Update",
                 "actor": OWNER_ACTOR_ID,
@@ -1678,10 +1721,10 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
     def test_ownership_transfer_not_applied_for_unrelated_event(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """OwnershipTransferEffects Selector short-circuits for unrelated event types."""
+        """OwnershipTransferEffects Selector short-circuits for unrelated semantic types."""
         entry = _make_entry(
             0, case_obj.genesis_hash
-        )  # event_type="test_event"
+        )  # semantic_type="test_event"
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
@@ -1761,7 +1804,7 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
                 case_id=CASE_ID,
                 log_index=0,
                 object_id="https://example.org/activities/participant-update",
-                event_type=UPDATE_CASE_PARTICIPANT_EVENT_TYPE,
+                semantic_type=UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
                 payload_snapshot={
                     "type": "Update",
                     "actor": OWNER_ACTOR_ID,
@@ -1841,7 +1884,7 @@ class TestAnnounceLogEntryAppliesParticipantUpdate:
                 case_id=CASE_ID,
                 log_index=0,
                 object_id="https://example.org/activities/accept",
-                event_type="accept_case_ownership_transfer",
+                semantic_type="accept_case_ownership_transfer",
                 payload_snapshot={"type": "Accept", "actor": NEW_OWNER_ID},
                 prev_log_hash=case_obj.genesis_hash,
             )
@@ -1886,7 +1929,7 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
                 case_id=CASE_ID,
                 log_index=0,
                 object_id="https://example.org/activities/reject-ownership",
-                event_type="reject_case_ownership_transfer",
+                semantic_type="reject_case_ownership_transfer",
                 payload_snapshot={"type": "Reject", "actor": NEW_OWNER_ID},
                 prev_log_hash=case.genesis_hash,
             )
@@ -1904,7 +1947,7 @@ class TestAnnounceLogEntryOfOwnershipTransferReject:
 
         assert result.status == Status.SUCCESS
         assert [
-            e.event_type
+            e.semantic_type
             for e in datalayer.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
         ] == ["reject_case_ownership_transfer"]
@@ -1939,7 +1982,7 @@ def _make_participant_status_entry_with_states(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/status-{log_index}",
-            event_type="add_participant_status_to_participant",
+            semantic_type="add_participant_status_to_participant",
             payload_snapshot={
                 "object": {
                     "id": status_id,
@@ -2022,66 +2065,3 @@ class TestAnnounceTreeEmitImpossibleStateFault:
             == VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE
         )
         assert case_actor.id_ in call_kwargs["to"]
-
-    @pytest.mark.spec("ARCH-15-001")
-    @pytest.mark.spec("RSH-05-021")
-    @pytest.mark.spec("SYNC-12-001")
-    def test_malformed_local_record_emits_fault_and_blocks_persist(
-        self, datalayer, case_actor, case_obj
-    ):
-        """Full tree: malformed local participant record → fault emitted, entry not stored.
-
-        Simulates ARCH-15-001 by patching _apply_rm_ratchet to return None,
-        representing a participant whose local status record is not core-shaped.
-        EmitImpossibleStateFaultNode fires because it is the Selector fallback
-        for ANY FAILURE from ApplyParticipantStatusFromLedgerNode.
-        """
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.models.case_participant import CaseParticipant
-        from vultron.core.models.fault_classes import (
-            VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD,
-        )
-        from vultron.core.ports.trigger_activity import TriggerActivityPort
-
-        trigger_activity = MagicMock(spec=TriggerActivityPort)
-        trigger_bridge = BTBridge(
-            datalayer=datalayer, trigger_activity=trigger_activity
-        )
-
-        participant = CaseParticipant(
-            id_=PARTICIPANT_ID,
-            attributed_to=PARTICIPANT_ACTOR_ID,
-            context=CASE_ID,
-        )
-        datalayer.create(participant)
-
-        entry = _make_participant_status_entry(0, case_obj.genesis_hash)
-        event = _make_event(entry, actor_id=case_actor.id_)
-
-        tree = create_announce_log_entry_tree(
-            sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
-        )
-        apply_node = _find_node_by_name(
-            tree, "ApplyParticipantStatusFromLedger"
-        )
-        assert apply_node is not None
-        # Simulate ARCH-15-001: replica's recorded status is not core-shaped.
-        apply_node._apply_rm_ratchet = (  # type: ignore[method-assign]
-            lambda *args, **kwargs: None
-        )
-
-        result = trigger_bridge.execute_with_setup(
-            tree=tree,
-            actor_id=PARTICIPANT_ACTOR_ID,
-            activity=event,
-            sync_port=MagicMock(spec=SyncActivityPort),
-        )
-
-        assert result.status == Status.FAILURE
-        assert datalayer.read(entry.id_) is None, "entry must not be stored"
-        trigger_activity.emit_processing_fault.assert_called_once()
-        call_kwargs = trigger_activity.emit_processing_fault.call_args.kwargs
-        assert (
-            call_kwargs["failure_class"]
-            == VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD
-        )

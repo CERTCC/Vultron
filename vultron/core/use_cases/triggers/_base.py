@@ -227,14 +227,14 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
     def _record_asserted_activity(
         self,
         case_id: str,
-        event_type: str,
+        semantic_type: str,
         subject_id: str | None = None,
     ) -> bool:
         """Record the activity the tree asserted to the CASE_MANAGER, if any.
 
         Reads the id the tree's builder wrote under ``ASSERTED_ACTIVITY_KEY``
         and records it in the actor's pending-assertion store under
-        *event_type*, the key the CASE_MANAGER's commit carries, so the
+        *semantic_type*, the key the CASE_MANAGER's commit carries, so the
         announced commit clears it (SYNC-11-002, SYNC-11-003).  Returns
         whether anything was recorded.
         """
@@ -244,7 +244,7 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         record_pending_assertion(
             self._actor_id,
             case_id,
-            event_type,
+            semantic_type,
             asserted_id,
             subject_id=subject_id,
         )
@@ -364,17 +364,17 @@ class SvcActivityTriggerBase(SvcBTTriggerBase[ActivityResult]):
         return ActivityResult(**self._activity_fields())
 
     def _suppressed_repeat(
-        self, case_id: str, event_type: str, subject_id: str
+        self, case_id: str, semantic_type: str, subject_id: str
     ) -> ActivityResult | None:
         """The no-activity result for a repeat still pending, else ``None``.
 
         The check half of the pending-assertion pair whose record half is
         :meth:`_record_asserted_activity`: a request about *subject_id* while
-        an assertion about it under *event_type* is pending is answered
+        an assertion about it under *semantic_type* is pending is answered
         without re-emitting it (SYNC-11-002).
         """
         reason = suppressed_repeat_reason(
-            self._actor_id, case_id, event_type, subject_id
+            self._actor_id, case_id, semantic_type, subject_id
         )
         if reason is None:
             return None
@@ -403,9 +403,9 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
     reported with no activity (:meth:`_suppressed_duplicate`).
     """
 
-    #: Ledger ``event_type`` of the activity this trigger emits; the key the
+    #: Ledger ``semantic_type`` of the activity this trigger emits; the key the
     #: pending assertion and the manager's commit share (SYNC-11-003).
-    _assertion_event_type: ClassVar[str]
+    _assertion_semantic_type: ClassVar[str]
 
     _case: VulnerabilityCase
 
@@ -427,14 +427,14 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
             *embargo_clock_decisions(case_id),
         ]
 
-    def _asserted_event_type(self) -> str:
-        """The ledger ``event_type`` this run asserts.
+    def _asserted_semantic_type(self) -> str:
+        """The ledger ``semantic_type`` this run asserts.
 
-        :attr:`_assertion_event_type` by default; a trigger whose activity
+        :attr:`_assertion_semantic_type` by default; a trigger whose activity
         depends on who runs it overrides this (the case owner's answer is its
         decision for the case, ADR-0122).
         """
-        return self._assertion_event_type
+        return self._assertion_semantic_type
 
     @abstractmethod
     def _assertion_subject(self) -> str | None:
@@ -450,13 +450,13 @@ class SvcEmbargoTriggerBase(SvcActivityTriggerBase):
         if subject is None:
             return None
         return self._suppressed_repeat(
-            self._case.id_, self._asserted_event_type(), subject
+            self._case.id_, self._asserted_semantic_type(), subject
         )
 
     def _handle_result(self) -> None:
         if self._record_asserted_activity(
             self._case.id_,
-            self._asserted_event_type(),
+            self._asserted_semantic_type(),
             subject_id=self._assertion_subject(),
         ):
             return

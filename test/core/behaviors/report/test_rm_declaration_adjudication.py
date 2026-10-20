@@ -15,8 +15,8 @@
 
 """The activity-typed RM handlers apply the RM rule of Add(ParticipantStatus).
 
-Report valid / invalid / closed and engage / defer each declare one RM state
-for their sender.  The CASE_MANAGER adjudicates that declaration exactly as it
+Report valid / invalid and engage / defer each declare one RM state for their
+sender.  The CASE_MANAGER adjudicates that declaration exactly as it
 adjudicates the ``rmState`` of an ``Add(ParticipantStatus)``: a forward move is
 recorded, a non-adjacent one included and flagged with the RSH-06-004 note; a
 backward one is refused and the recorded state kept (RSH-06-006).
@@ -27,7 +27,9 @@ the ``Add(ParticipantStatus)`` path against, so the two paths are asserted
 against the same rows (#3813 AC-4).
 
 The handlers run as the CASE_MANAGER, in its store; the subject of every write
-is the sender (RSH-08-001).
+is the sender (RSH-08-001).  ``Close(Report)`` declares no RM state the
+CASE_MANAGER adjudicates: on a case every sender's is refused (CM-23-019,
+``test/core/use_cases/received/test_close_report_on_case.py``).
 """
 
 import logging
@@ -54,9 +56,10 @@ from test.support.rm_declaration import (
     RMDeclarationCase,
     assert_anomaly_flagged_and_noted,
     cases_declaring,
+    committed_since,
     current_status,
     note_content,
-    queued_notes,
+    recorded_notes,
     recorded_rm,
     seed_case,
     status_count,
@@ -86,7 +89,6 @@ from vultron.core.use_cases.received.case.engage_defer import (
     EngageCaseReceivedUseCase,
 )
 from vultron.core.use_cases.received.report import (
-    CloseReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
     ValidateReportReceivedUseCase,
 )
@@ -95,7 +97,6 @@ from vultron.core.use_cases.received.status import (
 )
 from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
-    rm_close_report_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
     rm_invalidate_report_activity,
@@ -137,27 +138,30 @@ _HANDLERS: dict[RM, _Handler] = {
     RM.VALID: _Handler(
         RM.VALID,
         ValidateReportReceivedUseCase,
-        lambda actor: rm_validate_report_activity(_offer(), actor=actor),
+        lambda actor: rm_validate_report_activity(
+            _offer(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
     ),
     RM.INVALID: _Handler(
         RM.INVALID,
         InvalidateReportReceivedUseCase,
-        lambda actor: rm_invalidate_report_activity(_offer(), actor=actor),
-    ),
-    RM.CLOSED: _Handler(
-        RM.CLOSED,
-        CloseReportReceivedUseCase,
-        lambda actor: rm_close_report_activity(_offer(), actor=actor),
+        lambda actor: rm_invalidate_report_activity(
+            _offer(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
     ),
     RM.ACCEPTED: _Handler(
         RM.ACCEPTED,
         EngageCaseReceivedUseCase,
-        lambda actor: rm_engage_case_activity(_case_ref(), actor=actor),
+        lambda actor: rm_engage_case_activity(
+            _case_ref(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
     ),
     RM.DEFERRED: _Handler(
         RM.DEFERRED,
         DeferCaseReceivedUseCase,
-        lambda actor: rm_defer_case_activity(_case_ref(), actor=actor),
+        lambda actor: rm_defer_case_activity(
+            _case_ref(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
     ),
 }
 
@@ -266,16 +270,14 @@ class TestClosedSenderIsRefusedBeforeTheRule:
     """A sender at RM CLOSED may not act, so the rule never runs (CM-23-018).
 
     Its declaration is refused by the sender guard: nothing is recorded,
-    nothing is committed, and no RSH-06-004 note is sent.  A repeated Close
-    would close it again, so it is SKIPPED instead, with the same nothing
-    recorded, committed or sent (ID-05-003).
+    nothing is committed, and no RSH-06-004 note is sent.
     """
 
     @pytest.mark.spec("CM-23-018")
     @pytest.mark.parametrize(
         "case", cases_declaring(*_HANDLERS, sender_closed=True)
     )
-    def test_closed_sender_is_refused_or_skipped_with_nothing_sent(
+    def test_closed_sender_is_refused_with_nothing_sent(
         self, case: RMDeclarationCase, store_for, make_payload
     ):
         dl = store_for(CASE_MANAGER_ID)
@@ -287,18 +289,13 @@ class TestClosedSenderIsRefusedBeforeTheRule:
 
         result = _deliver(dl, case.declared, make_payload)
 
-        expected = (
-            HandlerDisposition.SKIPPED
-            if case.declared is RM.CLOSED
-            else HandlerDisposition.REFUSED
-        )
-        assert result.disposition is expected, result.reason
+        assert result.disposition is HandlerDisposition.REFUSED, result.reason
         assert "CM-23-018" in (result.reason or ""), result.reason
         assert list(dl.outbox_list()) == outbox_before
         assert recorded_rm(dl) == RM.CLOSED
         assert status_count(dl) == before, "a refusal writes nothing"
         assert ledger_tail_position(CASE_ID, dl) == tail, "nothing committed"
-        assert queued_notes(dl) == []
+        assert recorded_notes(dl) == []
 
 
 @pytest.mark.executes_as(CASE_MANAGER_ID)
@@ -340,6 +337,7 @@ def _run_status_declaration(dl: SqliteDataLayer, rm: RM, make_payload) -> Any:
             id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
         ),
         actor=ACTOR_ID,
+        to=[CASE_MANAGER_ID],
         context=_case_ref(),
     )
     event = make_payload(activity)
@@ -390,7 +388,7 @@ class TestActAndDeclarationAreOneMove:
         assert _transitions(_rm_history(dl)[seeded:]) == [
             (RM.RECEIVED, RM.INVALID)
         ]
-        assert queued_notes(dl) == []
+        assert recorded_notes(dl) == []
         assert not [r for r in caplog.records if "RM " in r.getMessage()]
 
     @pytest.mark.spec("RSH-08-002")
@@ -411,7 +409,7 @@ class TestActAndDeclarationAreOneMove:
         assert _transitions(_rm_history(dl)[seeded:]) == [
             (RM.RECEIVED, RM.INVALID)
         ]
-        assert queued_notes(dl) == []
+        assert recorded_notes(dl) == []
         assert not [
             r for r in caplog.records if "declared by" in r.getMessage()
         ]
@@ -434,20 +432,22 @@ class TestAnomalyFlagDoesNotLeakAcrossRuns:
         dl = store_for(CASE_MANAGER_ID)
         _seed(dl, RM.RECEIVED)
         _deliver(dl, RM.DEFERRED, make_payload)
-        assert len(queued_notes(dl)) == 1, "precondition: one gap note"
+        assert len(recorded_notes(dl)) == 1, "precondition: one gap note"
 
         # The sender is now recorded DEFERRED: a restated DEFERRED confirms.
         result = _deliver(dl, RM.DEFERRED, make_payload)
 
         assert result.disposition is HandlerDisposition.SKIPPED, result.reason
-        assert len(queued_notes(dl)) == 1, "the confirmation posts no note"
+        assert len(recorded_notes(dl)) == 1, "the confirmation posts no note"
 
 
-def _status_declaration(rm: RM, sender_id: str = ACTOR_ID) -> Any:
+def _status_declaration(
+    rm: RM, sender_id: str = ACTOR_ID, to: str = CASE_MANAGER_ID
+) -> Any:
     """``Add(ParticipantStatus)`` declaring *rm* for the participant.
 
-    *sender_id* sends it: the participant itself by default, or the
-    CASE_MANAGER relaying it to a replica (PCR-03-001).
+    *sender_id* sends it to *to*: the participant itself to the CASE_MANAGER
+    by default, or the CASE_MANAGER relaying it to a replica (PCR-03-001).
     """
     status = as_ParticipantStatus(
         id_=f"{PARTICIPANT_ID}/statuses/declared-{rm.name.lower()}",
@@ -461,6 +461,7 @@ def _status_declaration(rm: RM, sender_id: str = ACTOR_ID) -> Any:
             id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
         ),
         actor=sender_id,
+        to=[to],
         context=_case_ref(),
     )
 
@@ -471,7 +472,8 @@ class TestRefusedRegressionIsNoted:
 
     The refusal ends the tree before the commit, so the RSH-06-004 note
     comes from the factory's refusal-effects stage (CLP-10-022): once per
-    received activity, at the CASE_MANAGER, with nothing committed.
+    received activity, at the CASE_MANAGER, which commits nothing of the
+    declaration and only its own note.
     """
 
     @pytest.mark.spec("RSH-06-004")
@@ -499,10 +501,12 @@ class TestRefusedRegressionIsNoted:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert recorded_rm(dl) == RM.ACCEPTED
-        assert ledger_tail_position(CASE_ID, dl) == tail, "nothing committed"
-        notes = queued_notes(dl)
+        assert committed_since(dl, tail.log_index) == ["add_note_to_case"], (
+            "only the CASE_MANAGER's note is committed"
+        )
+        notes = recorded_notes(dl)
         assert len(notes) == 1
-        assert "backward" in note_content(dl, notes[0])
+        assert "backward" in note_content(notes[0])
 
     @pytest.mark.spec("RSH-06-004")
     @pytest.mark.spec("CLP-10-022")
@@ -517,8 +521,10 @@ class TestRefusedRegressionIsNoted:
 
         assert result.disposition is HandlerDisposition.REFUSED
         assert recorded_rm(dl) == RM.ACCEPTED
-        assert ledger_tail_position(CASE_ID, dl) == tail, "nothing committed"
-        assert len(queued_notes(dl)) == 1
+        assert committed_since(dl, tail.log_index) == ["add_note_to_case"], (
+            "only the CASE_MANAGER's note is committed"
+        )
+        assert len(recorded_notes(dl)) == 1
 
     @pytest.mark.spec("CLP-10-022")
     @pytest.mark.parametrize("declared", [RM.VALID, RM.INVALID])
@@ -544,12 +550,12 @@ class TestRefusedRegressionIsNoted:
 
         first = deliver()
         assert first.disposition is HandlerDisposition.REFUSED
-        assert len(queued_notes(dl)) == 1, "the first delivery is noted"
+        assert len(recorded_notes(dl)) == 1, "the first delivery is noted"
 
         second = deliver()
 
         assert second.disposition is HandlerDisposition.REFUSED
-        assert len(queued_notes(dl)) == 1, "the redelivery is not"
+        assert len(recorded_notes(dl)) == 1, "the redelivery is not"
 
     @pytest.mark.spec("CLP-10-022")
     def test_a_second_refused_activity_gets_its_own_note(
@@ -564,7 +570,7 @@ class TestRefusedRegressionIsNoted:
 
         assert first.disposition is HandlerDisposition.REFUSED
         assert second.disposition is HandlerDisposition.REFUSED
-        assert len(queued_notes(dl)) == 2
+        assert len(recorded_notes(dl)) == 2
 
     @pytest.mark.spec("BT-17-008")
     @pytest.mark.spec("CLP-10-022")
@@ -577,7 +583,7 @@ class TestRefusedRegressionIsNoted:
         dl = store_for(ACTOR_ID)
         _seed(dl, RM.ACCEPTED)
         status, activity = _status_declaration(
-            RM.VALID, sender_id=CASE_MANAGER_ID
+            RM.VALID, sender_id=CASE_MANAGER_ID, to=ACTOR_ID
         )
         dl.create(status)
         event = make_payload(activity)
@@ -602,7 +608,7 @@ class TestRefusedRegressionIsNoted:
         # only the CASE_MANAGER gate kept the note back.
         reason = BTBridge.get_failure_reason(tree)
         assert "refused in full" in reason, reason
-        assert queued_notes(dl) == []
+        assert recorded_notes(dl) == []
 
     @pytest.mark.spec("CLP-10-022")
     def test_a_refusal_ahead_of_the_adjudication_posts_no_stale_note(
@@ -617,9 +623,11 @@ class TestRefusedRegressionIsNoted:
         dl = store_for(CASE_MANAGER_ID)
         _seed(dl, RM.ACCEPTED)
         _deliver(dl, RM.VALID, make_payload)
-        assert len(queued_notes(dl)) == 1, "precondition: one regression note"
+        assert len(recorded_notes(dl)) == 1, (
+            "precondition: one regression note"
+        )
 
         result = _deliver(dl, RM.INVALID, make_payload, sender=STRANGER_ID)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert len(queued_notes(dl)) == 1
+        assert len(recorded_notes(dl)) == 1

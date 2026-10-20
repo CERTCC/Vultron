@@ -40,6 +40,12 @@ status entries and never works out a closure path itself; applying
   fanned out and no one advances (CM-23-013).  Under
   ``PostCloseReply.REJECT`` the sender gets ``Reject(Leave(VulnerabilityCase))``;
   under the default ``DROP`` it gets nothing (ADR-0131).
+- **A Leave from a sender with no standing**: the sender guard the factory
+  composes from the use case's declared rule refuses it before the
+  close/decline decision, so nothing is committed, declined or sent
+  (HP-01-006, HP-01-008).  A Leave from a sender whose closure the case
+  already records never reaches this tree: the use case reports it
+  ``SKIPPED`` first (CM-23-018, ID-05-003).
 
 The role check is performed by :class:`~vultron.core.behaviors.case.nodes
 .vfd_role_guards.SenderIsCaseOwnerNode` as a tree-level condition node, per
@@ -60,6 +66,9 @@ import logging
 import py_trees
 
 from vultron.config.actor import DEFAULT_POST_CLOSE_REPLY, PostCloseReply
+from vultron.core.behaviors.case.nodes.addressee import (
+    ENCLOSING_TREE_ADDRESSEE_CHECK,
+)
 from vultron.core.behaviors.case.nodes.leave import (
     LATE_LEAVE_DECLINE,
     AdvanceCaseActorToRMClosedNode,
@@ -70,18 +79,25 @@ from vultron.core.behaviors.case.nodes.leave import (
     ExpirePendingInvitesOnCloseNode,
 )
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
+from vultron.core.behaviors.case.nodes.refusal_notice import (
+    OWNER_CLOSE_DECLINE,
+)
+from vultron.core.behaviors.case.owner_close_embargo_guards import (
+    owner_close_blocked_by_embargo_guards,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.embargo.nodes import (
-    HasCaseStatusesNode,
-    IsCloseBlockedByActiveEmbargoNode,
-    ReadEmStateNode,
-)
 from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseOwnerNode,
+    SenderRule,
+)
+from vultron.core.behaviors.sender_guard import (
+    ClosedSenderCheck,
+    SenderCheckContext,
 )
 from vultron.core.behaviors.sync.nodes import RequireSyncPortNode
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +173,8 @@ def create_close_case_received_tree(
     sender_actor_id: str | None = None,
     receiving_actor_id: str | None = None,
     post_close_reply: PostCloseReply = DEFAULT_POST_CLOSE_REPLY,
+    *,
+    sender_rule: SenderRule | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Single-BT received-side tree for CloseCaseReceived (ADR-0022).
 
@@ -189,14 +207,16 @@ def create_close_case_received_tree(
         ├── CaseOpenToExternalWrites                    # post-close boundary (CM-23-013)
         │       (under PostCloseReply.REJECT: a PostCloseStage whose refusal
         │        arm emits EmitRejectLateLeave at the CASE_MANAGER)
+        ├── SenderRuleGuard                             # composed from sender_rule (HP-01-008)
+        ├── ClockDecisions (CaseManagerGate)            # embargo end-time check (CLP-10-025)
         └── CloseOrDeclineIfCaseManager (CaseManagerGate)  # BT-17-008, #3825
             └── CloseOrDecline (Selector)               # close unless declined
                 ├── CloseCaseReceive (Sequence, via create_receive_activity_tree)
                 │   ├── IntakeReceivedActivityNode          # finds the archive; no-op
                 │   │   (no post-close guard: CloseCaseBT's guard runs first)
                 │   ├── Inverter(OwnerCloseBlockedByEmbargoCheck)  # guard: SUCCESS iff NOT declining
-                │   │   └── Sequence: CheckIsCaseOwner → HasCaseStatuses
-                │   │              → ReadEmState → IsCloseBlockedByActiveEmbargo
+                │   │   └── Sequence: CheckIsCaseOwner → ReadEmState
+                │   │              → IsCloseBlockedByActiveEmbargo
                 │   ├── GuardedCommitOrSkip (Selector)      # Record receipt (CLP-10-006)
                 │   │   ├── Sequence(SkipIfNotCaseManager)
                 │   │   │   └── Inverter(CheckIsCaseManagerNode)
@@ -223,8 +243,8 @@ def create_close_case_received_tree(
                 │                   ├── AdvanceParticipantToRMClosedNode  # departing → RM.CLOSED
                 │                   └── CommitRMClosureEntriesNode   # each step on the ledger (CM-23-001)
                 └── DeclineOwnerCloseIfEmbargoed (Sequence)  # CM-23-011 decline arm
-                    ├── CheckIsCaseOwner → HasCaseStatuses
-                    │        → ReadEmState → IsCloseBlockedByActiveEmbargo  # decline decision
+                    ├── CheckIsCaseOwner → ReadEmState
+                    │        → IsCloseBlockedByActiveEmbargo  # decline decision
                     └── EmitRejectCloseCase                 # decline via as:Reject
 
     Intake runs first, ahead of the gate, so the inbound Leave is archived on
@@ -279,6 +299,11 @@ def create_close_case_received_tree(
             arrives after ``case_fully_closed`` (``ActorConfig.post_close_reply``,
             CM-23-013).  ``REJECT`` answers it with
             ``Reject(Leave(VulnerabilityCase))``; ``DROP`` sends nothing.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it, on the case, ahead of the
+            close/decline decision (HP-01-008).  A sender with no standing
+            is refused before the CASE_MANAGER writes, declines or replies
+            to anything (HP-01-006).  Required with ``sender_actor_id``.
         receiving_actor_id: Actor URI of the receiving actor.  Used as the
             ``case_actor_id`` argument of :class:`AdvanceCaseActorToRMClosedNode`
             and the closing actor of its :class:`CommitRMClosureEntriesNode`, so that on owner Leave
@@ -295,6 +320,11 @@ def create_close_case_received_tree(
             name="CloseCaseBT",
             case_id=case_id,
             precondition_guards=[],
+        )
+    if sender_rule is None:
+        raise VultronWiringError(
+            "create_close_case_received_tree: a Leave with a sender needs the"
+            " use case's sender_rule (HP-01-007, HP-01-008)"
         )
 
     # CM-23-002 step 3: the CASE_MANAGER's own Update(VulnerabilityCase)
@@ -405,37 +435,10 @@ def create_close_case_received_tree(
     # fails. That matters because committing and fanning out the close_case
     # ledger entry is precisely what advances participants to RM.CLOSED on the
     # replicas (CLP-10-001); a decline must therefore suppress the receipt commit
-    # itself, not merely the local RM effects. ReadEmStateNode publishes
-    # ``em_before`` for IsCloseBlockedByActiveEmbargoNode (AC-1: EM-state reads go
-    # through Read*StateNode, never inline). Each arm gets its own result_out
-    # dict since the two guard chains are distinct node instances.
-    def _decline_decision_guards(
-        result_out: dict[str, object],
-    ) -> list[py_trees.behaviour.Behaviour]:
-        return [
-            SenderIsCaseOwnerNode(
-                sender_actor_id=sender_actor_id,
-                case_id=case_id,
-                name="CheckIsCaseOwnerForClose",
-            ),
-            # Precondition for the EM read: fail quietly (no misleading WARNING)
-            # when the case carries no CaseStatus, rather than letting
-            # ReadEmStateNode log a no-status warning on every routine close.
-            HasCaseStatusesNode(
-                case_id=case_id,
-                name="HasCaseStatusesForCloseGuard",
-            ),
-            ReadEmStateNode(
-                case_id=case_id,
-                result_out=result_out,
-                name="ReadEmStateForCloseGuard",
-            ),
-            IsCloseBlockedByActiveEmbargoNode(
-                case_id=case_id,
-                result_out=result_out,
-                name="IsCloseBlockedByActiveEmbargo",
-            ),
-        ]
+    # itself, not merely the local RM effects. The guards are shared with the
+    # leave-case trigger, which makes the same check before it sends
+    # (TRIG-13-003). Each arm gets its own result_out dict since the two guard
+    # chains are distinct node instances.
 
     # Close arm: run the normal receive-and-close ONLY when the decline decision
     # does NOT fire. The inverted guard is a read-only precondition of the
@@ -447,13 +450,20 @@ def create_close_case_received_tree(
     close_arm = create_receive_activity_tree(
         name="CloseCaseReceive",
         case_id=case_id,
+        # The decline arm answers the one refusal the close arm makes, with
+        # the CM-23-011 Reject(Leave), so the factory adds no refusal notice.
+        refusal_notice_exemption=OWNER_CLOSE_DECLINE,
         precondition_guards=[
             py_trees.decorators.Inverter(
                 name="NotOwnerCloseBlockedByEmbargo",
                 child=py_trees.composites.Sequence(
                     name="OwnerCloseBlockedByEmbargoCheck",
                     memory=False,
-                    children=_decline_decision_guards({}),
+                    children=owner_close_blocked_by_embargo_guards(
+                        closing_actor_id=sender_actor_id,
+                        case_id=case_id,
+                        result_out={},
+                    ),
                 ),
             ),
         ],
@@ -469,6 +479,7 @@ def create_close_case_received_tree(
         manager_case_id=case_id,
         manager_gate_name="CloseCaseEffectsIfCaseManager",
         post_close_exemption=PostCloseExemption.ENCLOSING_TREE_GUARDS,
+        addressee_exemption=ENCLOSING_TREE_ADDRESSEE_CHECK,
     )
 
     # Decline arm: emit an as:Reject; commit nothing (CM-23-011). The Leave is
@@ -477,7 +488,11 @@ def create_close_case_received_tree(
         name="DeclineOwnerCloseIfEmbargoed",
         memory=False,
         children=[
-            *_decline_decision_guards({}),
+            *owner_close_blocked_by_embargo_guards(
+                closing_actor_id=sender_actor_id,
+                case_id=case_id,
+                result_out={},
+            ),
             EmitRejectCloseCaseNode(
                 case_id=case_id,
                 close_sender_id=sender_actor_id,
@@ -527,6 +542,20 @@ def create_close_case_received_tree(
         name="CloseCaseBT",
         case_id=None,
         precondition_guards=[],
+        # A sender whose closure the case records repeats a closing act; the
+        # Case Owner's Leave also closes the case, so its repeat runs again
+        # to finish a closure left part-way (CM-23-018, CM-23-002).
+        closed_sender=ClosedSenderCheck(
+            sender_id=sender_actor_id, case_owner_completes=True
+        ),
+        sender_rule=sender_rule,
+        # The owner's repeat Leave finishes the closure, so its CASE_OWNER
+        # standing is the role alone; the closed-sender door decides it.
+        sender_context=SenderCheckContext(
+            sender_id=sender_actor_id,
+            case_id=case_id,
+            closing_case_owner=True,
+        ),
         post_close_reply=late_leave_reply,
         manager_effects=[
             py_trees.composites.Selector(

@@ -31,6 +31,9 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.refusal_notice import (
+    EMBARGO_REFUSAL_ANSWERS,
+)
 from vultron.core.behaviors.case.nodes.stub_reissue import (
     ReissueStubInvitesNode,
 )
@@ -124,8 +127,8 @@ def activate_embargo_on_case_tree(
     )
     root = create_receive_activity_tree(
         name="ActivateEmbargoOnCaseBT",
+        refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         case_id=case_id,
-        addressee_check="Accept(EmbargoEvent)",
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_actor_id, case_id=case_id
@@ -259,8 +262,8 @@ def reject_embargo_proposal_on_case_tree(
     """
     root = create_receive_activity_tree(
         name="RejectEmbargoProposalOnCaseBT",
+        refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         case_id=case_id,
-        addressee_check="Reject(EmbargoEvent)",
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
             sender_id=sender_actor_id, case_id=case_id

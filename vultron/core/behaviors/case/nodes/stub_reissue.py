@@ -54,7 +54,9 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_consent_event_types import CONSENT_ROW_VERBS
+from vultron.core.models.embargo_consent_semantic_types import (
+    CONSENT_ROW_VERBS,
+)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
@@ -207,7 +209,7 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
             after = position[newest.invite_id]
             if not any(
                 e.log_index > after
-                and e.event_type in CONSENT_ROW_VERBS
+                and e.semantic_type in CONSENT_ROW_VERBS
                 and _extract_id_from_field(e.payload_snapshot.get("object"))
                 == row_id
                 for e in entries

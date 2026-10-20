@@ -28,7 +28,7 @@ guard → commit → effect pattern (CLP-10-006, BT-06-006)::
     └─ CommitAndApplyExpiryIfDue (Selector)
        ├─ Inverter(InviteExpiryNeedsApplyNode)   # nothing to commit
        └─ CommitAndApplyInviteExpiryNode
-          # commit INVITE_EXPIRED_EVENT_TYPE, then Update(EmbargoConsent)
+          # commit INVITE_EXPIRED_SEMANTIC_TYPE, then Update(EmbargoConsent)
           # carrying the TIMED_OUT row; only then write INVITED → TIMED_OUT
 
 A failed commit leaves the invitee unchanged: the row is written only once
@@ -220,7 +220,7 @@ def create_commit_and_honour_late_accept_tree(
     """Commit an honoured late Accept and its ``AGREED`` row, then apply it.
 
     The commit → effect half of the EMB-17-001 honour: the node commits the
-    :data:`~vultron.core.models.rsvp_deadline.HONOUR_LATE_ACCEPT_EVENT_TYPE`
+    :data:`~vultron.core.models.rsvp_deadline.HONOUR_LATE_ACCEPT_SEMANTIC_TYPE`
     entry, then the CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the
     accepter's row, and only then writes ``TIMED_OUT → AGREED`` or
     ``DECLINED → AGREED`` (CLP-10-006, ADR-0124).  It is not gated: the honour

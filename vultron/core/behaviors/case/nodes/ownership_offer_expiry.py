@@ -37,7 +37,7 @@ closes it before the received activity is judged (CM-21-014), and is
 ledgered whether that activity is then admitted (a new Offer) or refused (a
 late reply, CM-21-016).  The entry changes no replica state of its own; it
 closes the Offer because every "is it open?" reader includes its
-``event_type`` (``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``).
+``semantic_type`` (``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``).
 """
 
 from dataclasses import dataclass
@@ -54,7 +54,7 @@ from vultron.core.behaviors.sync.commit_tree import (
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.protocol_pair import (
-    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
 )
 from vultron.core.models.rsvp_deadline import EXPIRE_SNAPSHOT_TYPE
 from vultron.core.models.wire_keys import wire_key
@@ -262,7 +262,7 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
         tree = create_commit_log_entry_tree(
             case_id=self._case_id,
             object_id=offer.offer_id,
-            event_type=OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_EVENT_TYPE,
+            semantic_type=OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
             payload_snapshot=ownership_offer_expiry_snapshot(
                 case_id=self._case_id,
                 offer_id=offer.offer_id,

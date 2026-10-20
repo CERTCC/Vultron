@@ -20,7 +20,7 @@ and file discovery through ``_corpus.files_mentioning``, ``_corpus.all_trees``,
 
 Direct ``ast.parse(`` or ``.rglob(`` calls in sibling files bypass the shared
 module-level corpus, re-read source files on every test run, and risk blowing
-the 5-second per-test timeout budget.
+the per-test timeout budget.
 
 Spec: TB-13-003.
 """

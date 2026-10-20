@@ -320,7 +320,8 @@ class EmitAnnounceCaseToInviteeNode(_EmitSingleActivityBase):
     """Queue Announce(VulnerabilityCase) to the invitee from the CaseActor.
 
     Per MV-10-003/MV-10-005, the CaseActor sends the full case object after
-    embargo consent has been resolved (auto-signed above when EM.ACTIVE).
+    embargo consent has been resolved (auto-signed above when an embargo is
+    in force).
     Failures to enqueue Announce are logged but treated as non-fatal so the
     join-time canonical ledger backfill can still run and establish catch-up
     markers.

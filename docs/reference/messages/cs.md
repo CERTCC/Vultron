@@ -56,6 +56,18 @@ This implementation's inbox refuses either one as an unrecognized activity and c
 
 - **Triggering transition:** VFd → VFD (participant-scoped, deployer path).
 
+{% include-markdown "./_occasions/sections/participant-public-awareness.md" %}
+
+- **Triggering transition:** p → P (case-scoped, reported in the sender's participant status).
+
+{% include-markdown "./_occasions/sections/participant-exploit-public.md" %}
+
+- **Triggering transition:** x → X (case-scoped, reported in the sender's participant status).
+
+{% include-markdown "./_occasions/sections/participant-attacks-observed.md" %}
+
+- **Triggering transition:** a → A (case-scoped, reported in the sender's participant status).
+
 ## Formal messages with no dedicated wire activity
 
 ### CK — CS Acknowledgment
@@ -72,7 +84,7 @@ This implementation's inbox refuses either one as an unrecognized activity and c
 - **Protocol role:** Indicates a Participant received an unexpected CS message.
 - **Triggering transition:** any unexpected CS message.
 - **Wire activity:** none dedicated. Faults are conveyed by
-  `Create(ProcessingFault)`, `as:Reject`, or `Create(Note)`, partitioned by
+  `Create(ProcessingFault)`, `as:Reject`, or `Add(Note)`, partitioned by
   failure mode
   ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#cs-message-types).

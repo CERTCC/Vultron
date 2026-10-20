@@ -32,7 +32,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 # Constants: expected deterministic IDs from docker-compose-multi-actor.yml
 # ---------------------------------------------------------------------------
 
-FINDER_ID = "http://finder:7999/api/v2/actors/finder"
+REPORTER_ID = "http://reporter:7999/api/v2/actors/reporter"
 VENDOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 COORDINATOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
 CASE_ACTOR_ID = "http://case-actor:7999/api/v2/actors/case-actor"
@@ -58,42 +58,48 @@ def _load_seed_config(filename: str) -> SeedConfig:
 
 def _all_expected_peer_ids(own_id: str) -> set[str]:
     """Return the set of peer IDs expected for a given actor."""
-    all_ids = {FINDER_ID, VENDOR_ID, COORDINATOR_ID, CASE_ACTOR_ID, VENDOR2_ID}
+    all_ids = {
+        REPORTER_ID,
+        VENDOR_ID,
+        COORDINATOR_ID,
+        CASE_ACTOR_ID,
+        VENDOR2_ID,
+    }
     return all_ids - {own_id}
 
 
 # ---------------------------------------------------------------------------
-# Tests for seed-finder.yaml
+# Tests for seed-reporter.yaml
 # ---------------------------------------------------------------------------
 
 
-class TestSeedFinderConfig:
+class TestSeedReporterConfig:
     def test_file_exists(self):
-        assert (_SEED_CONFIGS_DIR / "seed-finder.yaml").exists()
+        assert (_SEED_CONFIGS_DIR / "seed-reporter.yaml").exists()
 
     def test_valid_seed_config_schema(self):
-        cfg = _load_seed_config("seed-finder.yaml")
+        cfg = _load_seed_config("seed-reporter.yaml")
         assert isinstance(cfg, SeedConfig)
 
     def test_local_actor_id_is_deterministic(self):
-        cfg = _load_seed_config("seed-finder.yaml")
-        assert cfg.local_actor.id_ == FINDER_ID
+        cfg = _load_seed_config("seed-reporter.yaml")
+        assert cfg.local_actor.id_ == REPORTER_ID
 
     def test_local_actor_type_is_person(self):
-        cfg = _load_seed_config("seed-finder.yaml")
+        cfg = _load_seed_config("seed-reporter.yaml")
         assert cfg.local_actor.actor_type == "Person"
 
     def test_local_actor_name(self):
-        cfg = _load_seed_config("seed-finder.yaml")
-        assert cfg.local_actor.name == "Finder"
+        cfg = _load_seed_config("seed-reporter.yaml")
+        assert cfg.local_actor.name == "Reporter"
 
     def test_peers_include_vendor_and_case_actor(self):
-        cfg = _load_seed_config("seed-finder.yaml")
+        cfg = _load_seed_config("seed-reporter.yaml")
         peer_ids = {p.id_ for p in cfg.peers}
-        assert peer_ids == _all_expected_peer_ids(FINDER_ID)
+        assert peer_ids == _all_expected_peer_ids(REPORTER_ID)
 
     def test_peer_ids_are_deterministic(self):
-        cfg = _load_seed_config("seed-finder.yaml")
+        cfg = _load_seed_config("seed-reporter.yaml")
         peer_ids = {p.id_ for p in cfg.peers}
         assert VENDOR_ID in peer_ids
         assert CASE_ACTOR_ID in peer_ids
@@ -126,7 +132,7 @@ class TestSeedVendorConfig:
         cfg = _load_seed_config("seed-vendor.yaml")
         assert cfg.local_actor.name == "Vendor"
 
-    def test_peers_include_finder_and_case_actor(self):
+    def test_peers_include_reporter_and_case_actor(self):
         cfg = _load_seed_config("seed-vendor.yaml")
         peer_ids = {p.id_ for p in cfg.peers}
         assert peer_ids == _all_expected_peer_ids(VENDOR_ID)
@@ -134,7 +140,7 @@ class TestSeedVendorConfig:
     def test_peer_ids_are_deterministic(self):
         cfg = _load_seed_config("seed-vendor.yaml")
         peer_ids = {p.id_ for p in cfg.peers}
-        assert FINDER_ID in peer_ids
+        assert REPORTER_ID in peer_ids
         assert CASE_ACTOR_ID in peer_ids
         assert COORDINATOR_ID in peer_ids
         assert VENDOR2_ID in peer_ids
@@ -165,7 +171,7 @@ class TestSeedCaseActorConfig:
         cfg = _load_seed_config("seed-case-actor.yaml")
         assert cfg.local_actor.name == "CaseActor"
 
-    def test_peers_include_finder_and_vendor(self):
+    def test_peers_include_reporter_and_vendor(self):
         cfg = _load_seed_config("seed-case-actor.yaml")
         peer_ids = {p.id_ for p in cfg.peers}
         assert peer_ids == _all_expected_peer_ids(CASE_ACTOR_ID)
@@ -173,14 +179,14 @@ class TestSeedCaseActorConfig:
     def test_peer_ids_are_deterministic(self):
         cfg = _load_seed_config("seed-case-actor.yaml")
         peer_ids = {p.id_ for p in cfg.peers}
-        assert FINDER_ID in peer_ids
+        assert REPORTER_ID in peer_ids
         assert VENDOR_ID in peer_ids
         assert COORDINATOR_ID in peer_ids
         assert VENDOR2_ID in peer_ids
 
 
 # ---------------------------------------------------------------------------
-# Tests for seed-actor6.yaml (FCVCV VendorDeployer — DEMOMA-19-001)
+# Tests for seed-actor6.yaml (RCVCV VendorDeployer — DEMOMA-19-001)
 # ---------------------------------------------------------------------------
 
 
@@ -204,12 +210,12 @@ class TestSeedActor6Config:
         cfg = _load_seed_config("seed-actor6.yaml")
         assert cfg.local_actor.name == "VendorDeployer"
 
-    def test_peers_include_finder_vendor_coordinator_coordinator2_case_actor(
+    def test_peers_include_reporter_vendor_coordinator_coordinator2_case_actor(
         self,
     ):
         cfg = _load_seed_config("seed-actor6.yaml")
         peer_ids = {p.id_ for p in cfg.peers}
-        assert FINDER_ID in peer_ids
+        assert REPORTER_ID in peer_ids
         assert VENDOR_ID in peer_ids
         assert COORDINATOR_ID in peer_ids
         assert COORDINATOR2_ID in peer_ids
@@ -235,13 +241,13 @@ class TestSeedConfigCrossConsistency:
 
     actor6 (seed-actor6.yaml) is excluded here: it has 5 peers (not 4) and the
     other five actors do not yet list actor6 as a peer — that cross-registration
-    is deferred to DEMOMA-19-002 (seed_containers_fcvcv function).
+    is deferred to DEMOMA-19-002 (seed_containers_rcvcv function).
     """
 
     def test_all_configs_load_successfully(self):
         # actor6 excluded — see class docstring (DEMOMA-19-002 pending)
         for filename in (
-            "seed-finder.yaml",
+            "seed-reporter.yaml",
             "seed-vendor.yaml",
             "seed-coordinator.yaml",
             "seed-case-actor.yaml",
@@ -252,7 +258,7 @@ class TestSeedConfigCrossConsistency:
 
     def test_each_config_has_exactly_four_peers(self):
         for filename in (
-            "seed-finder.yaml",
+            "seed-reporter.yaml",
             "seed-vendor.yaml",
             "seed-coordinator.yaml",
             "seed-case-actor.yaml",
@@ -265,7 +271,7 @@ class TestSeedConfigCrossConsistency:
 
     def test_no_config_lists_itself_as_peer(self):
         for filename, own_id in [
-            ("seed-finder.yaml", FINDER_ID),
+            ("seed-reporter.yaml", REPORTER_ID),
             ("seed-vendor.yaml", VENDOR_ID),
             ("seed-coordinator.yaml", COORDINATOR_ID),
             ("seed-case-actor.yaml", CASE_ACTOR_ID),
@@ -280,7 +286,7 @@ class TestSeedConfigCrossConsistency:
     def test_every_actor_appears_as_peer_in_others(self):
         """Verify the peer mesh is symmetric: A knows B, B knows A."""
         configs = {
-            FINDER_ID: _load_seed_config("seed-finder.yaml"),
+            REPORTER_ID: _load_seed_config("seed-reporter.yaml"),
             VENDOR_ID: _load_seed_config("seed-vendor.yaml"),
             COORDINATOR_ID: _load_seed_config("seed-coordinator.yaml"),
             CASE_ACTOR_ID: _load_seed_config("seed-case-actor.yaml"),
@@ -298,7 +304,7 @@ class TestSeedConfigCrossConsistency:
 
     def test_all_deterministic_ids_are_full_http_uris(self):
         all_ids = [
-            FINDER_ID,
+            REPORTER_ID,
             VENDOR_ID,
             COORDINATOR_ID,
             CASE_ACTOR_ID,
@@ -311,7 +317,7 @@ class TestSeedConfigCrossConsistency:
 
     def test_all_deterministic_ids_include_actors_path(self):
         all_ids = [
-            FINDER_ID,
+            REPORTER_ID,
             VENDOR_ID,
             COORDINATOR_ID,
             CASE_ACTOR_ID,
@@ -390,13 +396,13 @@ class TestSeedCLIWithDeterministicId:
             )
         return calls, peer_calls, result.exit_code
 
-    def test_finder_seed_uses_deterministic_id(self):
-        config_path = _SEED_CONFIGS_DIR / "seed-finder.yaml"
+    def test_reporter_seed_uses_deterministic_id(self):
+        config_path = _SEED_CONFIGS_DIR / "seed-reporter.yaml"
         calls, _peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
-        local_call = next((c for c in calls if c["name"] == "Finder"), None)
+        local_call = next((c for c in calls if c["name"] == "Reporter"), None)
         assert local_call is not None
-        assert local_call["actor_id"] == FINDER_ID
+        assert local_call["actor_id"] == REPORTER_ID
 
     def test_vendor_seed_uses_deterministic_id(self):
         config_path = _SEED_CONFIGS_DIR / "seed-vendor.yaml"
@@ -414,8 +420,8 @@ class TestSeedCLIWithDeterministicId:
         assert local_call is not None
         assert local_call["actor_id"] == CASE_ACTOR_ID
 
-    def test_finder_seed_registers_all_peers(self):
-        config_path = _SEED_CONFIGS_DIR / "seed-finder.yaml"
+    def test_reporter_seed_registers_all_peers(self):
+        config_path = _SEED_CONFIGS_DIR / "seed-reporter.yaml"
         _calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
         registered_peer_ids = {c["peer_id"] for c in peer_calls}
@@ -425,7 +431,7 @@ class TestSeedCLIWithDeterministicId:
     def test_seed_call_count_equals_one_local_plus_peers(self):
         """Each seed run should call seed_actor once (local) and seed_peer once per peer."""
         for filename in (
-            "seed-finder.yaml",
+            "seed-reporter.yaml",
             "seed-vendor.yaml",
             "seed-coordinator.yaml",
             "seed-case-actor.yaml",
@@ -511,7 +517,7 @@ class TestSeedVendorParticipantRMState:
         RM.RECEIVED simulates what the protocol would have done.
 
         RM.VALID must NOT be pre-seeded — validate-report must drive that
-        transition so the validate_report eventType appears in the case-actor
+        transition so the validate_report semanticType appears in the case-actor
         ledger (issue #2273).
         """
         from vultron.core.states.rm import RM

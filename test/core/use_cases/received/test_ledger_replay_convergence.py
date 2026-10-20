@@ -25,9 +25,10 @@ nothing before the fan-out — lands with the gating change (RSH-08-003, #3814)
 and is exercised below by ``test_*_writes_nothing_at_a_replica``: the activity
 is delivered straight to a replica's store, which must change no state because
 the state-writing effect now runs only inside the CASE_MANAGER gate.  Every
-activity-typed RM move replays through one slot, keyed by ``RM_VERDICT_TARGETS``;
-engage and defer exercise it end to end, and ``test_rm_verdict_effect.py`` pins
-each other type's target state against its use case.
+activity-typed RM move reaches a replica as the status the CASE_MANAGER wrote,
+committed as its own entry after the act (CLP-07-013) and copied by the
+participant-status slot; engage and defer exercise it end to end, and
+``test_rm_verdict_status_entry.py`` pins the status entry itself.
 """
 
 import json
@@ -110,13 +111,15 @@ def _replay(net: LedgerNetwork, replica: str) -> list[str]:
 
 
 def _ledger(net: LedgerNetwork, actor_id: str) -> list[str]:
-    """The ``event_type`` of each entry *actor_id*'s store holds, in order."""
+    """The ``semantic_type`` of each entry *actor_id*'s store holds, in order."""
     entries = [
         cast(CaseLedgerEntry, e)
         for e in net.stores[actor_id].list_objects("CaseLedgerEntry")
         if getattr(e, "case_id", None) == net.case_id
     ]
-    return [e.event_type for e in sorted(entries, key=lambda e: e.log_index)]
+    return [
+        e.semantic_type for e in sorted(entries, key=lambda e: e.log_index)
+    ]
 
 
 def _register(
@@ -338,10 +341,12 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure()
         ),
     )
 
-    # P first, then the reject entry, then the termination it forced
-    # (EMB-04-002).
-    assert _replay(net, BYSTANDER)[:3] == [
+    # P first, with the CSB-18 note the CASE_MANAGER records while the
+    # embargo is still in force (#4829), then the reject entry, then the
+    # termination it forced (EMB-04-002).
+    assert _replay(net, BYSTANDER)[:4] == [
         "add_case_status_to_case",
+        "add_note_to_case",
         "reject_embargo_proposal_on_case",
         "remove_embargo_event_from_case",
     ]
@@ -378,7 +383,7 @@ def test_a_redelivered_owner_activation_entry_changes_nothing():
 
     for activity in net.queued(MANAGER, to=BYSTANDER, type_="Announce"):
         body = read_sealed_body_dict(net.stores[MANAGER], activity.id_) or {}
-        if (body.get("object") or {}).get("eventType") != (
+        if (body.get("object") or {}).get("semanticType") != (
             "activate_embargo_on_case"
         ):
             continue
@@ -484,7 +489,7 @@ def test_a_replica_follows_a_participants_case_status():
 @pytest.mark.spec("RSH-08-001")
 @pytest.mark.spec("TB-06-007")
 @pytest.mark.parametrize(
-    ("factory", "event_type", "target"),
+    ("factory", "semantic_type", "target"),
     [
         (rm_engage_case_activity, "engage_case", RM.ACCEPTED),
         (rm_defer_case_activity, "defer_case", RM.DEFERRED),
@@ -492,17 +497,17 @@ def test_a_replica_follows_a_participants_case_status():
     ids=["engage", "defer"],
 )
 def test_a_replica_follows_a_participants_engagement_decision(
-    factory, event_type, target
+    factory, semantic_type, target
 ):
     """Join/Ignore(Case) from the bystander moves its RM on the owner's replica."""
     net = LedgerNetwork(
-        f"https://example.org/cases/replay-{event_type}", em_state=EM.NONE
+        f"https://example.org/cases/replay-{semantic_type}", em_state=EM.NONE
     )
     _set_rm(net, BYSTANDER, RM.VALID)
     owner_before = {s: _rm(net, s, OWNER) for s in (MANAGER, OWNER)}
     _send(net, factory(net.case(BYSTANDER), actor=BYSTANDER, to=[MANAGER]))
 
-    assert event_type in _replay(net, OWNER)
+    assert semantic_type in _replay(net, OWNER)
     for store_of in (MANAGER, OWNER):
         # The sender is the subject (RSH-08-001) in every store: the
         # replica's own participant does not move.
@@ -511,7 +516,7 @@ def test_a_replica_follows_a_participants_engagement_decision(
 
 
 def _create_note(net: LedgerNetwork, note_id: str) -> as_Create:
-    """A bystander's ``Create(Note)`` whose note names the network's case."""
+    """A bystander's ``Create(Note)`` to the CASE_MANAGER, naming its case."""
     return as_Create(
         actor=BYSTANDER,
         object_=as_Note(
@@ -521,64 +526,27 @@ def _create_note(net: LedgerNetwork, note_id: str) -> as_Create:
     )
 
 
-@pytest.mark.spec("CLP-07-013")
-@pytest.mark.spec("RSH-08-004")
-@pytest.mark.spec("TB-06-007")
-def test_a_replica_follows_a_note_attached_from_a_create():
-    """Create(Note) naming the case: the CASE_MANAGER commits the attachment
-    and the owner's replica attaches the note from that entry alone (#4441)."""
+@pytest.mark.spec("VAM-01-010", "VAM-01-011", "RSH-08-004")
+def test_a_create_note_changes_no_copy_of_the_case():
+    """A received Create(Note) naming the case is not a protocol message
+    (VAM-01-011): the CASE_MANAGER refuses it as unrecognized, attaches
+    nothing and commits nothing, so no replica has an entry to replay (#4707).
+    """
     net = LedgerNetwork(
         "https://example.org/cases/replay-create-note", em_state=EM.NONE
     )
     note_id = "https://example.org/notes/replay-create-note"
-    _send(net, _create_note(net, note_id))
+    manager_notes = list(net.case(MANAGER).notes)
+    ledger_before = _ledger(net, MANAGER)
 
-    assert "create_note" in _ledger(net, MANAGER)
-    assert "create_note" in _replay(net, OWNER)
-    manager, replica = net.case(MANAGER), net.case(OWNER)
-    assert note_id in [_as_id(n) for n in manager.notes]
-    assert [_as_id(n) for n in replica.notes] == [
-        _as_id(n) for n in manager.notes
-    ]
-    # The replica holds the note itself, not a dangling reference.
-    assert net.stores[OWNER].read(note_id) is not None
-
-
-@pytest.mark.spec("CLP-07-013")
-@pytest.mark.spec("CM-13-007")
-@pytest.mark.spec("RSH-08-004")
-def test_a_replica_follows_a_note_sent_as_create_then_add():
-    """A sender that posts one note as Create(Note) then Add(Note), a valid
-    protocol form this implementation's trigger does not use (#4549): the
-    CASE_MANAGER commits both entries, and both case copies hold the note
-    once, because the second attach changes nothing (CM-13-007, #4441)."""
-    net = LedgerNetwork(
-        "https://example.org/cases/replay-create-add-note", em_state=EM.NONE
-    )
-    note_id = "https://example.org/notes/replay-create-add-note"
-    create = _create_note(net, note_id)
-    _send(net, create)
-    _send(
-        net,
-        add_note_to_case_activity(
-            cast(as_Note, create.object_),
-            target=net.case_id,
-            actor=BYSTANDER,
-            to=[MANAGER],
-        ),
+    verdict = net.receive(
+        MANAGER, json.loads(dump_outbound_body(_create_note(net, note_id)))
     )
 
-    assert [e for e in _ledger(net, MANAGER) if "note" in e] == [
-        "create_note",
-        "add_note_to_case",
-    ]
-    replayed = _replay(net, OWNER)
-    assert "create_note" in replayed and "add_note_to_case" in replayed
-    manager, replica = net.case(MANAGER), net.case(OWNER)
-    assert [_as_id(n) for n in manager.notes].count(note_id) == 1
-    assert [_as_id(n) for n in replica.notes] == [
-        _as_id(n) for n in manager.notes
-    ]
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert _ledger(net, MANAGER) == ledger_before
+    assert net.case(MANAGER).notes == manager_notes
+    assert note_id not in [_as_id(n) for n in net.case(OWNER).notes]
 
 
 def _note_entries(net: LedgerNetwork, actor_id: str) -> list[CaseLedgerEntry]:
@@ -587,7 +555,7 @@ def _note_entries(net: LedgerNetwork, actor_id: str) -> list[CaseLedgerEntry]:
         cast(CaseLedgerEntry, e)
         for e in net.stores[actor_id].list_objects("CaseLedgerEntry")
         if getattr(e, "case_id", None) == net.case_id
-        and "note" in cast(CaseLedgerEntry, e).event_type
+        and "note" in cast(CaseLedgerEntry, e).semantic_type
     ]
     return sorted(entries, key=lambda e: e.log_index)
 
@@ -640,7 +608,7 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
     ]
 
     entries = _note_entries(net, MANAGER)
-    assert [(e.event_type, e.log_object_id) for e in entries] == [
+    assert [(e.semantic_type, e.log_object_id) for e in entries] == [
         ("add_note_to_case", add_id)
     ]
     assert note_id in [_as_id(n) for n in net.case(MANAGER).notes]
@@ -669,7 +637,7 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
 @pytest.mark.spec("SYNC-11-003")
 @pytest.mark.spec("TRIG-10-001")
 @pytest.mark.parametrize(
-    ("sender", "make_object", "event_type"),
+    ("sender", "make_object", "semantic_type"),
     [
         pytest.param(
             OWNER,
@@ -694,14 +662,14 @@ def test_add_note_trigger_makes_one_add_note_to_case_entry():
     ],
 )
 def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
-    sender: str, make_object: Any, event_type: str
+    sender: str, make_object: Any, semantic_type: str
 ):
     """The add-object trigger's pending assertion is keyed the way the
     CASE_MANAGER commits the Add, so the commit's Announce clears it and the
     same object may be added again (#4041, #4761)."""
     net = _owned(
         LedgerNetwork(
-            f"https://example.org/cases/trigger-add-object-{event_type}",
+            f"https://example.org/cases/trigger-add-object-{semantic_type}",
             em_state=EM.NONE,
         )
     )
@@ -724,7 +692,7 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
     assert first.activity is not None
     add_id: str = first.activity["id"]
     pending = get_pending_assertion_store(sender)
-    assert pending.is_suppressed(net.case_id, event_type, add_id)
+    assert pending.is_suppressed(net.case_id, semantic_type, add_id)
     assert _add().activity is None  # a repeat while pending is suppressed
 
     verdicts = net.deliver(sender, to=MANAGER)
@@ -735,12 +703,12 @@ def test_add_object_trigger_pending_entry_clears_on_the_managers_commit(
         cast(CaseLedgerEntry, e)
         for e in net.stores[MANAGER].list_objects("CaseLedgerEntry")
         if getattr(e, "case_id", None) == net.case_id
-        and cast(CaseLedgerEntry, e).event_type == event_type
+        and cast(CaseLedgerEntry, e).semantic_type == semantic_type
     ]
     assert [e.log_object_id for e in entries] == [add_id]
 
-    assert event_type in _replay(net, sender)
-    assert not pending.is_suppressed(net.case_id, event_type, add_id)
+    assert semantic_type in _replay(net, sender)
+    assert not pending.is_suppressed(net.case_id, semantic_type, add_id)
     assert _add().activity is not None
 
 
@@ -770,7 +738,7 @@ def test_a_replica_follows_an_existing_note_added_to_the_case():
         ),
     )
 
-    assert [e.event_type for e in _note_entries(net, MANAGER)] == [
+    assert [e.semantic_type for e in _note_entries(net, MANAGER)] == [
         "add_note_to_case"
     ]
     assert note.id_ in [_as_id(n) for n in net.case(MANAGER).notes]
@@ -884,23 +852,3 @@ def test_case_status_writes_nothing_at_a_replica():
 # ``test_report_routing_guard.py`` and ``test_receive_tree_ledger_commit.py``;
 # #4304 made those verdicts committed and replayed, so gating them is safe
 # (RSH-08-003).
-
-
-@pytest.mark.spec("RSH-08-003")
-@pytest.mark.spec("TB-06-007")
-def test_create_note_writes_no_attachment_at_a_replica():
-    """Create(Note) delivered straight to a replica keeps the Note object but
-    attaches nothing and commits nothing; the attachment comes from the
-    CASE_MANAGER's entry (RSH-08-003, CLP-07-013)."""
-    net = LedgerNetwork(
-        "https://example.org/cases/direct-create-note", em_state=EM.NONE
-    )
-    note_id = "https://example.org/notes/direct-create-note"
-    notes_before = list(net.case(OWNER).notes)
-    ledger_before = _ledger(net, OWNER)
-
-    _deliver_direct(net, OWNER, _create_note(net, note_id))
-
-    assert net.stores[OWNER].read(note_id) is not None
-    assert net.case(OWNER).notes == notes_before
-    assert _ledger(net, OWNER) == ledger_before

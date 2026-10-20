@@ -243,8 +243,8 @@ before proceeding. Do not open a PR with lint failures.
 ```bash
 uv run ruff check --fix && uv run ruff format
 uv run ruff check && uv run mypy && uv run pyright
-uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
-uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest -m integration -n auto --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Both suites must pass. The first pytest command covers the unit suite

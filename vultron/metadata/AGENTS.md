@@ -48,7 +48,7 @@ that costs.
 | `mkdocs_config()` | the parsed `mkdocs.yml` |
 | `nav_paths()` | every document path reachable from the nav, flattened. The ADR nav check, the docs-frontmatter check and the scenario-narrative nav check read it; it was `adr/index_gen._iter_nav_paths` until #3451 |
 | `not_in_nav_spec()` | the `not_in_nav` patterns, matched as MkDocs matches them (gitignore lines via `pathspec`); a hand-rolled glob here would disagree with the build |
-| `iter_tree_texts()` | `(path, text)` for each file matching a pattern under some directories, unreadable files skipped. The PD-10 line guards (`line_length.py`, also at the package root) and the MS-10-010 test index read through it |
+| `iter_tree_texts()` | `(path, text)` for each file matching a pattern under some directories, unreadable files skipped. The PD-10 spec YAML line guard (`line_length.py`, also at the package root; its Python doc-line guard runs ruff's `W505` instead) and the MS-10-010 test index read through it |
 | `nav_exclusion_fault()` | why a page that must stay out of the nav is misplaced (navved, or matched by no `not_in_nav` pattern), or `None`. The ADR check and the docs-frontmatter check share it (#3528) |
 
 `markdown_tables.py` — the structural reader for every ratchet over
@@ -90,7 +90,7 @@ treeprocessor on **its own** `Markdown` instance, and `markdown-exec` converts a
 block's output on a child instance that does not carry it. A `.md` target
 printed from an exec block reaches the built HTML verbatim and 404s, and
 `mkdocs build --strict` stays silent because it never saw the link. Emit
-built-site URLs (`fv/`) from a renderer, not source paths.
+built-site URLs (`rv/`) from a renderer, not source paths.
 
 ## Loader Failure Attribution (MS-17)
 

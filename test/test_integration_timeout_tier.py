@@ -23,10 +23,18 @@ the session again.
 pins its own contract but cannot show that pytest-timeout honours a marker
 added at collection time. ``TestResolvedTimeoutsUnderRealPytest`` closes that
 gap by running a real pytest session and reading the timeout each item
-actually resolved to.
+actually resolved to, and ``TestDemoItemsResolveToTheIntegrationTier`` does
+the same for the real ``test/demo/`` collection (#3604).
+
+``TestTimeoutTripFailsOneTest`` and ``TestTimeoutTripReleasesTheBtLock`` pin
+what a trip costs under the configured ``timeout_method`` (#3603).
 """
 
 import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -252,10 +260,262 @@ class TestUnitTierTimeout:
             < INTEGRATION_TIMEOUT_SECONDS
         )
 
-    def test_thread_method_is_still_in_use(self, pytestconfig):
-        """Documents the coupling the tier values depend on.
 
-        If this ever changes to "signal", a timeout fails one test instead of
-        aborting the session, and the generous ceilings above can be revisited.
-        """
-        assert pytestconfig.getini("timeout_method") == "thread"
+#: Per-test ceiling inside the probe sessions below: long enough to import
+#: pytest, short enough that the hanging test trips it at once.
+_PROBE_TRIP_SECONDS = 1
+
+#: Ceiling on each probe session.  A trip under ``thread`` ends the session in
+#: about a second, and a hang never ends; either way this bounds the test.
+_PROBE_SESSION_CEILING_SECONDS = 20
+
+_TIMEOUT_TRIP_TESTS = """
+import time
+
+
+def test_hangs():
+    time.sleep(30)
+
+
+def test_fails_after_the_hang():
+    assert False
+
+
+def test_passes_after_the_hang():
+    pass
+"""
+
+_LOCK_TRIP_TESTS = """
+import threading
+import time
+
+from vultron.core.behaviors.bridge import _BT_GLOBAL_LOCK
+
+
+def _acquire_from_another_thread():
+    # The lock is re-entrant, so only another thread can tell whether the
+    # timed-out test left it held.
+    acquired = []
+
+    def attempt():
+        got = _BT_GLOBAL_LOCK.acquire(timeout=5)
+        if got:
+            _BT_GLOBAL_LOCK.release()
+        acquired.append(got)
+
+    worker = threading.Thread(target=attempt)
+    worker.start()
+    worker.join()
+    return acquired == [True]
+
+
+def test_times_out_while_holding_the_lock():
+    with _BT_GLOBAL_LOCK:
+        time.sleep(30)
+
+
+def test_lock_is_free_after_the_trip():
+    assert _acquire_from_another_thread()
+
+
+def test_times_out_while_waiting_for_the_lock():
+    held = threading.Event()
+    release = threading.Event()
+
+    def holder():
+        with _BT_GLOBAL_LOCK:
+            held.set()
+            release.wait(timeout=10)
+
+    threading.Thread(target=holder, daemon=True).start()
+    held.wait()
+    try:
+        with _BT_GLOBAL_LOCK:
+            pass
+    finally:
+        release.set()
+
+
+def test_lock_is_free_after_the_interrupted_wait():
+    assert _acquire_from_another_thread()
+"""
+
+
+def _run_probe_session(pytester, pytestconfig, tests):
+    """Run *tests* under this repo's ``timeout_method`` in a subprocess.
+
+    A subprocess, not ``runpytest``: an inline session would share this
+    process's ``SIGALRM`` handler, and a ``thread`` trip would end this process.
+    """
+    pytester.makepyfile(test_probe=tests)
+    try:
+        return pytester.runpytest_subprocess(
+            "-p",
+            "no:cacheprovider",
+            "-o",
+            f"timeout={_PROBE_TRIP_SECONDS}",
+            "-o",
+            f"timeout_method={pytestconfig.getini('timeout_method')}",
+            timeout=_PROBE_SESSION_CEILING_SECONDS,
+        )
+    except pytester.TimeoutExpired:
+        pytest.fail("a per-test timeout trip did not end the hanging test")
+
+
+@pytest.mark.spec("TB-14-002")
+class TestTimeoutTripFailsOneTest:
+    """A per-test timeout trip fails that test alone (#3603).
+
+    Under ``timeout_method = "thread"`` a trip ends the whole process: tests
+    after it never run, failures already recorded are never named, and under
+    ``-n`` the dead process is an xdist worker (#4809).  These pin the property
+    against the configured method, not the config string.
+    """
+
+    def test_session_continues_and_names_every_failure(
+        self, pytester, pytestconfig
+    ):
+        result = _run_probe_session(
+            pytester, pytestconfig, _TIMEOUT_TRIP_TESTS
+        )
+
+        result.assert_outcomes(passed=1, failed=2)
+        result.stdout.fnmatch_lines(
+            [
+                "FAILED test_probe.py::test_hangs - Failed: Timeout*",
+                "FAILED test_probe.py::test_fails_after_the_hang*",
+            ],
+            consecutive=False,
+        )
+
+
+@pytest.mark.spec("TB-14-002")
+class TestTimeoutTripReleasesTheBtLock:
+    """A trip never leaves ``_BT_GLOBAL_LOCK`` held (#3603 AC-5).
+
+    The ``signal`` method raises in the main thread at an arbitrary point.  The
+    risk is a trip that leaves the process-global blackboard lock held, so every
+    later BT test in that worker deadlocks.  Every acquire in ``vultron/`` is a
+    ``with`` block, which releases on the raised ``Failed``; and since Python
+    3.2 a blocked acquire is interruptible by a signal on POSIX.  These check
+    both paths rather than rely on that reading.
+    """
+
+    def test_lock_is_free_after_a_trip_inside_or_waiting_on_it(
+        self, pytester, pytestconfig
+    ):
+        result = _run_probe_session(pytester, pytestconfig, _LOCK_TRIP_TESTS)
+
+        result.assert_outcomes(passed=2, failed=2)
+
+
+_REPO_ROOT = Path(__file__).parents[1]
+
+#: Records each collected item's markers after every
+#: ``pytest_collection_modifyitems`` implementation has run.  A wrapper, not
+#: ``trylast``: it surrounds every implementation, so "explicit" is the
+#: ``timeout`` marker an item carried before either conftest hook touched it.
+_COLLECTION_PROBE = """
+import json
+import os
+
+import pytest
+import pytest_timeout
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_collection_modifyitems(items):
+    explicit = {i.nodeid for i in items if i.get_closest_marker("timeout")}
+    result = yield
+    resolved = {
+        i.nodeid: {
+            "integration": i.get_closest_marker("integration") is not None,
+            "explicit_timeout": i.nodeid in explicit,
+            "timeout": pytest_timeout._get_item_settings(i).timeout,
+        }
+        for i in items
+    }
+    with open(os.environ["TIER_PROBE_OUT"], "w") as out:
+        json.dump(resolved, out)
+    return result
+"""
+
+#: Ceiling on the collection subprocess: ~10s on an idle machine.
+_COLLECTION_CEILING_SECONDS = 150
+
+
+@pytest.fixture(scope="module")
+def demo_items(tmp_path_factory):
+    """Each collected ``test/demo/`` item's resolved markers, by node id."""
+    probe_dir = tmp_path_factory.mktemp("tier_probe")
+    (probe_dir / "tier_probe.py").write_text(_COLLECTION_PROBE)
+    out = probe_dir / "resolved.json"
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(probe_dir),
+        "TIER_PROBE_OUT": str(out),
+    }
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "test/demo",
+            "-m",
+            "",
+            "--collect-only",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "-p",
+            "tier_probe",
+        ],
+        check=False,
+        cwd=_REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=_COLLECTION_CEILING_SECONDS,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    return json.loads(out.read_text())
+
+
+@pytest.mark.spec("TB-14-001")
+@pytest.mark.integration
+# Collects all of test/demo/ in a subprocess (~10s idle), which load can push
+# past the integration tier this test exists to check.
+@pytest.mark.timeout(_COLLECTION_CEILING_SECONDS + 30)
+class TestDemoItemsResolveToTheIntegrationTier:
+    """Every really-collected ``test/demo/`` item is in the integration tier (#3604).
+
+    ``test/demo/conftest.py`` adds the ``integration`` marker and root
+    ``test/conftest.py`` turns that marker into the tier timeout, so the tier
+    depends on the order the two hooks run in.  The ``FakeItem`` tests above
+    cannot see that order; this asks a real collection of the real directory.
+    """
+
+    def test_collection_found_demo_items(self, demo_items):
+        assert demo_items, "the probe saw no test/demo/ items"
+
+    def test_every_item_is_marked_integration(self, demo_items):
+        unmarked = sorted(
+            nodeid
+            for nodeid, item in demo_items.items()
+            if not item["integration"]
+        )
+
+        assert unmarked == []
+
+    def test_every_item_without_its_own_marker_gets_the_tier(self, demo_items):
+        """An item's own ``@pytest.mark.timeout(N)`` wins, in either direction."""
+        off_tier = sorted(
+            nodeid
+            for nodeid, item in demo_items.items()
+            if not item["explicit_timeout"]
+            and item["timeout"] != INTEGRATION_TIMEOUT_SECONDS
+        )
+
+        assert off_tier == []

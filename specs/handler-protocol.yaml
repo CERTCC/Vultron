@@ -322,6 +322,37 @@ groups:
     adr:
     - ADR-0115
     - ADR-0129
+  - id: HP-01-012
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The receive-tree factory MUST place the HP-01-005 addressee check in every received
+      tree it builds, after intake and the post-close boundary and before the sender guard,
+      and every check of whether an activity is addressed to the receiver MUST read one
+      shared definition: the receiver sent it, is named in `to`, or is an active
+      participant (CM-10-004) of a case whose participants collection `to` names. An
+      `Offer(Report)`'s case-creation check reads its `to` part alone (HP-09-001). A tree
+      MAY leave the check out only by naming a registered exemption that states why, and
+      MUST NOT write its own copy of the check.
+    rationale: >-
+      HP-01-005 binds every handler, but the check was opt-in per tree: only the embargo
+      trees asked for it, the others did not check at all, and one use case checked in
+      Python ahead of its tree. A check written once in the factory cannot be
+      forgotten, and a closed, reasoned exemption list makes each tree that differs a
+      visible decision (CS-22-001).
+    verification: >-
+      `test/architecture/test_received_tree_addressee_guard.py` builds every received tree,
+      fails on one without the guard whose site is not a pinned exemption, holds the
+      exemption uses equal to the registry, and fails on a received-side `to` comparison
+      outside the shared definition's module; `test/core/behaviors/case/nodes/test_addressee.py`
+      covers the shared definition; `test/adapters/driving/fastapi/test_unaddressed_copy_sweep.py`
+      delivers every example activity to a store it was not addressed to and asserts it is
+      refused, archived, and acts on nothing.
+    relationships:
+    - rel_type: implements
+      spec_id: HP-01-005
+    - rel_type: refines
+      spec_id: CLP-10-010
 - id: HP-02
   title: Semantic Verification
   specs:
@@ -499,8 +530,8 @@ groups:
     verification: >-
       Every handler test in the unit tier runs under the 30-second per-test ceiling set by
       `[tool.pytest.ini_options] timeout` in `pyproject.toml`, so a handler whose
-      `execute()` blocks past it aborts the unit-tier run (`timeout_method = "thread"`
-      stops the session rather than one test);
+      `execute()` blocks past it fails that test by name (`timeout_method = "signal"`,
+      TB-14-002);
       `test/test_integration_timeout_tier.py::TestApplyIntegrationTimeout::test_unit_item_is_left_at_the_global_default`
       pins that the unit tier keeps that ceiling.
     scope:

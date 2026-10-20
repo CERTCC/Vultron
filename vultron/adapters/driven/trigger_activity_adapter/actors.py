@@ -34,7 +34,10 @@ from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import read_received_activity
+from vultron.core.services.received_activity import (
+    read_held_activity,
+    read_received_activity,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronAlreadyExistsError,
@@ -115,10 +118,11 @@ def _stored_case_invite(
 ) -> as_Invite:
     """Read the received Invite as this invitee holds it, stub and all.
 
-    The Invite is read with ``read_received_activity``: archived by intake, or
-    held by the inbox while it waits for the case bootstrap.  The reply
-    factory checks that it is a case Invite.  The Accept or Reject embeds the
-    Invite as received, so its ``target`` stays the case stub
+    The Invite is read with ``read_received_activity``: intake archives it on
+    arrival, since the inbox never holds a stub Invite back for its case
+    (PCR-06-005).  The reply factory checks that it is a case Invite.  The
+    Accept or Reject embeds the Invite as received, so its ``target`` stays
+    the case stub
     (VAM-04-005, VAM-04-006): the CASE_MANAGER reads the case from the stub's
     ``caseId`` (CM-11-003), and the stub's ``type`` is what tells the reply
     apart from a reply to a full-case Invite (CM-11-013).
@@ -395,10 +399,16 @@ class _ActorsMixin:
         The ``to:`` list should contain the CaseActor URI so the Accept routes
         back to CaseActor for processing.
         """
-        raw = self._dl.read(cp_offer_id)
-        if raw is None:
-            raise VultronNotFoundError("Offer(CaseParticipant)", cp_offer_id)
-        cp_offer = cast(as_Offer, raw)
+        # Read as received: the inbox stores the Offer with its participant
+        # as an id and stores no participant record, so only the intake
+        # archive holds the participant inline (#3763).  The factory validates
+        # the core activity it holds into the wire Offer.
+        cp_offer = cast(
+            as_Offer,
+            read_received_activity(
+                self._dl, cp_offer_id, "Offer(CaseParticipant)"
+            ),
+        )
         # Read-back rehydrates the offer's ``target`` into the full stored
         # case; the Accept addresses the case by URI, as the Offer did on the
         # wire (AKM-02-002, VM-08-003).
@@ -487,7 +497,9 @@ class _ActorsMixin:
         """Create and persist an AcceptActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner accepts
-        the Offer(as_CaseParticipant) (CM-16-006 step 3).
+        the Offer(as_CaseParticipant) (CM-16-006 step 3), or at once for an
+        actor already invited or joined (CM-16-009).  ``inReplyTo`` names
+        the recommendation it answers.
         """
         recommendation = recommend_actor_activity(
             recommended=recommended_id,
@@ -497,7 +509,10 @@ class _ActorsMixin:
         )
         extra = _addressing(actor, to or [recommender_id], id_)
         activity = accept_actor_recommendation_activity(
-            offer=recommendation, target=case_id, **extra
+            offer=recommendation,
+            target=case_id,
+            in_reply_to=recommendation_id,
+            **extra,
         )
         return _create_and_seal(
             self._dl, activity, "emit_accept_actor_recommendation"
@@ -516,7 +531,8 @@ class _ActorsMixin:
         """Create and persist a RejectActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner rejects
-        the Offer(as_CaseParticipant) (CM-16-007 step 3).
+        the Offer(as_CaseParticipant) (CM-16-007 step 3).  ``inReplyTo``
+        names the recommendation it answers.
         """
         recommendation = recommend_actor_activity(
             recommended=recommended_id,
@@ -526,40 +542,13 @@ class _ActorsMixin:
         )
         extra = _addressing(actor, to or [recommender_id], id_)
         activity = reject_actor_recommendation_activity(
-            offer=recommendation, target=case_id, **extra
+            offer=recommendation,
+            target=case_id,
+            in_reply_to=recommendation_id,
+            **extra,
         )
         return _create_and_seal(
             self._dl, activity, "emit_reject_actor_recommendation"
-        )
-
-    def accept_actor_recommendation(
-        self,
-        recommended_id: str,
-        recommender_id: str,
-        recommendation_id: str,
-        case_id: str,
-        actor: str,
-        to: list[str] | None = None,
-        id_: str | None = None,
-    ) -> tuple[str, str]:
-        """Create and persist an ``Accept(Offer)`` actor-recommendation activity.
-
-        The recommendation offer is reconstructed ephemerally (not read from
-        DataLayer) to allow callers that never stored the offer to still
-        accept it, provided they know its deterministic ID.
-        """
-        recommendation = recommend_actor_activity(
-            recommended=recommended_id,
-            target=case_id,
-            id_=recommendation_id,
-            actor=recommender_id,
-        )
-        extra = _addressing(actor, to, id_)
-        activity = accept_actor_recommendation_activity(
-            offer=recommendation, target=case_id, **extra
-        )
-        return _create_and_seal(
-            self._dl, activity, "accept_actor_recommendation"
         )
 
     def add_participant_to_case(
@@ -877,9 +866,12 @@ class _ActorsMixin:
         """Build, persist and seal a reply to an ownership-transfer Offer.
 
         The reply is the transferee's answer (Accept or Reject) or the
-        offerer's withdrawal (Undo).  Reads the stored offer from the
-        DataLayer, derives the ``to:`` field from the offer's ``actor`` when
-        not supplied, and persists the reply that *factory* builds from it.
+        offerer's withdrawal (Undo).  Reads the offer as this actor holds
+        it (:func:`read_held_activity`): the transferee's received forward
+        from its intake archive, the offerer's own Offer under its id, never
+        a received Offer under the id its sender chose (DL-06-006).  Derives
+        the ``to:`` field from the offer's ``actor`` when not supplied, and
+        persists the reply that *factory* builds from it.
 
         On a replica whose only source for the Offer was the replicated
         ``offer_case_ownership_transfer`` ledger entry, what is stored at
@@ -889,9 +881,9 @@ class _ActorsMixin:
         imports are allowed, so both delivery paths converge on the same answer
         (#2225, ADR-0035 DL-06-002).
         """
-        raw = self._dl.read(offer_id)
-        if raw is None:
-            raise VultronNotFoundError("Offer(VulnerabilityCase)", offer_id)
+        raw = read_held_activity(
+            self._dl, offer_id, "Offer(VulnerabilityCase)"
+        )
         if isinstance(raw, VultronOwnershipTransferOfferRecord):
             raw = self._offer_from_core_record(raw)
         offer = cast(as_Offer, raw)

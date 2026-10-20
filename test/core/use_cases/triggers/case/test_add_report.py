@@ -169,7 +169,7 @@ class TestSvcAddReportToCaseUseCase:
 
     @pytest.mark.spec("SYNC-11-002")
     def test_add_report_to_case_records_pending_assertion(self):
-        """The Add is pending under ``add_report_to_case``, the event type the
+        """The Add is pending under ``add_report_to_case``, the semantic type the
         CASE_MANAGER commits."""
         report = as_VulnerabilityReport(name="Pending", content="c")
         self.dl.create(report)

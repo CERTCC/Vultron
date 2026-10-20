@@ -302,8 +302,8 @@ groups:
       and that a replica missing the target participant is a non-fatal skip;
       `test/core/behaviors/case/nodes/test_delegation.py` asserts the CASE_MANAGER grants the
       role on its own copy when it commits the accept; and
-      `test/architecture/test_ledger_event_types_are_replayed.py` holds the event type in the
-      replayed set.
+      `test/architecture/test_ledger_semantic_types_are_replayed.py` holds the semantic
+      type in the replayed set.
     adr:
     - ADR-0039
     relationships:
@@ -2012,21 +2012,23 @@ groups:
       that sets `auto_create_case=False` creates the case in a later, separate
       step (for example `SvcCreateCaseUseCase` with the report's `report_id`);
       once that case is linked to the report, the implementation SHOULD close it
-      through `SvcCloseCaseUseCase` when the operator or user requests closure.
+      through the `leave-case` trigger (the Case Owner's Leave(VulnerabilityCase),
+      TRIG-13-001) when the operator or user requests closure, as with an
+      auto-created case.
     rationale: >-
-      CONCERN-1902 observed that `SvcCloseCaseUseCase` is never reached in the
-      reference process because the case is always auto-created at RM.RECEIVED.
-      ADR-0085 resolves this: the auto-create behaviour is an implementation
-      choice made by the reference/demo process. `SvcCloseCaseUseCase` is the
-      tested closure path for the non-auto-create scenario. It resolves the case
-      through the report link and refuses a report with no linked case, so the
-      case must exist before closure.
+      CONCERN-1902 observed that the report-closing trigger use case was never
+      reached in the reference process because the case is always auto-created at
+      RM.RECEIVED. ADR-0085 resolves this: the auto-create behaviour is an
+      implementation choice made by the reference/demo process. However the case
+      was created, once it holds the report its Case Owner closes it by Leave, and
+      no trigger sends `Close(Report)` for it (CM-23-019, ADR-0145).
     verification: >-
-      Existing unit tests in
-      `test/core/use_cases/triggers/test_close_case_trigger.py` (including
-      `test_close_case_raises_when_no_linked_case`) and
-      `test/core/behaviors/report/test_trigger_report_trees.py` cover the
-      closure path; no new code is required.
+      The `leave-case` tests in `test/core/use_cases/triggers/case/test_leave.py`
+      assert the Case Owner's Leave is sent, the reject-report tests in
+      `test/core/use_cases/triggers/test_trignotify.py` assert no `Close(Report)`
+      is sent on a case, and the Leave tests in
+      `test/core/use_cases/received/test_close_case_role_semantics.py` cover the
+      closure path.
     adr:
     - ADR-0085
 - id: CM-16
@@ -2234,14 +2236,24 @@ groups:
     kind: protocol
     statement: >-
       When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
-      still outstanding, the CASE_MANAGER MUST send a `Note` to the Case Owner's inbox
-      indicating that a reinforcing suggestion was received, including the second
-      recommender's identity and any `content` from the Offer.
+      still outstanding, the CASE_MANAGER MUST record a `Note` for the Case Owner
+      indicating that a reinforcing suggestion was received, including the Case Owner's
+      identity, the second recommender's identity and any `content` from the Offer. The
+      note is the CASE_MANAGER's own `add_note_to_case` entry, attached to the case, and
+      reaches the Case Owner's inbox as that entry's `Announce(CaseLedgerEntry)`
+      (SYNC-02-002); a direct `Add(Note)` to the Case Owner is refused there (HP-01-005).
     rationale: Notifying the Case Owner of reinforcing suggestions provides additional
       context for the pending decision without creating a duplicate offer workflow.
-    verification: Integration tests in `test/demo/` confirm that a duplicate `Offer(Actor X,
-      Case)` with a pending decision causes the CASE_MANAGER to send a `Note` to the Case Owner
-      naming the second recommender.
+      Every active participant sees the note; a private message to the Case Owner is not
+      implemented (#4885).
+    verification: >-
+      `test/core/use_cases/received/test_case_manager_note_replay.py` sends two
+      recommendations of one actor to the CASE_MANAGER and delivers what it queued to the
+      Case Owner's replica: nothing is refused, one `Offer(CaseParticipant)` is sent, and
+      the replica lists the note naming the second recommender.
+      `test/core/behaviors/case/nodes/test_suggest_actor_owner_recipient.py` asserts the
+      entry is announced to the Case Owner.
+
     stories:
     - story_2022_053
     - story_2022_046
@@ -2362,10 +2374,11 @@ groups:
       `caseStatus.emState`; unit tests marked `CM-17-002` in
       `test/core/use_cases/triggers/test_actor_triggers.py` and
       `test/wire/as2/factories/test_case_factories.py` confirm the same for EM
-      `ACTIVE`, and that a stub sent with no embargo in force carries neither;
+      `ACTIVE` and `REVISE`, and that a stub sent with no embargo in force (none
+      yet, a proposal only, or an ended one) carries neither;
       `test_revise_stub_carries_the_embargo_in_force_not_the_revision` in the latter
       file confirms that a `REVISE` stub carries the embargo in force and not the
-      revision (strict `xfail` until #4744 implements it).
+      revision.
     relationships:
     - rel_type: implements
       spec_id: MV-10-006
@@ -2532,7 +2545,7 @@ groups:
       the newly active participant would otherwise reach it ahead of its case. The late
       joiner received a ledger entry before its case
       (SYNC-15 pre-genesis `Reject`, then a from-genesis replay that interleaved with
-      the backfill): in the fcvcv scenario vendor2 received entry 19 one second before
+      the backfill): in the rcvcv scenario vendor2 received entry 19 one second before
       the case, and vendor-deployer received entries 26 and 0 before it (#2898).
       Committed last, the entry reaches the invitee as the next entry in chain order.
     verification: >-
@@ -2862,8 +2875,9 @@ groups:
     rationale: 'Because `AGREE` is valid directly from `UNINVITED` (CM-18-003, ADR-0048), an
       initialization participant reaches its consent in a single transition, so a placeholder is
       unnecessary. Emitting two entries per participant would also shift every downstream
-      `log_index`; PR #1746 was reverted for exactly that, having broken `fvcv-extension` VFD
-      replication timing. Holding initialization to one entry per participant keeps `log_index` order
+      `log_index`; PR #1746 was reverted for exactly that, having broken
+      `rvcv-extension` VFD replication timing. Holding initialization to one entry per
+      participant keeps `log_index` order
       stable and preserves the ADR-0079 property that `log_index` order is causal order
       (CLP-14-001).'
     verification: Integration tests in `test/demo/` confirm that the default embargo is
@@ -2900,8 +2914,9 @@ groups:
       placeholder entry for a participant followed by a corrective entry for the same participant.
     rationale: >-
       Emitting two entries per participant shifts every downstream `log_index`; PR #1746
-      was reverted for exactly that, having broken `fvcv-extension` VFD replication timing.
-      Holding initialization to one entry per participant keeps `log_index` order stable.
+      was reverted for exactly that, having broken `rvcv-extension` VFD replication
+      timing. Holding initialization to one entry per participant keeps `log_index`
+      order stable.
       Because `AGREE` is valid directly from `UNINVITED` (CM-18-003, ADR-0048), an initialization
       participant reaches its consent in a single transition, so a placeholder is unnecessary.
     verification: Integration tests in `test/demo/` confirm that case initialization commits
@@ -3123,7 +3138,7 @@ groups:
       `attributed_to` without also updating the participant record leaves the
       new owner unable to trigger embargo teardown, case closure, and other
       CASE_OWNER-gated operations.  Both fields MUST be kept in sync.
-      Root cause of the FCCV-handoff CI failure (2026-07-23):
+      Root cause of the RCCV-handoff CI failure (2026-07-23):
       `AcceptCaseOwnershipTransferNode` updated `attributed_to` but did not
       add `CVDRole.CASE_OWNER` to C2's participant record, so
       `_sender_is_case_owner()` returned False and embargo teardown was
@@ -3390,7 +3405,7 @@ groups:
     verification: >-
       A test marked `CM-21-012` confirms that
       `RejectCaseOwnershipTransferReceivedUseCase` reaches a canonical commit for the
-      `reject_case_ownership_transfer` event type.
+      `reject_case_ownership_transfer` semantic type.
     relationships:
     - rel_type: refines
       spec_id: CM-21-010
@@ -3705,8 +3720,9 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST commit all canonical ledger entries for case
-      initialization (`create_case`, `add_report_to_case`, participant-status
-      entries, `add_case_status_to_case`) natively in its own DataLayer.  These
+      initialization (`create_case`, `add_report_to_case`, participant-record
+      and participant-status entries, `add_case_status_to_case`) natively in
+      its own DataLayer.  These
       entries MUST NOT be authored by the report receiver and back-filled via
       `WritePrologueLedgerEntriesNode` or any equivalent mechanism.
     rationale: >-
@@ -3716,8 +3732,9 @@ groups:
       entries fail this check (the root cause of Issue #1767).  Native
       CASE_MANAGER authorship is the only compliant path.
     verification: Inspection of `vultron/core/` confirms that the canonical initialization
-      ledger entries (`create_case`, `add_report_to_case`, participant-status entries,
-      `add_case_status_to_case`) are authored by the CASE_MANAGER, not the report receiver.
+      ledger entries (`create_case`, `add_report_to_case`, participant-record and
+      participant-status entries, `add_case_status_to_case`) are authored by the
+      CASE_MANAGER, not the report receiver.
     relationships:
     - rel_type: refines
       spec_id: CM-22-001
@@ -4298,8 +4315,8 @@ groups:
       (`vultron/demo/helpers/closure.py`), which sends the owner's Leave only
       once the CASE_MANAGER has recorded each other departure.
     verification: >-
-      `test/demo/test_fv_demo.py::TestFvMilestoneAssertions::test_phase_case_closure_closes_the_case_owner_last`
-      asserts the FV closure phase closes the Finder before the Vendor, the Case Owner;
+      `test/demo/test_rv_demo.py::TestRvMilestoneAssertions::test_phase_case_closure_closes_the_case_owner_last`
+      asserts the rv closure phase closes the Reporter before the Vendor, the Case Owner;
       `test/demo/test_case_closure.py` asserts the shared closure phase gates the
       owner's Leave on every other departure and that the closure milestone reports
       a departure recorded after `case_fully_closed`.
@@ -4395,10 +4412,15 @@ groups:
       closure (CM-23-004); the guard for that resync request stays the active check
       of SYNC-03-005, so its use case MUST NOT declare the `ACTIVE_PARTICIPANT`
       standing defined below. Second, a repeated act that would close that sender,
-      who is already closed (a Leave(VulnerabilityCase), a `Close(Report)`, or a
-      `Reject` of its stub or full-case Invite), MUST be reported `SKIPPED`, with no
-      ledger entry committed and nothing sent, whatever its activity id: its effect is
-      already in place (ID-05-003). The `ACTIVE_PARTICIPANT` sender standing
+      who is already closed (a Leave(VulnerabilityCase), or a `Reject` of its stub or
+      full-case Invite), MUST be reported `SKIPPED`, with no ledger entry committed and
+      nothing sent, whatever its activity id: its effect is already in place
+      (ID-05-003). The Case Owner's Leave(VulnerabilityCase) is not such a repeat
+      while the case is not fully closed: its effect includes the case's closure
+      (CM-23-002), which a failed first delivery may have left part-way, so it is
+      processed again to complete it. A `Close(Report)` closes no sender on a case, so
+      that sender's is refused like every other sender's (CM-23-019). The
+      `ACTIVE_PARTICIPANT` sender standing
       (HP-01-009) MUST mean an active participant (CM-10-004) whose closure is not
       recorded, and every guard that enforces it MUST ask one shared predicate
       (HP-01-007).
@@ -4414,13 +4436,18 @@ groups:
       `ACTIVE_PARTICIPANT` kind assert that a sender at RM.CLOSED, an inert sender and
       a removed sender are refused. A received-use-case test drives an `Add(Note)` and
       a status update from a closed sender and asserts `REFUSED` with no ledger entry
-      and no outbound activity. A test drives a closed sender's
+      and no outbound activity. For every use case whose rule names the `CASE_OWNER`
+      standing, a test composes its guard and asserts a Case Owner whose closure the
+      case records is refused, and received-use-case tests drive an `Add(Report)`, an
+      owner embargo decision and a `Remove(EmbargoEvent)` from a closed owner and
+      assert `REFUSED` with nothing committed or sent. A test drives a closed sender's
       `Reject(CaseLedgerEntry)` and asserts the replay stops at its own closure
       entries, and a unit test asserts the `Reject(CaseLedgerEntry)` use case does
-      not declare the `ACTIVE_PARTICIPANT` standing. Tests drive a second Leave, a
-      repeated `Close(Report)` and a repeated `Reject` of a stub and of a full-case
-      Invite, each with a new activity id, from a closed sender and assert `SKIPPED`
-      with no ledger entry and no outbound activity.
+      not declare the `ACTIVE_PARTICIPANT` standing. Tests drive a second Leave and a
+      repeated `Reject` of a stub and of a full-case Invite, each with a new activity
+      id, from a closed sender and assert `SKIPPED` with no ledger entry and no
+      outbound activity, and drive a closed sender's `Close(Report)` and assert
+      `REFUSED`.
     relationships:
     - rel_type: refines
       spec_id: CM-23-004
@@ -4436,6 +4463,54 @@ groups:
     - ADR-0115
     stories:
     - story_2022_066
+  - id: CM-23-019
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Once a report belongs to a case, only that case's Case Owner holds the report,
+      and the Case Owner closes the case by Leave(VulnerabilityCase) (CM-23-001,
+      CM-23-002), never by `Close(Report)`. The CASE_MANAGER, and any participant
+      holding a replica of the case, MUST refuse a `Close(Report)` for a report that
+      belongs to the case, from every sender: from the Case Owner it is the wrong
+      closing act, and from any other sender it is a message about a report that
+      sender does not hold. The refusal is the sender guard's, since no sender is
+      entitled to send it to a case actor, so it MUST write no RM state, commit no
+      ledger entry and send nothing, a refusal notice included (CLP-02-005,
+      HP-01-006). An actor MUST NOT send `Close(Report)` for a report that
+      belongs to a case it holds: its closing trigger MUST fail before anything is
+      written or sent. A `Close(Report)` for a report that belongs to no case is
+      unaffected.
+    rationale: >-
+      A `Close(Report)` moved its sender to RM.CLOSED without the Leave round-trip,
+      so a Case Owner could close itself while its case stayed open, keep acting as
+      owner, and leave the case with no `case_fully_closed` (#4746). Turning the
+      owner's `Close(Report)` into a full close would give the case two closing
+      messages, and refusing only a closed owner's later acts would leave the wrong
+      message admitted (ADR-0144).
+    verification: >-
+      `test/core/use_cases/received/test_close_report_on_case.py` drives a
+      `Close(Report)` on an open case from the Case Owner and from a participant that
+      is not the owner, at the CASE_MANAGER and at a participant holding a replica,
+      and asserts `REFUSED`, no RM change, no ledger entry and no outbound activity.
+      Tests in `test/core/use_cases/triggers/test_trignotify.py`,
+      `test/core/use_cases/triggers/test_report_triggers.py`,
+      `test/core/behaviors/report/test_trigger_report_trees.py` and
+      `test/adapters/driving/fastapi/routers/test_trigger_report.py` assert that
+      the reject-report trigger fails on a case, from the Case Owner and from a
+      participant that is not the owner, with nothing written or queued, and that
+      it still closes a report that belongs to no case. The `leave-case` tests in
+      `test/core/use_cases/triggers/case/test_leave.py` cover how an actor on a
+      case closes its part in it instead.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-001
+    - rel_type: refines
+      spec_id: CM-23-018
+    adr:
+    - ADR-0144
+    stories:
+    - story_2022_066
+    - story_2022_067
 - id: CM-24
   title: CASE_MANAGER-Delegated Activity Authorship Contract
   description: >-
@@ -4601,6 +4676,43 @@ groups:
     - ADR-0109
     stories:
     - story_2022_106
+  - id: CM-24-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER records an activity and then forwards it on its
+      sender's behalf (CM-21-005, CM-33-001), the forward MUST carry the same
+      id on every attempt, derived from the recorded activity. A failure to
+      build or send the forward after the record MUST NOT be reported as a
+      refusal of the sender (HP-01-003). A redelivery of the recorded activity
+      MUST reuse its recorded entry and MUST rebuild and send the forward
+      while the request it carries is still open; holding a copy of the
+      forward MUST NOT be taken as proof that it was sent. Once that request
+      is closed (answered, withdrawn or expired), a redelivery MUST send
+      nothing.
+    rationale: >-
+      The record precedes the forward (CLP-10-006), so a failed forward leaves
+      a recorded request its addressee never got and cannot answer (#4814). A
+      held copy is no proof of sending: it is written before it is queued.
+      One id makes a resend safe: the outbox holds one pending entry per id
+      (OX-06-002), and the addressee takes a repeat it holds as a no-op.
+    verification: >-
+      A test marked `CM-24-007` for each forward fails the forward after the
+      record and asserts the handler raises an internal error, not `REFUSED`;
+      a redelivery then sends one forward under the derived id with no second
+      ledger entry, including when a copy of the forward was stored but never
+      queued; a redelivery after the ownership-transfer Offer was withdrawn
+      or expired sends nothing.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-24-004
+    - rel_type: depends_on
+      spec_id: OX-06-002
+    - rel_type: depends_on
+      spec_id: CLP-10-006
+    stories:
+    - story_2022_050
+    - story_2022_035
 
 - id: CM-25
   title: Observer Participant Semantics
@@ -5046,8 +5158,8 @@ groups:
       single entry type for both events would conflate them. See ADR-0065, ADR-0118.
     verification: >-
       Inspection of `vultron/core/` confirms that the expired-invitation ledger entry
-      (`INVITE_EXPIRED_EVENT_TYPE`, snapshot type `Expire`) is authored as a distinct entry type
-      separate from the `Reject(Invite(EmbargoEvent))` entry.
+      (`INVITE_EXPIRED_SEMANTIC_TYPE`, snapshot type `Expire`) is authored as a distinct
+      entry type separate from the `Reject(Invite(EmbargoEvent))` entry.
     relationships:
     - rel_type: refines
       spec_id: CM-28-005
@@ -5182,8 +5294,8 @@ groups:
       learns an expiry from those entries, copying the row, and never computes one.
     rationale: >-
       The expiry commit ran unconditionally in whichever store processed a late `Accept`, so a
-      non-manager could author a ledger entry, and no replay node existed for the event type, so an
-      expiry recorded by the manager reached no replica (#3918).
+      non-manager could author a ledger entry, and no replay node existed for the semantic
+      type, so an expiry recorded by the manager reached no replica (#3918).
     verification: >-
       A test runs the late-`Accept` path as a non-manager and asserts no expiry entry is committed;
       a test replays an `invite_to_embargo_on_case_expired` entry and its

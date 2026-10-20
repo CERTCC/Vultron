@@ -13,9 +13,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Derive, from code, the ledger ``event_type`` values the CASE_MANAGER commits.
+"""Derive, from code, the ledger ``semantic_type`` values the CASE_MANAGER commits.
 
-Companion to ``test_ledger_event_types_are_replayed.py`` (RSH-08-004).  Two
+Companion to ``test_ledger_semantic_types_are_replayed.py`` (RSH-08-004).  Two
 paths commit an entry:
 
 * **The receive-side commit.**  ``CommitCaseLedgerEntryNode`` records the
@@ -26,18 +26,18 @@ paths commit an entry:
   commit node or guarded-commit subtree itself.  :func:`received_commit_semantics`
   follows those calls from every routed use case's methods.
 * **Explicit commits.**  A node that commits an entry of its own passes
-  ``event_type=`` to the commit tree; :func:`explicit_event_types` collects
+  ``semantic_type=`` to the commit tree; :func:`explicit_semantic_types` collects
   every such keyword's value (a literal, a constant, or a ``self.<CONST>``
-  class constant resolved through each subclass), plus every ``*EVENT_TYPE``
+  class constant resolved through each subclass), plus every ``*SEMANTIC_TYPE``
   constant passed as a positional call argument under ``vultron/core``.  A
-  value threaded through a parameter (``event_type=event_type``) is found at
+  value threaded through a parameter (``semantic_type=semantic_type``) is found at
   the call that supplies it; any other unresolvable value fails the scan.  A
   constant a replay slot only compares against is not a call argument, so
   defining one never makes a type look committed.
 
 Not covered, by design: the ``sync-log-entry`` trigger
 (``vultron/core/use_cases/triggers/sync_log_entry.py``), an operator tool
-whose client names the event type of an ``Announce(VulnerabilityCase)``
+whose client names the semantic type of an ``Announce(VulnerabilityCase)``
 snapshot.
 
 No source is read or parsed outside ``_corpus`` (TB-13-001, TB-13-003): a
@@ -46,7 +46,7 @@ function reached from a live object is found in the shared parse by
 (:func:`_names_that_may_commit`) first names every top-level definition that
 could reach a commit, and the precise walk parses only modules mentioning one
 of those names (TB-13-002, TB-13-008); explicit commits are found only on the
-lines that mention ``event_type=`` or ``EVENT_TYPE``.  Both derivations pause
+lines that mention ``semantic_type=`` or ``SEMANTIC_TYPE``.  Both derivations pause
 the garbage collector and the combined set is cached per process, so each
 ratchet test stays inside the TB-13-004 budget.
 """
@@ -204,15 +204,15 @@ def _module_name(path: Any) -> str:
     return ".".join(rel.parts)
 
 
-#: ``event_type=`` values that thread a caller's value through rather than
+#: ``semantic_type=`` values that thread a caller's value through rather than
 #: name one; the scan finds the value where the caller supplies it.  Any other
 #: unresolvable value fails the scan, so a new commit cannot go unclassified.
-_PASS_THROUGH_EVENT_TYPES = frozenset(
+_PASS_THROUGH_SEMANTIC_TYPES = frozenset(
     {
-        "event_type",
-        "self.event_type",
-        "self._event_type",
-        "chain_entry.event_type",
+        "semantic_type",
+        "self.semantic_type",
+        "self._semantic_type",
+        "chain_entry.semantic_type",
     }
 )
 
@@ -220,7 +220,7 @@ _PASS_THROUGH_EVENT_TYPES = frozenset(
 def _constant_value(expr: ast.expr, module: ModuleType) -> str | None:
     """The string *expr* names: a literal, or a constant reached from *module*.
 
-    Handles a bare name (``EVENT_TYPE``) and an attribute chain rooted at a
+    Handles a bare name (``SEMANTIC_TYPE``) and an attribute chain rooted at a
     module-level name (``MessageSemantics.FOO.value``).
     """
     if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
@@ -289,21 +289,21 @@ def _enclosing_class(tree: ast.AST, node: ast.AST) -> ast.ClassDef | None:
     return owner
 
 
-def _event_type_keyword_values(
+def _semantic_type_keyword_values(
     path: Any, tree: ast.AST, module: ModuleType
 ) -> Iterator[str]:
-    """The value of every ``event_type=`` keyword in *tree*.
+    """The value of every ``semantic_type=`` keyword in *tree*.
 
     ``self.<NAME>`` with an upper-case *NAME* is a class constant: it resolves
     through the enclosing class and each subclass that overrides it.
 
     Raises:
         AssertionError: on a value the scan cannot resolve and that is not a
-            known pass-through (:data:`_PASS_THROUGH_EVENT_TYPES`).
+            known pass-through (:data:`_PASS_THROUGH_SEMANTIC_TYPES`).
     """
-    for node in _calls_on_lines_with(path, tree, "event_type="):
+    for node in _calls_on_lines_with(path, tree, "semantic_type="):
         for kw in node.keywords:
-            if kw.arg != "event_type":
+            if kw.arg != "semantic_type":
                 continue
             value = _constant_value(kw.value, module)
             if value is not None:
@@ -320,55 +320,57 @@ def _event_type_keyword_values(
                 yield from _class_attribute_values(owner, expr.attr, module)
                 continue
             source = ast.unparse(expr)
-            assert source in _PASS_THROUGH_EVENT_TYPES, (
+            assert source in _PASS_THROUGH_SEMANTIC_TYPES, (
                 f"{module.__name__}:{node.lineno}: cannot resolve"
-                f" event_type={source}; name a constant, or add a"
+                f" semantic_type={source}; name a constant, or add a"
                 " pass-through whose caller the scan resolves"
             )
 
 
-def _event_type_positional_values(
+def _semantic_type_positional_values(
     path: Any, tree: ast.AST, module: ModuleType
 ) -> Iterator[str]:
-    """Each ``*EVENT_TYPE`` constant passed as a positional call argument.
+    """Each ``*SEMANTIC_TYPE`` constant passed as a positional call argument.
 
-    A commit helper that takes the event type positionally
-    (``_commit_one(case_id, object_id, CREATE_CASE_EVENT_TYPE, ...)``) is found
-    here.  A constant only *compared* against an entry's ``event_type`` — a
+    A commit helper that takes the semantic type positionally
+    (``_commit_one(case_id, object_id, CREATE_CASE_SEMANTIC_TYPE, ...)``) is found
+    here.  A constant only *compared* against an entry's ``semantic_type`` — a
     replay slot's condition — is never a call argument, so it is not counted.
     """
-    for node in _calls_on_lines_with(path, tree, "EVENT_TYPE"):
+    for node in _calls_on_lines_with(path, tree, "SEMANTIC_TYPE"):
         for arg in node.args:
-            if isinstance(arg, ast.Name) and arg.id.endswith("EVENT_TYPE"):
+            if isinstance(arg, ast.Name) and arg.id.endswith("SEMANTIC_TYPE"):
                 value = _constant_value(arg, module)
                 if value is not None:
                     yield value
 
 
 @_corpus.gc_paused()
-def explicit_event_types() -> set[str]:
-    """Event types a ``vultron.core`` node passes to a commit of its own."""
+def explicit_semantic_types() -> set[str]:
+    """Semantic types a ``vultron.core`` node passes to a commit of its own."""
     found: set[str] = set()
-    for path, tree in _corpus.files_mentioning("EVENT_TYPE", under=_CORE_ROOT):
-        module = importlib.import_module(_module_name(path))
-        found.update(_event_type_positional_values(path, tree, module))
     for path, tree in _corpus.files_mentioning(
-        "event_type=", under=_CORE_ROOT
+        "SEMANTIC_TYPE", under=_CORE_ROOT
     ):
         module = importlib.import_module(_module_name(path))
-        found.update(_event_type_keyword_values(path, tree, module))
+        found.update(_semantic_type_positional_values(path, tree, module))
+    for path, tree in _corpus.files_mentioning(
+        "semantic_type=", under=_CORE_ROOT
+    ):
+        module = importlib.import_module(_module_name(path))
+        found.update(_semantic_type_keyword_values(path, tree, module))
     return found
 
 
 @functools.cache
-def _committed_event_types() -> frozenset[str]:
-    return frozenset(received_commit_semantics() | explicit_event_types())
+def _committed_semantic_types() -> frozenset[str]:
+    return frozenset(received_commit_semantics() | explicit_semantic_types())
 
 
-def committed_event_types() -> set[str]:
-    """Every ``event_type`` the code base can commit to a case ledger.
+def committed_semantic_types() -> set[str]:
+    """Every ``semantic_type`` the code base can commit to a case ledger.
 
     Derived once per process: the scan reads only import-time state, and the
     ratchets that ask for it each stay inside their budget (TB-13).
     """
-    return set(_committed_event_types())
+    return set(_committed_semantic_types())

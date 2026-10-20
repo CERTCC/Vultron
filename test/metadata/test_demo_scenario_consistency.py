@@ -43,12 +43,6 @@ from vultron.demo.scenario.registry import (
     is_scenario_name,
 )
 from vultron.metadata.base import mkdocs_config, nav_paths
-from vultron.metadata.demo_scenarios.event_types import (
-    UNIVERSAL_EVENT_TYPES,
-    HarnessEventTypeError,
-    additional_event_types,
-    harness_event_types,
-)
 from vultron.metadata.demo_scenarios.narrative_pages import (
     NARRATIVE_DIR,
     NARRATIVE_INDEX,
@@ -57,8 +51,8 @@ from vultron.metadata.demo_scenarios.prose_checks import (
     SCENARIO_TABLE_CONSUMERS,
     SCENARIO_TABLES,
     consistency_problems,
-    missing_event_type_requirements,
     missing_narrative_nav_entries,
+    missing_semantic_type_requirements,
     narrative_status_claims,
     restated_counts,
     scenario_set_statement_problems,
@@ -69,9 +63,15 @@ from vultron.metadata.demo_scenarios.prose_checks import (
 from vultron.metadata.demo_scenarios.scenario_groups import (
     PLANNED_REGISTER,
     partition_problems,
-    per_scenario_event_type_requirements,
+    per_scenario_semantic_type_requirements,
     planned_scenarios,
     scenario_spec_groups,
+)
+from vultron.metadata.demo_scenarios.semantic_types import (
+    UNIVERSAL_SEMANTIC_TYPES,
+    HarnessSemanticTypeError,
+    additional_semantic_types,
+    harness_semantic_types,
 )
 from vultron.metadata.markdown_tables import (
     iter_sections,
@@ -87,13 +87,13 @@ _REPO_ROOT = Path(__file__).parents[2]
 _FAKE = ScenarioSpec(
     name="zz-fake",
     label="ZZ-fake",
-    participants="Finder + Vendor",
+    participants="Reporter + Vendor",
     feature="Fixture scenario; never registered",
     in_pr_set=True,
 )
 
 #: Registered scenarios allowed to have no spec group of their own.  Empty since
-#: ISSUE-3495 gave ``fcv-reject`` DEMOMA-27, which is what makes the
+#: ISSUE-3495 gave ``rcv-reject`` DEMOMA-27, which is what makes the
 #: registry-to-group direction checkable at all: while the set was non-empty the
 #: assertion could only say "the exception has not grown", and a scenario written
 #: without a group would have had to be added here to go green — visible, but
@@ -118,7 +118,7 @@ def prose_root(tmp_path: Path) -> Path:
     paths.add("mkdocs.yml")
     # Each scenario's invariant harness, because the tick matrix and the
     # ``Additional required`` column are ratcheted against its
-    # ``_XXX_EXPECTED_EVENT_TYPES`` constant. Without them ``harness_event_types``
+    # ``_XXX_EXPECTED_SEMANTIC_TYPES`` constant. Without them ``harness_semantic_types``
     # finds no file, returns ``None``, and both checks skip every row — so a
     # fixture missing them would make those mutations look unreported.
     paths.update(spec.harness_path for spec in discover_scenarios())
@@ -278,7 +278,7 @@ def test_every_registered_scenario_is_named_by_a_spec_group() -> None:
 
     The registry-to-group direction, which completes DEMOCI-11-010's partition.
     DEMOCI-11-010 itself constrains only scenarios that *have* a group, so it
-    cannot catch a built scenario with no group at all — that was ``fcv-reject``
+    cannot catch a built scenario with no group at all — that was ``rcv-reject``
     until DEMOMA-27, and the invitation-rejection path is the one covered by
     exactly one scenario, so it was the worst one to leave unspecified.
 
@@ -348,7 +348,7 @@ def test_scenario_spec_groups_rejects_a_duplicated_scenario(
 ) -> None:
     """Two groups claiming one scenario would let one group's omission hide."""
     (tmp_path / "specs.yaml").write_text(
-        yaml.dump(_spec_file([_group("SCN-01", "fv"), _group("SCN-02", "fv")]))
+        yaml.dump(_spec_file([_group("SCN-01", "rv"), _group("SCN-02", "rv")]))
     )
     with pytest.raises(ValueError, match="claimed by two spec groups"):
         scenario_spec_groups(load_registry(tmp_path))
@@ -359,9 +359,9 @@ def test_scenario_spec_groups_rejects_a_duplicated_scenario(
 # ---------------------------------------------------------------------------
 
 
-def test_every_registered_scenario_has_an_event_type_requirement() -> None:
+def test_every_registered_scenario_has_an_semantic_type_requirement() -> None:
     """Each registered scenario has its own DEMOMA-16 requirement."""
-    missing = missing_event_type_requirements()
+    missing = missing_semantic_type_requirements()
     assert not missing, (
         f"registered scenarios with no per-scenario DEMOMA-16 requirement: "
         f"{missing} (DEMOCI-11-007)"
@@ -378,26 +378,26 @@ def test_non_per_scenario_requirements_are_not_selected(spec_id: str) -> None:
     Named individually because an ID-range selector would take three of them
     (DEMOMA-16-008 sits inside the apparent span, -012 and -013 immediately
     after it) and DEMOCI-11-007 warns specifically against that. -001 states the
-    universal types; -008 is the spec-to-test sync rule; -012 and -013 are FCVCV
-    event *counts*, not an expected-event-types list.
+    universal types; -008 is the spec-to-test sync rule; -012 and -013 are RCVCV
+    event *counts*, not an expected-semantic-types list.
     """
     selected = {
         requirement
-        for requirements in per_scenario_event_type_requirements().values()
+        for requirements in per_scenario_semantic_type_requirements().values()
         for requirement in requirements
     }
     assert spec_id not in selected
 
 
 def test_per_scenario_requirements_cover_the_unbuilt_scenarios() -> None:
-    """``fcvd`` and ``vc`` are mapped even though neither is registered.
+    """``rcvd`` and ``vc`` are mapped even though neither is registered.
 
     The registry-to-spec direction alone would ignore DEMOMA-16-014 and -015,
     which is the blind spot that let a ``vc`` row sit in a table of available
     demos with a spec group, a tracking issue and no implementation.
     """
-    mapping = per_scenario_event_type_requirements()
-    assert mapping["fcvd"] == ("DEMOMA-16-014",)
+    mapping = per_scenario_semantic_type_requirements()
+    assert mapping["rcvd"] == ("DEMOMA-16-014",)
     assert mapping["vc"] == ("DEMOMA-16-015",)
 
 
@@ -438,10 +438,10 @@ def test_partition_reports_a_scenario_in_both_registers() -> None:
     both = (
         *discover_scenarios(),
         ScenarioSpec(
-            name="fcvd",
-            label="FCVD",
-            participants="Finder + Coordinator + Vendor + Deployer",
-            feature="Fixture: pretend fcvd is built",
+            name="rcvd",
+            label="RCVD",
+            participants="Reporter + Coordinator + Vendor + Deployer",
+            feature="Fixture: pretend rcvd is built",
             in_pr_set=False,
         ),
     )
@@ -451,12 +451,12 @@ def test_partition_reports_a_scenario_in_both_registers() -> None:
 
 def test_partition_reports_a_scenario_in_neither_register() -> None:
     """A spec'd scenario that is neither registered nor planned is reported."""
-    without_fv = tuple(
-        spec for spec in discover_scenarios() if spec.name != "fv"
+    without_rv = tuple(
+        spec for spec in discover_scenarios() if spec.name != "rv"
     )
-    problems = partition_problems(specs=without_fv)
+    problems = partition_problems(specs=without_rv)
     assert any(
-        "'fv' (DEMOMA-06) is in neither register" in problem
+        "'rv' (DEMOMA-06) is in neither register" in problem
         for problem in problems
     )
 
@@ -640,7 +640,7 @@ def test_scenario_table_check_reports_a_missing_row(prose_root: Path) -> None:
 
     The row is located by parsing its first cell, not by a string prefix: the
     committed tables pad the ``Scenario`` column for readability, so
-    ``startswith("| fv  ")`` would stop finding the row the moment someone
+    ``startswith("| rv  ")`` would stop finding the row the moment someone
     reflowed the table and this test would pass vacuously.
     """
     table = SCENARIO_TABLES[0]
@@ -648,7 +648,7 @@ def test_scenario_table_check_reports_a_missing_row(prose_root: Path) -> None:
     kept = [
         line
         for line in target.read_text().splitlines()
-        if not (line.startswith("|") and split_row(line)[0].strip() == "fv")
+        if not (line.startswith("|") and split_row(line)[0].strip() == "rv")
     ]
     target.write_text("\n".join(kept) + "\n")
     problems = scenario_table_problems(prose_root)
@@ -661,7 +661,7 @@ def test_scenario_table_check_reports_a_wrong_spec_id(
     """The ``Spec`` column is checked against the spec corpus, not just present.
 
     The wrong ID is a *real* requirement belonging to another scenario
-    (DEMOMA-16-003 specifies FVV), not a made-up one. That is the mistake a
+    (DEMOMA-16-003 specifies RVV), not a made-up one. That is the mistake a
     copy-pasted row actually makes, and an existence check would pass it. It
     also keeps this fixture from citing a phantom spec ID, which SR-04-008
     rejects repo-wide.
@@ -674,12 +674,12 @@ def test_scenario_table_check_reports_a_wrong_spec_id(
     target = prose_root / table.path
     target.write_text(
         target.read_text().replace(
-            "| FV | DEMOMA-16-002 |", "| FV | DEMOMA-16-003 |", 1
+            "| rv | DEMOMA-16-002 |", "| rv | DEMOMA-16-003 |", 1
         )
     )
     problems = scenario_table_problems(prose_root)
     assert any(
-        "DEMOMA-16-003" in problem and "'FV'" in problem
+        "DEMOMA-16-003" in problem and "'rv'" in problem
         for problem in problems
     )
 
@@ -752,12 +752,12 @@ def test_scenario_table_check_reports_a_wrong_pr_set_mark(
     target = prose_root / table.path
     target.write_text(
         target.read_text().replace(
-            "| fv | ✓ (member) |", "| fv | covered by fvcv-handoff |", 1
+            "| rv | ✓ (member) |", "| rv | covered by rvcv-handoff |", 1
         )
     )
     problems = scenario_table_problems(prose_root)
     assert any(
-        "'fv'" in problem and "in_pr_set=True" in problem
+        "'rv'" in problem and "in_pr_set=True" in problem
         for problem in problems
     )
 
@@ -766,10 +766,10 @@ def test_scenario_table_check_reports_a_wrong_pr_set_mark(
     "prose",
     [
         "added by PR #2018 as a scenario-specific type",
-        "the FCVCV 5-Party Scenario involves five actors",
+        "the RCVCV 5-Party Scenario involves five actors",
         "a two-actor baseline",
         "one scenario per matrix entry",
-        "the DEMOMA-16 scenario event types are per-scenario",
+        "the DEMOMA-16 scenario semantic types are per-scenario",
         "see ADR-0098 scenarios for the rationale",
     ],
 )
@@ -951,7 +951,7 @@ def test_iter_tables_skips_a_table_inside_an_indented_fence(
         f"{indent}```markdown\n"
         f"{indent}| Scenario | x |\n"
         f"{indent}|---|---|\n"
-        f"{indent}| fv | 1 |\n"
+        f"{indent}| rv | 1 |\n"
         f"{indent}```\n"
     )
     text = f"## Rows\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n{fenced}"
@@ -982,7 +982,7 @@ _ADMONITION_FENCE = (
     "    # Not A Heading\n"
     "    | Scenario | x |\n"
     "    |---|---|\n"
-    "    | fv | 1 |\n"
+    "    | rv | 1 |\n"
     "    ```\n\n"
     "| A | B |\n|---|---|\n| 1 | 2 |\n"
 )
@@ -1055,17 +1055,17 @@ def test_column_raises_key_error_naming_the_columns_it_found() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_event_type_requirement_check_reports_an_unspecified_scenario() -> (
+def test_semantic_type_requirement_check_reports_an_unspecified_scenario() -> (
     None
 ):
-    """``missing_event_type_requirements`` can be made to fire.
+    """``missing_semantic_type_requirements`` can be made to fire.
 
     Without this the check was inert-by-construction: stubbing the function to
     return nothing left the whole suite green, so the DEMOCI-11-007 requirement
     that every registered scenario has a per-scenario DEMOMA-16 entry was
     enforced by a function nothing could falsify.
     """
-    missing = missing_event_type_requirements(specs=(_FAKE,))
+    missing = missing_semantic_type_requirements(specs=(_FAKE,))
     assert missing == [_FAKE.name]
 
 
@@ -1176,7 +1176,7 @@ def _mutate_scenario_column(root: Path) -> str:
     target = root / "notes/demo-ci-invariants.md"
     target.write_text(
         target.read_text().replace(
-            "| FVV | DEMOMA-16-003", "| FVVV | DEMOMA-16-003"
+            "| RVV | DEMOMA-16-003", "| FVVV | DEMOMA-16-003"
         )
     )
     return "the registry has"
@@ -1188,7 +1188,7 @@ def _mutate_undeclared_table(root: Path) -> str:
     target.write_text(
         target.read_text()
         + "\n## Smuggled\n\n| Scenario | Note |\n|---|---|\n"
-        "| fv | a |\n| fvv | b |\n"
+        "| rv | a |\n| rvv | b |\n"
     )
     return "no SCENARIO_TABLES entry declares it"
 
@@ -1214,20 +1214,20 @@ def _mutate_planned_register(root: Path) -> str:
     """Put a planned scenario in both registers at once."""
     target = root / PLANNED_REGISTER
     text = target.read_text()
-    target.write_text(text.replace("| `fcvd` |", "| `fv` |", 1))
-    return "fv"
+    target.write_text(text.replace("| `rcvd` |", "| `rv` |", 1))
+    return "rv"
 
 
 def _mutate_tick(root: Path) -> str:
-    """Tick an event type the scenario's harness constant does not require."""
+    """Tick a semantic type the scenario's harness constant does not require."""
     target = root / "notes/demo-ci-scenario-coverage.md"
     text = target.read_text()
-    old = "| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |"
+    old = "| rv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |"
     assert old in text
     target.write_text(
         text.replace(
             old,
-            "| fv                | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |",
+            "| rv                | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |",
         )
     )
     return "harness constant says otherwise"
@@ -1411,7 +1411,7 @@ def test_mkdocs_config_tolerates_the_custom_tags(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["fv", "fvcv-handoff", "rcv-embargo", "a1-b2"]
+    "name", ["rv", "rvcv-handoff", "rcv-embargo", "a1-b2"]
 )
 def test_is_scenario_name_accepts_the_registry_grammar(name: str) -> None:
     """The public predicate accepts what the registry accepts."""
@@ -1420,7 +1420,7 @@ def test_is_scenario_name_accepts_the_registry_grammar(name: str) -> None:
 
 @pytest.mark.parametrize(
     "name",
-    ["", "FV", "fv_reject", "fv--x", "-fv", "fv-", "fv.py", "fv reject"],
+    ["", "RV", "rv_reject", "rv--x", "-rv", "rv-", "rv.py", "rv reject"],
 )
 def test_is_scenario_name_rejects_everything_else(name: str) -> None:
     """The rejections are the point: this predicate filters prose.
@@ -1432,63 +1432,66 @@ def test_is_scenario_name_rejects_everything_else(name: str) -> None:
     assert not is_scenario_name(name)
 
 
-def test_harness_event_types_reads_the_pytest_param_form() -> None:
+def test_harness_semantic_types_reads_the_pytest_param_form() -> None:
     """The constant is read by AST, including the ``pytest.param`` wrapper.
 
     Read without importing so ``demo-scenarios --check`` — a pre-commit hook —
     does not execute nine test modules to answer a documentation question.
     """
-    spec = next(s for s in discover_scenarios() if s.name == "fv")
-    types = harness_event_types(spec, _REPO_ROOT)
+    spec = next(s for s in discover_scenarios() if s.name == "rv")
+    types = harness_semantic_types(spec, _REPO_ROOT)
     assert types is not None
-    assert tuple(types[: len(UNIVERSAL_EVENT_TYPES)]) == UNIVERSAL_EVENT_TYPES
+    assert (
+        tuple(types[: len(UNIVERSAL_SEMANTIC_TYPES)])
+        == UNIVERSAL_SEMANTIC_TYPES
+    )
 
 
-def test_harness_event_types_is_none_when_there_is_no_harness(
+def test_harness_semantic_types_is_none_when_there_is_no_harness(
     tmp_path: Path,
 ) -> None:
     """An absent harness is ``None``, which DEMOCI-11-003 reports separately."""
-    spec = next(s for s in discover_scenarios() if s.name == "fv")
-    assert harness_event_types(spec, tmp_path) is None
+    spec = next(s for s in discover_scenarios() if s.name == "rv")
+    assert harness_semantic_types(spec, tmp_path) is None
 
 
-def test_harness_event_types_rejects_an_unreadable_constant(
+def test_harness_semantic_types_rejects_an_unreadable_constant(
     tmp_path: Path,
 ) -> None:
     """A constant built by a call is refused rather than read as empty.
 
-    "This scenario exercises no event types" is never the true answer, so
+    "This scenario exercises no semantic types" is never the true answer, so
     returning an empty tuple would silently satisfy an all-blank matrix row.
     """
-    spec = next(s for s in discover_scenarios() if s.name == "fv")
+    spec = next(s for s in discover_scenarios() if s.name == "rv")
     target = tmp_path / spec.harness_path
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("_FV_EXPECTED_EVENT_TYPES = list(SOMETHING)\n")
-    with pytest.raises(HarnessEventTypeError, match="not a list or tuple"):
-        harness_event_types(spec, tmp_path)
+    target.write_text("_RV_EXPECTED_SEMANTIC_TYPES = list(SOMETHING)\n")
+    with pytest.raises(HarnessSemanticTypeError, match="not a list or tuple"):
+        harness_semantic_types(spec, tmp_path)
 
 
-def test_additional_event_types_is_the_non_universal_remainder() -> None:
+def test_additional_semantic_types_is_the_non_universal_remainder() -> None:
     """The complement, which is what the ``Additional required`` column holds."""
-    harness = (*UNIVERSAL_EVENT_TYPES, "invite_actor_to_case")
-    assert additional_event_types(harness) == frozenset(
+    harness = (*UNIVERSAL_SEMANTIC_TYPES, "invite_actor_to_case")
+    assert additional_semantic_types(harness) == frozenset(
         {"invite_actor_to_case"}
     )
 
 
-def test_universal_event_types_match_the_harness_ratchets_copy() -> None:
+def test_universal_semantic_types_match_the_harness_ratchets_copy() -> None:
     """The metadata reader's universal block equals the test ratchet's.
 
-    ``event_types.py`` deliberately does not import
-    ``test_universal_event_types._UNIVERSAL_EVENT_TYPES`` — production tooling
+    ``semantic_types.py`` deliberately does not import
+    ``test_universal_semantic_types._UNIVERSAL_SEMANTIC_TYPES`` — production tooling
     importing a test module is the coupling it exists to avoid — so the two
     spellings are held together here instead of by an import.
     """
-    from test.ci.invariants.test_universal_event_types import (
-        _UNIVERSAL_EVENT_TYPES,
+    from test.ci.invariants.test_universal_semantic_types import (
+        _UNIVERSAL_SEMANTIC_TYPES,
     )
 
-    assert UNIVERSAL_EVENT_TYPES == _UNIVERSAL_EVENT_TYPES
+    assert UNIVERSAL_SEMANTIC_TYPES == _UNIVERSAL_SEMANTIC_TYPES
 
 
 def test_scenario_set_statement_check_reports_a_stale_enumeration(
@@ -1503,8 +1506,8 @@ def test_scenario_set_statement_check_reports_a_stale_enumeration(
     target = prose_root / "specs/demo-ci.yaml"
     target.write_text(
         target.read_text().replace(
-            "`fcvcv`, `fcv-reject`, `rcv-embargo`, and `rcvv-embargo`. Together",
-            "`fcvcv`. Together",
+            "`rcvcv`, `rcv-reject`, `rcv-embargo`, and `rcvv-embargo`. Together",
+            "`rcvcv`. Together",
             1,
         ),
         encoding="utf-8",

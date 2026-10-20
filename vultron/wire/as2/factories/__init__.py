@@ -41,7 +41,6 @@ from vultron.wire.as2.factories.case import (
     announce_vulnerability_case_activity,
     bootstrap_replay_question_activity,
     create_case_activity,
-    create_note_activity,
     ledger_position_content,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
@@ -83,7 +82,10 @@ from vultron.wire.as2.factories.embargo import (
     withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
-from vultron.wire.as2.factories.fault import create_processing_fault_activity
+from vultron.wire.as2.factories.fault import (
+    create_processing_fault_activity,
+    refusal_notice_activity,
+)
 from vultron.wire.as2.factories.report import (
     parse_submit_report_offer,
     rm_close_report_activity,
@@ -103,6 +105,7 @@ __all__ = [
     "VultronActivityConstructionError",
     # fault
     "create_processing_fault_activity",
+    "refusal_notice_activity",
     # actor
     "accept_actor_recommendation_activity",
     "accept_case_participant_offer_activity",
@@ -120,7 +123,6 @@ __all__ = [
     "announce_vulnerability_case_activity",
     "bootstrap_replay_question_activity",
     "create_case_activity",
-    "create_note_activity",
     "offer_case_participant_role_activity",
     "offer_case_ownership_transfer_activity",
     "reject_case_participant_role_activity",

@@ -30,6 +30,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Update,
 )
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
@@ -254,22 +255,6 @@ class TestVocabCaseNoteExamples(unittest.TestCase):
         self.assertEqual(add_note.context, case.id_)
         self.assertEqual(add_note.content, note.content)
 
-    def test_create_note(self):
-        activity = examples.create_note()
-        self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
-        case = examples.case()
-        note = examples.note()
-
-        self.assertIsInstance(activity, as_Create)
-        self.assertEqual(activity.type_, "Create")
-
-        self.assertEqual(activity.actor, vendor.id_)
-        # The note's context names the case; the Create has no target (#4549).
-        self.assertIsNone(activity.target)
-        self.assertEqual(activity.object_, note)
-        self.assertEqual(cast(as_Note, activity.object_).context, case.id_)
-
 
 class TestVocabCaseOwnershipExamples(unittest.TestCase):
     def test_offer_case_ownership_transfer(self):
@@ -283,7 +268,9 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Offer")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertEqual(activity.target, coordinator.id_)
+        # DL-08-003: the transferee travels inline, not as a bare id.
+        self.assertIsInstance(activity.target, as_Actor)
+        self.assertEqual(cast(as_Actor, activity.target).id_, coordinator.id_)
 
         transfer_case = cast(as_VulnerabilityCase, activity.object_)
         for k, v in transfer_case.model_dump().items():

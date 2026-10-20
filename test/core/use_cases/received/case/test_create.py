@@ -139,7 +139,7 @@ def case_with_participant():
 @pytest.fixture()
 def create_activity(case_with_participant):
     case, _ = case_with_participant
-    return create_case_activity(case, actor=_CREATOR_ID)
+    return create_case_activity(case, actor=_CREATOR_ID, to=[_REPORTER_ID])
 
 
 @pytest.fixture()
@@ -222,7 +222,9 @@ class TestBootstrapCreateRejectedBadSender:
     @pytest.fixture()
     def imposter_activity(self, case_with_participant):
         case, _ = case_with_participant
-        return create_case_activity(case, actor=_IMPOSTER_ID)
+        return create_case_activity(
+            case, actor=_IMPOSTER_ID, to=[_REPORTER_ID]
+        )
 
     @pytest.fixture()
     def imposter_event(self, make_payload, imposter_activity):
@@ -306,13 +308,13 @@ class TestAnnounceValidatedByTrustedCaseActorId:
     @pytest.fixture()
     def announce_from_trusted(self, case_obj):
         return announce_vulnerability_case_activity(
-            case_obj, actor=_CASE_ACTOR_ID
+            case_obj, actor=_CASE_ACTOR_ID, to=[_REPORTER_ID]
         )
 
     @pytest.fixture()
     def announce_from_imposter(self, case_obj):
         return announce_vulnerability_case_activity(
-            case_obj, actor=_IMPOSTER_ID
+            case_obj, actor=_IMPOSTER_ID, to=[_REPORTER_ID]
         )
 
     def test_trusted_actor_announce_accepted(
@@ -400,7 +402,9 @@ def _bootstrap_event(
         case_participants=[participant],
         vulnerability_reports=[_REPORT_ID],
     )
-    event = make_payload(create_case_activity(case, actor=creator_id))
+    event = make_payload(
+        create_case_activity(case, actor=creator_id, to=[_REPORTER_ID])
+    )
     if not isinstance(event, CreateCaseReceivedEvent):
         raise TypeError(f"expected CreateCaseReceivedEvent, got {type(event)}")
     return event
@@ -480,7 +484,9 @@ class TestCreateRefusesAnUnheldEmbargo:
         dl.save(link)
         event = make_payload(
             create_case_activity(
-                _case_naming_unheld_embargo(), actor=_CREATOR_ID
+                _case_naming_unheld_embargo(),
+                actor=_CREATOR_ID,
+                to=[_REPORTER_ID],
             )
         )
 

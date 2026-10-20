@@ -30,6 +30,7 @@ from vultron.core.models.dimensions import (
     dimension_state,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.note import VultronNote
@@ -41,7 +42,6 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
-    TerminationReason,
     termination_reason_from_content,
 )
 from vultron.core.states.rm import RM
@@ -107,19 +107,26 @@ def _get_type(field: object) -> str | None:
     return str(t) if t is not None else None
 
 
-def termination_reason_of(activity: as_Activity) -> TerminationReason:
-    """Parse the reason a termination ``Remove`` carries in its ``content``.
+def termination_of(activity: as_Activity) -> EmbargoTermination:
+    """Parse the termination a ``Remove(EmbargoEvent)`` carries.
 
-    Exactly ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122), checked here at the
-    parse edge so core receives the enum (ADR-0032).
+    The what is ``content``, exactly ``END_TIME_REACHED`` or ``EARLY``
+    (ADR-0122, EMB-13-004); the why, when the sender names one, is
+    ``terminationCause``, which the wire model has already validated
+    against the cause kinds (EMB-13-005).  Both are checked here, at the
+    parse edge, so core receives a valid termination (ADR-0032): a cause on
+    an ``END_TIME_REACHED`` termination is refused.
 
     Raises:
-        VultronParseValidationError: when ``content`` is anything else,
-            naming the activity.
+        VultronParseValidationError: when ``content`` is not a termination
+            reason, or the cause does not fit it, naming the activity.
     """
     try:
-        return termination_reason_from_content(
-            getattr(activity, "content", None)
+        return EmbargoTermination.from_reason(
+            termination_reason_from_content(
+                getattr(activity, "content", None)
+            ),
+            getattr(activity, "termination_cause", None),
         )
     except ValueError as exc:
         raise VultronParseValidationError(
@@ -195,8 +202,14 @@ def _build_activity_snapshot(
     origin: object,
     context: object,
     end_time: datetime | None = None,
+    proposed_embargo: EmbargoEvent | None = None,
 ) -> VultronActivity:
     """Build a VultronActivity snapshot from raw AS2 fields.
+
+    ``proposed_embargo`` is carried when the caller passes it: an
+    ``Offer(VulnerabilityReport)``'s proposed terms (EP-04-004) are part of
+    the Offer the receiver archives (CLP-10-017) and later inlines whole in
+    its case proposal (CP-01-008), so the archive must keep them.
 
     ``end_time`` is carried only when the caller passes it, with the offset
     it arrived with (CS-13-005): for the ownership-transfer Offer it is the
@@ -243,7 +256,9 @@ def _build_activity_snapshot(
         content=getattr(activity, "content", None) or None,
         suggested_roles=getattr(activity, "suggested_roles", None) or None,
         roles=getattr(activity, "roles", None) or None,
+        termination_cause=getattr(activity, "termination_cause", None),
         end_time=end_time,
+        proposed_embargo=proposed_embargo,
     )
 
 
@@ -523,9 +538,7 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
     log_object_id = getattr(obj, "log_object_id", None) or getattr(
         obj, "logObjectId", None
     )
-    event_type = getattr(obj, "event_type", None) or getattr(
-        obj, "eventType", None
-    )
+    semantic_type = getattr(obj, "semantic_type", None)
     # Both stamps are the CaseActor's and are required on the wire
     # (CLP-14-002, CLP-02-008), so a parsed entry always has them; a replica
     # keeps them rather than stamping its own — ``received_at`` is hashed.
@@ -535,7 +548,7 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
         object_id
         and case_id
         and log_object_id
-        and event_type
+        and semantic_type
         and received_at is not None
         and published is not None
     ):
@@ -546,7 +559,7 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
                 log_index=log_index,
                 term=getattr(obj, "term", None),
                 log_object_id=log_object_id,
-                event_type=event_type,
+                semantic_type=semantic_type,
                 payload_snapshot=getattr(obj, "payload_snapshot", {})
                 or getattr(obj, "payloadSnapshot", {}),
                 prev_log_hash=getattr(obj, "prev_log_hash", None)
@@ -721,11 +734,12 @@ def _build_object_kwargs(
     actor_id: str,
     origin: object,
     activity_end_time: datetime | None = None,
+    activity_proposed_embargo: EmbargoEvent | None = None,
 ) -> dict[str, Any]:
     """Build the domain-field kwargs dict for ``extract_intent``.
 
-    *activity_end_time* is passed through to the activity snapshot (see
-    :func:`_build_activity_snapshot`).
+    *activity_end_time* and *activity_proposed_embargo* are passed through to
+    the activity snapshot (see :func:`_build_activity_snapshot`).
 
     Uses type_ string comparison because the wire parser returns ``as_Object``
     (base class) for nested objects; isinstance checks against Vultron subtypes
@@ -743,6 +757,7 @@ def _build_object_kwargs(
             origin,
             context,
             end_time=activity_end_time,
+            proposed_embargo=activity_proposed_embargo,
         )
     if obj is None:
         return kw

@@ -1,13 +1,13 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-## Attacks Observed (CA) { #attacks-observed }
+## Attacks observed in a case status { #attacks-observed }
 
 Announces evidence that attackers are exploiting the vulnerability.
 
 - **When…** a Participant observes attacks that exploit the vulnerability
 - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
 - **Send to:** the case manager
-- **Sent by:** not yet checked
+- **Sent by:** a participant
 - **Distinguished by:** `pxaState` = `pxA`
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [Attacks Observed (CA)](../../../formal_protocol/messages.md#cs-message-types)

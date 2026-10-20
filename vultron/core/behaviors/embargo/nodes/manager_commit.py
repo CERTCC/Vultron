@@ -68,9 +68,9 @@ from vultron.errors import VultronBTInternalError
 #: method returns.
 EmbargoActivityBuilder = Callable[[list[str] | None], tuple[str, str]]
 
-#: Ledger ``event_type`` of a committed embargo teardown — the value the
+#: Ledger ``semantic_type`` of a committed embargo teardown — the value the
 #: ``EmbargoTeardown`` announce slot replays.
-EMBARGO_TEARDOWN_EVENT_TYPE = (
+EMBARGO_TEARDOWN_SEMANTIC_TYPE = (
     MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value
 )
 
@@ -102,7 +102,7 @@ class CommitEmbargoDecisionNode(
     def __init__(
         self,
         case_id: str,
-        event_type: str,
+        semantic_type: str,
         builder: EmbargoActivityBuilder,
         notify_participants: bool = False,
         result_out: dict[str, object] | None = None,
@@ -112,7 +112,7 @@ class CommitEmbargoDecisionNode(
     ) -> None:
         super().__init__(
             case_id=case_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             notify_participants=notify_participants,
             name=name,
         )
@@ -162,7 +162,7 @@ class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
     def __init__(
         self,
         case_id: str,
-        event_type: str,
+        semantic_type: str,
         builder: EmbargoActivityBuilder,
         embargo: EmbargoEvent,
         result_out: dict[str, object],
@@ -170,7 +170,7 @@ class CommitEmbargoProposalNode(CommitEmbargoDecisionNode):
     ) -> None:
         super().__init__(
             case_id=case_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             builder=builder,
             result_out=result_out,
             name=name,
@@ -275,7 +275,7 @@ class IndexOwnEmbargoProposalNode(DataLayerActionWithPorts):
 
 __all__ = [
     "COMMITTED_ACTIVITY_KEY",
-    "EMBARGO_TEARDOWN_EVENT_TYPE",
+    "EMBARGO_TEARDOWN_SEMANTIC_TYPE",
     "EmbargoActivityBuilder",
     "CommitEmbargoDecisionNode",
     "CommitEmbargoProposalNode",

@@ -26,7 +26,7 @@ copy of the case names the CaseActor, and the owner would never see it.
 owner from the ``CASE_OWNER`` participant role, the authoritative record
 (CM-21-002).  These tests seed a store whose ``attributed_to`` names the
 CaseActor, so a node that reads ``attributed_to`` first fails here.
-The defect only ever surfaced in the fcvcv Docker scenario, as a chain of five
+The defect only ever surfaced in the rcvcv Docker scenario, as a chain of five
 failures starting at "Offer(CaseParticipant) for V2 arrived in C1's DataLayer"
 and ending with a 422 from ``accept-actor-recommendation``.
 """
@@ -34,7 +34,7 @@ and ending with a 422 from ``accept-actor-recommendation``.
 import pytest
 from py_trees.common import Status
 
-from test.support.note_wire import assert_add_note_carries_note_inline
+from test.support.note_wire import assert_case_manager_note_recorded
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -224,26 +224,25 @@ class TestOfferCaseParticipantAddressesTheCaseOwner:
 
 
 class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
-    @pytest.mark.spec("CM-16-008")
-    def test_note_goes_to_the_owner_not_the_emitting_case_actor(
-        self, case_actor_dl
-    ):
-        """Same defect, same store, second node (CM-16-008).
+    @pytest.mark.spec("CM-16-016")
+    @pytest.mark.spec("CLP-10-001")
+    def test_note_is_recorded_and_announced_to_the_owner(self, case_actor_dl):
+        """The CaseActor records the note for the owner, never DMs itself.
 
-        fcvcv never reached the duplicate-recommendation path, so this one was
-        latent — it would have mis-addressed identically the first time a second
-        recommendation for the same actor arrived.
+        The note is its own ``add_note_to_case`` entry, so the Case Owner
+        learns of it from the entry's ``Announce`` (SYNC-02-002); a direct
+        ``Add(Note)`` would be refused at the owner (HP-01-005, #4829).
         """
         _seed_case_actor_store(case_actor_dl)
 
         status = _run(case_actor_dl, _note_node())
 
         assert status == Status.SUCCESS
-        recipients = _queued_recipients(case_actor_dl, "Add")
-        assert recipients == [OWNER_ID], (
-            "Add(Note, Case) must be addressed to the CASE_OWNER participant"
-            f" ({OWNER_ID}); got {recipients!r}"
-        )
+        note = assert_case_manager_note_recorded(case_actor_dl, CASE_ID)
+        assert OWNER_ID in note["content"]
+        recipients = _queued_recipients(case_actor_dl, "Announce")
+        assert OWNER_ID in recipients, recipients
+        assert CASE_ACTOR_ID not in recipients, recipients
 
     @pytest.mark.spec("CM-16-016")
     @pytest.mark.spec("VAM-01-010")
@@ -254,15 +253,32 @@ class TestDuplicateRecommendationNoteAddressesTheCaseOwner:
 
         assert _run(case_actor_dl, _note_node()) == Status.SUCCESS
 
-        (activity_id,) = [
-            a
-            for a in case_actor_dl.outbox_list()
-            if getattr(case_actor_dl.read(a), "type_", None) == "Add"
-        ]
-        note = assert_add_note_carries_note_inline(
-            case_actor_dl, activity_id, CASE_ID
-        )
+        note = assert_case_manager_note_recorded(case_actor_dl, CASE_ID)
         assert RECOMMENDER_ID in note["content"]
+
+    @pytest.mark.spec("CM-16-016")
+    def test_a_refused_note_commit_is_an_internal_error(
+        self, case_actor_dl, monkeypatch
+    ):
+        """The note is a MUST (CM-16-016), so a refused commit is not
+        absorbed: the run fails as an internal error and nothing is attached.
+        """
+        from test.support.ledger import fail_commits
+        from vultron.core.behaviors.sync import commit_tree
+
+        fail_commits(monkeypatch, commit_tree)
+        _seed_case_actor_store(case_actor_dl)
+
+        result = BTBridge(
+            datalayer=case_actor_dl,
+            trigger_activity=TriggerActivityAdapter(case_actor_dl),
+            sync_port=SyncActivityAdapter(case_actor_dl),
+        ).execute_with_setup(tree=_note_node(), actor_id=CASE_ACTOR_ID)
+
+        assert result.internal_error
+        case = case_actor_dl.read_case(CASE_ID)
+        assert case is not None
+        assert case.notes == []
 
     @pytest.mark.spec("CM-16-008")
     def test_note_fails_when_the_only_candidate_is_the_emitting_actor(

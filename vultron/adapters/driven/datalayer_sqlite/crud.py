@@ -25,7 +25,7 @@ from vultron.adapters.driven.db_record import (
     Record,
     object_to_record,
 )
-from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
+from vultron.adapters.utils import id_lookup_candidates
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.errors import VultronAlreadyExistsError
@@ -110,9 +110,7 @@ def read(
     Returns:
         Reconstituted domain object or ``None``.
     """
-    candidates = [object_id]
-    if _UUID_RE.match(object_id):
-        candidates.append(f"{_URN_UUID_PREFIX}{object_id}")
+    candidates = id_lookup_candidates(object_id)
 
     with dl._session() as session:
         for candidate in candidates:
@@ -205,8 +203,9 @@ def save_if_unchanged(
     re-serialization, so a change to the row it names does not refuse.  Two
     cases can refuse even though this row's own text is unchanged: a
     reference whose hydrated value is kept inline (its type is in
-    ``_KEEP_INLINE_NESTED_TYPES``, or the field is in the model's
-    ``inline_required_refs``) whose referenced row changed, and a referenced
+    ``_KEEP_INLINE_NESTED_TYPES``, or the field is in the
+    ``inline_required_refs`` of the model or of the semantic class it
+    matches, see ``_inline_required_refs``) whose referenced row changed, and a referenced
     row that appears or disappears between the caller's read and this call.
     Both err toward a spurious refusal, never a lost write, and a re-reading
     caller recovers; the actor profile, today's only caller, references no

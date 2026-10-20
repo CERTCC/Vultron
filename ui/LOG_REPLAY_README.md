@@ -70,12 +70,12 @@ DemoSelector
   same decision/consequence + `causedBy` grammar as the interactive mode;
   violation nodes get a red outline + ⚠️, and hovering shows a tooltip.
 
-## Event Types
+## Semantic Types
 
 The case-ledger vocabulary (the mapper's `handleEntry` switch). Verbs not listed
 are recorded in the event log without changing machine state.
 
-| Event type | Visualization |
+| Semantic type | Visualization |
 |---|---|
 | `create_case` | Seeds the case roster + initial `CaseStatus` (no node) |
 | `add_report_to_case` / `submit_report` | Report node in the Finder's lane |
@@ -98,7 +98,7 @@ are recorded in the event log without changing machine state.
 From each `CaseLedgerEntry`:
 
 - `logIndex` — ordering key (entries are sorted by this, **not** `receivedAt`)
-- `eventType` — the event verb
+- `semanticType` — the event verb
 - `entryHash` / `prevLogHash` — dedup + chain integrity
 - `payloadSnapshot` — the ActivityStreams activity, including:
   - `payloadSnapshot.actor` — who performed the action

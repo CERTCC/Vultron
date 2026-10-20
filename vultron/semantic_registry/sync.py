@@ -79,6 +79,8 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=AnnounceLedgerEntryReceivedUseCase,
         phrase="{actor} announced a ledger entry",
         wire_activity_class=_AnnounceLogEntryActivity,
+        # Its `to` is what the addressee door guard reads (HP-01-005).
+        include_activity=True,
         occasions=(
             Occasion(
                 when=(
@@ -104,6 +106,8 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=RejectLedgerEntryReceivedUseCase,
         phrase="{actor} rejected a ledger entry",
         wire_activity_class=_RejectLogEntryActivity,
+        # Its `to` is what the addressee door guard reads (HP-01-005).
+        include_activity=True,
         occasions=(
             Occasion(
                 when=(

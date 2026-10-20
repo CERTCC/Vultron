@@ -2,12 +2,12 @@
 
 ## Add note to case { #add-note-to-case }
 
-Posts the note to the case named by the target, with the note carried inline as the object: the Case Manager stores the note, attaches it to the case and records the attachment in the case ledger. A receiver also accepts it after a Create of the same note, and it then changes nothing more.
+Posts the note to the case named by the target, with the note carried inline as the object: the Case Manager stores the note, attaches it to the case and records the attachment in the case ledger. It is the one message that attaches a note: a received Create of a note is not a protocol message.
 
 - **When…** a Participant posts a note to the case
 - **Send:** `Add(Note)[target=VulnerabilityCase]`
 - **Send to:** the case manager
-- **Sent by:** not yet checked
+- **Sent by:** an active participant
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
 - **Mapping status:** [expansion](../../index.md#mapping-status)

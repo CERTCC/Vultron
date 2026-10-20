@@ -49,8 +49,8 @@ from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
 
-#: The ``event_type`` of the entry that records an admitted role Offer.
-OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE = "offer_case_participant_role"
+#: The ``semantic_type`` of the entry that records an admitted role Offer.
+OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE = "offer_case_participant_role"
 
 
 def recorded_role_offer_entries(
@@ -60,7 +60,7 @@ def recorded_role_offer_entries(
     return [
         entry
         for entry in recorded_entries_for_case(case_id=case_id, dl=dl)
-        if entry.event_type == OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE
+        if entry.semantic_type == OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE
     ]
 
 
@@ -146,9 +146,9 @@ class RecordedRoleOffer:
         return self.pair.reply_object_id
 
     @property
-    def closed_by_event_type(self) -> str | None:
-        """The ``event_type`` of the entry that closed the Offer, if any."""
-        return self.pair.reply_event_type
+    def closed_by_semantic_type(self) -> str | None:
+        """The ``semantic_type`` of the entry that closed the Offer, if any."""
+        return self.pair.reply_semantic_type
 
 
 def answered_role_offer(
@@ -176,7 +176,7 @@ def answered_role_offer(
     offers = [
         entry
         for entry in entries
-        if entry.event_type == OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE
+        if entry.semantic_type == OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE
     ]
     entry = next(
         (e for e in offers if e.log_object_id == offer_id), None
@@ -202,9 +202,9 @@ def answered_role_offer(
     # Offer or to its forward closes it (CM-33-005).
     pair = dl.find_protocol_pair(
         case_id=case_id,
-        request_event_type=OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE,
+        request_semantic_type=OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE,
         object_id=entry.log_object_id,
-        reply_event_types=CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES,
+        reply_semantic_types=CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES,
         answering=frozenset(
             {
                 entry.log_object_id,
@@ -216,7 +216,7 @@ def answered_role_offer(
 
 
 __all__ = [
-    "OFFER_CASE_PARTICIPANT_ROLE_EVENT_TYPE",
+    "OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE",
     "RecordedRoleOffer",
     "answered_role_offer",
     "entry_names_role_offer",

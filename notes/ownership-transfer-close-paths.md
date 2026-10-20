@@ -26,7 +26,7 @@ related_notes:
 This note is the design #4491 implements; withdrawal, the deadline and expiry
 are all built. The Offer, Accept and Reject paths, and the one-open-Offer guard,
 are in [ownership-transfer](ownership-transfer.md). Every closing entry's
-`event_type` is in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, which every "is it
+`semantic_type` is in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, which every "is it
 open?" reader uses, so a new closing entry needs no other change to close the Offer.
 
 ## Withdrawal and Deadline (CM-21-015 – CM-21-017)
@@ -85,7 +85,7 @@ an Offer can also close without an answer (#4490):
   `offer_case_ownership_transfer_expired` entry before acting
   (`ExpireOverdueOwnershipOfferNode`, a clock decision). The
   snapshot is the CASE_MANAGER's own `Expire(Offer)`, stamped with its clock; its
-  `event_type` is in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so it closes
+  `semantic_type` is in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so it closes
   the Offer. It is `NO_REPLICA_EFFECT`: replicas learn expiry from the entry and
   never compute it, as for embargo Invite expiry (CM-28-014).
   - **Why a clock decision.** The expiry is the CASE_MANAGER's own decision

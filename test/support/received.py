@@ -25,6 +25,7 @@ from typing import Any
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.semantic_registry import extract_event
 
 
@@ -41,3 +42,31 @@ def archive_received(dl: Any, activity: Any) -> ReceivedActivityRecord:
     record = ReceivedActivityRecord.for_activity(received)
     dl.create(record)
     return record
+
+
+def received_record(
+    dl: CasePersistence, activity_id: str
+) -> ReceivedActivityRecord | None:
+    """The ``ReceivedActivityRecord`` *dl* holds for *activity_id*, if any.
+
+    Looked up by the receiver's key, as production reads it
+    (``ReceivedActivityRecord.build_id``).
+    """
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    return record if isinstance(record, ReceivedActivityRecord) else None
+
+
+def assert_held_only_as_received(
+    dl: CasePersistence, activity_id: str
+) -> None:
+    """Assert *dl* holds *activity_id* as a received archive and nothing else.
+
+    A receiver keeps a received activity only under a key it derives, never
+    as a record readable by the id its sender chose (DL-06-006).
+    """
+    assert dl.read(activity_id) is None, (
+        f"{activity_id!r} is held under the id its sender chose (DL-06-006)"
+    )
+    assert received_record(dl, activity_id) is not None, (
+        f"{activity_id!r} has no ReceivedActivityRecord"
+    )

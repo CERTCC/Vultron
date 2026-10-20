@@ -16,7 +16,7 @@
 
 """Native canonical-ledger commit leaf node for a newly created case.
 
-Commits the genesis ``create_case`` entry plus the report, participant-status
+Commits the genesis ``create_case`` entry plus the report, participant-record
 and case-status entries the CASE_MANAGER authors during initialization
 (ADR-0041 AC-4, CLP-07-013).  It is the one creation commit: composed by
 ``create_case_proposal_received_tree`` and by the create-case trigger's
@@ -41,6 +41,10 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.participant_semantic_types import (
+    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+)
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -55,10 +59,10 @@ class _EntryNotCommitted(VultronError):
     """A creation entry the commit tree did not commit (CLP-07-013)."""
 
 
-#: ``event_type`` of a case's genesis ledger entry, the root of the
+#: ``semantic_type`` of a case's genesis ledger entry, the root of the
 #: CASE_MANAGER's hash chain.  Its presence is what "the case's creation
 #: entries are committed" means to a later step (CM-14-007, CM-14-011).
-CREATE_CASE_EVENT_TYPE = "create_case"
+CREATE_CASE_SEMANTIC_TYPE = "create_case"
 
 
 class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
@@ -72,7 +76,9 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
 
       1. ``create_case``                     actor=CaseActor
       2. ``add_report_to_case``              actor=CaseActor
-      3. ``add_participant_status_to_participant`` × N  actor=CaseActor
+      3. per seated record, ``create_case_participant`` carrying it as
+         created, then ``add_participant_status_to_participant`` for each
+         later status (CLP-07-013, CM-23-007)  actor=CaseActor
       4. ``add_case_status_to_case``         actor=owner (the receiver set the
          genesis case status; ``("Add","CaseStatus")`` is nonetheless in
          ``_CASE_AUTHORED_SIGNATURES`` per CLP-12-001, so a CaseActor-authored
@@ -138,7 +144,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self,
         case_id: str,
         object_id: str,
-        event_type: str,
+        semantic_type: str,
         activity: tuple[str, str],
     ) -> None:
         """Commit one canonical ledger entry for a factory-built *activity*.
@@ -160,7 +166,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             _find_equivalent_recorded_entry(
                 case_id=case_id,
                 object_id=object_id,
-                event_type=event_type,
+                semantic_type=semantic_type,
                 payload_snapshot=snapshot,
                 dl=cast(CaseOutboxPersistence, self.datalayer),
             )
@@ -172,14 +178,14 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             logger.debug(
                 "%s: '%s' entry for '%s' already committed — skipping",
                 self.name,
-                event_type,
+                semantic_type,
                 object_id,
             )
             return
         tree = create_commit_log_entry_tree(
             case_id=case_id,
             object_id=object_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=snapshot,
         )
         result = BTBridge(
@@ -187,7 +193,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         ).execute_with_setup(tree=tree, actor_id=self.actor_id)
         if result.status != Status.SUCCESS:
             raise _EntryNotCommitted(
-                f"could not commit the '{event_type}' entry for"
+                f"could not commit the '{semantic_type}' entry for"
                 f" '{object_id}' on case '{case_id}':"
                 f" {result.feedback_message}"
             )
@@ -254,11 +260,22 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                 case_id, report_id, "add_report_to_case", activity
             )
 
-    def _commit_participant_statuses(
+    def _commit_participant_records(
         self, case: VulnerabilityCase, case_id: str
     ) -> None:
+        """Commit each seated record as it came into existence, then its moves.
+
+        Per record, ``Create(CaseParticipant)`` carries the record in full
+        as it was created: its roles, its consent rows and its first status
+        (CLP-07-013).  Each later status the initialization wrote follows as
+        its own ``add_participant_status_to_participant`` entry, so the
+        CASE_MANAGER's RECEIVED → VALID → ACCEPTED is three recorded steps
+        (CM-23-007).  A replica copies the record and each status; it never
+        rebuilds one from the other (CM-23-016).
+        """
         assert self.datalayer is not None
         assert self.actor_id is not None
+        port = self._require_trigger_activity_port()
         for participant_ref in case.case_participants:
             participant_id = (
                 participant_ref
@@ -267,40 +284,42 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             )
             if not participant_id:
                 continue
-            raw_participant = self.datalayer.read(participant_id)
-            if not isinstance(raw_participant, CaseParticipant):
-                logger.warning(
-                    "%s: participant '%s' not found — skipping"
-                    " participant_status entry (best-effort)",
-                    self.name,
-                    participant_id,
+            participant = self.datalayer.read(participant_id)
+            if not isinstance(participant, CaseParticipant):
+                # The case seats this record, so its absence is a fault: no
+                # replica could learn of a record no entry carries.
+                raise _EntryNotCommitted(
+                    f"participant record '{participant_id}' of case"
+                    f" '{case_id}' not found"
                 )
-                continue
-            self._commit_one_participant_statuses(raw_participant, case_id)
-
-    def _commit_one_participant_statuses(
-        self, participant: CaseParticipant, case_id: str
-    ) -> None:
-        assert self.actor_id is not None
-        port = self._require_trigger_activity_port()
-        for status in participant.participant_statuses:
-            if not isinstance(status, ParticipantStatus):
-                continue
-            status_id = getattr(status, "id_", None)
-            if not status_id:
-                continue
-            activity = port.record_participant_status_added(
-                status=status,
-                participant=participant,
-                case_id=case_id,
-                actor=self.actor_id,
+            statuses = [
+                status
+                for status in participant.participant_statuses
+                if isinstance(status, ParticipantStatus)
+            ]
+            created = participant.model_copy(
+                update={"participant_statuses": statuses[:1]}
             )
             self._commit_one(
                 case_id,
-                status_id,
-                "add_participant_status_to_participant",
-                activity,
+                participant_id,
+                CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+                port.record_case_participant_created(
+                    participant=created, case_id=case_id, actor=self.actor_id
+                ),
             )
+            for status in statuses[1:]:
+                self._commit_one(
+                    case_id,
+                    status.id_,
+                    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
+                    port.record_participant_status_added(
+                        status=status,
+                        participant=participant,
+                        case_id=case_id,
+                        actor=self.actor_id,
+                    ),
+                )
 
     def _commit_case_statuses(
         self, case: VulnerabilityCase, case_id: str
@@ -388,7 +407,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             self._commit_one(
                 case_id,
                 case_id,
-                CREATE_CASE_EVENT_TYPE,
+                CREATE_CASE_SEMANTIC_TYPE,
                 port.record_case_created(case_id=case_id, actor=self.actor_id),
             )
         except _EntryNotCommitted as exc:
@@ -398,8 +417,9 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         try:
             # 2. add_report_to_case  (actor = CaseActor)
             self._commit_add_reports(case, case_id)
-            # 3. add_participant_status × N  (actor = CaseActor)
-            self._commit_participant_statuses(case, case_id)
+            # 3. per record: create_case_participant, then its later
+            #    statuses  (actor = CaseActor)
+            self._commit_participant_records(case, case_id)
             # 4. add_case_status  (actor = owner_uri — provenance, not a guard
             #    constraint: ("Add","CaseStatus") IS in
             #    _CASE_AUTHORED_SIGNATURES per CLP-12-001, so a

@@ -28,7 +28,7 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import propose
-from test.support.ledger import committed_event_types, fail_commits
+from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EmbargoCallOutBundle,
 )
@@ -39,8 +39,8 @@ from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.embargo_consent_event_types import (
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+from vultron.core.models.embargo_consent_semantic_types import (
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -164,13 +164,13 @@ class TestManagerConsentAtCommit:
     ) -> None:
         """A decision from local policy is its own CASE_MANAGER entry (#4715)."""
         _seed(bt_scenario, [CVDRole.CASE_MANAGER, CVDRole.VENDOR])
-        before = committed_event_types(bt_scenario.dl, CASE_ID)
+        before = committed_semantic_types(bt_scenario.dl, CASE_ID)
         call_out = None if agree else _declining_bundle()
 
         assert _run(bt_scenario, call_out=call_out).status == Status.SUCCESS
 
-        after = committed_event_types(bt_scenario.dl, CASE_ID)
-        assert after[len(before) :] == [UPDATE_EMBARGO_CONSENT_EVENT_TYPE]
+        after = committed_semantic_types(bt_scenario.dl, CASE_ID)
+        assert after[len(before) :] == [UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE]
 
     def test_a_policy_answer_whose_commit_fails_writes_no_row(
         self, bt_scenario: BTTestScenario, monkeypatch: pytest.MonkeyPatch

@@ -119,7 +119,7 @@ KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset()
 #    own initiative.  The ``case_manager_admits_*_guard`` composites
 #    are gate-wrapped read-only conditions passed as a received tree's
 #    ``precondition_guards`` (the embargo Invite tree, the participant
-#    removal and reinstatement trees, the two suggest-actor trees, the
+#    removal and reinstatement trees, the suggest-actor trees, the
 #    ownership-transfer Offer tree's one-open-Offer guard and its replies'
 #    open-Offer guard): they
 #    hold no effect and no emit, which is all BT-17-008 governs (#4301
@@ -181,6 +181,10 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
             f"{_C}/nodes/suggest_actor/conditions.py",
             "case_manager_admits_suggested_actor_guard",
         ),
+        (
+            f"{_C}/nodes/suggest_actor/conditions.py",
+            "case_manager_requires_recorded_rejection_guard",
+        ),
         (f"{_E}/trigger_tree.py", "_by_role"),
     }
 )
@@ -199,8 +203,8 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
             "BackfillCanonicalLedgerToInviteeNode",
         ),
         (
-            "vultron.core.behaviors.case.nodes.leave.record",
-            "CommitRMClosureEntriesNode",
+            "vultron.core.behaviors.case.nodes.participant.status_entries",
+            "CommitParticipantStatusEntriesNode",
         ),
         (
             "vultron.core.behaviors.case.nodes.lifecycle",

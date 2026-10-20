@@ -21,7 +21,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.models.case import has_case_statuses
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE
 from vultron.errors import VultronInvalidStateTransitionError
@@ -332,42 +331,3 @@ class IsProposedEmbargoNode(DataLayerConditionWithPorts):
             f"Case '{self.case_id}' EM state is '{em_before}', not PROPOSED"
         )
         return Status.FAILURE
-
-
-class HasCaseStatusesNode(DataLayerConditionWithPorts):
-    """Guard that the case has at least one CaseStatus entry.
-
-    Returns SUCCESS when ``case.case_statuses`` is non-empty.
-    Returns FAILURE when the list is empty or when the case is not found,
-    signalling that EM/PXA state is unavailable and the caller should use
-    the ``EMBARGO_MANAGEMENT_NONE`` / ``pxa`` defaults (LST-05 / AC-5).
-
-    Use this as a precondition node in BT sequences that read
-    ``case.current_status.em.state`` or ``case.current_status.pxa.state``
-    to avoid a ``ValueError`` from an empty status list.
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        if not has_case_statuses(case):
-            self.feedback_message = (
-                f"Case '{self.case_id}' has no CaseStatus entries"
-            )
-            return Status.FAILURE
-
-        return Status.SUCCESS

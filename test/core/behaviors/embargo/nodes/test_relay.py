@@ -36,7 +36,7 @@ from test.support.embargo_register import activate, propose, terminate
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes.relay import (
-    EMBARGO_INVITE_EVENT_TYPE,
+    EMBARGO_INVITE_SEMANTIC_TYPE,
     CollectEmbargoInviteRecipientsNode,
     EmbargoProposalNotYetRecordedNode,
     EmStateAdmitsProposalNode,
@@ -203,9 +203,9 @@ def _collected_recipients() -> list[str]:
     )
 
 
-def _ledger_event_types(scenario: BTTestScenario) -> list[str]:
+def _ledger_semantic_types(scenario: BTTestScenario) -> list[str]:
     return [
-        cast(CaseLedgerEntry, e).event_type
+        cast(CaseLedgerEntry, e).semantic_type
         for e in scenario.dl.list_objects("CaseLedgerEntry")
     ]
 
@@ -460,7 +460,8 @@ class TestRelayEmbargoInviteToEachNode:
         (entry,) = [
             cast(CaseLedgerEntry, e)
             for e in bt_scenario.dl.list_objects("CaseLedgerEntry")
-            if cast(CaseLedgerEntry, e).event_type == EMBARGO_INVITE_EVENT_TYPE
+            if cast(CaseLedgerEntry, e).semantic_type
+            == EMBARGO_INVITE_SEMANTIC_TYPE
         ]
         assert invite.end_time is not None
         assert (
@@ -502,9 +503,9 @@ class TestRelayEmbargoInviteToEachNode:
         )
         result = self._relay(bt_scenario, [OTHER_A, OTHER_B])
         bt_scenario.assert_success(result)
-        event_types = _ledger_event_types(bt_scenario)
-        assert event_types.count(EMBARGO_INVITE_EVENT_TYPE) == 2
-        assert EMBARGO_INVITE_EVENT_TYPE == "invite_to_embargo_on_case"
+        semantic_types = _ledger_semantic_types(bt_scenario)
+        assert semantic_types.count(EMBARGO_INVITE_SEMANTIC_TYPE) == 2
+        assert EMBARGO_INVITE_SEMANTIC_TYPE == "invite_to_embargo_on_case"
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("EP-09-002")
@@ -529,7 +530,7 @@ class TestRelayEmbargoInviteToEachNode:
         assert len(invite_ids) == 2
         for invite_id in invite_ids:
             assert events.index(("queued", invite_id)) < events.index(
-                (EMBARGO_INVITE_EVENT_TYPE, invite_id)
+                (EMBARGO_INVITE_SEMANTIC_TYPE, invite_id)
             )
 
     @pytest.mark.executes_as(MANAGER)
@@ -554,7 +555,9 @@ class TestRelayEmbargoInviteToEachNode:
         failed = fail_commits(
             monkeypatch,
             commit_tree,
-            when=lambda kw: kw["event_type"] == EMBARGO_INVITE_EVENT_TYPE,
+            when=lambda kw: (
+                kw["semantic_type"] == EMBARGO_INVITE_SEMANTIC_TYPE
+            ),
         )
 
         result = self._relay(
@@ -591,7 +594,7 @@ class TestRelayEmbargoInviteToEachNode:
 
         expected = {
             derived_activity_id(
-                EMBARGO_INVITE_EVENT_TYPE,
+                EMBARGO_INVITE_SEMANTIC_TYPE,
                 MANAGER,
                 CASE_ID,
                 request,
@@ -603,7 +606,9 @@ class TestRelayEmbargoInviteToEachNode:
         assert {a.id_ for a in _queued_invites(bt_scenario)} == expected
         assert len(_queued_invites(bt_scenario)) == 2
         assert (
-            _ledger_event_types(bt_scenario).count(EMBARGO_INVITE_EVENT_TYPE)
+            _ledger_semantic_types(bt_scenario).count(
+                EMBARGO_INVITE_SEMANTIC_TYPE
+            )
             == 2
         )
 
@@ -681,7 +686,7 @@ class TestRelayEmbargoInviteToEachNode:
         result = self._relay(bt_scenario, [])
         bt_scenario.assert_success(result)
         assert _queued_invites(bt_scenario) == []
-        assert _ledger_event_types(bt_scenario) == []
+        assert _ledger_semantic_types(bt_scenario) == []
 
     @pytest.mark.executes_as(MANAGER)
     @pytest.mark.spec("BT-14-001")
@@ -766,7 +771,7 @@ class TestEmbargoProposalNotYetRecordedNode:
         result = bt_scenario.run(self._guard())
         assert result.status == Status.FAILURE
         assert self.INVITE_ID in result.feedback_message
-        assert _ledger_event_types(bt_scenario) == []
+        assert _ledger_semantic_types(bt_scenario) == []
 
     @pytest.mark.executes_as(MANAGER)
     def test_a_new_proposal_of_an_indexed_embargo_passes(

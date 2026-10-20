@@ -88,8 +88,9 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
     is malformed, which is a fault this node must surface (ARCH-15-001), not
     a benign duplicate.
 
-    An event with no wire activity (a sync drain event, for instance) has
-    nothing to archive and succeeds having written nothing.
+    An event with no wire activity (one a test or a caller builds directly,
+    with no inbound activity behind it) has nothing to archive and succeeds
+    having written nothing.
 
     Returns ``FAILURE`` when the DataLayer is unavailable or no received
     event is on the blackboard (ARCH-15-001); both are wiring faults the

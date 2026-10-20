@@ -176,7 +176,7 @@ def test_static_binding_resolves_each_verbs_result_without_a_cast() -> None:
 
     synced = _trigger(
         SyncLogEntryTriggerRequest(
-            actor_id=_ACTOR, case_id=_CASE, object_id=_CASE, event_type="e"
+            actor_id=_ACTOR, case_id=_CASE, object_id=_CASE, semantic_type="e"
         )
     )
     assert_type(synced, SyncLogEntryResult)
@@ -265,6 +265,8 @@ def test_every_core_request_adds_actor_id_to_a_body_model(
             "vf_state",
             "d_state",
             "pxa_state",
+            # A demo route's second step names its first (RSH-08-006).
+            "follows_status_id",
         },
     }
     assert own <= allowed_extras.get(request_cls.__name__, set()), (

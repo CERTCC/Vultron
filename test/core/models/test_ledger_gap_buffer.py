@@ -41,7 +41,7 @@ def _entry(
         case_id=case_id,
         log_index=log_index,
         object_id=f"{case_id}/activities/act-{log_index}",
-        event_type="test_event",
+        semantic_type="test_event",
         payload_snapshot={"log_index": log_index},
         prev_log_hash=prev_hash,
     )
@@ -50,7 +50,7 @@ def _entry(
         log_index=chain.log_index,
         term=chain.term,
         log_object_id=chain.object_id,
-        event_type=chain.event_type,
+        semantic_type=chain.semantic_type,
         payload_snapshot=dict(chain.payload_snapshot),
         prev_log_hash=chain.prev_log_hash,
         entry_hash=chain.entry_hash,
@@ -82,6 +82,17 @@ class TestBufferAndTakeNext:
         assert taken is not None
         assert taken.log_index == 1
         assert buf.depth(CASE_A) == 0
+
+    def test_peek_next_finds_the_successor_without_taking_it(self):
+        buf = LedgerGapBuffer()
+        e0, e1 = _chain(2)
+        buf.buffer(e1)
+        assert buf.peek_next(CASE_A, e0.entry_hash) == e1
+        assert buf.depth(CASE_A) == 1
+        assert buf.peek_next(CASE_A, "deadbeef" * 8) is None
+        assert (
+            buf.peek_next("https://example.org/cases/none", "0" * 64) is None
+        )
 
     def test_take_next_wrong_tail_returns_none(self):
         buf = LedgerGapBuffer()

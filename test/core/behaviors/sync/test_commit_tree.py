@@ -86,7 +86,7 @@ def _make_entry(log_index: int, prev_hash: str):
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
-            event_type="test_event",
+            semantic_type="test_event",
             payload_snapshot={},
             prev_log_hash=prev_hash,
         )
@@ -104,7 +104,7 @@ def test_create_commit_log_entry_tree_guards_the_mint():
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-1",
-        event_type="case_created",
+        semantic_type="case_created",
     )
     assert tree.name == "CommitLogEntryBT"
     guard, mint = tree.children
@@ -127,7 +127,7 @@ def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-1",
-        event_type="case_created",
+        semantic_type="case_created",
         payload_snapshot=_canonical_note_snapshot(
             PEER_ID, "https://example.org/notes/note-1"
         ),
@@ -165,7 +165,7 @@ def test_commit_tree_without_sync_port_is_a_wiring_fault(
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-1",
-        event_type="case_created",
+        semantic_type="case_created",
         payload_snapshot=_canonical_note_snapshot(
             PEER_ID, "https://example.org/notes/note-1"
         ),
@@ -190,7 +190,7 @@ def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
         tree=create_commit_log_entry_tree(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-2",
-            event_type="case_updated",
+            semantic_type="case_updated",
             payload_snapshot=_canonical_note_snapshot(
                 PEER_ID, "https://example.org/notes/note-2"
             ),
@@ -216,7 +216,7 @@ def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-3",
-        event_type="case_updated",
+        semantic_type="case_updated",
         payload_snapshot=_canonical_note_snapshot(
             PEER_ID, "https://example.org/notes/note-3"
         ),
@@ -231,7 +231,7 @@ def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
         tree=create_commit_log_entry_tree(
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-3",
-            event_type="case_updated",
+            semantic_type="case_updated",
             payload_snapshot=_canonical_note_snapshot(
                 PEER_ID, "https://example.org/notes/note-3"
             ),
@@ -256,7 +256,7 @@ def test_create_commit_log_entry_tree_default_payload_snapshot_is_empty_dict():
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-cs21",
-        event_type="case_created",
+        semantic_type="case_created",
     )
     create_node = next(
         c for c in tree.iterate() if isinstance(c, CreateLogEntryNode)
@@ -308,7 +308,7 @@ def test_commit_tree_raises_for_a_foreign_ledger(datalayer, case_obj):
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-remote",
-        event_type="invite_actor_to_case",
+        semantic_type="invite_actor_to_case",
         payload_snapshot=_canonical_note_snapshot(
             PEER_ID, "https://example.org/notes/note-remote"
         ),
@@ -330,7 +330,7 @@ def test_commit_tree_as_a_foreign_actor_is_an_internal_error(
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-remote",
-        event_type="invite_actor_to_case",
+        semantic_type="invite_actor_to_case",
     )
 
     result = bridge.execute_with_setup(
@@ -396,7 +396,7 @@ def test_commit_tree_blocked_when_ledger_has_gap(bridge, datalayer, case_obj):
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-gap",
-        event_type="case_updated",
+        semantic_type="case_updated",
     )
 
     result = bridge.execute_with_setup(

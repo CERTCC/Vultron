@@ -78,7 +78,7 @@ LEDGER_NODE_KWARGS: dict[str, dict[str, Any]] = {
     "CreateLogEntryNode": {
         "case_id": LEDGER_CASE_ID,
         "object_id": "https://example.org/activities/act-001",
-        "event_type": "close_case",
+        "semantic_type": "close_case",
     },
     "PersistLogEntryNode": {"name": "PersistLogEntry"},
     "SendLogEntryToEachNode": {},
@@ -298,7 +298,7 @@ class TestCollectLogEntryRecipientsNodeOutputPorts:
         entry = CaseLedgerEntry(
             case_id=case_id,
             log_object_id="https://example.org/activities/act-001",
-            event_type="close_case",
+            semantic_type="close_case",
         )
         result = bt_scenario.run(
             CollectLogEntryRecipientsNode(case_id=case_id),
@@ -339,7 +339,7 @@ class TestFanoutCollectorsRequireCase:
         entry = CaseLedgerEntry(
             case_id=case_id,
             log_object_id="https://example.org/activities/act-001",
-            event_type="close_case",
+            semantic_type="close_case",
         )
         result = bt_scenario.run(
             node_cls(case_id=case_id),
@@ -366,7 +366,7 @@ def _make_ledger_entry() -> CaseLedgerEntry:
     return CaseLedgerEntry(
         case_id=LEDGER_CASE_ID,
         log_object_id="https://example.org/activities/act-001",
-        event_type="close_case",
+        semantic_type="close_case",
     )
 
 

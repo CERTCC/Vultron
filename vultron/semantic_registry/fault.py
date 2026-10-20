@@ -18,16 +18,23 @@ Covers the Create(ProcessingFault) NACK flow (ADR-0080, ASK-07-001).
 
 from vultron.core.behaviors.sender_entitlement import AddresseeSide
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
+from vultron.core.models.events.fault import (
+    CreateProcessingFaultReceivedEvent,
+    RefusalNoticeReceivedEvent,
+)
 from vultron.core.use_cases.received.fault import (
     CreateProcessingFaultReceivedUseCase,
+    RefusalNoticeReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.semantic_registry._occasion import (
     MessagePage,
     Occasion,
 )
-from vultron.wire.as2.extractor._instances import CreateProcessingFaultPattern
+from vultron.wire.as2.extractor._instances import (
+    CreateProcessingFaultPattern,
+    RefusalNoticePattern,
+)
 
 ENTRIES: list[SemanticEntry] = [
     SemanticEntry(
@@ -52,6 +59,38 @@ ENTRIES: list[SemanticEntry] = [
                     "CE and GE messages."
                 ),
                 example="create_processing_fault",
+                evolved=True,
+            ),
+        ),
+        page=MessagePage.FAULTS_AND_ACKNOWLEDGEMENTS,
+    ),
+    # The most general Reject pattern: every Reject that nests a specific
+    # activity is registered ahead of it (SE-03-002).
+    SemanticEntry(
+        semantics=MessageSemantics.REFUSAL_NOTICE,
+        pattern=RefusalNoticePattern,
+        event_class=RefusalNoticeReceivedEvent,
+        use_case_class=RefusalNoticeReceivedUseCase,
+        phrase="{actor} refused an assertion",
+        wire_activity_class=None,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager has refused a participant's assertion"
+                    " because a precondition did not hold"
+                ),
+                anchor="refusal-notice",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Refusal notice",
+                description=(
+                    "Tells the participant that its assertion was received "
+                    "and understood but refused, so it had no effect. It "
+                    "carries the refused activity inline and names the "
+                    "refusing guard's reason. This notice serves the declined "
+                    "purpose of the formal RE, EE, CE and GE messages."
+                ),
+                example="refusal_notice",
                 evolved=True,
             ),
         ),

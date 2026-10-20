@@ -24,7 +24,7 @@ This demo script showcases two invitation paths:
    coordinator is not added to the case
 
 Each demo starts from an initialized case (report submitted and validated,
-case created, finder participant added) so that the invitation workflow can
+case created, reporter participant added) so that the invitation workflow can
 be demonstrated in isolation.
 
 This corresponds to the workflow documented in:
@@ -33,7 +33,7 @@ This corresponds to the workflow documented in:
 When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
-3. Discover actors (finder, vendor, coordinator) via the API
+3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run both demo workflows (accept and reject)
 5. Verify side effects in the data layer
 
@@ -85,7 +85,7 @@ logger = logging.getLogger(__name__)
 
 def demo_invite_actor_accept(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -94,7 +94,7 @@ def demo_invite_actor_accept(
 
     Steps:
     1. Setup: initialize case (report submitted + validated, case created,
-       finder participant added)
+       reporter participant added)
     2. Vendor fires the invite-actor-to-case trigger; the CASE_MANAGER invites
        the coordinator
     3. Coordinator fires the accept-case-invite trigger
@@ -109,7 +109,7 @@ def demo_invite_actor_accept(
     logger.info("DEMO: Invite Actor — Accept Path")
     logger.info("=" * 80)
 
-    case = setup_initialized_case(client, finder, vendor)
+    case = setup_initialized_case(client, reporter, vendor)
 
     # PCR-08-007: the invite MUST be sent from the CASE_MANAGER's identity (ADR-0088).
     invite_actor_id = find_case_manager_actor_id(client, vendor.id_, case.id_)
@@ -181,7 +181,7 @@ def demo_invite_actor_accept(
 
 def demo_invite_actor_reject(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -197,7 +197,7 @@ def demo_invite_actor_reject(
 
     Steps:
     1. Setup: initialize case (report submitted + validated, case created,
-       finder participant added)
+       reporter participant added)
     2. Vendor fires invite-actor-to-case trigger (creates inert participant,
        CM-11-006) and delivers the invite
     3. Coordinator fires the reject-case-invite trigger
@@ -210,7 +210,7 @@ def demo_invite_actor_reject(
     logger.info("DEMO: Invite Actor — Reject Path")
     logger.info("=" * 80)
 
-    case = setup_initialized_case(client, finder, vendor)
+    case = setup_initialized_case(client, reporter, vendor)
 
     # PCR-08-007: the invite MUST be sent from the CASE_MANAGER's identity (ADR-0088).
     invite_actor_id = find_case_manager_actor_id(client, vendor.id_, case.id_)

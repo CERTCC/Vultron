@@ -15,30 +15,61 @@
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
 )
-from vultron.wire.as2.factories.fault import create_processing_fault_activity
+from vultron.wire.as2.factories.fault import (
+    create_processing_fault_activity,
+    refusal_notice_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
+    as_Reject,
 )
 from vultron.wire.as2.vocab.examples._base import _CASE_ACTOR, vendor
+from vultron.wire.as2.vocab.examples.status import (
+    add_fix_readiness_to_participant,
+)
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
 
 def create_processing_fault() -> as_Create:
-    """The Case Manager refuses a status assertion naming an impossible state.
+    """A Vendor's replica refuses a ledger entry naming an impossible state.
 
-    The fault points at the failed activity by ``inReplyTo`` and names its
-    failure class by URI, with no implementation diagnostics (ASK-07-003,
-    ASK-07-004, ASK-07-006).
+    The Vendor cannot apply the ``Announce(CaseLedgerEntry)`` the Case
+    Manager sent, because the participant status it records violates the
+    composite-state entailments, so it reports the fault to the Case Manager
+    (RSH-05-021).  The fault points at the failed activity by ``inReplyTo``
+    and names its failure class by URI, with no implementation diagnostics
+    (ASK-07-003, ASK-07-004, ASK-07-006).
     """
-    _vendor = vendor()
     fault = as_ProcessingFault(
         failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
-        in_reply_to=(
-            "https://vultron.example/cases/1/participants/vendor/status/9"
-        ),
+        in_reply_to=f"{_CASE_ACTOR.id_}/announce/9",
     )
     return create_processing_fault_activity(
-        actor=_CASE_ACTOR.id_,
+        actor=vendor().id_,
         fault=fault,
-        to=[_vendor.id_],
+        to=[_CASE_ACTOR.id_],
+    )
+
+
+def refusal_notice() -> as_Reject:
+    """The Case Manager refuses a Vendor's status assertion a guard rejected.
+
+    The refused ``Add(ParticipantStatus)`` is carried inline, ``inReplyTo``
+    names it, and ``summary`` gives the guard's reason (CLP-05-001).  Nothing
+    is ledgered for the refusal (CLP-05-002).
+    """
+    refused = add_fix_readiness_to_participant()
+    assert isinstance(refused.actor, str)
+    return refusal_notice_activity(
+        refused.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude_none=True,
+            serialize_as_any=True,
+        ),
+        "fix readiness (VF) asserted before vendor awareness (Vf) was"
+        " recorded for the Vendor",
+        actor=_CASE_ACTOR.id_,
+        to=[refused.actor],
+        context="https://vultron.example/cases/1",
     )

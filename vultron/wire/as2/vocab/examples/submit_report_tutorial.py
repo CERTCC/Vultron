@@ -60,13 +60,17 @@ API_BASE_URL = "http://localhost:7999/api/v2"
 #: Scheme + host (e.g. ``http://localhost:7999``) and API prefix (``/api/v2``)
 #: split out of :data:`API_BASE_URL` so the commands and the path helpers cannot
 #: disagree about where the server lives.
-_SERVER_ORIGIN = (
+SERVER_ORIGIN = (
     f"{urlparse(API_BASE_URL).scheme}://{urlparse(API_BASE_URL).netloc}"
 )
 _API_PREFIX = urlparse(API_BASE_URL).path
 
 #: Short id of the actor that receives the report (a stand-in vendor).
 VENDOR_SLUG = "vendorco"
+#: The vendor's actor id: the URL that reaches it, ``{API_BASE_URL}/actors/{slug}``.
+#: The report is addressed to this id, because a receiver acts only on an
+#: activity whose ``to`` names its own id (HP-01-005, HP-01-012).
+VENDOR_ID = f"{API_BASE_URL}/actors/{VENDOR_SLUG}"
 VENDOR_NAME = "VendorCo"
 VENDOR_ACTOR_TYPE = "Organization"
 
@@ -160,7 +164,7 @@ def create_report_activity() -> as_Create:
     """Build the ``Create(VulnerabilityReport)`` the reporter submits.
 
     Built from the same vocabulary classes the server parses, addressed to the
-    vendor by its short id so the inbox addressing gate accepts it.
+    vendor by its actor id (:data:`VENDOR_ID`), so the vendor acts on it.
     """
     report = as_VulnerabilityReport(
         id_=REPORT_ID,
@@ -174,7 +178,7 @@ def create_report_activity() -> as_Create:
         report,
         id_=ACTIVITY_ID,
         actor=FINDER_ID,
-        to=[VENDOR_SLUG],
+        to=[VENDOR_ID],
     )
 
 
@@ -209,7 +213,7 @@ def _bash_block(command: str) -> str:
 
 
 def _curl(method: str, path: str, body: dict[str, Any] | None = None) -> str:
-    url = f"{_SERVER_ORIGIN}{path}"
+    url = f"{SERVER_ORIGIN}{path}"
     if body is None:
         return f"curl {url}"
     payload = json.dumps(body, indent=2)

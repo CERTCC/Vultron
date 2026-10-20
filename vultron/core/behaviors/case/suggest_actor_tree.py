@@ -13,23 +13,31 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Received-side BT factories for the suggest-actor workflow (CASE_MANAGER inbox).
+"""Received-side BT factories for the suggest-actor workflow (ADR-0026, CM-16).
 
-Three factories correspond to the three received-side protocol events defined
-in ADR-0026/CM-16:
+Three factories run on the CASE_MANAGER's inbox:
 
 - :func:`create_recommend_actor_to_case_received_tree`  — the CASE_MANAGER
   handles ``Offer(Actor, Case)`` from a recommending participant
   (CM-16-001..004).
 - :func:`create_accept_actor_recommendation_received_tree` — the CASE_MANAGER
   handles ``Accept(Offer(CaseParticipant))`` from the Case Owner (CM-16-006).
+  Despite its name, it routes ``ACCEPT_OFFER_CASE_PARTICIPANT``, the Case
+  Owner's decision, not ``ACCEPT_ACTOR_RECOMMENDATION``.
 - :func:`create_reject_actor_recommendation_received_tree` — the CASE_MANAGER
   handles ``Reject(Offer(CaseParticipant))`` from the Case Owner (CM-16-007).
+  Likewise, it routes ``REJECT_OFFER_CASE_PARTICIPANT``.
 
-All three trees route through the CASE_MANAGER's inbox per ADR-0021/ADR-0026
+These three route through the CASE_MANAGER's inbox per ADR-0021/ADR-0026
 and use
 :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
 to enforce CLP-10-006 ordering (ledger commit before effect nodes).
+
+A fourth, :func:`create_recommendation_answer_received_tree`, runs on the
+recommender's inbox: it handles the CASE_MANAGER's ``Accept`` or
+``Reject(Offer(Actor, Case))`` answer (``ACCEPT_ACTOR_RECOMMENDATION``,
+``REJECT_ACTOR_RECOMMENDATION``; CM-16-006, CM-16-007, CM-16-009), and
+records no entry and runs no effect.
 
 Every effect in this workflow is the CASE_MANAGER's, so each tree's effect
 section is passed as ``manager_effects``, which the factory wraps in the
@@ -48,6 +56,9 @@ import logging
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_incomplete_activity_received_tree,
+)
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
@@ -62,14 +73,18 @@ from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     ActorAlreadyParticipantNode,
     EmitAcceptActorRecommendationNode,
+    EmitAcceptRecordedRecommendationNode,
     EmitNoteDuplicateRecommendationToOwnerNode,
     EmitOfferCaseParticipantToOwnerNode,
+    EmitRecordedInviteNode,
     EmitRejectActorRecommendationNode,
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
     RecordRecommendationRecommenderNode,
+    SeatRecordedInviteeNode,
     case_manager_admits_accepted_invitee_guard,
     case_manager_admits_suggested_actor_guard,
+    case_manager_requires_recorded_rejection_guard,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -147,8 +162,9 @@ def create_recommend_actor_to_case_received_tree(
        (CM-11-015, ADR-0085).
     1. **AC-7b** — already participant: auto-accept to recommender (CM-16-009).
     2. **AC-7a** — invite in-flight: auto-accept to recommender (CM-16-009).
-    3. **AC-6** — pending Case Owner decision: send Note DM, no second Offer
-       (CM-16-008).
+    3. **AC-6** — pending Case Owner decision: record the reinforcing note
+       as the CASE_MANAGER's own ``add_note_to_case`` entry, no second Offer
+       (CM-16-008, CM-16-016).
     4. **Owner-direct** — the recommender holds ``CVDRole.CASE_OWNER``: the
        recommender is also the decider, so evaluate roles (the offered ones
        when the Offer carries any) and emit the ``Invite`` directly, committed
@@ -427,16 +443,18 @@ def create_recommend_actor_to_case_received_tree(
 
 
 def create_accept_actor_recommendation_received_tree(
-    recommendation_id: str,
-    recommender_id: str,
-    invitee_id: str,
+    answer_id: str,
     case_id: str,
     sender_id: str,
-    roles: list[str] | None = None,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Accept(Offer(CaseParticipant)) on the CASE_MANAGER's inbox.
+
+    This is the Case Owner's decision (``ACCEPT_OFFER_CASE_PARTICIPANT``).
+    The recommender's receipt of the CASE_MANAGER's answer
+    (``ACCEPT_ACTOR_RECOMMENDATION``) is
+    :func:`create_recommendation_answer_received_tree`.
 
     Commits a canonical ``CaseLedgerEntry`` (CM-16-006 step 1), then fans
     out: sends ``AcceptActorRecommendation`` to the original recommender
@@ -446,26 +464,33 @@ def create_accept_actor_recommendation_received_tree(
     Tree structure::
 
         AcceptActorRecommendationBT (Sequence, memory=False)
-        ├── AcceptedInviteeAdmittedIfCaseManager — CM-31-013 + CM-16-006 guards
+        ├── AcceptedInviteeAdmittedIfCaseManager — CM-16-019, CM-31-013 and
+        │   │                                      CM-16-006 guards
+        │   ├── RequireRecordedOfferAnswerNode
+        │   ├── AcceptedInviteeIsNotRemovedNode
+        │   └── SuggestedActorIsInvitableNode
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── AcceptActorRecommendationIfCaseManager (Selector)  — BT-17-001 gate
             ├── SkipIfNotCaseManager
             └── AcceptActorRecommendationEffects (Sequence, memory=False)
-                ├── EmitAcceptActorRecommendationNode
-                ├── EmitInviteActorToCaseNode
-                └── CreateInertInviteeParticipantNode
+                ├── EmitAcceptRecordedRecommendationNode
+                ├── EmitRecordedInviteNode
+                └── SeatRecordedInviteeNode
+
+    The recommender, the invitee and its roles come from the CASE_MANAGER's
+    own records, never from the Accept (ISSUE-1745, CM-16-019): the first
+    precondition guard looks up the ``Offer(CaseParticipant)`` the Accept
+    names and the recommendation behind it, and publishes them for every
+    later node.  An Accept naming an Offer or recommendation this
+    CASE_MANAGER never recorded is refused there, after intake has archived
+    it (CLP-10-018) and before the commit, so nothing is recorded and only
+    the refusal notice is sent (CLP-10-005, CLP-10-010, CLP-05-001).
 
     Both emits are the CASE_MANAGER's (CM-16-006, PCR-08-007); a receiver
     that is not it does nothing (#3752).  An invitee already at
     ``RM.CLOSED`` (or joined) is refused by the precondition guard, before the
     receipt commit and before anything is sent: a closed participant is never
     re-invited (CM-11-015, ADR-0085).
-
-    ``roles`` and ``invitee_id`` must come from the stored
-    ``Offer(CaseParticipant)`` in the DataLayer (ISSUE-1745, CM-16-019): the
-    blackboard is empty in this separate BT execution, so the use case is
-    responsible for reading them from the stored Offer before calling this
-    factory, never from the Accept.
 
     Only the Case Owner may accept (CM-16-019): the sender guard refuses any
     other sender before the case ledger is written or anything is sent.  An
@@ -476,17 +501,10 @@ def create_accept_actor_recommendation_received_tree(
     ledger for it (CM-11-015, CM-16-006).
 
     Args:
-        recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
-            recommender (carried in the ``origin`` field of the transformed Offer).
-        recommender_id: Actor ID of the original recommender.
-        invitee_id: Actor ID of the suggested new participant, from the
-            recorded ``Offer(CaseParticipant)``.
+        answer_id: ID of the received ``Accept``; namespaces the recorded
+            Offer the guard publishes.
         case_id: ID of the VulnerabilityCase.
         sender_id: Actor ID of the Accept's sender, who must be the Case Owner.
-        roles: Serialized CVD role strings from the stored
-            ``Offer(CaseParticipant)``; passed directly to
-            ``EmitInviteActorToCaseNode`` so the Invite carries the correct
-            roles without relying on the blackboard.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
 
@@ -502,35 +520,19 @@ def create_accept_actor_recommendation_received_tree(
         ),
         precondition_guards=[
             case_manager_admits_accepted_invitee_guard(
-                recommended_id=invitee_id, case_id=case_id
+                answer_id=answer_id, case_id=case_id
             )
         ],
         manager_effects=[
-            EmitAcceptActorRecommendationNode(
-                recommender_id=recommender_id,
-                recommendation_id=recommendation_id,
-                recommended_id=invitee_id,
-                case_id=case_id,
+            EmitAcceptRecordedRecommendationNode(
+                answer_id=answer_id, case_id=case_id
             ),
-            EmitInviteActorToCaseNode(
-                invitee_id=invitee_id,
-                case_id=case_id,
-                roles=roles,
-                # One recommendation is accepted once; a retry of this
-                # tree rebuilds the same Invite (OX-06-002).
-                answers=recommendation_id,
-            ),
+            # One recommendation is accepted once; a retry of this tree
+            # rebuilds the same Invite (OX-06-002).
+            EmitRecordedInviteNode(answer_id=answer_id, case_id=case_id),
             # AC-1: record the inert participant at invite-send time
-            # (ADR-0114, CM-11-006). Roles from the stored Offer are
-            # passed in directly; the blackboard is empty in this BT
-            # execution (create_accept_actor_recommendation_received_tree
-            # docstring, ISSUE-1745).
-            CreateInertInviteeParticipantNode(
-                invitee_id=invitee_id,
-                case_id=case_id,
-                recommendation_id=recommendation_id,
-                roles=roles,
-            ),
+            # (ADR-0114, CM-11-006), with the recorded Offer's roles.
+            SeatRecordedInviteeNode(answer_id=answer_id, case_id=case_id),
         ],
         manager_case_id=case_id,
         manager_gate_name="AcceptActorRecommendationIfCaseManager",
@@ -539,15 +541,18 @@ def create_accept_actor_recommendation_received_tree(
 
 
 def create_reject_actor_recommendation_received_tree(
-    recommendation_id: str,
-    recommender_id: str,
-    recommended_id: str,
+    answer_id: str,
     case_id: str,
     sender_id: str,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Reject(Offer(CaseParticipant)) on the CASE_MANAGER's inbox.
+
+    This is the Case Owner's decision (``REJECT_OFFER_CASE_PARTICIPANT``).
+    The recommender's receipt of the CASE_MANAGER's answer
+    (``REJECT_ACTOR_RECOMMENDATION``) is
+    :func:`create_recommendation_answer_received_tree`.
 
     Commits a canonical ``CaseLedgerEntry`` (CM-16-007 step 1), then sends
     ``RejectActorRecommendation`` to the original recommender
@@ -556,10 +561,20 @@ def create_reject_actor_recommendation_received_tree(
     Tree structure::
 
         RejectActorRecommendationBT (Sequence, memory=False)
+        ├── RejectedOfferRecordedIfCaseManager   — CM-16-019 guard
+        │   └── RequireRecordedOfferAnswerNode
         ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
         └── RejectActorRecommendationIfCaseManager (Selector)  — BT-17-001 gate
             ├── SkipIfNotCaseManager
             └── EmitRejectActorRecommendationNode
+
+    The recommender and the recommended actor come from the CASE_MANAGER's
+    own records, never from the Reject (CM-16-019): the precondition guard
+    looks up the ``Offer(CaseParticipant)`` the Reject names and the
+    recommendation behind it, and a Reject naming either unrecorded is
+    refused there, after intake has archived it (CLP-10-018) and before the
+    commit, so nothing is recorded and only the refusal notice is sent
+    (CLP-10-005, CLP-10-010, CLP-05-001).
 
     The emit is the CASE_MANAGER's (CM-16-007); a receiver that is not it
     does nothing (#3752).
@@ -567,11 +582,8 @@ def create_reject_actor_recommendation_received_tree(
     other sender before the case ledger is written or anything is sent.
 
     Args:
-        recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
-            recommender (carried in the ``origin`` field of the transformed Offer).
-        recommender_id: Actor ID of the original recommender.
-        recommended_id: Actor ID of the suggested new participant, from the
-            recorded ``Offer(CaseParticipant)``.
+        answer_id: ID of the received ``Reject``; namespaces the recorded
+            Offer the guard publishes.
         case_id: ID of the VulnerabilityCase.
         sender_id: Actor ID of the Reject's sender, who must be the Case Owner.
         sender_rule: The use case's declared sender rule; the factory
@@ -587,17 +599,70 @@ def create_reject_actor_recommendation_received_tree(
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id
         ),
-        precondition_guards=[],
+        precondition_guards=[
+            case_manager_requires_recorded_rejection_guard(
+                answer_id=answer_id, case_id=case_id
+            )
+        ],
         manager_effects=[
             EmitRejectActorRecommendationNode(
-                recommender_id=recommender_id,
-                recommendation_id=recommendation_id,
-                recommended_id=recommended_id,
-                case_id=case_id,
+                answer_id=answer_id, case_id=case_id
             ),
         ],
         manager_case_id=case_id,
         manager_gate_name="RejectActorRecommendationIfCaseManager",
+    )
+
+
+def create_recommendation_answer_received_tree(
+    name: str,
+    case_id: str | None,
+    sender_id: str,
+    *,
+    sender_rule: SenderRule,
+) -> py_trees.composites.Sequence:
+    """Received-side BT for the CASE_MANAGER's answer on a recommender's inbox.
+
+    The answer is ``Accept`` or ``Reject`` of the recommender's own
+    ``Offer(Actor, Case)`` (CM-16-006, CM-16-007, CM-16-009).  The
+    CASE_MANAGER ledgered it when it sent it (CM-16-010), and the recommender
+    takes that entry from the ledger; a participant never commits
+    (CLP-09-001), so this receipt records no entry on the CLP-02-013 ground of
+    an activity only the CASE_MANAGER sends, received by a participant.
+
+    Tree structure::
+
+        <name> (Sequence, memory=False)
+        ├── IntakeReceivedActivityNode     — archive what arrived (CLP-10-018)
+        ├── CaseOpenToExternalWrites       — post-close boundary (CM-23-013)
+        ├── ActivityAddressedToReceiver    — addressee door guard (HP-01-005)
+        └── sender guard                   — only the CASE_MANAGER (PCR-03-001)
+
+    Args:
+        name: Name for the root ``Sequence``; the handler's own tree name.
+        case_id: ID of the VulnerabilityCase the answer names; ``None`` for
+            an answer that names no case, which intake archives and the
+            tree refuses, since there is no case to check the sender
+            against (CLP-10-018).
+        sender_id: Actor ID of the answer's sender.
+        sender_rule: The use case's declared sender rule; the factory
+            composes the sender guard from it (HP-01-008).
+
+    Returns:
+        Root Sequence node named *name*.
+    """
+    if case_id is None:
+        return create_incomplete_activity_received_tree(
+            name, "the answer names no case"
+        )
+    return create_receive_activity_tree(
+        name=name,
+        case_id=None,
+        sender_rule=sender_rule,
+        sender_context=SenderCheckContext(
+            sender_id=sender_id, case_id=case_id
+        ),
+        precondition_guards=[],
     )
 
 
@@ -613,5 +678,6 @@ __all__ = [
     "create_accept_actor_recommendation_received_tree",
     "create_receive_offer_case_participant_tree",
     "create_recommend_actor_to_case_received_tree",
+    "create_recommendation_answer_received_tree",
     "create_reject_actor_recommendation_received_tree",
 ]

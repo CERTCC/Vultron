@@ -61,9 +61,6 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptRecordedOwnershipOfferNode,
     ForwardOfferToTransfereeNode,
 )
-from vultron.core.behaviors.case.nodes.store_received_object import (
-    StoreReceivedObjectNode,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -333,7 +330,6 @@ def create_offer_ownership_transfer_tree(
     case_id: str | None,
     transferee_id: str | None,
     original_actor_id: str | None,
-    store_offer: StoreReceivedObjectNode | None = None,
     offer_id: str | None = None,
     answer_deadline: datetime | None = None,
     now: datetime | None = None,
@@ -356,14 +352,9 @@ def create_offer_ownership_transfer_tree(
     Args:
         case_id: URI of the case whose ownership is being offered; ``None``
             for an Offer that names no case, which intake archives
-            (CLP-10-018); its handler passes no ``store_offer`` for it, and
-            nothing is committed or forwarded.
+            (CLP-10-018); nothing is committed or forwarded.
         transferee_id: URI of the intended new owner; ``None`` skips forwarding.
         original_actor_id: URI of the actor who originated the offer (vendor).
-        store_offer: Effect node that writes the Offer activity the accept
-            trigger reads back by id (DL-06); it runs before the gated
-            forward, after the guards and the commit (CLP-10-017,
-            CLP-10-019).
         offer_id: The received Offer's id.  With a case, the CASE_MANAGER
             refuses it while an earlier ownership-transfer Offer for the case
             is open (CM-21-014); a redelivery of the same Offer is not an
@@ -388,9 +379,6 @@ def create_offer_ownership_transfer_tree(
     Returns:
         A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
     """
-    replica_effects: list[py_trees.behaviour.Behaviour] = []
-    if store_offer is not None:
-        replica_effects.append(store_offer)
     manager_effects: list[py_trees.behaviour.Behaviour] = []
     if (
         case_id is not None
@@ -429,7 +417,6 @@ def create_offer_ownership_transfer_tree(
             else None
         ),
         precondition_guards=precondition_guards,
-        replica_effects=replica_effects,
         manager_effects=manager_effects,
         manager_case_id=case_id if manager_effects else None,
         manager_gate_name=(

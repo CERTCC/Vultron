@@ -62,6 +62,10 @@ from vultron.enums.roles import CVDRole
 
 DEFER_RULE = DeferCaseReceivedUseCase.sender_entitlement
 
+#: The case's CASE_MANAGER: every engage/defer is addressed to it (PCR-08),
+#: so each copy passes the received tree's addressee door (HP-01-005).
+CASE_MANAGER_ID = "https://example.org/actors/coordinator"
+
 
 def _make_participant_in_valid_state(
     id_: str, attributed_to: str, context: str
@@ -104,6 +108,7 @@ def _make_engage_request(
             actor=actor_id,
             object_=VulnerabilityCase(id_=case.id_),
             context=case.id_,
+            to=[CASE_MANAGER_ID],
         ),
     )
 
@@ -121,6 +126,7 @@ def _make_defer_request(
             actor=actor_id,
             object_=VulnerabilityCase(id_=case.id_),
             context=case.id_,
+            to=[CASE_MANAGER_ID],
         ),
     )
 
@@ -238,7 +244,7 @@ def trigger_activity(datalayer):
 
 @pytest.fixture
 def case_manager_actor_id():
-    return "https://example.org/actors/coordinator"
+    return CASE_MANAGER_ID
 
 
 @pytest.fixture
@@ -353,9 +359,10 @@ def test_create_engage_case_tree_returns_sequence(
     assert hasattr(tree, "children")
     # RSH-08-003 (#3814): the RM write, gap note and broadcast now sit inside
     # one CASE_MANAGER gate, so the top level is intake, the post-close guard
-    # (CM-23-013), the sender guard (HP-01-008, #4696), the clock decisions
-    # (CLP-10-025), the guard stage, the guarded commit, and that gate.
-    assert len(tree.children) == 7
+    # (CM-23-013), the addressee door guard (HP-01-005), the sender guard
+    # (HP-01-008, #4696), the clock decisions (CLP-10-025), the guard stage,
+    # the guarded commit, and that gate.
+    assert len(tree.children) == 8
 
 
 @pytest.mark.spec("BT-06-002")
@@ -370,10 +377,11 @@ def test_create_defer_case_tree_returns_sequence(
     assert tree is not None
     assert tree.name == "DeferCaseBT"
     assert hasattr(tree, "children")
-    # RSH-08-003 (#3814): intake, the post-close guard (CM-23-013), sender
-    # guard, the clock decisions (CLP-10-025), the guard stage, the guarded
-    # commit, and the CASE_MANAGER gate holding the RM write + gap note.
-    assert len(tree.children) == 7
+    # RSH-08-003 (#3814): intake, the post-close guard (CM-23-013), the
+    # addressee door guard (HP-01-005), sender guard, the clock decisions
+    # (CLP-10-025), the guard stage, the guarded commit, and the CASE_MANAGER
+    # gate holding the RM write + gap note.
+    assert len(tree.children) == 8
 
 
 def test_engage_tree_node_names(case_with_participant, actor_id):
@@ -385,32 +393,37 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
     assert tree.children[0].name == "IntakeReceivedActivityNode"
     assert tree.children[1].name == "CaseOpenToExternalWrites"
+    # The copy must be addressed to the receiver (HP-01-005) ...
+    assert tree.children[2].name == "ActivityAddressedToReceiverNode"
     # The sender must be a participant (HP-01-006), checked by the guard the
     # factory composes from the declared rule (HP-01-008, #4696) ...
-    assert tree.children[2].name == "SenderIsParticipantNode"
-    assert tree.children[3].name == "ClockDecisionsIfCaseManager"
+    assert tree.children[3].name == "SenderIsParticipantNode"
+    assert tree.children[4].name == "ClockDecisionsIfCaseManager"
     # ... and its declaration is adjudicated before the commit (RSH-06-006),
     # inside the refusal-effects stage (CLP-10-022); a refused regression is
     # still noted.
-    stage = tree.children[4]
+    stage = tree.children[5]
     assert isinstance(stage, PreconditionGuardStage)
     assert [g.name for g in stage.guards.children] == [
         "AdjudicateRMDeclarationNode",
     ]
     assert "EmitRMGapNote" in [n.name for n in stage.refusal.iterate()]
     # Commit runs before effects (CLP-10-006)
-    assert tree.children[5].name == "GuardedCommitCaseLedgerEntryBT"
+    assert tree.children[6].name == "GuardedCommitCaseLedgerEntryBT"
     # RSH-08-003 (#3814): the RM write, its gap note and the broadcast all run
     # only at the CASE_MANAGER, so they sit inside one gate; a replica takes
     # the move from the ledger fan-out.
-    gate = tree.children[6]
+    gate = tree.children[7]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "EngageEffectsIfCaseManager"
     body = gate.gated_branch
     names = [n.name for n in body.children]
     # Idempotency Selector: skip write when already ACCEPTED (RSH-08-002)
+    # ... then the status it wrote is committed as its own entry
+    # (CLP-07-013)
     assert names == [
         "IdempotentTransitionRMtoAccepted",
+        "RecordTransitionRMtoAccepted",
         "EmitRMGapNote",
         "CaptureCaseUpdateBroadcastExclusionsNode",
         "BroadcastCaseUpdateNode",
@@ -429,30 +442,38 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
     assert tree.children[0].name == "IntakeReceivedActivityNode"
     # The case must not be fully closed at the CASE_MANAGER (CM-23-013) ...
     assert tree.children[1].name == "CaseOpenToExternalWrites"
+    # The copy must be addressed to the receiver (HP-01-005) ...
+    assert tree.children[2].name == "ActivityAddressedToReceiverNode"
     # The sender must be a participant (HP-01-006) ...
-    assert tree.children[2].name == "SenderIsParticipantNode"
+    assert tree.children[3].name == "SenderIsParticipantNode"
     # ... then the CASE_MANAGER's clock decisions, the embargo end-time
     # check among them (CLP-10-025, EMB-13-003) ...
-    assert tree.children[3].name == "ClockDecisionsIfCaseManager"
+    assert tree.children[4].name == "ClockDecisionsIfCaseManager"
     # ... and its declaration is adjudicated before the commit (RSH-06-006),
     # inside the refusal-effects stage that notes a refused regression
     # (CLP-10-022)
-    stage = tree.children[4]
+    stage = tree.children[5]
     assert isinstance(stage, PreconditionGuardStage)
     assert [g.name for g in stage.guards.children] == [
         "AdjudicateRMDeclarationNode"
     ]
     # Commit runs before effects (CLP-10-006)
-    assert tree.children[5].name == "GuardedCommitCaseLedgerEntryBT"
+    assert tree.children[6].name == "GuardedCommitCaseLedgerEntryBT"
     # RSH-08-003 (#3814): the RM write and its gap note run only at the
     # CASE_MANAGER, inside one gate; a replica takes the move from the ledger.
-    gate = tree.children[6]
+    gate = tree.children[7]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "DeferEffectsIfCaseManager"
     body = gate.gated_branch
     names = [n.name for n in body.children]
     # Idempotency Selector: skip write when already DEFERRED (RSH-08-002)
-    assert names == ["IdempotentTransitionRMtoDeferred", "EmitRMGapNote"]
+    # ... then the status it wrote is committed as its own entry
+    # (CLP-07-013)
+    assert names == [
+        "IdempotentTransitionRMtoDeferred",
+        "RecordTransitionRMtoDeferred",
+        "EmitRMGapNote",
+    ]
     assert body.children[0].children[0].name == "AlreadyRecordedDeferred"
     assert body.children[0].children[1].name == "TransitionRMtoDeferred"
 
@@ -914,7 +935,7 @@ def test_create_prioritize_subtree_returns_selector(
     engage_trigger_bt = engage_path.children[1]
     assert engage_trigger_bt.name == "EngageCaseTriggerBT"
     assert len(engage_trigger_bt.children) == 2
-    assert engage_trigger_bt.children[0].name == "TransitionRMtoAccepted"
+    assert engage_trigger_bt.children[0].name == "ValidateRMtoAccepted"
     engage_sender = engage_trigger_bt.children[1]
     assert engage_sender.name == "SenderSideBT"
     assert len(engage_sender.children) == 3
@@ -930,7 +951,7 @@ def test_create_prioritize_subtree_returns_selector(
     defer_trigger_bt = defer_path.children[0]
     assert defer_trigger_bt.name == "DeferCaseTriggerBT"
     assert len(defer_trigger_bt.children) == 2
-    assert defer_trigger_bt.children[0].name == "TransitionRMtoDeferred"
+    assert defer_trigger_bt.children[0].name == "ValidateRMtoDeferred"
     defer_sender = defer_trigger_bt.children[1]
     assert defer_sender.name == "SenderSideBT"
     assert len(defer_sender.children) == 3
@@ -950,7 +971,8 @@ def test_prioritize_subtree_engages_by_default(
 
     Verifies:
     - Tree returns SUCCESS
-    - Participant RM state transitions to ACCEPTED
+    - The actor's participant is left to the CASE_MANAGER: it records the
+      move and the replica copies it from the ledger (RSH-08-003, CM-23-016)
     - An RmEngageCaseActivity (Join type) is created in the datalayer
       addressed to the Case Manager (PCR-08-001)
     - The activity appears in the actor's outbox (D5-7-BTFIX-1)
@@ -966,10 +988,10 @@ def test_prioritize_subtree_engages_by_default(
 
     assert result.status == Status.SUCCESS
 
-    # Participant RM state must be ACCEPTED
+    # The actor writes no status of its own (RSH-08-003, CM-23-016)
     participant_id = "https://example.org/participants/vendor-cp-002"
     updated_participant = datalayer.read(participant_id)
-    assert updated_participant.participant_statuses[-1].rm.state == RM.ACCEPTED
+    assert updated_participant.participant_statuses[-1].rm.state == RM.VALID
 
     # An engage activity must have been created and added to outbox
     outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
@@ -1079,9 +1101,10 @@ def test_prioritize_subtree_defers_when_engage_path_fails(
 
     assert result.status == Status.SUCCESS
 
+    # The actor writes no status of its own (RSH-08-003, CM-23-016)
     participant_id = "https://example.org/participants/vendor-cp-002"
     updated_participant = datalayer.read(participant_id)
-    assert updated_participant.participant_statuses[-1].rm.state == RM.DEFERRED
+    assert updated_participant.participant_statuses[-1].rm.state == RM.VALID
 
     outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
     assert len(outbox_items) == 1

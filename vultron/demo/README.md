@@ -41,7 +41,7 @@ distinct techniques:
 
 | Sub-command    | What it demonstrates                                      |
 |----------------|-----------------------------------------------------------|
-| `fv`           | FV (Finder + Vendor) multi-container CVD workflow         |
+| `rv`           | `rv` (Reporter + Vendor) multi-container CVD workflow         |
 
 The `vultrabot` sub-group provides standalone behavior-tree demos (pacman,
 robot, cvd) that do not require a running API server.
@@ -124,7 +124,7 @@ Each demo script remains directly invokable as a Python module:
 
 ```bash
 uv run python -m vultron.demo.exchange.receive_report_demo
-uv run python -m vultron.demo.scenario.fv_demo
+uv run python -m vultron.demo.scenario.rv_demo
 ```
 
 ## Unified CLI (`vultron-demo`)

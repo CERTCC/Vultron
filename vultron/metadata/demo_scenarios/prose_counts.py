@@ -88,12 +88,12 @@ _NOT_A_MODIFIER = r"(?!(?:as|of|in|and|or|to|a|an|the|is|are|was|were)\s)"
 #: - ``(?<![#\\w-])`` — the count must not continue an identifier. ``#2018`` is an
 #:   issue reference and ``DEMOMA-16`` / ``ADR-0098`` are spec and decision IDs,
 #:   all of which these files cite constantly and often right next to the word
-#:   "scenario" (``DEMOMA-16 scenario event types`` would otherwise report
+#:   "scenario" (``DEMOMA-16 scenario semantic types`` would otherwise report
 #:   ``16 scenario``).
 #: - at most two modifier words, none of them a stopword — see
 #:   :data:`_NOT_A_MODIFIER`.
 #: - the hyphenated form is a separate alternative rather than ``[-\\s]``, so
-#:   ``FCVCV 5-Party Scenario`` (which counts *parties*) does not match while
+#:   ``RCVCV 5-Party Scenario`` (which counts *parties*) does not match while
 #:   ``full 9-scenario suite`` does.
 #: - ``one`` is absent from :data:`_COUNT_WORDS`: ``one scenario per matrix
 #:   entry`` is a rate, not an inventory.

@@ -17,6 +17,7 @@ from typing import cast
 
 import pytest
 
+from test.conftest import TEST_ACTOR_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.unknown import UnresolvableObjectReceivedEvent
@@ -36,6 +37,7 @@ def _make_unresolvable_event() -> UnresolvableObjectReceivedEvent:
     """Create an UnresolvableObjectReceivedEvent from an Accept with bare-string object_."""
     accept = as_Accept(
         actor=ACTOR_URI,
+        to=[TEST_ACTOR_ID],
         object_=UNRESOLVABLE_URI,
     )
     event = extract_event(accept)

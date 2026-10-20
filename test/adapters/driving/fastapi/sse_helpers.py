@@ -59,14 +59,14 @@ def save_ledger_entry(
     dl: DataLayer,
     case_id: str,
     log_index: int,
-    event_type: str | None = None,
+    semantic_type: str | None = None,
 ) -> CaseLedgerEntry:
     """Store a bare ledger entry for *case_id* directly in *dl*."""
     entry = CaseLedgerEntry(
         case_id=case_id,
         log_index=log_index,
         log_object_id=f"{case_id}/objects/{log_index}",
-        event_type=event_type or f"test_event_{log_index}",
+        semantic_type=semantic_type or f"test_event_{log_index}",
     )
     dl.save(entry)
     return entry

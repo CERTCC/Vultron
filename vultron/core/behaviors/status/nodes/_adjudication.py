@@ -320,8 +320,7 @@ def _adjudicate_composite_state_entailments(
 
     **What this pass guarantees:** if the participant's current state satisfies
     the entailments, so does the recorded state.  It cannot promise more.  When
-    the *incumbent* state is already impossible — reachable today because the
-    replica-apply path enforces only the RM ratchet (RSH-05-007, ISSUE-3009) —
+    the *incumbent* state is already impossible (ISSUE-3009) —
     no per-dimension refusal can repair it, since every carry-forward writes the
     offending value straight back.  That case is logged and left alone rather
     than reported as the refusal of a claim the sender never made.

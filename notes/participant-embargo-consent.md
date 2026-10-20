@@ -10,6 +10,7 @@ description: >
   how the owner learns of a decline or timeout, late accepts, and the content gate.
 related_specs:
   - specs/case-ledger-processing.yaml
+  - specs/datalayer.yaml
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
@@ -208,10 +209,10 @@ partition of its own.
 **A participant refuses a P/X/A revision with ER, never ET** (EMB-03-003,
 ADR-0118). A participant that is neither owner nor CASE_MANAGER answers a
 revision Invite with ER to the CASE_MANAGER and does not move its own EM state;
-termination is the owner's (or delegated CASE_MANAGER's) decision. A store that
-is not the sender and not in `to` refuses the copy at the tree's addressee
-door guard (`ActivityAddressedToReceiverNode`) and answers nothing; `cc`
-addresses nobody (ADR-0109).
+termination is the owner's (or delegated CASE_MANAGER's) decision. A store the
+revision is not addressed to (`addressed_to_receiver()`, HP-01-012) refuses the
+copy at the tree's addressee door guard (`ActivityAddressedToReceiverNode`) and
+answers nothing; `cc` addresses nobody (ADR-0109).
 
 ---
 
@@ -256,8 +257,8 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   act's own activity (`RegisterStep`: the `Accept(EmbargoEvent, target=Case)`
   is `ACTIVATE` with its supersede, the `Remove` is `TERMINATE` with its
   cancels); each changed consent row is its own CASE_MANAGER
-  `Create`/`Update(EmbargoConsent)` entry (`ConsentRowChange`, event types in
-  `embargo_consent_event_types.py`).
+  `Create`/`Update(EmbargoConsent)` entry (`ConsentRowChange`, semantic types in
+  `embargo_consent_semantic_types.py`).
 - **A row is an AS2 object.** `EmbargoConsent` has `type`, a derived `id`
   (`EmbargoConsent.build_id(embargo_id, actor_id)`) and `attributedTo`, the
   participant's actor. A participant record stamps its actor on every row it
@@ -361,8 +362,8 @@ ledger entries (`vultron/core/models/rsvp_deadline.py`, trees in
 
 | Situation | Behaviour |
 |---|---|
-| `INVITED` row past its deadline | entry `INVITE_EXPIRED_EVENT_TYPE`, then `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-014) |
-| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: entry `HONOUR_LATE_ACCEPT_EVENT_TYPE`, then `Update(EmbargoConsent)` carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED` (EMB-17-001/002) |
+| `INVITED` row past its deadline | entry `INVITE_EXPIRED_SEMANTIC_TYPE`, then `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-014) |
+| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: entry `HONOUR_LATE_ACCEPT_SEMANTIC_TYPE`, then `Update(EmbargoConsent)` carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED` (EMB-17-001/002) |
 | Accepted embargo is stale | send a fresh Invite to the current embargo with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003) |
 | No current embargo (EM `EXITED`/`NONE`) | acknowledge as a no-op; rows and case participation unchanged (EMB-17-004) |
 
@@ -452,9 +453,10 @@ answers it, because the receive side marks the row of whatever embargo the
 `_resolve_embargo_proposal` (`vultron/core/use_cases/triggers/_helpers.py`) looks
 in the open-proposal index first, then reads a named id as the actor's received
 Invite (`read_received_activity`). It accepts only an `Invite` whose sole `to`
-recipient is the actor (EP-09-010), whose object is the active embargo, held
-under its own id too (the answer wraps that copy), and for which the actor's row
-is `INVITED` or `TIMED_OUT`. Anything else raises `VultronNotFoundError`.
+recipient is the actor (EP-09-010), whose object is the active embargo, and for
+which the actor's row is `INVITED` or `TIMED_OUT`. Anything else raises
+`VultronNotFoundError`. The answer wraps the archived Invite; no copy under the
+sender's id is needed or kept (DL-06-006).
 
 - The answer goes through the relayed `Invite(EmbargoEvent)`, never the
   full-case Invite, whose replies move only RM state (CM-11-011).

@@ -75,6 +75,10 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import (
+    same_actor_id,
+    snapshot_actor_id,
+)
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -238,18 +242,10 @@ def reporter_introduction_recipients(
     ]
 
 
-_CLOSE_CASE_EVENT_TYPE = MessageSemantics.CLOSE_CASE.value
-_PARTICIPANT_STATUS_EVENT_TYPE = (
+_CLOSE_CASE_SEMANTIC_TYPE = MessageSemantics.CLOSE_CASE.value
+_PARTICIPANT_STATUS_SEMANTIC_TYPE = (
     MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value
 )
-
-
-def _snapshot_actor_id(entry: CaseLedgerEntry) -> str | None:
-    """The actor the entry's snapshot attributes its activity to."""
-    actor = entry.payload_snapshot.get("actor")
-    if isinstance(actor, dict):
-        actor = actor.get("id") or actor.get("id_")
-    return actor if isinstance(actor, str) and actor else None
 
 
 def entry_records_own_closure(
@@ -269,9 +265,13 @@ def entry_records_own_closure(
     status entry about it that is committed after its closure is one of
     those steps.
     """
-    if entry.event_type == _CLOSE_CASE_EVENT_TYPE:
-        return _snapshot_actor_id(entry) == actor_id
-    if entry.event_type == _PARTICIPANT_STATUS_EVENT_TYPE:
+    if entry.semantic_type == _CLOSE_CASE_SEMANTIC_TYPE:
+        # The snapshot keeps the leaver's own spelling (OID-01-006).
+        snapshot_actor = snapshot_actor_id(entry.payload_snapshot.get("actor"))
+        return snapshot_actor is not None and same_actor_id(
+            snapshot_actor, actor_id
+        )
+    if entry.semantic_type == _PARTICIPANT_STATUS_SEMANTIC_TYPE:
         return any(
             status.id_ == entry.log_object_id
             for status in record.participant_statuses
@@ -577,11 +577,10 @@ def may_act_on_case(
     predicate.  Its ``Reject(CaseLedgerEntry)`` is checked with
     :func:`is_case_content_recipient` (SYNC-03-005) and answered with a
     replay capped by :func:`closed_participant_ledger_cutoff`.  A repeat of
-    an act that would close it (a ``Close(Report)``, a ``Reject`` of its
-    Invite) is ``SKIPPED`` by effect before any sender guard runs
-    (:func:`closure_recorded`, ID-05-003).  A repeated
-    ``Leave(VulnerabilityCase)`` is owed the same verdict; its handler does
-    not ask for it yet (#4522).
+    an act that would close it (a ``Leave(VulnerabilityCase)``, a ``Reject``
+    of its Invite) is ``SKIPPED`` by effect before any sender guard runs
+    (:func:`closure_recorded`, ID-05-003).  A ``Close(Report)`` closes no one
+    on a case: every sender's is refused (CM-23-019).
 
     An actor the case does not list, or whose record does not resolve, may
     not act: the case cannot vouch for it.

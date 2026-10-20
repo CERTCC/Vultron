@@ -15,8 +15,8 @@
 
 """Ledger effect nodes for note attachment and ``remove_note_from_case``.
 
-A note is attached by an ``add_note_to_case`` or a ``create_note`` entry
-(see ``IsAddNoteEventNode``).
+A note is attached by an ``add_note_to_case`` entry only
+(see ``IsAddNoteEventNode``, RSH-08-004).
 
 Per specs/sync-ledger-replication.yaml SYNC-02-002 and ADR-0022.
 """
@@ -28,6 +28,7 @@ import logging
 from py_trees.common import Status
 from pydantic import ValidationError
 
+from vultron.core.behaviors.note.attach import attach_note, note_attached
 from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
     _LedgerEffectNode,
@@ -45,15 +46,13 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
     """Apply a note-attachment ledger entry to the local case replica.
 
     When a non-CaseActor participant receives ``Announce(CaseLedgerEntry)``
-    and the entry's ``event_type`` is ``add_note_to_case`` or ``create_note``
-    (a received ``Create(Note)`` whose note names the case, #4441), this node
+    and the entry's ``semantic_type`` is ``add_note_to_case``, this node
     extracts the note ID from ``payload_snapshot["object"]`` and appends it
     to the local case replica's ``notes`` list (idempotent).
 
     This is the canonical mechanism by which non-CaseActor participants
     learn about note additions — they must NOT update ``notes`` directly from
-    ``Add(Note, Case)`` or ``Create(Note)`` messages; only the CASE_MANAGER
-    does that (ADR-0022,
+    ``Add(Note, Case)`` messages; only the CASE_MANAGER does that (ADR-0022,
     SYNC-02-002).
 
     The note **object** is persisted alongside the reference, from the same
@@ -95,8 +94,7 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
-        existing_ids = [_as_id(n) for n in case.notes]
-        if note_id in existing_ids:
+        if note_attached(case, note_id):
             self.logger.debug(
                 "%s: note '%s' already in case '%s' — idempotent no-op",
                 self.name,
@@ -107,8 +105,7 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
 
         self._materialise_note(note_data, note_id)
 
-        case.notes.append(note_id)
-        self.datalayer.save(case)
+        attach_note(self.datalayer, case, note_id)
         self.logger.info(
             "%s: applied ledger note attachment '%s' to case '%s' (SYNC-02-002)",
             self.name,
@@ -195,7 +192,7 @@ class ApplyRemoveNoteFromLedgerNode(_LedgerEffectNode):
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
-        if note_id not in [_as_id(n) for n in case.notes]:
+        if not note_attached(case, note_id):
             self.logger.debug(
                 "%s: note '%s' not in case '%s' — idempotent no-op",
                 self.name,

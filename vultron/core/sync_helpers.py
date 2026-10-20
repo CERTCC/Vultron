@@ -11,6 +11,7 @@ from vultron.core.models.ledger_position import (
     LedgerPosition,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -124,7 +125,7 @@ def is_ledger_fresh_for_case(
     return True, ""
 
 
-def _reconstruct_tail_hash(
+def reconstruct_tail_hash(
     case_id: str, dl: CasePersistence
 ) -> tuple[str, int]:
     """Return the hash and index of the last stored entry for *case_id*.
@@ -181,9 +182,9 @@ def ledger_tail_position(case_id: str, dl: CasePersistence) -> LedgerPosition:
 
     Raises:
         VultronValidationError: When the ledger is empty and the case's
-            genesis hash is unavailable (see :func:`_reconstruct_tail_hash`).
+            genesis hash is unavailable (see :func:`reconstruct_tail_hash`).
     """
-    tail_hash, tail_index = _reconstruct_tail_hash(case_id, dl)
+    tail_hash, tail_index = reconstruct_tail_hash(case_id, dl)
     return LedgerPosition(log_index=tail_index, entry_hash=tail_hash)
 
 
@@ -295,14 +296,14 @@ def _find_equivalent_recorded_entry(
     *,
     case_id: str,
     object_id: str,
-    event_type: str,
+    semantic_type: str,
     payload_snapshot: dict[str, Any],
     dl: CasePersistence,
     entries: list[CaseLedgerEntry] | None = None,
 ) -> CaseLedgerEntry | None:
     """Return an already-recorded canonical entry with equivalent semantics.
 
-    "Equivalent" means same case, object, event type, and payload snapshot.
+    "Equivalent" means same case, object, semantic type, and payload snapshot.
     This supports idempotent handling of participant retries without appending
     duplicate canonical entries for the same logical assertion.
 
@@ -315,7 +316,7 @@ def _find_equivalent_recorded_entry(
     Args:
         case_id: URI of the parent case.
         object_id: Candidate entry's ``log_object_id``.
-        event_type: Candidate entry's ``event_type``.
+        semantic_type: Candidate entry's ``semantic_type``.
         payload_snapshot: The candidate ``payloadSnapshot``.
         dl: DataLayer to query when *entries* is not supplied.
         entries: Pre-fetched recorded entries for this case, from
@@ -332,7 +333,7 @@ def _find_equivalent_recorded_entry(
         obj
         for obj in pool
         if obj.log_object_id == object_id
-        and obj.event_type == event_type
+        and obj.semantic_type == semantic_type
         and _semantic_payload(obj.payload_snapshot) == wanted
     ]
     if not matches:
@@ -386,7 +387,9 @@ def _find_prev_actor_published(
         prior recorded assertion on this case, when this assertion is itself
         already recorded, or when the predecessor's claim was unparseable.
     """
-    snapshot_actor = payload_snapshot.get("actor")
+    # One actor's stream whatever spelling each assertion used: the
+    # snapshots keep the sender's (OID-01-006).
+    snapshot_actor = snapshot_actor_id(payload_snapshot.get("actor"))
     if not snapshot_actor:
         return None
     pool = (
@@ -397,7 +400,9 @@ def _find_prev_actor_published(
     wanted = _semantic_payload(payload_snapshot)
     matches: list[CaseLedgerEntry] = []
     for obj in pool:
-        if obj.payload_snapshot.get("actor") != snapshot_actor:
+        if snapshot_actor_id(obj.payload_snapshot.get("actor")) != (
+            snapshot_actor
+        ):
             continue
         if _semantic_payload(obj.payload_snapshot) == wanted:
             return None  # redelivery, not a new event in this actor's stream

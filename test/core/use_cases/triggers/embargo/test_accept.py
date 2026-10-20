@@ -4,7 +4,7 @@ from typing import cast
 
 import pytest
 
-from test.support.ledger import committed_event_types
+from test.support.ledger import committed_semantic_types
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -96,7 +96,7 @@ def test_non_manager_accept_embargo_asks_the_case_manager(
         case_id=case.id_,
         manager_id=owner.id_,
         activity_type="Accept",
-        event_type=MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
+        semantic_type=MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value,
     )
 
 
@@ -218,7 +218,7 @@ def test_accept_embargo_activates_the_proposed_embargo(
     )
     # As the CASE_MANAGER the decision is a canonical entry every replica
     # replays (#4085), so the Accept itself is addressed to nobody.
-    committed = committed_event_types(dl, case.id_)
+    committed = committed_semantic_types(dl, case.id_)
     assert MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value in committed
     assert (
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
@@ -267,7 +267,7 @@ def test_non_manager_owner_accept_asks_the_manager_to_activate(
         case_id=case.id_,
         manager_id=manager.id_,
         activity_type="Accept",
-        event_type=MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value,
+        semantic_type=MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value,
     )
 
 
@@ -354,6 +354,6 @@ def test_non_owner_manager_accept_is_consent_and_moves_no_register_entry(
         manager_participant.consent_for(embargo_id)
         == EmbargoConsentState.AGREED
     )
-    committed = committed_event_types(dl, case.id_)
+    committed = committed_semantic_types(dl, case.id_)
     assert MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value in committed
     assert MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value not in committed

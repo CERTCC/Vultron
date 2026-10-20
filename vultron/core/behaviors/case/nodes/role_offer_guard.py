@@ -33,11 +33,12 @@ from typing import ClassVar
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocol_pair import (
-    ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE,
+    ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE,
 )
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_offer import (
@@ -55,7 +56,9 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError, VultronNotFoundError
 
 
-class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
+class RoleOfferAdmissibleNode(
+    FlaggedRepeatGuardMixin, DataLayerConditionWithPorts
+):
     """Guard: the role Offer names a role the target may be offered.
 
     Refuses, so nothing is committed or forwarded (CM-33-003):
@@ -88,6 +91,8 @@ class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
     Read-only.  It runs on every store the Offer reaches: the target holds
     the case too, and refuses the same malformed Offer (CM-33-004).
     """
+
+    _REPEAT_FLAG = "is_redelivery"
 
     #: The roles no Offer may carry: they are held through case creation and
     #: ownership transfer, never through a role Offer (CM-33-003).
@@ -198,7 +203,7 @@ class RoleOfferAdmissibleNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
-class RoleOfferOpenNode(DataLayerConditionWithPorts):
+class RoleOfferOpenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
     """Guard: the role Offer an answer names is open, and the answer is to it.
 
     Runs right after the answer's sender check, which has established that
@@ -229,8 +234,10 @@ class RoleOfferOpenNode(DataLayerConditionWithPorts):
     Read-only; the sender guard admits no sender at any store but the
     CASE_MANAGER, so only the CASE_MANAGER runs it.
 
-    Spec: CM-33-005, CM-02-016, HP-01-003.
+    Spec: CM-33-005, CM-02-016, HP-01-003, CLP-10-022.
     """
+
+    _REPEAT_FLAG = "is_redelivery"
 
     def __init__(
         self,
@@ -306,8 +313,8 @@ class RoleOfferOpenNode(DataLayerConditionWithPorts):
         """Whether the closing Accept's grant is missing from this replica."""
         assert self.datalayer is not None and self.carried_role is not None
         if (
-            offer.closed_by_event_type
-            != ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE
+            offer.closed_by_semantic_type
+            != ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE
         ):
             return False
         participant_id = participant_id_for_actor(
@@ -358,7 +365,7 @@ class RoleOfferOpenNode(DataLayerConditionWithPorts):
             return self._refuse(
                 f"role Offer '{offer.offer_id}' for case '{self.case_id}' was"
                 f" already closed by '{offer.answer_id}'"
-                f" ({offer.closed_by_event_type})"
+                f" ({offer.closed_by_semantic_type})"
             )
         if not self._carries_recorded_offer(offer):
             return self._refuse(

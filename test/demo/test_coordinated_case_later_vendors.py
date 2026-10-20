@@ -151,7 +151,7 @@ class TestEveryoneClosesCase:
     def test_coordinator_case_owner_leaves_last(self, case):
         """Every other participant leaves before the Coordinator (CM-23-015).
 
-        The Coordinator owns the case in ``fcv``, ``rcv-embargo`` and
+        The Coordinator owns the case in ``rcv``, ``rcv-embargo`` and
         ``rcvv-embargo``; a ``Leave`` sent after its owner close is not
         recorded (CM-23-013).  The owner's ``Leave`` waits on each earlier
         departure being ``RM.CLOSED`` in the CASE_MANAGER's store, and the
@@ -275,9 +275,9 @@ class TestCaseManagerIsTheDedicatedContainer:
             patch.object(cc, "replica_route_key", side_effect=lambda c, n: n),
         ):
             cc.dump_coordinated_case_ledgers(
-                demo_name="fcv",
-                reporter_name="finder",
-                reporter_client=_client("finder"),
+                demo_name="rcv",
+                reporter_name="reporter",
+                reporter_client=_client("reporter"),
                 coordinator_client=_client("coordinator"),
                 case_actor_client=case_actor_client,
                 vendor_client=_client("vendor"),

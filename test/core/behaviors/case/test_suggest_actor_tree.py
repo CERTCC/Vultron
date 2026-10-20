@@ -25,7 +25,9 @@ Per specs/behavior-tree-integration.yaml BT-15-001, BTND-02-001 (memory=False),
 ADR-0026/CM-16.
 """
 
+import json
 import logging
+from typing import cast
 from unittest.mock import MagicMock
 
 import py_trees
@@ -33,6 +35,12 @@ import pytest
 from py_trees.common import Status
 
 from test.support.clock_decisions import clock_decision_node_ids
+from test.support.refusal_effects import refusal_effect_node_ids
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
@@ -42,6 +50,7 @@ from vultron.core.behaviors.case.nodes.invite_actor_emit import (
 )
 from vultron.core.behaviors.case.nodes.invite_inert_participant import (
     CreateInertInviteeParticipantNode,
+    validated_invitee_roles,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
@@ -51,6 +60,12 @@ from vultron.core.behaviors.case.nodes.stub_invite_lifetime import (
     ReinviteNotToClosedParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor import (
+    AcceptedInviteeIsNotRemovedNode,
+    EmitAcceptRecordedRecommendationNode,
+    EmitRecordedInviteNode,
+    RecordedOfferAnswer,
+    RequireRecordedOfferAnswerNode,
+    SeatRecordedInviteeNode,
     SuggestedActorIsInvitableNode,
 )
 from vultron.core.behaviors.case.suggest_actor_tree import (
@@ -71,10 +86,10 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseOwnerNode,
     SenderIsParticipantNode,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.activity_ids import derived_activity_id
+from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.protocol_pair import (
-    INVITE_ACTOR_TO_CASE_REPLY_TYPES,
-    OFFER_CASE_PARTICIPANT_REPLY_TYPES,
     ProtocolPair,
 )
 from vultron.core.use_cases.received.actor.offer_case_participant import (
@@ -99,7 +114,9 @@ _REJECT_RULE = RejectOfferCaseParticipantReceivedUseCase.sender_entitlement
 _MANAGER = "https://example.org/actors/case-manager"
 
 
-def _invite_id_as_manager(node: EmitInviteActorToCaseNode) -> str | None:
+def _invite_id_as_manager(
+    node: EmitInviteActorToCaseNode | EmitRecordedInviteNode,
+) -> str | None:
     """The id *node* gives its Invite when the CASE_MANAGER runs it."""
     node.actor_id = _MANAGER
     return node._invite_id()
@@ -541,14 +558,30 @@ class TestEmitInviteActorToCaseNodeEmptyRoles:
         factory.invite_actor_to_case.assert_not_called()
 
 
+#: The id of the Case Owner's answer the trees under test are built for.
+_ANSWER_ID = "https://example.org/activities/owner-answer-1"
+
+#: What the recorded-Offer guard publishes for the answer under test.
+_RECORDED = RecordedOfferAnswer(
+    recommendation_id=_REC_ID,
+    recommender_id=_RECOMMENDER,
+    invitee_id=_RECOMMENDED,
+    roles=("vendor",),
+)
+
+
+def _as_published(node):
+    """*node*, reading :data:`_RECORDED` as if the guard had published it."""
+    node._recorded = _RECORDED
+    return node
+
+
 class TestAcceptActorRecommendationReceivedTree:
     """Structural tests for create_accept_actor_recommendation_received_tree."""
 
     def setup_method(self):
         self.tree = create_accept_actor_recommendation_received_tree(
-            recommendation_id=_REC_ID,
-            recommender_id=_RECOMMENDER,
-            invitee_id=_RECOMMENDED,
+            answer_id=_ANSWER_ID,
             case_id=_CASE_ID,
             sender_id=_SENDER,
             sender_rule=_ACCEPT_RULE,
@@ -565,54 +598,61 @@ class TestAcceptActorRecommendationReceivedTree:
             "AcceptActorRecommendationBT root Sequence must use memory=False"
         )
 
-    def test_has_accept_recommendation_node(self):
+    @pytest.mark.spec("CM-16-019")
+    def test_the_accept_recommendation_node_answers_the_recorded_offer(self):
         nodes = [
             c
             for c in self.tree.iterate()
-            if isinstance(c, EmitAcceptActorRecommendationNode)
+            if isinstance(c, EmitAcceptRecordedRecommendationNode)
         ]
-        assert nodes, "Expected EmitAcceptActorRecommendationNode in tree"
-        node = nodes[0]
-        assert node.recommender_id == _RECOMMENDER
-        assert node.recommendation_id == _REC_ID
-        assert node.recommended_id == _RECOMMENDED
+        assert nodes, "Expected EmitAcceptRecordedRecommendationNode in tree"
+        node = _as_published(nodes[0])
+        assert node._subject() == (_RECOMMENDER, _REC_ID, _RECOMMENDED)
         assert node.case_id == _CASE_ID
 
-    def test_has_invite_actor_node(self):
+    @pytest.mark.spec("CM-16-019")
+    def test_the_invite_goes_to_the_recorded_invitee(self):
         nodes = [
             c
             for c in self.tree.iterate()
-            if isinstance(c, EmitInviteActorToCaseNode)
+            if isinstance(c, EmitRecordedInviteNode)
         ]
         assert nodes, (
-            "Expected EmitInviteActorToCaseNode in tree (CM-16-006 step 4)"
+            "Expected EmitRecordedInviteNode in tree (CM-16-006 step 4)"
         )
-        node = nodes[0]
-        assert node.invitee_id == _RECOMMENDED
+        node = _as_published(nodes[0])
+        assert node._invitee() == _RECOMMENDED
+        assert node._read_suggested_roles() == ["vendor"]
         assert node.case_id == _CASE_ID
 
     @pytest.mark.spec("OX-06-002")
     def test_the_invite_id_derives_from_the_accepted_recommendation(self):
         """A retry of this tree for one recommendation rebuilds one Invite."""
-        node = next(
-            c
-            for c in self.tree.iterate()
-            if isinstance(c, EmitInviteActorToCaseNode)
+        node = _as_published(
+            next(
+                c
+                for c in self.tree.iterate()
+                if isinstance(c, EmitRecordedInviteNode)
+            )
         )
         assert _invite_id_as_manager(node) == _derived_invite_id(_REC_ID)
 
     @pytest.mark.spec("CM-11-015")
     @pytest.mark.spec("CM-16-006")
-    def test_invitable_guard_runs_before_the_commit_and_either_emit(self):
+    @pytest.mark.spec("CLP-10-010")
+    def test_the_guards_run_before_the_commit_and_either_emit(self):
+        """The recorded-Offer lookup, then the closed/joined refusal, then the rest."""
         order = list(self.tree.iterate())
+        lookup = next(
+            i
+            for i, n in enumerate(order)
+            if isinstance(n, RequireRecordedOfferAnswerNode)
+        )
         guard = next(
             i
             for i, n in enumerate(order)
             if isinstance(n, SuggestedActorIsInvitableNode)
         )
-        guard_node = order[guard]
-        assert isinstance(guard_node, SuggestedActorIsInvitableNode)
-        assert guard_node.recommended_id == _RECOMMENDED
         later = [
             i
             for i, n in enumerate(order)
@@ -620,16 +660,69 @@ class TestAcceptActorRecommendationReceivedTree:
                 n,
                 (
                     CommitCaseLedgerEntryNode,
-                    EmitAcceptActorRecommendationNode,
-                    EmitInviteActorToCaseNode,
+                    EmitAcceptRecordedRecommendationNode,
+                    EmitRecordedInviteNode,
                 ),
             )
         ]
         assert later, "the tree has a commit and both emits"
+        assert lookup < guard
         assert all(guard < i for i in later), (
             "the closed/joined refusal must precede the receipt commit and"
             " both emits (CM-11-015, CM-16-006)"
         )
+
+
+@pytest.mark.parametrize(
+    "node_class",
+    [
+        AcceptedInviteeIsNotRemovedNode,
+        EmitAcceptRecordedRecommendationNode,
+        EmitRecordedInviteNode,
+        EmitRejectActorRecommendationNode,
+        SeatRecordedInviteeNode,
+        SuggestedActorIsInvitableNode,
+    ],
+)
+def test_an_answer_node_without_the_published_offer_is_an_internal_error(
+    node_class,
+):
+    """A tree that omits the lookup guard is a composition error, not a refusal.
+
+    Every node that reads the published answer checks for it before its own
+    work, so the bridge reports an internal error (#2255).  The store holds
+    no case, so a node that ran its case read first would report an ordinary
+    refusal instead and fail this test.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
+    try:
+        result = BTBridge(
+            datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute_with_setup(
+            node_class(answer_id=_ANSWER_ID, case_id=_CASE_ID),
+            actor_id=_MANAGER,
+        )
+    finally:
+        dl.close()
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "must run first" in result.feedback_message
+
+
+@pytest.mark.spec("CM-11-019")
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ((), []),
+        (None, []),
+        (("vendor",), [CVDRole.VENDOR]),
+        ([CVDRole.COORDINATOR], [CVDRole.COORDINATOR]),
+        (("no-such-role",), []),
+    ],
+)
+def test_validated_invitee_roles_never_defaults(raw, expected):
+    """No valid role seats nothing: there is no VENDOR default (CM-11-019)."""
+    assert validated_invitee_roles(raw) == expected
 
 
 class TestRejectActorRecommendationReceivedTree:
@@ -637,9 +730,7 @@ class TestRejectActorRecommendationReceivedTree:
 
     def setup_method(self):
         self.tree = create_reject_actor_recommendation_received_tree(
-            recommendation_id=_REC_ID,
-            recommender_id=_RECOMMENDER,
-            recommended_id=_RECOMMENDED,
+            answer_id=_ANSWER_ID,
             case_id=_CASE_ID,
             sender_id=_SENDER,
             sender_rule=_REJECT_RULE,
@@ -656,18 +747,36 @@ class TestRejectActorRecommendationReceivedTree:
             "RejectActorRecommendationBT root Sequence must use memory=False"
         )
 
-    def test_has_reject_recommendation_node(self):
+    @pytest.mark.spec("CM-16-019")
+    def test_the_reject_recommendation_node_answers_the_recorded_offer(self):
         nodes = [
             c
             for c in self.tree.iterate()
             if isinstance(c, EmitRejectActorRecommendationNode)
         ]
         assert nodes, "Expected EmitRejectActorRecommendationNode in tree"
-        node = nodes[0]
-        assert node.recommender_id == _RECOMMENDER
-        assert node.recommendation_id == _REC_ID
-        assert node.recommended_id == _RECOMMENDED
+        node = _as_published(nodes[0])
+        assert node._subject() == (_RECOMMENDER, _REC_ID, _RECOMMENDED)
         assert node.case_id == _CASE_ID
+
+    @pytest.mark.spec("CLP-10-010")
+    def test_the_recorded_offer_lookup_precedes_the_commit_and_the_emit(self):
+        order = list(self.tree.iterate())
+        lookup = next(
+            i
+            for i, n in enumerate(order)
+            if isinstance(n, RequireRecordedOfferAnswerNode)
+        )
+        later = [
+            i
+            for i, n in enumerate(order)
+            if isinstance(
+                n,
+                (CommitCaseLedgerEntryNode, EmitRejectActorRecommendationNode),
+            )
+        ]
+        assert later, "the tree has a commit and the emit"
+        assert all(lookup < i for i in later)
 
 
 # ---------------------------------------------------------------------------
@@ -746,8 +855,71 @@ class TestActorAlreadyParticipantNode:
         assert node.name == "MyName"
 
 
-class TestInviteInFlightNode:
-    """Unit tests for InviteInFlightNode (AC-7a, CM-16-009)."""
+_ZERO_HASH = "0" * 64
+_INVITE_SNAPSHOT = {"type": "Invite", "object": {"id": _RECOMMENDED}}
+_OFFER_SNAPSHOT = {
+    "type": "Offer",
+    "object": {"type": "CaseParticipant", "attributedTo": _RECOMMENDED},
+}
+
+
+def _ledger(*rows: tuple[str, dict]) -> SqliteDataLayer:
+    """A store whose ledger holds *rows* of (semantic_type, snapshot), in order.
+
+    Each entry is keyed by its own activity id, as the CASE_MANAGER commits a
+    request it sends (ADR-0119), never by the actor the request concerns.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_ACTOR_ID)
+    prev = _ZERO_HASH
+    for index, (semantic_type, snapshot) in enumerate(rows):
+        entry = _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=_CASE_ID,
+                log_index=index,
+                object_id=f"https://example.org/activities/a-{index}",
+                semantic_type=semantic_type,
+                payload_snapshot=snapshot,
+                prev_log_hash=prev,
+            )
+        )
+        dl.save(entry)
+        prev = entry.entry_hash
+    return dl
+
+
+def _answer(request_index: int, link: str = "object") -> dict:
+    """A reply snapshot answering the request at *request_index* via *link*."""
+    return {
+        "type": "Accept",
+        link: f"https://example.org/activities/a-{request_index}",
+    }
+
+
+_LOOKUPS = [
+    pytest.param(
+        InviteInFlightNode,
+        "invite_actor_to_case",
+        _INVITE_SNAPSHOT,
+        "accept_invite_actor_to_case",
+        id="invite-in-flight",
+    ),
+    pytest.param(
+        PendingOfferCaseParticipantNode,
+        "offer_case_participant",
+        _OFFER_SNAPSHOT,
+        "accept_offer_case_participant",
+        id="pending-offer",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("node_type", "request_type", "snapshot", "reply"), _LOOKUPS
+)
+class TestPendingRequestLookup:
+    """InviteInFlightNode (AC-7a, CM-16-009) and PendingOfferCaseParticipantNode
+    (AC-6, CM-16-008) find the request by the actor its snapshot names (#4903).
+    """
 
     def setup_method(self):
         py_trees.blackboard.Blackboard.enable_activity_stream()
@@ -756,157 +928,70 @@ class TestInviteInFlightNode:
         py_trees.blackboard.Blackboard.disable_activity_stream()
         py_trees.blackboard.Blackboard.storage.clear()
 
-    def _node(self, pair):
-        dl = MagicMock()
-        dl.find_protocol_pair.return_value = pair
-        node = InviteInFlightNode(
-            recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
-        )
-        return _make_node_with_datalayer(node, dl)
-
-    def _pending_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
-            object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
-            request_found=True,
-        )
-
-    def _fresh_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
-            object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
-            request_found=False,
-        )
-
-    def _closed_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
-            object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
-            request_found=True,
-            reply_object_id="https://example.org/activities/accept-1",
-            reply_event_type="accept_invite_actor_to_case",
-        )
-
-    def test_returns_success_when_invite_in_flight(self):
-        node = self._node(self._pending_pair())
-        assert node.update() == Status.SUCCESS
-
-    def test_returns_failure_when_no_prior_invite(self):
-        node = self._node(self._fresh_pair())
-        assert node.update() == Status.FAILURE
-
-    def test_returns_failure_when_invite_closed(self):
-        node = self._node(self._closed_pair())
-        assert node.update() == Status.FAILURE
-
-    def test_queries_correct_event_type(self):
-        dl = MagicMock()
-        dl.find_protocol_pair.return_value = self._fresh_pair()
-        node = InviteInFlightNode(
-            recommended_id=_RECOMMENDED, case_id=_CASE_ID
-        )
+    def _run(self, node_type, dl) -> Status:
+        node = node_type(recommended_id=_RECOMMENDED, case_id=_CASE_ID)
         _make_node_with_datalayer(node, dl)
-        node.update()
-        dl.find_protocol_pair.assert_called_once_with(
-            case_id=_CASE_ID,
-            request_event_type="invite_actor_to_case",
-            object_id=_RECOMMENDED,
-            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+        status = cast(Status, node.update())
+        dl.close()
+        return status
+
+    @pytest.mark.spec("CM-16-008", "CM-16-009")
+    def test_success_when_a_request_for_the_actor_is_unanswered(
+        self, node_type, request_type, snapshot, reply
+    ):
+        assert self._run(node_type, _ledger((request_type, snapshot))) == (
+            Status.SUCCESS
         )
 
-    def test_returns_failure_when_datalayer_not_available(self):
-        node = InviteInFlightNode(
-            recommended_id=_RECOMMENDED, case_id=_CASE_ID
+    def test_failure_when_no_request_was_sent(
+        self, node_type, request_type, snapshot, reply
+    ):
+        assert self._run(node_type, _ledger()) == Status.FAILURE
+
+    def test_failure_when_the_request_names_another_actor(
+        self, node_type, request_type, snapshot, reply
+    ):
+        other = json.loads(
+            json.dumps(snapshot).replace(_RECOMMENDED, _RECOMMENDER)
         )
-        assert node.update() == Status.FAILURE
-
-
-class TestPendingOfferCaseParticipantNode:
-    """Unit tests for PendingOfferCaseParticipantNode (AC-6, CM-16-008)."""
-
-    def setup_method(self):
-        py_trees.blackboard.Blackboard.enable_activity_stream()
-
-    def teardown_method(self):
-        py_trees.blackboard.Blackboard.disable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
-
-    def _node(self, pair):
-        dl = MagicMock()
-        dl.find_protocol_pair.return_value = pair
-        node = PendingOfferCaseParticipantNode(
-            recommended_id=_RECOMMENDED,
-            case_id=_CASE_ID,
-        )
-        return _make_node_with_datalayer(node, dl)
-
-    def _pending_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
-            object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
-            request_found=True,
+        assert self._run(node_type, _ledger((request_type, other))) == (
+            Status.FAILURE
         )
 
-    def _fresh_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
-            object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
-            request_found=False,
+    @pytest.mark.parametrize("link", ["object", "inReplyTo"])
+    def test_failure_when_the_request_was_answered(
+        self, node_type, request_type, snapshot, reply, link
+    ):
+        dl = _ledger((request_type, snapshot), (reply, _answer(0, link)))
+        assert self._run(node_type, dl) == Status.FAILURE
+
+    def test_success_when_a_later_request_is_unanswered(
+        self, node_type, request_type, snapshot, reply
+    ):
+        dl = _ledger(
+            (request_type, snapshot),
+            (reply, _answer(0)),
+            (request_type, snapshot),
         )
+        assert self._run(node_type, dl) == Status.SUCCESS
 
-    def _closed_pair(self):
-        return ProtocolPair(
-            case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
-            object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
-            request_found=True,
-            reply_object_id="https://example.org/activities/accept-1",
-            reply_event_type="accept_offer_case_participant",
+    def test_success_when_only_another_actors_request_was_answered(
+        self, node_type, request_type, snapshot, reply
+    ):
+        other = json.loads(
+            json.dumps(snapshot).replace(_RECOMMENDED, _RECOMMENDER)
         )
-
-    def test_returns_success_when_offer_pending(self):
-        node = self._node(self._pending_pair())
-        assert node.update() == Status.SUCCESS
-
-    def test_returns_failure_when_no_prior_offer(self):
-        node = self._node(self._fresh_pair())
-        assert node.update() == Status.FAILURE
-
-    def test_returns_failure_when_offer_closed(self):
-        node = self._node(self._closed_pair())
-        assert node.update() == Status.FAILURE
-
-    def test_queries_correct_event_type(self):
-        dl = MagicMock()
-        dl.find_protocol_pair.return_value = self._fresh_pair()
-        node = PendingOfferCaseParticipantNode(
-            recommended_id=_RECOMMENDED, case_id=_CASE_ID
+        dl = _ledger(
+            (request_type, snapshot),
+            (request_type, other),
+            (reply, _answer(1)),
         )
-        _make_node_with_datalayer(node, dl)
-        node.update()
-        dl.find_protocol_pair.assert_called_once_with(
-            case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
-            object_id=_RECOMMENDED,
-            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
-        )
+        assert self._run(node_type, dl) == Status.SUCCESS
 
-    def test_returns_failure_when_datalayer_not_available(self):
-        node = PendingOfferCaseParticipantNode(
-            recommended_id=_RECOMMENDED, case_id=_CASE_ID
-        )
+    def test_failure_when_datalayer_not_available(
+        self, node_type, request_type, snapshot, reply
+    ):
+        node = node_type(recommended_id=_RECOMMENDED, case_id=_CASE_ID)
         assert node.update() == Status.FAILURE
 
 
@@ -1101,7 +1186,7 @@ class TestProtocolPairIsPending:
     def test_is_pending_true_when_request_found_and_no_reply(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=True,
         )
@@ -1110,7 +1195,7 @@ class TestProtocolPairIsPending:
     def test_is_pending_false_when_request_not_found(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=False,
         )
@@ -1119,11 +1204,11 @@ class TestProtocolPairIsPending:
     def test_is_pending_false_when_reply_found(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=True,
             reply_object_id="https://example.org/activities/reply",
-            reply_event_type="accept_offer_case_participant",
+            reply_semantic_type="accept_offer_case_participant",
         )
         assert pair.is_pending() is False
 
@@ -1131,7 +1216,7 @@ class TestProtocolPairIsPending:
         """is_open() returns True for fresh pair (no request found). is_pending() should not."""
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
             request_found=False,
         )
@@ -1141,26 +1226,23 @@ class TestProtocolPairIsPending:
     def test_request_found_defaults_to_false(self):
         pair = ProtocolPair(
             case_id=_CASE_ID,
-            request_event_type="offer_case_participant",
+            request_semantic_type="offer_case_participant",
             object_id=_RECOMMENDED,
         )
         assert pair.request_found is False
 
 
 class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
-    """Unit tests for offer_content forwarding (CM-16-008)."""
+    """Unit tests for the note text, offer_content forwarding (CM-16-016).
+
+    The text is the node's ``_compose()``; committing and announcing the
+    note is covered against a real store in
+    ``nodes/test_suggest_actor_owner_recipient.py`` (#4829).
+    """
 
     _OWNER_ID = "https://example.org/actors/owner"
 
-    def _node_with_factory(self, offer_content=None):
-        """Build a wired node with a mock DataLayer and factory."""
-        dl = MagicMock()
-        case_obj = MagicMock()
-        case_obj.attributed_to = self._OWNER_ID
-        dl.read_case.return_value = case_obj
-        factory = MagicMock()
-        factory.create_note.return_value = ("note-id-1", MagicMock())
-        factory.add_note_to_case.return_value = ("activity-id-1", MagicMock())
+    def _content(self, offer_content=None) -> str:
         node = EmitNoteDuplicateRecommendationToOwnerNode(
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
@@ -1168,70 +1250,40 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             case_id=_CASE_ID,
             offer_content=offer_content,
         )
-        writer = py_trees.blackboard.Client(name="test-emit-note-dup-writer")
-        writer.register_key(
-            key="datalayer", access=py_trees.common.Access.WRITE
-        )
-        writer.register_key(
-            key="actor_id", access=py_trees.common.Access.WRITE
-        )
-        writer.register_key(
-            key="trigger_activity_factory",
-            access=py_trees.common.Access.WRITE,
-        )
-        writer.datalayer = dl
-        writer.actor_id = _ACTOR_ID
-        writer.trigger_activity_factory = factory
-        node.setup()
-        node.initialise()
-        return node, factory
+        # Resolved by ``update()`` before it composes the note.
+        node._owner_id = self._OWNER_ID
+        note = node._compose()
+        assert note.in_reply_to == _REC_ID
+        return note.content
 
-    def setup_method(self):
-        py_trees.blackboard.Blackboard.enable_activity_stream()
-
-    def teardown_method(self):
-        py_trees.blackboard.Blackboard.disable_activity_stream()
-        py_trees.blackboard.Blackboard.storage.clear()
-
-    def test_returns_success_without_offer_content(self):
-        """AC-6: node succeeds and sends Note when offer_content is None."""
-        node, factory = self._node_with_factory(offer_content=None)
-        result = node.update()
-        assert result == Status.SUCCESS
-        factory.create_note.assert_called_once()
+    @pytest.mark.spec("CM-16-016")
+    def test_note_names_the_owner_and_the_second_recommender(self):
+        content = self._content()
+        assert self._OWNER_ID in content
+        assert _RECOMMENDER in content
 
     def test_note_body_excludes_content_when_absent(self):
         """Note body must not contain 'Recommender note:' when offer_content is None."""
-        node, factory = self._node_with_factory(offer_content=None)
-        node.update()
-        call_kwargs = factory.create_note.call_args
-        content_arg = call_kwargs.kwargs["content"]
-        assert "Recommender note:" not in content_arg
+        assert "Recommender note:" not in self._content(offer_content=None)
 
-    def test_returns_success_with_offer_content(self):
-        """AC-6 + CM-16-008: node succeeds and sends Note when offer_content is set."""
-        node, factory = self._node_with_factory(
-            offer_content="Please add this vendor urgently."
-        )
-        result = node.update()
-        assert result == Status.SUCCESS
-        factory.create_note.assert_called_once()
-
+    @pytest.mark.spec("CM-16-016")
     def test_note_body_includes_offer_content(self):
-        """CM-16-008: Note body must include offer_content when provided."""
+        """CM-16-016: Note body must include offer_content when provided."""
         offer_text = "Please add this vendor urgently."
-        node, factory = self._node_with_factory(offer_content=offer_text)
-        node.update()
-        call_kwargs = factory.create_note.call_args
-        content_arg = call_kwargs.kwargs["content"]
-        assert "Recommender note:" in content_arg
-        assert offer_text in content_arg
+        content = self._content(offer_content=offer_text)
+        assert "Recommender note:" in content
+        assert offer_text in content
 
     def test_offer_content_stored_on_node(self):
         """offer_content is stored as an attribute for introspection."""
-        offer_text = "Some notes."
-        node, _ = self._node_with_factory(offer_content=offer_text)
-        assert node.offer_content == offer_text
+        node = EmitNoteDuplicateRecommendationToOwnerNode(
+            recommendation_id=_REC_ID,
+            recommender_id=_RECOMMENDER,
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            offer_content="Some notes.",
+        )
+        assert node.offer_content == "Some notes."
 
     def test_offer_content_none_by_default(self):
         """offer_content defaults to None (backward-compatible constructor)."""
@@ -1256,11 +1308,7 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
 
     def test_note_body_excludes_content_for_whitespace_only_input(self):
         """Note body must not contain 'Recommender note:' for whitespace-only offer_content."""
-        node, factory = self._node_with_factory(offer_content="   ")
-        node.update()
-        call_kwargs = factory.create_note.call_args
-        content_arg = call_kwargs.kwargs["content"]
-        assert "Recommender note:" not in content_arg
+        assert "Recommender note:" not in self._content(offer_content="   ")
 
 
 # ---------------------------------------------------------------------------
@@ -1286,9 +1334,10 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
     """Leaves that write or emit: everything after the receipt commit.
 
     The CASE_MANAGER's clock decisions sit in their own gated stage before
-    the guards and are not effects of the received activity (CLP-10-025).
+    the guards and are not effects of the received activity (CLP-10-025),
+    nor is the refusal notice, which answers only a refusal (CLP-10-022).
     """
-    decisions = clock_decision_node_ids(tree)
+    decisions = clock_decision_node_ids(tree) | refusal_effect_node_ids(tree)
     return [
         n
         for n in tree.iterate()
@@ -1318,9 +1367,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
         (
             create_accept_actor_recommendation_received_tree,
             dict(
-                recommendation_id=_REC_ID,
-                recommender_id=_RECOMMENDER,
-                invitee_id=_RECOMMENDED,
+                answer_id=_ANSWER_ID,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
                 sender_rule=_ACCEPT_RULE,
@@ -1330,9 +1377,7 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
         (
             create_reject_actor_recommendation_received_tree,
             dict(
-                recommendation_id=_REC_ID,
-                recommender_id=_RECOMMENDER,
-                recommended_id=_RECOMMENDED,
+                answer_id=_ANSWER_ID,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
                 sender_rule=_REJECT_RULE,
@@ -1399,9 +1444,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
         (
             create_accept_actor_recommendation_received_tree,
             dict(
-                recommendation_id=_REC_ID,
-                recommender_id=_RECOMMENDER,
-                invitee_id=_RECOMMENDED,
+                answer_id=_ANSWER_ID,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
                 sender_rule=_ACCEPT_RULE,
@@ -1411,9 +1454,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
         (
             create_reject_actor_recommendation_received_tree,
             dict(
-                recommendation_id=_REC_ID,
-                recommender_id=_RECOMMENDER,
-                recommended_id=_RECOMMENDED,
+                answer_id=_ANSWER_ID,
                 case_id=_CASE_ID,
                 sender_id=_SENDER,
                 sender_rule=_REJECT_RULE,
@@ -1432,16 +1473,17 @@ def test_sender_guard_follows_intake_and_precedes_the_commit(
     """
     children = list(factory(**kwargs).children)
     names = [c.name for c in children]
-    # A rule whose two sides differ composes a SenderRuleGuard holding the
-    # side checks, so look for the check inside each child (HP-01-008).
+    # The check may sit inside a child: a rule whose two sides differ composes
+    # a SenderRuleGuard holding the side checks (HP-01-008), and a CASE_OWNER
+    # guard puts the closure check ahead of the role check (CM-23-018).
     guard_index = next(
         i
         for i, c in enumerate(children)
         if any(isinstance(n, guard_type) for n in c.iterate())
     )
     commit_index = names.index("GuardedCommitCaseLedgerEntryBT")
-    assert guard_index == 2, (
-        "the sender guard must come right after intake and the post-close"
-        " guard (CM-23-013)"
+    assert guard_index == 3, (
+        "the sender guard must come right after intake, the post-close"
+        " guard (CM-23-013) and the addressee door (HP-01-005)"
     )
     assert guard_index < commit_index

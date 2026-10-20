@@ -21,7 +21,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.ledger import (
-    committed_event_types,
+    committed_semantic_types,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -110,10 +110,10 @@ def _answer_node(node_cls, **overrides):
     return node_cls(**kwargs)
 
 
-#: Both arms of the AcceptOrReject Selector, with the ledger event_type and
+#: Both arms of the AcceptOrReject Selector, with the ledger semantic_type and
 #: the factory method each one calls.
 ANSWERS = pytest.mark.parametrize(
-    ("node_cls", "event_type"),
+    ("node_cls", "semantic_type"),
     [
         (AutoAcceptCaseParticipantRoleNode, "accept_case_participant_role"),
         (EmitRejectCaseParticipantRoleNode, "reject_case_participant_role"),
@@ -126,7 +126,7 @@ ANSWERS = pytest.mark.parametrize(
 class TestAnswerNodeInputs:
     """A missing input or a factory error returns FAILURE, writing nothing."""
 
-    def test_failure_when_no_factory(self, dl, node_cls, event_type):
+    def test_failure_when_no_factory(self, dl, node_cls, semantic_type):
         bridge_no_factory = BTBridge(datalayer=dl)
         result = bridge_no_factory.execute_with_setup(
             tree=_answer_node(node_cls), actor_id=ACTOR_ID
@@ -137,7 +137,7 @@ class TestAnswerNodeInputs:
 
     @pytest.mark.parametrize("field", ["case_id", "target_actor_id"])
     def test_failure_when_an_id_is_empty(
-        self, bridge, dl, node_cls, event_type, field
+        self, bridge, dl, node_cls, semantic_type, field
     ):
         result = bridge.execute_with_setup(
             tree=_answer_node(node_cls, **{field: ""}), actor_id=ACTOR_ID
@@ -146,9 +146,9 @@ class TestAnswerNodeInputs:
         assert result.status == Status.FAILURE
         assert dl.outbox_list() == []
 
-    def test_failure_when_factory_raises(self, dl, node_cls, event_type):
+    def test_failure_when_factory_raises(self, dl, node_cls, semantic_type):
         mock_factory = MagicMock()
-        getattr(mock_factory, event_type).side_effect = RuntimeError(
+        getattr(mock_factory, semantic_type).side_effect = RuntimeError(
             "factory error"
         )
         bridge_bad_factory = BTBridge(
@@ -162,7 +162,7 @@ class TestAnswerNodeInputs:
         assert dl.outbox_list() == []
 
     def test_failure_when_the_case_is_not_held(
-        self, bridge, dl, node_cls, event_type
+        self, bridge, dl, node_cls, semantic_type
     ):
         """An Accept that fails here lets the Selector answer with the Reject."""
         result = bridge.execute_with_setup(
@@ -196,7 +196,7 @@ class TestAnswerGoesToTheCaseManager:
     @pytest.mark.spec("CM-33-004")
     @pytest.mark.spec("PCR-08-001")
     def test_the_answer_is_addressed_to_the_case_manager_only(
-        self, node_cls, event_type
+        self, node_cls, semantic_type
     ):
         dl = _participant_store()
         bridge = BTBridge(
@@ -213,7 +213,7 @@ class TestAnswerGoesToTheCaseManager:
 
     @pytest.mark.spec("PCR-08-011")
     def test_failure_when_the_case_names_no_case_manager(
-        self, bridge, dl, node_cls, event_type
+        self, bridge, dl, node_cls, semantic_type
     ):
         """No CASE_MANAGER resolves: nothing is sent, so the Selector fails."""
         _seed_participant(dl, ACTOR_ID, [CVDRole.REPORTER])
@@ -226,7 +226,7 @@ class TestAnswerGoesToTheCaseManager:
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("OX-06-002")
-    def test_a_retry_sends_the_same_answer_once(self, node_cls, event_type):
+    def test_a_retry_sends_the_same_answer_once(self, node_cls, semantic_type):
         """The answer's id derives from the Offer, so a retry rebuilds it."""
         dl = _participant_store()
         bridge = BTBridge(
@@ -248,7 +248,7 @@ class TestAnswerGoesToTheCaseManager:
 @ANSWERS
 @pytest.mark.spec("CLP-09-001")
 def test_an_ordinary_participant_answers_with_no_ledger_entry(
-    node_cls, event_type
+    node_cls, semantic_type
 ):
     """The offered actor is usually not the CASE_MANAGER (#4588 probe).
 
@@ -269,7 +269,7 @@ def test_an_ordinary_participant_answers_with_no_ledger_entry(
 
     assert result.status == Status.SUCCESS, result
     assert len(dl.outbox_list()) == 1
-    assert committed_event_types(dl, CASE_ID) == []
+    assert committed_semantic_types(dl, CASE_ID) == []
 
 
 class TestIsRoleOfferTargetNode:

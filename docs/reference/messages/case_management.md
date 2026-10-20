@@ -20,6 +20,12 @@ Two authorities appear below, and they are distinct roles rather than one actor.
 The **Case Owner** decides for the case: who is admitted, which roles they hold, and whether an ownership transfer is offered.
 The **CASE_MANAGER** is the case's single-writer authority: it mints and updates the `VulnerabilityCase` object, records every case-scoped message in the ledger, and delivers case snapshots to participants (spec [§5.4.1 Single-Writer Authority](../vultron-spec/layers.md#541-single-writer-authority), [ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
 The CASE_MANAGER acts on the Case Owner's behalf; the two roles are often held by the same actor but need not be.
+
+When the CASE_MANAGER refuses one of these messages because a precondition does not hold, it answers the sender with the [refusal notice](faults_and_acknowledgements.md#refusal-notice): a `Reject` of the refused message, with the reason in `summary` ([CLP-02-005](../specs/protocol.md#clp-02-005), [CLP-05-001](../specs/protocol.md#clp-05-001)).
+It records nothing of the refused message in the ledger.
+It sends no answer when the sender may not send the message at all, or when the message repeats one whose effect is already in place.
+A refused `Offer` or `Invite` is answered with a `Reject` of it, which the sender reads as the decline of its request.
+The [close-case](#close-case) decline is the one message on this page with an answer of its own, so it gets no refusal notice.
 The 300-level introduction is [The Case Manager and the Case Ledger](../../topics/case_lifecycle/case_manager_and_ledger.md).
 
 ## Occasions
@@ -53,6 +59,7 @@ The 300-level introduction is [The Case Manager and the Case Ledger](../../topic
 - **Who may send:** the Case Owner only; the CASE_MANAGER refuses an offer from any other sender ([CM-33-002](../specs/protocol.md#cm-33-002)).
   `CASE_OWNER` and `CASE_MANAGER` cannot be offered, and the CASE_MANAGER also refuses an offer with no readable role, one whose target is not a participant, one whose target is the CASE_MANAGER itself, and one of a role the target already holds ([CM-33-003](../specs/protocol.md#cm-33-003)).
   A refused offer is not recorded and not forwarded.
+  The CASE_MANAGER answers an offer refused for its role or target with the refusal notice, and an offer from any other sender with nothing.
 - **Object type:** the object type alone identifies the activity as a role offer rather than an ownership-transfer offer (ADR-0039).
   Roles are granted through the case's authority chain ([§11.1 Role Assignment](../vultron-spec/interactions.md#111-role-assignment-n)).
 - **Target:** the participant offered the role; the `context` is the case.
@@ -69,6 +76,7 @@ This offer is distinct from `Offer(CaseParticipant)`, which forwards an actor re
   Its `object` is the CASE_MANAGER's forward, which the CASE_MANAGER matches to the recorded offer through the forward's `inReplyTo`, never through the copy the `Accept` carries.
 - **Who may send:** the target of the recorded offer only, and only while that offer is open: until the CASE_MANAGER records an `Accept` or `Reject` of it ([CM-33-005](../specs/protocol.md#cm-33-005)).
   The CASE_MANAGER refuses an `Accept` from any other sender, one to an offer that is no longer open, and one whose carried offer names another role or target, with no ledger entry and no role change.
+  The CASE_MANAGER answers an `Accept` refused because the offer is no longer open or its carried offer differs with the refusal notice, and an `Accept` from any other sender with nothing.
   A redelivery of the `Accept` that closed the offer changes nothing.
 - **Effect:** the CASE_MANAGER records the `Accept` in the ledger as `accept_case_participant_role`, grants the role on its own copy of the case, and announces the entry to every participant, each of which grants the role when it replays the entry ([CM-33-006](../specs/protocol.md#cm-33-006), [CM-02-016](../specs/project.md#cm-02-016)).
 - **Triggering transition:** none — roster action.
@@ -78,6 +86,7 @@ This offer is distinct from `Offer(CaseParticipant)`, which forwards an actor re
 
 - **Routing:** as for the `Accept`, the `Reject` goes to the CASE_MANAGER only, and names the forward it answers ([CM-33-004](../specs/protocol.md#cm-33-004)).
 - **Who may send:** as for the `Accept`, the target of the recorded offer only, while that offer is open ([CM-33-005](../specs/protocol.md#cm-33-005)).
+  The CASE_MANAGER answers a refused `Reject` as it does a refused `Accept`.
 - **Effect:** the CASE_MANAGER records the `Reject` in the ledger as `reject_case_participant_role` and announces the entry to every participant ([CM-33-006](../specs/protocol.md#cm-33-006)).
   The entry closes the offer; no role changes.
 - **Triggering transition:** none — roster action.
@@ -111,7 +120,8 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Routing:** the withdrawal is addressed to the CASE_MANAGER ([CM-21-015](../specs/protocol.md#cm-21-015)).
   The CASE_MANAGER acts on it only when it comes from the Case Owner that made an open offer it recorded.
   It records the withdrawal in the ledger and sends the entry to every participant, which closes the offer: the proposed owner can no longer accept it, and the case may be offered again ([CM-21-014](../specs/protocol.md#cm-21-014)).
-  A withdrawal from anyone else, or of an offer already answered or withdrawn, is refused with nothing recorded and nothing sent.
+  A withdrawal from anyone else, or of an offer already answered or withdrawn, is refused with nothing recorded.
+  The CASE_MANAGER answers a withdrawal of an offer already answered or withdrawn with the refusal notice, and a withdrawal from anyone else with nothing.
 - **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer`, whose body names the `offer_id` it withdraws ([TRIG-11-006](../specs/protocol.md#trig-11-006), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [undo_case_ownership_transfer.json](../examples/undo_case_ownership_transfer.json).
@@ -193,6 +203,8 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 {% include-markdown "./_occasions/sections/close-case.md" %}
 
 - **Triggering transition:** RM: A → C.
+- **Decline:** while the case holds an active embargo, the CASE_MANAGER declines the Case Owner's close with a `Reject` of the `Leave` and records nothing ([CM-23-011](../specs/protocol.md#cm-23-011)).
+  That decline is the answer to the refusal, so the CASE_MANAGER sends no refusal notice as well.
 - **Example artifact:** [close_case.json](../examples/close_case.json).
 
 {% include-markdown "./_occasions/sections/add-case-participant-to-case.md" %}

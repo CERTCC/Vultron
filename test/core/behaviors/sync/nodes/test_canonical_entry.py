@@ -60,7 +60,20 @@ def test_validate_canonical_entry_rejects_empty_snapshot():
         _validate_canonical_entry(
             case_id=CASE_ID,
             payload_snapshot={},
-            event_type="note_added",
+            semantic_type="note_added",
+        )
+
+
+@pytest.mark.spec("VAM-01-011", "RSH-08-004")
+def test_validate_canonical_entry_refuses_a_create_note_snapshot():
+    """``Add(Note)`` is a note's one entry; a ``Create(Note)`` is not canonical."""
+    snapshot = {**_note_snapshot_with_actor(OWNER_ACTOR_ID), "type": "Create"}
+
+    with pytest.raises(VultronCanonicalEntryError, match="not canonical"):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            payload_snapshot=snapshot,
+            semantic_type="create_note",
         )
 
 
@@ -104,7 +117,7 @@ def _call_with_ts(
     _validate_canonical_entry(
         case_id=CASE_ID,
         payload_snapshot=snapshot,
-        event_type="note_added",
+        semantic_type="note_added",
         case_published=case_published,
         prev_actor_published=prev_actor_published,
         future_tolerance=future_tolerance,
@@ -285,7 +298,7 @@ def test_timestamp_checks_are_not_gated_on_case_published():
         _validate_canonical_entry(
             case_id=CASE_ID,
             payload_snapshot=_ts_snapshot(published=None),
-            event_type="note_added",
+            semantic_type="note_added",
         )
 
 
@@ -321,7 +334,7 @@ def test_bare_target_equal_to_the_case_uri_is_accepted():
     _validate_canonical_entry(
         case_id=CASE_ID,
         payload_snapshot=_offer_participant_snapshot(CASE_ID),
-        event_type="offer_case_participant",
+        semantic_type="offer_case_participant",
     )
 
 
@@ -333,7 +346,7 @@ def test_bare_target_naming_another_case_is_refused():
             payload_snapshot=_offer_participant_snapshot(
                 "https://example.org/cases/some-other-case"
             ),
-            event_type="offer_case_participant",
+            semantic_type="offer_case_participant",
         )
 
 
@@ -353,7 +366,7 @@ def test_bare_target_naming_the_case_is_accepted_when_nested():
     _validate_canonical_entry(
         case_id=CASE_ID,
         payload_snapshot=snapshot,
-        event_type="accept_actor_recommendation",
+        semantic_type="accept_actor_recommendation",
     )
 
 
@@ -366,7 +379,7 @@ def test_bare_object_is_still_refused():
         _validate_canonical_entry(
             case_id=CASE_ID,
             payload_snapshot=snapshot,
-            event_type="offer_case_participant",
+            semantic_type="offer_case_participant",
         )
 
 
@@ -386,7 +399,7 @@ def test_invite_with_a_bare_case_target_resolves_to_the_case_signature():
     _validate_canonical_entry(
         case_id=CASE_ID,
         payload_snapshot=snapshot,
-        event_type="invite_actor_to_case",
+        semantic_type="invite_actor_to_case",
     )
 
 
@@ -416,7 +429,7 @@ def test_invite_with_a_case_stub_target_resolves_to_the_stub_signature():
     _validate_canonical_entry(
         case_id=CASE_ID,
         payload_snapshot=snapshot,
-        event_type="invite_actor_to_case",
+        semantic_type="invite_actor_to_case",
     )
 
 
@@ -438,7 +451,7 @@ def test_remove_note_snapshot_is_a_canonical_signature():
     _validate_canonical_entry(
         case_id=CASE_ID,
         payload_snapshot=snapshot,
-        event_type="remove_note_from_case",
+        semantic_type="remove_note_from_case",
     )
 
 
@@ -461,5 +474,5 @@ def test_ack_report_snapshot_is_not_a_canonical_signature():
         _validate_canonical_entry(
             case_id=CASE_ID,
             payload_snapshot=snapshot,
-            event_type="ack_report",
+            semantic_type="ack_report",
         )

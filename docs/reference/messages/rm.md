@@ -24,7 +24,14 @@ The CASE_MANAGER applies one rule to an RM state whichever of these expressions 
 The state is recorded for the sender, never for the receiver (RSH-08-001), and only when the sender is a participant of the case.
 A forward move is recorded even when it skips states, and the CASE_MANAGER then asks the sender in a note which path it took (RSH-06-001, RSH-06-004).
 A backward move is refused and the recorded state stands (RSH-06-002), and the CASE_MANAGER tells the sender in a note that it refused the move (RSH-06-004).
+Either note is recorded on the case as a [case ledger entry](../glossary.md#sync-authority-replication).
+The sender receives it from the ledger, as every [active participant](../glossary.md#cvd-roles-and-participants) does, not as a message addressed to it alone (RSH-06-004).
 An activity and an `Add(ParticipantStatus)` that report the same move record it once (RSH-08-002).
+
+When the CASE_MANAGER refuses an RM message because a precondition does not hold, such as a backward move, it also sends the sender the [refusal notice](faults_and_acknowledgements.md#refusal-notice) (CLP-02-005, CLP-05-001).
+The notice is a `Reject` of the refused message, with the reason in `summary`, and the CASE_MANAGER records nothing of the refused message in the ledger.
+The note about a refused backward move is recorded alongside the notice, not instead of it (RSH-06-004).
+The CASE_MANAGER sends no notice when the sender is not a participant of the case, or when the message restates a state already recorded (RSH-08-002).
 
 ## Occasions
 
@@ -86,7 +93,7 @@ An activity and an `Add(ParticipantStatus)` that report the same move record it 
 - **Triggering transition:** any unexpected RM message.
 - **Wire activity:** none dedicated. Faults are conveyed by
   `Create(ProcessingFault)` (not understood), `as:Reject` (understood but
-  declined), or `Create(Note)` (needing explanation), partitioned by failure
+  declined), or `Add(Note)` (needing explanation), partitioned by failure
   mode rather than by state machine
   ([ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types).

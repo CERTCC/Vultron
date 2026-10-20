@@ -361,5 +361,10 @@ def test_real_registry_runs_add_on_behalf_status_to_a_status_result(
     assert updated is not None
     participant = dl.read(updated.actor_participant_index[vendor_id])
     assert isinstance(participant, CaseParticipant)
+    # The asserted status is stored for the activity to carry; the record
+    # moves only when the CASE_MANAGER's entry is copied (RSH-08-006).
     last = participant.participant_statuses[-1]
-    assert last.vf is not None and last.vf.state == CS_vf.Vf
+    assert last.vf is not None and last.vf.state == CS_vf.vf
+    stored = dl.read(result.status_id)
+    assert stored is not None and stored.vf is not None
+    assert stored.vf.state == CS_vf.Vf

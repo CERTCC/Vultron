@@ -71,7 +71,7 @@ Two examples show the many-to-many relationship:
 - `GI` is an expansion: it spans the note lifecycle and the actor-suggestion exchange.
 
 The shorthands `RE`, `EE`, `CE`, `GE`, `EK`, `CK` and `GK` have no dedicated wire activity.
-Faults are conveyed by `Create(ProcessingFault)`, `as:Reject`, or `Create(Note)`, partitioned by failure mode.
+Faults are conveyed by `Create(ProcessingFault)`, `as:Reject`, or `Add(Note)`, partitioned by failure mode.
 Acknowledgment of ledger-replicated state is cumulative and implicit through hash-chain continuity.
 `RK` survives as a real wire activity because report submission is not ledger-replicated.
 [Faults and Acknowledgments](faults_and_acknowledgements.md) describes both mechanisms, and [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) records the decision.

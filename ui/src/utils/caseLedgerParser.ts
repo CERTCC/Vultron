@@ -12,7 +12,7 @@
  * three perspectives. `normalizeLedger` dedups by `entryHash` so uploading all
  * three folders is safe.
  *
- * Each line is a `CaseLedgerEntry` carrying an explicit `eventType` verb plus an
+ * Each line is a `CaseLedgerEntry` carrying an explicit `semanticType` verb plus an
  * ActivityStreams 2.0 `payloadSnapshot`. The mapper (`caseLedgerMapper.ts`) reads
  * these and validates them against the protocol source of truth (`../protocol`).
  */
@@ -51,7 +51,7 @@
  * for backward-compatible replay of older uploaded logs, but current fixtures no
  * longer contain them.
  */
-export type LedgerEventType =
+export type LedgerSemanticType =
   | 'offer_case_manager_role'
   | 'create_case'
   | 'validate_report'
@@ -155,7 +155,7 @@ export interface CaseLedgerEntry {
   logIndex: number
   disposition: string
   logObjectId: string
-  eventType: LedgerEventType
+  semanticType: LedgerSemanticType
   payloadSnapshot: As2Activity
   prevLogHash: string
   entryHash: string
@@ -173,7 +173,7 @@ export type LaneId = 'finder' | `vendor-${number}` | 'coordinator' | 'caseactor'
 /**
  * Map an actor URL to a demo lane id.
  *
- * The container demo gives each actor service a distinct hostname: `finder:`,
+ * The container demo gives each actor service a distinct hostname: `reporter:`,
  * `vendor:` (the first/primary vendor), `vendor2:`, `vendor3:`, `coordinator:`
  * (a dedicated coordinator container, 2026-07 scenarios), `actor5:` (the second
  * vendor in the coordinator scenarios — seeded as "vendor2", so it reuses the
@@ -194,7 +194,9 @@ export type LaneId = 'finder' | `vendor-${number}` | 'coordinator' | 'caseactor'
 export function actorUrlToLaneId(url?: string | null): LaneId {
   if (!url) return 'unknown'
   if (url.includes('case-actor')) return 'caseactor'
-  if (url.includes('//finder:')) return 'finder'
+  // Recorded demos name the reporter host `reporter:`; the committed sample
+  // logs still carry its earlier name, `finder:`.
+  if (url.includes('//reporter:') || url.includes('//finder:')) return 'finder'
   if (url.includes('//coordinator:')) return 'coordinator'
   // `actor5:` hosts Vendor2 in the coordinator scenarios → reuse the vendor-2 lane.
   if (url.includes('//actor5:')) return 'vendor-2'

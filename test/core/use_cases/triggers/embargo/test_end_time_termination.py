@@ -35,7 +35,7 @@ from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.end_time_tree import (
     END_TIME_LEDGER_FRESH_NODE_NAME,
 )
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
@@ -167,8 +167,8 @@ class _World:
         )
 
     def status_from(self, sender_id: str):
-        """A received ``Add(ParticipantStatus)`` from *sender_id*, handled
-        by the CASE_MANAGER's real received use case."""
+        """A received ``Add(ParticipantStatus)`` from *sender_id* to the
+        CASE_MANAGER (PCR-08), handled by its real received use case."""
         status = as_ParticipantStatus(
             context=self.case_id, attributed_to=sender_id
         )
@@ -178,6 +178,7 @@ class _World:
             target=self.finder_participant,
             actor=sender_id,
             context=self.case_id,
+            to=[self.manager.id_],
         )
         event = cast(
             AddParticipantStatusToParticipantReceivedEvent,
@@ -202,7 +203,7 @@ class _World:
         return [
             entry
             for entry in ledger_entries(self.dl, self.case_id)
-            if entry.event_type == EMBARGO_TEARDOWN_EVENT_TYPE
+            if entry.semantic_type == EMBARGO_TEARDOWN_SEMANTIC_TYPE
         ]
 
 

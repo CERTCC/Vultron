@@ -46,9 +46,11 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (
     _CASE_PROPOSAL_SEMANTICS,
     _CLOSE_CASE_SEMANTICS,
     _EMBARGO_INVITE_SEMANTICS,
+    _LEDGER_HAND_BACK_SEMANTICS,
     _STATUS_AUTH_TRIGGER_SEMANTICS,
     _SUBMIT_REPORT_SEMANTICS,
     _case_proposal_port_factory,
+    _inbox_hand_back_port_factory,
     _status_auth_trigger_port_factory,
     _trigger_activity_with_actor_config_port_factory,
 )
@@ -58,7 +60,11 @@ from vultron.adapters.outbox_dead_letter import RetryStore
 from vultron.config import get_config
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.events import VultronEvent, is_case_bootstrap
+from vultron.core.models.events import (
+    VultronEvent,
+    is_case_bootstrap,
+    is_deferral_exempt,
+)
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
@@ -126,6 +132,7 @@ def make_dispatcher() -> ActivityDispatcher:
         _EMBARGO_INVITE_SEMANTICS,
         _CLOSE_CASE_SEMANTICS,
         _STATUS_AUTH_TRIGGER_SEMANTICS,
+        _LEDGER_HAND_BACK_SEMANTICS,
     )
     for i, left in enumerate(_all_sets):
         for right in _all_sets[i + 1 :]:
@@ -151,6 +158,12 @@ def make_dispatcher() -> ActivityDispatcher:
         {
             sem: _status_auth_trigger_port_factory
             for sem in _STATUS_AUTH_TRIGGER_SEMANTICS
+        }
+    )
+    port_factories.update(
+        {
+            sem: _inbox_hand_back_port_factory
+            for sem in _LEDGER_HAND_BACK_SEMANTICS
         }
     )
     # Every received use case gets a TriggerActivityPort, a WireRenderPort and
@@ -285,7 +298,7 @@ def _dispatch_or_defer_inbox_item(
     case_id = _activity_context_id(obj, event)
     if (
         case_id is not None
-        and not is_case_bootstrap(event)
+        and not is_deferral_exempt(event)
         and not isinstance(dl.read(case_id), VulnerabilityCase)
     ):
         expired = _expire_pending_case_activities(

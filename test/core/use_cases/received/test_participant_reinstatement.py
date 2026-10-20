@@ -38,7 +38,10 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.use_cases.received.actor.test_case_joining_replies import (
     route_received,
 )
-from test.core.use_cases.received.conftest import seed_inert_invitee
+from test.core.use_cases.received.conftest import (
+    refusal_notices_since,
+    seed_inert_invitee,
+)
 from test.core.use_cases.received.test_participant_removal_planned import (
     CASE_ID,
     EMBARGO_ID,
@@ -62,6 +65,9 @@ from vultron.core.behaviors.case.case_participant_received_tree import (
 from vultron.core.behaviors.case.nodes.participant_reinstatement import (
     ReinstateCaseParticipantReceivedNode,
 )
+from vultron.core.behaviors.case.nodes.refusal_stage import (
+    PreconditionGuardStage,
+)
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     SuggestedActorIsNotRemovedNode,
 )
@@ -75,16 +81,19 @@ from vultron.core.behaviors.embargo.nodes.reinvite import (
 )
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.actor_recommendation_record import (
+    ActorRecommendationRecord,
+)
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.participant_event_types import (
-    CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+from vultron.core.models.participant_semantic_types import (
+    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
-from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_EVENT_TYPE
+from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_SEMANTIC_TYPE
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.recipients import invitation_recipients
 from vultron.core.states.participant_embargo_consent import (
@@ -103,12 +112,18 @@ from vultron.core.use_cases.received.case_participant import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.wire.as2.factories import (
+    accept_case_participant_offer_activity,
     add_participant_to_case_activity,
     em_accept_embargo_activity,
+    offer_case_participant_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
-from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Actor,
+    as_Organization,
+)
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -131,6 +146,7 @@ def _owner_reinstates(
         case.participant(actor_id),
         target=CASE_ID,
         actor=by,
+        to=[MANAGER],
         id_=_ADD_ACTIVITY_ID,
     )
 
@@ -298,7 +314,9 @@ def test_add_naming_another_actor_than_the_record_is_refused(
     )
 
     result = case.route(
-        add_participant_to_case_activity(forged, target=CASE_ID, actor=OWNER)
+        add_participant_to_case_activity(
+            forged, target=CASE_ID, actor=OWNER, to=[MANAGER]
+        )
     )
 
     assert result.disposition is HandlerDisposition.REFUSED
@@ -540,7 +558,9 @@ def test_reinstated_non_signatory_gets_the_embargo_invite_and_no_content(
     ]
     assert len(invites) == 1
     assert len(_entry_ids_announced_to(case, OTHER)) == announced
-    assert EMBARGO_REINVITE_EVENT_TYPE in {e.event_type for e in case.ledger()}
+    assert EMBARGO_REINVITE_SEMANTIC_TYPE in {
+        e.semantic_type for e in case.ledger()
+    }
     assert case.activities_to("Add", OTHER), "the notice still reaches it"
 
 
@@ -672,7 +692,7 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
         ).record_case_participant_created(
             participant=stored, case_id=CASE_ID, actor=MANAGER
         )[1],
-        event_type=CREATE_CASE_PARTICIPANT_EVENT_TYPE,
+        semantic_type=CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
         sync_port=SyncActivityAdapter(case.dl),
     )
 
@@ -684,7 +704,9 @@ def test_replicas_add_a_new_member_from_the_accept_entry_alone(
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert NEWBIE in case.read_case().actor_participant_index
-    assert "add_case_participant" not in {e.event_type for e in case.ledger()}
+    assert "add_case_participant" not in {
+        e.semantic_type for e in case.ledger()
+    }
     assert [
         add
         for add in case.dl.list_objects("Add")
@@ -743,8 +765,8 @@ def test_reinstatement_into_a_case_with_no_active_embargo_sends_no_invite(
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert _participant_id(OTHER) in case.active_ids()
     assert _embargo_invites_to(case, OTHER) == []
-    assert EMBARGO_REINVITE_EVENT_TYPE not in {
-        e.event_type for e in case.ledger()
+    assert EMBARGO_REINVITE_SEMANTIC_TYPE not in {
+        e.semantic_type for e in case.ledger()
     }
 
 
@@ -874,25 +896,32 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
     factory: Any,
 ) -> None:
     """Both stub-Invite trees refuse a removed actor ahead of any commit."""
-    kwargs: dict[str, Any] = {
-        "recommendation_id": "https://example.org/activities/offer-1",
-        "recommender_id": OWNER,
-        "case_id": CASE_ID,
-    }
+    kwargs: dict[str, Any] = {"case_id": CASE_ID}
     if factory is create_recommend_actor_to_case_received_tree:
         kwargs |= {
+            "recommendation_id": "https://example.org/activities/offer-1",
+            "recommender_id": OWNER,
             "recommended_id": VENDOR,
             "sender_rule": OfferActorToCaseReceivedUseCase.sender_entitlement,
         }
     else:
         kwargs |= {
-            "invitee_id": VENDOR,
+            "answer_id": "https://example.org/activities/accept-1",
             "sender_id": OWNER,
             "sender_rule": (
                 AcceptOfferCaseParticipantReceivedUseCase.sender_entitlement
             ),
         }
-    names = [node.name for node in factory(**kwargs).children]
+    # The guards sit in the refusal-notice stage, ahead of the commit.
+    names = [
+        guard.name
+        for node in factory(**kwargs).children
+        for guard in (
+            node.guards.children
+            if isinstance(node, PreconditionGuardStage)
+            else [node]
+        )
+    ]
 
     # The Accept tree's guard also refuses a joined or closed actor
     # (CM-16-006), so it is a different composite from the recommend tree's.
@@ -903,3 +932,55 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
     )
     guard = names.index(guard_name)
     assert guard < names.index("GuardedCommitCaseLedgerEntryBT")
+
+
+@pytest.mark.spec("CM-31-013")
+@pytest.mark.spec("CM-16-006")
+def test_the_owners_accept_of_a_removed_invitee_is_refused_before_the_commit(
+    case: _RemovalCase,
+) -> None:
+    """The Accept names an Offer for an actor removed since it was made.
+
+    The recorded invitee is a removed participant, so the Accept is refused
+    with the reinstatement reason before the receipt commit: no ledger entry
+    and no stub Invite (CM-31-013).
+    """
+    assert case.remove(VENDOR).disposition is HandlerDisposition.APPLIED
+    recommendation_id = "https://example.org/activities/recommend-vendor"
+    case.dl.save(
+        ActorRecommendationRecord(
+            case_id=CASE_ID,
+            recommendation_id=recommendation_id,
+            recommender_id=OTHER,
+        )
+    )
+    offer = offer_case_participant_activity(
+        as_Actor(id_=VENDOR),
+        target=as_VulnerabilityCase(id_=CASE_ID),
+        actor=MANAGER,
+        to=[OWNER],
+        roles=[CVDRole.VENDOR],
+        id_="https://example.org/activities/offer-participant-vendor",
+        origin=recommendation_id,
+    )
+    assert isinstance(offer.object_, as_CaseParticipant)
+    case.dl.save(offer.object_)
+    case.dl.save(offer)
+    ledger_before = len(case.ledger())
+    outbox_before = case.dl.outbox_list()
+
+    result = case.route(
+        accept_case_participant_offer_activity(
+            offer,
+            target=as_VulnerabilityCase(id_=CASE_ID),
+            actor=OWNER,
+            to=[MANAGER],
+        )
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "CM-31-013" in (result.reason or "")
+    assert len(case.ledger()) == ledger_before
+    # No stub Invite: only the refusal notice to the Case Owner (CLP-05-001).
+    (notice,) = refusal_notices_since(case.dl, outbox_before, OWNER)
+    assert "CM-31-013" in str(notice["summary"])

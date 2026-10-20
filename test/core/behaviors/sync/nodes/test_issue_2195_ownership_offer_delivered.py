@@ -2,7 +2,7 @@
 """Ratchet probe for ISSUE-2195.
 
 #2195: "ownership-transfer Offer object never delivered to the receiving
-Coordinator's DataLayer."  In fvcv-handoff, the source actor's forwarded
+Coordinator's DataLayer."  In rvcv-handoff, the source actor's forwarded
 ``_OfferCaseOwnershipTransferActivity`` (keyed by its offer id) never lands in
 the receiving Coordinator's DataLayer, so ``accept-case-ownership-transfer``
 404s: ``SvcAcceptCaseOwnershipTransferUseCase._prepare`` calls
@@ -17,7 +17,7 @@ On the wire, the forwarded Offer reaches the Coordinator via the CaseActor's
 outbox -> HTTP inbox delivery, where ``OfferCaseOwnershipTransferReceived-
 UseCase._idempotent_create`` would store it.  That delivery hop is an
 HTTP-outbox concern with no pure core node, so the authoritative end-to-end
-signal for #2195 is the fvcv-handoff CI job (the demo's
+signal for #2195 is the rvcv-handoff CI job (the demo's
 ``find_ownership_transfer_offer_for_actor(coordinator_client, ...)`` poll).
 
 This test therefore asserts the CLOSEST faithful core-layer analog, exactly as
@@ -75,7 +75,7 @@ _ = as_VulnerabilityCase
 
 # The CaseActor (owner) that signs the replicated Announce(CaseLedgerEntry)s.
 OWNER_ACTOR_ID = "https://example.org/actors/original-owner"
-# The actor being offered ownership (the Coordinator, in fvcv-handoff terms).
+# The actor being offered ownership (the Coordinator, in rvcv-handoff terms).
 COORDINATOR_ACTOR_ID = "https://example.org/actors/coordinator"
 # The Coordinator's own participant identity that owns this replica.
 PARTICIPANT_ACTOR_ID = COORDINATOR_ACTOR_ID
@@ -126,10 +126,10 @@ def case_replica(datalayer):
 
 
 def _offer_ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
-    """Ownership-transfer *offer* ledger entry (event_type from StrEnum value).
+    """Ownership-transfer *offer* ledger entry (semantic_type from StrEnum value).
 
     ``MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER.value`` is
-    ``"offer_case_ownership_transfer"`` — the exact event_type
+    ``"offer_case_ownership_transfer"`` — the exact semantic_type
     ``CommitCaseLedgerEntryNode`` writes for the forwarded Offer.  The snapshot
     embeds the full forwarded Offer activity (id=OFFER_ID, target=Coordinator,
     object=case) so a future backfill effect would have everything it needs.
@@ -138,7 +138,7 @@ def _offer_ownership_transfer_record(prev_hash: str) -> HashChainLedgerRecord:
         case_id=CASE_ID,
         log_index=0,
         object_id=OFFER_ID,
-        event_type="offer_case_ownership_transfer",
+        semantic_type="offer_case_ownership_transfer",
         payload_snapshot={
             "type": "Offer",
             "id": OFFER_ID,
@@ -171,7 +171,10 @@ def test_ownership_offer_object_materialized_on_coordinator_replica(
 
     offer_record = _offer_ownership_transfer_record(case_replica.genesis_hash)
     offer_entry = _to_persistable_entry(offer_record)
-    offer_event = _make_event(offer_entry, actor_id=case_actor.id_)
+    # The whole received tree runs, so the Announce names the replica (#4832).
+    offer_event = _make_event(
+        offer_entry, actor_id=case_actor.id_, to=[PARTICIPANT_ACTOR_ID]
+    )
 
     result = bridge.execute_with_setup(
         tree=tree(),

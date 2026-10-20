@@ -35,19 +35,17 @@ from typing import ClassVar
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.sync.nodes._helpers import (
-    _extract_id_from_field,
-    _LedgerEffectNode,
-)
+from vultron.core.behaviors.sync.nodes._helpers import _LedgerEffectNode
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    _SingleEventTypeNode,
+    _SingleSemanticTypeNode,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocol_pair import (
-    ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE,
+    ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.enums.roles import CVDRole, validate_roles
 
 logger = logging.getLogger(__name__)
@@ -70,7 +68,9 @@ def role_and_target_from_accept_snapshot(
     offer = snapshot.get("object")
     if not isinstance(offer, dict):
         return None
-    target_actor_id = _extract_id_from_field(offer.get("target"))
+    # The snapshot keeps the sender's spelling; the participant index is
+    # keyed canonically, so the target is normalised here (OID-01-006).
+    target_actor_id = snapshot_actor_id(offer.get("target"))
     role_obj = offer.get("object")
     raw_role = role_obj.get("role") if isinstance(role_obj, dict) else None
     if not target_actor_id or not raw_role:
@@ -108,14 +108,16 @@ def grant_role_to_target(
     return True
 
 
-class IsAcceptCaseParticipantRoleEventNode(_SingleEventTypeNode):
+class IsAcceptCaseParticipantRoleEventNode(_SingleSemanticTypeNode):
     """Precondition: SUCCESS when this log entry grants a delegated role.
 
-    Matches the ``accept_case_participant_role`` ``event_type`` in the
+    Matches the ``accept_case_participant_role`` ``semantic_type`` in the
     ``RoleGrant`` effect slot of ``AnnounceLogEntryReceivedBT`` (BTND-08-001).
     """
 
-    matched_event_type: ClassVar[str] = ACCEPT_CASE_PARTICIPANT_ROLE_EVENT_TYPE
+    matched_semantic_type: ClassVar[str] = (
+        ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE
+    )
 
 
 class ApplyCaseParticipantRoleGrantFromLedgerNode(_LedgerEffectNode):

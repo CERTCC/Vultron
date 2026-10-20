@@ -85,15 +85,15 @@ _ISSUE_RE = re.compile(r"#(\d+)")
 SPEC_ID_RE = re.compile(r"\b([A-Z][A-Z0-9]*(?:-\d+)+)\b")
 
 #: The phrase that marks a DEMOMA-16 requirement as being about *one
-#: scenario's* required event types, as opposed to the universal list
-#: (DEMOMA-16-001), the spec-to-test sync rule (DEMOMA-16-008), or the FCVCV
+#: scenario's* required semantic types, as opposed to the universal list
+#: (DEMOMA-16-001), the spec-to-test sync rule (DEMOMA-16-008), or the RCVCV
 #: event-*count* requirements (DEMOMA-16-012, -013).  Selecting by what the
 #: statement says is required rather than convenient: DEMOCI-11-007 warns that
 #: the per-scenario requirements are not a contiguous ID range, and they are
 #: not — -008 sits inside the span and -014/-015 sit outside it.
-_EXPECTED_LIST_PHRASE = "expected-event-types list"
+_EXPECTED_LIST_PHRASE = "expected-semantic-types list"
 
-#: ``the FVCV-handoff scenario`` — how every per-scenario DEMOMA-16 requirement
+#: ``the RVCV-handoff scenario`` — how every per-scenario DEMOMA-16 requirement
 #: names its subject.  Case-insensitive against the registry's ``name``, which
 #: is what both registers spell, so no ``label`` column is needed anywhere to
 #: resolve the mapping.
@@ -101,8 +101,8 @@ _SCENARIO_MENTION_RE = re.compile(
     r"\bthe\s+([A-Za-z0-9][A-Za-z0-9-]*)\s+scenario\b", re.IGNORECASE
 )
 
-#: Group whose requirements are the per-scenario event-type lists.
-_EVENT_TYPE_GROUP = "DEMOMA-16"
+#: Group whose requirements are the per-scenario semantic-type lists.
+_SEMANTIC_TYPE_GROUP = "DEMOMA-16"
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,7 +149,7 @@ def scenario_spec_groups(
                 f"{group_id} carries a scenario_start trigger whose value "
                 f"{name!r} is not a valid scenario name (SR-02-018). Expected "
                 "the registry's grammar: lowercase alphanumerics separated by "
-                "single hyphens, e.g. 'fvcv-handoff'."
+                "single hyphens, e.g. 'rvcv-handoff'."
             )
         if name in groups:
             raise ValueError(
@@ -161,7 +161,7 @@ def scenario_spec_groups(
     return groups
 
 
-def per_scenario_event_type_requirements(
+def per_scenario_semantic_type_requirements(
     registry: SpecRegistry | None = None,
 ) -> dict[str, tuple[str, ...]]:
     """Return ``{scenario name: DEMOMA-16 requirement ids}``, lowercased names.
@@ -173,8 +173,8 @@ def per_scenario_event_type_requirements(
 
     - DEMOMA-16-001 enumerates the universal types and names no scenario;
     - DEMOMA-16-008 is the spec-to-test sync rule and names no scenario;
-    - DEMOMA-16-012 and -013 name FCVCV but are about *event counts* in the
-      case-actor log, not about an expected-event-types list.
+    - DEMOMA-16-012 and -013 name RCVCV but are about *event counts* in the
+      case-actor log, not about an expected-semantic-types list.
 
     Names are returned as spelled by the registry (lowercase), so the result
     keys directly against :func:`discover_scenarios` and the planned register.
@@ -184,7 +184,7 @@ def per_scenario_event_type_requirements(
     )
     found: dict[str, list[str]] = {}
     for spec_id, spec in sorted(resolved.all_specs.items()):
-        if not spec_id.startswith(f"{_EVENT_TYPE_GROUP}-"):
+        if not spec_id.startswith(f"{_SEMANTIC_TYPE_GROUP}-"):
             continue
         if _EXPECTED_LIST_PHRASE not in spec.statement:
             continue
@@ -259,7 +259,7 @@ def partition_problems(
     """Return every way the two registers fail to partition the spec'd scenarios.
 
     Checked in **both** directions, which is the whole point. Registry-to-prose
-    alone reports agreement while ignoring DEMOMA-16-014 (``fcvd``) and
+    alone reports agreement while ignoring DEMOMA-16-014 (``rcvd``) and
     DEMOMA-16-015 (``vc``) — scenarios *correctly* absent from the registry.
     That is the same blind spot that let a ``vc`` row sit in a table of
     available demos with a spec group, a tracking issue and no implementation
@@ -354,7 +354,7 @@ __all__ = [
     "SPEC_ID_RE",
     "PlannedScenario",
     "partition_problems",
-    "per_scenario_event_type_requirements",
+    "per_scenario_semantic_type_requirements",
     "planned_scenarios",
     "scenario_spec_groups",
 ]

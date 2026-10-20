@@ -14,6 +14,7 @@ Public surface:
 """
 
 from vultron.core.models.events.actor import (
+    AcceptActorRecommendationReceivedEvent,
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptCaseParticipantRoleReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
@@ -26,6 +27,7 @@ from vultron.core.models.events.actor import (
     OfferCaseOwnershipTransferReceivedEvent,
     OfferCaseParticipantReceivedEvent,
     OfferCaseParticipantRoleReceivedEvent,
+    RejectActorRecommendationReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectCaseParticipantRoleReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
@@ -47,7 +49,9 @@ from vultron.core.models.events.case import (
 )
 from vultron.core.models.events.case_context import (
     CASE_BOOTSTRAP_SEMANTICS,
+    CASE_PRECEDING_SEMANTICS,
     is_case_bootstrap,
+    is_deferral_exempt,
     resolve_case_context_id,
 )
 from vultron.core.models.events.case_participant import (
@@ -71,10 +75,10 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.models.events.fault import (
     CreateProcessingFaultReceivedEvent,
+    RefusalNoticeReceivedEvent,
 )
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
-    CreateNoteReceivedEvent,
     RemoveNoteFromCaseReceivedEvent,
 )
 from vultron.core.models.events.report import (
@@ -119,6 +123,8 @@ AnyReceivedEvent = (
     | OfferCaseParticipantReceivedEvent
     | AcceptOfferCaseParticipantReceivedEvent
     | RejectOfferCaseParticipantReceivedEvent
+    | AcceptActorRecommendationReceivedEvent
+    | RejectActorRecommendationReceivedEvent
     | OfferCaseParticipantRoleReceivedEvent
     | AcceptCaseParticipantRoleReceivedEvent
     | RejectCaseParticipantRoleReceivedEvent
@@ -155,8 +161,7 @@ AnyReceivedEvent = (
     | RejectInviteToEmbargoOnCaseReceivedEvent
     |
     # note
-    CreateNoteReceivedEvent
-    | AddNoteToCaseReceivedEvent
+    AddNoteToCaseReceivedEvent
     | RemoveNoteFromCaseReceivedEvent
     |
     # status
@@ -169,6 +174,7 @@ AnyReceivedEvent = (
     |
     # fault
     CreateProcessingFaultReceivedEvent
+    | RefusalNoticeReceivedEvent
     |
     # unknown
     UnknownReceivedEvent
@@ -181,7 +187,9 @@ __all__ = [
     "AnyReceivedEvent",
     # case-context resolution
     "CASE_BOOTSTRAP_SEMANTICS",
+    "CASE_PRECEDING_SEMANTICS",
     "is_case_bootstrap",
+    "is_deferral_exempt",
     "resolve_case_context_id",
     # report
     "CreateReportReceivedEvent",
@@ -201,6 +209,8 @@ __all__ = [
     "OfferCaseParticipantReceivedEvent",
     "AcceptOfferCaseParticipantReceivedEvent",
     "RejectOfferCaseParticipantReceivedEvent",
+    "AcceptActorRecommendationReceivedEvent",
+    "RejectActorRecommendationReceivedEvent",
     "OfferCaseParticipantRoleReceivedEvent",
     "AcceptCaseParticipantRoleReceivedEvent",
     "RejectCaseParticipantRoleReceivedEvent",
@@ -233,7 +243,6 @@ __all__ = [
     "AcceptInviteToEmbargoOnCaseReceivedEvent",
     "RejectInviteToEmbargoOnCaseReceivedEvent",
     # note
-    "CreateNoteReceivedEvent",
     "AddNoteToCaseReceivedEvent",
     "RemoveNoteFromCaseReceivedEvent",
     # status
@@ -247,4 +256,5 @@ __all__ = [
     "RejectLogEntryReceivedEvent",
     # fault
     "CreateProcessingFaultReceivedEvent",
+    "RefusalNoticeReceivedEvent",
 ]

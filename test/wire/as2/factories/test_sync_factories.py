@@ -45,7 +45,7 @@ def sample_log_entry() -> as_CaseLedgerEntry:
     return as_CaseLedgerEntry(
         case_id="https://example.org/cases/case-001",
         log_object_id="https://example.org/activities/act-001",
-        event_type="ReportCreated",
+        semantic_type="ReportCreated",
     )
 
 

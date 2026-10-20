@@ -191,7 +191,7 @@ its deadline in `end_time` (CM-28-012), and a late reply is still honoured
 as `actor` and the proposer in `attributedTo`, so the manager records those as
 its own outstanding asks; the proposer records only its proposal to the manager
 (ASK-04-010). `find_protocol_pair`'s one-open-request-per-type assumption does
-not survive N simultaneous Invites of one event type — the ask-kind registry
+not survive N simultaneous Invites of one semantic type — the ask-kind registry
 (#2884) is where that gets fixed, not a per-call-site workaround.
 
 **The pending-assertion store has a second client.** Embargo triggers that do

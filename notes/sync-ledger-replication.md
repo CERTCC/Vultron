@@ -16,6 +16,7 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/participant-case-replica.yaml
   - specs/protocol-asks.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/case-ledger-authority.md
   - notes/case-actor-cluster.md
@@ -98,16 +99,16 @@ Invariants every component touching state, messaging or storage must preserve:
 3. **Idempotent replay**: reprocessing any prefix, duplicates included, changes
    nothing.
 4. **Monotonic visibility**: a replica never regresses its acknowledged
-   position, and `ApplyParticipantStatusFromLedgerNode` never moves a replica's
-   `rm` backwards on the progress scale. Only `rm` is ratcheted; same-rank moves
-   (`VALID` ↔ `INVALID`) are re-adjudication, not regression (RSH-05-007).
+   position. It copies each status an entry carries, id, times and every
+   dimension as carried, and carries no local value over it (CM-23-016): the
+   CASE_MANAGER never commits a regression, so a ratchet would only make a
+   diverged replica disagree further.
    - An entry whose composite state violates the RM↔VF, RM↔D or VF↔D entailments
      is not applied; the replica emits `Create(ProcessingFault)`
-     `StatusAssertionRefused/ImpossibleState` (or `.../CorruptLocalRecord` for an
-     unreadable local record) to the CASE_MANAGER (RSH-05-021).
-   - The ratcheted status is saved **unconditionally**, and the node appends the
-     wire-typed object it reads back. Skipping the save when the status object is
-     already stored appends the un-ratcheted value.
+     `StatusAssertionRefused/ImpossibleState` to the CASE_MANAGER (RSH-05-021).
+   - The carried status is saved even when an object with its id is already
+     stored, so the CASE_MANAGER's copy replaces one a trigger stored without
+     attaching it (RSH-08-006).
 5. **Reject on divergence**: an entry that does not extend the chain is rejected
    and triggers resynchronization.
 
@@ -195,7 +196,8 @@ Messages Reach Non-Signatories".
 as proof its effects were applied and skips `ProcessAndStore`. That is sound only
 if the core write path that applies effects is the sole writer. So:
 
-1. `_store_nested_inbox_object` refuses to persist a `CaseLedgerEntry`
+1. Ingress stores no inline object (CLP-10-017), and `_stage_inline_object`
+   does not stage a `CaseLedgerEntry` even in the throwaway routing store
    (SYNC-13-002). An adapter pre-store makes the gate skip effects on first
    delivery.
 2. `FastAPIIngressAdapter.rehydrate` hydrates the in-memory `Announce(CaseLedgerEntry)`
@@ -228,8 +230,21 @@ does not re-queue an `Announce` the outbox already holds for that peer
 - **On mismatch**, a genuine forward gap (`log_index > tail_index + 1`) is
   buffered, and a `Reject(CaseLedgerEntry)` is **still always sent** as the loss
   backstop. At-or-behind-tail entries go straight to the reject.
-- **On commit**, `AnnounceLedgerEntryReceivedUseCase` drains the buffer through
-  the same effects-before-persist path (SYNC-12-001), cascading.
+- **On commit**, `HandBackBufferedSuccessorNode` (`sync/nodes/hand_back.py`, last
+  in the participant arm) hands the one successor of the new tail back to the
+  actor's own inbox through `InboxHandBackPort`, wrapped as an
+  `Announce(CaseLedgerEntry)` from the CASE_MANAGER (SYNC-14-009). That delivery's
+  tree hands back the next, so the cascade needs no loop and runs the in-order
+  path by construction (SYNC-14-008). Reason: running the successor inline made
+  one delivery run several trees (CLP-10-005, ADR-0135).
+- **The adapter queues, it never processes.** `InboxHandBackAdapter` saves the
+  Announce and calls `inbox_append`; the inbox loop that ran the delivery pops it
+  afterwards and runs `process_payload` under the same actor lock. A missing port
+  is a `VultronWiringError`, never an inline apply, and an unresolvable
+  CASE_MANAGER leaves the entry held; the drain never guesses a sender.
+- **Hand back only after success.** The node runs after the entry is stored (or
+  found stored), never on a refusal: an entry refused into the buffer is keyed on
+  the current tail, so handing back on failure would loop it into itself.
 - **Bounded**: a full buffer evicts the entry farthest ahead with a WARNING; the
   Reject already sent recovers it.
 
@@ -281,10 +296,10 @@ own buffer (ADR-0059):
   `ReconstructOrRejectOnMissingCase` fallback, under `FailureIsSuccess` so the
   genesis Reject still fires. It applies no forward-gap check.
 - Seeding the case is enough to anchor the chain, because the genesis hash comes
-  from the case object alone (CLP-08). `drain_gap_buffer(...)`
-  (`vultron/core/use_cases/received/sync.py`) is shared by the announce path and
-  the drain-on-seed hook in `AnnounceVulnerabilityCaseReceivedUseCase`, starting
-  from tail `(genesis_hash, -1)`.
+  from the case object alone (CLP-08). The `Announce(VulnerabilityCase)` tree ends
+  in the same `HandBackBufferedSuccessorNode` the announce path uses, which finds
+  the entry keyed on the genesis hash and hands it back (SYNC-15-005,
+  SYNC-14-009).
 
 ## Reject/Replay Amplification (SYNC-15-003)
 
@@ -298,6 +313,11 @@ peer. Three properties are load-bearing; tests are in
 
 - **Rate limit, not suppression** (30 s at an unchanged position). A permanent
   block would strand a peer whose replayed entry was lost.
+- **The cooldown doubles per no-progress replay, capped at 600 s** (SYNC-15-013).
+  A fixed one stops the loop only when a round trip beats it, so a slow host
+  livelocks; `replays_at_position` resets on progress (#4882).
+- **The genesis case pre-seed follows the replay decision** (SYNC-15-014): an
+  unguarded pre-seed sends one case per Reject inside a suppressed window.
 - **Ask and record are separate.** Record only after at least one entry went
   out; recording a zero-entry decision suppresses the peer's next, genuinely
   stale Reject once the ledger grows.

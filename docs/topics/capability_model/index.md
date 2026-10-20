@@ -32,7 +32,7 @@ The protocol coordinates the case; the judgment, the data, and the side effects 
 | write or publish advisories | [DraftAdvisoryArtifact, ReviewAdvisoryDraft, SubmitAdvisoryArtifact](#publication) | Composer, Evaluator, Actuator |
 | know who else belongs in the case | [IdentifyVendors, ResolveActorDetails, InjectParticipant](#participant-and-actor-discovery) | Retriever, Actuator |
 | watch threat feeds | [MonitorAttacks, MonitorExploits, MonitorPublicReports](#threat-monitoring), or a [Sentinel](#the-sentinel-call-in-pattern) that reports what it sees | Retriever |
-| update your ticketing system | [OnAccept, OnDefer](#report-prioritization) and [PreCloseAction](#close-report) | Actuator |
+| update your ticketing system | [OnAccept, OnDefer](#report-prioritization) and [PreCloseAction](#leaving-a-case) | Actuator |
 
 The plug-in seam is the same in every row.
 During development and simulation, each call-out point is filled by a **fuzzer node**: a stub that returns a random success or failure.
@@ -291,12 +291,14 @@ This domain has one extra level because the ID assignment workflow has distinct 
 - **ReviewAdvisoryDraft** (Evaluator) — review an advisory draft; return `needs_revision` to route to revision, or FAILURE to block submission entirely
 - **Publish** / **SubmitAdvisoryArtifact** (Actuators) — submit the advisory to a publication platform
 
-### Close Report
+### Leaving a Case
 
 *See also: [Closure behavior](../behavior_logic/rm_closure_bt.md)*
 
-- **OtherCloseCriteriaMet** (Evaluator) — are there additional conditions that should trigger closing this report?
-- **PreCloseAction** (Actuator) — perform any pre-closure integration actions
+An actor closes its part in a case by calling the `leave-case` trigger, which sends `Leave(VulnerabilityCase)` to the case manager.
+
+- **PreCloseAction** (Actuator) — perform any pre-closure integration actions, such as closing your own ticket; `leave-case` runs it before it sends the Leave, for every caller, and a failure stops the trigger with nothing sent
+- **OtherCloseCriteriaMet** (Evaluator) — superseded: the decision to close is the act of calling `leave-case`, so Vultron no longer asks it
 
 ### Participant and Actor Discovery
 
@@ -326,8 +328,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 - `ack-report` — acknowledge a received report to its sender
 - `validate-report` — mark a received report as valid
 - `invalidate-report` — mark a received report as invalid
-- `reject-report` — hard-close a report before validation completes
-- `close-report` — close a report through the report management lifecycle
+- `reject-report` — hard-close a report before validation completes; it also sends `Close(Report)`, so it fails once a case holds the report, which by default happens on receipt; from then on you leave the case with `leave-case`
 
 ### Case management
 
@@ -336,6 +337,7 @@ The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint'
 - `defer-case` — defer a case (transitions to DEFERRED state)
 - `add-report-to-case` — link a report to an existing case
 - `add-object-to-case` — ask the case manager to add an existing report or note to a case; other object types are refused
+- `leave-case` — leave a case: runs your `PreCloseAction`, then sends `Leave(VulnerabilityCase)` to the case manager; the Case Owner's Leave closes the case, so it fails while the case has an active embargo, and you terminate the embargo first
 
 ### Embargo
 

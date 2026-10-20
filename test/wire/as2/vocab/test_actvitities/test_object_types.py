@@ -573,7 +573,7 @@ class TestAnnounceLogEntryActivity:
             as_CaseLedgerEntry(
                 case_id="https://example.org/cases/c1",
                 log_object_id="https://example.org/cases/c1/events/e1",
-                event_type="test_event",
+                semantic_type="test_event",
             ),
         )
 

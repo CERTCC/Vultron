@@ -252,6 +252,11 @@ Specifically:
   replay, regardless of cooldown. (SYNC-15-010)
 - A replay in which zero entries were sent MUST NOT update the recorded
   position. (SYNC-15-011)
+- Each consecutive non-empty replay from an unchanged position MUST lengthen
+  the cooldown before the next (doubling it, up to a fixed ceiling); a replay
+  from a different position MUST reset it. (SYNC-15-013)
+- The genesis `Announce(VulnerabilityCase)` pre-seed MUST NOT be sent for a
+  genesis Reject whose replay the cooldown suppresses. (SYNC-15-014)
 
 The genesis position (`last_accepted_hash == ""`) SHOULD use a shorter
 cooldown than a mid-chain stall, to avoid starving the initial bootstrap
@@ -313,6 +318,11 @@ entry (if any) whose `prev_log_hash` equals the new tail's `entry_hash`,
 apply and persist that entry via the same apply-then-persist path as in-order
 delivery, and repeat, cascading until no buffered entry extends the current
 tail. (SYNC-14-003, SYNC-14-008)
+
+[I] In this implementation, each drained entry is its own inbox delivery.
+When a commit makes a buffered entry appliable, the participant hands that one entry back to its own inbox, wrapped in an `Announce(CaseLedgerEntry)` attributed to the case's CASE_MANAGER.
+The participant does not apply the entry inside the delivery that made it appliable.
+That delivery's commit hands back the next entry, so the cascade follows from in-order delivery itself. (SYNC-14-009)
 
 Draining a buffered entry MUST apply domain effects before persisting it.
 (SYNC-14-004)
@@ -431,6 +441,8 @@ hash, apply-and-persist it via the same path as in-order delivery, and
 cascade in hash-chain order until no buffered entry extends the current tail.
 (SYNC-15-005)
 
+[I] The seed hands the first buffered entry back to the participant's own inbox, as §6.3 describes for a commit. (SYNC-14-009)
+
 ---
 
 ## 9. Per-Peer Replication State [N]
@@ -477,7 +489,7 @@ but not yet confirmed by a canonical `Announce(CaseLedgerEntry)` round-trip.
 The suppression window is configurable; zero disables suppression. (SYNC-11-001)
 
 After a participant successfully enqueues an assertion activity toward the Case
-Actor, the participant SHOULD record the `(case_id, event_type, activity_id)`
+Actor, the participant SHOULD record the `(case_id, semantic_type, activity_id)`
 triple in its pending-assertion store so that duplicate near-term re-emits of
 the same assertion are suppressed while the round-trip is pending. (SYNC-11-002)
 
@@ -560,6 +572,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-14-006 | §6.4 | Holding area SHOULD be bounded; evict farthest-ahead on overflow |
 | SYNC-14-007 | §6.3 | Drain MUST NOT re-apply effects for already-committed entry |
 | SYNC-14-008 | §6.3 | Drain path MUST be the same apply-then-persist path as in-order delivery |
+| SYNC-14-009 | §6.3, §8.2 | Drain MUST hand each appliable entry back to the receiver's own inbox as its own delivery |
 | SYNC-15-001 | §8.1 | Pre-genesis entry MUST NOT be silently dropped; MUST send Reject |
 | SYNC-15-002 | §8.1 | Participant MUST NOT persist entry when genesis hash unavailable |
 | SYNC-15-003 | §5.4 | CASE_MANAGER MUST bound replay rate for non-advancing peer |
@@ -571,6 +584,8 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-15-009 | §5.4 | Reject at unchanged position within cooldown MUST NOT trigger replay |
 | SYNC-15-010 | §5.4 | Reject at advanced position MUST always trigger replay |
 | SYNC-15-011 | §5.4 | Zero-entry replay MUST NOT update recorded position |
+| SYNC-15-013 | §5.4 | Cooldown MUST double per no-progress replay, capped; reset on progress |
+| SYNC-15-014 | §5.4 | Genesis case pre-seed MUST NOT be sent while its replay is suppressed |
 | SYNC-16-001 | §5.5 | Participant MUST report a refused entry that extends its chain as a divergence fault |
 | SYNC-16-002 | §5.5 | A fault about applying an entry MUST NOT be ledgered |
 | SYNC-16-003 | §5.5 | CASE_MANAGER MUST re-seed an active participant that reports divergence |

@@ -210,13 +210,15 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when="a report receiver closes the report",
+                when="a report receiver closes a report no case holds",
                 anchor="report-closed",
-                addressee=AddresseeSide.CASE_MANAGER,
+                addressee=AddresseeSide.OUTSIDE_CASE,
                 heading="Close report",
                 description=(
                     "Closes the report, moving the sender's RM state to "
-                    "Closed."
+                    "Closed. Once a case holds the report, its Case Owner "
+                    "closes the case with Leave(VulnerabilityCase) instead, "
+                    "and every receiver refuses a Close(Report) for it."
                 ),
                 example="close_report",
                 howto=HowToGuide.REPORT_VULNERABILITY,

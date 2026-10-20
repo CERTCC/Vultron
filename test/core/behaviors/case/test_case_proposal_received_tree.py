@@ -35,8 +35,8 @@ from unittest.mock import patch
 import py_trees
 import pytest
 
-from test.support.embargo_register import register
-from test.support.ledger import committed_event_types, fail_commits
+from test.support.embargo_register import register, terminate
+from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -56,6 +56,8 @@ from vultron.core.behaviors.case.nodes import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
@@ -125,6 +127,56 @@ def _make_proposal() -> as_CaseProposal:
 _RETIRED_CONSENT_KEYS = frozenset(
     {"consent", "emConsentState", "embargoAdherence"}
 )
+
+_CREATE_PARTICIPANT = "create_case_participant"
+_ADD_STATUS = "add_participant_status_to_participant"
+
+
+def _participant_creation_entry(
+    dl: SqliteDataLayer, case_id: str, actor_uri: str
+) -> CaseLedgerEntry:
+    """The one ``create_case_participant`` entry for *actor_uri*'s record.
+
+    Each seated record is committed once as it came into existence: its
+    roles, its consent rows and its first status (CLP-07-013).
+    """
+    from test.support.ledger import ledger_entries
+
+    matches = [
+        e
+        for e in ledger_entries(dl, case_id)
+        if e.semantic_type == _CREATE_PARTICIPANT
+        and e.payload_snapshot["object"].get("attributedTo") == actor_uri
+    ]
+    assert len(matches) == 1, (
+        f"expected one {_CREATE_PARTICIPANT} entry for {actor_uri},"
+        f" got {len(matches)} (CLP-07-013)"
+    )
+    return matches[0]
+
+
+def _assert_entry_carries_rows_not_status_consent(
+    entry: CaseLedgerEntry, participant: CaseParticipant
+) -> None:
+    """The record's consent rows ride on the record, never on a status.
+
+    Consent lives on the participant's per-embargo rows (ADR-0122), so the
+    created record carries the stored record's rows (CM-18-007) while no
+    ``ParticipantStatus`` it carries has a retired consent key.
+    """
+    carried = CaseParticipant.model_validate(entry.payload_snapshot["object"])
+    assert carried.id_ == participant.id_
+    assert carried.embargo_consents == participant.embargo_consents, (
+        "the created record must carry the stored record's consent rows"
+        " (CM-18-007)"
+    )
+    statuses = entry.payload_snapshot["object"]["participantStatuses"]
+    assert len(statuses) == 1, "only the record's first status (CLP-07-013)"
+    for status in statuses:
+        assert not _RETIRED_CONSENT_KEYS & set(status), (
+            f"status snapshot must carry no consent keys (ADR-0122), got"
+            f" {sorted(_RETIRED_CONSENT_KEYS & set(status))}"
+        )
 
 
 @pytest.mark.spec("CP-05-005")
@@ -1406,7 +1458,7 @@ class TestOwnerRolesComeFromTheProposal:
     fix-readiness report was refused (#1876).
 
     Regression guard, too: the node once hard-coded ``[CASE_OWNER, VENDOR]``,
-    which mislabelled a coordinator as a vendor (fccv-extension M6/M7).
+    which mislabelled a coordinator as a vendor (rccv-extension M6/M7).
     """
 
     @staticmethod
@@ -2000,14 +2052,17 @@ class TestCM14005ReporterSignatory:
             " (CM-14-005 AC-3)"
         )
 
-    def test_reporter_status_ledger_snapshot_carries_no_consent(
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("CM-18-007")
+    def test_reporter_creation_entry_carries_rows_not_status_consent(
         self, make_payload
     ):
-        """AC-4: the reporter's ledger status snapshot carries no consent.
+        """AC-4: the reporter's record carries its rows; its status, none.
 
-        Consent lives on the participant's per-embargo rows (ADR-0122), so the
-        ``ParticipantStatus`` snapshot has no ``emConsentState`` or
-        ``embargoAdherence`` key, in either direction.
+        The reporter's ``create_case_participant`` entry carries the record
+        as created (CLP-07-013): the stored record's consent rows
+        (CM-18-007) and one ``ParticipantStatus`` with no ``emConsentState``
+        or ``embargoAdherence`` key, consent being per-embargo (ADR-0122).
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -2018,44 +2073,10 @@ class TestCM14005ReporterSignatory:
 
         participant, case = self._get_reporter_participant(dl)
         assert participant is not None
+        assert participant.embargo_consents, "the reporter holds a row"
 
-        entries = list(dl.list_objects("CaseLedgerEntry"))
-        reporter_status_entries = [
-            e
-            for e in entries
-            if getattr(e, "event_type", None)
-            == "add_participant_status_to_participant"
-            and getattr(e, "case_id", None) == case.id_
-        ]
-        assert reporter_status_entries, (
-            "add_participant_status_to_participant entries must be present"
-        )
-
-        # The snapshot structure is:
-        # { "type": "Add", "actor": CaseActor, "object": {ParticipantStatus...},
-        #   "target": {CaseParticipant...}, "context": case_id }
-        # The reporter's entry has object["attributedTo"] == _REPORTER_URI.
-        reporter_entries = [
-            e
-            for e in reporter_status_entries
-            if _REPORTER_URI
-            in str(
-                (getattr(e, "payload_snapshot", {}).get("object") or {}).get(
-                    "attributedTo", ""
-                )
-            )
-        ]
-        assert reporter_entries, (
-            "At least one ledger entry's object.attributedTo must be the"
-            " reporter URI"
-        )
-        for entry in reporter_entries:
-            obj = getattr(entry, "payload_snapshot", {}).get("object", {})
-            assert not _RETIRED_CONSENT_KEYS & set(obj), (
-                f"Ledger status snapshot must carry no consent keys (consent"
-                f" is per-embargo on the participant, ADR-0122), got"
-                f" {sorted(_RETIRED_CONSENT_KEYS & set(obj))}"
-            )
+        entry = _participant_creation_entry(dl, case.id_, _REPORTER_URI)
+        _assert_entry_carries_rows_not_status_consent(entry, participant)
 
     def test_no_report_reporter_seeding_does_not_fail_sequence(
         self, make_payload
@@ -2088,9 +2109,11 @@ class TestADR0041LedgerEntries:
         """The proposal path's entries follow the one creation rule (#4440).
 
         ``creation_entry_sequence`` reads the sequence off the resulting case
-        file; the create-case trigger is pinned to the same rule in
-        ``test_create.py``, so a case created either way commits the same
-        entries.
+        file: genesis, each report, then per seated record one
+        ``create_case_participant`` followed by an entry per later status,
+        then each case status (CLP-07-013).  The create-case trigger is
+        pinned to the same rule in ``test_create.py``, so a case created
+        either way commits the same entries.
         """
         from test.support.ledger import (
             creation_entry_sequence,
@@ -2107,7 +2130,8 @@ class TestADR0041LedgerEntries:
         entries = ledger_entries(dl, case.id_)
 
         assert [
-            (e.event_type, e.log_object_id) for e in entries[: len(expected)]
+            (e.semantic_type, e.log_object_id)
+            for e in entries[: len(expected)]
         ] == expected
 
     def test_create_case_ledger_entry_present(self, make_payload):
@@ -2127,8 +2151,8 @@ class TestADR0041LedgerEntries:
         case_id = case.id_
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
-        event_types = {getattr(e, "event_type", None) for e in entries}
-        assert "create_case" in event_types, (
+        semantic_types = {getattr(e, "semantic_type", None) for e in entries}
+        assert "create_case" in semantic_types, (
             "create_case ledger entry must be committed natively (AC-4)"
         )
 
@@ -2136,7 +2160,7 @@ class TestADR0041LedgerEntries:
         create_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None) == "create_case"
+            if getattr(e, "semantic_type", None) == "create_case"
             and getattr(e, "case_id", None) == case_id
         ]
         assert create_entries, "create_case entry must reference the case_id"
@@ -2163,7 +2187,7 @@ class TestADR0041LedgerEntries:
         report_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None) == "add_report_to_case"
+            if getattr(e, "semantic_type", None) == "add_report_to_case"
             and getattr(e, "case_id", None) == case_id
         ]
         assert report_entries, (
@@ -2176,6 +2200,7 @@ class TestADR0041LedgerEntries:
             )
 
     def test_add_participant_status_entries_present(self, make_payload):
+        """The CASE_MANAGER's later RM statuses are status entries (CM-23-007)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,
@@ -2184,8 +2209,8 @@ class TestADR0041LedgerEntries:
         _run_full_bt(make_payload, dl)
 
         entries = list(dl.list_objects("CaseLedgerEntry"))
-        event_types = [getattr(e, "event_type", None) for e in entries]
-        assert "add_participant_status_to_participant" in event_types, (
+        semantic_types = [getattr(e, "semantic_type", None) for e in entries]
+        assert "add_participant_status_to_participant" in semantic_types, (
             "add_participant_status_to_participant entries must be present (AC-4)"
         )
 
@@ -2202,7 +2227,7 @@ class TestADR0041LedgerEntries:
         cs_entries = [
             e
             for e in entries
-            if getattr(e, "event_type", None) == "add_case_status_to_case"
+            if getattr(e, "semantic_type", None) == "add_case_status_to_case"
         ]
         assert cs_entries, "add_case_status_to_case entry must be present"
         for entry in cs_entries:
@@ -2222,15 +2247,17 @@ class TestADR0041LedgerEntries:
 class TestCM18007InitLedgerEntries:
     """CM-18-007 and CM-14-003: one init entry per participant; vendor is seeded."""
 
-    def test_exactly_one_participant_status_entry_per_participant(
-        self, make_payload
-    ):
-        """CaseActor gets 3 bootstrap entries (CM-23-007); other participants get 1.
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("CM-23-007")
+    def test_exactly_one_creation_entry_per_participant(self, make_payload):
+        """Each seated record is created once; only the CaseActor moves on.
 
-        Total add_participant_status_to_participant ledger entries ==
-        (participant_count - 1) + 3 == participant_count + 2 (CM-18-007 AC-3,
-        CM-23-005/ADR-0051).
+        One ``create_case_participant`` entry per record, in roster order
+        (CM-18-007 AC-3, CLP-07-013), plus two status entries: the
+        CaseActor's VALID and ACCEPTED, RECEIVED being the first status its
+        record was created with (CM-23-007, ADR-0051).
         """
+        from test.support.ledger import ledger_entries
         from vultron.core.models.case import VulnerabilityCase
 
         dl = SqliteDataLayer(
@@ -2244,29 +2271,31 @@ class TestCM18007InitLedgerEntries:
         assert cases
         case = cases[0]
         assert isinstance(case, VulnerabilityCase)
-        participant_count = len(case.case_participants)
 
-        entries = list(dl.list_objects("CaseLedgerEntry"))
-        ps_entries = [
-            e
+        entries = ledger_entries(dl, case.id_)
+        created = [
+            e.log_object_id
             for e in entries
-            if getattr(e, "event_type", None)
-            == "add_participant_status_to_participant"
+            if e.semantic_type == _CREATE_PARTICIPANT
         ]
-        # CaseActor contributes 3 bootstrap RM entries (CM-23-007/ADR-0051);
-        # every other participant contributes 1.
-        expected = participant_count + 2
-        assert len(ps_entries) == expected, (
-            f"Expected {expected} add_participant_status_to_participant entries"
-            f" ({participant_count} participants, CaseActor has 3 bootstrap"
-            f" entries per CM-23-007), got {len(ps_entries)} (CM-18-007)"
+        assert created == [str(_as_id(p)) for p in case.case_participants], (
+            "one create_case_participant entry per record, in roster order"
+            " (CM-18-007, CLP-07-013)"
+        )
+        status_entries = [e for e in entries if e.semantic_type == _ADD_STATUS]
+        assert len(status_entries) == 2, (
+            f"only the CaseActor's VALID and ACCEPTED follow its creation"
+            f" (CM-23-007), got {len(status_entries)}"
         )
 
-    def test_vendor_case_owner_init_ledger_entry_carries_no_consent(
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("CM-18-007")
+    def test_vendor_case_owner_creation_entry_carries_its_rows(
         self, make_payload
     ):
-        """Vendor (CASE_OWNER) init ledger entry carries no consent keys:
-        consent is per-embargo on the participant (ADR-0122, CM-14-003)."""
+        """The vendor (CASE_OWNER) record is created in the ledger with its
+        signatory row (CM-14-003, CM-18-007), and no status it carries has a
+        consent key: consent is per-embargo on the record (ADR-0122)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,
@@ -2274,29 +2303,14 @@ class TestCM18007InitLedgerEntries:
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
 
-        entries = list(dl.list_objects("CaseLedgerEntry"))
-        vendor_ps_entries = [
-            e
-            for e in entries
-            if getattr(e, "event_type", None)
-            == "add_participant_status_to_participant"
-            and _VENDOR_URI
-            in str(
-                getattr(e, "payload_snapshot", {})
-                .get("object", {})
-                .get("attributedTo", "")
-            )
-        ]
-        assert vendor_ps_entries, (
-            "Vendor must have an add_participant_status_to_participant"
-            " init ledger entry (CM-14-003)"
-        )
-        entry = vendor_ps_entries[0]
-        obj = getattr(entry, "payload_snapshot", {}).get("object", {})
-        assert not _RETIRED_CONSENT_KEYS & set(obj), (
-            f"Vendor init entry must carry no consent keys, got"
-            f" {sorted(_RETIRED_CONSENT_KEYS & set(obj))} (CM-14-003)"
-        )
+        (case,) = dl.list_objects("VulnerabilityCase")
+        assert isinstance(case, VulnerabilityCase)
+        vendor = dl.read(case.actor_participant_index[_VENDOR_URI])
+        assert isinstance(vendor, CaseParticipant)
+        assert vendor.is_signatory(case.active_embargo_id), "CM-14-003"
+
+        entry = _participant_creation_entry(dl, case.id_, _VENDOR_URI)
+        _assert_entry_carries_rows_not_status_consent(entry, vendor)
 
 
 @pytest.mark.spec("CP-09-010")
@@ -2720,7 +2734,7 @@ class TestADR0041GenesisCommitFailure:
         assert result.disposition is not HandlerDisposition.APPLIED
         assert "creation entries stop there" in (result.reason or "")
         case = next(iter(dl.list_objects("VulnerabilityCase")))
-        assert committed_event_types(dl, case.id_) == ["create_case"]
+        assert committed_semantic_types(dl, case.id_) == ["create_case"]
         assert len(attempted) == 2, "nothing is tried after the failed entry"
 
     @pytest.mark.spec("CLP-07-013")
@@ -2749,7 +2763,7 @@ class TestADR0041GenesisCommitFailure:
         assert first.disposition is not HandlerDisposition.APPLIED
         (case,) = dl.list_objects("VulnerabilityCase")
         assert isinstance(case, VulnerabilityCase)
-        assert committed_event_types(dl, case.id_) == ["create_case"]
+        assert committed_semantic_types(dl, case.id_) == ["create_case"]
 
         result = _run_full_bt(make_payload, dl)
 
@@ -2758,8 +2772,58 @@ class TestADR0041GenesisCommitFailure:
         assert len(expected) > 1, expected
         entries = ledger_entries(dl, case.id_)
         assert [
-            (e.event_type, e.log_object_id) for e in entries[: len(expected)]
+            (e.semantic_type, e.log_object_id)
+            for e in entries[: len(expected)]
         ] == expected
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_seated_record_missing_from_the_store_stops_the_sequence(
+        self, make_payload, monkeypatch
+    ):
+        """A record the case seats but the store lacks has no entry to carry it.
+
+        No replica could learn of it, so the creation entries stop there and
+        the node fails, rather than skipping the record (CLP-07-013).
+        """
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.nodes import (
+            CommitNativeLedgerEntriesNode,
+            proposal_ledger,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        with monkeypatch.context() as patch:
+            fail_commits(patch, proposal_ledger)
+            _run_full_bt(make_payload, dl)
+        (case,) = dl.list_objects("VulnerabilityCase")
+        assert isinstance(case, VulnerabilityCase)
+        missing = str(_as_id(case.case_participants[0]))
+        dl.delete("CaseParticipant", missing)
+
+        # Every commit the node attempts succeeds without writing, so the
+        # only thing that can stop it is the missing record.
+        attempted: list[str] = []
+
+        def _accept(*_args, **kwargs):
+            attempted.append(kwargs["semantic_type"])
+            return py_trees.behaviours.Success(name="AcceptedCommit")
+
+        monkeypatch.setattr(
+            proposal_ledger, "create_commit_log_entry_tree", _accept
+        )
+        node = CommitNativeLedgerEntriesNode(
+            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
+        )
+        node.datalayer = dl
+        node.actor_id = _CASE_ACTOR_URI
+        node.trigger_activity_factory = TriggerActivityAdapter(dl)
+        node._case_id_bb = case.id_
+
+        assert node.update() == Status.FAILURE
+        assert missing in node.feedback_message
+        assert "create_case_participant" not in attempted
 
     def test_case_not_found_is_best_effort_success(self, make_payload):
         """case-not-found in the ledger node is best-effort SUCCESS."""
@@ -2850,15 +2914,18 @@ class TestCaseActorRMLifecycleBootstrap:
             "Bootstrap must include RM.ACCEPTED (CM-23-005, CM-23-006)"
         )
 
+    @pytest.mark.spec("CM-23-007")
+    @pytest.mark.spec("CLP-07-013")
     def test_bootstrap_statuses_produce_ledger_entries(self, make_payload):
         """Three RM transitions are represented in the canonical ledger.
 
-        CM-23-007: CaseActor MUST emit CaseLedgerEntry records for each of its
-        RM transitions (RM.RECEIVED, RM.VALID, RM.ACCEPTED) during
-        initialization.  CommitNativeLedgerEntriesNode iterates all
-        participant_statuses entries, including the CaseActor's three bootstrap
-        records.
+        CM-23-007: the CaseActor's RM.RECEIVED, RM.VALID and RM.ACCEPTED are
+        each in its ledger.  Its record is created carrying RECEIVED, its
+        first status, in its ``create_case_participant`` entry; VALID then
+        ACCEPTED follow as ``add_participant_status_to_participant`` entries
+        (CLP-07-013).
         """
+        from test.support.ledger import ledger_entries
         from vultron.core.states.rm import RM
 
         dl = SqliteDataLayer(
@@ -2867,39 +2934,29 @@ class TestCaseActorRMLifecycleBootstrap:
         )
         _seed_report(dl)
         _run_full_bt(make_payload, dl)
+        (case,) = dl.list_objects("VulnerabilityCase")
 
-        # Each CaseLedgerEntry for add_participant_status_to_participant has
-        # payload_snapshot["object"]["attributedTo"] = the actor URI and
-        # payload_snapshot["object"]["rmState"] for RM state.
-        entries = list(dl.list_objects("CaseLedgerEntry"))
-        case_actor_rm_states = set()
-        for entry in entries:
-            et = getattr(entry, "event_type", None)
-            if et != "add_participant_status_to_participant":
-                continue
-            snap = getattr(entry, "payload_snapshot", {}) or {}
-            obj = snap.get("object", {}) or {}
-            attributed = obj.get("attributedTo") or obj.get("attributed_to")
-            if attributed != _CASE_ACTOR_URI:
-                continue
-            rm_val = obj.get("rmState")
-            if rm_val is not None:
-                try:
-                    case_actor_rm_states.add(RM(rm_val))
-                except ValueError:
-                    pass
+        creation = _participant_creation_entry(dl, case.id_, _CASE_ACTOR_URI)
+        created_with = [
+            RM(status["rmState"])
+            for status in creation.payload_snapshot["object"][
+                "participantStatuses"
+            ]
+        ]
+        assert created_with == [RM.RECEIVED], (
+            "the CaseActor's record is created with RM.RECEIVED (CM-23-007)"
+        )
 
-        assert RM.RECEIVED in case_actor_rm_states, (
-            "Ledger must have add_participant_status entry for CaseActor"
-            " RM.RECEIVED (CM-23-007)"
-        )
-        assert RM.VALID in case_actor_rm_states, (
-            "Ledger must have add_participant_status entry for CaseActor"
-            " RM.VALID (CM-23-007)"
-        )
-        assert RM.ACCEPTED in case_actor_rm_states, (
-            "Ledger must have add_participant_status entry for CaseActor"
-            " RM.ACCEPTED (CM-23-007)"
+        later = [
+            RM(e.payload_snapshot["object"]["rmState"])
+            for e in ledger_entries(dl, case.id_)
+            if e.semantic_type == _ADD_STATUS
+            and e.payload_snapshot["object"].get("attributedTo")
+            == _CASE_ACTOR_URI
+        ]
+        assert later == [RM.VALID, RM.ACCEPTED], (
+            "the CaseActor's RM.VALID then RM.ACCEPTED are status entries"
+            " (CM-23-007)"
         )
 
     def test_bootstrap_statuses_idempotent_on_duplicate(self, make_payload):
@@ -3961,7 +4018,6 @@ class TestEP04SenderProposalAtCaseCreation:
         let the creation arm run: an orphan event, then the EM machine's
         refusal of ``EXITED → PROPOSED`` failed the tree before the Accept.
         """
-        from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
         from vultron.core.use_cases.received.case_proposal import (
             CreateCaseProposalReceivedUseCase,
         )
@@ -3971,11 +4027,8 @@ class TestEP04SenderProposalAtCaseCreation:
             make_payload, dl, sender_days=self._SENDER_END_DAYS
         )
         assert case.current_status.em.state == EM.ACTIVE
-        EmbargoLifecycle(persistence=dl).terminate_active_embargo(
-            termination=EmbargoTermination.early(),
-            case_id=case.id_,
-            actor_id=_VENDOR_URI,
-        )
+        terminate(case, EmbargoTermination.early())
+        dl.save(case)
         while dl.outbox_pop() is not None:
             pass
         events_before = {e.id_ for e in dl.list_objects("EmbargoEvent")}
@@ -4147,9 +4200,9 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
     ``Announce(CaseLedgerEntry)`` for a case it does not hold yet, enters the
     pre-genesis path (SYNC-15), sends a ``Reject``, and the CASE_MANAGER
     replays the whole ledger — while ``Create(VulnerabilityCase)`` waits at
-    the back of the queue.  That queue position is what timed out the fv and
-    fcv-reject replica gates (#3033) and congested the CaseActor outbox in
-    fcvcv (#2898).  CM-14-011's rationale states the rule: the reporter's
+    the back of the queue.  That queue position is what timed out the rv and
+    rcv-reject replica gates (#3033) and congested the CaseActor outbox in
+    rcvcv (#2898).  CM-14-011's rationale states the rule: the reporter's
     system must hold the case object before any fan-out that references it.
     """
     from vultron.adapters.driven.sync_activity_adapter import (

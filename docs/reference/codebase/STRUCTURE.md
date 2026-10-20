@@ -78,7 +78,7 @@ stakeholder_type: [project-contributor]
   - `docs-withheld` → `vultron.metadata.docs.withheld:main` (a withheld artifact produces no `site/` files), `docs-links` → `vultron.metadata.docs.links:main` (every internal reference in the built `site/` resolves), `docs-legacy-urls` → `vultron.metadata.docs.legacy_urls:main` (a URL the site once published still answers)
   - `demo-scenarios` → `vultron.metadata.demo_scenarios.sync:main`.
     `--write` regenerates the artifacts derived from the demo scenario registry.
-    `--check` verifies those, and also the consumers that are checked rather than generated: the `mkdocs.yml` nav, the `notes/` scenario tables (including their event-type columns, resolved from the invariant-harness constants), the `DEMOCI-06-002`/`-003` spec enumerations, and the register of scenarios that are specified but not yet built.
+    `--check` verifies those, and also the consumers that are checked rather than generated: the `mkdocs.yml` nav, the `notes/` scenario tables (including their semantic-type columns, resolved from the invariant-harness constants), the `DEMOCI-06-002`/`-003` spec enumerations, and the register of scenarios that are specified but not yet built.
     It also rejects a restated scenario count and a stray `include-markdown` directive.
   - `wire-context` → `vultron.metadata.wire_context.sync:main` (generates the normative JSON-LD `@context` from the wire vocabulary, VM-10-001)
   - `bundle-fit` → `vultron.metadata.planning.bundle_fit:main` (two-stage issue-bundle selection for the `propose-bundle` skill); `pr-size` → `vultron.metadata.planning.size_bands:main` (the `size:` label band table); `targeted-tests` → `vultron.metadata.planning.targeted_tests:main` (the post-first-push local test gate derived from the branch diff, the gate for the conflicted files after a conflict merge, and the base-overlap check, PAD-18)
@@ -112,7 +112,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
   The `as_` prefix marks a wire class only for unpaired AS2 vocabulary (e.g., `as_Activity`, `as_Link`); for the paired domain types, `as_VulnerabilityCase` and `VulnerabilityCase` are the same class (ADR-0099, ARCH-14-001).
 - **Domain abbreviation**: `vul` (not `vuln`) for vulnerability; `em` for embargo management; `rm` for report management; `cs` for case state
 - **Role enum**: `CvdRole.OBSERVER` (alias `O`, formerly `OTHER`) identifies monitoring participants, in `vultron/enums/roles.py` and `vultron/bt/roles/enums.py`
-- **Use-case naming**: trigger use cases are `Svc` + verb + noun + `UseCase` (e.g., `SvcCloseCaseUseCase`, `SvcEngageCaseUseCase`); received-message use cases end in `ReceivedUseCase` (e.g., `CreateReportReceivedUseCase`); see `vultron/core/AGENTS.md`
+- **Use-case naming**: trigger use cases are `Svc` + verb + noun + `UseCase` (e.g., `SvcLeaveCaseUseCase`, `SvcEngageCaseUseCase`); received-message use cases end in `ReceivedUseCase` (e.g., `CreateReportReceivedUseCase`); see `vultron/core/AGENTS.md`
 - **Directory organization**: by architectural layer (`core/`, `wire/`, `adapters/`) then by CVD domain area within layers
 - **Import conventions**: absolute `vultron.*` imports dominate; relative imports appear in some package `__init__.py` files and in the `datalayer_sqlite/` and `trigger_activity_adapter/` subpackages.
   Core must not import from adapters or wire, and split modules re-export from `__init__.py` (CS-18-003).

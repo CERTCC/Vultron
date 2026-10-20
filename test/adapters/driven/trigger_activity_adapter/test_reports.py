@@ -17,8 +17,10 @@ import json
 
 import pytest
 
+from test.support.received import archive_received
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.errors import VultronAlreadyExistsError
+from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -314,3 +316,88 @@ class TestSubmitReportProposedEmbargo:
                 target=_CASE_ID,
                 proposed_embargo_id=foreign.id_,
             )
+
+
+def _received_offer(dl) -> tuple[str, str]:
+    """Archive a finder's ``Offer(Report)`` as the receiver's intake keeps it.
+
+    Nothing is held under the Offer's own id (DL-06-006).  Returns
+    ``(offer_id, report_id)``.
+    """
+    report = as_VulnerabilityReport(name="CVE-2025-002", content="PoC")
+    offer = rm_submit_report_activity(
+        report=report, to=_COORDINATOR, actor=_ACTOR
+    )
+    archive_received(dl, offer)
+    assert dl.read(offer.id_) is None
+    return offer.id_, report.id_
+
+
+def _validate(adapter, offer_id, report_id):
+    return adapter.validate_report(
+        offer_id=offer_id, report_id=report_id, actor=_COORDINATOR
+    )
+
+
+def _close(adapter, offer_id, report_id):
+    return adapter.close_report(
+        offer_id=offer_id, report_id=report_id, actor=_COORDINATOR
+    )
+
+
+def _invalidate(adapter, offer_id, report_id):
+    return adapter.invalidate_report(offer_id=offer_id, actor=_COORDINATOR)
+
+
+def _ack(adapter, offer_id, report_id):
+    return adapter.ack_report(offer_id=offer_id, actor=_COORDINATOR)
+
+
+_REPLIES = [
+    pytest.param(_validate, "Accept", id="validate"),
+    pytest.param(_close, "Reject", id="close"),
+    pytest.param(_invalidate, "TentativeReject", id="invalidate"),
+    pytest.param(_ack, "Read", id="ack"),
+]
+
+
+class TestReplyToReceivedOffer:
+    """A reply reads the received Offer from its archive (DL-06-006)."""
+
+    @pytest.mark.spec("DL-06-006")
+    @pytest.mark.spec("DL-06-004")
+    @pytest.mark.parametrize(("reply", "verb"), _REPLIES)
+    def test_an_offer_held_only_as_received_is_answered(
+        self, adapter, dl, reply, verb
+    ):
+        offer_id, report_id = _received_offer(dl)
+
+        _, blob = reply(adapter, offer_id, report_id)
+
+        body = json.loads(blob)
+        assert body["type"] == verb
+        assert body["object"]["id"] == offer_id
+        assert body["object"]["object"]["id"] == report_id
+        assert dl.read(offer_id) is None
+
+    @pytest.mark.parametrize(("reply", "verb"), _REPLIES)
+    def test_with_no_offer_held_the_offer_record_rebuilds_it(
+        self, adapter, dl, reply, verb
+    ):
+        """No archive and no own copy: the Offer comes from its record."""
+        report = _make_report(dl)
+        offer_id = "https://example.org/activities/offer-known-by-record"
+        dl.create(
+            VultronOfferRecord(
+                offer_id=offer_id,
+                report_id=report.id_,
+                offer_actor_id=_ACTOR,
+                offer_to=[_COORDINATOR],
+            )
+        )
+
+        _, blob = reply(adapter, offer_id, report.id_)
+
+        body = json.loads(blob)
+        assert body["type"] == verb
+        assert body["object"]["object"]["id"] == report.id_

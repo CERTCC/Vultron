@@ -16,6 +16,7 @@ description: >
   (EP-09, ADR-0113); and who may send each embargo message (ADR-0115).
 related_specs:
   - specs/case-management.yaml
+  - specs/datalayer.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
   - specs/message-semantics-mapping.yaml
@@ -46,6 +47,7 @@ relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/states/embargo_register.py
   - vultron/core/models/embargo_register.py
+  - vultron/core/models/embargo_termination.py
   - vultron/core/services/embargo_lifecycle/
   - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
@@ -110,14 +112,23 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
 - **A termination records what and why (ADR-0122, EMB-13-004).** The what
   (`TerminationReason`: `END_TIME_REACHED` or `EARLY`) is the `Remove`'s
   `content`, parsed at the edge (`termination_reason_from_content()`); the why
-  is a structured cause (`vultron/core/models/embargo_termination.py`), so far
-  only `ThreatSignalCause` naming `P`/`X`/`A`. Both sit on the `TERMINATED`
+  is a structured cause (`vultron/core/models/embargo_termination.py`), a
+  union discriminated on `kind`: `THREAT_SIGNAL` (`P`/`X`/`A`), `FIX_READY`
+  (the quorum's vendors), `FIX_DEPLOYED` and `OTHER` (ADR-0122 rev 7). Both
+  sit on the `TERMINATED`
   entry as one `EmbargoTermination`, required there and refused elsewhere. The
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
   triggering status, or, when unknown at build time, the case's PXA at the
-  write. Never put the why on the `Remove`: a replica that replays it
-  records only the what (copying the why is #4748, held on #4609; a case
-  snapshot's `embargoRegister` already carries the entry, cause included).
+  write. The `Remove` carries the why as `terminationCause` (a field on the
+  base `as_Remove`, marked a Vultron property so `context.jsonld` names it),
+  checked at the parse edge (EMB-13-005), because a replica learns the why
+  only from the ledger entry: it copies the cause, never works it out from its
+  own PXA (`ApplyEmbargoTeardownNode`). Every `Remove` the CASE_MANAGER sends
+  passes the cause it records to `terminate_embargo(cause=...)`. An owner's
+  `Remove` may claim `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, recorded as
+  given; one naming `THREAT_SIGNAL` is refused before the commit
+  (`TerminationCauseIsAdmissibleNode`), since a threat signal arrives as a
+  case status update setting `P`, `X` or `A`.
   The CASE_MANAGER decides the termination first (`decide_termination()`),
   builds its `Remove` from that decision, commits it, and only then applies
   the step (#4714), so the wire and the entry cannot disagree. The CM-31-009
@@ -192,8 +203,11 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
   logic on replay, a **tracked deviation from CM-23-016 (#4789)**: it reads
   only the case file, so replicas still converge, but it evaluates EMB-04-002
   rather than copying. It is the only `_left_to_a_later_entry` override, and
-  `test/architecture/test_embargo_replica_slots_copy.py` keeps it the only one
-  until #4789 decides how the ledger records that `Reject`.
+  `test/architecture/test_embargo_replica_slots_copy.py` keeps it the only one.
+  The target design is decided (MSM-07-009): the CASE_MANAGER commits the
+  `Reject` carrying the `REJECT` step, then its own ET `Remove` carrying
+  `TERMINATE`, both trial-applied before either commits, so the revision ends
+  `REJECTED` and the replica copies both; #4850 builds it and removes the skip.
 
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
@@ -208,7 +222,7 @@ catch-up fetch or deferral, refuse instead.
   (`vultron/core/services/carried_embargo.py`) before saving the case; a case
   naming an unreadable embargo is refused and nothing is saved. An inline
   embargo whose `context` is not the carrying case is refused unstored, because
-  the inbox pre-store runs before trust checks and a first write wins.
+  a first write wins and a sender must not plant another case's embargo.
 - **Ledger replay.** Each embargo apply node stores the `EmbargoEvent` its entry
   carries before calling `EmbargoLifecycle`, and fails (blocking the persist,
   SYNC-12-001) when the entry names it by id only and the replica lacks it.
@@ -256,8 +270,9 @@ catch-up fetch or deferral, refuse instead.
   in `vultron/core/behaviors/embargo/refusal_tree.py`, CLP-10-026), never a
   refusal effect: refusal effects run only at the CASE_MANAGER and are skipped
   on a redelivery, and a participant owes the ER too and re-queues an ER
-  sealed but never queued (ID-04-005). It stores the Invite and its
-  `EmbargoEvent` first (the ER factory needs the proposal) and answers where
+  sealed but never queued (ID-04-005). It stores the Invite's `EmbargoEvent`
+  first; the ER factory reads the proposal from intake's archive, never a copy
+  under the sender's id (DL-06-006). It answers where
   any Invite answer goes: the CASE_MANAGER answers the proposer, a participant
   answers the CASE_MANAGER, never a peer (PCR-08-001). An Invite naming its
   terms by URI only is still answered (ADR-0123).
@@ -276,10 +291,10 @@ catch-up fetch or deferral, refuse instead.
 **A participant answers a revision on a P/X/A case with ER, never ET**
 (EMB-03-003, ADR-0118). Termination belongs to the owner, or to the
 CASE_MANAGER when delegated (EP-09-008); a participant's ET would write shared
-EM state it does not own. The duty binds only the addressee: every received
-embargo tree passes `addressee_check` to `create_receive_activity_tree`, whose
-`ActivityAddressedToReceiverNode` door guard refuses an unaddressed copy before
-anything answers it (HP-01-005, CLP-10-010).
+EM state it does not own. The duty binds only the addressee: the
+`ActivityAddressedToReceiverNode` door guard that `create_receive_activity_tree`
+places in every received tree refuses an unaddressed copy before anything
+answers it (HP-01-005, CLP-10-010).
 
 ## P/X/A Teardown
 
@@ -327,10 +342,17 @@ to each bound signatory the ledger no longer reaches (CM-31-009; see
    the entry's step or row (a `Leave` carries none), and every other row
    arrives as its own CASE_MANAGER entry (ADR-0124). The owner's-rejection
    slot's skip of a `Reject` answered with ET is the one tracked deviation
-   from copy-only (CM-23-016, #4789; see the P/X/A guards above). One path
+   from copy-only until #4850 (CM-23-016, MSM-07-009; see the P/X/A guards
+   above). One path
    still passes
    `transition_mode=TransitionMode.OBSERVED`: a paused replica applying a
    CM-31-010 notice, which is outside the ledger (`ending_notice_replica.py`).
+   Two checks hold this: `test/architecture/test_embargo_replica_slots_copy.py`
+   keeps every replica embargo slot, and every helper it reaches, free of
+   lifecycle calls, and every per-actor-store scenario and exchange demo is
+   rebuilt from the CASE_MANAGER's ledger into an empty store and compared
+   (`test/support/ledger_rebuild.py`). A test that writes the CASE_MANAGER's
+   store outside the ledger on purpose calls `LedgerNetwork.bypass_ledger()`.
 5. **Several proposals can be open; order is by expiration, not arrival** (EP-08,
    ADR-0100). Read the next section before touching proposal selection.
 6. **Read EM in an action node through `read_case_em_state()`** beside
@@ -449,9 +471,9 @@ cascade suppress each other (#4147).
 The declaration can arrive before the teardown entries, so
 `_DeclaredByCaseManagerNode` skips the branch when the status's sender holds
 CASE_MANAGER and is not the executing actor. It decides *who* tears down, not
-*whether* — it is not a sender-role authorization gate (RSH-03-002). For the
-same reason `PxaEmInvariantDiagnosticNode` posts no CSB-18 Note for such a
-status.
+*whether* — it is not a sender-role authorization gate (RSH-03-002). The
+CSB-18 diagnostic needs no such skip: `PxaEmInvariantDiagnosticNode` runs only
+at the CASE_MANAGER (#4829).
 
 **The P/X/A abandonment decides every open proposal (EMB-16-001).** The
 CASE_MANAGER commits one `Reject(Invite(EmbargoEvent))` per proposal under

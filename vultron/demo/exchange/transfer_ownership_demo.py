@@ -37,7 +37,7 @@ This corresponds to the workflow documented in:
 When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
-3. Discover actors (finder, vendor, coordinator) via the API
+3. Discover actors (reporter, vendor, coordinator) via the API
 4. Run the demo workflows (accept, reject and withdraw)
 5. Verify side effects in the data layer
 
@@ -46,7 +46,7 @@ The ``Offer(VulnerabilityCase)``, the response to it and its withdrawal are
 addressed to the **CaseActor's** inbox, never to the transferee or the offerer
 directly (CM-21-005, CM-21-006, CM-21-010, CM-21-015).  The CaseActor records
 the Offer, commits a ``CaseLedgerEntry``, broadcasts ``Announce(CaseLedgerEntry)`` to every
-participant — which is how actors outside the negotiation, such as the finder,
+participant — which is how actors outside the negotiation, such as the reporter,
 learn a transfer is pending — and only then forwards a **new** Offer of its own
 to the transferee.  The demo therefore discovers the forwarded Offer by its
 properties rather than by the original offer's id (EDF-06-004).
@@ -61,7 +61,7 @@ from vultron.core.models._helpers import from_now_utc
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import (
     wait_for_case_attributed_to,
-    wait_for_event_type_in_ledger,
+    wait_for_semantic_type_in_ledger,
 )
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import recipient_ids
@@ -79,6 +79,7 @@ from vultron.demo.utils import (
     logfmt,
     seed_peer,
     setup_demo_logging,
+    verify_received_activity_stored,
 )
 
 # Vultron imports
@@ -99,7 +100,7 @@ _VALIDATION_CONTENT = (
 
 def _setup_transfer_precondition(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> tuple[as_VulnerabilityCase, str]:
@@ -116,7 +117,7 @@ def _setup_transfer_precondition(
     """
     case, case_actor_id = setup_canonical_case(
         client,
-        finder,
+        reporter,
         vendor,
         report_name=_REPORT_NAME,
         report_content=_REPORT_CONTENT,
@@ -185,10 +186,10 @@ def _vendor_offers_ownership(
     )
     logger.info("Vendor offered ownership: %s", logfmt(offer))
     with demo_gate("Ownership offer recorded by the CaseActor (CM-21-005)"):
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=client,
             case_id=case.id_,
-            event_type="offer_case_ownership_transfer",
+            semantic_type="offer_case_ownership_transfer",
             dl_actor_id=case_actor_id,
         )
     return offer.id_
@@ -214,8 +215,8 @@ def _check_forward_carries_deadline(
     answer (CM-21-016).
     """
     with demo_check("Forwarded Offer carries the deadline to answer"):
-        forwarded = client.get(
-            client.dl_path(forwarded_offer_id, actor_id=coordinator.id_)
+        forwarded = verify_received_activity_stored(
+            client, forwarded_offer_id, actor_id=coordinator.id_
         )
         end_time = forwarded.get("endTime")
         if end_time is None or datetime.fromisoformat(end_time) != deadline:
@@ -271,7 +272,7 @@ def _initial_owner(
 
 def demo_transfer_ownership_accept(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -298,7 +299,7 @@ def demo_transfer_ownership_accept(
     logger.info("=" * 80)
 
     case, case_actor_id = _setup_transfer_precondition(
-        client, finder, vendor, coordinator
+        client, reporter, vendor, coordinator
     )
 
     # Confirm initial owner is vendor
@@ -361,7 +362,7 @@ def demo_transfer_ownership_accept(
 
 def demo_transfer_ownership_reject(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -387,7 +388,7 @@ def demo_transfer_ownership_reject(
     logger.info("=" * 80)
 
     case, case_actor_id = _setup_transfer_precondition(
-        client, finder, vendor, coordinator
+        client, reporter, vendor, coordinator
     )
 
     original_owner = _initial_owner(client, case, case_actor_id)
@@ -435,10 +436,10 @@ def demo_transfer_ownership_reject(
     with demo_gate(
         "CaseActor committed reject_case_ownership_transfer (CM-21-012)"
     ):
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=client,
             case_id=case.id_,
-            event_type="reject_case_ownership_transfer",
+            semantic_type="reject_case_ownership_transfer",
             dl_actor_id=case_actor_id,
         )
 
@@ -454,7 +455,7 @@ def demo_transfer_ownership_reject(
 
 def demo_transfer_ownership_withdraw(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
@@ -481,7 +482,7 @@ def demo_transfer_ownership_withdraw(
     logger.info("=" * 80)
 
     case, case_actor_id = _setup_transfer_precondition(
-        client, finder, vendor, coordinator
+        client, reporter, vendor, coordinator
     )
     original_owner = _initial_owner(client, case, case_actor_id)
 
@@ -530,10 +531,10 @@ def demo_transfer_ownership_withdraw(
     with demo_gate(
         "CaseActor committed undo_case_ownership_transfer (CM-21-015)"
     ):
-        wait_for_event_type_in_ledger(
+        wait_for_semantic_type_in_ledger(
             client=client,
             case_id=case.id_,
-            event_type="undo_case_ownership_transfer",
+            semantic_type="undo_case_ownership_transfer",
             dl_actor_id=case_actor_id,
         )
 

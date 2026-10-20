@@ -42,7 +42,7 @@ def _entry(index: int) -> CaseLedgerEntry:
             case_id=CASE,
             log_index=index,
             object_id=f"urn:test:activity-{index}",
-            event_type="add_note",
+            semantic_type="add_note",
             payload_snapshot={"log_index": index},
             prev_log_hash="0" * 64,
         )

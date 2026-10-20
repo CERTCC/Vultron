@@ -47,6 +47,19 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 
 
+def _addressed_activity(
+    type_: str, sender_id: str, receiver_id: str, case_id: str
+) -> VultronActivity:
+    """The Join/Ignore an event carries, addressed to its receiver (HP-01-005)."""
+    return VultronActivity(
+        type_=type_,
+        actor=sender_id,
+        to=[receiver_id],
+        object_=VulnerabilityCase(id_=case_id),
+        context=case_id,
+    )
+
+
 class TestEngageDeferCaseBTFailureReason:
     """Regression tests for BUG-471.6.
 
@@ -82,6 +95,9 @@ class TestEngageDeferCaseBTFailureReason:
             actor_id=actor_id,
             object_=CoreObject(id_=case_id),
             semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=_addressed_activity(
+                "Join", actor_id, self._CASE_MANAGER_ID, case_id
+            ),
         )
 
     def _defer_event(
@@ -92,6 +108,9 @@ class TestEngageDeferCaseBTFailureReason:
             actor_id=actor_id,
             object_=CoreObject(id_=case_id),
             semantic_type=MessageSemantics.DEFER_CASE,
+            activity=_addressed_activity(
+                "Ignore", actor_id, self._CASE_MANAGER_ID, case_id
+            ),
         )
 
     @pytest.mark.parametrize(
@@ -179,14 +198,14 @@ class TestEngageDeferCaseBTFailureReason:
         )
 
 
-class TestEngageCaseStoresEmbeddedParticipants:
-    """EngageCaseReceivedUseCase stores the participants a Join carries (#573).
+class TestEngageCaseStoresNoEmbeddedParticipants:
+    """EngageCaseReceivedUseCase stores no record a Join's snapshot carries.
 
-    When ``Join(VulnerabilityCase)`` arrives with inline participant objects,
-    those objects are persisted as independent DataLayer records, matching
-    the Create (#564) and Announce (#566) paths, but only once the sender
-    guard has admitted the sender: a stranger's Engage stores nothing
-    (HP-01-006, #4696).
+    ``Join(VulnerabilityCase)`` goes to the CASE_MANAGER, which already holds
+    every record the snapshot names.  A participant's view of them is no
+    ledger entry, so storing it would change the case file with nothing a
+    replica can copy (CLP-07-013, CM-23-016).  A stranger's Engage stores
+    nothing either (HP-01-006, #4696).
     """
 
     # The received-side tree executes under the case manager
@@ -250,6 +269,9 @@ class TestEngageCaseStoresEmbeddedParticipants:
             actor_id=self._ACTOR_ID,
             object_=case_with_inline_participant,
             semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=_addressed_activity(
+                "Join", self._ACTOR_ID, self._CASE_MANAGER_ID, self._CASE_ID
+            ),
         )
 
     def _execute(self, dl, event):
@@ -261,18 +283,14 @@ class TestEngageCaseStoresEmbeddedParticipants:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-    def test_inline_participants_stored_once_the_sender_is_admitted(
+    @pytest.mark.spec("CLP-07-013")
+    def test_an_admitted_senders_snapshot_records_are_not_stored(
         self, dl_holding_the_sender, engage_event_with_inline_case
     ):
-        """An admitted sender's snapshot participants are stored (#573)."""
+        """Only the records the case file already holds stay; none is added."""
         self._execute(dl_holding_the_sender, engage_event_with_inline_case)
 
-        stored = dl_holding_the_sender.read(self._OTHER_PARTICIPANT_ID)
-        assert stored is not None, (
-            "CaseParticipant embedded in Join(VulnerabilityCase) must be "
-            "stored as an independent DataLayer record once the sender is "
-            "admitted (EngageCaseReceivedUseCase regression #573)"
-        )
+        assert dl_holding_the_sender.read(self._OTHER_PARTICIPANT_ID) is None
 
     @pytest.mark.spec("HP-01-006")
     def test_a_refused_senders_snapshot_stores_nothing(
@@ -303,6 +321,9 @@ class TestEngageCaseStoresEmbeddedParticipants:
             actor_id=self._ACTOR_ID,
             object_=case_str_participants,
             semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=_addressed_activity(
+                "Join", self._ACTOR_ID, self._CASE_MANAGER_ID, self._CASE_ID
+            ),
         )
         self._execute(dl, event)
 
@@ -331,6 +352,9 @@ class TestEngageCaseStoresEmbeddedParticipants:
             actor_id=self._ACTOR_ID,
             object_=case_with_inline_participant,
             semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=_addressed_activity(
+                "Join", self._ACTOR_ID, self._CASE_MANAGER_ID, self._CASE_ID
+            ),
         )
 
         result = self._execute(dl, event)
@@ -434,6 +458,7 @@ class TestEngageCaseLedgerCommit:
             activity=VultronActivity(
                 type_="Join",
                 actor=self._SENDER_ID,
+                to=[self._CASE_MANAGER_ID],
                 object_=VulnerabilityCase(id_=self._CASE_ID),
                 context=self._CASE_ID,
             ),
@@ -464,7 +489,8 @@ class TestEngageCaseLedgerCommit:
         engage_entries = [
             e
             for e in entries
-            if isinstance(e, CaseLedgerEntry) and e.event_type == "engage_case"
+            if isinstance(e, CaseLedgerEntry)
+            and e.semantic_type == "engage_case"
         ]
         assert len(engage_entries) == 1, (
             "Expected exactly one 'engage_case' ledger entry when "
@@ -566,8 +592,17 @@ class TestEngageCaseLedgerCommit:
         dl = self._seed(
             SqliteDataLayer("sqlite:///:memory:", actor_id=finder_id)
         )
-        event = self._engage_event().model_copy(
-            update={"receiving_actor_id": finder_id}
+        event = self._engage_event()
+        assert event.activity is not None
+        # Addressed to the finder too, so the run reaches the role gate this
+        # test exercises rather than stopping at the door (HP-01-005).
+        event = event.model_copy(
+            update={
+                "receiving_actor_id": finder_id,
+                "activity": event.activity.model_copy(
+                    update={"to": [self._CASE_MANAGER_ID, finder_id]}
+                ),
+            }
         )
 
         EngageCaseReceivedUseCase(
@@ -600,9 +635,10 @@ class TestEngageCaseLedgerCommit:
             sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
 
+        # The act, then the status it wrote as its own entry (CLP-07-013).
         assert [
-            e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
-        ] == ["engage_case"]
+            e.semantic_type for e in seeded_dl.list_objects("CaseLedgerEntry")
+        ] == ["engage_case", "add_participant_status_to_participant"]
 
     def test_engage_case_transitions_vendor_rm_to_accepted(self, seeded_dl):
         """EngageCaseReceivedUseCase still transitions the engaging actor's RM to ACCEPTED.
@@ -703,6 +739,7 @@ class TestDeferCaseLedgerCommit:
             activity=VultronActivity(
                 type_="Ignore",
                 actor=self._SENDER_ID,
+                to=[self._CASE_MANAGER_ID],
                 object_=VulnerabilityCase(id_=self._CASE_ID),
                 context=self._CASE_ID,
             ),
@@ -724,9 +761,10 @@ class TestDeferCaseLedgerCommit:
             sync_port=SyncActivityAdapter(seeded_dl),
         ).execute()
 
+        # The act, then the status it wrote as its own entry (CLP-07-013).
         assert [
-            e.event_type for e in seeded_dl.list_objects("CaseLedgerEntry")
-        ] == ["defer_case"]
+            e.semantic_type for e in seeded_dl.list_objects("CaseLedgerEntry")
+        ] == ["defer_case", "add_participant_status_to_participant"]
 
     def test_defer_case_commits_ledger_entry_when_receiving_actor_is_case_manager(
         self, seeded_dl
@@ -752,7 +790,8 @@ class TestDeferCaseLedgerCommit:
         defer_entries = [
             e
             for e in entries
-            if isinstance(e, CaseLedgerEntry) and e.event_type == "defer_case"
+            if isinstance(e, CaseLedgerEntry)
+            and e.semantic_type == "defer_case"
         ]
         assert len(defer_entries) == 1, (
             "Expected exactly one 'defer_case' ledger entry when "

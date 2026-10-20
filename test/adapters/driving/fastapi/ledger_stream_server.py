@@ -74,5 +74,5 @@ def make_seeded_app() -> FastAPI:
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
     app = build_app(dl)
     for i in range(SEEDED_ENTRIES):
-        save_ledger_entry(dl, CASE_ID, i, event_type=f"seeded_{i}")
+        save_ledger_entry(dl, CASE_ID, i, semantic_type=f"seeded_{i}")
     return app

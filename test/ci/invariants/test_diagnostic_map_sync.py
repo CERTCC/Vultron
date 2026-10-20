@@ -91,9 +91,9 @@ _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 #: The harness constants whose ``pytest.param`` entries become per-case
 #: parametrization of the universal invariants (``_CHAIN_ACTORS``,
-#: ``_FV_EXPECTED_EVENT_TYPES``, ...).
+#: ``_RV_EXPECTED_SEMANTIC_TYPES``, ...).
 _PARAM_CONSTANT_RE = re.compile(
-    r"^_(CHAIN_ACTORS|[A-Z0-9_]+_EXPECTED_EVENT_TYPES)$"
+    r"^_(CHAIN_ACTORS|[A-Z0-9_]+_EXPECTED_SEMANTIC_TYPES)$"
 )
 
 
@@ -127,8 +127,8 @@ def _factory_markers() -> tuple[Mapping[str, str | None], Mapping[str, str]]:
     tests = make_universal_invariant_tests(
         replicas_fixture="_unused_replicas",
         chain_actors=["case-actor"],
-        expected_event_types=["validate_report"],
-        narrative_path="docs/topics/scenarios/fv.md",
+        expected_semantic_types=["validate_report"],
+        narrative_path="docs/topics/scenarios/rv.md",
     )
     invariants: dict[str, str | None] = {}
     unrepresentable: dict[str, str] = {}
@@ -451,7 +451,7 @@ def test_no_param_level_marks_on_factory_arguments(
     """Ratchet state lives on the factory's closures, never on a param entry.
 
     The universal invariants are parametrized over each harness's
-    ``_CHAIN_ACTORS`` and ``_<SCENARIO>_EXPECTED_EVENT_TYPES`` lists.  A
+    ``_CHAIN_ACTORS`` and ``_<SCENARIO>_EXPECTED_SEMANTIC_TYPES`` lists.  A
     ``pytest.param(..., marks=pytest.mark.xfail(...))`` entry in either list
     xfails *some cases* of an invariant the diagnostic map calls ``active``,
     and none of the assertions above can see it: the marker rides on the
@@ -459,7 +459,7 @@ def test_no_param_level_marks_on_factory_arguments(
 
     That is not hypothetical drift — it is the drift the retired table in
     ``test/ci/README-case-log-ratchet.md`` recorded as "✅ case-actor,
-    ✅ vendor, ⏳ finder" for invariants 12 and 13.  The map has one Status
+    ✅ vendor, ⏳ reporter" for invariants 12 and 13.  The map has one Status
     cell per invariant and so cannot express a per-actor state; rather than let
     it under-report, the per-param form is rejected here.
 
@@ -500,5 +500,5 @@ def test_no_param_level_marks_on_factory_arguments(
         "per invariant, read off the factory's own markers, so a per-param "
         "mark makes that table silently wrong for the cases it covers. Put "
         "the xfail on the invariant in universal_harness.py and update the "
-        "map, or make the check itself tolerate this actor or event type."
+        "map, or make the check itself tolerate this actor or semantic type."
     )

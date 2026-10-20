@@ -35,6 +35,7 @@ from test.conftest import seed_case_owner_participant
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
+    propose,
     write_consent_rows,
 )
 from test.support.received import archive_received
@@ -50,6 +51,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.models.use_case_result import RoleOfferResult
+from vultron.core.states.em import EM
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
@@ -210,6 +212,31 @@ def _activate_embargo(
     return embargo.id_
 
 
+def _open_revision(dl: SqliteDataLayer, case_id: str) -> str:
+    """Open a revision of *case_id*'s embargo in force (EM ``REVISE``).
+
+    The prior embargo stays in force and every signatory to it remains one
+    (EP-05-002).  Returns the revision's id.
+    """
+    from datetime import datetime
+
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    revision = as_EmbargoEvent(
+        id_=f"{case_id}/embargo/e2",
+        content="Revised embargo",
+        end_time=datetime(2031, 1, 1, tzinfo=UTC),
+        context=case_id,
+    )
+    dl.create(revision)
+    case = cast(Any, dl.read(case_id))
+    propose(case, revision.id_)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    assert case.em_state == EM.REVISE
+    return revision.id_
+
+
 class _OwnerDirectInvite:
     """The owner's trigger, then the CASE_MANAGER's receipt of its Offer.
 
@@ -219,7 +246,11 @@ class _OwnerDirectInvite:
     harness runs both halves against two stores so a test can inspect either.
     """
 
-    def __init__(self, with_active_embargo: bool = False) -> None:
+    def __init__(
+        self,
+        with_active_embargo: bool = False,
+        with_open_revision: bool = False,
+    ) -> None:
         self.owner, self.owner_dl = _make_actor_dl("CaseOwner")
         self.manager, self.manager_dl = _make_actor_dl("CaseManager")
         self.invitee, _ = _make_actor_dl("Invitee")
@@ -229,8 +260,12 @@ class _OwnerDirectInvite:
         self.case = _shared_case_with_case_manager(
             self.owner.id_, self.manager.id_, self.owner_dl, self.manager_dl
         )
-        if with_active_embargo:
-            _activate_embargo(self.manager_dl, self.case.id_, self.owner.id_)
+        if with_active_embargo or with_open_revision:
+            self.embargo_id = _activate_embargo(
+                self.manager_dl, self.case.id_, self.owner.id_
+            )
+        if with_open_revision:
+            _open_revision(self.manager_dl, self.case.id_)
 
     def trigger(self, roles: list[CVDRole] | None = None) -> dict[str, Any]:
         """Run the owner's trigger; return the activity it captured."""
@@ -619,6 +654,27 @@ class TestInviteRolesAndEmbargoEnrichment:
         )
 
     @pytest.mark.spec("CM-17-002")
+    def test_revise_stub_carries_the_embargo_in_force(self, make_payload):
+        """In EM REVISE the stub carries the prior embargo and emState=REVISE.
+
+        The prior embargo stays in force while the revision is open
+        (EP-05-002), and accepting the stub signs it (CM-11-001), so the
+        invitee must see its terms; the revision is relayed after joining
+        (EP-09-011).
+        """
+        harness = _OwnerDirectInvite(with_open_revision=True)
+
+        _invite, wire = harness.invite(make_payload, roles=[CVDRole.VENDOR])
+
+        target = wire.get("target", {})
+        active_embargo = target.get("activeEmbargo")
+        assert isinstance(active_embargo, dict), (
+            "activeEmbargo must be a full embargo object (CM-17-002)"
+        )
+        assert active_embargo.get("id") == harness.embargo_id
+        assert target.get("caseStatus", {}).get("emState") == EM.REVISE.value
+
+    @pytest.mark.spec("CM-17-002")
     def test_no_embargo_fields_when_not_active(self, make_payload):
         harness = _OwnerDirectInvite()
 
@@ -758,7 +814,7 @@ class TestInviteRetrySendsOnce:
             e
             for e in harness.manager_dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
-            and e.event_type == "invite_actor_to_case"
+            and e.semantic_type == "invite_actor_to_case"
         ]
 
     @staticmethod
@@ -790,7 +846,7 @@ class TestInviteRetrySendsOnce:
             failed = fail_commits(
                 mp,
                 commit_tree,
-                when=lambda kw: kw["event_type"] == "invite_actor_to_case",
+                when=lambda kw: kw["semantic_type"] == "invite_actor_to_case",
             )
             # The Invite is queued, so the failed commit escapes rather than
             # failing the tree into another arm (BT-14-001).
@@ -907,7 +963,7 @@ class TestSvcSuggestActorToCaseUseCase:
         it was wrong for the same reason: the whole point of a recommendation is
         to name an actor the case does not have yet, and under per-actor storage
         that actor's record lives in *its* store (ADR-0073#peer-records-in-knowers-store). The old
-        behaviour refused every genuinely remote candidate — in the fcvcv demo,
+        behaviour refused every genuinely remote candidate — in the rcvcv demo,
         ``suggest-actor-to-case`` answered ``404 Actor '…/vendor-deployer' not
         found`` for a vendor that was running and reachable in another container
         (#2548).
@@ -1290,11 +1346,13 @@ class TestSvcAcceptActorRecommendationUseCase:
         vendor = as_Service(id_=vendor_id, name="Vendor")
         offer = offer_case_participant_activity(
             recommended=vendor,
+            target="https://example.org/cases/recommendation",
             actor=case_actor_id,
             to=["http://owner:7999/api/v2/actors/owner"],
         )
-        dl.create(cast(as_CaseParticipant, offer.object_))
-        dl.create(offer)
+        # Held as intake archived it, participant inline, never under the
+        # sender's id (DL-06-006).
+        archive_received(dl, offer)
         return offer
 
     def test_accept_creates_accept_activity(self):
@@ -1444,7 +1502,8 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         assert activity_data["type"] == "Offer"
         assert activity_data["actor"] == owner.id_
         assert activity_data.get("to") == [case_actor.id_]
-        assert activity_data.get("target") == transferee.id_
+        # The transferee travels inline (DL-08-003, CLP-07-006, #4843).
+        assert activity_data["target"]["id"] == transferee.id_
         assert "attributedTo" not in activity_data
         assert "cc" not in activity_data
         # Only the CASE_MANAGER's forward links to a recorded Offer
@@ -1717,13 +1776,16 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             actor=owner_id,
             to=[transferee_id],
         )
-        dl.create(offer)
+        # Held as intake archived it, never under the sender's id (DL-06-006).
+        archive_received(dl, offer)
         return offer
 
+    @pytest.mark.spec("DL-06-006")
     def test_accept_creates_activity(self):
         # The *transferee* accepts, so the store is the transferee's own: it is
         # the actor that received the Offer, and the store an execution runs
-        # against is the executing actor's (ADR-0073, DL-07-009).
+        # against is the executing actor's (ADR-0073, DL-07-009).  It holds
+        # the Offer only as intake archived it (DL-06-006).
         owner, _ = _make_actor_dl("Vendor")
         transferee, dl = _make_actor_dl("Coordinator")
         dl.create(owner)
@@ -1732,6 +1794,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         )
         dl.create(case)
         offer = self._make_ownership_offer(dl, owner.id_, transferee.id_, case)
+        assert dl.read(offer.id_) is None
 
         from vultron.core.use_cases.triggers.actor import (
             SvcAcceptCaseOwnershipTransferUseCase,
@@ -1756,6 +1819,8 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         activity_data = activity_of(result)
         assert activity_data["type"] == "Accept"
         assert activity_data["actor"] == transferee.id_
+        assert activity_data["object"]["id"] == offer.id_
+        assert activity_data["object"]["object"]["id"] == case.id_
 
     def test_accept_persisted_in_datalayer(self):
         # The transferee's own store, for the reason given in
@@ -1851,8 +1916,8 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         """VultronNotFoundError raised when the Offer names no case.
 
         ``_prepare`` accepts either shape of stored offer — the SYNC replica's
-        ``VultronOwnershipTransferOfferRecord`` (case URI in ``case_id``) or the
-        HTTP-inbox path's wire Offer activity (case in ``object_``) — and raises
+        ``VultronOwnershipTransferOfferRecord`` (case URI in ``case_id``) or an
+        Offer activity, archived or the actor's own (case in ``object_``) — and raises
         only when neither yields an id.  Both attributes must therefore be
         cleared on the mock; a bare ``MagicMock`` would auto-create a truthy
         ``case_id`` and silently satisfy the guard.

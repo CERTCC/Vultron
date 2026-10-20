@@ -199,14 +199,14 @@ class TestVocabParticipantExamples(unittest.TestCase):
     def test_accept_actor_recommendation(self):
         activity = examples.accept_actor_recommendation()
         self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
+        case_actor = examples.case_actor()
         case = examples.case()
         finder = examples.finder()
 
         self.assertIsInstance(activity, as_Accept)
         self.assertEqual(activity.type_, "Accept")
 
-        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.actor, case_actor.id_)
         self.assertEqual(activity.context, case.id_)
 
         self.assertIsInstance(activity.object_, _RecommendActorActivity)
@@ -216,14 +216,14 @@ class TestVocabParticipantExamples(unittest.TestCase):
     def test_reject_actor_recommendation(self):
         activity = examples.reject_actor_recommendation()
         self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
+        case_actor = examples.case_actor()
         case = examples.case()
         finder = examples.finder()
 
         self.assertIsInstance(activity, as_Reject)
         self.assertEqual(activity.type_, "Reject")
 
-        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.actor, case_actor.id_)
         self.assertEqual(activity.context, case.id_)
 
         self.assertIsInstance(activity.object_, _RecommendActorActivity)

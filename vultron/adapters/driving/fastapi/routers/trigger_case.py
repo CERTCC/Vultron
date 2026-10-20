@@ -41,6 +41,7 @@ from vultron.core.use_cases.triggers.request_bodies import (
     AddReportToCaseRequest,
     CaseTriggerRequest,
     CreateCaseRequest,
+    LeaveCaseRequest,
 )
 from vultron.core.use_cases.triggers.requests import (
     AddObjectToCaseTriggerRequest,
@@ -49,6 +50,7 @@ from vultron.core.use_cases.triggers.requests import (
     CreateCaseTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
+    LeaveCaseTriggerRequest,
 )
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
@@ -61,7 +63,8 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
     description=(
         "Triggers the engage-case behavior for the given actor. "
         "Emits a Join(VulnerabilityCase) activity (RmEngageCaseActivity), "
-        "transitions the actor's RM state to ACCEPTED in the case, "
+        "addressed to the CASE_MANAGER, which records the actor's RM "
+        "ACCEPTED; the actor's replica copies that status from the ledger, "
         "and returns the activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_engage_case",
@@ -96,7 +99,8 @@ def trigger_engage_case(
     description=(
         "Triggers the defer-case behavior for the given actor. "
         "Emits an Ignore(VulnerabilityCase) activity (RmDeferCaseActivity), "
-        "transitions the actor's RM state to DEFERRED in the case, "
+        "addressed to the CASE_MANAGER, which records the actor's RM "
+        "DEFERRED; the actor's replica copies that status from the ledger, "
         "and returns the activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_defer_case",
@@ -118,6 +122,50 @@ def trigger_defer_case(
     """
     return run_trigger(
         DeferCaseTriggerRequest(actor_id=actor_id, case_id=body.case_id),
+        dispatcher=dispatcher,
+        dl=actor_dl,
+        background_tasks=background_tasks,
+    )
+
+
+@router.post(
+    "/{actor_id}/trigger/leave-case",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Leave a case.",
+    description=(
+        "Triggers the leave-case behavior for the given actor, which any "
+        "participant of the case may call (TRIG-13-001). Runs the actor's "
+        "PreCloseAction call-out, then queues a Leave(VulnerabilityCase) "
+        "activity addressed to the case's CASE_MANAGER alone, and returns "
+        "it in the response body (TRIG-04-001). The CASE_MANAGER decides "
+        "what the Leave means: the Case Owner's Leave closes the case, and "
+        "any other participant departs while the case stays open "
+        "(CM-23-002, CM-23-003). Returns HTTP 409 and queues nothing when "
+        "the caller is the Case Owner and its replica records an active "
+        "embargo: terminate the embargo first (TRIG-13-003). Returns HTTP "
+        "422 and queues nothing when the PreCloseAction call-out fails "
+        "(TRIG-13-002)."
+    ),
+    operation_id="actors_trigger_leave_case",
+    response_model=ActivityResult,
+)
+def trigger_leave_case(
+    actor_id: str,
+    body: LeaveCaseRequest,
+    background_tasks: BackgroundTasks,
+    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
+    actor_dl: DataLayer = Depends(get_trigger_dl),
+) -> ActivityResult:
+    """
+    Trigger the leave-case behavior for the given actor.
+
+    Implements:
+        TRIG-13-001, TRIG-13-002, TRIG-13-003, TRIG-01-001, TRIG-01-002,
+        HTTP-03-005, TRIG-02-004, TRIG-03-001, TRIG-03-002, TRIG-04-001,
+        TRIG-06-001, TRIG-06-002, TRIG-07-001, TRIG-12-001
+    """
+    return run_trigger(
+        LeaveCaseTriggerRequest(actor_id=actor_id, case_id=body.case_id),
         dispatcher=dispatcher,
         dl=actor_dl,
         background_tasks=background_tasks,

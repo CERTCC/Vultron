@@ -40,6 +40,10 @@ from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.predicates.addressing import (
+    same_actor_id,
+    snapshot_actor_id,
+)
 from vultron.errors import (
     VultronBTInternalError,
     VultronCanonicalEntryError,
@@ -124,20 +128,29 @@ def _snapshot_object_id(payload_snapshot: dict[str, Any]) -> str | None:
 
 
 def _assert_actor_identity(
-    event_type: str, payload_snapshot: dict[str, Any], activity: Any
+    semantic_type: str, payload_snapshot: dict[str, Any], activity: Any
 ) -> None:
-    """CLP-07-003: payloadSnapshot.actor MUST equal the inbound activity's actor_id."""
+    """CLP-07-003: payloadSnapshot.actor MUST name the inbound activity's actor.
+
+    The snapshot keeps the sender's spelling while the event's ``actor_id``
+    is normalised (OID-01-006), so the two are compared with
+    :func:`same_actor_id`: a trailing slash is not a substitution.
+    """
     activity_actor_id = getattr(activity, "actor_id", None)
-    snapshot_actor = (
-        payload_snapshot.get("actor") if payload_snapshot else None
-    )
+    raw_actor = payload_snapshot.get("actor") if payload_snapshot else None
+    # An actor that names no id (not a string, an inline object without
+    # one) cannot be shown to be the sender, so it is refused too.
+    snapshot_actor = snapshot_actor_id(raw_actor)
     if (
         activity_actor_id
-        and snapshot_actor
-        and snapshot_actor != activity_actor_id
+        and raw_actor
+        and (
+            snapshot_actor is None
+            or not same_actor_id(snapshot_actor, activity_actor_id)
+        )
     ):
         raise VultronCanonicalEntryError(
-            f"{event_type}: CLP-07-003 — payloadSnapshot.actor"
+            f"{semantic_type}: CLP-07-003 — payloadSnapshot.actor"
             f" {snapshot_actor!r} does not match activity.actor_id"
             f" {activity_actor_id!r}; identity substitution refused"
         )
@@ -161,7 +174,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     If ``case_id`` cannot be resolved, the node returns ``FAILURE`` so the
     enclosing BT sequence propagates the error (ARCH-15-001).
 
-    ``event_type`` and ``object_id`` are derived from the ``activity``
+    ``semantic_type`` and ``object_id`` are derived from the ``activity``
     blackboard key (the inbound :class:`~vultron.core.models.events.base.VultronEvent`
     placed there by :class:`~vultron.core.behaviors.bridge.BTBridge`).
 
@@ -290,17 +303,17 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             return case_id, "case_event", {}
 
         object_id = getattr(activity, "activity_id", case_id)
-        semantic_type = getattr(activity, "semantic_type", None)
-        event_type = (
-            semantic_type.value
-            if semantic_type is not None
+        semantics = getattr(activity, "semantic_type", None)
+        semantic_type = (
+            semantics.value
+            if semantics is not None
             else getattr(activity, "activity_type", "case_event")
             or "case_event"
         )
         payload_snapshot = _extract_payload_snapshot(
             activity, self.datalayer, self._require_wire_render_port()
         )
-        return object_id, event_type, payload_snapshot
+        return object_id, semantic_type, payload_snapshot
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -325,7 +338,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        object_id, event_type, payload_snapshot = self._activity_metadata(
+        object_id, semantic_type, payload_snapshot = self._activity_metadata(
             activity, case_id
         )
 
@@ -362,12 +375,12 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
                     case_id,
                 )
 
-        _assert_actor_identity(event_type, payload_snapshot, activity)
+        _assert_actor_identity(semantic_type, payload_snapshot, activity)
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,
             object_id=object_id,
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=payload_snapshot,
         )
         result = BTBridge(
@@ -388,7 +401,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             self.logger.info(
                 "%s: committed log entry '%s' for case '%s'",
                 self.name,
-                event_type,
+                semantic_type,
                 case_id,
             )
             return Status.SUCCESS

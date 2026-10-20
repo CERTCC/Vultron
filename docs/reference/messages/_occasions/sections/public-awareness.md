@@ -1,13 +1,13 @@
 <!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
 
-## Public Awareness (CP) { #public-awareness }
+## Public awareness in a case status { #public-awareness }
 
 Announces evidence that the vulnerability is known to the public.
 
 - **When…** a Participant learns that the public knows of the vulnerability
 - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
 - **Send to:** the case manager
-- **Sent by:** not yet checked
+- **Sent by:** a participant
 - **Distinguished by:** `pxaState` = `Pxa`
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [Public Awareness (CP)](../../../formal_protocol/messages.md#cs-message-types)

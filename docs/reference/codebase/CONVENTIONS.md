@@ -13,7 +13,7 @@ stakeholder_type: [project-contributor]
 | Python modules | `snake_case.py`; leading `_` for package-private modules | `datalayer.py`, `bt_node.py`, `_routes.py` | Any source file in `vultron/` |
 | Classes | `PascalCase` | `VulnerabilityCase`, `SqliteDataLayer` | `vultron/core/models/case.py` |
 | Wire-layer AS2 vocab classes | `as_` prefix + `PascalCase` for unpaired AS2 vocabulary; for paired domain types the `as_` name is an alias of the core class (ADR-0099, ARCH-14-001) | `as_Activity`, `as_Link`; `as_VulnerabilityCase is VulnerabilityCase` | `vultron/wire/as2/vocab/objects/`, `vultron/wire/as2/AGENTS.md` |
-| Trigger use-case classes | `Svc` + verb + noun + `UseCase` | `SvcCloseCaseUseCase`, `SvcEngageCaseUseCase` | `vultron/core/use_cases/triggers/` |
+| Trigger use-case classes | `Svc` + verb + noun + `UseCase` | `SvcLeaveCaseUseCase`, `SvcEngageCaseUseCase` | `vultron/core/use_cases/triggers/` |
 | Received use-case classes | verb/noun + `ReceivedUseCase` suffix | `CreateReportReceivedUseCase` | `vultron/core/use_cases/received/`, `vultron/core/AGENTS.md` |
 | Trigger request models | noun + `TriggerRequest` suffix; HTTP body models without `actor_id` in `request_bodies.py` | `AcceptCaseInviteTriggerRequest` | `vultron/core/use_cases/triggers/requests.py`, `vultron/core/use_cases/triggers/request_bodies.py` |
 | Trigger functions (non-class) | `_trigger` suffix, never an `svc_` prefix | `replay_missing_entries_trigger()` | `vultron/core/use_cases/triggers/sync.py`, `vultron/core/AGENTS.md` |
@@ -93,7 +93,7 @@ stakeholder_type: [project-contributor]
   Everything under `test/demo/` is marked by a `test/demo/conftest.py` collection hook, not by `pytestmark`.
 - **Other registered markers** (`pyproject.toml` `[tool.pytest.ini_options].markers`): `case_ledger_invariants` (require `devlogs/` JSONL artifacts; skip when absent), `executes_as(actor_id)` (actor identity the test's BT runs under; opens that actor's store per ADR-0073), `spec_corpus` (tests that load real `specs/` YAML; gated on `specs/**` changes via `spec-check.yml`)
 - **Warnings are errors**: `filterwarnings = ["error", ...]`, with the two spec-gate warnings exempted by `always::` entries placed after `"error"`
-- **Per-test timeout**: `pytest-timeout` unit tier is 30 s (raised from 5 s in #2270; `timeout_method = "thread"`), integration tier 60 s (`INTEGRATION_TIMEOUT_SECONDS` in `test/conftest.py`)
+- **Per-test timeout**: `pytest-timeout` unit tier is 30 s (raised from 5 s in #2270; `timeout_method = "signal"`, so a trip fails only that test), integration tier 60 s (`INTEGRATION_TIMEOUT_SECONDS` in `test/conftest.py`)
 - **Registry isolation**: tests that define a local `CoreObject`/`CoreRecord` subclass request the `isolated_core_registries` fixture (TB-06-003, TB-06-004)
 - **Mocking strategy**: real `sqlite:///:memory:` database (no DB mocking); `test/conftest.py` sets the env var before any `vultron` import
 - **Coverage expectation**: [TODO] — no coverage tool configured in `pyproject.toml`; CI does not report coverage percentage

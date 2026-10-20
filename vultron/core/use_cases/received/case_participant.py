@@ -43,6 +43,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
+from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
@@ -109,10 +110,15 @@ class _CaseOwnerParticipantMoveUseCase[
         self._request: MoveEvent = request
 
     def _claimed_actor_id(self) -> str | None:
-        """The actor the inline participant names, when it names one."""
+        """The actor the inline participant names, when it names one.
+
+        Normalised where it is extracted (OID-01-006): it is compared with
+        the stored record's actor, which is written without a trailing slash.
+        """
         participant = self._request.participant
         if isinstance(participant, CaseParticipant):
-            return _as_id(participant.attributed_to)
+            claimed = _as_id(participant.attributed_to)
+            return normalise_actor_id(claimed) if claimed else None
         return None
 
     def _build_tree(

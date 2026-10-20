@@ -52,8 +52,8 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.embargo_consent_move import consent_row_move
 from vultron.core.models.rsvp_deadline import (
-    HONOUR_LATE_ACCEPT_EVENT_TYPE,
-    INVITE_EXPIRED_EVENT_TYPE,
+    HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
+    INVITE_EXPIRED_SEMANTIC_TYPE,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
@@ -70,7 +70,7 @@ class _CommitActThenConsentRowNode(
        a row the trigger does not move changes nothing and commits nothing.
     2. **Trial, commit, apply** through
        :func:`~vultron.core.behaviors.embargo.copy_commit.commit_and_apply_embargo_entries`:
-       the act's own entry (:attr:`_ACT_EVENT_TYPE`, *act_snapshot*), then
+       the act's own entry (:attr:`_ACT_SEMANTIC_TYPE`, *act_snapshot*), then
        the CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the row in
        full, and only then is the row written.
 
@@ -79,8 +79,8 @@ class _CommitActThenConsentRowNode(
     so a re-run after a failure commits the same entry (ID-04-004).
     """
 
-    #: Ledger ``event_type`` of the act's own entry.
-    _ACT_EVENT_TYPE: ClassVar[str]
+    #: Ledger ``semantic_type`` of the act's own entry.
+    _ACT_SEMANTIC_TYPE: ClassVar[str]
     #: The consent trigger the act applies to the invitee's row.
     _TRIGGER: ClassVar[PEC_Trigger]
     #: True when an actor with no participant record is a failure, not a
@@ -111,7 +111,7 @@ class _CommitActThenConsentRowNode(
             case_id=self._case_id,
             activity_id=self._act_object_id,
             activity_blob=json.dumps(self._act_snapshot),
-            event_type=self._ACT_EVENT_TYPE,
+            semantic_type=self._ACT_SEMANTIC_TYPE,
         )
 
     def _fail(self, message: str) -> Status:
@@ -154,7 +154,7 @@ class _CommitActThenConsentRowNode(
             actor_id=cast(str, self.actor_id),
             case_id=self._case_id,
             change=change,
-            cause_id=f"{self._ACT_EVENT_TYPE}:{self._act_object_id}",
+            cause_id=f"{self._ACT_SEMANTIC_TYPE}:{self._act_object_id}",
         ).commit
         assert commit_row is not None  # a consent-row entry always commits
 
@@ -179,7 +179,7 @@ class _CommitActThenConsentRowNode(
             # clock-decision stage logs it and goes on (CLP-10-025).
             return self._fail(f"the entries did not commit: {exc}")
         self.feedback_message = (
-            f"committed '{self._ACT_EVENT_TYPE}' and the {change.row.state}"
+            f"committed '{self._ACT_SEMANTIC_TYPE}' and the {change.row.state}"
             f" row of '{self._invitee_id}' for embargo '{self._embargo_id}'"
             f" on case '{self._case_id}', then applied it (ADR-0124)"
         )
@@ -198,7 +198,7 @@ class CommitAndApplyInviteExpiryNode(_CommitActThenConsentRowNode):
     (CM-28-001).  A row no longer ``INVITED`` commits nothing.
     """
 
-    _ACT_EVENT_TYPE = INVITE_EXPIRED_EVENT_TYPE
+    _ACT_SEMANTIC_TYPE = INVITE_EXPIRED_SEMANTIC_TYPE
     _TRIGGER = PEC_Trigger.TIME_OUT
 
 
@@ -213,7 +213,7 @@ class CommitAndApplyHonourLateAcceptNode(_CommitActThenConsentRowNode):
     participant record fails.
     """
 
-    _ACT_EVENT_TYPE = HONOUR_LATE_ACCEPT_EVENT_TYPE
+    _ACT_SEMANTIC_TYPE = HONOUR_LATE_ACCEPT_SEMANTIC_TYPE
     _TRIGGER = PEC_Trigger.AGREE
     _REQUIRES_PARTICIPANT = True
 

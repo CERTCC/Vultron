@@ -24,8 +24,8 @@ When a participant receives ``Announce(CaseLedgerEntry)`` for the
 id and case id from the entry's ``payloadSnapshot`` and stores a
 :class:`~vultron.core.models.ownership_transfer_offer_record.VultronOwnershipTransferOfferRecord`
 in the local DataLayer.  This makes the offer readable by
-``SvcAcceptCaseOwnershipTransferUseCase._prepare``, which calls
-``dl.read(offer_id)`` and 404s when the object is absent (#2195).
+``SvcAcceptCaseOwnershipTransferUseCase._prepare``, which reads it with
+``read_held_activity`` and 404s when nothing is held (#2195).
 
 Per ADR-0035 DL-06-002, SYNC-02-002, SYNC-12-001, CM-21-005, ISSUE-2195.
 
@@ -54,8 +54,9 @@ from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
 from vultron.core.models.protocol_pair import (
-    OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE,
+    OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE,
 )
+from vultron.core.predicates.addressing import snapshot_actor_id
 
 
 class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
@@ -66,12 +67,12 @@ class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
 
         Selector(OfferOwnershipTransferEffects)
           Sequence
-            IsOfferOwnershipTransferEventNode   <- SUCCESS iff event_type matches
+            IsOfferOwnershipTransferEventNode   <- SUCCESS iff semantic_type matches
             ApplyOfferOwnershipTransferFromLedgerNode
           Inverter(IsOfferOwnershipTransferEventNode)  <- SUCCESS iff wrong type
 
     The Inverter fires SUCCESS only when the condition does NOT match (routing
-    no-op for the wrong event type).  When the condition matches but
+    no-op for the wrong semantic type).  When the condition matches but
     ApplyOfferOwnershipTransferFromLedgerNode returns FAILURE — i.e. the effect
     itself could not be applied — both branches of the Selector fail and the
     FAILURE propagates to block PersistReceivedLogEntry, so the entry is not
@@ -95,7 +96,7 @@ class IsOfferOwnershipTransferEventNode(DataLayerConditionWithPorts):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.activity, self.name)
-        if entry.event_type == OFFER_CASE_OWNERSHIP_TRANSFER_EVENT_TYPE:
+        if entry.semantic_type == OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE:
             return Status.SUCCESS
         return Status.FAILURE
 
@@ -111,10 +112,11 @@ class ApplyOfferOwnershipTransferFromLedgerNode(
     stores a :class:`~vultron.core.models.ownership_transfer_offer_record.VultronOwnershipTransferOfferRecord`
     keyed by ``offer_id``.
 
-    This is the SYNC-path equivalent of what ``OfferCaseOwnershipTransferReceivedUseCase``
-    does on the HTTP-inbox path: the replica MUST hold a readable record so that
-    ``SvcAcceptCaseOwnershipTransferUseCase._prepare`` can call
-    ``dl.read(offer_id)`` without a 404 (#2195).
+    This is the SYNC-path equivalent of the ``ReceivedActivityRecord`` intake
+    keeps for a delivered Offer: the replica MUST hold a readable record so
+    that ``SvcAcceptCaseOwnershipTransferUseCase._prepare`` finds the Offer
+    (``read_held_activity`` reads this record under ``offer_id`` when no
+    archive is held) without a 404 (#2195).
 
     Idempotent: if the object is already present the node returns SUCCESS
     without overwriting.
@@ -193,8 +195,11 @@ class ApplyOfferOwnershipTransferFromLedgerNode(
         return self._save_offer_record(
             offer_id,
             case_id,
-            actor_id=_id_from_snapshot_field(snapshot.get("actor")),
-            target_id=_id_from_snapshot_field(snapshot.get("target")),
+            # Actor ids are normalised: the snapshot keeps the sender's
+            # spelling, and the record is read as the canonical id
+            # (OID-01-006).
+            actor_id=snapshot_actor_id(snapshot.get("actor")),
+            target_id=snapshot_actor_id(snapshot.get("target")),
         )
 
     def _save_offer_record(

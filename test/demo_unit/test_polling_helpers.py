@@ -54,6 +54,7 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_embargo_consent,
     wait_for_pending_inbox_quiescent,
 )
+from vultron.wire.as2.factories.actor import offer_case_participant_activity
 from vultron.wire.as2.factories.case import (
     rm_invite_to_case_activity,
     rm_invite_to_full_case_activity,
@@ -66,7 +67,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 CASE_ID = "http://example.com/cases/case-123"
-ACTOR_A = "http://example.com/actors/finder"
+ACTOR_A = "http://example.com/actors/reporter"
 ACTOR_B = "http://example.com/actors/vendor"
 
 
@@ -183,7 +184,7 @@ def test_wait_for_case_participants_raises_on_timeout():
 _LEDGER_ENTRY = {
     "type": "CaseLedgerEntry",
     "case_id": CASE_ID,
-    "event_type": "close_case",
+    "semantic_type": "close_case",
     "log_object_id": CASE_ID,
     "log_index": 5,
 }
@@ -201,7 +202,7 @@ def test_wait_for_ledger_event_match_any():
     wait_for_ledger_event(
         client=client,
         case_id=CASE_ID,
-        event_type="close_case",
+        semantic_type="close_case",
         timeout_seconds=1.0,
     )
 
@@ -211,7 +212,7 @@ def test_wait_for_ledger_event_keyed_by_object_id():
     wait_for_ledger_event(
         client=client,
         case_id=CASE_ID,
-        event_type="close_case",
+        semantic_type="close_case",
         log_object_id=CASE_ID,
         timeout_seconds=1.0,
     )
@@ -222,7 +223,7 @@ def test_wait_for_ledger_event_keyed_by_min_log_index():
     wait_for_ledger_event(
         client=client,
         case_id=CASE_ID,
-        event_type="close_case",
+        semantic_type="close_case",
         min_log_index=5,
         timeout_seconds=1.0,
     )
@@ -237,7 +238,7 @@ def test_wait_for_ledger_event_object_id_mismatch_then_timeout():
         wait_for_ledger_event(
             client=client,
             case_id=CASE_ID,
-            event_type="close_case",
+            semantic_type="close_case",
             log_object_id="http://example.com/cases/other-case",
             timeout_seconds=0,
             poll_interval=0.01,
@@ -253,14 +254,14 @@ def test_wait_for_ledger_event_min_log_index_too_high_then_timeout():
         wait_for_ledger_event(
             client=client,
             case_id=CASE_ID,
-            event_type="close_case",
+            semantic_type="close_case",
             min_log_index=6,
             timeout_seconds=0,
             poll_interval=0.01,
         )
 
 
-def test_wait_for_ledger_event_wrong_event_type_then_timeout():
+def test_wait_for_ledger_event_wrong_semantic_type_then_timeout():
     client = _make_ledger_client([_LEDGER_ENTRY])
     with pytest.raises(
         AssertionError, match="Timed out waiting for ledger event"
@@ -268,7 +269,7 @@ def test_wait_for_ledger_event_wrong_event_type_then_timeout():
         wait_for_ledger_event(
             client=client,
             case_id=CASE_ID,
-            event_type="open_case",
+            semantic_type="open_case",
             timeout_seconds=0,
             poll_interval=0.01,
         )
@@ -280,7 +281,7 @@ def test_wait_for_ledger_event_empty_ledger_then_timeout():
         wait_for_ledger_event(
             client=client,
             case_id=CASE_ID,
-            event_type="close_case",
+            semantic_type="close_case",
             timeout_seconds=0,
             poll_interval=0.01,
         )
@@ -482,7 +483,7 @@ class TestCaseActorParticipantIdIn:
             {
                 "http://vendor.test/api/v2/actors/vendor": "urn:uuid:p1",
                 "http://ca.test/api/v2/actors/case-actor": "urn:uuid:p2",
-                "http://finder.test/api/v2/actors/finder": "urn:uuid:p3",
+                "http://reporter.test/api/v2/actors/reporter": "urn:uuid:p3",
             }
         )
         assert (
@@ -496,7 +497,7 @@ class TestCaseActorParticipantIdIn:
         case = _case_with_index(
             {
                 "http://vendor.test/api/v2/actors/vendor": "urn:uuid:p1",
-                "http://finder.test/api/v2/actors/finder": "urn:uuid:p2",
+                "http://reporter.test/api/v2/actors/reporter": "urn:uuid:p2",
             }
         )
         assert case_actor_participant_id_in(case) is None
@@ -560,20 +561,20 @@ def test_wait_for_case_actor_ledger_event_reads_the_case_actor_store(
     )
     monkeypatch.setattr(
         polling,
-        "wait_for_event_type_in_ledger",
+        "wait_for_semantic_type_in_ledger",
         lambda **kwargs: seen.update(kwargs),
     )
 
     polling.wait_for_case_actor_ledger_event(
         client=client,
         case_id="urn:test:case",
-        event_type="accept_case_ownership_transfer",
+        semantic_type="accept_case_ownership_transfer",
         timeout_seconds=7.0,
     )
 
     assert seen["client"] is client
     assert seen["dl_actor_id"] == "urn:test:case-actor"
-    assert seen["event_type"] == "accept_case_ownership_transfer"
+    assert seen["semantic_type"] == "accept_case_ownership_transfer"
     assert seen["timeout_seconds"] == 7.0
 
 
@@ -598,7 +599,8 @@ def test_shared_budget_hands_out_what_is_left_and_never_goes_negative(
 # ---------------------------------------------------------------------------
 # find_case_invite_for_actor (#3821): the invitee holds the CASE_MANAGER's
 # Invite as intake's ReceivedActivityRecord (CLP-10-017, ADR-0111), or bare
-# under the sender's id while the inbox defers it until the case bootstrap.
+# under the sender's id while the inbox defers it until the case bootstrap --
+# the one bare row a demo finder still reads (DL-06-006).
 # ---------------------------------------------------------------------------
 
 _MANAGER = "http://example.com/actors/case-actor"
@@ -659,10 +661,10 @@ class TestFindCaseInviteForActor:
 
         assert found == _INVITE_ID
 
-    def test_finds_the_invite_the_inbox_holds_until_the_case_bootstrap(
+    def test_finds_the_invite_held_only_under_the_senders_id(
         self,
     ):
-        """A deferred Invite has not reached intake; the inbox holds it bare."""
+        """With no intake record, the bare row ingress keeps is read (#4871)."""
         _, record = _archived_invite_entry()
         client = _dl_client({_INVITE_ID: record["activity"]})
 
@@ -741,18 +743,32 @@ class TestFindFullCaseInviteForActor:
 
 
 class TestAssertReceivedFrom:
-    @pytest.mark.parametrize("held", ["archived", "deferred"])
-    def test_passes_when_the_named_actor_sent_it(self, held):
+    def test_passes_when_the_named_actor_sent_it(self):
         record_id, record = _archived_invite_entry()
-        entries = (
-            {record_id: record}
-            if held == "archived"
-            else {_INVITE_ID: record["activity"]}
-        )
 
         assert_received_from(
-            _dl_client(entries), _INVITE_ID, _MANAGER, "consequence"
+            _dl_client({record_id: record}),
+            _INVITE_ID,
+            _MANAGER,
+            "consequence",
         )
+
+    def test_reads_an_invite_the_inbox_defers_when_told_its_type(self):
+        """The invitee holds no case yet, so only the inbox holds the Invite."""
+        _, record = _archived_invite_entry()
+        client = _dl_client({_INVITE_ID: record["activity"]})
+
+        assert_received_from(
+            client, _INVITE_ID, _MANAGER, "consequence", deferred_type="Invite"
+        )
+
+    @pytest.mark.spec("DL-06-006")
+    def test_a_row_under_the_senders_id_is_not_a_received_activity(self):
+        _, record = _archived_invite_entry()
+        client = _dl_client({_INVITE_ID: record["activity"]})
+
+        with pytest.raises(AssertionError, match="holds no received activity"):
+            assert_received_from(client, _INVITE_ID, _MANAGER, "consequence")
 
     def test_names_the_actual_sender_when_another_actor_sent_it(self):
         record_id, record = _archived_invite_entry()
@@ -769,6 +785,47 @@ class TestAssertReceivedFrom:
         with pytest.raises(AssertionError, match="holds no received activity"):
             assert_received_from(
                 _dl_client({}), _INVITE_ID, _MANAGER, "consequence"
+            )
+
+
+class TestFindCpOfferForCase:
+    """The participant is inline only in intake's archive record (IO-03-004)."""
+
+    def test_returns_the_senders_id_for_the_archived_offer(self):
+        offer = offer_case_participant_activity(
+            recommended=as_Service(id_=ACTOR_B),
+            target=CASE_ID,
+            actor=_MANAGER,
+        )
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_B)
+        record = archive_received(dl, offer)
+        client = _dl_client(
+            {
+                record.id_: record.model_dump(
+                    mode="json", exclude_none=True, by_alias=True
+                )
+            }
+        )
+
+        found = find_cp_offer_for_case(
+            client, CASE_ID, timeout_seconds=1.0, poll_interval=0.01
+        )
+
+        assert found == offer.id_
+
+    def test_a_bare_offer_naming_its_participant_by_id_does_not_match(self):
+        bare = {
+            "type": "Offer",
+            "target": CASE_ID,
+            "object": f"{ACTOR_B}#participant",
+        }
+
+        with pytest.raises(AssertionError, match="Timed out"):
+            find_cp_offer_for_case(
+                _dl_client({"urn:uuid:o": bare}),
+                CASE_ID,
+                timeout_seconds=0.05,
+                poll_interval=0.01,
             )
 
 
@@ -1096,38 +1153,39 @@ class TestWaitForParticipantEmbargoAccepted:
 # second, at a cost that grew with the store.
 # ---------------------------------------------------------------------------
 
-_RECEIVED_INVITE_TYPES = ["ReceivedActivityRecord", "Invite"]
+_RECEIVED_TYPES = ["ReceivedActivityRecord"]
 
 _STORE_SCAN_FINDERS = [
     pytest.param(
         lambda c, **kw: find_case_invite_for_actor(c, CASE_ID, ACTOR_B, **kw),
-        _RECEIVED_INVITE_TYPES,
+        # A stub Invite is also read bare while the inbox defers it.
+        ["ReceivedActivityRecord", "Invite"],
         id="case-invite",
     ),
     pytest.param(
         lambda c, **kw: find_full_case_invite_for_actor(
             c, CASE_ID, ACTOR_B, **kw
         ),
-        _RECEIVED_INVITE_TYPES,
+        _RECEIVED_TYPES,
         id="full-case-invite",
     ),
     pytest.param(
         lambda c, **kw: find_embargo_invite_for_actor(
             c, "http://example.com/embargoes/e1", ACTOR_B, **kw
         ),
-        _RECEIVED_INVITE_TYPES,
+        _RECEIVED_TYPES,
         id="embargo-invite",
     ),
     pytest.param(
         lambda c, **kw: find_ownership_transfer_offer_for_actor(
             c, CASE_ID, ACTOR_B, **kw
         ),
-        ["Offer"],
+        _RECEIVED_TYPES,
         id="ownership-transfer-offer",
     ),
     pytest.param(
         lambda c, **kw: find_cp_offer_for_case(c, CASE_ID, **kw),
-        ["Offer"],
+        _RECEIVED_TYPES,
         id="case-participant-offer",
     ),
 ]
@@ -1166,7 +1224,7 @@ class TestStoreScanFindersReadOnlyTheirTypes:
 # ---------------------------------------------------------------------------
 
 _INTRO_NODE = "http://node.test/api/v2"
-_INTRO_REPORTER = f"{_INTRO_NODE}/actors/finder"
+_INTRO_REPORTER = f"{_INTRO_NODE}/actors/reporter"
 _INTRO_RECEIVER = f"{_INTRO_NODE}/actors/vendor"
 _INTRO_REPORT = "urn:uuid:44444444-4444-4444-4444-444444444444"
 _INTRO_CASE = "urn:uuid:55555555-5555-5555-5555-555555555555"
@@ -1214,7 +1272,7 @@ def test_wait_for_reporter_introduction_returns_the_bound_case():
     )
     assert case_id == _INTRO_CASE
     # It reads the reporter's own store, not the client's bound actor.
-    assert "/actors/finder/" in seen["path"]
+    assert "/actors/reporter/" in seen["path"]
     assert seen["params"] == {"type": ["ReportCaseLink"]}
 
 

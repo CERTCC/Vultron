@@ -32,7 +32,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.late_accept import (
     CommitLateAcceptAcknowledgementNode,
 )
@@ -42,9 +42,9 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.rsvp_deadline import (
-    EMBARGO_REINVITE_EVENT_TYPE,
-    INVITE_EXPIRED_EVENT_TYPE,
-    INVITE_EXPIRED_NOOP_EVENT_TYPE,
+    EMBARGO_REINVITE_SEMANTIC_TYPE,
+    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
+    INVITE_EXPIRED_SEMANTIC_TYPE,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -110,19 +110,19 @@ def _reject(net: _Network, actor: str, index: int = 0) -> HandlerResult:
 
 
 def _entries(
-    net: _Network, actor: str, event_type: str
+    net: _Network, actor: str, semantic_type: str
 ) -> list[CaseLedgerEntry]:
     return [
         obj
         for obj in net.stores[actor].list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
-        and str(obj.event_type) == event_type
+        and str(obj.semantic_type) == semantic_type
     ]
 
 
-def _event_types(net: _Network, actor: str) -> list[str]:
+def _semantic_types(net: _Network, actor: str) -> list[str]:
     return [
-        str(obj.event_type)
+        str(obj.semantic_type)
         for obj in net.stores[actor].list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
     ]
@@ -189,6 +189,8 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
     revision = _propose(net, "late", 90)
     _deliver_all(net, BYSTANDER)
     net.deliver(MANAGER, to=OWNER, type_="Invite")
+    # P/X/A is set in every store directly, with no entry recording it.
+    net.bypass_ledger()
     for actor_id in (MANAGER, OWNER, BYSTANDER):
         dl = net.stores[actor_id]
         case = cast(VulnerabilityCase, dl.read(net.case_id))
@@ -216,7 +218,7 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
         assert case.embargo_register_status(revision) is (
             EmbargoRegisterStatus.CANCELLED
         ), actor_id
-    assert EMBARGO_TEARDOWN_EVENT_TYPE in _event_types(net, BYSTANDER)
+    assert EMBARGO_TEARDOWN_SEMANTIC_TYPE in _semantic_types(net, BYSTANDER)
 
 
 @pytest.mark.spec("BT-17-001")
@@ -303,6 +305,8 @@ def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
     # A signatory's consent survives a revision Invite (EP-09-004), so seed an
     # invitee that has not yet signed, everywhere; only the manager's record
     # holds a passed deadline.
+    # The rows are seeded outside the ledger, so no rebuild reaches them.
+    net.bypass_ledger()
     for actor_id in (MANAGER, OWNER):
         dl = net.stores[actor_id]
         participant = cast(CaseParticipant, dl.read(bystander_pid))
@@ -332,7 +336,7 @@ def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
     # The accepted embargo is a pending revision, not the current one, so the
     # manager also re-invites (EMB-17-003) and the replica ends re-invited; the
     # expiry it replayed on the way is the entry in its ledger.
-    assert _event_types(net, OWNER).count(INVITE_EXPIRED_EVENT_TYPE) == 1
+    assert _semantic_types(net, OWNER).count(INVITE_EXPIRED_SEMANTIC_TYPE) == 1
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
     # The expired row is the revision's; the re-invite names the embargo in
     # force, so its INVITED row is a different one.
@@ -369,6 +373,8 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     (accept,) = net.queued(BYSTANDER, to=MANAGER, type_="Accept")
     body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
     assert body is not None
+    # The rows are seeded outside the ledger, so no rebuild reaches them.
+    net.bypass_ledger()
     for actor_id in (MANAGER, OWNER):
         dl = net.stores[actor_id]
         participant = cast(CaseParticipant, dl.read(bystander_pid))
@@ -414,8 +420,11 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     manager_deadline = manager_record.rsvp_deadline_for(active_before)
     assert manager_deadline is not None
     assert manager_deadline > datetime.now(tz=UTC)
-    assert _event_types(net, MANAGER).count(EMBARGO_REINVITE_EVENT_TYPE) == 1
-    (entry,) = _entries(net, MANAGER, EMBARGO_REINVITE_EVENT_TYPE)
+    assert (
+        _semantic_types(net, MANAGER).count(EMBARGO_REINVITE_SEMANTIC_TYPE)
+        == 1
+    )
+    (entry,) = _entries(net, MANAGER, EMBARGO_REINVITE_SEMANTIC_TYPE)
     snapshot = entry.payload_snapshot
     assert snapshot["actor"] == MANAGER
     assert snapshot.get("attributedTo") is None
@@ -424,7 +433,9 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     assert invite_rsvp_deadline(snapshot) == manager_deadline
 
     # The replica's own store (TB-06-007): same consent and deadline, no EM move.
-    assert _event_types(net, OWNER).count(EMBARGO_REINVITE_EVENT_TYPE) == 1
+    assert (
+        _semantic_types(net, OWNER).count(EMBARGO_REINVITE_SEMANTIC_TYPE) == 1
+    )
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
     assert replayed.consent_for(revision_id) == EmbargoConsentState.TIMED_OUT
     assert replayed.consent_for(active_before) == EmbargoConsentState.INVITED
@@ -453,7 +464,9 @@ def test_a_late_accept_of_a_stale_embargo_reinvites_nobody_from_a_replica():
 
     net.receive(OWNER, body)
 
-    assert _event_types(net, OWNER).count(EMBARGO_REINVITE_EVENT_TYPE) == 0
+    assert (
+        _semantic_types(net, OWNER).count(EMBARGO_REINVITE_SEMANTIC_TYPE) == 0
+    )
     assert (
         len(net.queued(OWNER, to=BYSTANDER, type_="Invite")) == queued_before
     )
@@ -503,6 +516,8 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
     # (INVITED → TIMED_OUT via expiry, TIMED_OUT → AGREED via honour).
     # Pre-seeding TIMED_OUT would cause the relay-invite replay to revert it to
     # INVITED (INVITE is legal from TIMED_OUT), creating an ordering hazard.
+    # The rows are seeded outside the ledger, so no rebuild reaches them.
+    net.bypass_ledger()
     for actor_id in (MANAGER, OWNER):
         dl = net.stores[actor_id]
         participant = cast(CaseParticipant, dl.read(bystander_pid))
@@ -555,6 +570,8 @@ def _late_accept_on_an_exited_embargo(
     # state (embargo_in_force=False → all participants are recipients), and
     # the expiry/noop replay nodes on OWNER's store have no EM dependency.
     # BYSTANDER's store keeps the original state — it is the sender, not the judge.
+    # The termination is written outside the ledger, so no rebuild reaches it.
+    net.bypass_ledger()
     dl_mgr = net.stores[MANAGER]
     case_mgr = net.case(MANAGER)
     terminate(case_mgr)
@@ -599,7 +616,7 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
     When a late Accept arrives with EM EXITED on the CASE_MANAGER's store,
     every register entry is final, so the invitation's row accepts no
     trigger (ADR-0122): no expiry entry is committed, and
-    ``INVITE_EXPIRED_NOOP_EVENT_TYPE`` is, with no consent transition
+    ``INVITE_EXPIRED_NOOP_SEMANTIC_TYPE`` is, with no consent transition
     (EMB-17-004, EMB-17-010).  After delivery the replica store's ledger has
     replayed past the no-op entry (asserting on the entry's presence so a
     silently skipped slot fails), and the participant's row for the embargo
@@ -618,14 +635,14 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
     # nowhere, and the no-op entry made no change.
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
     assert replayed.consent_for(revision_id) == EmbargoConsentState.INVITED
-    assert INVITE_EXPIRED_EVENT_TYPE not in _event_types(net, MANAGER)
+    assert INVITE_EXPIRED_SEMANTIC_TYPE not in _semantic_types(net, MANAGER)
     # The replica's ledger contains the no-op entry, proving the replay slot
     # fired rather than silently skipping it (SYNC-12-001, RSH-08-004).
     noop_entries = [
         obj
         for obj in net.stores[OWNER].list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
-        and str(obj.event_type) == INVITE_EXPIRED_NOOP_EVENT_TYPE
+        and str(obj.semantic_type) == INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
     ]
     assert len(noop_entries) == 1
 
@@ -636,7 +653,7 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
         obj
         for obj in dl_mgr.list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
-        and str(obj.event_type) == INVITE_EXPIRED_NOOP_EVENT_TYPE
+        and str(obj.semantic_type) == INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
     ]
     snapshot = committed.payload_snapshot
     assert snapshot["type"] == "Ignore"
@@ -670,7 +687,9 @@ def test_a_late_accept_answer_that_does_not_complete_raises(monkeypatch):
     with pytest.raises(VultronBTInternalError, match="AcknowledgeLateAccept"):
         net.receive(MANAGER, body)
 
-    assert INVITE_EXPIRED_NOOP_EVENT_TYPE not in _event_types(net, MANAGER)
+    assert INVITE_EXPIRED_NOOP_SEMANTIC_TYPE not in _semantic_types(
+        net, MANAGER
+    )
     participant = cast(
         CaseParticipant, net.stores[MANAGER].read(bystander_pid)
     )

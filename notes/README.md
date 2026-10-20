@@ -272,7 +272,7 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   **Load when**: declaring a scenario's path, renaming a scenario, or building the
   tree index.
 - **`demo-ci-invariants.md`** · `guidance`
-  The demo CI case-ledger invariant harness and its expected event types.
+  The demo CI case-ledger invariant harness and its expected semantic types.
   **Load when**: changing the demo CI workflow or a scenario's expected events.
 - **`demo-ci-diagnostics.md`** · `guidance`
   Runbook for a red Demo Integration run: log layers, invariant map, local repro.
@@ -340,9 +340,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   **Load when**: editing `specs/rm-behavior.yaml`, `em-behavior.yaml`, or
   `cs-behavior.yaml`.
 - **`rfc-spec-authoring.md`** · `guidance`
-  Protocol Specification structure: page map, fragments, `full.md`, citations.
+  Protocol Specification structure: page map, fragments, `full.md`, citations,
+  normative text rendered from the YAML (callouts, Requirements Catalog).
   **Load when**: adding, moving, or splitting a section, annex, or open question in
-  the specification.
+  the specification, or writing a normative statement in it.
 - **`rfc-review-rubric.md`** · `guidance`
   Ordered mechanical and judgment checks for reviewing the Protocol Specification.
   **Load when**: reviewing or revising a page or fragment under

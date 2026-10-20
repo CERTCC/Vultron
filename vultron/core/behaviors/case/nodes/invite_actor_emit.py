@@ -46,8 +46,8 @@ from vultron.enums.roles import serialize_roles
 #: Kind label of a stub Invite's derived id (see ``derived_activity_id``).
 INVITE_ID_KIND = "invite-actor-to-case"
 
-#: Ledger ``event_type`` of a stub Invite's entry.
-INVITE_EVENT_TYPE = "invite_actor_to_case"
+#: Ledger ``semantic_type`` of a stub Invite's entry.
+INVITE_SEMANTIC_TYPE = "invite_actor_to_case"
 
 
 def build_stub_invite(
@@ -77,11 +77,11 @@ def build_stub_invite(
     """
     # CM-17-002: pass the full case object so the adapter+factory can
     # project it to an enriched stub (embedding the full active embargo,
-    # CM-17-011) when em_state==ACTIVE.
+    # CM-17-011) while an embargo is in force (EM ACTIVE or REVISE).
     # Regime 3 (ADR-0087): the case is *optional enrichment* here, not
     # coordination state — the Invite is fully specified by invitee/case_id/
     # actor/roles, and the factory tolerates target=None (CM-17-002 only
-    # enriches the stub when the case is present and em_state==ACTIVE). A
+    # enriches the stub when the case is present with an embargo in force). A
     # missing local case therefore emits a bare stub rather than failing;
     # this read is deliberately unguarded (conformance allowlist).
     case = datalayer.read_case(case_id)
@@ -140,11 +140,117 @@ def commit_stub_invite(
         case_id=case_id,
         activity_id=activity_id,
         activity_blob=activity_blob,
-        event_type=INVITE_EVENT_TYPE,
+        semantic_type=INVITE_SEMANTIC_TYPE,
     )
 
 
-class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
+class _StubInviteEmitBase(_EmitSingleActivityBase):
+    """Create Invite(Actor, CaseStub), queue it in this actor's outbox, and commit it.
+
+    The shared build of :class:`EmitInviteActorToCaseNode`.  A subclass names
+    the invitee (:meth:`_invitee`), the roles the Invite offers
+    (:meth:`_read_suggested_roles`) and the request it answers
+    (:meth:`_answered_request`): fixed at construction, or read from the
+    recorded Offer the Case Owner accepted.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        attributed_to: str | None = None,
+        captured: dict | None = None,
+        name: str | None = None,
+        *,
+        in_reply_to: str | None = None,
+        replaces_previous_stub: bool = False,
+        actor_config: ActorConfig | None = None,
+    ) -> None:
+        super().__init__(captured=captured, name=name)
+        self.case_id = case_id
+        self.attributed_to = attributed_to
+        self._in_reply_to = in_reply_to
+        self._replaces_previous_stub = replaces_previous_stub
+        self._actor_config = actor_config
+
+    def _invitee(self) -> str:
+        """The actor the Invite is addressed to."""
+        raise NotImplementedError
+
+    def _read_suggested_roles(self) -> list[str] | None:
+        """The roles the Invite offers; ``None`` offers none."""
+        raise NotImplementedError
+
+    def _answered_request(self) -> str | None:
+        """The request the Invite answers, which its id derives from."""
+        raise NotImplementedError
+
+    def _in_reply_to_id(self) -> str | None:
+        """The earlier stub Invite this one replaces, if it replaces one.
+
+        A re-invite replaces the invitee's newest earlier stub, so the invitee
+        has one live stub at a time (CM-11-015); a first Invite replaces none.
+        """
+        if self._in_reply_to is not None or not self._replaces_previous_stub:
+            return self._in_reply_to
+        assert self.datalayer is not None and self.actor_id is not None
+        earlier = recorded_stub_invites(
+            self.datalayer, self.case_id, self.actor_id, self._invitee()
+        )
+        return earlier[-1].invite_id if earlier else None
+
+    def _call_factory(self) -> tuple[str, str]:
+        """Build the Invite(Actor, CaseStub) activity."""
+        roles = self._read_suggested_roles()
+        if roles is not None and not roles:
+            raise ValueError(
+                f"suggested_roles for actor '{self._invitee()}' is empty"
+                " — cannot emit Invite(Actor, CaseStub) without at least one role"
+            )
+        assert self.datalayer is not None and self.actor_id is not None
+        assert self.trigger_activity_factory is not None
+        return build_stub_invite(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            factory=self.trigger_activity_factory,
+            actor_id=self.actor_id,
+            case_id=self.case_id,
+            invitee_id=self._invitee(),
+            roles=roles,
+            attributed_to=self.attributed_to,
+            in_reply_to=self._in_reply_to_id(),
+            actor_config=self._actor_config,
+            activity_id=self._invite_id(),
+        )
+
+    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
+        assert self.datalayer is not None and self.actor_id is not None
+        commit_stub_invite(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            actor_id=self.actor_id,
+            case_id=self.case_id,
+            activity_id=activity_id,
+            activity_blob=activity_blob,
+        )
+
+    def _invite_id(self) -> str | None:
+        """The Invite's id, derived from the request it answers, if one is named."""
+        answers = self._answered_request()
+        if answers is None:
+            return None
+        assert self.actor_id is not None
+        return derived_activity_id(
+            INVITE_ID_KIND, self.actor_id, self.case_id, answers
+        )
+
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        self.logger.info(
+            "Actor '%s' emitted Invite(Actor, CaseStub) to '%s' for case '%s'",
+            self.actor_id,
+            self._invitee(),
+            self.case_id,
+        )
+
+
+class EmitInviteActorToCaseNode(_StubInviteEmitBase):
     """Create Invite(Actor, CaseStub), queue it in this actor's outbox, and commit it.
 
     Runs only in a CASE_MANAGER-gated received tree, so ``self.actor_id`` is
@@ -177,8 +283,8 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
     Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
     ``target`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
     and factory project it to an enriched ``as_VulnerabilityCaseStub`` — embedding
-    the full active embargo when ``em_state == EM.ACTIVE`` (CM-17-011) — without
-    violating the core→wire import boundary (ARCH-01-001, CM-17-002).
+    the full embargo in force (EM ``ACTIVE`` or ``REVISE``, CM-17-011) —
+    without violating the core→wire import boundary (ARCH-01-001, CM-17-002).
     """
 
     def __init__(
@@ -196,14 +302,17 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         actor_config: ActorConfig | None = None,
         answers: str | None = None,
     ) -> None:
-        super().__init__(captured=captured, name=name)
+        super().__init__(
+            case_id=case_id,
+            attributed_to=attributed_to,
+            captured=captured,
+            name=name,
+            in_reply_to=in_reply_to,
+            replaces_previous_stub=replaces_previous_stub,
+            actor_config=actor_config,
+        )
         self.invitee_id = invitee_id
         self._answers = answers
-        self.case_id = case_id
-        self.attributed_to = attributed_to
-        self._in_reply_to = in_reply_to
-        self._replaces_previous_stub = replaces_previous_stub
-        self._actor_config = actor_config
         self._injected_roles = roles
         self._roles_key = (
             f"/{suggested_roles_key(recommendation_id)}"
@@ -232,6 +341,12 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
         except (NoDataAvailable, NotImplementedError):
             pass
 
+    def _invitee(self) -> str:
+        return self.invitee_id
+
+    def _answered_request(self) -> str | None:
+        return self._answers
+
     def _read_suggested_roles(self) -> list[str] | None:
         # Use injected roles (from stored Offer via DataLayer) when available
         # (ISSUE-1745: blackboard is empty in a separate BT execution).
@@ -242,74 +357,10 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
             return serialize_roles(roles)
         return None
 
-    def _in_reply_to_id(self) -> str | None:
-        """The earlier stub Invite this one replaces, if it replaces one.
-
-        A re-invite replaces the invitee's newest earlier stub, so the invitee
-        has one live stub at a time (CM-11-015); a first Invite replaces none.
-        """
-        if self._in_reply_to is not None or not self._replaces_previous_stub:
-            return self._in_reply_to
-        assert self.datalayer is not None and self.actor_id is not None
-        earlier = recorded_stub_invites(
-            self.datalayer, self.case_id, self.actor_id, self.invitee_id
-        )
-        return earlier[-1].invite_id if earlier else None
-
-    def _call_factory(self) -> tuple[str, str]:
-        """Build the Invite(Actor, CaseStub) activity."""
-        roles = self._read_suggested_roles()
-        if roles is not None and not roles:
-            raise ValueError(
-                f"suggested_roles for actor '{self.invitee_id}' is empty"
-                " — cannot emit Invite(Actor, CaseStub) without at least one role"
-            )
-        assert self.datalayer is not None and self.actor_id is not None
-        assert self.trigger_activity_factory is not None
-        return build_stub_invite(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer),
-            factory=self.trigger_activity_factory,
-            actor_id=self.actor_id,
-            case_id=self.case_id,
-            invitee_id=self.invitee_id,
-            roles=roles,
-            attributed_to=self.attributed_to,
-            in_reply_to=self._in_reply_to_id(),
-            actor_config=self._actor_config,
-            activity_id=self._invite_id(),
-        )
-
-    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
-        assert self.datalayer is not None and self.actor_id is not None
-        commit_stub_invite(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer),
-            actor_id=self.actor_id,
-            case_id=self.case_id,
-            activity_id=activity_id,
-            activity_blob=activity_blob,
-        )
-
-    def _invite_id(self) -> str | None:
-        """The Invite's id, derived from the request it answers, if one is named."""
-        if self._answers is None:
-            return None
-        assert self.actor_id is not None
-        return derived_activity_id(
-            INVITE_ID_KIND, self.actor_id, self.case_id, self._answers
-        )
-
-    def _on_success(self, activity_id: str, activity_blob: str) -> None:
-        self.logger.info(
-            "Actor '%s' emitted Invite(Actor, CaseStub) to '%s' for case '%s'",
-            self.actor_id,
-            self.invitee_id,
-            self.case_id,
-        )
-
 
 __all__ = [
     "EmitInviteActorToCaseNode",
-    "INVITE_EVENT_TYPE",
+    "INVITE_SEMANTIC_TYPE",
     "build_stub_invite",
     "commit_stub_invite",
 ]

@@ -317,9 +317,9 @@ class SqliteDataLayer:
     def find_protocol_pair(
         self,
         case_id: str,
-        request_event_type: str,
+        request_semantic_type: str,
         object_id: str,
-        reply_event_types: frozenset[str],
+        reply_semantic_types: frozenset[str],
         *,
         answering: frozenset[str] | None = None,
     ) -> ProtocolPair:
@@ -327,9 +327,9 @@ class SqliteDataLayer:
         return queries.find_protocol_pair(
             self,
             case_id,
-            request_event_type,
+            request_semantic_type,
             object_id,
-            reply_event_types,
+            reply_semantic_types,
             answering=answering,
         )
 

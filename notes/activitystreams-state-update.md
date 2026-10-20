@@ -21,6 +21,7 @@ relevant_packages:
   - pydantic
   - vultron/wire/as2
   - vultron/core/models/events
+  - vultron/core/behaviors/case/nodes/suggest_actor
 ---
 
 # ActivityStreams: Case State Update and Advanced Patterns
@@ -108,10 +109,11 @@ guards fail. Serialize the snapshot with
 
 A semantic registry pattern matches what arrives in the **receiver's** inbox, not
 what this actor emits. Before adding an entry, ask who sends the message and what
-the recipient receives. `OfferActorToCasePattern` (`Offer(CaseParticipant,
-Case)`) stays in `_instances.py` only as a nested template for the actor
-recommendation patterns; `OFFER_ACTOR_TO_CASE` matches `SuggestActorToCasePattern`
-(`Offer(Actor, Case)`).
+the recipient receives. The actor-suggestion names cross:
+`OFFER_ACTOR_TO_CASE` matches `SuggestActorToCasePattern` (`Offer(Actor, Case)`),
+and `OFFER_CASE_PARTICIPANT` matches `OfferActorToCasePattern`
+(`Offer(CaseParticipant, Case)`) (VAM-04-001). A pattern no registry entry uses
+routes nothing, so `test_vocab_examples_dispatchable` refuses one (#4527).
 
 ## `offer_case_participant_activity` Object IDs Carry `#participant`
 
@@ -124,8 +126,9 @@ the suffix, so log a warning if it is reached.
 
 On `Accept(Offer(CaseParticipant))`, the CASE_MANAGER reads the invitee's roles
 from the stored Offer it constructed, never from the participant embedded in
-the Accept: the acceptor could substitute or omit roles (ADR-0026). See
-`vultron/core/use_cases/received/actor/offer_case_participant.py`.
+the Accept: the acceptor could substitute or omit roles (ADR-0026). The lookup
+is a precondition guard of the received tree, never `execute()` (CLP-10-005);
+see `vultron/core/behaviors/case/nodes/suggest_actor/recorded_offer.py`.
 
 ## Patterns Sharing a Verb and Object Need a Strict Discriminator
 

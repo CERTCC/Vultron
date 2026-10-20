@@ -24,18 +24,22 @@ import pytest
 
 from test.core.behaviors.embargo.nodes.conftest import (
     CASE_MANAGER_ACTOR,
+    OTHER_PARTICIPANT_ACTOR,
     make_case_and_embargo,
     make_case_with_manager,
     setup_blackboard,
 )
 from test.support.embargo_register import propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
     ClearActiveEmbargoNode,
     HasEmbargoActiveNode,
     SendAnnounceEmbargoEventNode,
+)
+from vultron.core.behaviors.embargo.nodes.termination_cause_guard import (
+    TerminationCauseIsAdmissibleNode,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import now_utc
@@ -43,10 +47,15 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    FixReadyCause,
+    ThreatSignal,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import (
     EmbargoRegisterStatus,
+    TerminationReason,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -145,6 +154,99 @@ class TestHasEmbargoActiveNode:
         bt.setup()
         bt.tick()
 
+        assert node.status == py_trees.common.Status.FAILURE
+
+
+class TestTerminationCauseIsAdmissibleNode:
+    """A THREAT_SIGNAL cause is the CASE_MANAGER's alone (EMB-13-005)."""
+
+    @staticmethod
+    def _tick(
+        suffix: str, sender: str, termination: EmbargoTermination
+    ) -> TerminationCauseIsAdmissibleNode:
+        case, _, dl = make_case_with_manager(suffix)
+        setup_blackboard(dl)
+        node = TerminationCauseIsAdmissibleNode(
+            case_id=case.id_,
+            sender_actor_id=sender,
+            termination=termination,
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+        return node
+
+    @pytest.mark.spec("EMB-13-005")
+    def test_the_case_manager_may_name_a_threat_signal(self):
+        node = self._tick(
+            "tca-manager",
+            CASE_MANAGER_ACTOR,
+            EmbargoTermination.threat([ThreatSignal.X]),
+        )
+        assert node.status == py_trees.common.Status.SUCCESS
+
+    @pytest.mark.spec("EMB-13-005")
+    def test_a_participant_threat_signal_is_refused(self):
+        node = self._tick(
+            "tca-owner",
+            OTHER_PARTICIPANT_ACTOR,
+            EmbargoTermination.threat([ThreatSignal.X]),
+        )
+        assert node.status == py_trees.common.Status.FAILURE
+        assert "case status update" in node.feedback_message
+
+    @pytest.mark.spec("EMB-13-005")
+    @pytest.mark.parametrize(
+        "termination",
+        [
+            EmbargoTermination.early(),
+            EmbargoTermination.from_reason(
+                TerminationReason.EARLY,
+                FixReadyCause(vendors=[OTHER_PARTICIPANT_ACTOR]),
+            ),
+        ],
+        ids=["no-cause", "fix-ready"],
+    )
+    def test_a_participant_may_name_any_other_cause(self, termination):
+        node = self._tick("tca-other", OTHER_PARTICIPANT_ACTOR, termination)
+        assert node.status == py_trees.common.Status.SUCCESS
+
+    @pytest.mark.spec("EMB-13-005")
+    def test_a_threat_signal_with_no_case_manager_is_refused(self):
+        """No CASE_MANAGER resolves, so no sender is it: refused."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, _ = make_case_and_embargo("tca-nomgr")
+        dl.create(case)
+        setup_blackboard(dl)
+        node = TerminationCauseIsAdmissibleNode(
+            case_id=case.id_,
+            sender_actor_id=CASE_MANAGER_ACTOR,
+            termination=EmbargoTermination.threat([ThreatSignal.X]),
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+        assert node.status == py_trees.common.Status.FAILURE
+        assert "case status update" in node.feedback_message
+
+    @pytest.mark.spec("EMB-13-005")
+    def test_a_threat_signal_on_a_missing_case_fails(self):
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        setup_blackboard(dl)
+        node = TerminationCauseIsAdmissibleNode(
+            case_id="https://example.org/cases/nonexistent",
+            sender_actor_id=CASE_MANAGER_ACTOR,
+            termination=EmbargoTermination.threat([ThreatSignal.P]),
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
         assert node.status == py_trees.common.Status.FAILURE
 
 
@@ -499,7 +601,7 @@ def _remove_entry(
             case_id=case_id,
             log_index=0,
             object_id=f"{case_id}/activities/remove",
-            event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
+            semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
             payload_snapshot={
                 "type": "Remove",
                 "object": (

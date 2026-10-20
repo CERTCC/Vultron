@@ -7,9 +7,11 @@ tracks:
 description: >-
   Design of the occasion lookup table (ADR-0128, ADR-0129): how "Sent by" and
   "Send to" are derived from the sender rule and the occasion's addressee, the
-  "When…" grammar, and typed distinguishers. Occasions, the generated
-  fragments, the pages that include them, the how-to embeds with "Seen in" and
-  the addressees (#4438) have landed.
+  "When…" grammar, and typed distinguishers (field value, state context,
+  sender standing) that every same-addressee sibling must declare. Occasions,
+  the generated fragments, the pages that include them, the how-to embeds with
+  "Seen in", the addressees (#4438) and the nested field-value distinguisher
+  (#4569) have landed.
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/handler-protocol.yaml
@@ -76,9 +78,11 @@ lookup table is mostly links.
   term to a glossary row. A position's wording names its object with an
   `{object}` placeholder ("the addressee of the case proposal", "the note's
   author"), and a nested request by its object and verb ("the addressee of the
-  vulnerability case offer"); an exemption reads "not yet checked". About half
-  the received use cases are exempt today, so the column fills in only as
-  exemptions close; never paper over that with hand-written values.
+  vulnerability case offer"); an exemption reads "not yet checked". A request
+  the pattern does not nest is named on the entry (`SemanticEntry.answers`):
+  the bootstrap `Create(VulnerabilityCase)` answers a case proposal or a report
+  offer (MSM-08-010). The column fills in only as exemptions close; never paper
+  over that with hand-written values.
 - **Positions are entitlement kinds, not roles and not a second list**
   (HP-01-009). "The invitee" holds that position only within one exchange, and a
   report precedes any case, so no position joins `CVDRole`. A separate
@@ -124,7 +128,27 @@ lookup table is mostly links.
   (DF-09-008, MSM-08-007).
 - **Details link** names the formal message and code ("Fix Readiness (CF)")
   (DF-09-010, MSM-08-008). Expansion rows (`GI`, `RV`, `RI`, `RC`) link by
-  section heading instead, since one label would repeat on every row.
+  section heading instead, since one label would repeat on every row; so do
+  `CP`, `CX` and `CA`, which have a row on both `Add(CaseStatus)` and
+  `Add(ParticipantStatus)` (RSH-04-001).
 - **A distinguisher is typed** (MSM-08-002): a field value checked against its
-  enum, or a state context naming a state machine and states (the EM state
-  separating `EP` from `EV` on `Invite(Event)`).
+  enum, a state context naming a state machine and states (the EM state
+  separating `EP` from `EV` on `Invite(Event)`), or a sender standing naming a
+  `SenderEntitlementKind` and whether the sender holds it. Use the receiver's
+  vocabulary, not `CVDRole`: the standing is what the receiver checks, and it
+  is worded from the kind's `sent_by` (MSM-08-010). The embargo register is a
+  state machine of its own, so the register status of the named embargo is a
+  state context on `EmbargoRegisterStatus`, not a new kind. It is the status in
+  the CASE_MANAGER's register, not the receiver's: a participant may not hold
+  the embargo before the announcement stores it, and the status is per embargo,
+  not per case (MSM-08-003).
+  A field value may sit in a model the object embeds: `FieldValue(within=...)`
+  reads `ParticipantStatus.case_status.pxa` and renders `caseStatus.pxaState`.
+- **Same entry, same addressee: every occasion is distinguished** (MSM-08-011).
+  Each declares a distinguisher and no two are equal, so a pair that differs
+  only in prose fails construction instead of rendering two "—" rows. Two of
+  one kind on one field, machine or entitlement kind must not overlap either:
+  EM `(NONE, PROPOSED)` against `(PROPOSED,)` would match one activity twice.
+  Kinds on different fields are not compared. When one
+  occasion is the rest of the space (a suggestion from anyone but the Case
+  Owner), negate the other's standing rather than leave its row blank.

@@ -138,7 +138,7 @@ def _make_offer_report_ledger_entry():
             case_id=CASE_ID,
             log_index=1,
             object_id=REPORT_ID,
-            event_type="add_report_to_case",
+            semantic_type="add_report_to_case",
             payload_snapshot=snapshot,
             prev_log_hash=CASE_GENESIS_HASH,
         )
@@ -342,7 +342,7 @@ class TestApplyOfferReportFromLedgerNode:
                 case_id=CASE_ID,
                 log_index=2,
                 object_id="https://example.org/activities/invite-01",
-                event_type="invite_actor_to_case",
+                semantic_type="invite_actor_to_case",
                 payload_snapshot={
                     "type": "Invite",
                     "id": "https://example.org/activities/invite-01",

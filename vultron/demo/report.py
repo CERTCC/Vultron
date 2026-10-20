@@ -191,7 +191,7 @@ def _dimension_state(
 # ---------------------------------------------------------------------------
 
 #: ActivityStreams actor types whose ``name`` field, when present, maps the
-#: ``id`` to a human-readable display name (e.g. "Vendor", "Finder").
+#: ``id`` to a human-readable display name (e.g. "Vendor", "Reporter").
 _NAME_BEARING_TYPES = frozenset(
     {
         "Organization",
@@ -250,7 +250,7 @@ def collect_actor_names(
     Walks every payload snapshot in ``replicas`` looking for actor objects
     that carry both an ``id`` (URI) and a ``name`` field.  Returns a
     ``{uri: name}`` mapping used to resolve UUID-based actor URIs to semantic
-    labels (e.g. "Vendor", "Finder") in the rendered report.
+    labels (e.g. "Vendor", "Reporter") in the rendered report.
     """
     names: dict[str, str] = {}
     for actor_key in sorted(replicas):
@@ -330,7 +330,7 @@ def friendly_actor_name(
 
     Checks ``actor_names`` first (a URI→display-name map built from payload
     snapshots); falls back to the last URI path segment when no entry is found
-    (``…/actors/finder`` → "Finder").  Returns an em dash when no acting actor
+    (``…/actors/reporter`` → "Reporter").  Returns an em dash when no acting actor
     is recorded (e.g. genesis entries).
     """
     if not actor_uri:
@@ -381,18 +381,18 @@ def friendly_object_label(
     return friendly_target_noun(obj_type)
 
 
-def event_phrase(event_type: str) -> str:
-    """Map an event type to an active-voice phrase via the semantic registry.
+def event_phrase(semantic_type: str) -> str:
+    """Map a semantic type to an active-voice phrase via the semantic registry.
 
-    Looks up the ``SemanticEntry`` for *event_type* in ``SEMANTIC_REGISTRY``
+    Looks up the ``SemanticEntry`` for *semantic_type* in ``SEMANTIC_REGISTRY``
     and returns ``entry.phrase`` with all named slots filled with ``"—"``
-    (DRPT-03-002).  Falls back to a humanized version of *event_type* when
-    the event type is not a recognized ``MessageSemantics`` value.
+    (DRPT-03-002).  Falls back to a humanized version of *semantic_type* when
+    the semantic type is not a recognized ``MessageSemantics`` value.
     """
     try:
-        semantics = MessageSemantics(event_type)
+        semantics = MessageSemantics(semantic_type)
     except ValueError:
-        humanized = event_type.replace("_", " ").strip()
+        humanized = semantic_type.replace("_", " ").strip()
         return humanized or "performed an action"
     entry = lookup_entry(semantics)
     slots: dict[str, str] = defaultdict(lambda: "—")
@@ -417,7 +417,7 @@ class CaseTimelineEvent(BaseModel):
             never interleaved (DRPT-02-006).
         log_index: Monotonic per-case index; the canonical ordering key.
         entry_hash: Full SHA-256 hex hash of the entry (chain traceability).
-        event_type: Short machine-readable event descriptor (``eventType``).
+        semantic_type: The entry's semantic type (``semanticType``).
         actor_uri: Full URI of the acting actor (secondary detail).
         target_ref: Full id of the target object (secondary detail).
         target_type: Wire type of the target object.
@@ -437,7 +437,7 @@ class CaseTimelineEvent(BaseModel):
     case_id: str = ""
     log_index: int = -1
     entry_hash: str = ""
-    event_type: str = ""
+    semantic_type: str = ""
     actor_uri: str | None = None
     actor_display_name: str | None = None
     target_ref: str | None = None
@@ -527,7 +527,9 @@ class CaseTimelineEvent(BaseModel):
                 _first(raw, "log_index", "logIndex", default=-1), default=-1
             ),
             entry_hash=str(_first(raw, "entry_hash", "entryHash", default="")),
-            event_type=str(_first(raw, "event_type", "eventType", default="")),
+            semantic_type=str(
+                _first(raw, "semantic_type", "semanticType", default="")
+            ),
             actor_uri=_actor_uri(payload.get("actor")),
             target_ref=str(target_ref) if target_ref else None,
             target_type=str(target_type) if target_type else None,
@@ -606,15 +608,15 @@ class CaseTimelineEvent(BaseModel):
     def summary(self) -> str:
         """Friendly active-voice summary (DRPT-03-002, DRPT-03-004).
 
-        Looks up the ``SemanticEntry`` phrase template for this event type and
+        Looks up the ``SemanticEntry`` phrase template for this semantic type and
         fills named slots with values derived from the event record's resolved
         label properties.  Unknown slot names fall back to ``"—"``.
         """
         try:
-            semantics = MessageSemantics(self.event_type)
+            semantics = MessageSemantics(self.semantic_type)
         except ValueError:
             humanized = (
-                self.event_type.replace("_", " ").strip()
+                self.semantic_type.replace("_", " ").strip()
                 or "performed an action"
             )
             phrase = humanized
@@ -702,7 +704,7 @@ def build_timeline(
     Actor URIs are resolved to display names extracted from inline actor objects
     in the payload snapshots (e.g. Organization objects carrying a ``name``
     field).  This resolves UUID-based actor URIs (which produce hex-fragment
-    labels) to semantic names like "Vendor" or "Finder".
+    labels) to semantic names like "Vendor" or "Reporter".
     """
     actor_names = collect_actor_names(replicas)
 
@@ -717,7 +719,7 @@ def build_timeline(
             else:
                 key = (
                     f"__nohash__:{actor_name}:{event.log_index}:"
-                    f"{event.event_type}"
+                    f"{event.semantic_type}"
                 )
             by_key.setdefault(key, event)
             presence.setdefault(key, set()).add(actor_name)

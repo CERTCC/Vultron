@@ -10,7 +10,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
-from test.support.ledger import committed_event_types
+from test.support.ledger import committed_semantic_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -19,7 +19,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.embargo.nodes import (
-    EMBARGO_TEARDOWN_EVENT_TYPE,
+    EMBARGO_TEARDOWN_SEMANTIC_TYPE,
     ask_case_manager_to_terminate_once,
 )
 from vultron.core.models.activity import VultronActivity
@@ -96,7 +96,7 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
         )
     ]
     assert not updated_participant.is_signatory(updated_case.active_embargo_id)
-    assert EMBARGO_TEARDOWN_EVENT_TYPE in committed_event_types(
+    assert EMBARGO_TEARDOWN_SEMANTIC_TYPE in committed_semantic_types(
         owner_dl, case.id_
     )
 
@@ -248,10 +248,10 @@ def test_manager_teardown_is_queued_before_it_is_committed(
     (remove_id,) = [
         object_id
         for kind, object_id in events
-        if kind == EMBARGO_TEARDOWN_EVENT_TYPE
+        if kind == EMBARGO_TEARDOWN_SEMANTIC_TYPE
     ]
     assert events.index(("queued", remove_id)) < events.index(
-        (EMBARGO_TEARDOWN_EVENT_TYPE, remove_id)
+        (EMBARGO_TEARDOWN_SEMANTIC_TYPE, remove_id)
     )
 
 
@@ -274,14 +274,14 @@ def test_non_manager_terminate_asks_the_case_manager(
     updated = cast(VulnerabilityCase, finder_dl.read(case.id_))
     assert updated.current_status.em.state == EM.ACTIVE
     assert updated.active_embargo == case.active_embargo
-    assert committed_event_types(finder_dl, case.id_) == []
+    assert committed_semantic_types(finder_dl, case.id_) == []
     _assert_asked_case_manager(
         finder_dl,
         actor_id=finder.id_,
         case_id=case.id_,
         manager_id=owner.id_,
         activity_type="Remove",
-        event_type=EMBARGO_TEARDOWN_EVENT_TYPE,
+        semantic_type=EMBARGO_TEARDOWN_SEMANTIC_TYPE,
     )
 
 

@@ -24,11 +24,12 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, cast
+from typing import Any
 
 from pydantic import ValidationError
 
 from vultron.core.models._helpers import as_utc, now_utc
+from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.rsvp_deadline import (
     DEFAULT_MIN_RSVP_WINDOW,
     RsvpDeadlineClamp,
@@ -39,6 +40,7 @@ from vultron.wire.as2.factories._context import (
     case_target_ref,
     with_case_context,
 )
+from vultron.wire.as2.factories._held import as_answered
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
@@ -196,8 +198,9 @@ def em_accept_embargo_activity(
     Per ActivityStreams convention the actor accepts the proposal
     activity itself, not the ``as_EmbargoEvent`` being proposed.
     The ``proposal`` MUST be the value returned by
-    :func:`em_propose_embargo_activity`; a plain ``as_Invite`` will
-    fail validation.
+    :func:`em_propose_embargo_activity`, or the Invite as a receiver
+    archived it (its core form); a plain ``as_Invite`` will fail
+    validation.
 
     Args:
         proposal: The ``_EmProposeEmbargoActivity`` being accepted.
@@ -214,7 +217,7 @@ def em_accept_embargo_activity(
     """
     try:
         return _EmAcceptEmbargoActivity(
-            object_=cast(_EmProposeEmbargoActivity, proposal),
+            object_=as_answered(_EmProposeEmbargoActivity, proposal),
             context=context,
             **kwargs,
         )
@@ -237,8 +240,9 @@ def em_reject_embargo_activity(
     Per ActivityStreams convention the actor rejects the proposal
     activity itself, not the ``as_EmbargoEvent`` being proposed.
     The ``proposal`` MUST be the value returned by
-    :func:`em_propose_embargo_activity`; a plain ``as_Invite`` will
-    fail validation.
+    :func:`em_propose_embargo_activity`, or the Invite as a receiver
+    archived it (its core form); a plain ``as_Invite`` will fail
+    validation.
 
     Args:
         proposal: The ``_EmProposeEmbargoActivity`` being rejected.
@@ -255,7 +259,7 @@ def em_reject_embargo_activity(
     """
     try:
         return _EmRejectEmbargoActivity(
-            object_=cast(_EmProposeEmbargoActivity, proposal),
+            object_=as_answered(_EmProposeEmbargoActivity, proposal),
             context=context,
             **kwargs,
         )
@@ -467,6 +471,7 @@ def remove_embargo_from_case_activity(
     origin: as_VulnerabilityCaseRef | None = None,
     *,
     reason: TerminationReason,
+    cause: TerminationCause | None = None,
     **kwargs,
 ) -> as_Remove:
     """Build a Remove(as_EmbargoEvent, origin=VulnerabilityCase).
@@ -477,9 +482,11 @@ def remove_embargo_from_case_activity(
     owner, or by the CASE_MANAGER.
 
     *reason* is the termination's what, carried as ``content``: exactly
-    ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122).  ``summary`` defaults to a
+    ``END_TIME_REACHED`` or ``EARLY`` (ADR-0122).  *cause* is its why, when
+    the sender names one, carried as ``terminationCause`` (EMB-13-005); an
+    ``END_TIME_REACHED`` termination has none.  ``summary`` defaults to a
     human-readable account the protocol does not read; pass ``summary`` to
-    override it.
+    override it, as an ``OTHER`` cause does to give its account.
 
     Note: this activity uses ``origin`` (not ``target``) for the case
     reference, following the ActivityStreams convention for Remove.
@@ -489,6 +496,7 @@ def remove_embargo_from_case_activity(
         origin: The ``VulnerabilityCase`` (or its URI) from which
             the embargo is removed.
         reason: What ended the embargo; required.
+        cause: Why it ended, or ``None`` when the sender names no cause.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
@@ -497,12 +505,17 @@ def remove_embargo_from_case_activity(
         ``origin`` is the case reference.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails,
+            including a *cause* on an ``END_TIME_REACHED`` termination.
     """
     try:
         kwargs.setdefault("summary", _TERMINATION_SUMMARY[reason])
         return _RemoveEmbargoFromCaseActivity(
-            object_=embargo, origin=origin, content=reason.value, **kwargs
+            object_=embargo,
+            origin=origin,
+            content=reason.value,
+            termination_cause=cause,
+            **kwargs,
         )
     except ValidationError as exc:
         logger.warning(

@@ -55,7 +55,7 @@ def _to_persistable_entry(
         log_index=chain_entry.log_index,
         term=chain_entry.term,
         log_object_id=chain_entry.object_id,
-        event_type=chain_entry.event_type,
+        semantic_type=chain_entry.semantic_type,
         payload_snapshot=dict(chain_entry.payload_snapshot),
         prev_log_hash=chain_entry.prev_log_hash,
         entry_hash=chain_entry.entry_hash,
@@ -69,7 +69,7 @@ def _make_entry(
         case_id=case_id,
         log_index=log_index,
         object_id="https://example.org/activities/act1",
-        event_type="test_event",
+        semantic_type="test_event",
         payload_snapshot={"key": "value"},
         prev_log_hash=prev_hash,
     )
@@ -96,9 +96,15 @@ def entry1(entry0) -> CaseLedgerEntry:
 
 
 def _make_reject_event(
-    entry: CaseLedgerEntry, last_accepted_hash: str, actor: str
+    entry: CaseLedgerEntry,
+    last_accepted_hash: str,
+    actor: str,
+    to: list[str] | None = None,
 ) -> RejectLogEntryReceivedEvent:
-    """Build a RejectLogEntryReceivedEvent via the extractor."""
+    """Build a RejectLogEntryReceivedEvent via the extractor.
+
+    Addressed to the CASE_MANAGER unless *to* names other recipients.
+    """
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
@@ -106,7 +112,7 @@ def _make_reject_event(
         wire_entry,
         context=last_accepted_hash,
         actor=actor,
-        to=[CASE_ACTOR_URI],
+        to=to or [CASE_ACTOR_URI],
     )
     return cast(RejectLogEntryReceivedEvent, extract_event(activity))
 
@@ -287,9 +293,14 @@ class TestRejectLedgerEntryReceivedUseCase:
     """RejectLedgerEntryReceivedUseCase updates state and triggers replay."""
 
     def _make_event(
-        self, entry: CaseLedgerEntry, last_accepted_hash: str
+        self,
+        entry: CaseLedgerEntry,
+        last_accepted_hash: str,
+        to: list[str] | None = None,
     ) -> RejectLogEntryReceivedEvent:
-        return _make_reject_event(entry, last_accepted_hash, PARTICIPANT_URI)
+        return _make_reject_event(
+            entry, last_accepted_hash, PARTICIPANT_URI, to=to
+        )
 
     @pytest.mark.spec("SYNC-04-001")
     def test_updates_replication_state(self, manager_dl, entry0, entry1):
@@ -332,9 +343,13 @@ class TestRejectLedgerEntryReceivedUseCase:
         _seed_case(dl)
         sync_port = MagicMock(spec=SyncActivityPort)
 
+        # The copy names the store too, so the addressee door admits it and
+        # the CASE_MANAGER role guard decides (HP-01-005).
         result = RejectLedgerEntryReceivedUseCase(
             dl,
-            self._make_event(entry1, entry0.entry_hash),
+            self._make_event(
+                entry1, entry0.entry_hash, to=[CASE_ACTOR_URI, dl.actor_id]
+            ),
             sync_port=sync_port,
         ).execute()
 

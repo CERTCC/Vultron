@@ -176,7 +176,7 @@ def test_constructor_case_id_builds_inner_commit_tree(bridge):
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
-        event_type=MessageSemantics.CREATE_CASE.value,
+        semantic_type=MessageSemantics.CREATE_CASE.value,
         payload_snapshot={},
     )
     execute_kwargs = (
@@ -227,13 +227,15 @@ def test_blackboard_case_id_builds_inner_commit_tree(bridge, datalayer):
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
-        event_type=MessageSemantics.CREATE_CASE.value,
+        semantic_type=MessageSemantics.CREATE_CASE.value,
         payload_snapshot={},
     )
 
 
-def test_activity_on_blackboard_uses_semantic_type_as_event_type(bridge):
-    """event_type is derived from activity.semantic_type.value."""
+def test_activity_on_blackboard_semantics_become_the_entry_semantic_type(
+    bridge,
+):
+    """The entry's semantic_type is derived from activity.semantic_type.value."""
     activity = _FakeActivity(
         activity_id=ACTIVITY_ID,
         semantic_type=MessageSemantics.CREATE_CASE,
@@ -252,7 +254,7 @@ def test_activity_on_blackboard_uses_semantic_type_as_event_type(bridge):
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
-        event_type=MessageSemantics.CREATE_CASE.value,
+        semantic_type=MessageSemantics.CREATE_CASE.value,
         payload_snapshot={},
     )
 
@@ -277,7 +279,7 @@ def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
     mock_factory.assert_called_once_with(
         case_id=CASE_ID,
         object_id=ACTIVITY_ID,
-        event_type=MessageSemantics.CREATE_CASE.value,
+        semantic_type=MessageSemantics.CREATE_CASE.value,
         payload_snapshot={
             "id": ACTIVITY_ID,
             "type": "Create",
@@ -620,3 +622,126 @@ def test_case_manager_as_participant_commits_without_error(bridge):
         )
     assert result.status == Status.SUCCESS
     mock_factory.assert_called_once()
+
+
+def _note_payload(actor: str, note_id: str) -> dict:
+    return {
+        "type": "Add",
+        "actor": actor,
+        "object": {
+            "type": "Note",
+            "id": note_id,
+            "context": CASE_ID_CLP,
+        },
+        "context": CASE_ID_CLP,
+        "published": "2026-01-01T12:00:00+00:00",
+    }
+
+
+@pytest.mark.spec("CLP-07-003")
+@pytest.mark.spec("OID-01-006")
+def test_slash_spelled_snapshot_actor_commits(bridge):
+    """CLP-07-003: the snapshot keeps the sender's trailing slash while the
+    event's ``actor_id`` is normalised; the two name one actor, so the entry
+    commits (``same_actor_id``)."""
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity=_FakeWireActivityWithPayload(
+            _note_payload(ACTOR_ID + "/", "https://example.org/notes/n3")
+        ),
+        actor_id=ACTOR_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+    assert result.status == Status.SUCCESS
+    mock_factory.assert_called_once()
+
+
+@pytest.mark.spec("CLP-07-003")
+def test_slash_spelled_different_actor_still_refused(bridge):
+    """CLP-07-003: the trailing-slash tolerance does not admit a different
+    actor — a slash-spelled impostor in the snapshot is still refused."""
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity=_FakeWireActivityWithPayload(
+            _note_payload(
+                DIFFERENT_ACTOR + "/", "https://example.org/notes/n4"
+            )
+        ),
+        actor_id=ACTOR_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    with patch(_FACTORY_PATH) as mock_factory, patch(_INNER_BRIDGE_PATH):
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+    assert result.status == Status.FAILURE
+    assert "CLP-07-003" in (result.feedback_message or "")
+    mock_factory.assert_not_called()
+
+
+@pytest.mark.spec("CLP-07-003")
+@pytest.mark.spec("OID-01-006")
+def test_inline_slash_spelled_snapshot_actor_passes_the_identity_check(
+    bridge,
+):
+    """An inline actor object is read by its id, normalised, not by its
+    ``str()``: an inline sender profile spelled with a trailing slash passes
+    the CLP-07-003 identity check and reaches the commit.  The commit tree is
+    mocked; the canonical-entry validation refuses a non-string snapshot
+    actor further on, which this test does not cover."""
+    payload = _note_payload(ACTOR_ID, "https://example.org/notes/n5")
+    payload["actor"] = {"id": ACTOR_ID + "/", "type": "Person"}
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity=_FakeWireActivityWithPayload(payload),
+        actor_id=ACTOR_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    with (
+        patch(_FACTORY_PATH) as mock_factory,
+        patch(_INNER_BRIDGE_PATH) as mock_bridge_cls,
+    ):
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+    assert result.status == Status.SUCCESS
+    mock_factory.assert_called_once()
+
+
+@pytest.mark.spec("CLP-07-003")
+@pytest.mark.spec("OID-01-006")
+def test_snapshot_actor_naming_no_id_is_refused(bridge):
+    """A snapshot actor that names no id cannot be shown to be the sender,
+    so the entry is refused rather than compared as text."""
+    payload = _note_payload(ACTOR_ID, "https://example.org/notes/n6")
+    payload["actor"] = {"type": "Person", "name": ACTOR_ID}
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity=_FakeWireActivityWithPayload(payload),
+        actor_id=ACTOR_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    with patch(_FACTORY_PATH) as mock_factory, patch(_INNER_BRIDGE_PATH):
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+    assert result.status == Status.FAILURE
+    assert "CLP-07-003" in (result.feedback_message or "")
+    mock_factory.assert_not_called()

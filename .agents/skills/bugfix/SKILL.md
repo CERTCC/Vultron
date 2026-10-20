@@ -60,14 +60,11 @@ If this fails, stop and investigate before proceeding.
       closest epics plus "Specify other epic number". **A parent epic is
       required** — do not create the issue until one is confirmed.
 
-   2. **Milestone** — query open milestones and ask the user to confirm the
-      best-fit one (see `shared/issue-creation-requirements.md` for defaults).
-
    `BUG_BODY` includes a `Governing specs:` line naming the spec IDs the
    correct behavior is defined by (or `none — <reason>`); see
    `shared/issue-creation-requirements.md` § "Governing specs".
 
-   Then create with all three required fields:
+   Then create with the required fields:
 
    ```bash
    BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
@@ -76,7 +73,6 @@ If this fails, stop and investigate before proceeding.
      --body "${BUG_BODY}" \
      --issue-type-id "${BUG_TYPE_ID}" \
      --parent "${EPIC_NUMBER}" \
-     --milestone "${MILESTONE_NUMBER}" \
      --planned)
    ```
 
@@ -153,7 +149,7 @@ from a different path?"
 Search for the same structural pattern in:
 
 - Peer files in the same directory or module
-- Sibling demo scenarios (same naming convention, e.g., `fvcv_*`, `fccv_*`)
+- Sibling demo scenarios (same naming convention, e.g., `rvcv_*`, `rccv_*`)
 - Other actors or handlers that implement the same protocol step
 
 Document each hit with file:line and whether it exhibits the same bug. Do

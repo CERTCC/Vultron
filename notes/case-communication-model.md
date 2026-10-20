@@ -180,10 +180,11 @@ Reject(Invite(stub)) instead of Accept → RM.CLOSED on the kept, inert record
 - The Invite's `actor` is the CASE_MANAGER; `attributedTo` MAY carry the case owner
   (PCR-08-007).
 - The invitee's `Accept` goes **to the CASE_MANAGER**, not the case owner
-  (PCR-08-008). The invitee holds no case yet, so its inbox usually defers the Invite;
-  the accept and reject triggers read it through `read_received_activity()`
-  (`core/use_cases/_helpers.py`), which finds the archive record or the deferred copy
-  (CLP-10-017; [inbox-orchestration](inbox-orchestration.md)).
+  (PCR-08-008). The invitee holds no case yet, but its inbox processes the stub Invite
+  on arrival rather than deferring it (`is_deferral_exempt()`, PCR-06-005), so the
+  accept and reject triggers read intake's archive record through
+  `read_received_activity()` (`core/services/received_activity.py`; CLP-10-017,
+  [inbox-orchestration](inbox-orchestration.md)).
 - The CASE_MANAGER processes the Accept (PCR-08-009). The same handler runs on any
   actor holding a copy, so its effects sit behind the role gate, and a receiver the gate
   turns away reports `REFUSED` through `not_case_manager_refusal()`, never `SKIPPED`
@@ -257,9 +258,11 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   `Create`/`Update(EmbargoConsent)` entry, which the `EmbargoConsent` slot copies, as
   are the rows a withdrawal declines. The one tracked deviation is the
   owner's-rejection slot deciding to skip a `Reject` the CASE_MANAGER answered
-  with ET, which is lifecycle logic on replay (CM-23-016, #4789):
+  with ET, which is lifecycle logic on replay (CM-23-016). MSM-07-009 now
+  makes both entries carry their step (`REJECT`, then the CASE_MANAGER's
+  `TERMINATE`), so the replica copies both; #4850 removes the skip:
 
-| Entry (`event_type`) | Slot | Replica effect |
+| Entry (`semantic_type`) | Slot | Replica effect |
 |---|---|---|
 | proposal (`invite_to_embargo_on_case`, not a relay) | `EmbargoProposal` | stores B, copies the `PROPOSE` step (→ `PROPOSED`/`REVISE`), index recorded; the rows follow |
 | relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | stores B, proposer's index; the invitee's `INVITED` row and RSVP deadline follow (CM-28-013) |
@@ -268,14 +271,14 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 | `withdraw_from_embargo_on_case` (`Leave(EmbargoEvent)`) | `EmbargoWithdrawal` | stores the embargo if absent; writes no row: each row it declines follows as its own `update_embargo_consent` (MSM-07-010) |
 | `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed; a no-op when the seed is past it, else refuses it into the gap buffer |
 | `activate_embargo_on_case` (owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | copies the `ACTIVATE` step (B `ACTIVE`, A `SUPERSEDED`) and the owner's `AGREED` row; each `CARRY_OVER` row follows as its own `update_embargo_consent` |
-| `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | copies the `REJECT` step: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent. A no-op when the CASE_MANAGER answered it with ET (EMB-04-002): the teardown entry that follows cancels B. The replica decides that skip itself, a tracked deviation from CM-23-016 (#4789) |
-| `invite_to_embargo_on_case_expired` | `InviteExpiry` | invitee PEC `TIME_OUT` on that invitation's row; no deadline re-evaluated (CM-28-014) |
-| `honour_late_accept_invite_to_embargo_on_case` | `InviteHonourLateAccept` | `TIMED_OUT → AGREED` or `DECLINED → AGREED` (EMB-17-001, EMB-17-002) |
+| `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | copies the `REJECT` step: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent. A no-op when the CASE_MANAGER answered it with ET (EMB-04-002): the teardown entry that follows cancels B. The replica decides that skip itself, a tracked deviation from CM-23-016 until #4850 (MSM-07-009) |
+| `invite_to_embargo_on_case_expired` | `InviteExpiry` | records the act only; the `TIMED_OUT` row follows as its own `update_embargo_consent`, and no deadline is re-evaluated (CM-28-014) |
+| `honour_late_accept_invite_to_embargo_on_case` | `InviteHonourLateAccept` | records the act only; the `AGREED` row (from `TIMED_OUT` or `DECLINED`) follows as its own `update_embargo_consent` (EMB-17-001, EMB-17-002) |
 | `invite_to_embargo_on_case_expired_noop` | `InviteExpiryNoop` | no PEC change (EMB-17-004) |
 | `invite_to_embargo_on_case_reinvite` (no `attributedTo`) | `EmbargoReinvite` | stores B; the invitee's `INVITED` row and deadline follow; no EM change (EMB-17-003) |
-| `remove_embargo_event_from_case` | teardown | unchanged |
+| `remove_embargo_event_from_case` | `EmbargoTeardown` | copies the `TERMINATE` step for the embargo the entry names, with the `CANCEL` of every open proposal (EP-08-004); writes no row (MSM-07-006); an entry naming an embargo not in force here changes nothing |
 
-- A proposal and a relay share one event type; `is_relayed_embargo_invite()` reads a
+- A proposal and a relay share one semantic type; `is_relayed_embargo_invite()` reads a
   relay only when `actor` is the case's CASE_MANAGER and `attributedTo` names someone
   else, so a third party in `attributedTo` from a participant is still a proposal
   (PCR-08-010).
@@ -285,6 +288,10 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
   rebuild the embargo fails, blocking persistence (SYNC-12-001).
 - `test/architecture/test_embargo_relay_entries_are_replayed.py` is the ratchet;
   `test_embargo_relay_replay.py` drives the cycle across per-actor stores.
+  `test/architecture/test_embargo_replica_slots_copy.py` keeps every slot above
+  free of lifecycle logic, and every per-actor-store scenario is rebuilt from the
+  CASE_MANAGER's ledger into an empty store when it ends
+  (`test/support/ledger_rebuild.py`, #4294).
 
 ---
 
@@ -374,4 +381,4 @@ passes for the wrong reason.
 `Announce(CaseLedgerEntry)` is the replication envelope (SYNC-02-002). A canonical
 entry's `payloadSnapshot` is the activity that *triggered* the entry, never the
 transport that delivered it, so `announce_case_ledger_entry` MUST NOT appear in
-`EXPECTED_EVENT_TYPES` for the canonical log (CLP-10-004, ADR-0021).
+`EXPECTED_SEMANTIC_TYPES` for the canonical log (CLP-10-004, ADR-0021).

@@ -59,7 +59,7 @@ from vultron.core.behaviors.sync.announce_tree import (
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.behaviors.sync.nodes.participant_removal_effect import (
-    REINSTATE_CASE_PARTICIPANT_EVENT_TYPE,
+    REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.models._helpers import _as_id, days_from_now_utc
 from vultron.core.models.activity import VultronActivity
@@ -68,6 +68,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_termination import (
+    FixReadyCause,
     ThreatSignal,
     ThreatSignalTermination,
 )
@@ -216,7 +217,7 @@ class _Manager:
         assert isinstance(record, CaseParticipant)
         removal = self.route(
             remove_participant_from_case_activity(
-                record, target=CASE_ID, actor=OWNER
+                record, target=CASE_ID, actor=OWNER, to=[MANAGER]
             )
         )
         assert removal.disposition is HandlerDisposition.APPLIED
@@ -308,6 +309,33 @@ def test_owner_termination_sends_et_to_each_unreached_signatory() -> None:
         assert notice.id_ in manager.dl.outbox_list()
     # The termination itself is the one new entry.
     assert len(manager.ledger_object_ids() - before) == 1
+
+
+@pytest.mark.spec("CM-31-009")
+@pytest.mark.spec("EMB-13-005")
+def test_the_ending_notice_carries_the_cause_the_manager_records() -> None:
+    """Every ``Remove`` the CASE_MANAGER sends carries the cause it records,
+    the direct notice to an unreached signatory included (#4857)."""
+    manager = _Manager()
+    cause = FixReadyCause(vendors=[ACTIVE])
+
+    result = manager.route(
+        remove_embargo_from_case_activity(
+            _embargo(manager.dl),
+            origin=CASE_ID,
+            actor=OWNER,
+            to=[MANAGER],
+            reason=TerminationReason.EARLY,
+            cause=cause,
+        )
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    notices = manager.notices("Remove", EMBARGO_ID)
+    assert set(notices) == _unreached_signatories()
+    for recipient in _unreached_signatories():
+        (notice,) = notices[recipient]
+        assert notice.termination_cause == cause
 
 
 @pytest.mark.spec("CM-31-009")
@@ -804,8 +832,8 @@ def _shorter_revision_announced_by(
         context=CASE_ID,
         end_time=days_from_now_utc(end_in_days),
     )
-    # The inbox pre-store holds the inline embargo before dispatch
-    # (EMB-18-003); the apply node stores it when it is still missing.
+    # The inbox ingress stores no inline object (IO-03-004), so the apply
+    # node stores the inline embargo when it is still missing (EMB-18-003).
     return replica.receive(
         announce_embargo_activity(
             revision, context=CASE_ID, actor=sender, to=[replica.actor_id]
@@ -868,9 +896,17 @@ def test_paused_replica_ignores_an_announced_longer_revision() -> None:
 
 
 def _entry_event(
-    activity: Any, *, event_type: str, log_index: int, prev_log_hash: str
+    activity: Any,
+    *,
+    semantic_type: str,
+    log_index: int,
+    prev_log_hash: str,
+    to: str,
 ) -> tuple[AnnounceLogEntryReceivedEvent, CaseLedgerEntry]:
-    """The CASE_MANAGER's announcement of the ledger entry for *activity*.
+    """The CASE_MANAGER's announcement to *to* of the entry for *activity*.
+
+    The fan-out names its recipient in ``to`` (SYNC-09-002), so the replica's
+    addressee door admits it (HP-01-005).
 
     Returns the event and the entry, so the next entry can chain to it, as
     the backfill delivers them once the gap closed.
@@ -880,7 +916,7 @@ def _entry_event(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=activity.id_,
-            event_type=event_type,
+            semantic_type=semantic_type,
             payload_snapshot=activity.model_dump(
                 by_alias=True, mode="json", exclude_none=True
             ),
@@ -890,10 +926,16 @@ def _entry_event(
     wire_entry = as_CaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
-    announce = announce_log_entry_activity(entry=wire_entry, actor=MANAGER)
+    announce = announce_log_entry_activity(
+        entry=wire_entry, actor=MANAGER, to=[to]
+    )
     event = cast(AnnounceLogEntryReceivedEvent, extract_event(announce))
     event.activity = VultronActivity(
-        id_=event.activity_id, type_="Announce", actor=MANAGER, object_=entry
+        id_=event.activity_id,
+        type_="Announce",
+        actor=MANAGER,
+        to=[to],
+        object_=entry,
     )
     return event, entry
 
@@ -930,9 +972,10 @@ def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
         add_participant_to_case_activity(
             replica.record(), target=CASE_ID, actor=OWNER, context=CASE_ID
         ),
-        event_type=REINSTATE_CASE_PARTICIPANT_EVENT_TYPE,
+        semantic_type=REINSTATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
         log_index=0,
         prev_log_hash=replica.case().genesis_hash,
+        to=replica.actor_id,
     )
     _replay(replica, reinstatement)
     assert not replica.record().removed
@@ -941,9 +984,10 @@ def test_replaying_the_termination_after_reinstatement_changes_nothing() -> (
 
     termination, _ = _entry_event(
         _termination_from(MANAGER, replica.dl, REMOVED),
-        event_type="remove_embargo_event_from_case",
+        semantic_type="remove_embargo_event_from_case",
         log_index=1,
         prev_log_hash=reinstatement_entry.entry_hash,
+        to=replica.actor_id,
     )
     _replay(replica, termination)
 

@@ -44,4 +44,4 @@ Each step builds on the one before it.
 ## Watch a case run
 
 - [Tutorial: Run the Receive-Report Demo](../tutorials/receive_report_demo.md) — a vendor accepting, holding, or rejecting an incoming report.
-- [Tutorial: Run the FV Demo](../tutorials/fv-demo.md) — the Finder and Vendor (FV) scenario, working a case through to publication.
+- [Tutorial: Run the `rv` Demo](../tutorials/rv-demo.md) — the Reporter and Vendor (`rv`) scenario, working a case through to publication.

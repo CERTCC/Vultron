@@ -25,7 +25,8 @@ Sub-modules
   ``find_case_invite_for_actor``, ``find_cp_offer_for_case``,
   ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
   ``resolve_case_actor_store_id``, ``wait_for_object_stored``,
-  ``wait_for_report_submission_stored``, ``wait_for_reporter_introduction``,
+  ``wait_for_received_activity``, ``wait_for_report_submission_stored``,
+  ``wait_for_reporter_introduction``,
   and all ``wait_for_*`` helpers.
 - :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory and
   ``publish_embargo_policy`` (``PUT /actors/{slug}/embargo-policy``, EP-02).
@@ -36,8 +37,8 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
   ``check_all_containers``.
 - :mod:`~vultron.demo.helpers.seeding` — ``_dl_key``, ``get_actor_by_id``,
-  ``seed_containers``, ``seed_containers_fvv``, ``seed_containers_fccv``,
-  ``seed_containers_fcv``, ``seed_containers_fcvcv``, and
+  ``seed_containers``, ``seed_containers_rvv``, ``seed_containers_rccv``,
+  ``seed_containers_rcv``, ``seed_containers_rcvcv``, and
   ``reset_containers``.
 - :mod:`~vultron.demo.helpers.ledger_commit` — ``trigger_log_commit``.
 - :mod:`~vultron.demo.helpers.sync` — ``verify_replica_state`` and the shared
@@ -63,7 +64,8 @@ Sub-modules
   ``verify_case_closure_recorded``).
 - :mod:`~vultron.demo.helpers.closure` — ``close_case_owner_last`` and
   ``CaseLeaver``: the closure phase every scenario shares, the Case Owner
-  leaving last (CM-23-015).
+  leaving last (CM-23-015); ``wait_for_owner_replica_embargo_state``, the
+  gate before an owner's ``leave-case`` (TRIG-13-003).
 """
 
 from vultron.demo.helpers.actor_roles import (
@@ -74,6 +76,7 @@ from vultron.demo.helpers.actor_roles import (
 from vultron.demo.helpers.closure import (
     CaseLeaver,
     close_case_owner_last,
+    wait_for_owner_replica_embargo_state,
 )
 from vultron.demo.helpers.embargo import (
     make_embargo_event,
@@ -133,9 +136,6 @@ from vultron.demo.helpers.polling import (
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
-    wait_for_event_type_in_ledger,
-    wait_for_finder_case,
-    wait_for_finder_log_entry,
     wait_for_ledger_event,
     wait_for_note_in_case,
     wait_for_object_stored,
@@ -144,8 +144,12 @@ from vultron.demo.helpers.polling import (
     wait_for_participant_vf_state,
     wait_for_participants_on_replicas,
     wait_for_pending_inbox_quiescent,
+    wait_for_received_activity,
     wait_for_report_submission_stored,
+    wait_for_reporter_case,
     wait_for_reporter_introduction,
+    wait_for_reporter_log_entry,
+    wait_for_semantic_type_in_ledger,
 )
 from vultron.demo.helpers.runner import (
     check_all_containers,
@@ -156,10 +160,10 @@ from vultron.demo.helpers.seeding import (
     get_actor_by_id,
     reset_containers,
     seed_containers,
-    seed_containers_fccv,
-    seed_containers_fcv,
-    seed_containers_fcvcv,
-    seed_containers_fvv,
+    seed_containers_rccv,
+    seed_containers_rcv,
+    seed_containers_rcvcv,
+    seed_containers_rvv,
 )
 from vultron.demo.helpers.sync import (
     _extract_ref_id,

@@ -67,7 +67,9 @@ class TestUseCaseExecution:
             name="TEST-002", content="Test vulnerability report"
         )
         create_activity = as_Create(
-            actor="https://example.org/users/tester", object_=report
+            actor="https://example.org/users/tester",
+            object_=report,
+            to=["https://example.org/actors/receiver"],
         )
         event = make_payload(
             create_activity,
@@ -84,7 +86,9 @@ class TestUseCaseExecution:
             name="TEST-CASE-002", content="Test vulnerability case"
         )
         create_activity = as_Create(
-            actor="https://example.org/users/tester", object_=case
+            actor="https://example.org/users/tester",
+            object_=case,
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
         event = make_payload(create_activity)
 
@@ -107,7 +111,9 @@ class TestUseCaseExecution:
             name="TEST-003", content="Test report for shim delegation"
         )
         create_activity = as_Create(
-            actor="https://example.org/users/tester", object_=report
+            actor="https://example.org/users/tester",
+            object_=report,
+            to=[dl.actor_id],
         )
         event = make_payload(create_activity)
         result = CreateReportReceivedUseCase(dl, event).execute()
@@ -124,9 +130,15 @@ def _run_create_report(
     sender_id: str = _FINDER_ID,
     dl: SqliteDataLayer | None = None,
 ) -> tuple[HandlerResult, SqliteDataLayer]:
-    """Run ``CreateReportReceivedUseCase`` for ``Create(Report)`` from *sender_id*."""
+    """Run ``CreateReportReceivedUseCase`` for ``Create(Report)`` from *sender_id*.
+
+    The activity is addressed to the receiving store's actor, so it passes the
+    received tree's addressee door (HP-01-005).
+    """
+    if dl is None:
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER_ID)
     activity = VultronActivity(
-        id_=activity_id, type_="Create", actor=sender_id
+        id_=activity_id, type_="Create", actor=sender_id, to=[dl.actor_id]
     )
     event = CreateReportReceivedEvent(
         semantic_type=MessageSemantics.CREATE_REPORT,
@@ -135,8 +147,6 @@ def _run_create_report(
         object_=VulnerabilityReport(id_=report_id),
         activity=activity,
     )
-    if dl is None:
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER_ID)
     return CreateReportReceivedUseCase(dl, event).execute(), dl
 
 
@@ -209,10 +219,12 @@ class TestCreateReportSenderEntitlement:
 class TestDuplicateReportHandling:
     """Tests that duplicate as_VulnerabilityReport warnings are not emitted.
 
-    The inbox endpoint pre-stores nested objects before dispatching to use
-    cases.  When the use case then tries to store the same report, the
-    duplicate must be silently demoted to DEBUG — not WARNING — because it
-    is an expected idempotency condition, not a real error (D5-6-DUP).
+    The receiver may already hold the report, for example from an earlier
+    delivery of the same activity.  When the use case then tries to store the
+    same report, the duplicate must be silently demoted to DEBUG — not
+    WARNING — because it is an expected idempotency condition, not a real
+    error (D5-6-DUP).  The inbox ingress stores no inline object
+    (IO-03-004), so the earlier copy is never ingress's.
     """
 
     def _make_submit_event(
@@ -241,8 +253,8 @@ class TestDuplicateReportHandling:
     def test_submit_report_no_warning_on_duplicate_report(self, caplog):
         """SubmitReportReceivedUseCase emits no WARNING when report already stored.
 
-        The inbox endpoint pre-stores the nested as_VulnerabilityReport before
-        dispatching; the use case must degrade to DEBUG, not WARNING.
+        A report already held from an earlier delivery is a duplicate; the
+        use case must degrade to DEBUG, not WARNING.
         Per D5-6-DUP.
         """
         import logging
@@ -258,7 +270,7 @@ class TestDuplicateReportHandling:
             "sqlite:///:memory:",
             actor_id="https://example.org/actors/vendor",
         )
-        # Simulate inbox pre-storage of the nested objects.
+        # The receiver already holds the report from an earlier delivery.
         dl.save(report)
 
         with caplog.at_level(logging.WARNING):
@@ -276,7 +288,7 @@ class TestDuplicateReportHandling:
         ]
         assert warning_records == [], (
             "No WARNING should be emitted when as_VulnerabilityReport is "
-            f"pre-stored by inbox endpoint; got: {[r.message for r in warning_records]}"
+            f"already stored; got: {[r.message for r in warning_records]}"
         )
 
     def test_create_report_no_warning_on_duplicate_report(self, caplog):
@@ -293,6 +305,7 @@ class TestDuplicateReportHandling:
             id_="https://example.org/activities/create-dup-1",
             type_="Create",
             actor="https://example.org/users/finder",
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
         event = CreateReportReceivedEvent(
             semantic_type=MessageSemantics.CREATE_REPORT,
@@ -305,7 +318,7 @@ class TestDuplicateReportHandling:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        # Simulate inbox pre-storage of the nested object.
+        # The receiver already holds the report from an earlier delivery.
         dl.save(report)
 
         with caplog.at_level(logging.WARNING):
@@ -316,7 +329,7 @@ class TestDuplicateReportHandling:
         ]
         assert warning_records == [], (
             "No WARNING should be emitted when as_VulnerabilityReport is "
-            f"pre-stored by inbox endpoint; got: {[r.message for r in warning_records]}"
+            f"already stored; got: {[r.message for r in warning_records]}"
         )
 
 

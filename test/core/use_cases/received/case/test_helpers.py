@@ -103,7 +103,7 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
     )
     case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
     case.actor_participant_index[_FINDER_ID] = _FINDER_PARTICIPANT_ID
-    activity = create_case_activity(case, actor=_VENDOR_ID)
+    activity = create_case_activity(case, actor=_VENDOR_ID, to=[_FINDER_ID])
     event = make_payload(activity, receiving_actor_id=_FINDER_ID)
 
     CreateCaseReceivedUseCase(dl, event).execute()
@@ -162,7 +162,7 @@ def test_bootstrap_bare_uri_participant_is_refused(make_payload):
     )
     case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
     case.actor_participant_index[_FINDER_ID] = _FINDER_PARTICIPANT_ID
-    activity = create_case_activity(case, actor=_VENDOR_ID)
+    activity = create_case_activity(case, actor=_VENDOR_ID, to=[_FINDER_ID])
     event = make_payload(activity, receiving_actor_id=_FINDER_ID)
     result = CreateCaseReceivedUseCase(dl, event).execute()
 
@@ -252,7 +252,7 @@ def test_bootstrap_from_an_actor_no_anchor_names_is_refused(
     )
     case.actor_participant_index[_IMPOSTOR_ID] = impostor.id_
     case.actor_participant_index[_FINDER_ID] = finder.id_
-    activity = create_case_activity(case, actor=_IMPOSTOR_ID)
+    activity = create_case_activity(case, actor=_IMPOSTOR_ID, to=[_FINDER_ID])
     event = make_payload(activity, receiving_actor_id=_FINDER_ID)
 
     result = CreateCaseReceivedUseCase(dl, event).execute()

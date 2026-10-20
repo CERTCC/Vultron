@@ -151,7 +151,10 @@ class _RemovalCase:
     def remove(self, actor_id: str, *, by: str = OWNER) -> HandlerResult:
         return self.route(
             remove_participant_from_case_activity(
-                self.participant(actor_id), target=CASE_ID, actor=by
+                self.participant(actor_id),
+                target=CASE_ID,
+                actor=by,
+                to=[MANAGER],
             )
         )
 
@@ -319,7 +322,7 @@ def test_removal_is_refused_unless_the_owner_removes_a_removable_participant(
 
     result = removal_case.route(
         remove_participant_from_case_activity(
-            removed_record, target=CASE_ID, actor=sender
+            removed_record, target=CASE_ID, actor=sender, to=[MANAGER]
         )
     )
 
@@ -337,7 +340,7 @@ def test_removal_naming_no_participant_of_the_case_is_refused(
 
     result = removal_case.route(
         remove_participant_from_case_activity(
-            stranger, target=CASE_ID, actor=OWNER
+            stranger, target=CASE_ID, actor=OWNER, to=[MANAGER]
         )
     )
 
@@ -374,7 +377,7 @@ def test_removal_is_one_canonical_ledger_entry_by_the_owner(
     removal_case.remove(VENDOR)
 
     added = removal_case.ledger()[before:]
-    assert len(added) == 1, [e.event_type for e in added]
+    assert len(added) == 1, [e.semantic_type for e in added]
     assert added[0].payload_snapshot.get("actor") == OWNER
 
 
@@ -527,7 +530,7 @@ def test_owner_add_reinstates_a_removed_participant(removal_case) -> None:
 
     result = removal_case.route(
         add_participant_to_case_activity(
-            participant, target=CASE_ID, actor=OWNER
+            participant, target=CASE_ID, actor=OWNER, to=[MANAGER]
         )
     )
 
@@ -542,7 +545,10 @@ def test_add_naming_a_participant_that_is_not_removed_is_refused(
     """``Add`` only reinstates; it is not a way to seat a member."""
     result = removal_case.route(
         add_participant_to_case_activity(
-            removal_case.participant(OTHER), target=CASE_ID, actor=OWNER
+            removal_case.participant(OTHER),
+            target=CASE_ID,
+            actor=OWNER,
+            to=[MANAGER],
         )
     )
 

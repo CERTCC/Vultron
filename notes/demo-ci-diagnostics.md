@@ -49,9 +49,9 @@ them.
 
 | Layer | Meaning | Container log | Log line |
 |---|---|---|---|
-| **1 — Sent** | Outbound delivery succeeded | Sender (`finder`, `vendor`, …) | `Delivered activity <id> to <url> (HTTP 202)` (INFO, `vultron.adapters.driven.http_delivery`) |
+| **1 — Sent** | Outbound delivery succeeded | Sender (`reporter`, `vendor`, …) | `Delivered activity <id> to <url> (HTTP 202)` (INFO, `vultron.adapters.driven.http_delivery`) |
 | **2 — Received** | Inbox accepted the activity | Receiver (`case-actor`, `vendor`, …) | `Parsing activity from request body (type=…)` (DEBUG, `uvicorn.error`) |
-| **3 — Committed** | Ledger entry written | `case-actor` | `PersistLogEntryNode: committed log entry case_id=… event_type=… log_index=… actor_id=…` (INFO) |
+| **3 — Committed** | Ledger entry written | `case-actor` | `PersistLogEntryNode: committed log entry case_id=… semantic_type=… log_index=… actor_id=…` (INFO) |
 
 Walk the layers 1→2→3 and stop at the first missing line:
 
@@ -73,7 +73,7 @@ Harnesses live under `test/ci/invariants/`, one per scenario, at
 `test/ci/README-case-log-ratchet.md` lists them (DEMOCI-11-003). Run one with:
 
 ```bash
-uv run pytest test/ci/invariants/test_fv_invariants.py -v --tb=short
+uv run pytest test/ci/invariants/test_rv_invariants.py -v --tb=short
 ```
 
 ### Invariant Status and Diagnostic Focus
@@ -87,7 +87,7 @@ function, so adding or retiring an invariant fails until the row follows.
 a failure is a regression) or **⏳ xfail — #N** (a known defect owns it). There
 is no per-actor state. `test_no_param_level_marks_on_factory_arguments` rejects
 a `marks=pytest.mark.xfail(...)` on `_CHAIN_ACTORS` or
-`_XXX_EXPECTED_EVENT_TYPES`, because it would silence some cases of a row the
+`_XXX_EXPECTED_SEMANTIC_TYPES`, because it would silence some cases of a row the
 table calls active. Put an xfail on the invariant in `universal_harness.py`.
 
 **Start at Layer** names the layer that most often explains the invariant: a
@@ -100,7 +100,7 @@ a peer → Layer 2; an entry that is present but malformed → Layer 3.
 | 2 | `test_invariant_2_cross_actor_hash_agreement` | active | 2 — Received |
 | 3 | `test_invariant_3_cross_actor_payload_actor_agreement` | active | 2 — Received |
 | 4 | `test_invariant_4_non_empty_payload_snapshot` | active | 3 — Committed |
-| 5 | `test_invariant_5_expected_event_types_present` | active | 1 — Sent |
+| 5 | `test_invariant_5_expected_semantic_types_present` | active | 1 — Sent |
 | 6 | `test_invariant_6_no_rm_state_oscillation` | active | 3 — Committed |
 | 7 | `test_invariant_7_log_terminates_all_rm_closed` | active | 1 — Sent |
 | 9 | `test_invariant_9_participant_status_schema_completeness` | active | 3 — Committed |
@@ -134,9 +134,9 @@ the promotion steps.
 ### Reading individual invariants
 
 - **Invariant 8 (late-joiner backfill) is scenario-local**, so it is not a row.
-  It names a specific early and late actor, so each harness except `fcv_reject`
+  It names a specific early and late actor, so each harness except `rcv_reject`
   declares one test per late joiner, named
-  `test_<scenario>_<late_actor>_late_joiner_has_full_history` (FV's keeps the
+  `test_<scenario>_<late_actor>_late_joiner_has_full_history` (`rv`'s keeps the
   `test_invariant_8_` prefix). Start at Layer 2. Grep
   `late_joiner_has_full_history` to enumerate them.
 - **Invariant 16 is injected only when the harness passes `narrative_path`**,
@@ -181,9 +181,9 @@ the promotion steps.
 - **Invariants 2 and 3** compare only indices two or more replicas share. A
   replica can lag mid-protocol, so confirm the demo reached its final phase
   first. A missing index is 12–14 territory.
-- **Invariant 5** (expected `eventType` present): do not fix a failure by editing
-  the harness constant. The universal block is `_UNIVERSAL_EVENT_TYPES`,
-  ratcheted by `test/ci/invariants/test_universal_event_types.py`.
+- **Invariant 5** (expected `semanticType` present): do not fix a failure by editing
+  the harness constant. The universal block is `_UNIVERSAL_SEMANTIC_TYPES`,
+  ratcheted by `test/ci/invariants/test_universal_semantic_types.py`.
 
 ---
 
@@ -214,10 +214,10 @@ Reproduce a CI failure locally before reading logs:
 ```bash
 docker compose -f docker/docker-compose-multi-actor.yml build
 mkdir -p devlogs
-DEMO=fv VULTRON_SERVER__LOG_LEVEL=DEBUG \
+DEMO=rv VULTRON_SERVER__LOG_LEVEL=DEBUG \
   docker compose -f docker/docker-compose-multi-actor.yml \
   up --abort-on-container-exit --exit-code-from demo-runner
-uv run pytest test/ci/invariants/test_fv_invariants.py -v --tb=short
+uv run pytest test/ci/invariants/test_rv_invariants.py -v --tb=short
 docker compose -f docker/docker-compose-multi-actor.yml logs > /tmp/demo-logs.log 2>&1
 docker compose -f docker/docker-compose-multi-actor.yml down -v
 ```
@@ -326,7 +326,7 @@ dump:
 ```python
 wait_for_replica_ledger_coverage(
     auth_client=vendor_client,
-    replicas=[(finder_client, "Finder")],
+    replicas=[(reporter_client, "Reporter")],
     case_id=case.id_,
     phase_label="notes phase",
 )

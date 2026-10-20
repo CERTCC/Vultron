@@ -70,7 +70,7 @@ def _make_entry(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
-            event_type="test_event",
+            semantic_type="test_event",
             payload_snapshot={"log_index": log_index},
             prev_log_hash=prev_hash,
         )
@@ -78,10 +78,17 @@ def _make_entry(
 
 
 def _make_event(
-    entry: CaseLedgerEntry, actor_id: str
+    entry: CaseLedgerEntry, actor_id: str, to: list[str] | None = None
 ) -> AnnounceLogEntryReceivedEvent:
+    """The CaseActor's ``Announce(CaseLedgerEntry)`` of *entry*, extracted.
+
+    Pass *to* when the event runs a whole received tree, whose addressee door
+    guard refuses a copy that does not name the replica (HP-01-005).
+    """
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
-    activity = announce_log_entry_activity(entry=wire_entry, actor=actor_id)
+    activity = announce_log_entry_activity(
+        entry=wire_entry, actor=actor_id, **({"to": to} if to else {})
+    )
     return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))

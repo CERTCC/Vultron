@@ -65,7 +65,6 @@ from vultron.config import get_config
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import (
-    ActivityResult,
     NoteResult,
     StatusResult,
     SyncLogEntryResult,
@@ -75,7 +74,6 @@ from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.use_cases.triggers.request_bodies import (
     AddNoteToCaseRequest,
-    CloseCaseRequest,
     NotifyFixDeployedRequest,
     NotifyFixReadyRequest,
     NotifyPublishedRequest,
@@ -85,7 +83,6 @@ from vultron.core.use_cases.triggers.request_bodies import (
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,
     AddParticipantStatusTriggerRequest,
-    LeaveCaseTriggerRequest,
     SetStubSummaryTriggerRequest,
     SyncLogEntryTriggerRequest,
 )
@@ -183,8 +180,10 @@ def demo_notify_fix_ready(
     # VF hypercube: vf → Vf is the only valid first hop from the initial
     # state; Vf → VF is the second hop.  The verb is two protocol steps, so
     # it is two trigger runs — each validated by ValidateTriggerTransitionsNode
-    # — and the response is the second hop's status.
-    run_trigger(
+    # — and the response is the second hop's status.  Neither hop is on the
+    # actor's record until the CASE_MANAGER records it (RSH-08-003), so the
+    # second is validated as following the first.
+    first = run_trigger(
         AddParticipantStatusTriggerRequest(
             actor_id=actor_id, case_id=body.case_id, vf_state=CS_vf.Vf
         ),
@@ -194,7 +193,10 @@ def demo_notify_fix_ready(
     )
     return run_trigger(
         AddParticipantStatusTriggerRequest(
-            actor_id=actor_id, case_id=body.case_id, vf_state=CS_vf.VF
+            actor_id=actor_id,
+            case_id=body.case_id,
+            vf_state=CS_vf.VF,
+            follows_status_id=first.status_id,
         ),
         dispatcher=dispatcher,
         dl=actor_dl,
@@ -275,44 +277,6 @@ def demo_notify_published(
 
 
 @router.post(
-    "/{actor_id}/demo/close-case",
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="[Demo] Actor sends Leave(VulnerabilityCase) to close the case.",
-    description=(
-        "Demo-only scaffold. "
-        "Triggers Leave(VulnerabilityCase) via the canonical RM closure path "
-        "(ADR-0050). "
-        "Only available in ``RunMode.PROTOTYPE``. "
-        "Spec: DEMOMA-07-001."
-    ),
-    operation_id="actors_demo_close_case",
-    response_model=ActivityResult,
-)
-def demo_close_case(
-    actor_id: str,
-    body: CloseCaseRequest,
-    background_tasks: BackgroundTasks,
-    dispatcher: TriggerDispatcher = Depends(get_trigger_dispatcher),
-    actor_dl: DataLayer = Depends(get_trigger_dl),
-) -> ActivityResult:
-    """Trigger Leave(VulnerabilityCase) for the given actor and case.
-
-    Implements the canonical RM case closure path (ADR-0050): emits
-    Leave(VulnerabilityCase) to the Case Actor inbox, which commits a
-    ``close_case`` CaseLedgerEntry and fans it out to all participants.
-
-    Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-006, TRIG-06-001,
-        TRIG-12-001.
-    """
-    return run_trigger(
-        LeaveCaseTriggerRequest(actor_id=actor_id, case_id=body.case_id),
-        dispatcher=dispatcher,
-        dl=actor_dl,
-        background_tasks=background_tasks,
-    )
-
-
-@router.post(
     "/{actor_id}/demo/sync-log-entry",
     status_code=status.HTTP_202_ACCEPTED,
     summary="[Demo] Commit a case ledger entry and fan it out to participants.",
@@ -340,7 +304,7 @@ def demo_sync_log_entry(
     through the trigger dispatcher: the commit tree executes as the case's
     CASE_MANAGER with a canonical ``Announce(VulnerabilityCase)`` payload so the
     entry passes canonical validation (CLP-07), and the caller-supplied
-    ``event_type`` is stored verbatim.
+    ``semantic_type`` is stored verbatim.
 
     Implements:
         TRIG-09-001, TRIG-09-004, TRIG-02-006, TRIG-10-004, TRIG-06-001,
@@ -352,7 +316,7 @@ def demo_sync_log_entry(
                 actor_id=actor_id,
                 case_id=body.case_id,
                 object_id=body.object_id,
-                event_type=body.event_type,
+                semantic_type=body.semantic_type,
             ),
             dispatcher=dispatcher,
             dl=actor_dl,

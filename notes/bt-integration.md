@@ -21,6 +21,7 @@ related_specs:
   - specs/case-proposal.yaml
   - specs/sync-ledger-replication.yaml
   - specs/vultron-as2-mapping.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/bt-canonical-reference.md
   - notes/call-out-configuration.md
@@ -234,6 +235,8 @@ Two shapes look like a second tree and are not:
 - **A drained gap-buffer entry** is another delivery: hand it back to the
   receiving actor's inbox, never run its tree inline or from a node — a bridge
   run nested in a node hides the inner tree's internal error (SYNC-14-009).
+  `HandBackBufferedSuccessorNode` does this through `InboxHandBackPort`, passed
+  to the bridge as the `inbox_hand_back` context key; the port only queues.
 
 ### The Received-Side Stages (ADR-0111, ADR-0135)
 
@@ -255,23 +258,46 @@ guards, commit, effects.
    effect node after the guards, because a stored case row *is* the replica
    (PCR-03-004, CBT-01-005).
 2. **Door guards** — in order: the post-close write boundary (CM-23-013), the
-   addressee check (HP-01-005) and the sender guard (HP-01-006).
+   addressee check (HP-01-005), the closed-sender door (CM-23-018) and the
+   sender guard (HP-01-006).
 
    Directly after intake the factory places `CaseOpenToExternalWritesNode`
    (`case/nodes/post_close.py`), the CM-23-013 write boundary: at the case's
    CASE_MANAGER, once the ledger holds `case_fully_closed`, it fails the tree so
    no commit, effect, or emit runs; on every other store it passes, so replicas
    keep applying the closure fan-out. The handler verdict comes from
-   `post_close_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
+   `door_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
    `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. Never run a
    door guard as a one-node tree ahead of the received tree: that is the
-   chained shape CLP-10-005 forbids (ADR-0135), and `closed_sender_preflight`
-   (`_sender_preflight.py`) is the last one left (#4773), so add no caller. A tree
-   opts out only with a `PostCloseExemption`. `post_close_reply` takes emit-only
-   nodes that answer the refusal; only the close-case tree passes one
-   (`Reject(Leave)` under `ActorConfig.post_close_reply = reject`). Every other
-   late activity is dropped with no reply (ADR-0131, CM-23-017). The addressee
-   check and the sender guard follow.
+   chained shape CLP-10-005 forbids (ADR-0135). A tree opts out only with a
+   `PostCloseExemption`. `post_close_reply` takes emit-only nodes that answer
+   the refusal; only the close-case tree passes one (`Reject(Leave)` under
+   `ActorConfig.post_close_reply = reject`). Every other late activity is
+   dropped with no reply (ADR-0131, CM-23-017). The addressee check, the
+   closed-sender door and the sender guard follow.
+
+   The factory places the addressee check, `ActivityAddressedToReceiverNode`
+   (`case/nodes/addressee.py`), in every received tree, labelled with the
+   tree's name: a copy not addressed to the receiver is `REFUSED`, archived,
+   and acts on nothing (HP-01-005). "Addressed" has one definition,
+   `addressed_to_receiver()`: the receiver sent it, is in `to`, or belongs to
+   a `{case_id}/participants` collection `to` names; `cc` and an empty `to`
+   address nobody. Never write a tree's own copy of the check or a Python
+   pre-check in `execute()`; a tree that must differ passes a registered
+   `AddresseeExemption` with its reason (an `Offer(Report)` keeps what it
+   carried first, CM-15-002), and
+   `test/architecture/test_received_tree_addressee_guard.py` pins each use.
+   The check reads `event.activity`, so a registry entry must set
+   `include_activity` or every delivery of that message is refused.
+
+   A tree whose sender may already be closed on the case and whose answer must
+   be told apart (a `Leave`, a stub or full-case Invite reply) passes
+   `closed_sender=ClosedSenderCheck(...)`: the factory places the door after the
+   addressee check, so a sender the case records as closed stops the tree with
+   nothing committed or sent. The handler asks `closed_sender_verdict()`
+   (`_bt_verdict.py`) before reading any other refusal: `SKIPPED` for a repeat of
+   a closing act, `REFUSED` for anything else (CM-23-018, ID-05-003). Declare it
+   on the tree; never run the check as a tree of its own or write it per handler.
 
    When the case the sender is checked against is resolved at run time, the
    guard still comes from the factory (HP-01-008). Pass the read-only
@@ -314,13 +340,22 @@ guards, commit, effects.
 4. **Guards** — read-only precondition checks that return FAILURE to refuse and
    write nothing. A refusal goes to the process log and, where the protocol
    calls for an answer, back to the sender — never to the ledger (CLP-05-002).
-   A tree that owes that answer passes it as `refusal_effects` (CLP-10-022): the
-   factory wraps the guards in a `PreconditionGuardStage`
-   (`case/nodes/refusal_stage.py`) that runs them only when a precondition guard
-   (not the sender guard) fails, inside a CASE_MANAGER gate, and skips them on a
-   redelivery whose intake was already archived. The stage then fails with the
-   guard's reason, so nothing commits and the handler reads `REFUSED`. A refusal
-   effect must be `EmitCapable` and hold no `StateWriteCapable` node. Do not
+   The factory adds that answer, the refusal notice, to every tree that commits
+   to a case and has precondition guards, unless the tree names a registered
+   `RefusalNoticeExemption`; a tree passes only further feedback (the RSH-06-004
+   note) as `refusal_effects` (CLP-02-005, CLP-10-022). The factory wraps the
+   guards in a `PreconditionGuardStage` (`case/nodes/refusal_stage.py`) that
+   runs the refusal effects, each best-effort on its own, only when a
+   precondition guard (not the sender guard) fails, inside a CASE_MANAGER
+   gate, and skips them on a
+   redelivery whose intake was already archived and on a failed guard whose
+   `failed_as_repeat` is set (`ReportsIdempotentRepeat`, the repeat a handler
+   reports `SKIPPED`). The stage then fails with the guard's reason, so nothing
+   of the assertion commits and the handler reads `REFUSED`. A refusal effect
+   must be `EmitCapable` and hold no `StateWriteCapable` node, except the
+   CASE_MANAGER's own note (`_CommitCaseManagerNoteBase`, RSH-06-004), which
+   commits itself as its own `add_note_to_case` entry: a participant refuses a
+   direct `Add(Note)`, so a note reaches it only through the ledger (#4829). Do not
    hand-build a `Selector[guard, emit]`: the emit would run ahead of the commit
    on an admitted delivery.
 5. **Commit** — the CASE_MANAGER ledgers the received activity as received, a

@@ -57,6 +57,10 @@ jobs:
   test:
     name: Tests (pytest)
     runs-on: ubuntu-latest
+    # A hang no per-test timeout can reach (a C call holding the GIL, a stuck
+    # xdist controller) ends here, not at GitHub's 6-hour default. The job
+    # takes ~6-9 minutes, including the 60s main-push debounce (#3603).
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

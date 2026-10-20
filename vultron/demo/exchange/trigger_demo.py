@@ -24,15 +24,18 @@ handler pipeline and are essential for demonstrating the full Vultron Protocol
 
 Two demo workflows are shown:
 
-1. **Validate and Engage**: Finder submits a report through its own
+1. **Validate and Engage**: Reporter submits a report through its own
    ``submit-report`` trigger;
    vendor then proactively validates the report and engages the resulting case
    using ``POST /actors/{actor_id}/trigger/validate-report`` and
    ``POST /actors/{actor_id}/trigger/engage-case``.
 
-2. **Invalidate and Close**: Finder submits a second report the same way; vendor
+2. **Invalidate and Close**: Reporter submits a second report the same way; vendor
    proactively invalidates it via ``POST .../trigger/invalidate-report`` and
-   then closes it via ``POST .../trigger/close-report``.
+   then closes the case it opened for the report via
+   ``POST .../trigger/leave-case``, which sends ``Leave(VulnerabilityCase)``:
+   once a case holds the report, its owner closes the case by ``Leave``, never
+   by ``Close(Report)`` (CM-23-019, TRIG-13-001).
 
 Each demo verifies that the resulting ActivityStreams activity is returned in
 the response body and that the vendor's outbox is updated accordingly.
@@ -41,16 +44,25 @@ the response body and that the vendor's outbox is updated accordingly.
 import logging
 from collections.abc import Callable, Sequence
 
+from vultron.core.states.rm import RM
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.exchange.embargo_lifecycle import demo_terminate_embargo
+from vultron.demo.helpers.closure import (
+    CaseLeaver,
+    wait_for_owner_replica_embargo_state,
+)
+from vultron.demo.helpers.polling import wait_for_participant_rm_state
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     find_case_for_offer,
     reporter_submits_report,
     verify_reporter_trusts_introduction,
+    wait_for_case_for_offer,
 )
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
+    demo_gate,
     demo_step,
     get_offer_from_datalayer,
     setup_demo_logging,
@@ -67,14 +79,14 @@ logger = logging.getLogger(__name__)
 
 def demo_validate_and_engage(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ) -> None:
     """Demonstrate proactive validation and case engagement via trigger endpoints.
 
     Workflow:
-    1. Finder submits a vulnerability report to the vendor (``submit-report``).
+    1. Reporter submits a vulnerability report to the vendor (``submit-report``).
     2. Vendor calls ``POST .../trigger/validate-report`` to validate the report.
     3. Vendor calls ``POST .../trigger/engage-case`` to engage the created case.
     """
@@ -83,10 +95,10 @@ def demo_validate_and_engage(
     logger.info("=" * 80)
 
     report = offer = None
-    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
+    with demo_step("Step 1: Reporter submits vulnerability report to vendor"):
         report, offer = reporter_submits_report(
             client,
-            finder,
+            reporter,
             vendor,
             reporter_client=client,
             report_name="Remote Code Execution in Network Stack",
@@ -118,6 +130,18 @@ def demo_validate_and_engage(
             assert case is not None, f"No case found for report {report.id_}"
             logger.info("Found case: %s", case.id_)
 
+        # Gate the engagement on its cause: the CASE_MANAGER records the
+        # vendor's RM.VALID and the vendor's replica copies it from the
+        # ledger, so engaging before it lands is refused (RSH-08-006,
+        # ADR-0058).
+        with demo_gate(f"{vendor.id_} reached RM.VALID before engage-case"):
+            wait_for_participant_rm_state(
+                client=client,
+                case_id=case.id_,
+                actor_id=vendor.id_,
+                expected_states={RM.VALID, RM.ACCEPTED},
+            )
+
         response = vendor_session.with_case(case).engage_case()
         logger.info(
             "engage-case response: %s",
@@ -130,7 +154,7 @@ def demo_validate_and_engage(
             )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
         "✅ TRIGGER DEMO 1 COMPLETE: Report validated and case engaged "
@@ -139,32 +163,35 @@ def demo_validate_and_engage(
 
 
 # ---------------------------------------------------------------------------
-# Demo 2: invalidate-report trigger → close-report trigger
+# Demo 2: invalidate-report trigger → leave-case trigger (Leave)
 # ---------------------------------------------------------------------------
 
 
 def demo_invalidate_and_close(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor | None = None,
 ) -> None:
     """Demonstrate proactive invalidation and report closure via trigger endpoints.
 
     Workflow:
-    1. Finder submits a report that the vendor deems invalid.
+    1. Reporter submits a report that the vendor deems invalid.
     2. Vendor calls ``POST .../trigger/invalidate-report`` to mark it invalid.
-    3. Vendor calls ``POST .../trigger/close-report`` to close it entirely.
+    3. Vendor ends the case's embargo, which would decline its close
+       (CM-23-011), then calls ``POST .../trigger/leave-case`` to close the case it
+       opened for the report on receipt: a ``Leave(VulnerabilityCase)``, since
+       the case's owner never sends ``Close(Report)`` for it (CM-23-019).
     """
     logger.info("=" * 80)
-    logger.info("TRIGGER DEMO 2: Invalidate Report → Close Report")
+    logger.info("TRIGGER DEMO 2: Invalidate Report → Close Case")
     logger.info("=" * 80)
 
     report = offer = None
-    with demo_step("Step 1: Finder submits a low-quality report to vendor"):
+    with demo_step("Step 1: Reporter submits a low-quality report to vendor"):
         report, offer = reporter_submits_report(
             client,
-            finder,
+            reporter,
             vendor,
             reporter_client=client,
             report_name="Alleged Vulnerability in Demo Component",
@@ -193,29 +220,43 @@ def demo_invalidate_and_close(
             )
             logger.info("Resulting activity type: %s", activity.get("type"))
 
-    with demo_step("Step 3: Vendor triggers close-report"):
-        response = vendor_session.close_report(
-            offer_id=stored_offer.id_,
-            note="Closing report — no valid vulnerability confirmed.",
+    case = wait_for_case_for_offer(client, stored_offer.id_)
+    # The owner's leave-case call is refused while the case's embargo is
+    # active (TRIG-13-003, CM-23-011), so the vendor ends the embargo first.
+    demo_terminate_embargo(vendor_session, case)
+    # The refusal reads the vendor's own replica, which applies the
+    # termination after the CASE_MANAGER commits it (EDF-06-002).
+    with demo_gate("Vendor's replica records the embargo ended"):
+        wait_for_owner_replica_embargo_state(
+            authority_client=client,
+            owner=CaseLeaver(client=client, actor=vendor),
+            case_id=case.id_,
         )
-        logger.info(
-            "close-report response: %s",
-            response.model_dump_json(indent=2),
-        )
-        with demo_check("Response contains activity"):
-            activity = response.activity
-            assert activity is not None, (
-                "Expected 'activity' key in close-report trigger response"
+        with demo_step(
+            "Step 3: Vendor closes the case with leave-case (Leave)"
+        ):
+            response = vendor_session.with_case(case).leave_case()
+            logger.info(
+                "leave-case response: %s",
+                response.model_dump_json(indent=2),
             )
-            logger.info("Resulting activity type: %s", activity.get("type"))
+            with demo_check("Response contains the Leave activity"):
+                activity = response.activity
+                assert activity is not None, (
+                    "Expected 'activity' key in leave-case trigger response"
+                )
+                assert activity.get("type") == "Leave", activity.get("type")
+                logger.info(
+                    "Resulting activity type: %s", activity.get("type")
+                )
 
     # The case was created on receipt, so the vendor still introduces it to
-    # the finder (CBT-01-001).
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    # the reporter (CBT-01-001).
+    verify_reporter_trusts_introduction(client, reporter, vendor, report)
 
     logger.info(
-        "✅ TRIGGER DEMO 2 COMPLETE: Report invalidated and closed "
-        "via trigger endpoints."
+        "✅ TRIGGER DEMO 2 COMPLETE: Report invalidated and its case "
+        "closed via trigger endpoints."
     )
 
 

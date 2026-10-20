@@ -242,14 +242,11 @@ all, the reject is what prompts the CASE_MANAGER to send it again.
 The CASE_MANAGER also does not replay for just anyone.
 It acts on a `Reject(CaseLedgerEntry)` only from an active participant in the case, and reports `REFUSED` to any other sender ([SYNC-03-005](../../reference/specs/protocol.md#sync-03-005)).
 
-The CASE_MANAGER does not replay on demand without limit. If a peer keeps
-rejecting from the same position, the CASE_MANAGER waits out a short cooldown
-before replaying to it again
-([SYNC-15-003](../../reference/specs/protocol.md#sync-15-003)). Without that bound, a
-peer that cannot anchor its chain rejects every entry it is sent, each reject
-triggers another full replay, and the two feed each other into a storm. A
-reject from a position that *has* advanced always triggers a replay, so a peer
-making progress is never held back.
+The CASE_MANAGER does not replay on demand without limit.
+If a peer keeps rejecting from the same position, the CASE_MANAGER waits out a short cooldown before replaying to it again ([SYNC-15-003](../../reference/specs/protocol.md#sync-15-003)).
+Without that bound, a peer that cannot anchor its chain rejects every entry it is sent, each reject triggers another full replay, and the two feed each other into a storm.
+Each further replay from that same position doubles the wait, up to a ceiling, so a peer that never catches up is retried less and less often ([SYNC-15-013](../../reference/specs/protocol.md#sync-15-013)).
+A reject from a position that *has* advanced always triggers a replay, so a peer making progress is never held back.
 
 The holding area should also be bounded, so that a hostile or broken peer
 streaming far-future entries cannot exhaust memory. When it is full, the replica
@@ -289,19 +286,16 @@ So after the replica commits a new last entry, finding the successor is a
 single lookup: the held entry whose `prevLogHash` equals the hash of the entry
 just committed.
 
-The drain then repeats. Commit the successor, look up *its* successor, and
-continue until no held entry extends the chain
-([SYNC-14-003](../../reference/specs/protocol.md#sync-14-003)). A run of ten
-entries that arrived in reverse order clicks into place in one cascade, in
-`log_index` order.
+The drain then repeats until no held entry extends the chain ([SYNC-14-003](../../reference/specs/protocol.md#sync-14-003)).
+Each step is a delivery of its own: the replica hands the successor back to its own inbox, wrapped in an `Announce(CaseLedgerEntry)` from the case's CASE_MANAGER ([SYNC-14-009](../../reference/specs/project.md#sync-14-009)).
+The replica does not process the successor inside the delivery that committed its predecessor.
+When that delivery commits the successor, it hands back *its* successor in turn.
+A run of ten entries that arrived in reverse order clicks into place in one cascade, in `log_index` order.
 
 Three properties make the drain safe:
 
-- **Same path.** A drained entry goes through the same processing as an entry
-  that arrived in order — no separate code path with its own behavior
-  ([SYNC-14-008](../../reference/specs/protocol.md#sync-14-008)). In this
-  implementation that means the drain re-runs the announce receive behavior
-  tree on each held entry, in `log_index` order.
+- **Same path.** A drained entry goes through the same processing as an entry that arrived in order — no separate code path with its own behavior ([SYNC-14-008](../../reference/specs/protocol.md#sync-14-008)).
+  In this implementation that holds by construction, because each held entry reaches the announce receive behavior tree as an ordinary inbox delivery.
 - **Effects before storage.** The entry's consequences — an embargo ending, a
   participant joining, a status changing — are applied first, and the entry is
   stored only if they all succeed

@@ -18,5 +18,8 @@
     "updated": "2026-09-30T16:00:59+00:00",
     "content": "We propose to embargo VendorCo Case #12759345 for 90 days.",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  },
+  "terminationCause": {
+    "kind": "FIX_DEPLOYED"
   }
 }

@@ -31,9 +31,13 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.core.behaviors.embargo.nodes import HasActiveEmbargoNode
+from vultron.core.behaviors.embargo.nodes.termination_commit import (
+    CommitAndApplyEmbargoTerminationNode,
+)
 from vultron.core.behaviors.embargo.terminate_active_embargo_tree import (
     create_terminate_active_embargo_tree,
 )
+from vultron.core.models.embargo_termination import EmbargoTermination
 from vultron.demo.fuzzer.bundles.embargo import EMBARGO_STOCHASTIC
 from vultron.demo.fuzzer.embargo import (
     EmbargoExitOverride,
@@ -181,6 +185,30 @@ def test_reason_selector_stochastic_classes(index, cls):
         call_out=EMBARGO_STOCHASTIC,
     )
     assert isinstance(unwrap_call_out(tree.children[1].children[index]), cls)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "EMB-14-001: the tree terminates with EmbargoTermination.early(),"
+        " discarding the chosen reason. Tracked by #4858, which replaces"
+        " this with a run per reason asserting the TERMINATED entry's cause."
+    ),
+)
+@pytest.mark.spec("EMB-14-001")
+def test_chosen_reason_is_recorded_as_the_cause():
+    tree = create_terminate_active_embargo_tree(
+        case_id=CASE_ID, result_out=_make_result_out()
+    )
+    commits = [
+        node
+        for node in tree.iterate()
+        if isinstance(node, CommitAndApplyEmbargoTerminationNode)
+    ]
+
+    assert commits
+    for node in commits:
+        assert node._termination != EmbargoTermination.early()
 
 
 # ---------------------------------------------------------------------------

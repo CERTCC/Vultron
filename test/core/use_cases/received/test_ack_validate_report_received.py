@@ -87,6 +87,7 @@ class TestAckReportNoStandaloneStatus:
             id_="https://example.org/activities/accept-ack-1",
             type_="Accept",
             actor="https://example.org/actors/vendor",
+            to=["https://test.example/api/v2/actors/test-actor"],
         )
         event = AckReportReceivedEvent(
             semantic_type=MessageSemantics.ACK_REPORT,
@@ -215,7 +216,7 @@ class TestFullReportFlow:
             ],
         )
         # The receiver holds the embargo record its replica names, as the
-        # inbox pre-store leaves it when the sender carries it inline
+        # replica store leaves it when the sender carries it inline
         # (EMB-18-003).
         embargo = EmbargoEvent(
             id_=f"{self.CASE_ID}/embargoes/flow-embargo",
@@ -247,7 +248,9 @@ class TestFullReportFlow:
                 self.VENDOR_ID: vendor_participant.id_,
             },
         )
-        activity = create_case_activity(case, actor=self.CASE_ACTOR_ID)
+        activity = create_case_activity(
+            case, actor=self.CASE_ACTOR_ID, to=[self.VENDOR_ID]
+        )
         CreateCaseReceivedUseCase(
             dl, make_payload(activity), wire_render_port=As2WireRenderAdapter()
         ).execute()
@@ -341,12 +344,13 @@ class TestFullReportFlow:
     def test_full_flow_validate_at_a_replica_is_gated(self, make_payload):
         """RSH-08-003 (#3814): the vendor is the CASE_OWNER, not the case's
         CASE_MANAGER (the CaseActor is), so processing its own validate-report
-        in its own store writes no RM.VALID — ``validate_report`` is committed
-        and replayed from the CASE_MANAGER's ledger (RmVerdict slot), and the
-        vendor converges to VALID from that fan-out, not from the direct
-        Accept.  The transition at the CASE_MANAGER and the convergence are
-        covered by ``test_receive_tree_ledger_commit.py`` and
-        ``test_rm_verdict_effect.py``.
+        in its own store writes no RM.VALID — the CASE_MANAGER commits
+        ``validate_report``, then the VALID status it wrote as its own entry,
+        and the vendor copies that status from the fan-out, not from the
+        direct Accept (CLP-07-013, CM-23-016).  The transition at the
+        CASE_MANAGER and its status entry are covered by
+        ``test_receive_tree_ledger_commit.py`` and
+        ``test_rm_verdict_status_entry.py``.
 
         The replica delivery is still required: under ADR-0041 the vendor has
         no case of its own at RM.RECEIVED (ISSUE-2548), so the guards resolve
@@ -516,6 +520,7 @@ class TestValidateReportReceivedGuardedCommit:
             id_=self.OFFER_ID,
             type_="Accept",
             actor=self.VENDOR_ID,
+            to=[self.CASE_ACTOR_ID],
         )
         offer = CoreObject(id_=offer_id, type_="Offer")
         report = VulnerabilityReport(id_=report_id)

@@ -33,11 +33,13 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
     any_of,
     exempt,
+    no_sender_check,
 )
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.enums.roles import CVDRole
 from vultron.metadata.msm._mapping import (
+    NO_SENDER_CHECK,
     NOT_YET_CHECKED,
     ROW_SPECS,
     MappingStatus,
@@ -92,9 +94,10 @@ def _occasion(index: int = 0, **overrides: Any) -> Occasion:
 
 def _entry(
     *occasions: Occasion,
-    semantics: MessageSemantics = MessageSemantics.CREATE_NOTE,
+    semantics: MessageSemantics = MessageSemantics.ADD_NOTE_TO_CASE,
     entitlement: SenderEntitlement | None = _CASE_OWNER_RULE,
     pattern: ActivityPattern | None = None,
+    answers: tuple[VOtype | ActivityPattern, ...] = (),
 ) -> SemanticEntry:
     return SemanticEntry(
         semantics=semantics,
@@ -104,6 +107,7 @@ def _entry(
         phrase="{actor} did a thing",
         occasions=occasions or (_occasion(),),
         page=MessagePage.GENERAL,
+        answers=answers,
     )
 
 
@@ -172,7 +176,7 @@ def test_occasions_sharing_one_shorthand_on_one_entry_are_direct():
             MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
             MappingStatus.COLLAPSE,
         ),
-        (MessageSemantics.CREATE_NOTE, MappingStatus.EXPANSION),
+        (MessageSemantics.ADD_NOTE_TO_CASE, MappingStatus.EXPANSION),
         (MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE, MappingStatus.NONE),
         (MessageSemantics.CREATE_PROCESSING_FAULT, MappingStatus.EVOLVED),
         (MessageSemantics.REJECT_CASE_LEDGER_ENTRY, MappingStatus.EVOLVED),
@@ -259,6 +263,33 @@ def test_sent_by_words_each_kind(kind: SenderEntitlementKind, wording: str):
 def test_sent_by_states_an_exemption_as_not_yet_checked():
     entry = _entry(entitlement=exempt("#0000", "stub"))
     assert sent_by(entry, entry.occasions[0]) == "not yet checked"
+
+
+def test_an_exemption_naming_no_issue_must_say_why():
+    with pytest.raises(ValueError, match="HP-01-007"):
+        no_sender_check("  ")
+
+
+@pytest.mark.spec("MSM-08-010")
+def test_sent_by_names_each_request_the_pattern_does_not_nest():
+    """A bootstrap ``Create(VulnerabilityCase)`` answers either request that
+    asked for the case: a case proposal or a report offer."""
+    pattern = ActivityPattern(
+        activity_=TAtype.CREATE, object_=VOtype.VULNERABILITY_CASE
+    )
+    entry = _entry(
+        entitlement=SenderRule.in_case(SenderEntitlementKind.NAMED_ACTOR),
+        pattern=pattern,
+        answers=(
+            VOtype.CASE_PROPOSAL,
+            ActivityPattern(
+                activity_=TAtype.OFFER, object_=VOtype.VULNERABILITY_REPORT
+            ),
+        ),
+    )
+    assert sent_by(entry, entry.occasions[0]) == (
+        "the addressee of the case proposal or vulnerability report offer"
+    )
 
 
 @pytest.mark.spec("MSM-08-010")
@@ -402,6 +433,14 @@ def test_an_exempt_occasion_may_name_any_addressee(addressee: AddresseeSide):
     occasion = _occasion(addressee=addressee)
     entry = _entry(occasion, entitlement=exempt("#0000", "stub"))
     assert sent_by(entry, occasion) == NOT_YET_CHECKED
+
+
+@pytest.mark.spec("MSM-08-010")
+def test_a_permanent_exemption_reads_no_sender_check_not_not_yet_checked():
+    """Nothing is pending for a use case no sender check applies to."""
+    occasion = _occasion(addressee=AddresseeSide.CASE_MANAGER)
+    entry = _entry(occasion, entitlement=no_sender_check("nothing to gate"))
+    assert sent_by(entry, occasion) == NO_SENDER_CHECK
 
 
 #: The "Send to" wording of each addressee, pinned as literals.

@@ -31,21 +31,23 @@ import pytest
 
 from test.support.clock_decisions import run_end_time_check
 from test.support.embargo_register import propose, write_consent_rows
-from test.support.ledger import committed_event_types, fail_commits
+from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.embargo_consent_event_types import CONSENT_ROW_VERBS
+from vultron.core.models.embargo_consent_semantic_types import (
+    CONSENT_ROW_VERBS,
+)
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     TerminationCauseKind,
@@ -59,22 +61,27 @@ from vultron.core.states.embargo_register import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
-
-_REPLICAS = (OWNER, BYSTANDER)
+from ._ledger_network import (
+    MANAGER,
+    REPLICAS,
+    LedgerNetwork,
+)
 
 
 def _net(name: str) -> LedgerNetwork:
     """An embargoed case with one open revision, the same in every store.
 
     The revision makes the termination's ``CANCEL`` part of the step under
-    test (EP-08-004).
+    test (EP-08-004).  The index entry for the revision exercises EP-08-003.
     """
     net = LedgerNetwork(f"https://example.org/cases/{name}")
     revision = f"{net.case_id}/embargo_events/revision"
     for dl in net.stores.values():
         case = cast(VulnerabilityCase, dl.read(net.case_id))
         propose(case, revision)
+        case.pending_embargo_proposal_index[revision] = (
+            f"{net.case_id}/activities/revision-proposal"
+        )
         dl.save(case)
         write_consent_rows(dl, case)
     assert net.case(MANAGER).em_state is EM.REVISE
@@ -154,13 +161,6 @@ def _lazy_end_time_check(net: LedgerNetwork) -> None:
     run_end_time_check(net.stores[MANAGER], net.case_id, MANAGER)
 
 
-def _register(net: LedgerNetwork, holder: str) -> list[dict[str, Any]]:
-    return [
-        entry.model_dump(mode="json")
-        for entry in net.case(holder).embargo_register
-    ]
-
-
 def _rows(net: LedgerNetwork, holder: str) -> dict[str, list[dict]]:
     """Every participant's consent rows in *holder*'s store, by actor."""
     case = net.case(holder)
@@ -183,15 +183,15 @@ def _queued_removes(net: LedgerNetwork) -> list[str]:
 
 
 def _embargo_entry_types(net: LedgerNetwork, since: int) -> list[str]:
-    """The embargo and consent event types committed after the first
+    """The embargo and consent semantic types committed after the first
     *since* entries."""
-    embargo_types = {EMBARGO_TEARDOWN_EVENT_TYPE, *CONSENT_ROW_VERBS}
+    embargo_types = {EMBARGO_TEARDOWN_SEMANTIC_TYPE, *CONSENT_ROW_VERBS}
     return [
-        event_type
-        for event_type in committed_event_types(
+        semantic_type
+        for semantic_type in committed_semantic_types(
             net.stores[MANAGER], net.case_id
         )[since:]
-        if event_type in embargo_types
+        if semantic_type in embargo_types
     ]
 
 
@@ -199,6 +199,7 @@ class TestCaseManagerCommitsFirst:
     """AC-1: decide → trial apply → commit the ``Remove`` → apply."""
 
     @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("EP-08-003")
     @pytest.mark.spec("EP-08-004")
     @pytest.mark.spec("MSM-07-006")
     @pytest.mark.parametrize("path", ["trigger", "cascade"])
@@ -208,11 +209,13 @@ class TestCaseManagerCommitsFirst:
         """At the commit the embargo is still in force; afterwards it is
         ended, every open proposal cancelled, by that one entry."""
         net = _net(f"tc-order-{path}")
-        before = len(committed_event_types(net.stores[MANAGER], net.case_id))
+        before = len(
+            committed_semantic_types(net.stores[MANAGER], net.case_id)
+        )
         em_at_commit: list[EM] = []
 
         def _record(kwargs: dict[str, Any]) -> bool:
-            if kwargs["event_type"] == EMBARGO_TEARDOWN_EVENT_TYPE:
+            if kwargs["semantic_type"] == EMBARGO_TEARDOWN_SEMANTIC_TYPE:
                 em_at_commit.append(net.case(MANAGER).em_state)
             return False  # observe only; every commit runs
 
@@ -229,9 +232,10 @@ class TestCaseManagerCommitsFirst:
                 EmbargoRegisterStatus.CANCELLED
             ),
         }
+        assert ended.pending_embargo_proposal_index == {}
         # One activity/object pair, one entry: no cancel or consent entry.
         assert _embargo_entry_types(net, before) == [
-            EMBARGO_TEARDOWN_EVENT_TYPE
+            EMBARGO_TEARDOWN_SEMANTIC_TYPE
         ]
 
     @pytest.mark.spec("CLP-07-013")
@@ -244,11 +248,13 @@ class TestCaseManagerCommitsFirst:
         embargo locally with no entry.  Now nothing changes, and a retry can
         still end it."""
         net = _net(f"tc-fail-{path}")
-        register, rows = _register(net, MANAGER), _rows(net, MANAGER)
+        register, rows = net.register(MANAGER), _rows(net, MANAGER)
         failed = fail_commits(
             monkeypatch,
             commit_tree,
-            when=lambda kw: kw["event_type"] == EMBARGO_TEARDOWN_EVENT_TYPE,
+            when=lambda kw: (
+                kw["semantic_type"] == EMBARGO_TEARDOWN_SEMANTIC_TYPE
+            ),
         )
 
         run = _trigger if path == "trigger" else _cascade
@@ -256,10 +262,10 @@ class TestCaseManagerCommitsFirst:
 
         assert len(failed) == 1, "the teardown was never committed"
         assert net.case(MANAGER).em_state is EM.REVISE
-        assert _register(net, MANAGER) == register
+        assert net.register(MANAGER) == register
         assert _rows(net, MANAGER) == rows
         assert _queued_removes(net) == [], "an unrecorded Remove was queued"
-        assert EMBARGO_TEARDOWN_EVENT_TYPE not in committed_event_types(
+        assert EMBARGO_TEARDOWN_SEMANTIC_TYPE not in committed_semantic_types(
             net.stores[MANAGER], net.case_id
         )
 
@@ -272,16 +278,16 @@ class TestCaseManagerCommitsFirst:
         """A threat termination with no threat signal set is refused before
         any entry is committed."""
         net = _net("tc-refused")
-        before = committed_event_types(net.stores[MANAGER], net.case_id)
-        register = _register(net, MANAGER)
+        before = committed_semantic_types(net.stores[MANAGER], net.case_id)
+        register = net.register(MANAGER)
 
         status = _cascade(net, ThreatSignalTermination())
 
         assert status == py_trees.common.Status.FAILURE
-        assert committed_event_types(net.stores[MANAGER], net.case_id) == (
+        assert committed_semantic_types(net.stores[MANAGER], net.case_id) == (
             before
         )
-        assert _register(net, MANAGER) == register
+        assert net.register(MANAGER) == register
         assert _queued_removes(net) == []
 
     @pytest.mark.spec("CLP-07-013")
@@ -297,49 +303,28 @@ class TestCaseManagerCommitsFirst:
 
         monkeypatch.setattr(termination_commit, "trial_apply", _refuse)
         net = _net("tc-trial")
-        before = committed_event_types(net.stores[MANAGER], net.case_id)
-        register = _register(net, MANAGER)
+        before = committed_semantic_types(net.stores[MANAGER], net.case_id)
+        register = net.register(MANAGER)
 
         assert _cascade(net) == py_trees.common.Status.FAILURE
 
-        assert committed_event_types(net.stores[MANAGER], net.case_id) == (
+        assert committed_semantic_types(net.stores[MANAGER], net.case_id) == (
             before
         )
-        assert _register(net, MANAGER) == register
+        assert net.register(MANAGER) == register
         assert _queued_removes(net) == []
-
-
-def _without_cause(register: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """*register* with each termination's cause removed.
-
-    The ``Remove`` carries only the what, so a replica's ``TERMINATED`` entry
-    records no cause; copying the why is #4748 (blocked by #4609).
-    """
-    stripped = []
-    for entry in register:
-        termination = entry.get("termination")
-        stripped.append(
-            entry
-            if termination is None
-            else {**entry, "termination": {**termination, "cause": None}}
-        )
-    return stripped
 
 
 class TestReplicaCopiesTheTermination:
     """AC-2 and AC-4: a replica's register and rows equal the CASE_MANAGER's."""
 
     @staticmethod
-    def _replay_and_compare(
-        net: LedgerNetwork, *, drop_cause: bool = False
-    ) -> None:
-        manager_register = _register(net, MANAGER)
-        if drop_cause:
-            manager_register = _without_cause(manager_register)
-        for replica in _REPLICAS:
-            assert EMBARGO_TEARDOWN_EVENT_TYPE in net.replay_ledger(replica)
+    def _replay_and_compare(net: LedgerNetwork) -> None:
+        manager_register = net.register(MANAGER)
+        for replica in REPLICAS:
+            assert EMBARGO_TEARDOWN_SEMANTIC_TYPE in net.replay_ledger(replica)
             assert net.case(replica).em_state is EM.EXITED
-            assert _register(net, replica) == manager_register, replica
+            assert net.register(replica) == manager_register, replica
             assert _rows(net, replica) == _rows(net, MANAGER), replica
 
     @pytest.mark.spec("CM-23-016")
@@ -367,11 +352,13 @@ class TestReplicaCopiesTheTermination:
 
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("EMB-13-004")
+    @pytest.mark.spec("EMB-13-005")
     def test_a_threat_termination(self):
-        """The what is copied; the why is the CASE_MANAGER's alone.
+        """The what and the why are both copied (EMB-13-005).
 
-        Copying the cause (``THREAT_SIGNAL`` with ``X``) to replicas is
-        #4748, so the comparison leaves the cause out.
+        The ``Remove`` carries the cause (``THREAT_SIGNAL`` with ``X``) as
+        ``terminationCause``, and each replica's ``TERMINATED`` entry
+        records it as the CASE_MANAGER's does.
         """
         net = _net("tc-threat")
         assert _cascade(net) == py_trees.common.Status.SUCCESS
@@ -381,9 +368,6 @@ class TestReplicaCopiesTheTermination:
         assert recorded.cause is not None
         assert recorded.cause.kind is TerminationCauseKind.THREAT_SIGNAL
 
-        # #4748: the Remove does not carry the why, so drop it here.
-        self._replay_and_compare(net, drop_cause=True)
-        for replica in _REPLICAS:
-            assert net.case(replica).embargo_termination == (
-                EmbargoTermination.early()
-            )
+        self._replay_and_compare(net)
+        for replica in REPLICAS:
+            assert net.case(replica).embargo_termination == recorded

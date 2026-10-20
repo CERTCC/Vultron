@@ -23,9 +23,6 @@ from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
 )
-from vultron.core.models.fault_classes import (
-    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-)
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -36,9 +33,9 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    door_refusal,
     find_named,
     node_failed,
-    post_close_refusal,
     verdict_from_bt,
 )
 
@@ -51,10 +48,8 @@ if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
 
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
-    exempt,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,8 +74,24 @@ def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
 
 
 class AddCaseStatusToCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4522", "no sender check defined for case status update"
+    """Process a received ``Add(CaseStatus, VulnerabilityCase)`` (CP, CX, CA).
+
+    A participant reports case-level evidence (public awareness, a public
+    exploit, observed attacks) to the CASE_MANAGER, which adjudicates each
+    dimension and adopts what it accepts (RSH-05-015).  At the CASE_MANAGER
+    the sender must hold a participant record on the case whose closure is
+    not recorded, as for ``Add(ParticipantStatus)``.  A participant replica
+    takes case state from the CASE_MANAGER alone (PCR-03-001), which alone
+    emits ``Add(CaseStatus)`` (RSH-04-001), and a participant sends its
+    case-scoped messages only to the CASE_MANAGER (PCR-08-001).  An
+    unentitled sender is ``REFUSED`` before anything is committed, written
+    or sent (HP-01-006).
+    """
+
+    # A participant reports to the CASE_MANAGER; a replica takes the status
+    # from the CASE_MANAGER alone (RSH-05-015, RSH-04-001, PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.PARTICIPANT
     )
 
     def __init__(
@@ -114,7 +125,11 @@ class AddCaseStatusToCaseReceivedUseCase:
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}
         )
-        tree = add_case_status_tree(request=request, **call_out_kwargs)
+        tree = add_case_status_tree(
+            request=request,
+            sender_rule=self.sender_entitlement,
+            **call_out_kwargs,
+        )
         bridge = BTBridge(
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
@@ -132,8 +147,8 @@ class AddCaseStatusToCaseReceivedUseCase:
             activity=request,
         )
 
-        if (refusal := post_close_refusal(tree)) is not None:
-            return refusal  # dropped with no reply, no fault (CM-23-017)
+        if (refusal := door_refusal(tree)) is not None:
+            return refusal  # a door refused: no reply, no fault (CM-23-017)
         if (
             result.status != Status.SUCCESS
             and BTBridge.get_failure_reason(tree)
@@ -154,16 +169,9 @@ class AddCaseStatusToCaseReceivedUseCase:
                 request.activity_id,
                 verdict.reason,
             )
-            if self._trigger_activity is not None and request.actor_id:
-                self._trigger_activity.emit_processing_fault(
-                    actor=resolve_receiving_actor_id(
-                        self._dl, request.receiving_actor_id
-                    ),
-                    failed_activity_id=request.activity_id,
-                    failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-                    to=[request.actor_id],
-                    case_id=case_id,
-                )
+            # A precondition refusal is answered by the tree's refusal notice
+            # alone, and a sender-guard refusal by nothing (CLP-05-001,
+            # HP-01-006); no ProcessingFault is sent as well (#4756).
         return verdict
 
 
@@ -249,8 +257,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             activity=request,
         )
 
-        if (refusal := post_close_refusal(tree)) is not None:
-            return refusal  # dropped with no reply, no fault (CM-23-017)
+        if (refusal := door_refusal(tree)) is not None:
+            return refusal  # a door refused: no reply, no fault (CM-23-017)
         verdict = verdict_from_bt(tree, result, label="AddParticipantStatusBT")
         if verdict.disposition is HandlerDisposition.REFUSED and (
             _adoption_gate_blocked(tree)
@@ -268,14 +276,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 request.activity_id,
                 verdict.reason,
             )
-            if self._trigger_activity is not None and request.actor_id:
-                self._trigger_activity.emit_processing_fault(
-                    actor=receiving_actor_id,
-                    failed_activity_id=request.activity_id,
-                    failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-                    to=[request.actor_id],
-                    case_id=case_id,
-                )
+            # The tree's refusal notice is the one answer (CLP-05-001); no
+            # ProcessingFault is sent as well (#4756).
             if _filter_node_wholly_refused(tree):
                 return HandlerResult.refused(
                     f"ParticipantStatus assertion wholly refused for activity"

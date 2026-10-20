@@ -218,7 +218,7 @@ for scenario `_phase_*` functions.
 
 ## Replica Sync Verification Is One Shared Helper, Not a Per-Scenario Phase Body
 
-Every multi-actor scenario guards its notes phase on the Finder holding the case
+Every multi-actor scenario guards its notes phase on the Reporter holding the case
 replica and every replica holding contiguous ledger coverage. That logic exists
 once.
 
@@ -229,7 +229,7 @@ once.
   participant is sent nothing after the entries recording its own closure
   (CM-23-004), so no replica covers the authority's tail then.
 - A scenario's `_phase_sync_verification` is a thin call to
-  `run_sync_verification_phase`, declaring only its authority, Finder, replicas,
+  `run_sync_verification_phase`, declaring only its authority, Reporter, replicas,
   late joiners, expected participants and the replica pairs to state-check
   (DEMOMA-23-007). A replica whose coverage gate failed is not state-checked, and
   an authority with no entries is one failure naming the authority — the
@@ -259,14 +259,16 @@ The Case Owner's `Leave(VulnerabilityCase)` closes the case for everyone
 Every closure phase calls `close_case_owner_last` (`helpers/closure.py`). The
 other participants leave first; the owner's `Leave` waits until the
 CASE_MANAGER's store shows each of them at `RM.CLOSED`, because a trigger returns
-202 before its effect commits (EDF-06-002). The helper then runs the whole
+202 before its effect commits (EDF-06-002). It also waits until the owner's own
+replica reads the CASE_MANAGER's EM state: `leave-case` refuses the owner while
+its replica records an active embargo (TRIG-13-003). The helper then runs the whole
 closure milestone, each part in its own `demo_check` and read where the
 CASE_MANAGER lives: `verify_case_closure_recorded` and `verify_case_closed`
 (`helpers/milestones.py`), and, for each leaver, that its own replica ends at the
 last entry recording its own closure (`wait_for_replica_ledger_ending_at`). Pass
 the scenario's milestone label; the scenario adds no closure checks of its own.
 
-- Do not write the `close_case()` steps inline.
+- Do not write the `leave_case()` steps inline.
 - Do not add an "every participant `RM.CLOSED` on every replica" check or a
   close-phase coverage wait on the CASE_MANAGER's tail: a closed replica is
   never sent the later closures (CM-23-004).

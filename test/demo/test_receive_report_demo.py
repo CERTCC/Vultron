@@ -54,7 +54,7 @@ def test_demo(demo_env, demo_name, caplog):
     Regression test for bug: setup_clean_environment does not clear ACTOR_IO_STORE,
     causing demos 2 and 3 to fail with KeyError when re-initializing actor IOs.
 
-    The finder submits through its own ``submit-report`` trigger, so it takes
+    The reporter submits through its own ``submit-report`` trigger, so it takes
     the vendor's case introduction on the trusted route (CBT-01-005, #4675).
     """
     import logging

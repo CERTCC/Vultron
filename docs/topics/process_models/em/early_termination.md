@@ -80,11 +80,20 @@ Once a case's embargo has terminated, its register takes no further change, so t
 
 Every termination records what ended the embargo: it reached its end time (`END_TIME_REACHED`), or it ended early (`EARLY`).
 The termination message carries that reason, and every Participant records it.
-The Case Manager also records why the embargo ended when it knows.
-An embargo ended by public awareness, a public exploit or observed attacks is recorded as `EARLY`, caused by that threat signal.
-Other causes of an early end, such as the ones above, are not yet named, and the set of causes is left open to grow.
-The cause is recorded on the ended embargo's entry in the case's embargo register, beside the reason, and is not sent in the termination message.
-A Participant that learns of the termination from that message therefore records the reason alone.
+An early termination may also record why the embargo ended, as one of four kinds of cause:
+
+| Cause | Detail | Who may name it |
+|---|---|---|
+| `THREAT_SIGNAL` | The signals that ended it: public awareness (`P`), a public exploit (`X`) or observed attacks (`A`) | The Case Manager only |
+| `FIX_READY` | The Vendors whose readiness made the quorum | The Case Owner or the Case Manager |
+| `FIX_DEPLOYED` | None | The Case Owner or the Case Manager |
+| `OTHER` | None; the termination message's human-readable summary gives the account | The Case Owner or the Case Manager |
+
+An embargo that reached its end time has no cause, and an early termination with no cause is valid.
+The termination message carries the cause beside the reason, and the Case Manager records both on the ended embargo's entry in the case's embargo register.
+When the Case Owner names `FIX_READY`, `FIX_DEPLOYED` or `OTHER`, the Case Manager records that cause as the Case Owner gave it, without checking it: ending early on a quorum of Vendors is the Case Owner's judgment.
+A Case Owner does not name a threat signal in a termination message, and the Case Manager refuses one that does.
+Instead, the Case Owner reports the threat as a case status update setting `P`, `X` or `A`, and the Case Manager then ends the embargo with the signals the case carries.
 
 ## When the End Time Passes
 

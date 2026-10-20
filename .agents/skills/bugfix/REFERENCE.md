@@ -48,17 +48,17 @@ unavailable, `completeness-doctrine.md` Gate 1).
 
 ```bash
 BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
-# Inherit the parent epic and milestone of the bug being fixed
-# (ISSUE_NUMBER) so the escalated bug is its sibling in the epic tree
-# (no:parent-issue orphans break prioritisation). manage_github_issue.sh
-# requires --parent and --milestone on create (#3591).
-IFS="|" read -r EPIC_NUMBER MILESTONE_NUMBER < <(gh api graphql -f query='{
+# Inherit the parent epic of the bug being fixed (ISSUE_NUMBER) so the
+# escalated bug is its sibling in the epic tree (no:parent-issue orphans
+# break prioritisation). manage_github_issue.sh requires --parent on
+# create (#3591).
+EPIC_NUMBER=$(gh api graphql -f query='{
   repository(owner:"CERTCC", name:"Vultron") {
-    issue(number: '"${ISSUE_NUMBER}"') { parent { number } milestone { number } }
+    issue(number: '"${ISSUE_NUMBER}"') { parent { number } }
   }
-}' --jq '.data.repository.issue | "\(.parent.number // "")|\(.milestone.number // "")"')
-# If either is empty, resolve it as in bugfix/SKILL.md Phase 1 ("Create a
-# new bug") before running the create. Pass both unconditionally: a
+}' --jq '.data.repository.issue.parent.number // ""')
+# If it is empty, resolve it as in bugfix/SKILL.md Phase 1 ("Create a
+# new bug") before running the create. Pass it unconditionally: a
 # conditional ${VAR:+--parent "${VAR}"} is one word under zsh (#2771).
 .agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<short bug title>" \
@@ -82,7 +82,6 @@ EOF
 )" \
   --issue-type-id "${BUG_TYPE_ID}" \
   --parent "${EPIC_NUMBER}" \
-  --milestone "${MILESTONE_NUMBER}" \
   --opened-as separate-defect
 ```
 

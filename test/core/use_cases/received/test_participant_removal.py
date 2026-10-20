@@ -87,6 +87,7 @@ def _owner_removes_vendor(case: _RemovalCase) -> Any:
         target=CASE_ID,
         actor=OWNER,
         id_=_REMOVE_ACTIVITY_ID,
+        to=[MANAGER],
     )
 
 
@@ -153,7 +154,7 @@ def test_refused_removal_writes_nothing_but_the_archive(
 ) -> None:
     """A non-owner's removal is archived (CLP-10-018) and changes nothing."""
     activity = remove_participant_from_case_activity(
-        removal.participant(VENDOR), target=CASE_ID, actor=OTHER
+        removal.participant(VENDOR), target=CASE_ID, actor=OTHER, to=[MANAGER]
     )
 
     result = removal.route(activity)
@@ -216,7 +217,7 @@ def test_removal_naming_another_actor_than_the_record_is_refused(
         update={"attributed_to": MANAGER}
     )
     activity = remove_participant_from_case_activity(
-        forged, target=CASE_ID, actor=OWNER
+        forged, target=CASE_ID, actor=OWNER, to=[MANAGER]
     )
 
     result = removal.route(activity)
@@ -229,6 +230,26 @@ def test_removal_naming_another_actor_than_the_record_is_refused(
     assert isinstance(manager_record, CaseParticipant)
     assert not manager_record.removed
     assert removal.ledger() == []
+
+
+@pytest.mark.spec("OID-01-006")
+@pytest.mark.spec("CM-31-007")
+def test_removal_naming_the_record_actor_with_a_trailing_slash_is_applied(
+    removal: _RemovalCase,
+) -> None:
+    """The inline ``attributedTo`` is extracted without its trailing slash,
+    so a removal spelling the record's own actor that way names it."""
+    spelled = removal.participant(VENDOR).model_copy(
+        update={"attributed_to": VENDOR + "/"}
+    )
+    activity = remove_participant_from_case_activity(
+        spelled, target=CASE_ID, actor=OWNER, to=[MANAGER]
+    )
+
+    result = removal.route(activity)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert removal.participant(VENDOR).removed
 
 
 class _NoticeFailsAdapter(TriggerActivityAdapter):
@@ -298,7 +319,7 @@ def test_removal_on_a_case_without_a_case_manager_is_refused() -> None:
     result = route_received(
         dl,
         remove_participant_from_case_activity(
-            record, target=CASE_ID, actor=OWNER
+            record, target=CASE_ID, actor=OWNER, to=[VENDOR]
         ),
         receiving_actor_id=VENDOR,
         sync_port=SyncActivityAdapter(dl),

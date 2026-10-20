@@ -32,7 +32,7 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.ledger import committed_event_types, fail_commits
+from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -44,18 +44,18 @@ from vultron.core.behaviors.embargo.expiry_tree import (
     create_commit_and_record_expiry_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
-    EMBARGO_ACTIVATION_EVENT_TYPE,
-    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
+    EMBARGO_ACTIVATION_SEMANTIC_TYPE,
+    EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
-from vultron.core.models.embargo_consent_event_types import (
+from vultron.core.models.embargo_consent_semantic_types import (
     CONSENT_ROW_VERBS,
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
-from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_EVENT_TYPE
+from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_SEMANTIC_TYPE
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
@@ -85,9 +85,9 @@ from ._ledger_network import (
 
 _S = EmbargoConsentState
 _EMBARGO_ENTRY_TYPES = {
-    EMBARGO_ACTIVATION_EVENT_TYPE,
-    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
-    INVITE_EXPIRED_EVENT_TYPE,
+    EMBARGO_ACTIVATION_SEMANTIC_TYPE,
+    EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
+    INVITE_EXPIRED_SEMANTIC_TYPE,
     *CONSENT_ROW_VERBS,
 }
 
@@ -156,13 +156,6 @@ def _sync(net: LedgerNetwork, replica: str) -> list[str]:
     return applied
 
 
-def _register(net: LedgerNetwork, holder: str) -> list[dict[str, Any]]:
-    return [
-        entry.model_dump(mode="json")
-        for entry in net.case(holder).embargo_register
-    ]
-
-
 def _rows(net: LedgerNetwork, holder: str) -> dict[str, list[dict]]:
     """Every participant's consent rows in *holder*'s store, by actor."""
     case = net.case(holder)
@@ -198,22 +191,22 @@ def _state(
 def _embargo_entries(net: LedgerNetwork, since: int) -> list[str]:
     """The embargo and consent entries committed after the first *since*."""
     return [
-        event_type
-        for event_type in committed_event_types(
+        semantic_type
+        for semantic_type in committed_semantic_types(
             net.stores[MANAGER], net.case_id
         )[since:]
-        if event_type in _EMBARGO_ENTRY_TYPES
+        if semantic_type in _EMBARGO_ENTRY_TYPES
     ]
 
 
 def _count(net: LedgerNetwork) -> int:
-    return len(committed_event_types(net.stores[MANAGER], net.case_id))
+    return len(committed_semantic_types(net.stores[MANAGER], net.case_id))
 
 
 def _assert_replicas_match(net: LedgerNetwork, replicas: tuple[str, ...]):
     for replica in replicas:
         _sync(net, replica)
-        assert _register(net, replica) == _register(net, MANAGER), replica
+        assert net.register(replica) == net.register(MANAGER), replica
         assert _rows(net, replica) == _rows(net, MANAGER), replica
 
 
@@ -266,8 +259,8 @@ class TestReceivedActivation:
         carried = _carried_over(net, revision_id)
         assert carried == {MANAGER, BYSTANDER}
         assert _embargo_entries(net, since) == [
-            EMBARGO_ACTIVATION_EVENT_TYPE,
-            *[UPDATE_EMBARGO_CONSENT_EVENT_TYPE] * len(carried),
+            EMBARGO_ACTIVATION_SEMANTIC_TYPE,
+            *[UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE] * len(carried),
         ]
         assert _state(net, MANAGER, OWNER, revision_id) is _S.AGREED
 
@@ -306,7 +299,9 @@ class TestReceivedActivation:
 
         _owner_activates(net, revision_id)
 
-        assert _embargo_entries(net, since) == [EMBARGO_ACTIVATION_EVENT_TYPE]
+        assert _embargo_entries(net, since) == [
+            EMBARGO_ACTIVATION_SEMANTIC_TYPE
+        ]
         assert _state(net, MANAGER, OWNER, revision_id) is _S.AGREED
         assert _carried_over(net, revision_id) == set()
 
@@ -323,7 +318,7 @@ class TestReceivedActivation:
             commit_tree,
             allowed=1,
             when=lambda kw: (
-                kw["event_type"] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+                kw["semantic_type"] == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
             ),
         )
 
@@ -367,7 +362,7 @@ class TestReceivedRejection:
         )
         assert case.active_embargo_id == net.initial_embargo_id
         assert _embargo_entries(net, since) == [
-            EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE
+            EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE
         ]
         assert _rows(net, MANAGER) == rows
 
@@ -385,6 +380,10 @@ class TestReceivedRejection:
             assert case.em_state is EM.ACTIVE, holder
             assert case.proposed_embargo_ids == [], holder
 
+    # Integration tier: it drives three stores and rebuilds the case from
+    # the ledger at teardown, about 10s idle; under the full unit run's load it
+    # passed the 30s ceiling (notes/testing-pitfalls.md, #4829).
+    @pytest.mark.integration
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("EP-08-001")
     def test_with_several_proposals_open(self):
@@ -466,7 +465,7 @@ class TestTriggerActivation:
         active_at_commit: list[str | None] = []
 
         def _observe(kwargs: dict[str, Any]) -> bool:
-            if kwargs["event_type"] == EMBARGO_ACTIVATION_EVENT_TYPE:
+            if kwargs["semantic_type"] == EMBARGO_ACTIVATION_SEMANTIC_TYPE:
                 active_at_commit.append(net.case(MANAGER).active_embargo_id)
             return False  # every commit runs
 
@@ -481,8 +480,8 @@ class TestTriggerActivation:
             net, revision_id, excluding=frozenset({MANAGER})
         ) == {PROPOSER, BYSTANDER}
         assert _embargo_entries(net, since) == [
-            EMBARGO_ACTIVATION_EVENT_TYPE,
-            *[UPDATE_EMBARGO_CONSENT_EVENT_TYPE] * 2,
+            EMBARGO_ACTIVATION_SEMANTIC_TYPE,
+            *[UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE] * 2,
         ]
         _assert_replicas_match(net, (BYSTANDER,))
 
@@ -490,11 +489,13 @@ class TestTriggerActivation:
     def test_a_failed_accept_commit_leaves_no_write_behind(self, monkeypatch):
         net = _managing_owner("https://example.org/cases/ac-trigger-fail")
         revision_id = _manager_revises(net, 30)
-        register, rows = _register(net, MANAGER), _rows(net, MANAGER)
+        register, rows = net.register(MANAGER), _rows(net, MANAGER)
         failed = fail_commits(
             monkeypatch,
             commit_tree,
-            when=lambda kw: kw["event_type"] == EMBARGO_ACTIVATION_EVENT_TYPE,
+            when=lambda kw: (
+                kw["semantic_type"] == EMBARGO_ACTIVATION_SEMANTIC_TYPE
+            ),
         )
 
         # A failed commit is not a refusal: the handler raises (BT-14-001).
@@ -502,11 +503,12 @@ class TestTriggerActivation:
             _manager_activates(net)
 
         assert len(failed) == 1
-        assert _register(net, MANAGER) == register
+        assert net.register(MANAGER) == register
         assert _rows(net, MANAGER) == rows
         assert net.case(MANAGER).proposed_embargo_ids == [revision_id]
-        assert EMBARGO_ACTIVATION_EVENT_TYPE not in committed_event_types(
-            net.stores[MANAGER], net.case_id
+        assert (
+            EMBARGO_ACTIVATION_SEMANTIC_TYPE
+            not in committed_semantic_types(net.stores[MANAGER], net.case_id)
         )
 
         monkeypatch.undo()
@@ -555,8 +557,8 @@ class TestInviteTimeOut:
         assert _expire(net, revision_id).status.name == "SUCCESS"
 
         assert _embargo_entries(net, since) == [
-            INVITE_EXPIRED_EVENT_TYPE,
-            UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+            INVITE_EXPIRED_SEMANTIC_TYPE,
+            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
         ]
         assert _state(net, MANAGER, BYSTANDER, revision_id) is (_S.TIMED_OUT)
 
@@ -572,7 +574,7 @@ class TestInviteTimeOut:
     @pytest.mark.spec("CLP-07-013")
     @pytest.mark.parametrize(
         "failing",
-        [INVITE_EXPIRED_EVENT_TYPE, UPDATE_EMBARGO_CONSENT_EVENT_TYPE],
+        [INVITE_EXPIRED_SEMANTIC_TYPE, UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE],
     )
     def test_a_failed_commit_leaves_the_row_invited(
         self, monkeypatch, failing
@@ -581,7 +583,7 @@ class TestInviteTimeOut:
         failed = fail_commits(
             monkeypatch,
             commit_tree,
-            when=lambda kw: kw["event_type"] == failing,
+            when=lambda kw: kw["semantic_type"] == failing,
         )
 
         assert _expire(net, revision_id).status.name != "SUCCESS"

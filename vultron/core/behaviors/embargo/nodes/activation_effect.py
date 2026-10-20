@@ -43,7 +43,7 @@ from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoChangeFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    _SingleEventTypeNode,
+    _SingleSemanticTypeNode,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_apply import (
@@ -63,16 +63,18 @@ from vultron.core.services.carried_embargo import carried_entry_embargo
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.errors import VultronError
 
-#: Ledger ``event_type`` of the case owner's committed activation.
-EMBARGO_ACTIVATION_EVENT_TYPE = MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value
+#: Ledger ``semantic_type`` of the case owner's committed activation.
+EMBARGO_ACTIVATION_SEMANTIC_TYPE = (
+    MessageSemantics.ACTIVATE_EMBARGO_ON_CASE.value
+)
 
-#: Ledger ``event_type`` of the case owner's committed rejection.
-EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE = (
+#: Ledger ``semantic_type`` of the case owner's committed rejection.
+EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE = (
     MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value
 )
 
 
-class IsActivateEmbargoEventNode(_SingleEventTypeNode):
+class IsActivateEmbargoEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is the owner's activation of an embargo.
 
     Used in the ``EmbargoActivation`` slot of ``AnnounceLogEntryReceivedBT``.
@@ -80,10 +82,10 @@ class IsActivateEmbargoEventNode(_SingleEventTypeNode):
     Per RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    matched_event_type = EMBARGO_ACTIVATION_EVENT_TYPE
+    matched_semantic_type = EMBARGO_ACTIVATION_SEMANTIC_TYPE
 
 
-class IsRejectEmbargoProposalEventNode(_SingleEventTypeNode):
+class IsRejectEmbargoProposalEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is the owner's rejection of a proposal.
 
     Used in the ``EmbargoProposalRejection`` slot of
@@ -92,7 +94,7 @@ class IsRejectEmbargoProposalEventNode(_SingleEventTypeNode):
     Per RSH-08-004, BTND-08-001, SYNC-12-001.
     """
 
-    matched_event_type = EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE
+    matched_semantic_type = EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE
 
 
 class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):

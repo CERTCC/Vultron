@@ -167,6 +167,10 @@ It still receives the invitations that ask it to join or to consent, but no ledg
 
 A CASE_MANAGER makes two checks before it acts on a message, and they answer different questions.
 
+Every node first asks whether the message was addressed to it at all.
+A message is addressed to a node that sent it, that its `to` names, or that is an active participant of a case participants collection its `to` names ([HP-01-012](../../reference/specs/architecture.md#hp-01-012)).
+Any other node holds a misaddressed copy, so it refuses the copy and answers nothing ([HP-01-005](../../reference/specs/project.md#hp-01-005)).
+
 The first check is about the receiver: *am I the CASE_MANAGER of this case?*
 A node that receives a message meant for the CASE_MANAGER, but does not hold the role, refuses it and says which role it lacks ([HP-01-005](../../reference/specs/project.md#hp-01-005)).
 It does not treat the message as a harmless duplicate.
@@ -277,6 +281,11 @@ The invitee records the CASE_MANAGER that the invitation names and replies to it
 When it accepts, the CASE_MANAGER sends the case snapshot and the earlier ledger entries without waiting for anything else ([CM-11-008](../../reference/specs/protocol.md#cm-11-008)).
 No separate `Create` bootstrap is needed, because the invitation already did that job ([CBT-04-003](../../reference/specs/protocol.md#cbt-04-003)).
 
+Until the invitee accepts, a later invitation for the same case that names a different CASE_MANAGER replaces the recorded one.
+After the invitee accepts, the invitee refuses such an invitation and keeps the CASE_MANAGER it accepted ([PCR-03-004](../../reference/specs/protocol.md#pcr-03-004)).
+So a forged invitation cannot stop the invitee from joining when the real invitation follows.
+The invitee cannot yet tell a forged invitation from a real one, so if it accepts a forged invitation first, the forger stays recorded.
+
 The hash chain then lets the joiner check that it received an unbroken history.
 That is a check against tampering and gaps, not a second source of trust.
 
@@ -286,6 +295,7 @@ Messages can arrive in any order.
 A message from a CASE_MANAGER can reach a participant before the bootstrap that would make it trusted.
 
 The participant holds such a message for a short time and does not apply it ([CBT-03-001](../../reference/specs/protocol.md#cbt-03-001), [CBT-03-002](../../reference/specs/protocol.md#cbt-03-002)).
+Holding a message does not make its sender trusted: only an invitation or the bootstrap creates a trust anchor ([PCR-03-004](../../reference/specs/protocol.md#pcr-03-004)).
 If the bootstrap arrives in time, normal checks resume.
 If it does not, the participant drops the held message and logs a warning.
 The sender must send that message again after the bootstrap ([CBT-03-003](../../reference/specs/protocol.md#cbt-03-003)).
@@ -442,7 +452,9 @@ There is no rejoin: making `CLOSED` reversible would need a second lifecycle for
 A participant whose closure is recorded also has no further say in the case.
 The CASE_MANAGER refuses every later activity from it, with two exceptions ([CM-23-018](../../reference/specs/protocol.md#cm-23-018)).
 Its request for missing ledger entries is still answered, but only with the entries that record its own closure.
-A repeat of an act that closed it, such as a second `Leave(VulnerabilityCase)` or `Close(Report)`, changes nothing, so the CASE_MANAGER reports it as skipped.
+A repeat of an act that closed it, such as a second `Leave(VulnerabilityCase)`, changes nothing, so the CASE_MANAGER reports it as skipped.
+The Case Owner's second `Leave` is the exception while the case is not fully closed: its `Leave` also closes the case, so a repeat completes a closure that a failed first delivery left unfinished.
+A `Close(Report)` closes no one once a case holds the report: the CASE_MANAGER refuses it from every sender, and the Case Owner closes the case with `Leave(VulnerabilityCase)` ([CM-23-019](../../reference/specs/protocol.md#cm-23-019)).
 
 A participant that expects to come back should move to RM `DEFERRED` instead ([RMB-14-007](../../reference/specs/protocol.md#rmb-14-007)).
 `DEFERRED` can resume to `ACCEPTED` or go on to `CLOSED` later.

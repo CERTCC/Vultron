@@ -30,6 +30,7 @@ from typing import Literal
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.addressing import snapshot_actor_id
 
 
 def activity_type_name(obj: object) -> str | None:
@@ -44,8 +45,13 @@ def activity_type_name(obj: object) -> str | None:
 
 
 def entry_target(entry: CaseLedgerEntry) -> str | None:
-    """The actor a ledgered Offer names as its ``target``."""
-    return _as_id(entry.payload_snapshot.get("target"))
+    """The actor a ledgered Offer names as its ``target``.
+
+    The snapshot keeps the sender's spelling, so the id is normalised
+    (OID-01-006): it is compared with the forward's target, and the
+    ownership transferee becomes the case owner.
+    """
+    return snapshot_actor_id(entry.payload_snapshot.get("target"))
 
 
 def forwarded_offer_entry(
@@ -76,7 +82,7 @@ def forwarded_offer_entry(
         return None
     if _as_id(getattr(forward, case_field, None)) != case_id:
         return None
-    target_id = _as_id(getattr(forward, "target", None))
+    target_id = snapshot_actor_id(getattr(forward, "target", None))
     linked_id = _as_id(getattr(forward, "in_reply_to", None))
     if target_id is None or linked_id is None:
         return None

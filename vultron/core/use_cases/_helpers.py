@@ -8,28 +8,17 @@ import hashlib
 import logging
 
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
-from vultron.core.models.protocols import PersistableModel
-from vultron.core.models.received_activity_record import (
-    ReceivedActivityRecord,
-)
-from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.participants.authority import (  # noqa: F401  (re-export)
     case_manager_address as _find_case_actor_id,
     resolve_case_manager_id,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.addressing import (
-    is_addressed_to,
-    same_actor_id,
-)
 from vultron.core.states.rm import RM
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
@@ -39,6 +28,12 @@ logger = logging.getLogger(__name__)
 # when this module passed the CS-18-001 500-line cap.  Re-imported here so every
 # existing importer — and any ``monkeypatch`` that targets this module path —
 # keeps resolving.
+# The held-activity readers live in ``core/services`` so BT nodes may use them
+# too (BTND-04-003).  Re-exported here for every existing importer.
+from vultron.core.services.received_activity import (  # noqa: E402,F401
+    read_held_activity,
+    read_received_activity,
+)
 from vultron.core.use_cases._snapshot_helpers import (  # noqa: E402,F401
     _SNAPSHOT_INLINE_DEPTH_LIMIT,
     _SNAPSHOT_REFERENCE_CORE_FIELDS,
@@ -83,65 +78,6 @@ def resolve_receiving_actor_id(
     )
 
 
-def is_recipient(
-    receiving_actor_id: str, activity: VultronActivity | None
-) -> bool:
-    """True when *receiving_actor_id* is in *activity*'s ``to``.
-
-    A received-side handler that acts for an addressee (the Case Owner
-    deciding an ``Offer(CaseParticipant)``, the transferee of a forwarded
-    ownership Offer) uses this to tell that addressee from an actor that
-    merely holds a copy.  The copy-holder refuses (HP-01-005): the sender
-    addressed the wrong party, and the receiver's own record says so.
-
-    Only ``to`` addresses a Vultron recipient: ``cc`` has no handler
-    semantics and the extractor does not carry it into core (OX-08-001,
-    HP-10-001, ADR-0109).  The extractor has already normalised ``to`` to an
-    id list, so this reads it as such.  Matching is by
-    :func:`~vultron.core.predicates.addressing.is_addressed_to`, so a
-    recipient written with a trailing slash still counts.  An event without
-    an activity names no recipient at all.
-    """
-    if activity is None:
-        return False
-    return is_addressed_to(receiving_actor_id, list(activity.to or []))
-
-
-def unaddressed_copy_refusal(
-    receiving_actor_id: str, request: VultronEvent, *, label: str
-) -> HandlerResult | None:
-    """REFUSED for a copy the receiver was never addressed; else ``None``.
-
-    The door check of a received use case whose tree has no
-    ``addressee_check`` (HP-01-005, ADR-0118, #4132): a receiver acts on an
-    activity only when it sent it or is named in its ``to``.  A received
-    tree checks this itself with the factory's ``addressee_check``, the
-    embargo trees among them.  Any other store holds a misaddressed copy — it
-    runs no tree, writes nothing and answers nothing (EMB-01-002's ER duty
-    binds only the addressee) — and its refusal names the receiver and the
-    recipients the sender actually chose, so the misrouting can be traced.
-    """
-    if same_actor_id(receiving_actor_id, request.actor_id) or is_recipient(
-        receiving_actor_id, request.activity
-    ):
-        return None
-    activity = request.activity
-    to = list(activity.to or []) if activity is not None else []
-    verdict = HandlerResult.refused(
-        f"'{receiving_actor_id}' is neither the sender nor a recipient of"
-        f" {label} '{request.activity_id}' (to={to}); an unaddressed copy"
-        " is refused (HP-01-005)"
-    )
-    logger.warning(
-        "%s: refused '%s' (actor '%s'): %s",
-        label,
-        request.activity_id,
-        request.actor_id,
-        verdict.reason,
-    )
-    return verdict
-
-
 def resolve_case(case_id: str, dl: CasePersistence):
     """Resolve a VulnerabilityCase by ID; raise domain error if absent or wrong
     type.
@@ -154,38 +90,6 @@ def resolve_case(case_id: str, dl: CasePersistence):
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
     return case_raw
-
-
-def read_received_activity(
-    dl: CasePersistence, activity_id: str, resource_type: str = "Activity"
-) -> PersistableModel:
-    """Return the activity *activity_id* as this receiver holds it.
-
-    A received activity that reached its use case is archived by intake as a
-    ``ReceivedActivityRecord`` under the receiver's own key (CLP-10-017,
-    ADR-0111), so that record is read first.
-
-    An activity the inbox deferred until its case is known has not reached
-    intake yet.  An Invite to a case is usually in that state: the invitee
-    holds no case until its Accept brings the bootstrap Announce (MV-10-003).
-    The inbox holds such an activity under the sender's id for replay, and
-    that copy is then the only one the receiver has, so it is read next.
-
-    Args:
-        dl: The receiver's DataLayer.
-        activity_id: The sender's id for the activity.
-        resource_type: Label for the error when nothing is held.
-
-    Raises:
-        VultronNotFoundError: When this store holds no such activity.
-    """
-    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
-    if isinstance(record, ReceivedActivityRecord):
-        return record.activity
-    deferred = dl.read(activity_id)
-    if deferred is None:
-        raise VultronNotFoundError(resource_type, activity_id)
-    return deferred
 
 
 def current_participant_rm_state(

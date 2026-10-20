@@ -60,7 +60,7 @@ def _camel_entry(**overrides):
         "logIndex": 0,
         "disposition": "recorded",
         "logObjectId": "urn:uuid:act0",
-        "eventType": "validate_report",
+        "semanticType": "validate_report",
         "payloadSnapshot": {
             "type": "Accept",
             "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -81,14 +81,14 @@ def _snake_entry(**overrides):
         "case_id": "urn:case:1",
         "log_index": 1,
         "disposition": "recorded",
-        "event_type": "add_participant_status_to_participant",
+        "semantic_type": "add_participant_status_to_participant",
         "payload_snapshot": {
             "type": "Add",
-            "actor": "http://finder:7999/api/v2/actors/finder",
+            "actor": "http://reporter:7999/api/v2/actors/reporter",
             "object": {
                 "id": "urn:uuid:ps1",
                 "type": "ParticipantStatus",
-                "attributed_to": "http://finder:7999/api/v2/actors/finder",
+                "attributed_to": "http://reporter:7999/api/v2/actors/reporter",
                 "rm": {"state": "ACCEPTED"},
                 "vf": {"state": "VF"},
                 "case_status": {"pxa": {"state": "Pxa"}},
@@ -123,7 +123,7 @@ class TestCaseTimelineEventParsing:
     def test_camelcase_field_extraction(self):
         event = CaseTimelineEvent.from_raw(_camel_entry())
         assert event.log_index == 0
-        assert event.event_type == "validate_report"
+        assert event.semantic_type == "validate_report"
         assert event.actor_uri == "http://vendor:7999/api/v2/actors/vendor"
         assert event.target_ref == "urn:uuid:rep1"
         assert event.target_type == "VulnerabilityReport"
@@ -133,8 +133,8 @@ class TestCaseTimelineEventParsing:
     def test_snakecase_field_extraction(self):
         event = CaseTimelineEvent.from_raw(_snake_entry())
         assert event.log_index == 1
-        assert event.event_type == "add_participant_status_to_participant"
-        assert event.actor_uri == "http://finder:7999/api/v2/actors/finder"
+        assert event.semantic_type == "add_participant_status_to_participant"
+        assert event.actor_uri == "http://reporter:7999/api/v2/actors/reporter"
 
     def test_dimension_states_from_nested_object(self):
         """RM/VF/PXA states extracted from a nested ParticipantStatus."""
@@ -147,7 +147,7 @@ class TestCaseTimelineEventParsing:
     def test_dimension_states_from_flat_wire_shape(self):
         """Legacy flat ``rmState``/``vfState`` spellings are tolerated."""
         raw = _camel_entry(
-            eventType="add_participant_status_to_participant",
+            semanticType="add_participant_status_to_participant",
             payloadSnapshot={
                 "type": "Add",
                 "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -172,7 +172,7 @@ class TestCaseTimelineEventParsing:
 
     def test_em_state_from_case_status(self):
         raw = _camel_entry(
-            eventType="add_case_status_to_case",
+            semanticType="add_case_status_to_case",
             payloadSnapshot={
                 "type": "Add",
                 "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -190,7 +190,7 @@ class TestCaseTimelineEventParsing:
     def test_em_state_from_case_statuses_array(self):
         """EM/CS state extracted from caseStatuses array on VulnerabilityCase."""
         raw = _camel_entry(
-            eventType="offer_case_manager_role",
+            semanticType="offer_case_manager_role",
             payloadSnapshot={
                 "type": "Offer",
                 "actor": "http://vendor:7999/api/v2/actors/case-actor",
@@ -210,7 +210,7 @@ class TestCaseTimelineEventParsing:
     def test_em_state_from_case_statuses_snake_key(self):
         """case_statuses (snake_case) is also traversed."""
         raw = _camel_entry(
-            eventType="offer_case_manager_role",
+            semanticType="offer_case_manager_role",
             payloadSnapshot={
                 "type": "Offer",
                 "actor": "http://vendor:7999/api/v2/actors/case-actor",
@@ -301,7 +301,7 @@ class TestCaseTimelineEventParsing:
     def test_invite_wrapper_surfaces_inner_target(self):
         """Accept(Invite(object=Org, target=Case)) → org → case arrow label."""
         raw = _camel_entry(
-            eventType="accept_invite_actor_to_case",
+            semanticType="accept_invite_actor_to_case",
             payloadSnapshot={
                 "type": "Accept",
                 "actor": "http://coordinator/actors/coordinator",
@@ -327,7 +327,7 @@ class TestCaseTimelineEventParsing:
     def test_offer_with_as_target_populates_activity_target(self):
         """Offer(object=VulnerabilityCase, target=CaseParticipant) → arrow label."""
         raw = _camel_entry(
-            eventType="offer_case_manager_role",
+            semanticType="offer_case_manager_role",
             payloadSnapshot={
                 "type": "Offer",
                 "actor": "http://vendor/actors/case-actor",
@@ -377,8 +377,8 @@ class TestCaseTimelineEventParsing:
 class TestFriendlyNaming:
     def test_actor_name_from_uri(self):
         assert (
-            friendly_actor_name("http://vendor:7999/api/v2/actors/finder")
-            == "Finder"
+            friendly_actor_name("http://vendor:7999/api/v2/actors/reporter")
+            == "Reporter"
         )
 
     def test_actor_name_hyphenated(self):
@@ -411,9 +411,9 @@ class TestFriendlyNaming:
     def test_event_phrase_fallback_humanizes(self):
         assert event_phrase("some_novel_event") == "some novel event"
 
-    def test_summary_unknown_event_type_humanizes(self):
-        """DRPT-03-002: unknown event_type falls back to humanized phrase, capitalised."""
-        raw = _camel_entry(eventType="some_novel_event")
+    def test_summary_unknown_semantic_type_humanizes(self):
+        """DRPT-03-002: unknown semantic_type falls back to humanized phrase, capitalised."""
+        raw = _camel_entry(semanticType="some_novel_event")
         event = CaseTimelineEvent.from_raw(raw)
         assert event.summary == "Some novel event"
 
@@ -444,7 +444,7 @@ class TestFriendlyNaming:
         complete sentence with no trailing/dangling ``"—"``.
         """
         raw = _camel_entry(
-            eventType="create_case_proposal",
+            semanticType="create_case_proposal",
             payloadSnapshot={
                 "type": "Create",
                 "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -461,7 +461,7 @@ class TestFriendlyNaming:
 #
 # The defaultdict-based SE-07-004 test fills every slot, masking phrases that
 # reference slots the runtime never populates.  These tests call event_phrase()
-# and CaseTimelineEvent.summary with real event-type values and assert:
+# and CaseTimelineEvent.summary with real semantic-type values and assert:
 #   1. No trailing "—" in the rendered output.
 #   2. No un-substituted {slot} markers remain.
 # One representative semantic per distinct slot shape is sufficient.
@@ -527,9 +527,9 @@ class TestEventPhraseBehavioural:
 class TestSummarySlotsFilledBehavioural:
     """SE-07-006: CaseTimelineEvent.summary must not leave dangling em-dashes."""
 
-    def _event_with_actor(self, event_type: str) -> CaseTimelineEvent:
+    def _event_with_actor(self, semantic_type: str) -> CaseTimelineEvent:
         raw = _camel_entry(
-            eventType=event_type,
+            semanticType=semantic_type,
             payloadSnapshot={
                 "type": "Accept",
                 "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -538,10 +538,10 @@ class TestSummarySlotsFilledBehavioural:
         return CaseTimelineEvent.from_raw(raw)
 
     def _event_with_actor_and_object(
-        self, event_type: str
+        self, semantic_type: str
     ) -> CaseTimelineEvent:
         raw = _camel_entry(
-            eventType=event_type,
+            semanticType=semantic_type,
             payloadSnapshot={
                 "type": "Offer",
                 "actor": "http://vendor:7999/api/v2/actors/vendor",
@@ -665,7 +665,7 @@ class TestBuildTimeline:
         shared = _camel_entry()  # same entry_hash in both replicas
         vendor_only = _snake_entry()  # only vendor holds it
         replicas = {
-            "finder": [dict(shared)],
+            "reporter": [dict(shared)],
             "vendor": [dict(shared), dict(vendor_only)],
         }
         events = build_timeline(replicas)
@@ -686,18 +686,18 @@ class TestBuildTimeline:
         shared = _camel_entry()
         vendor_only = _snake_entry()
         replicas = {
-            "finder": [dict(shared)],
+            "reporter": [dict(shared)],
             "vendor": [dict(shared), dict(vendor_only)],
         }
         events = build_timeline(replicas)
         by_index = {e.log_index: e for e in events}
-        assert by_index[0].present_in == ["finder", "vendor"]
+        assert by_index[0].present_in == ["reporter", "vendor"]
         assert by_index[1].present_in == ["vendor"]
 
     def test_hashless_entries_not_collapsed(self):
         """Degenerate entries without entry_hash are not merged together."""
-        a = _camel_entry(entryHash="", logIndex=0, eventType="create_case")
-        b = _camel_entry(entryHash="", logIndex=1, eventType="close_case")
+        a = _camel_entry(entryHash="", logIndex=0, semanticType="create_case")
+        b = _camel_entry(entryHash="", logIndex=1, semanticType="close_case")
         events = build_timeline({"vendor": [a, b]})
         assert len(events) == 2
 
@@ -761,14 +761,14 @@ class TestMultiCasePartitioning:
     def test_presence_matrix_is_per_case(self):
         """Same actor dir name across cases must not conflate presence."""
         replicas = {
-            "finder": [_case_entry("urn:case:A", 0, "a0" + "0" * 62)],
+            "reporter": [_case_entry("urn:case:A", 0, "a0" + "0" * 62)],
             "vendor": [_case_entry("urn:case:B", 0, "b0" + "0" * 62)],
         }
         events = build_timeline(replicas)
         by_case = {e.case_id: e for e in events}
-        # Case A only in finder's replica; case B only in vendor's — the two
+        # Case A only in reporter's replica; case B only in vendor's — the two
         # actor directories are NOT merged into a single shared presence set.
-        assert by_case["urn:case:A"].present_in == ["finder"]
+        assert by_case["urn:case:A"].present_in == ["reporter"]
         assert by_case["urn:case:B"].present_in == ["vendor"]
 
 
@@ -779,10 +779,10 @@ class TestMultiCasePartitioning:
 
 def _sample_events():
     replicas = {
-        "finder": [_camel_entry()],
+        "reporter": [_camel_entry()],
         "vendor": [_camel_entry(), _snake_entry()],
     }
-    return build_timeline(replicas), ["finder", "vendor"]
+    return build_timeline(replicas), ["reporter", "vendor"]
 
 
 class TestMarkdownRenderer:
@@ -792,7 +792,7 @@ class TestMarkdownRenderer:
         lines = md.splitlines()
         header = next(ln for ln in lines if ln.startswith("| #"))
         # Distilled field columns + one column per actor.
-        assert "| finder | vendor |" in header
+        assert "| reporter | vendor |" in header
         assert "Actor" in header and "Event" in header
         assert "PEC" not in header
         # Separator row present.
@@ -946,7 +946,7 @@ class TestHtmlRenderer:
         events, actors = _sample_events()
         out = render_html(events, actors)
         assert "✅" in out  # present
-        assert "⬜" in out  # absent (finder lacks the vendor-only entry)
+        assert "⬜" in out  # absent (reporter lacks the vendor-only entry)
 
     def test_full_uri_retained_as_tooltip(self):
         """DRPT-03-001: full ids allowed only as secondary detail (title=)."""
@@ -1253,11 +1253,11 @@ class TestDiscovery:
     def test_discovers_and_groups_by_actor_dir(self, tmp_path):
         _write_replicas(
             tmp_path,
-            {"finder": [_camel_entry()], "vendor": [_camel_entry()]},
+            {"reporter": [_camel_entry()], "vendor": [_camel_entry()]},
         )
         replicas = discover_replicas(tmp_path)
-        assert set(replicas) == {"finder", "vendor"}
-        assert len(replicas["finder"]) == 1
+        assert set(replicas) == {"reporter", "vendor"}
+        assert len(replicas["reporter"]) == 1
 
     def test_missing_directory_raises(self, tmp_path):
         with pytest.raises(ReportError, match="does not exist"):
@@ -1470,14 +1470,14 @@ class TestActorNameResolution:
                         "type": "Organization",
                         "name": "Vendor",
                     },
-                    {"id": other_uri, "type": "Person", "name": "Finder"},
+                    {"id": other_uri, "type": "Person", "name": "Reporter"},
                 ],
                 "object": {"id": "urn:uuid:r", "type": "VulnerabilityReport"},
             }
         )
         names = collect_actor_names({"vendor": [entry]})
         assert names[_UUID_ACTOR_URI] == "Vendor"
-        assert names[other_uri] == "Finder"
+        assert names[other_uri] == "Reporter"
 
     def test_collect_actor_names_scans_list_valued_object_field(self):
         """A list-valued ``object`` field recurses into each element."""
@@ -1584,9 +1584,9 @@ class TestActorNameResolution:
     def test_friendly_actor_name_falls_back_for_unknown_uri(self):
         names = {"http://other/actors/someone": "Someone"}
         label = friendly_actor_name(
-            "http://vendor:7999/api/v2/actors/finder", actor_names=names
+            "http://vendor:7999/api/v2/actors/reporter", actor_names=names
         )
-        assert label == "Finder"
+        assert label == "Reporter"
 
     def test_build_timeline_populates_actor_display_name(self):
         """actor_display_name is set when the actor URI appears in payloads."""
@@ -1616,13 +1616,13 @@ class TestActorNameResolution:
         entry = _camel_entry(
             payloadSnapshot={
                 "type": "Accept",
-                "actor": "http://vendor:7999/api/v2/actors/finder",
+                "actor": "http://vendor:7999/api/v2/actors/reporter",
                 "object": {"id": "urn:uuid:r", "type": "VulnerabilityReport"},
             }
         )
         replicas = {"vendor": [entry]}
         events = build_timeline(replicas)
-        assert events[0].actor_label == "Finder"
+        assert events[0].actor_label == "Reporter"
 
     def test_build_timeline_populates_target_display_name(self):
         """target_display_name is set when the target URI is a known actor."""
@@ -1645,7 +1645,7 @@ class TestActorNameResolution:
     def test_build_timeline_populates_activity_target_display_name(self):
         """activity_target_display_name is set when activity_target_ref is a known actor."""
         entry = _camel_entry(
-            eventType="accept_invite_actor_to_case",
+            semanticType="accept_invite_actor_to_case",
             payloadSnapshot={
                 "type": "Accept",
                 "actor": "http://vendor:7999/api/v2/actors/case-actor",
@@ -1676,7 +1676,7 @@ class TestActorNameResolution:
     ):
         """activity_target_display_name set when activity_target is a UUID actor."""
         entry = _camel_entry(
-            eventType="offer_case_manager_role",
+            semanticType="offer_case_manager_role",
             payloadSnapshot={
                 "type": "Offer",
                 "actor": "http://vendor:7999/api/v2/actors/case-actor",

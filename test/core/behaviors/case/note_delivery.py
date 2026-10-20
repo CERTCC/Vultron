@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""A ``Create(Note)`` delivery shared by the intake-only and store-node tests.
+"""An ``Add(Note)`` delivery shared by the intake-only and store-node tests.
 
 Both suites need one inbound activity carrying an inline object, so they can
 check what intake archives and what, if anything, gets stored.
@@ -20,22 +20,29 @@ check what intake archives and what, if anything, gets stored.
 
 from vultron.core.models.events import AnyReceivedEvent
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Create,
-)
+from vultron.wire.as2.factories import add_note_to_case_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 SENDER = "https://example.org/actors/sender"
 CASE_ID = "https://example.org/cases/intake-only"
 
 
-def create_note_delivery() -> tuple[as_Note, as_Create, AnyReceivedEvent]:
-    """Return the note, the ``Create(Note)`` carrying it, and its event."""
+def add_note_delivery(
+    to: str,
+) -> tuple[as_Note, as_Add, AnyReceivedEvent]:
+    """Return the note, the ``Add(Note)`` carrying it inline, and its event.
+
+    The activity is addressed *to* the actor the tree runs as: every received
+    tree refuses a copy that does not name the receiver (HP-01-005).
+    """
     note = as_Note(
         id_=f"{CASE_ID}/notes/n1",
         name="intake-only",
         content="a note",
         context=CASE_ID,
     )
-    activity = as_Create(actor=SENDER, object_=note, context=CASE_ID)
+    activity = add_note_to_case_activity(
+        note, actor=SENDER, target=CASE_ID, to=[to]
+    )
     return note, activity, extract_event(activity)

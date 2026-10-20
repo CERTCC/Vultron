@@ -26,7 +26,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     make_case_with_manager,
 )
-from test.support.ledger import committed_event_types
+from test.support.ledger import committed_semantic_types
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -34,7 +34,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_EVENT_TYPE
+from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.em_state import (
     ValidateEmbargoRevisionStateNode,
 )
@@ -176,7 +176,7 @@ class TestTerminateEmbargoBT:
         assert updated.em_state == EM.EXITED
         assert updated.active_embargo is None
         factory.terminate_embargo.assert_called_once()
-        assert EMBARGO_TEARDOWN_EVENT_TYPE in committed_event_types(
+        assert EMBARGO_TEARDOWN_SEMANTIC_TYPE in committed_semantic_types(
             dl, case.id_
         )
 
@@ -227,7 +227,9 @@ class TestTerminateEmbargoBT:
         failed = fail_commits(
             monkeypatch,
             commit_tree,
-            when=lambda kw: kw["event_type"] == EMBARGO_TEARDOWN_EVENT_TYPE,
+            when=lambda kw: (
+                kw["semantic_type"] == EMBARGO_TEARDOWN_SEMANTIC_TYPE
+            ),
         )
         case, dl, _factory = self._run_as_manager(
             f"teb11{int(use_builder)}",
@@ -241,7 +243,7 @@ class TestTerminateEmbargoBT:
             for i in dl.outbox_list()
             if cast(VultronActivity, dl.read(i)).type_ == "Remove"
         ], "an unrecorded Remove was left in the outbox"
-        assert EMBARGO_TEARDOWN_EVENT_TYPE not in committed_event_types(
+        assert EMBARGO_TEARDOWN_SEMANTIC_TYPE not in committed_semantic_types(
             dl, case.id_
         )
 
@@ -256,7 +258,9 @@ class TestTerminateEmbargoBT:
         fail_commits(
             monkeypatch,
             commit_tree,
-            when=lambda kw: kw["event_type"] == EMBARGO_TEARDOWN_EVENT_TYPE,
+            when=lambda kw: (
+                kw["semantic_type"] == EMBARGO_TEARDOWN_SEMANTIC_TYPE
+            ),
         )
         monkeypatch.setattr(
             SqliteDataLayer, "outbox_withdraw", lambda _self, _id: False
@@ -327,7 +331,7 @@ class TestTerminateEmbargoBT:
             ("Remove", [CASE_MANAGER_ACTOR])
         ]
         assert result_out[ASSERTED_ACTIVITY_KEY] == queued[0].id_
-        assert committed_event_types(dl, case.id_) == []
+        assert committed_semantic_types(dl, case.id_) == []
 
     def test_missing_case_manager_returns_failure_before_state_change(self):
         """AC-5: Missing CASE_MANAGER → FAILURE; EM state and active_embargo unchanged."""
@@ -443,7 +447,7 @@ class TestTerminateEmbargoBT:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.em_state == EM.EXITED
         factory.terminate_embargo.assert_called_once()
-        assert EMBARGO_TEARDOWN_EVENT_TYPE in committed_event_types(
+        assert EMBARGO_TEARDOWN_SEMANTIC_TYPE in committed_semantic_types(
             dl, case.id_
         )
 

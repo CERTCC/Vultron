@@ -308,7 +308,9 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
     assert names == [
         "IntakeReceivedActivityNode",
         "CaseOpenToExternalWrites",
-        "Guard",
+        "ActivityAddressedToReceiverNode",
+        # The guards, with the refusal notice that answers them (CLP-02-005).
+        "PreconditionGuardStage",
         "GuardedCommitCaseLedgerEntryBT",
         "Effect",
     ]
@@ -323,6 +325,7 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
     assert [c.name for c in no_commit.children] == [
         "IntakeReceivedActivityNode",
         "CaseOpenToExternalWrites",
+        "ActivityAddressedToReceiverNode",
         "Guard",
         "Effect",
     ]

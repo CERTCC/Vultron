@@ -106,13 +106,13 @@ def base_url(stream_dl: SqliteDataLayer) -> Iterator[str]:
     assert not thread.is_alive(), "uvicorn did not shut down"
 
 
-def _commit(client: httpx.Client, event_type: str) -> int:
+def _commit(client: httpx.Client, semantic_type: str) -> int:
     response = client.post(
         f"/api/v2/actors/{srv.ACTOR_ID}/demo/sync-log-entry",
         json={
             "case_id": srv.CASE_ID,
             "object_id": srv.CASE_ID,
-            "event_type": event_type,
+            "semantic_type": semantic_type,
         },
     )
     assert response.status_code == 202, response.text
@@ -144,7 +144,7 @@ def test_connect_replay_commit_receive_disconnect(base_url: str, caplog):
                 third = _commit(client, "after_connect")
                 pushed = read_sse_event(lines)
                 assert int(pushed["id"]) == third
-                assert json.loads(pushed["data"])["eventType"] == (
+                assert json.loads(pushed["data"])["semanticType"] == (
                     "after_connect"
                 )
             # Leaving the block closes the connection.
@@ -152,6 +152,10 @@ def test_connect_replay_commit_receive_disconnect(base_url: str, caplog):
             _wait_until(lambda: "client disconnected" in caplog.text)
 
 
+# The waits below can add up to ~85s (30s readiness, 10s per stream read, 15s
+# exit), past the 60s integration ceiling; this ceiling stays above them so an
+# overrun fails this test by name instead of killing the session (#4868).
+@pytest.mark.timeout(120)
 def test_sigterm_sends_close_and_lets_the_server_exit(tmp_path: Path):
     """A real SIGTERM ends an open stream with ``event: close``.
 

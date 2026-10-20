@@ -40,12 +40,12 @@ def test_demo(demo_env, demo_fn, caplog):
     Tests that the status_updates demo workflows complete successfully.
 
     For the notes workflow, verifies:
-    - Case initialized with finder participant
+    - Case initialized with reporter participant
     - Note created and added to case
     - Note removed from case
 
     For the status workflow, verifies:
-    - Case initialized with finder participant
+    - Case initialized with reporter participant
     - a new CaseStatus added, inline, to the case
     - a new ParticipantStatus added, inline, to the participant
     """

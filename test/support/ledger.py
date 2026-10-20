@@ -31,10 +31,10 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.datalayer import DataLayer
 
 
-def committed_event_types(dl: DataLayer, case_id: str) -> list[str]:
-    """``event_type`` of every ledger entry committed for *case_id*."""
+def committed_semantic_types(dl: DataLayer, case_id: str) -> list[str]:
+    """``semantic_type`` of every ledger entry committed for *case_id*."""
     return [
-        str(entry.event_type)
+        str(entry.semantic_type)
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry) and entry.case_id == case_id
     ]
@@ -64,7 +64,7 @@ def commit_case_fully_closed(
                 case_id=case_id,
                 log_index=entries[-1].log_index + 1 if entries else 0,
                 object_id=f"{case_id}/activities/owner-leave",
-                event_type="case_fully_closed",
+                semantic_type="case_fully_closed",
                 payload_snapshot={"actor": actor_id},
                 prev_log_hash=entries[-1].entry_hash if entries else "0" * 64,
             )
@@ -75,11 +75,12 @@ def commit_case_fully_closed(
 def creation_entry_sequence(
     dl: DataLayer, case: VulnerabilityCase
 ) -> list[tuple[str, str]]:
-    """The ``(event_type, object id)`` entries creating *case* commits.
+    """The ``(semantic_type, object id)`` entries creating *case* commits.
 
     One rule for every creation path, read off the resulting case file: the
-    genesis ``create_case``, each linked report, each participant's statuses
-    in roster order, then each case status (CLP-07-013).  Two paths that
+    genesis ``create_case``, each linked report, each participant's record
+    created with its first status and then its later statuses, in roster
+    order, then each case status (CLP-07-013, CM-23-007).  Two paths that
     produce the same case therefore commit the same sequence.
     """
     sequence = [("create_case", case.id_)]
@@ -90,9 +91,10 @@ def creation_entry_sequence(
     for participant_ref in case.case_participants:
         participant = dl.read(str(_as_id(participant_ref)))
         assert isinstance(participant, CaseParticipant), participant_ref
+        sequence.append(("create_case_participant", participant.id_))
         sequence += [
             ("add_participant_status_to_participant", status.id_)
-            for status in participant.participant_statuses
+            for status in participant.participant_statuses[1:]
         ]
     sequence += [
         ("add_case_status_to_case", str(_as_id(status)))
@@ -140,7 +142,7 @@ def record_sends_and_commits(
     """Record, in order, what *actor_id*'s store queues and commits.
 
     Each outbox append that queues an activity adds ``("queued", activity
-    id)``; each ledger entry the store commits adds ``(event_type, object
+    id)``; each ledger entry the store commits adds ``(semantic_type, object
     id)``.  The one list shows whether a sent activity reached the outbox
     before the entry recording it (ADR-0119).
 
@@ -167,7 +169,7 @@ def record_sends_and_commits(
         )
         result = original_save(self, obj)
         if is_new_entry:
-            events.append((str(obj.event_type), str(obj.log_object_id)))
+            events.append((str(obj.semantic_type), str(obj.log_object_id)))
         return result
 
     monkeypatch.setattr(SqliteDataLayer, "outbox_append", _append)

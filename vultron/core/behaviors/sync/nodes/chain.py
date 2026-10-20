@@ -38,7 +38,7 @@ from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.sync_helpers import (
     _find_equivalent_recorded_entry,
     _find_prev_actor_published,
-    _reconstruct_tail_hash,
+    reconstruct_tail_hash,
     recorded_entries_for_case,
 )
 from vultron.errors import VultronError, VultronValidationError
@@ -46,7 +46,7 @@ from vultron.errors import VultronError, VultronValidationError
 logger = logging.getLogger(__name__)
 
 
-def _require_case_id_from_activity(activity: Any, node_name: str) -> str:
+def require_case_id_from_activity(activity: Any, node_name: str) -> str:
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "rejected_entry", None)
@@ -65,7 +65,7 @@ def _to_persistable_entry(
         log_index=chain_entry.log_index,
         term=chain_entry.term,
         log_object_id=chain_entry.object_id,
-        event_type=chain_entry.event_type,
+        semantic_type=chain_entry.semantic_type,
         payload_snapshot=dict(chain_entry.payload_snapshot),
         prev_log_hash=chain_entry.prev_log_hash,
         entry_hash=chain_entry.entry_hash,
@@ -117,14 +117,14 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
         if self._case_id is not None:
             case_id = self._case_id
         else:
-            case_id = _require_case_id_from_activity(self.activity, self.name)
+            case_id = require_case_id_from_activity(self.activity, self.name)
 
         try:
-            tail_hash, tail_index = _reconstruct_tail_hash(
+            tail_hash, tail_index = reconstruct_tail_hash(
                 case_id, self.datalayer
             )
         except VultronValidationError as exc:
-            # _reconstruct_tail_hash raises here for exactly one condition:
+            # reconstruct_tail_hash raises here for exactly one condition:
             # an empty local ledger with no per-case genesis hash yet — the
             # pre-genesis bootstrap window where an Announce(CaseLedgerEntry)
             # arrived before the Create(VulnerabilityCase) that seeds genesis.
@@ -217,7 +217,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         self,
         case_id: str,
         object_id: str,
-        event_type: str,
+        semantic_type: str,
         *,
         payload_snapshot: dict[str, Any] | None = None,
         term: int | None = None,
@@ -226,7 +226,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.object_id = object_id
-        self.event_type = event_type
+        self.semantic_type = semantic_type
         self.payload_snapshot = dict(payload_snapshot or {})
         self.term = term
 
@@ -278,7 +278,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         existing = _find_equivalent_recorded_entry(
             case_id=self.case_id,
             object_id=self.object_id,
-            event_type=self.event_type,
+            semantic_type=self.semantic_type,
             payload_snapshot=self.payload_snapshot,
             dl=self.datalayer,
             entries=recorded or None,
@@ -288,11 +288,11 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             self._set_output("log_entry", entry)
             self._set_output("log_entry_preexisting", True)
             self.logger.info(
-                "%s: reusing existing log entry case_id=%s event_type=%s "
+                "%s: reusing existing log entry case_id=%s semantic_type=%s "
                 "log_index=%d",
                 self.name,
                 entry.case_id,
-                entry.event_type,
+                entry.semantic_type,
                 entry.log_index,
             )
             return Status.SUCCESS
@@ -317,7 +317,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         _validate_canonical_entry(
             case_id=self.case_id,
             payload_snapshot=self.payload_snapshot,
-            event_type=self.event_type,
+            semantic_type=self.semantic_type,
             case_published=case_published,
             prev_actor_published=prev_actor_published,
             future_tolerance=ledger_cfg.future_tolerance,
@@ -331,7 +331,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             case_id=self.case_id,
             log_index=tail_index + 1,
             object_id=self.object_id,
-            event_type=self.event_type,
+            semantic_type=self.semantic_type,
             payload_snapshot=self.payload_snapshot,
             prev_log_hash=tail_hash,
             term=self.term,
@@ -373,11 +373,11 @@ class PersistLogEntryNode(DataLayerActionWithPorts):
         preexisting = bool(self.log_entry_preexisting)
         if preexisting:
             self.logger.info(
-                "%s: log entry already exists for case_id=%s event_type=%s "
+                "%s: log entry already exists for case_id=%s semantic_type=%s "
                 "log_index=%d actor_id=%s",
                 self.name,
                 entry.case_id,
-                entry.event_type,
+                entry.semantic_type,
                 entry.log_index,
                 self.actor_id,
             )
@@ -385,10 +385,10 @@ class PersistLogEntryNode(DataLayerActionWithPorts):
 
         self.datalayer.save(entry)
         self.logger.info(
-            "%s: committed log entry case_id=%s event_type=%s log_index=%d actor_id=%s",
+            "%s: committed log entry case_id=%s semantic_type=%s log_index=%d actor_id=%s",
             self.name,
             entry.case_id,
-            entry.event_type,
+            entry.semantic_type,
             entry.log_index,
             self.actor_id,
         )

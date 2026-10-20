@@ -28,7 +28,7 @@ from typing import ClassVar, cast
 import py_trees.behaviour
 
 from vultron.core.behaviors.embargo.nodes import (
-    EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE,
+    EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.embargo.trigger_tree import (
     reject_embargo_proposal_trigger_bt,
@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 
 
 class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
-    _assertion_event_type: ClassVar[str] = (
+    _assertion_semantic_type: ClassVar[str] = (
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
     )
 
@@ -70,10 +70,10 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
         )
         self._is_owner = _is_case_owner(self._case, self._actor_id)
 
-    def _asserted_event_type(self) -> str:
+    def _asserted_semantic_type(self) -> str:
         if self._is_owner:
-            return EMBARGO_PROPOSAL_REJECTION_EVENT_TYPE
-        return self._assertion_event_type
+            return EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE
+        return self._assertion_semantic_type
 
     def _assertion_subject(self) -> str:
         return self._proposal_id

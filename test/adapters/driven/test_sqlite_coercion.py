@@ -267,7 +267,7 @@ class TestCoerceToSemanticClass:
             case_id="https://example.org/cases/case-sync-1",
             log_index=0,
             object_id="https://example.org/activities/logged-1",
-            event_type="log_entry_committed",
+            semantic_type="log_entry_committed",
             payload_snapshot={"status": "ok"},
             prev_log_hash=_ZERO_HASH,
         )
@@ -294,7 +294,7 @@ class TestCoerceToSemanticClass:
         Without recursion, re-typing the Offer via model_validate parses the inner
         CaseLedgerEntry dict against the base as_Object union (as_Offer.object_ is
         typed Union[as_Object, as_Link, str, CoreObject]), silently dropping
-        domain-specific fields such as case_id and event_type.  With the recursive
+        domain-specific fields such as case_id and semantic_type.  With the recursive
         call, _retype_inline_object_refs runs again on the re-typed Offer's raw
         sub-data and restores the CaseLedgerEntry to its specific class.
         """
@@ -306,7 +306,7 @@ class TestCoerceToSemanticClass:
         ledger_entry = as_CaseLedgerEntry(
             case_id="https://example.org/cases/retype-recurse-1",
             log_object_id="https://example.org/activities/obj-retype-1",
-            event_type="log_entry_committed",
+            semantic_type="log_entry_committed",
             log_index=0,
         )
         offer = as_Offer(
@@ -336,7 +336,7 @@ class TestCoerceToSemanticClass:
         assert (
             inner_entry.case_id == "https://example.org/cases/retype-recurse-1"
         )
-        assert inner_entry.event_type == "log_entry_committed"
+        assert inner_entry.semantic_type == "log_entry_committed"
 
     def test_non_activity_object_not_coerced(self, dl):
         """Non-activity objects (e.g. as_VulnerabilityReport) are returned as-is."""

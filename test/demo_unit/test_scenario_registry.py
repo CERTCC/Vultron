@@ -206,9 +206,9 @@ def test_scenario_rejects_a_name_that_contradicts_its_module() -> None:
     catches it.
     """
     decorate = scenario(
-        name="fv",
-        label="FV",
-        participants="Finder + Vendor",
+        name="rv",
+        label="rv",
+        participants="Reporter + Vendor",
         feature="Baseline two-actor CVD",
         in_pr_set=True,
     )
@@ -216,7 +216,7 @@ def test_scenario_rejects_a_name_that_contradicts_its_module() -> None:
     def impostor() -> None:
         """Stand in for a copy-pasted main() in the wrong module."""
 
-    impostor.__module__ = f"{SCENARIO_PACKAGE}.fvv_demo"
+    impostor.__module__ = f"{SCENARIO_PACKAGE}.rvv_demo"
 
     with pytest.raises(DemoScenarioRegistryError, match="derives the module"):
         decorate(impostor)
@@ -225,8 +225,8 @@ def test_scenario_rejects_a_name_that_contradicts_its_module() -> None:
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("name", "FV"),
-        ("name", "fv_demo"),
+        ("name", "RV"),
+        ("name", "rv_demo"),
         ("name", ""),
         # `$` matches before a trailing newline, so an `re.match(r"...$")`
         # would accept this and the failure would surface later, in the
@@ -240,7 +240,7 @@ def test_scenario_rejects_a_name_that_contradicts_its_module() -> None:
         # — so a line-count guard passes and --check then blesses a table whose
         # last column has been dropped.
         ("label", "XY\n"),
-        ("participants", "Finder + Vendor\n"),
+        ("participants", "Reporter + Vendor\n"),
         ("feature", "Something\n"),
         ("feature", " Something"),
         # Genuinely multi-line, the case the line-count guard does catch.
@@ -250,7 +250,7 @@ def test_scenario_rejects_a_name_that_contradicts_its_module() -> None:
         # and the demo-scenarios-sync hook undoing each other forever.
         ("feature", "Embargo extension per _RFC 9116_"),
         ("feature", "See https://example.org/spec"),
-        ("participants", "Finder + <Vendor>"),
+        ("participants", "Reporter + <Vendor>"),
     ],
 )
 def test_scenario_spec_rejects_malformed_fields(
@@ -260,7 +260,7 @@ def test_scenario_spec_rejects_malformed_fields(
     fields = {
         "name": "xy",
         "label": "XY",
-        "participants": "Finder + Vendor",
+        "participants": "Reporter + Vendor",
         "feature": "Something",
         "in_pr_set": True,
     }
@@ -280,7 +280,7 @@ def test_scenario_spec_rejects_non_boolean_in_pr_set() -> None:
         ScenarioSpec(
             name="xy",
             label="XY",
-            participants="Finder + Vendor",
+            participants="Reporter + Vendor",
             feature="Something",
             in_pr_set=1,  # type: ignore[arg-type]
         )
@@ -294,16 +294,16 @@ def test_derived_paths_follow_the_documented_conventions() -> None:
     three would still pass a same-shaped check on an unhyphenated scenario.
     """
     spec = ScenarioSpec(
-        name="fvcv-handoff",
-        label="FVCV-handoff",
-        participants="Finder + Vendor1 → Coordinator + Vendor2",
+        name="rvcv-handoff",
+        label="RVCV-handoff",
+        participants="Reporter + Vendor1 → Coordinator + Vendor2",
         feature="Case-ownership transfer to coordinator",
         in_pr_set=True,
     )
-    assert spec.demo_path == "vultron/demo/scenario/fvcv_handoff_demo.py"
+    assert spec.demo_path == "vultron/demo/scenario/rvcv_handoff_demo.py"
     assert (
         spec.harness_path
-        == "test/ci/invariants/test_fvcv_handoff_invariants.py"
+        == "test/ci/invariants/test_rvcv_handoff_invariants.py"
     )
-    assert spec.narrative_path == "docs/topics/scenarios/fvcv-handoff.md"
+    assert spec.narrative_path == "docs/topics/scenarios/rvcv-handoff.md"
     assert spec.full_suite_only is False

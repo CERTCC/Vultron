@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Rules for the canonical case ledger: participant assertions versus
   CASE_MANAGER-admitted entries, the three authority/address/store questions,
-  what belongs in the ledger, one entry per change, the two timestamps, native
+  what belongs in the ledger, one entry per change and how an act whose later
+  entries failed is finished, the two timestamps, native
   case-initialization entries, the genesis hash, and why an unrecorded transition
   is invisible to every replica.
 related_specs:
@@ -99,12 +100,19 @@ Replicas need the asserted content to rebuild state, so the hash chain is
 computed over entries that each include the payload snapshot, never over pointers
 to prior assertions.
 
-**Planned: `event_type` is the registry's label for the payload (ADR-0140,
-proposed).** Every payload is a valid AS2 activity, and an entry's `event_type`
+**Planned: `semantic_type` is the registry's label for the payload (ADR-0140,
+proposed).** Every payload is a valid AS2 activity, and an entry's `semantic_type`
 must equal the semantic type the registry assigns to its `payload_snapshot`,
 including for the CASE_MANAGER's own acts. Today each write path stamps
-`event_type` from its own string constant. The shapes for ledger-only acts are
+`semantic_type` from its own string constant. The shapes for ledger-only acts are
 decided in #4723; the equality test is #4724.
+
+**The field is `semantic_type`, wire key `semanticType` (CLP-02-014).** The
+glossary names "event type" as a term to avoid for it. The hash chain hashes
+the field under its own name, as `object_id` already is. An entry still
+carrying the retired `eventType` key is refused, never aliased: a stored row
+means the store must be reset, a received one that its sender is out of date
+(`notes/datalayer-design.md`).
 
 ## Refusals Go to the Process Log
 
@@ -117,10 +125,16 @@ Only admitted assertions enter the ledger; there is no disposition field.
   the hash chain (CLP-05-002). Other participants need canonical history, not
   failed attempts.
 - The `Reject` wraps the refused activity inline, `inReplyTo` its id, with the
-  guard's reason in `summary` (ADR-0141). Send it as a tree's `refusal_effects`
-  (CLP-10-022), never from `execute()`; a sender-guard refusal and a `SKIPPED`
-  repeat get none. The reason is read by the sender, so it names the sender's own
-  standing only.
+  guard's reason in `summary` (ADR-0141). `create_receive_activity_tree` adds
+  it to every tree that commits to a case and has precondition guards
+  (CLP-10-022); a tree never sends it itself, nor from `execute()`. A tree whose
+  refusals are answered otherwise names a registered `RefusalNoticeExemption`
+  (`case/nodes/refusal_notice.py`) that says how, pinned by
+  `test_received_tree_refusal_notice.py`. A sender-guard refusal and a
+  `SKIPPED` repeat get none. A guard that can fail as a repeat implements
+  `ReportsIdempotentRepeat` (`behaviors/idempotency.py`), or the stage reads its
+  repeat as a refusal and answers it. The reason is read by the sender, so it
+  names the sender's own standing only.
 - A `Reject(Invite)` or `Reject(Offer)` refusal notice has the shape of a decline;
   the sender reads it with the decline's use case, which closes the pending entry.
   Do not add a pattern to tell them apart: the request had no effect either way
@@ -150,17 +164,32 @@ replica decides nothing:
   offer records and pending markers are the CASE_MANAGER's working records: not
   ledgered, not replicated, never read to compute a case-file value.
 - **No allow-list.** A write with no entry is a defect. `NO_REPLICA_EFFECT` in
-  `test/architecture/test_ledger_event_types_are_replayed.py` lists committed
+  `test/architecture/test_ledger_semantic_types_are_replayed.py` lists committed
   types that change nothing a replica holds; it is not a place to park an
   unreplayed write. `EXEMPT` in `test/architecture/test_ledger_commit_coverage.py`
   lists routed activities that commit nothing: each row is a CLP-02-013 ground
   (not a case event) or the open issue that owns the missing commit. A handler
   believed to need no entry that fits no ground is an amendment to CLP-02-013
   first, never a new row.
+- **The rebuild check.** Every exchange demo and every `LedgerNetwork` scenario
+  is rebuilt from the CASE_MANAGER's ledger into an empty store when it ends,
+  and its roster, participant records, consent rows and embargo register must
+  equal the CASE_MANAGER's (`test/support/ledger_rebuild.py`, #4294). A test
+  that writes the CASE_MANAGER's store outside the ledger on purpose, as setup,
+  calls `LedgerNetwork.bypass_ledger()`; a production write with no entry is
+  the defect the check exists to find, never a reason to bypass it.
 
 **Pitfall: "one act, one entry".** That reading leaves the second change an act
 causes with nowhere to be recorded, and replicas rebuild it with their own ids
 and times (#4425).
+
+**Pitfall: "a failed commit is retried by the next act".** It is not: a repeated
+trigger starts a new act and a redelivered one stops at its idempotency guard. An
+embargo act stores its decided entries as case bookkeeping before its first
+commit, and the next CASE_MANAGER embargo tree for the case finishes them before
+its guards read a row; never re-decide them in a per-act repair pass. The stub
+re-issue's `ReissueStubInvitesNode._rows_owed` is such a pass today and is replaced
+by the finishing step in #4855 (CLP-07-015, ADR-0146).
 
 ### Two Meanings of "Reject"
 
@@ -233,9 +262,12 @@ the status entries and never derive a closure path from their own state.
 
 The status entries are the CASE_MANAGER's own writes, so their
 `payloadSnapshot.actor` is the CASE_MANAGER; the leaver's act stays attributed to
-the leaver in `close_case`. A replica may still refuse a step with a WARNING (its
-RM ratchet, or a composite-state violation, RSH-05-021), and then writes nothing
-in its place.
+the leaver in `close_case`. A replica copies each step as carried; it refuses
+only a step whose composite state is impossible (RSH-05-021), and then writes
+nothing in its place. Every activity-typed RM move works the same way: the
+report verdicts, engage/defer and the full-case Invite replies commit the act,
+then the status the CASE_MANAGER wrote (`CommitParticipantStatusEntriesNode`,
+CLP-07-013); the act's own entry changes nothing on a replica.
 
 ### A Sent Message Is Committed After Its Outbox Write (SYNC-09-002)
 
@@ -321,9 +353,10 @@ second copy (CLP-07-013). Order:
 
 1. `create_case` — `Create(VulnerabilityCase)`, actor CASE_MANAGER
 2. `add_report_to_case` — actor CASE_MANAGER
-3. `add_participant_status_to_participant` × N — actor CASE_MANAGER; its
-   `target` is the participant record in full, the entry that carries the record
-   (a `Create(CaseParticipant)` shape is #4295's)
+3. per seated record, `create_case_participant` — `Create(CaseParticipant)`
+   carrying the record as created (roles, consent rows, its first status), then
+   `add_participant_status_to_participant` for each later status (the
+   CASE_MANAGER's VALID, ACCEPTED; CM-23-007) — actor CASE_MANAGER
 4. `add_case_status_to_case` — actor **vendor URI**
 
 Each snapshot is the CASE_MANAGER's factory-built activity, sealed and committed

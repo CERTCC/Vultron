@@ -208,13 +208,47 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
             e
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
-            and e.event_type == "offer_case_participant_role"
+            and e.semantic_type == "offer_case_participant_role"
         ]
         assert len(offer_entries) == 1
         assert (
             offer_entries[0].payload_snapshot.get("actor") == self._VENDOR_URI
         )
         assert offer_entries[0].log_object_id == offer.id_
+
+    @pytest.mark.spec("OID-01-006")
+    def test_a_slash_spelled_target_is_forwarded_to_canonically(
+        self, make_payload
+    ):
+        """The Offer's ``target`` is extracted without its trailing slash, so
+        the CASE_MANAGER finds the stored participant and forwards the Offer
+        to it in the canonical spelling."""
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
+        dl = self._store(self._CASE_ACTOR_URI)
+        offer = offer_case_participant_role_activity(
+            role=CVDRole.COORDINATOR,
+            target_actor=as_Actor(id_=self._TARGET_URI + "/"),
+            case=self._CASE_URI,
+            actor=self._VENDOR_URI,
+            to=[self._CASE_ACTOR_URI],
+        )
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+
+        result = self._execute_at_case_manager(dl, event)
+
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+        forwards = [
+            activity
+            for activity in (dl.read(i) for i in dl.outbox_list())
+            if getattr(activity, "type_", None) == "Offer"
+        ]
+        assert len(forwards) == 1
+        recipients = [
+            str(getattr(r, "id_", r))
+            for r in (getattr(forwards[0], "to", None) or [])
+        ]
+        assert recipients == [self._TARGET_URI]
 
     @pytest.mark.spec("HP-01-003")
     def test_offer_case_participant_role_refused_when_neither_reply_sent(

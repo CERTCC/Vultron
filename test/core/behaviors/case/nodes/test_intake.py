@@ -41,7 +41,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.events.note import CreateNoteReceivedEvent
+from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
 from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
@@ -67,19 +67,20 @@ SENDER = "https://example.org/actors/reporter"
 RECEIVER = "https://example.org/actors/vendor"
 NOTE_ID = "https://example.org/notes/n-1"
 CASE_ID = "https://example.org/cases/c-1"
-ACTIVITY_ID = "https://example.org/activities/create-note-1"
+ACTIVITY_ID = "https://example.org/activities/add-note-1"
 
 
-def _note_event(note: VultronNote) -> CreateNoteReceivedEvent:
-    """A ``Create(Note)`` event whose wire activity inlines *note*."""
+def _note_event(note: VultronNote) -> AddNoteToCaseReceivedEvent:
+    """An ``Add(Note)`` event whose wire activity inlines *note*."""
     activity = VultronActivity(
         id_=ACTIVITY_ID,
-        type_="Create",
+        type_="Add",
         actor=SENDER,
         object_=note,
+        target=CASE_ID,
         to=[RECEIVER],
     )
-    return CreateNoteReceivedEvent(
+    return AddNoteToCaseReceivedEvent(
         activity_id=activity.id_,
         actor_id=SENDER,
         object_=note,
@@ -136,10 +137,10 @@ def test_intake_archives_the_received_activity(scenario):
     assert node.stored_anything
     # The archive is the receiver's row, not a row under the sender's id.
     assert scenario.dl.read(ACTIVITY_ID) is None
-    assert scenario.dl.by_type("Create") == {}
+    assert scenario.dl.by_type("Add") == {}
     record = scenario.dl.read(ReceivedActivityRecord.build_id(ACTIVITY_ID))
     assert isinstance(record, ReceivedActivityRecord)
-    assert record.activity.type_ == "Create"
+    assert record.activity.type_ == "Add"
     assert record.activity.actor == SENDER
     # The inline note is carried as the stored snapshot, not re-typed.
     assert _inline_id(record.activity.object_) == NOTE_ID
@@ -172,7 +173,7 @@ def test_inlined_case_does_not_become_a_replica(scenario):
         actor=SENDER,
         object_=case,
     )
-    event = CreateNoteReceivedEvent(
+    event = AddNoteToCaseReceivedEvent(
         activity_id=activity.id_,
         actor_id=SENDER,
         object_=case,
@@ -215,9 +216,9 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
     """
     marker_id = VultronPendingCaseInbox.build_id(CASE_ID)
     squatter = VultronActivity(
-        id_=marker_id, type_="Create", actor=SENDER, object_=_rich_note()
+        id_=marker_id, type_="Add", actor=SENDER, object_=_rich_note()
     )
-    event = CreateNoteReceivedEvent(
+    event = AddNoteToCaseReceivedEvent(
         activity_id=squatter.id_,
         actor_id=SENDER,
         object_=_rich_note(),
@@ -238,9 +239,9 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
 
 @pytest.mark.spec("CLP-10-017")
 def test_intake_with_no_wire_activity_archives_nothing_and_succeeds(scenario):
-    """A drain event carries an object and no activity: nothing to fail on."""
-    event = CreateNoteReceivedEvent(
-        activity_id="urn:vultron:drain:1",
+    """An event built with no wire activity has nothing to archive or fail on."""
+    event = AddNoteToCaseReceivedEvent(
+        activity_id="urn:vultron:no-wire:1",
         actor_id=SENDER,
         object_=_rich_note(),
     )
@@ -287,7 +288,7 @@ def test_missing_activity_on_blackboard_returns_failure(scenario):
 def test_non_event_activity_returns_failure_with_wiring_reason(scenario):
     """A bare wire activity on the blackboard is not a received event."""
     node = IntakeReceivedActivityNode()
-    bare = VultronActivity(type_="Create", actor=SENDER, object_=_rich_note())
+    bare = VultronActivity(type_="Add", actor=SENDER, object_=_rich_note())
 
     result = scenario.run(node, activity=bare)
 

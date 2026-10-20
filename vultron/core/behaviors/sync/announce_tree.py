@@ -43,10 +43,10 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyReinstateCaseParticipantFromLedgerNode,
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
-    ApplyRmVerdictFromLedgerNode,
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
+    HandBackBufferedSuccessorNode,
     IsAcceptCaseParticipantRoleEventNode,
     IsAcceptEmbargoInviteEventNode,
     IsAddCaseStatusEventNode,
@@ -69,7 +69,6 @@ from vultron.core.behaviors.sync.nodes import (
     IsRemoveCaseParticipantEventNode,
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
-    IsRmVerdictEventNode,
     IsSubmitReportEventNode,
     IsUpdateCaseParticipantEventNode,
     IsWithdrawFromEmbargoEventNode,
@@ -225,7 +224,7 @@ def create_announce_log_entry_tree(
     # of Selector(Seq(IsX, ApplyX), Success("Skipped")).
     #
     # The Inverter fires SUCCESS only when the condition does NOT match (routing
-    # no-op for the wrong event type).  When the condition matches but ApplyX
+    # no-op for the wrong semantic type).  When the condition matches but ApplyX
     # fails, both branches of the Selector fail, so the FAILURE propagates to
     # LogEntryEventEffects and blocks PersistReceivedLogEntry (SYNC-12-001).
     log_entry_event_effects = py_trees.composites.Sequence(
@@ -253,11 +252,10 @@ def create_announce_log_entry_tree(
                 IsAddCaseStatusEventNode,
                 ApplyCaseStatusFromLedgerNode,
             ),
-            _event_effect_slot(
-                "RmVerdict",
-                IsRmVerdictEventNode,
-                ApplyRmVerdictFromLedgerNode,
-            ),
+            # No RmVerdict slot: a report verdict, an engagement decision or a
+            # full-case Invite reply records the act, and the status the
+            # CASE_MANAGER wrote for it arrives as the participant-status
+            # entry after it, copied below (CLP-07-013, CM-23-016).
             py_trees.composites.Selector(
                 name="ParticipantStatusEffects",
                 memory=False,
@@ -335,7 +333,7 @@ def create_announce_log_entry_tree(
             ),
             # No CloseCase slot: close_case records the received Leave, and
             # the RM moves it caused arrive as the participant-status entries
-            # after it, applied above.  A replica never walks a closure path
+            # after it, copied above.  A replica never walks a closure path
             # from its own stored state (CM-23-001, CM-23-016, #4091).
             _event_effect_slot(
                 "OfferReport",
@@ -434,6 +432,11 @@ def create_announce_log_entry_tree(
                 child=CheckIsCaseManagerNode(name="CheckIsCaseManagerInverse"),
             ),
             entry_processing,
+            # The entry this delivery stored (or found stored) may be the
+            # predecessor a buffered entry waits on.  That successor is its
+            # own delivery, handed back to this actor's inbox; its tree hands
+            # back the next one (SYNC-14-009, ADR-0135).
+            HandBackBufferedSuccessorNode(name="HandBackBufferedSuccessor"),
         ],
     )
     # The replication envelope is never itself a canonical entry (CLP-10-004),

@@ -619,7 +619,7 @@ function handleEntry(
   x: number,
   laneIndex: LaneIndexMap
 ): MapResult {
-  switch (entry.eventType) {
+  switch (entry.semanticType) {
     // Case bootstrap. `create_case` is the current verb; `offer_case_manager_role`
     // is the pre-2026-08 verb kept for replaying older uploaded logs. Both carry
     // the same roster + CaseStatus shape and share one handler.
@@ -628,9 +628,9 @@ function handleEntry(
       return handleCreateCase(entry, participants, shadow, x, laneIndex)
     case 'validate_report':
       return handleValidateReport(entry, participants, shadow, x, laneIndex)
-    // A note reaches the case either as a `Create(Note)` whose note names the
-    // case as its `context` (`create_note`) or as an `Add(Note, target=Case)`
-    // of an existing note (`add_note_to_case`); both render the same way.
+    // A note reaches the case as an `Add(Note, target=Case)` carrying the note
+    // (`add_note_to_case`). `create_note` is the pre-2026-10 verb (a received
+    // `Create(Note)`, retired by #4707), kept for replaying older uploaded logs.
     case 'create_note':
     case 'add_note_to_case':
       return handleNote(entry, participants, shadow, x, laneIndex)
@@ -697,7 +697,7 @@ function handleEntry(
       // renders via the subsequent invite/accept_invite pair; log-only here.
       return { nodes: [], logLines: ['  ↳ accept_offer_case_participant (Case Owner approved recommendation)'] }
     default:
-      return { nodes: [], logLines: [`  ↳ unhandled eventType "${entry.eventType}"`] }
+      return { nodes: [], logLines: [`  ↳ unhandled semanticType "${entry.semanticType}"`] }
   }
 }
 

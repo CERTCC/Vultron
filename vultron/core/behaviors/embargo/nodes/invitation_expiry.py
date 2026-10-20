@@ -56,16 +56,16 @@ from vultron.core.models._helpers import claimed_published_iso, now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_EVENT_TYPE
+from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_SEMANTIC_TYPE
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronBTInternalError
 
-_INVITE_EMISSION_EVENT_TYPES = frozenset(
+_INVITE_EMISSION_SEMANTIC_TYPES = frozenset(
     {
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
-        EMBARGO_REINVITE_EVENT_TYPE,
+        EMBARGO_REINVITE_SEMANTIC_TYPE,
     }
 )
 """Ledger entries that record an ``Invite(EmbargoEvent)`` sent to one invitee.
@@ -85,7 +85,7 @@ def _is_invite_to(
     entry: CaseLedgerEntry, invitee_id: str, embargo_id: str
 ) -> bool:
     """Whether *entry* records an Invite to *embargo_id* sent to *invitee_id*."""
-    if entry.event_type not in _INVITE_EMISSION_EVENT_TYPES:
+    if entry.semantic_type not in _INVITE_EMISSION_SEMANTIC_TYPES:
         return False
     snapshot = entry.payload_snapshot
     recipients = _snapshot_value(snapshot, "to")

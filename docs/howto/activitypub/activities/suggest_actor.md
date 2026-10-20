@@ -74,7 +74,18 @@ The formal message set does not name this exchange: all three activities fall un
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/offer-case-participant.md" %}
 
-3. Read the outcome from the CASE_MANAGER's reply — `Accept(Offer(CaseParticipant))` or `Reject(Offer(CaseParticipant))`.
+3. Read the outcome from the CASE_MANAGER's answer to your `Offer(Actor)`.
+   Its `inReplyTo` names your recommendation.
+   An `Accept(Offer(Actor))` means the suggested actor is invited, or was already invited or a participant.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/accept-actor-recommendation.md" %}
+
+    A `Reject(Offer(Actor))` means the Case Owner declined the suggestion.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/reject-actor-recommendation.md" %}
+
+   Accept either answer only from the CASE_MANAGER, and change nothing on receipt.
+   The CASE_MANAGER ledgered the answer, and your replica takes it from the ledger.
 
 The forwarded offer carries the original recommendation's ID in its `origin` field, so the Case Owner can trace the request back to you.
 
@@ -99,6 +110,7 @@ It refuses a reply from any other sender, invites no one, and tells the recommen
 The actor it invites is the one named in the `Offer(CaseParticipant)` it forwarded, never the one named in your reply.
 It also refuses an `Accept` for an actor that has already joined or has closed its record, and it commits and sends nothing for it.
 The same holds for an actor the case has removed.
+It also refuses a reply that names an `Offer(CaseParticipant)` it never forwarded, or a recommendation it holds no record of, and it commits and sends nothing for it.
 
 !!! warning "Replying to the recommender skips the record"
 
@@ -112,8 +124,8 @@ The same holds for an actor the case has removed.
 | What you sent | What to confirm |
 |---|---|
 | `Offer(Actor)` | The recommendation appears as a ledger entry. |
-| `Accept(Offer(CaseParticipant))` | The recommender holds an `Accept(Offer(CaseParticipant))`, and the suggested actor holds an `Invite`. |
-| `Reject(Offer(CaseParticipant))` | The recommender holds a `Reject(Offer(CaseParticipant))`, and no `Invite` was sent. |
+| `Accept(Offer(CaseParticipant))` | The recommender holds an `Accept(Offer(Actor))`, and the suggested actor holds an `Invite`. |
+| `Reject(Offer(CaseParticipant))` | The recommender holds a `Reject(Offer(Actor))`, and no `Invite` was sent. |
 
 ---
 

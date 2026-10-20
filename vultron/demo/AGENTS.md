@@ -32,11 +32,11 @@ A scenario demo MUST NOT POST an activity into *another* actor's inbox —
 including via `post_to_inbox_and_wait`. Delivery is the transport's job; carrying
 the mail means the outbox→delivery→inbox path is never exercised and demo CI
 proves nothing end-to-end. Poll the effect instead
-(`wait_for_case_on_container`, `find_case_invite_for_actor`,
-`wait_for_object_stored`). A reliably-timing-out poll is a delivery bug to
-investigate, not a workaround to write. Scope: `vultron/demo/scenario/` plus the
-`vultron/demo/helpers/` code it calls (#3980); `vultron/demo/exchange/` demos drive
-one backend directly and use `post_to_inbox_and_wait` as their normal mechanism.
+(`wait_for_case_on_container`, `find_case_invite_for_actor`; a received activity
+via `wait_for_received_activity`, DL-06-006). A reliably-timing-out poll is a
+delivery bug to investigate, not a workaround to write. Scope: `vultron/demo/scenario/`
+plus the `vultron/demo/helpers/` code it calls (#3980); `vultron/demo/exchange/` demos
+drive one backend directly and use `post_to_inbox_and_wait` as their normal mechanism.
 
 There is **no self-delivery exception**: an actor does not POST to its own inbox to
 update its own replica either. Activities route through the CaseActor, whose
@@ -59,7 +59,7 @@ A scenario module declares itself, and nothing else anywhere does:
 - `ROLES: list[ActorRole]` (`helpers/actor_roles.py`), one frozen role per actor
   **in `main()` parameter order**, and `CLI_HELP: str`. These generate the
   scenario's `--<role>-url` / `--<role>-id` options, its `--help`, and the module's
-  own `*_BASE_URL` constants (`FINDER_BASE_URL = _ROLES["finder"].url`). So **never
+  own `*_BASE_URL` constants (`REPORTER_BASE_URL = _ROLES["reporter"].url`). So **never
   add a `@main.command` block to `cli.py`** (DEMOCI-11-011), and mind the quiet
   drift direction the `main()`-signature ratchet catches: a keyword no role declares
   gets no option, keeps its default, and runs the scenario against the wrong
@@ -100,7 +100,7 @@ sub-issues were this one defect in different scenarios.
    (DEMOCI-01-007, EDF-06-005) — see the next rule.
 5. **Put the gate in `vultron/demo/helpers/`** — scenario modules MUST NOT define
    their own polling loops. That is how the #2178 fix landed in
-   `fvcv_handoff_demo.py` but not `fccv_handoff_demo.py` (DEMOMA-22-002,
+   `rvcv_handoff_demo.py` but not `rccv_handoff_demo.py` (DEMOMA-22-002,
    DEMOMA-17-001).
 6. **Label irreducibly temporal waits as such** at the call site — liveness
    probes, embargo deadlines, transport backoff (EDF-06-006).

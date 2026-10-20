@@ -29,7 +29,7 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.ledger import committed_event_types, fail_commits
+from test.support.ledger import committed_semantic_types, fail_commits
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -40,9 +40,9 @@ from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.embargo_consent_event_types import (
-    CREATE_EMBARGO_CONSENT_EVENT_TYPE,
-    UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+from vultron.core.models.embargo_consent_semantic_types import (
+    CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
@@ -156,15 +156,15 @@ _STATUS_DECLARATION = "add_case_status_to_case"
 
 
 def _new_entries(net: LedgerNetwork, act: Callable[[], object]) -> list[str]:
-    """The embargo event types the CASE_MANAGER commits while *act* runs."""
-    before = committed_event_types(net.stores[MANAGER], net.case_id)
+    """The embargo semantic types the CASE_MANAGER commits while *act* runs."""
+    before = committed_semantic_types(net.stores[MANAGER], net.case_id)
     act()
     return [
-        event_type
-        for event_type in committed_event_types(
+        semantic_type
+        for semantic_type in committed_semantic_types(
             net.stores[MANAGER], net.case_id
         )[len(before) :]
-        if event_type != _STATUS_DECLARATION
+        if semantic_type != _STATUS_DECLARATION
     ]
 
 
@@ -310,7 +310,7 @@ def test_a_forced_commit_failure_leaves_no_write_behind(arm, monkeypatch):
     setup, act = _ARMS[arm]
     net, _ = setup(f"fail-{arm}")
     before_file = _case_file(net, MANAGER)
-    before_entries = committed_event_types(net.stores[MANAGER], net.case_id)
+    before_entries = committed_semantic_types(net.stores[MANAGER], net.case_id)
     before_embargoes = _embargo_records(net)
 
     with pytest.MonkeyPatch.context() as patch:
@@ -320,7 +320,7 @@ def test_a_forced_commit_failure_leaves_no_write_behind(arm, monkeypatch):
 
     assert _case_file(net, MANAGER) == before_file
     assert (
-        committed_event_types(net.stores[MANAGER], net.case_id)
+        committed_semantic_types(net.stores[MANAGER], net.case_id)
         == before_entries
     )
     # A failed proposal leaves no orphan EmbargoEvent behind either.
@@ -338,8 +338,8 @@ def test_the_act_entry_comes_first(arm):
 
     assert entries, "the act committed nothing"
     assert entries[0] not in {
-        CREATE_EMBARGO_CONSENT_EVENT_TYPE,
-        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
+        UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
     }, entries
 
 
@@ -359,14 +359,14 @@ def test_a_row_commit_that_fails_saves_only_what_committed():
             patch,
             commit_tree,
             when=lambda kw: (
-                kw["event_type"] == CREATE_EMBARGO_CONSENT_EVENT_TYPE
+                kw["semantic_type"] == CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE
             ),
         )
         with pytest.raises(VultronBTInternalError, match="commit failed"):
             _propose(net)
 
     (embargo_id,) = net.case(MANAGER).proposed_embargo_ids
-    assert committed_event_types(net.stores[MANAGER], net.case_id)[-1] == (
+    assert committed_semantic_types(net.stores[MANAGER], net.case_id)[-1] == (
         "invite_to_embargo_on_case"
     )
     assert _row(net, MANAGER, MANAGER, embargo_id) is None
@@ -403,7 +403,7 @@ def test_the_managers_withdrawal_commits_each_declined_row_after_the_leave():
     entries = _new_entries(net, lambda: _withdraw(net))
 
     assert entries[0] == "withdraw_from_embargo_on_case"
-    assert entries[1:] == [UPDATE_EMBARGO_CONSENT_EVENT_TYPE]
+    assert entries[1:] == [UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE]
     assert _row(net, MANAGER, MANAGER, net.initial_embargo_id) is _S.DECLINED
 
 
@@ -431,7 +431,7 @@ def test_the_managers_proposal_commits_one_row_per_participant_and_copies():
     (embargo_id,) = net.case(MANAGER).proposed_embargo_ids
     assert entries[0] == "invite_to_embargo_on_case"
     assert entries[1 : 1 + participants] == (
-        [CREATE_EMBARGO_CONSENT_EVENT_TYPE] * participants
+        [CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE] * participants
     )
     assert _row(net, MANAGER, MANAGER, embargo_id) is _S.AGREED
     assert _row(net, MANAGER, BYSTANDER, embargo_id) is _S.INVITED
@@ -452,7 +452,7 @@ def test_a_received_proposal_commits_one_row_per_participant_and_copies():
 
     assert entries[0] == "invite_to_embargo_on_case"
     assert entries[1 : 1 + participants] == (
-        [CREATE_EMBARGO_CONSENT_EVENT_TYPE] * participants
+        [CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE] * participants
     )
     _assert_replica_copies(net, BYSTANDER)
     _assert_replica_copies(net, OWNER)
@@ -483,7 +483,7 @@ def test_the_managers_policy_consent_is_its_own_entry_and_is_copied():
 
     embargo_id = net.case(MANAGER).proposed_embargo_ids[-1]
     assert _row(net, MANAGER, MANAGER, embargo_id) is _S.AGREED
-    assert entries[-1] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+    assert entries[-1] == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
     _assert_replica_copies(net, BYSTANDER)
     assert _row(net, BYSTANDER, MANAGER, embargo_id) is _S.AGREED
 
@@ -676,7 +676,7 @@ def test_a_re_issued_stub_invites_to_the_embargo_in_force(stub_first):
     assert row.state is _S.INVITED
     assert row.rsvp_deadline == replacement.end_time
     stub_entry = entries.index("invite_actor_to_case")
-    assert entries[stub_entry + 1] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+    assert entries[stub_entry + 1] == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
     _assert_replica_copies(net, BYSTANDER)
 
 
@@ -709,7 +709,7 @@ def test_a_re_issue_with_no_embargo_in_force_writes_no_row():
     assert net.case(MANAGER).active_embargo_id is None
     assert _replacement(net, original_id) is not None
     stub_entry = entries.index("invite_actor_to_case")
-    assert UPDATE_EMBARGO_CONSENT_EVENT_TYPE not in entries[stub_entry:]
+    assert UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE not in entries[stub_entry:]
     assert _case_file(net, MANAGER)["rows"][INVITEE] == before
 
 
@@ -717,7 +717,7 @@ def _is_invitee_row_update(kwargs: dict[str, Any]) -> bool:
     snapshot = kwargs.get("payload_snapshot") or {}
     row = snapshot.get("object") or {}
     return (
-        kwargs["event_type"] == UPDATE_EMBARGO_CONSENT_EVENT_TYPE
+        kwargs["semantic_type"] == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
         and row.get("attributedTo") == INVITEE
     )
 
@@ -725,14 +725,20 @@ def _is_invitee_row_update(kwargs: dict[str, Any]) -> bool:
 @pytest.mark.spec("CM-11-016")
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.parametrize(
-    "declined_first", [False, True], ids=["owed", "answered-meanwhile"]
+    ("declined_first", "revising"),
+    [(False, False), (True, False), (False, True)],
+    ids=["owed", "answered-meanwhile", "owed-during-revision"],
 )
 def test_a_replacement_whose_row_did_not_commit_is_completed_next_run(
-    declined_first,
+    declined_first, revising
 ):
     """The replacement committed and its invitee's row did not: the next
     run of the re-issue commits the row it owes, once, unless the invitee
-    has answered in between."""
+    has answered in between.
+
+    A revision opened before the next run leaves the embargo the replacement
+    invited to in force (EP-05-002), so the row is still owed (CM-17-002).
+    """
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter as _Sync,
     )
@@ -799,7 +805,12 @@ def test_a_replacement_whose_row_did_not_commit_is_completed_next_run(
         assert _invitee_row(net, MANAGER, revision_id).state is _S.DECLINED
         return
 
-    assert _rerun() == [UPDATE_EMBARGO_CONSENT_EVENT_TYPE]
+    if revising:
+        _propose(net, days=60)
+        assert net.case(MANAGER).em_state is EM.REVISE
+        assert net.case(MANAGER).active_embargo_id == revision_id
+
+    assert _rerun() == [UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE]
     row = _invitee_row(net, MANAGER, revision_id)
     assert row.state is _S.INVITED
     assert row.rsvp_deadline == replacement.end_time
@@ -838,13 +849,13 @@ def test_an_answer_that_records_nothing_is_refused_before_it_is_committed():
             )
         )
     )
-    before = committed_event_types(net.stores[MANAGER], net.case_id)
+    before = committed_semantic_types(net.stores[MANAGER], net.case_id)
 
     verdict = net.receive(MANAGER, accept)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert "records nothing" in (verdict.reason or "")
-    assert committed_event_types(net.stores[MANAGER], net.case_id) == before
+    assert committed_semantic_types(net.stores[MANAGER], net.case_id) == before
 
 
 # ---------------------------------------------------------------------------
@@ -891,8 +902,8 @@ def test_a_received_withdrawal_commits_the_leave_then_each_declined_row():
     ].reason
     assert entries == [
         _LEAVE,
-        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
-        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
+        UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
     ]
     assert _row(net, MANAGER, BYSTANDER, net.initial_embargo_id) is (
         _S.DECLINED
@@ -951,17 +962,21 @@ def test_a_withdrawal_whose_decision_fails_is_refused_before_its_commit(
         withdrawal, "embargo_withdrawal_refusal", lambda *_a, **_k: None
     )
     _set_bystander_row(net, _S.INVITED)
-    before = committed_event_types(net.stores[MANAGER], net.case_id)
+    before = committed_semantic_types(net.stores[MANAGER], net.case_id)
 
     verdict = _bystander_leaves(net)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert "records nothing" in (verdict.reason or "")
-    assert committed_event_types(net.stores[MANAGER], net.case_id) == before
+    assert committed_semantic_types(net.stores[MANAGER], net.case_id) == before
 
 
 def _set_bystander_row(net: LedgerNetwork, state: EmbargoConsentState) -> None:
-    """Seed BYSTANDER's row for the embargo in force (test setup only)."""
+    """Seed BYSTANDER's row for the embargo in force (test setup only).
+
+    The row is written outside the ledger, so no rebuild can reach it.
+    """
+    net.bypass_ledger()
     dl = net.stores[MANAGER]
     record = dl.read(net.case(MANAGER).actor_participant_index[BYSTANDER])
     assert isinstance(record, CaseParticipant)
@@ -989,8 +1004,8 @@ def test_the_managers_withdrawal_declines_the_revision_it_agreed_to():
 
     assert entries == [
         _LEAVE,
-        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
-        UPDATE_EMBARGO_CONSENT_EVENT_TYPE,
+        UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
+        UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
     ]
     assert _row(net, MANAGER, MANAGER, revision_id) is _S.DECLINED
     _assert_replica_copies(net, BYSTANDER)

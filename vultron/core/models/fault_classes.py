@@ -23,8 +23,9 @@ All URIs are under the Vultron namespace (ADR-0069).
 
 _VULTRON_NS = "https://certcc.github.io/Vultron/ns"
 
-# ASK-07-001, ASK-07-005: receiver refused a status assertion in full;
-# no dimension carried new state.
+# ASK-07-005: the parent class of the status-assertion faults below.  A
+# precondition guard's refusal of a status assertion is answered by the
+# refusal notice, never by this fault (CLP-05-001, MSM-05-001).
 VULTRON_FAILURE_STATUS_ASSERTION_REFUSED = (
     f"{_VULTRON_NS}/errors/StatusAssertionRefused"
 )
@@ -33,12 +34,6 @@ VULTRON_FAILURE_STATUS_ASSERTION_REFUSED = (
 # composite state violates the RM↔VF, RM↔D, or VF↔D entailments.
 VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE = (
     f"{VULTRON_FAILURE_STATUS_ASSERTION_REFUSED}/ImpossibleState"
-)
-
-# ARCH-15-001: replica refused a ledger entry because its own stored
-# participant record is not core-shaped and the RM ratchet cannot be enforced.
-VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD = (
-    f"{VULTRON_FAILURE_STATUS_ASSERTION_REFUSED}/CorruptLocalRecord"
 )
 
 # EP-09-010, MSM-05-001: an Invite(EmbargoEvent) whose shape the protocol

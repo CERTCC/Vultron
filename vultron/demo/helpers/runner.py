@@ -38,6 +38,7 @@ def run_exchange_demos(
     all_demos: Sequence[tuple[str, Callable]],
     skip_health_check: bool = False,
     demos: Sequence | None = None,
+    client: DataLayerClient | None = None,
 ) -> None:
     """Run an exchange demo module's demo suite.
 
@@ -47,7 +48,7 @@ def run_exchange_demos(
     context for each demo, accumulates errors, and logs a summary.
 
     Each demo callable must accept
-    ``(client, finder, vendor, coordinator)`` as positional arguments.
+    ``(client, reporter, vendor, coordinator)`` as positional arguments.
 
     Args:
         all_demos: Sequence of ``(name, callable)`` pairs — the module-level
@@ -58,8 +59,11 @@ def run_exchange_demos(
         demos: Optional subset of demo *callables* to run.  When provided,
             only entries whose callable appears in this sequence are executed.
             When ``None``, all entries in *all_demos* are run.
+        client: The client the demos run through; a default
+            :class:`~vultron.demo.utils.DataLayerClient` when omitted.
     """
-    client = DataLayerClient()
+    if client is None:
+        client = DataLayerClient()
 
     if not skip_health_check and not check_server_availability(client):
         logger.error("=" * 80)
@@ -85,8 +89,8 @@ def run_exchange_demos(
     for demo_name, demo_fn in selected:
         reset_demo_failures()
         try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor, coordinator)
+            with demo_environment(client) as (reporter, vendor, coordinator):
+                demo_fn(client, reporter, vendor, coordinator)
             assert_demo_success()
         except Exception as e:
             _note_accumulated_failures(e)

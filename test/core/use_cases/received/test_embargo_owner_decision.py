@@ -140,7 +140,7 @@ def _owner(dl: SqliteDataLayer) -> CaseParticipant:
 
 def _ledger(dl: SqliteDataLayer) -> list[str]:
     return [
-        str(entry.event_type)
+        str(entry.semantic_type)
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
     ]

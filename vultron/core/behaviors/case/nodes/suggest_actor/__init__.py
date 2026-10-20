@@ -32,12 +32,19 @@ Submodules:
   (``ActorAlreadyParticipantNode``,
   ``InviteInFlightNode``,
   ``PendingOfferCaseParticipantNode``)
+- ``recorded_offer``: the recorded Offer a Case Owner's answer names, looked
+  up as a precondition guard (``RequireRecordedOfferAnswerNode``) and read by
+  the answer's later nodes (``RecordedOfferAnswerInputMixin``)
+- ``recorded_invite``: the stub Invite and inert record the Case Owner's
+  Accept makes, from the recorded Offer
+  (``EmitRecordedInviteNode``, ``SeatRecordedInviteeNode``)
 """
 
 from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
+    AcceptedInviteeIsNotRemovedNode,
     ActorAlreadyParticipantNode,
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
@@ -45,6 +52,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
     SuggestedActorIsNotRemovedNode,
     case_manager_admits_accepted_invitee_guard,
     case_manager_admits_suggested_actor_guard,
+    case_manager_requires_recorded_rejection_guard,
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     EmitNoteDuplicateRecommendationToOwnerNode,
@@ -53,16 +61,31 @@ from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.emit_response import (
     EmitAcceptActorRecommendationNode,
+    EmitAcceptRecordedRecommendationNode,
     EmitRejectActorRecommendationNode,
+)
+from vultron.core.behaviors.case.nodes.suggest_actor.recorded_invite import (
+    EmitRecordedInviteNode,
+    SeatRecordedInviteeNode,
+)
+from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
+    RecordedOfferAnswer,
+    RequireRecordedOfferAnswerNode,
 )
 
 __all__ = [
     "ActorAlreadyParticipantNode",
+    "AcceptedInviteeIsNotRemovedNode",
+    "RecordedOfferAnswer",
+    "RequireRecordedOfferAnswerNode",
     "SuggestedActorIsNotRemovedNode",
     "SuggestedActorIsInvitableNode",
     "case_manager_admits_accepted_invitee_guard",
     "case_manager_admits_suggested_actor_guard",
+    "case_manager_requires_recorded_rejection_guard",
     "EmitAcceptActorRecommendationNode",
+    "EmitAcceptRecordedRecommendationNode",
+    "EmitRecordedInviteNode",
     "EmitAcceptCaseParticipantOfferNode",
     "EmitNoteDuplicateRecommendationToOwnerNode",
     "EmitOfferCaseParticipantToOwnerNode",
@@ -70,4 +93,5 @@ __all__ = [
     "InviteInFlightNode",
     "PendingOfferCaseParticipantNode",
     "RecordRecommendationRecommenderNode",
+    "SeatRecordedInviteeNode",
 ]

@@ -14,10 +14,10 @@
 """Workflow step helpers shared across demo scenarios.
 
 Provides generic CVD workflow actions — report submission, report validation,
-and case lookup — that can be reused across FV, three-actor, and
+and case lookup — that can be reused across rv, three-actor, and
 multi-vendor demo scenarios.  Each function is named after the CVD role that
-performs the action (reporter, coordinator) rather than any scenario-specific
-persona (finder, vendor).
+performs the action (reporter, coordinator) rather than after a scenario that
+uses it.
 """
 
 import logging
@@ -55,6 +55,7 @@ from vultron.demo.utils import (
     log_case_state,
     logfmt,
     post_to_inbox_and_wait,
+    read_received_activity,
     ref_id,
     seed_case_actor,
     verify_object_stored,
@@ -126,14 +127,14 @@ def reporter_submits_report(
     trigger, never built here and posted into the receiver's inbox
     (DEMOMA-05-001).  The trigger is where the reporter writes its trust
     anchor, the pending ``ReportCaseLink`` naming *receiver* (CBT-01-005);
-    without it the reporter refuses the receiver's case introduction on the
-    unanchored route (CBT-01-011, #4675).  It also makes the reporter's logs
-    tell the full process-flow story (D5-6a).  The trigger's own outbox is the
-    sole delivery of the offer to the receiver's inbox; this function never
-    re-posts it.  The receiver's CaseActor has a stable identity (#1872), so
-    it is provisioned before the trigger, and the function then waits for the
-    report and offer to land in the receiver's own store (EDF-06-002,
-    EDF-06-003).
+    without it the reporter refuses the receiver's case introduction, because
+    no trust anchor names the receiver (CBT-01-011, #4675).  It also makes the
+    reporter's logs tell the full process-flow story (D5-6a).  The trigger's
+    own outbox is the sole delivery of the offer to the receiver's inbox; this
+    function never re-posts it.  The receiver's CaseActor has a stable
+    identity (#1872), so it is provisioned before the trigger, and the
+    function then waits for the report and offer to land in the receiver's
+    own store (EDF-06-002, EDF-06-003).
 
     In a single-container exchange demo, pass the one client as both
     *receiver_client* and *reporter_client*.
@@ -328,7 +329,7 @@ def run_invite_path_rm_triage(
     invited_actor: as_Actor,
     offer: object,
     report: as_VulnerabilityReport,
-    finder: as_Actor,
+    reporter: as_Actor,
     auth_client: DataLayerClient,
     case: as_VulnerabilityCase,
     invited_obj: as_Actor,
@@ -354,7 +355,7 @@ def run_invite_path_rm_triage(
         invited_actor: The invited actor's local replica (e.g. vendor2_in_vendor2).
         offer: Unused; kept for call-site compatibility.
         report: Unused; kept for call-site compatibility.
-        finder: Unused; kept for call-site compatibility.
+        reporter: Unused; kept for call-site compatibility.
         auth_client: Client for the container that hosts the CaseActor (e.g.
             the coordinating actor's or vendor1_client).  The CaseActor's own
             store is what gets read through it when the case has one — see
@@ -642,6 +643,9 @@ def find_case_for_offer(
 ) -> as_VulnerabilityCase | None:
     """Find the as_VulnerabilityCase associated with a report offer.
 
+    The Offer is the one *client*'s actor received, read from its archive
+    record (DL-06-006).
+
     Args:
         client: DataLayerClient connected to the container holding the case.
         offer_id: Full URI of the ``VultronActivity`` offer.
@@ -649,7 +653,7 @@ def find_case_for_offer(
     Returns:
         The matching ``as_VulnerabilityCase``, or ``None`` if not found.
     """
-    offer_data = client.get(client.dl_path(offer_id))
+    offer_data = read_received_activity(client, offer_id)
     if not offer_data:
         return None
 
@@ -682,7 +686,7 @@ def wait_for_case_for_offer(
     outbox: exactly the kind of causal arrow ADR-0058 wants gated.
 
     Lives next to :func:`find_case_for_offer` rather than in ``polling.py``
-    because it is that finder's polling wrapper; putting it here keeps the
+    because it is that lookup's polling wrapper; putting it here keeps the
     offer→report→case resolution chain in one module (ARCH-15-004).
 
     Args:
@@ -879,7 +883,7 @@ def seat_participant_through_stub_invite(
 
 def submit_validate_and_create_case(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     *,
     report_name: str,
@@ -894,7 +898,7 @@ def submit_validate_and_create_case(
     The shared opening of the single-container exchange demos whose vendor
     mints its case through ``create-case`` (DEMOMA-17-001, #4770):
 
-    1. The finder submits the report through its own ``submit-report``
+    1. The reporter submits the report through its own ``submit-report``
        trigger (:func:`reporter_submits_report`).
     2. The vendor validates it with a Report Valid (RV),
        ``Accept(Offer(VulnerabilityReport))``, posted to its own inbox.
@@ -902,13 +906,13 @@ def submit_validate_and_create_case(
        (:func:`create_case_via_trigger`), which seats it as CASE_OWNER and
        CASE_MANAGER.
     4. The vendor adds the report to that case.
-    5. The finder is checked to have taken the vendor's introduction of the
+    5. The reporter is checked to have taken the vendor's introduction of the
        case opened on receipt on the trusted route
        (:func:`verify_reporter_trusts_introduction`).
 
     Args:
         client: DataLayerClient for the shared container.
-        finder: The reporting ``as_Actor``.
+        reporter: The reporting ``as_Actor``.
         vendor: The receiving vendor ``as_Actor``.
         report_name: ``name`` of the submitted report.
         report_content: ``content`` of the submitted report.
@@ -923,7 +927,7 @@ def submit_validate_and_create_case(
     """
     report, report_offer = reporter_submits_report(
         client,
-        finder,
+        reporter,
         vendor,
         reporter_client=client,
         report_name=report_name,
@@ -948,13 +952,13 @@ def submit_validate_and_create_case(
         report, actor=vendor.id_, target=case.id_
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
-    verify_reporter_trusts_introduction(client, finder, vendor, report)
+    verify_reporter_trusts_introduction(client, reporter, vendor, report)
     return report, case
 
 
 def setup_initialized_case(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
 ) -> as_VulnerabilityCase:
     """Create a fully initialised case ready for invitation/suggestion workflows.
@@ -969,22 +973,22 @@ def setup_initialized_case(
     Performs the standard setup shared by ``invite_actor_demo``,
     ``suggest_actor_demo``, and ``status_updates_demo``:
 
-    1. :func:`submit_validate_and_create_case`: the finder submits the
+    1. :func:`submit_validate_and_create_case`: the reporter submits the
        report through its own ``submit-report`` trigger, which writes the
        anchor it checks the vendor's case introduction against (CBT-01-005);
        the vendor validates it, creates the case through the trigger endpoint
        (registering CASE_OWNER+CASE_MANAGER) and adds the report to it; and
-       the finder is checked to have taken the vendor's introduction of the
+       the reporter is checked to have taken the vendor's introduction of the
        case it created on receipt on the trusted route
-    2. Vendor asks the CASE_MANAGER (itself) to invite the finder, which
+    2. Vendor asks the CASE_MANAGER (itself) to invite the reporter, which
        sends the stub Invite
-    3. Finder accepts, which seats it as REPORTER (ADR-0114, ADR-0078;
+    3. Reporter accepts, which seats it as REPORTER (ADR-0114, ADR-0078;
        ``Add(CaseParticipant)`` only reinstates, CM-31-011)
     4. Logs final case state
 
     Args:
         client: DataLayerClient for the shared (or single) container.
-        finder: The finder/reporter ``as_Actor``.
+        reporter: The reporter ``as_Actor``.
         vendor: The receiving vendor ``as_Actor`` who creates the case.
 
     Returns:
@@ -992,7 +996,7 @@ def setup_initialized_case(
     """
     _report, case = submit_validate_and_create_case(
         client,
-        finder,
+        reporter,
         vendor,
         report_name="Remote Code Execution Vulnerability",
         report_content=(
@@ -1010,17 +1014,19 @@ def setup_initialized_case(
     )
 
     seat_participant_through_stub_invite(
-        client, case, owner=vendor, invitee=finder, role=CVDRole.REPORTER
+        client, case, owner=vendor, invitee=reporter, role=CVDRole.REPORTER
     )
 
     log_case_state(client, case.id_, "after setup")
-    logger.info("✓ Setup: Case initialized with report and finder participant")
+    logger.info(
+        "✓ Setup: Case initialized with report and reporter participant"
+    )
     return case
 
 
 def setup_canonical_case(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     report_name: str,
     report_content: str,
@@ -1029,13 +1035,13 @@ def setup_canonical_case(
     """Create a **CaseActor-owned** case and return it with the CaseActor's URI.
 
     Unlike :func:`setup_initialized_case`, which has the vendor mint the case
-    itself, this drives the canonical path: the finder submits a report
+    itself, this drives the canonical path: the reporter submits a report
     through its own ``submit-report`` trigger, the vendor validates it,
     ``ProposeReportCaseToActorNode`` sends a ``Create(CaseProposal)`` to the
     CaseActor, and the CaseActor creates the ``VulnerabilityCase``,
-    registering vendor (``CASE_OWNER``), finder/reporter, and itself
+    registering vendor (``CASE_OWNER``), reporter, and itself
     (``CASE_MANAGER``) as the initial participants (ADR-0041, CP-01-004).
-    The vendor then introduces the case to the finder, which accepts it on
+    The vendor then introduces the case to the reporter, which accepts it on
     the trusted route (CBT-01-001, CBT-01-005).
 
     Any exchange that must route through the CaseActor — the ownership-transfer
@@ -1047,7 +1053,7 @@ def setup_canonical_case(
 
     Args:
         client: DataLayerClient for the container hosting all three actors.
-        finder: The finder/reporter ``as_Actor`` who submits the report.
+        reporter: The reporter ``as_Actor`` who submits the report.
         vendor: The receiving vendor ``as_Actor`` who validates it.
         report_name: ``name`` for the submitted ``as_VulnerabilityReport``.
         report_content: ``content`` for the submitted report.
@@ -1066,7 +1072,7 @@ def setup_canonical_case(
     """
     report, report_offer = reporter_submits_report(
         client,
-        finder,
+        reporter,
         vendor,
         reporter_client=client,
         report_name=report_name,
@@ -1083,7 +1089,7 @@ def setup_canonical_case(
 
     case = wait_for_initialized_case(client, report.id_)
     verify_reporter_trusts_introduction(
-        client, finder, vendor, report, case_id=case.id_
+        client, reporter, vendor, report, case_id=case.id_
     )
     # Attach a stub_summary so demo Invites carry the required non-empty
     # summary (CM-17-010, MV-10-001, #4165).  The BT-created case never has
@@ -1223,7 +1229,7 @@ def case_manager_invites_actor(
 
 def setup_two_participant_case(
     client: DataLayerClient,
-    finder: as_Actor,
+    reporter: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> as_VulnerabilityCase:
@@ -1243,7 +1249,7 @@ def setup_two_participant_case(
 
     Args:
         client: DataLayerClient for the shared (or single) container.
-        finder: The finder/reporter ``as_Actor``.
+        reporter: The reporter ``as_Actor``.
         vendor: The receiving vendor ``as_Actor`` who creates the case.
         coordinator: The coordinator ``as_Actor`` to invite.
 
@@ -1251,7 +1257,7 @@ def setup_two_participant_case(
         The newly created ``as_VulnerabilityCase`` with vendor and coordinator
         as participants.
     """
-    case = setup_initialized_case(client, finder, vendor)
+    case = setup_initialized_case(client, reporter, vendor)
     seat_participant_through_stub_invite(
         client,
         case,

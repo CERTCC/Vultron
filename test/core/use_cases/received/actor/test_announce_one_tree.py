@@ -22,6 +22,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
+from test.conftest import TEST_ACTOR_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
@@ -52,10 +53,7 @@ class _IdlessCase(BaseModel):
 
 @pytest.fixture()
 def dl() -> SqliteDataLayer:
-    return SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=TEST_ACTOR_ID)
 
 
 @pytest.fixture()
@@ -63,7 +61,7 @@ def event(make_payload) -> Any:
     case = as_VulnerabilityCase(id_=_CASE_ID, name="One tree")
     return make_payload(
         announce_vulnerability_case_activity(
-            case, actor=_CASE_ACTOR_ID, context=_CASE_ID
+            case, actor=_CASE_ACTOR_ID, context=_CASE_ID, to=[TEST_ACTOR_ID]
         )
     )
 
@@ -71,7 +69,11 @@ def event(make_payload) -> Any:
 def _anchor(dl: SqliteDataLayer) -> None:
     """Record the invite trust anchor naming the case actor (PCR-03-004)."""
     dl.save(
-        VultronPendingCaseInbox(case_id=_CASE_ID, case_actor_id=_CASE_ACTOR_ID)
+        VultronPendingCaseInbox(
+            case_id=_CASE_ID,
+            case_actor_id=_CASE_ACTOR_ID,
+            invite_anchored=True,
+        )
     )
 
 
@@ -80,7 +82,10 @@ def _anchor(dl: SqliteDataLayer) -> None:
 @pytest.mark.parametrize(
     "activity_update, reason",
     [
-        (None, "Announce carries no activity"),
+        # An event with no activity names no recipient, so the addressee
+        # door guard refuses it before the incomplete-activity guard
+        # (HP-01-005, #4832); only a hand-built event lacks one.
+        (None, "an unaddressed copy is refused (HP-01-005)"),
         ({"object_": None}, "Announce carries no case object"),
         (
             {"object_": as_VulnerabilityReport(name="Not a case")},
@@ -107,7 +112,10 @@ def test_incomplete_announce_is_refused_in_one_tree(
     result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
-    assert result.reason == reason
+    if activity is None:
+        assert (result.reason or "").endswith(reason)
+    else:
+        assert result.reason == reason
     assert len(tree_runs) == 1
     assert dl.read(_CASE_ID) is None
     if activity is not None:
@@ -120,9 +128,10 @@ def test_untrusted_sender_is_refused_by_the_tree_guard(dl, event, tree_runs):
     result = AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
-    assert result.reason == (
-        f"untrusted sender '{_CASE_ACTOR_ID}' for case '{_CASE_ID}'"
-        " (PCR-03-004)"
+    assert result.reason is not None
+    assert result.reason.endswith(
+        f"No CASE_MANAGER is known for case '{_CASE_ID}' to match sender"
+        f" '{_CASE_ACTOR_ID}' — REFUSED (HP-01-006, PCR-03-004)"
     )
     assert len(tree_runs) == 1
     assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))

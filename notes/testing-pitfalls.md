@@ -3,9 +3,10 @@ title: Testing Pitfalls and Patterns
 status: active
 kind: guidance
 description: >
-  Full write-ups for pytest pitfalls in this repo: reading a killed run, the
-  two-tier timeout guardrail and why the timeout *method* matters more than the
-  ceiling, measuring effective markers rather than declarations,
+  Full write-ups for pytest pitfalls in this repo: reading a killed run, a dead
+  xdist worker hanging the run, the two-tier timeout guardrail and why the
+  timeout *method* matters more than the ceiling, measuring effective markers
+  rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, py_trees test patterns, CoreObject subclass isolation,
@@ -50,15 +51,15 @@ relevant_packages:
 
 ### A Killed `pytest` Run Reports Exit 0 Under `tail -5`
 
-When `pytest-timeout` kills a run it exits non-zero, but the
-`uv run pytest ... 2>&1 | tail -5` pipeline returns `tail`'s exit code (0) and
-shows stack frames where the `N passed` summary would be. Any pipeline masks the
-status the same way (`| tee`, `| head`, `| wc`), because a pipeline exits with its
-last stage's status. Never end a gate command with a pipe. Redirect, capture `$?`
-at once, then re-raise it:
+When a run is killed (the gate's `timeout` ceiling, an OOM kill) it exits
+non-zero, but the `uv run pytest ... 2>&1 | tail -5` pipeline returns `tail`'s
+exit code (0) and shows the last output where the `N passed` summary would be.
+Any pipeline masks the status the same way (`| tee`, `| head`, `| wc`), because a
+pipeline exits with its last stage's status. Never end a gate command with a
+pipe. Redirect, capture `$?` at once, then re-raise it:
 
 ```bash
-uv run pytest --tb=short > /tmp/unit.log 2>&1; rc=$?; tail -5 /tmp/unit.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest --tb=short > /tmp/unit.log 2>&1; rc=$?; tail -5 /tmp/unit.log; echo "exit: $rc"; (exit $rc)
 ```
 
 - **`rc=$?` directly after the redirected command**: anything in between,
@@ -74,6 +75,25 @@ The canonical command is in
 `test/metadata/test_instruction_command_hygiene.py` fails the suite if a masking
 form appears in an instruction file (#3518).
 
+### A Dead xdist Worker Hung the Run
+
+Symptom: the log stops advancing near the end, an earlier line reads
+`[gwN] node down: Not properly terminated`, and `/proc` shows the dead worker as a
+zombie (`Z`) beside an idle replacement. Under `--dist loadgroup`, xdist's
+`remove_node` puts the dead worker's *whole* workload back in the queue, finished
+work units too. The replacement is handed a unit with nothing left to run, sends
+no report, and the controller waits forever (#4809). The default `load` scheduler
+does not do this, but the repo needs `loadgroup` (§ "Order-Dependent Tests Need an
+`xdist_group`").
+
+`addopts` sets `--max-worker-restart=0`, so a dead worker now fails the run at once
+with `worker 'gwN' crashed while running <test>`;
+`test/test_xdist_worker_crash.py` pins it. Two things killed workers: OOM kills,
+and the old `thread` timeout method (§ "Per-Test Timeout Guardrail"). Every local
+gate command also runs under `timeout -k 30 1800` (`GATE_CEILING` in
+`vultron/metadata/planning/targeted_tests.py`), so any hang still left ends with
+exit 124. The run-tests skill's table tells the three outcomes apart.
+
 ### Per-Test Timeout Guardrail
 
 Timeouts are **two-tier** (`pytest-timeout`):
@@ -85,13 +105,14 @@ Timeouts are **two-tier** (`pytest-timeout`):
 
 `apply_integration_timeout` in `test/conftest.py` widens the ceiling for
 integration-marked tests at collection time; an explicit
-`@pytest.mark.timeout(N)` always wins.
+`@pytest.mark.timeout(N)` always wins. The root hook is `trylast`, so it runs
+after directory hooks that add the `integration` marker.
 
-The ceilings are deliberately loose (#2270). `timeout_method = "thread"` kills the
-*whole pytest process*, so a trip produces no summary line: a too-tight ceiling
-does not surface a slow test, it turns the run into an uninformative abort that
-reads as flakiness. Contention (CI runners, background rebuilds) inflates honest
-multi-second tests well past their idle cost.
+`timeout_method = "signal"` makes a trip fail that one test, named
+`Failed: Timeout (>Ns)`; the rest of the session runs and the summary names every
+failure (#3603). A ceiling is a hang detector, not a performance budget: it is
+sized well above the slowest honest test (#2270) because contention on CI runners
+and loaded dev boxes inflates honest multi-second tests far past their idle cost.
 
 When a test trips its tier: mock slow dependencies, avoid `time.sleep()`, or mark
 it `integration` if it exercises the full stack. `@pytest.mark.timeout(N)` is a
@@ -99,22 +120,24 @@ last resort and MUST carry a comment saying why. If a tier fires on honest work
 rather than hangs, change the tier, and do not add a
 [flaky-tests.md](flaky-tests.md) row for a test that is merely near its ceiling.
 
-#### Raising the Ceiling Lowers the Frequency of Signal Loss, Never the Severity
+#### The Timeout Method Sets What a Trip Costs
 
-A ceiling sets how often a trip happens; the method sets what a trip costs. Under
-`"thread"` a trip costs the whole session: tests after the hang never run and the
-failures already recorded are never named (#3576 lost four that way). A ceiling
-change is always the smaller diff, so it keeps being chosen instead.
+A ceiling sets how often a trip happens; the method sets what it costs. Change the
+method's cost first, because a ceiling change is always the smaller diff and so
+keeps being chosen instead.
 
 | `--timeout-method` | Hanging test | Rest of session | Summary line |
 |---|---|---|---|
-| `thread` | kills the process | never runs | none |
+| `thread` | kills the process (under `-n`, the worker) | never runs | none |
 | `signal` | fails, named, alone | runs to completion | names every failure |
 
-`signal` (POSIX-only, `SIGALRM` in the main thread) has its own costs: an alarm
-landing while a test holds the blackboard `RLock` can deadlock, and a hang in a C
-call that never releases the GIL is unreachable. A job-level `timeout-minutes`
-bounds both. Tracked in #3603.
+`signal` is POSIX-only (`SIGALRM`, main thread). Its feared cost, an alarm that
+leaves the blackboard `_BT_GLOBAL_LOCK` held, does not occur: every acquire in
+`vultron/` is a `with` block, which releases on the raised `Failed`, and a blocked
+acquire is interrupted by the signal. `test/test_integration_timeout_tier.py`
+checks both paths. A hang the signal cannot reach, such as a C call that never
+releases the GIL, is bounded by the CI job's `timeout-minutes` and the local
+gate's `timeout` ceiling.
 
 #### A Marker Sweep That Counts Declarations Misses a Directory Hook
 
@@ -145,9 +168,9 @@ rm probe_plugin.py
 
 `trylast` is what makes it report the resolved state, after both the root and the
 directory hook. `test/test_integration_timeout_tier.py` checks the tier with
-`FakeItem`s and a synthetic `pytester` session, so it does not exercise the
-`test/demo/` hook: if the two hooks reorder, demo tests can drop to the unit tier
-with no test failing. Tracked in #3604.
+`FakeItem`s and a synthetic `pytester` session, and
+`TestDemoItemsResolveToTheIntegrationTier` asks the same probe question of the
+real `test/demo/` collection, so a hook reorder fails a test (#3604).
 
 ### A `filterwarnings` Exemption Placed Before `"error"` Is a No-Op
 
@@ -212,7 +235,7 @@ that dead-letters a row.
 
 ### Delete `devlogs/` Before Running the Invariant Harness Locally
 
-`test/demo/test_fv_demo.py` runs the demo in-process and writes real ledger files
+`test/demo/test_rv_demo.py` runs the demo in-process and writes real ledger files
 into the gitignored repo-root `devlogs/`. `test/ci/invariants/` then reads them
 instead of skipping, and a second run accumulates two chains whose `prevLogHash`
 values mismatch. `rm -rf devlogs/` after the integration suite and before the
@@ -460,7 +483,7 @@ Verify:
 ```bash
 grep -r "old_mark_name" .github/workflows/  # no output
 grep "new_mark_name" pyproject.toml
-uv run pytest -m "new_mark_name" --collect-only > /tmp/collect.log 2>&1; rc=$?; tail -5 /tmp/collect.log; echo "exit: $rc"; (exit $rc)
+timeout -k 30 1800 uv run pytest -m "new_mark_name" --collect-only > /tmp/collect.log 2>&1; rc=$?; tail -5 /tmp/collect.log; echo "exit: $rc"; (exit $rc)
 ```
 
 ### Trigger Use Cases Need Per-Use-Case Tests
@@ -508,6 +531,11 @@ When adding one, keep three properties:
 - **An unreadable base fails.** If the branch's loaders cannot read the base, the
   guard raises `BaseExtractionError` naming the merge base; give the loader a path
   that also accepts the old form.
+- **Cost follows the change, not the tree.** A guard runs on every PR under the
+  unit timeout, and reading two whole trees tripped it under load (#4904). An
+  extractor whose items depend on one file at a time reads only the changed files
+  (`compare_changed_with_base`); a cross-file one keeps `compare_with_base`, which
+  skips the base read when nothing under its paths changed.
 
 ## Delete an Ephemeral Migration Check When the Migration Lands
 
