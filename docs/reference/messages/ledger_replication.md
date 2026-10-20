@@ -24,10 +24,12 @@ For the acknowledgment semantics see
 
 1. The CASE_MANAGER commits a new log entry and fans it out:
    `Announce(CaseLedgerEntry)` → each participant.
-2. A participant whose local `prev_log_hash` matches the incoming entry's
+2. A participant first recomputes the entry's hash from its content.
+   An entry that does not reproduce its `entry_hash` is refused and logged, with no `Reject` (SYNC-03-006).
+3. A participant whose local `prev_log_hash` matches the incoming entry's
    `prev_log_hash` silently accepts — hash-chain continuity is the implicit
    positive acknowledgment (MSM-05-002).
-3. A participant whose hashes do not match rejects: `Reject(CaseLedgerEntry)`
+4. A participant whose hashes do not match rejects: `Reject(CaseLedgerEntry)`
    with `context` = its last accepted hash, so the CASE_MANAGER can replay the
    gap (SYNC-03-001, SYNC-03-002).
 
