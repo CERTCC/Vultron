@@ -3,6 +3,7 @@
 from typing import NoReturn, cast
 
 import pytest
+from py_trees.common import Status
 
 from test.support.ledger import committed_semantic_types, ledger_entries
 from test.support.trigger_results import activity_of
@@ -12,6 +13,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.case.nodes.stub_reissue import (
+    ReissueStubInvitesNode,
+)
 from vultron.core.behaviors.embargo.nodes import termination_commit
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_termination import (
@@ -320,6 +324,36 @@ def test_manager_reject_after_disclosure_with_a_refused_termination_commits_neit
         raise VultronInvalidStateTransitionError("termination refused")
 
     monkeypatch.setattr(termination_commit, "decide_termination", _refuse)
+    with pytest.raises(VultronError):
+        _reject_as_owner(dl, owner.id_, case.id_, proposal_id)
+
+    assert committed_semantic_types(dl, case.id_) == before
+    kept = cast(VulnerabilityCase, dl.read(case.id_))
+    assert kept.proposed_embargo_ids == [revision_id]
+    assert kept.em_state == EM.REVISE
+
+
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.spec("CLP-07-015")
+def test_manager_reject_after_disclosure_failing_after_the_remove_commits_neither(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failure after the ``Remove`` commits rolls back the whole act.
+
+    The termination's stub re-issue runs after its ``Remove`` entry commits;
+    when it fails, neither entry is kept and the prior terms are not left
+    standing by a fallback (MSM-07-009).
+    """
+    owner, dl = owner_actor_and_dl
+    case, proposal_id, revision_id = _owner_manager_revision_after_disclosure(
+        dl, owner.id_
+    )
+    before = committed_semantic_types(dl, case.id_)
+
+    monkeypatch.setattr(
+        ReissueStubInvitesNode, "update", lambda _self: Status.FAILURE
+    )
     with pytest.raises(VultronError):
         _reject_as_owner(dl, owner.id_, case.id_, proposal_id)
 

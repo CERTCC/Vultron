@@ -119,7 +119,7 @@ class _AnswerOperationsMixin(_PecActivationMixin):
         ``REJECTED`` and the embargo ``TERMINATED``, as two entries a
         replica copies in order (EMB-04-002, MSM-07-009).  The received and
         trigger trees compose that termination after this step
-        (``reject_then_terminate_bt``).
+        (``end_embargo_outliving_disclosure_bt``).
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.

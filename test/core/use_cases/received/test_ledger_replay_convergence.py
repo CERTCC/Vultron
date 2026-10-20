@@ -35,6 +35,7 @@ import json
 from typing import Any, NoReturn, cast
 
 import pytest
+from py_trees.common import Status
 from pydantic import BaseModel
 
 from test.support.embargo_register import propose, write_consent_rows
@@ -44,6 +45,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     read_sealed_body_dict,
+)
+from vultron.core.behaviors.case.nodes.stub_reissue import (
+    ReissueStubInvitesNode,
 )
 from vultron.core.behaviors.embargo.nodes import termination_commit
 from vultron.core.models._helpers import _as_id, days_from_now_utc
@@ -407,6 +411,41 @@ def test_a_refused_termination_commits_neither_entry(monkeypatch):
     case = net.case(MANAGER)
     assert case.proposed_embargo_ids == [revision.id_]
     assert case.em_state == EM.REVISE
+
+
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.spec("CLP-07-015")
+def test_a_termination_failing_after_its_remove_commits_neither_entry(
+    monkeypatch,
+):
+    """A failure after the ``Remove`` is committed rolls the whole act back.
+
+    The termination's stub re-issue, which runs after its ``Remove`` entry
+    commits, fails: neither the ``Reject`` nor the ``Remove`` entry is kept,
+    and the fallback arm does not answer the failure (MSM-07-009).
+    """
+    net = _owned(
+        LedgerNetwork("https://example.org/cases/replay-reject-late-failure")
+    )
+    revision = _propose_revision_everywhere(net, days=120)
+    _report_pxa(net, CS_pxa.Pxa)
+    ledger_before = _ledger(net, MANAGER)
+
+    monkeypatch.setattr(
+        ReissueStubInvitesNode, "update", lambda _self: Status.FAILURE
+    )
+    reject = reject_embargo_proposal_activity(
+        revision, target=net.case_id, actor=OWNER, to=[MANAGER]
+    )
+    verdict = net.receive(MANAGER, json.loads(dump_outbound_body(reject)))
+
+    assert verdict.disposition is not HandlerDisposition.APPLIED
+    assert _ledger(net, MANAGER) == ledger_before
+    case = net.case(MANAGER)
+    assert case.proposed_embargo_ids == [revision.id_]
+    assert case.active_embargo_id == net.initial_embargo_id
+    assert case.em_state == EM.REVISE
+    assert not net.queued(MANAGER, to=BYSTANDER, type_="Remove")
 
 
 @pytest.mark.spec("RSH-08-004")
