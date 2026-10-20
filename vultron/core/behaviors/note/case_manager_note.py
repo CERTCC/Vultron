@@ -17,9 +17,10 @@
 
 A note the CASE_MANAGER writes for a participant — the RSH-06-004 RM-anomaly
 clarification, the CSB-18 diagnostic, the CM-16-016 reinforcing-suggestion
-note — is case content, and so is a note its own add-note trigger posts.  The CASE_MANAGER does not send it as a direct
-``Add(Note)``: a participant's note handler refuses any ``Add(Note)`` it is
-not the CASE_MANAGER for (HP-01-005), a replica changes only from the
+note — is case content, and so is a note its own add-note trigger posts.
+The CASE_MANAGER does not send it as a direct ``Add(Note)``: a participant's
+note handler refuses any ``Add(Note)`` it is not the CASE_MANAGER for
+(HP-01-005), a replica changes only from the
 ledger (CLP-07-013), and its own handler refuses an ``Add(Note)`` whose note
 it already holds (HP-08-006).  It records the note as its own act instead
 (CLP-10-001): it builds the ``Add(Note)`` carrying the note inline,
