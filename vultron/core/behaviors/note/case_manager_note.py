@@ -17,10 +17,12 @@
 
 A note the CASE_MANAGER writes for a participant — the RSH-06-004 RM-anomaly
 clarification, the CSB-18 diagnostic, the CM-16-016 reinforcing-suggestion
-note — is case content.  The CASE_MANAGER does not send it as a direct
-``Add(Note)``: a participant's note handler refuses any ``Add(Note)`` it is
-not the CASE_MANAGER for (HP-01-005), and a replica changes only from the
-ledger (CLP-07-013).  It records the note as its own act instead
+note — is case content, and so is a note its own add-note trigger posts.
+The CASE_MANAGER does not send it as a direct ``Add(Note)``: a participant's
+note handler refuses any ``Add(Note)`` it is not the CASE_MANAGER for
+(HP-01-005), a replica changes only from the
+ledger (CLP-07-013), and its own handler refuses an ``Add(Note)`` whose note
+it already holds (HP-08-006).  It records the note as its own act instead
 (CLP-10-001): it builds the ``Add(Note)`` carrying the note inline,
 addressed to nobody, commits its sealed blob as an ``add_note_to_case``
 entry, then attaches the note to its case.  The ``Announce(CaseLedgerEntry)``
@@ -31,6 +33,7 @@ Every active participant sees such a note, not only the one it is for.  A
 private message outside the case record is not implemented (#4885).
 """
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import ClassVar, cast
@@ -88,6 +91,7 @@ class _CommitCaseManagerNoteBase(
         )
         self._composed: CaseManagerNote | None = None
         self._note_id: str | None = None
+        self._note_blob: str | None = None
         self._entry_committed = False
 
     def _compose(self) -> CaseManagerNote | None:
@@ -132,7 +136,7 @@ class _CommitCaseManagerNoteBase(
         assert self._composed is not None
         assert self.actor_id is not None
         actor_id = self.actor_id
-        note_id, _ = self.trigger_activity_factory.create_note(
+        note_id, note_blob = self.trigger_activity_factory.create_note(
             name=self._composed.name,
             content=self._composed.content,
             context_id=self._case_id,
@@ -140,6 +144,7 @@ class _CommitCaseManagerNoteBase(
             in_reply_to=self._composed.in_reply_to,
         )
         self._note_id = note_id
+        self._note_blob = note_blob
         return self.trigger_activity_factory.add_note_to_case(
             note_id=note_id, case_id=self._case_id, actor=actor_id, to=to
         )
@@ -169,4 +174,41 @@ class _CommitCaseManagerNoteBase(
         )
 
 
-__all__ = ["CaseManagerNote", "_CommitCaseManagerNoteBase"]
+class CommitRequestedCaseManagerNoteNode(_CommitCaseManagerNoteBase):
+    """Commit a note the CASE_MANAGER's add-note trigger was asked to post.
+
+    The CASE_MANAGER does not send itself the ``Add(Note)``: its own handler
+    would find the note already stored and refuse it (HP-08-006).  The note
+    is recorded as its own entry instead, like every other note it writes.
+
+    Writes ``note_id``, ``note_dict`` and ``activity_blob`` to *result_out*
+    for the trigger's result.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        note: CaseManagerNote,
+        result_out: dict,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(case_id=case_id, name=name)
+        self._note = note
+        self.result_out = result_out
+
+    def _compose(self) -> CaseManagerNote:
+        return self._note
+
+    def _build(self, to: list[str] | None) -> tuple[str, str]:
+        activity_id, blob = super()._build(to)
+        self.result_out["note_id"] = self._note_id
+        self.result_out["note_dict"] = json.loads(cast(str, self._note_blob))
+        self.result_out["activity_blob"] = blob
+        return activity_id, blob
+
+
+__all__ = [
+    "CaseManagerNote",
+    "CommitRequestedCaseManagerNoteNode",
+    "_CommitCaseManagerNoteBase",
+]

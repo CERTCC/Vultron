@@ -198,6 +198,10 @@ _UNREGISTERED_FORMS_BY_DESIGN = MappingProxyType(
         "Create(Event)": "not a protocol message (VAM-01-011)",
         "Create(CaseStatus)": "not a protocol message (VAM-01-011)",
         "Create(ParticipantStatus)": "not a protocol message (VAM-01-011)",
+        # status_updates.md: named as the form a change to a posted note
+        # would take, to warn an implementer off re-sending an Add(Note) for
+        # a stored note id, which the CASE_MANAGER refuses (HP-08-006).
+        "Update(Note)": "not routed (HP-08-006)",
     }
 )
 

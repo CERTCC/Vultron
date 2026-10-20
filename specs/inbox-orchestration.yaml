@@ -218,7 +218,8 @@ groups:
       delivery. For an activity the inbox defers, it MAY keep the activity itself, as
       the received body the parser sealed (VM-08-002), beside the staged rows in one
       opaque record keyed by the activity, deleted by the replay or by the queue's
-      expiry.
+      expiry. A handler therefore sees the receiver's record of any id it holds, never
+      the carried copy, so a guard keys on the stored record (HP-08-006).
     rationale: >-
       A stored inline object is the receiver's own record of it: a stored case is the
       receiver's replica, so storing one at receipt let a sender's snapshot name the
@@ -226,6 +227,8 @@ groups:
       CBT-01-011). Routing still needs the inline object, because the rebuilt activity
       names it by id and a bare id matches the wrong pattern. The deferred record holds
       the activity too: no copy under its sender's id remains to replay (DL-06-006).
+      The receiver's record wins on purpose; a carried case winning broke
+      rebuild-from-ledger (#4831).
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that the routed
       activity carries its inline object while the receiver's store holds none, that the

@@ -27,10 +27,12 @@ import py_trees.behaviour
 
 from vultron.core.behaviors.note.add_note_trigger_tree import (
     add_note_to_case_trigger_bt,
+    case_manager_add_note_trigger_bt,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import ASSERTED_ACTIVITY_KEY
 from vultron.core.models.use_case_result import NoteResult
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -65,6 +67,11 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
     mints a new note, so a second request is a second note, never a repeat
     of a pending assertion.
 
+    At the case's CASE_MANAGER no ``Add(Note)`` is queued: its own handler
+    would refuse a note it already holds (HP-08-006), so the note is committed
+    as its own ``add_note_to_case`` entry instead, and the result's activity
+    is the sealed ``Add`` that entry records.
+
     The return value extends the base-class ``{"activity": ...}`` dict with
     a ``"note"`` key for the created Note object.
     """
@@ -73,11 +80,23 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
         request = cast(AddNoteToCaseTriggerRequest, self._request)
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
-        self._case_id = request.case_id
-        resolve_case(request.case_id, self._dl)
+        case = resolve_case(request.case_id, self._dl)
+        self._case_id = case.id_
+        case_manager_id = resolve_case_manager_id(case, self._dl)
+        self._is_case_manager = case_manager_id is not None and same_actor_id(
+            case_manager_id, self._actor_id
+        )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         request = cast(AddNoteToCaseTriggerRequest, self._request)
+        if self._is_case_manager:
+            return case_manager_add_note_trigger_bt(
+                case_id=self._case_id,
+                note_name=request.note_name,
+                note_content=request.note_content,
+                in_reply_to=request.in_reply_to,
+                result_out=self._result_out,
+            )
 
         def _build_activities(case_manager_id: str) -> list[str]:
             note_id = str(self._result_out["note_id"])
@@ -88,10 +107,7 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
                 to=[case_manager_id],
             )
             self._captured["activity"] = json.loads(add_body)
-            # The CASE_MANAGER keeps no pending assertion for its own case:
-            # its commit is the authoritative write (SYNC-11-004).
-            if not same_actor_id(case_manager_id, self._actor_id):
-                self._result_out[ASSERTED_ACTIVITY_KEY] = add_id
+            self._result_out[ASSERTED_ACTIVITY_KEY] = add_id
             return [add_id]
 
         return add_note_to_case_trigger_bt(
@@ -105,6 +121,11 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase[NoteResult]):
 
     def _handle_result(self) -> None:
         self._captured["note"] = self._result_out.get("note_dict")
+        if self._is_case_manager:
+            # The CASE_MANAGER keeps no pending assertion for its own case:
+            # its commit is the authoritative write (SYNC-11-004).
+            blob = cast(str, self._result_out["activity_blob"])
+            self._captured["activity"] = json.loads(blob)
         note_id = self._result_out.get("note_id", "")
         logger.info(
             "Actor '%s' added note '%s' to case '%s'",

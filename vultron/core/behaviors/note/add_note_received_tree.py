@@ -28,6 +28,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.carried_object_case import (
+    CarriedObjectInTargetCaseNode,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -47,6 +50,7 @@ def create_add_note_to_case_received_tree(
     note_obj: VultronNote,
     case_id: str,
     sender_id: str,
+    activity_id: str,
     *,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
@@ -68,7 +72,8 @@ def create_add_note_to_case_received_tree(
         ├── SenderRuleGuard (Sequence)                 # sender guard
         ├── CaseManagerGate[ClockDecisionStage]        # embargo end-time check
         ├── PreconditionGuards
-        │   └── NoteIdNotTakenNode(note_obj)           # guard
+        │   ├── NoteIdNotTakenNode(note_id)            # guard
+        │   └── CarriedObjectInTargetCaseNode(note)    # guard
         ├── GuardedCommitCaseLedgerEntryBT (Selector)  # commit
         │   ├── SkipIfNotCaseManager
         │   └── CommitCaseLedgerEntryNode(case_id)
@@ -83,12 +88,13 @@ def create_add_note_to_case_received_tree(
     note the CASE_MANAGER cannot read.  Storing it is part of what the
     ``Add`` states, so it is part of the change the ``add_note_to_case``
     entry records (CLP-07-013); a replica stores the same note from the
-    entry's snapshot.  The store step writes only an absent note, so an
-    ``Add`` never replaces a note already stored under its id (HP-08-006).
-    The guard refuses an ``Add`` whose carried note differs from the stored
-    one.  The inbox ingress stores no inline object (IO-03-004); its routing
-    rebuild prefers a record already held, so on that path the rehydrated
-    ``Add`` already holds the stored note.
+    entry's snapshot.  An ``Add`` introduces a new note, so the guards
+    refuse one whose note id is already stored, whatever it carries (a
+    change is an ``Update(Note)``), unless it is a redelivery of the
+    ``Add`` the ledger already records, which is ``SKIPPED``; and they
+    refuse a note whose own ``context`` is not this case (HP-08-006).  The
+    inbox's routing rebuild hands the tree the stored note in place of the
+    carried one (IO-03-004), so neither guard compares the two copies.
 
     Composed through :func:`create_receive_activity_tree`, which supplies the
     intake node and the guarded commit, so the tree cannot opt out of either
@@ -108,6 +114,7 @@ def create_add_note_to_case_received_tree(
         note_obj: The note the ``Add`` carries inline.
         case_id: ID of the VulnerabilityCase receiving the note.
         sender_id: The ``Add(Note)``'s sender.
+        activity_id: The ``Add(Note)``'s id, to recognise a redelivery.
         sender_rule: The use case's declared sender rule (HP-01-008).
 
     Returns:
@@ -120,7 +127,14 @@ def create_add_note_to_case_received_tree(
         sender_context=SenderCheckContext(
             sender_id=sender_id, case_id=case_id
         ),
-        precondition_guards=[NoteIdNotTakenNode(note_obj=note_obj)],
+        precondition_guards=[
+            NoteIdNotTakenNode(
+                note_id=note_obj.id_, case_id=case_id, activity_id=activity_id
+            ),
+            CarriedObjectInTargetCaseNode(
+                object_id=note_obj.id_, carried=note_obj, case_id=case_id
+            ),
+        ],
         manager_effects=[
             StoreNoteIfAbsentNode(note_obj=note_obj),
             AttachNoteToCaseNode(note_id=note_obj.id_, case_id=case_id),

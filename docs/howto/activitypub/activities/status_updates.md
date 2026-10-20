@@ -115,7 +115,11 @@ Use a note when the case needs narrative that no status field carries — a ques
 A note goes to the case participants, not to the public.
 
 To post a note, send one `Add(Note)` to the CASE_MANAGER, targeting the case, with the note carried inline as its `object`.
-Set the note's `context` to the case as well.
+Set the note's `context` to the case as well: the CASE_MANAGER refuses a note whose `context` names another case, or names none (HP-08-007).
+Give each note a new id: an `Add(Note)` introduces a note, so the CASE_MANAGER refuses one whose note id it already holds, whatever the note says (HP-08-006).
+Changing a posted note would be an `Update(Note)`, which this implementation does not handle yet.
+A redelivery of the same `Add(Note)` changes nothing.
+
 The CASE_MANAGER stores the note, attaches it to the case and commits an `add_note_to_case` entry to the case ledger.
 The CASE_MANAGER accepts a note only from an active participant whose closure the case does not record, and refuses it from any other sender, including a closed participant (CM-23-018).
 A refused note is not stored, attached, committed or sent on.

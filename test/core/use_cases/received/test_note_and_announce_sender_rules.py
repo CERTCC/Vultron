@@ -529,6 +529,7 @@ def test_announce_tree_takes_no_clock_decision() -> None:
         note_obj=note,
         case_id=world.case_id,
         sender_id=world.finder.id_,
+        activity_id="https://example.org/activities/add-note",
         sender_rule=AddNoteToCaseReceivedUseCase.sender_entitlement,
     )
     assert any(

@@ -90,14 +90,7 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     case.actor_participant_index[VENDOR_ID] = vendor_participant.id_
     dl.save(case)
 
-    # Persist the note object so the use case can find it.
-    note = as_Note(
-        id_=NOTE_ID,
-        content="Test note content",
-        context=CASE_ID,
-    )
-    dl.create(note)
-
+    # The Add carries its note inline; the CASE_MANAGER stores it (HP-08-006).
     return dl
 
 
