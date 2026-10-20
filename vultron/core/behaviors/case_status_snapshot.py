@@ -43,8 +43,10 @@ from vultron.core.behaviors.sync.commit_tree import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import CS_pxa, is_pxa_assertion_acceptable
+from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,9 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
 
     1. Reads the VulnerabilityCase from the DataLayer (post-mutation).
     2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa`` state.
+       With ``reported_status_id`` set, the ``pxa`` is instead the adopted
+       ``ParticipantStatus``'s reported value when it is acceptable from the
+       case's current one (RSH-01-003, RSH-05-019).
     3. Builds the CASE_MANAGER's ``Add(CaseStatus)`` through the
        trigger-activity port and commits its sealed blob as a CaseLedgerEntry
        via ``create_commit_log_entry_tree`` (VM-08-003).
@@ -76,10 +81,64 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     Per RSH-04-002 (EM mutations) and RSH-04-003 (PXA mutations).
     """
 
-    def __init__(self, case_id: str | None, name: str | None = None) -> None:
+    def __init__(
+        self,
+        case_id: str | None,
+        name: str | None = None,
+        reported_status_id: str | None = None,
+    ) -> None:
+        """
+        Args:
+            case_id: The case to snapshot.
+            name: Node name; defaults to the class name.
+            reported_status_id: The adopted ``ParticipantStatus`` whose
+                embedded ``case_status`` reports P/X/A.  ``None`` for trees
+                that mutate the case before the snapshot (EM lifecycle).
+        """
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+        self.reported_status_id = reported_status_id
         self._committed_status_id: str | None = None
+
+    def _adopted_pxa(self, current: CS_pxa) -> CS_pxa:
+        """Return the reported pxa when acceptable from *current*, else *current*.
+
+        The case does not move on the participant's report until this
+        snapshot, so it is adjudicated here against the case's own value:
+        a regressing report keeps the case's state (RSH-05-019).  The
+        report is read from the stored, dimension-filtered status the
+        append step saved (RSH-05).  A status that embeds no
+        ``case_status`` reports no P/X/A, so the case's state is kept.
+
+        Raises:
+            VultronNotFoundError: no ``ParticipantStatus`` is stored at
+                ``reported_status_id``.  The append step saves it before
+                this node runs, so its absence is a broken store, never a
+                report to skip (ARCH-15-001).
+        """
+        if self.reported_status_id is None:
+            return current
+        assert self.datalayer is not None
+        reported = self.datalayer.read(self.reported_status_id)
+        if not isinstance(reported, ParticipantStatus):
+            raise VultronNotFoundError(
+                "ParticipantStatus", self.reported_status_id
+            )
+        if reported.case_status is None:
+            return current
+        asserted = promote_pxa(reported.case_status.pxa.state)
+        if is_pxa_assertion_acceptable(current, asserted):
+            return asserted
+        self.logger.warning(
+            "%s: reported PXA %s from status '%s' regresses case '%s' PXA"
+            " %s; keeping the case's state",
+            self.name,
+            asserted,
+            self.reported_status_id,
+            self.case_id,
+            current,
+        )
+        return current
 
     def update(self) -> Status:
         if not self.case_id:
@@ -120,7 +179,15 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
-        pxa_state = promote_pxa(current.pxa.state)
+        try:
+            pxa_state = self._adopted_pxa(promote_pxa(current.pxa.state))
+        except VultronNotFoundError as exc:
+            self.feedback_message = (
+                f"Cannot adopt reported status into case '{self.case_id}':"
+                f" {exc}"
+            )
+            self.logger.exception("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,

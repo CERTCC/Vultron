@@ -80,10 +80,13 @@ from vultron.core.behaviors.status.nodes.threat_termination import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
+    PxaDimension,
     RmDimension,
     VfDimension,
 )
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
@@ -1965,3 +1968,164 @@ class TestAddParticipantStatusTeardownWiring:
             "TeardownEffects must begin with EmbargoTeardownAuthorizationGate"
             " (RSH-01-004, RSH-02-001)"
         )
+
+
+# ---------------------------------------------------------------------------
+# Adoption: the reported P/X/A reaches the case status (#4956)
+# ---------------------------------------------------------------------------
+
+REPORTER_ID = "https://example.org/actors/reporter"
+REPORTER_PARTICIPANT_ID = (
+    "https://example.org/cases/case-01/participants/reporter"
+)
+
+
+class TestReportedPxaAdoption:
+    """The committed ``CaseStatus`` carries the adopted report's P/X/A.
+
+    RSH-01-003 requires the *post-adoption* status; RSH-05-019 and SM-09-001
+    decide what adoption takes from the report (#4956)."""
+
+    def _run(
+        self,
+        dl: SqliteDataLayer,
+        make_payload,
+        reported: CS_pxa | None,
+        *,
+        sender: str = ACTOR_ID,
+        participant_id: str = PARTICIPANT_ID,
+        call_out: StatusAuthorizationCallOutBundle = (
+            STATUS_AUTHORIZATION_DETERMINISTIC
+        ),
+    ) -> Status:
+        label = "none" if reported is None else reported.name
+        status_id = f"{STATUS_ID}/reported-{label}"
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(
+                id_=status_id,
+                context=CASE_ID,
+                case_status=(
+                    None
+                    if reported is None
+                    else CaseStatus(
+                        context=CASE_ID, pxa=PxaDimension(state=reported)
+                    )
+                ),
+            ),
+            target=as_CaseParticipant(
+                id_=participant_id, context=CASE_ID, attributed_to=sender
+            ),
+            actor=sender,
+            to=[CASE_MANAGER_ID],
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=_STATUS_RULE,
+            call_out=call_out,
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        return bridge.execute_with_setup(
+            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
+        ).status
+
+    @staticmethod
+    def _case_pxa(dl: SqliteDataLayer) -> CS_pxa:
+        case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        return case.current_status.pxa.state
+
+    @staticmethod
+    def _seed_case_pxa(dl: SqliteDataLayer, state: CS_pxa) -> None:
+        case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        case.add_case_status(
+            CaseStatus(context=CASE_ID, pxa=PxaDimension(state=state))
+        )
+        dl.save(case)
+
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.spec("RSH-04-003")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_adopted_pxa_report_reaches_case_status(
+        self, populated_dl, make_payload
+    ):
+        assert self._case_pxa(populated_dl) is CS_pxa.pxa
+        assert self._run(populated_dl, make_payload, CS_pxa.Pxa) == (
+            Status.SUCCESS
+        )
+        assert self._case_pxa(populated_dl) is CS_pxa.Pxa
+
+    @pytest.mark.spec("SM-09-001")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_exploit_report_promoted_on_adoption(
+        self, populated_dl, make_payload
+    ):
+        assert self._run(populated_dl, make_payload, CS_pxa.pXa) == (
+            Status.SUCCESS
+        )
+        assert self._case_pxa(populated_dl) is CS_pxa.PXa
+
+    @pytest.mark.spec("RSH-05-019")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_regressing_pxa_report_leaves_case_status_unchanged(
+        self, populated_dl, make_payload
+    ):
+        self._seed_case_pxa(populated_dl, CS_pxa.PXa)
+        assert self._run(populated_dl, make_payload, CS_pxa.pxA) == (
+            Status.SUCCESS
+        )
+        assert self._case_pxa(populated_dl) is CS_pxa.PXa
+
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_report_without_case_status_keeps_case_pxa(
+        self, populated_dl, make_payload
+    ):
+        """A status embedding no ``case_status`` reports no P/X/A."""
+        self._seed_case_pxa(populated_dl, CS_pxa.Pxa)
+        assert self._run(populated_dl, make_payload, None) == Status.SUCCESS
+        assert self._case_pxa(populated_dl) is CS_pxa.Pxa
+
+    @pytest.mark.spec("RSH-01-002")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_refused_gate_leaves_case_status_unchanged(
+        self, populated_dl, make_payload
+    ):
+        reporter = as_CaseParticipant(
+            id_=REPORTER_PARTICIPANT_ID,
+            context=CASE_ID,
+            attributed_to=REPORTER_ID,
+            case_roles=[CVDRole.REPORTER],
+        )
+        populated_dl.create(reporter)
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        case.add_participant(reporter)
+        populated_dl.save(case)
+
+        result = self._run(
+            populated_dl,
+            make_payload,
+            CS_pxa.Pxa,
+            sender=REPORTER_ID,
+            participant_id=REPORTER_PARTICIPANT_ID,
+            call_out=StatusAuthorizationCallOutBundle(
+                status_adoption_gate_factory=AlwaysFail  # type: ignore[arg-type]
+            ),
+        )
+        assert result == Status.FAILURE
+        # The report is on the reporter's record, but not adopted.
+        stored = populated_dl.read(REPORTER_PARTICIPANT_ID)
+        assert isinstance(stored, CaseParticipant)
+        assert f"{STATUS_ID}/reported-Pxa" in [
+            getattr(s, "id_", s) for s in stored.participant_statuses
+        ]
+        assert self._case_pxa(populated_dl) is CS_pxa.pxa
