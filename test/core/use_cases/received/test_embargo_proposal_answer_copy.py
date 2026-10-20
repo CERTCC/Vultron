@@ -730,17 +730,14 @@ def _is_invitee_row_update(kwargs: dict[str, Any]) -> bool:
 
 @pytest.mark.spec("CM-11-016")
 @pytest.mark.spec("CLP-07-015")
-@pytest.mark.parametrize("revising", [False, True], ids=["active", "revising"])
-def test_a_replacement_whose_row_did_not_commit_is_undone_and_reissued(
-    revising,
-):
-    """The replacement's row commit fails: the replacement is undone with
-    it, and the next run of the re-issue sends it once, with its row.
+def test_an_accept_whose_re_issued_row_did_not_commit_is_not_kept():
+    """The replacement's row commit fails: the Accept that staled the stub
+    is undone with the replacement, and nothing is left for a later run.
 
-    The replacement and its invitee's row are one transaction (ADR-0146), so
-    the failure leaves no replacement stored, queued or committed, and the
-    stub is still stale.  A revision proposed before the next run holds the
-    re-issue back: nothing is stale while a proposal is open (CM-11-016).
+    The Accept, the replacement and its invitee's row are one act
+    (ADR-0146), so the failure leaves the revision still proposed, the
+    original embargo in force, and no replacement stored, queued or
+    committed.  The stub is not stale, so a re-issue run sends nothing.
     """
     from test.core.use_cases.triggers.test_case_joining_trigger import (
         _invites_to,
@@ -753,31 +750,32 @@ def test_a_replacement_whose_row_did_not_commit_is_undone_and_reissued(
         ReissueStubInvitesNode,
     )
 
-    net = _stub_network("reissue-row-retry")
+    net = _stub_network("reissue-row-fails")
     original_id = _send_stub(net)
     _propose(net)
     (revision_id,) = net.case(MANAGER).proposed_embargo_ids
     dl = net.stores[MANAGER]
+    in_force = net.case(MANAGER).active_embargo_id
+    committed_before = committed_semantic_types(dl, net.case_id)
+    outbox_before = list(dl.outbox_list())
+    row_before = _invitee_row(net, MANAGER, revision_id)
     with pytest.MonkeyPatch.context() as patch:
         _later_stamps(patch)
         failed = fail_commits(patch, commit_tree, when=_is_invitee_row_update)
-        stubs_before = committed_semantic_types(dl, net.case_id).count(
-            "invite_actor_to_case"
-        )
         with pytest.raises(VultronBTInternalError, match="commit failed"):
             _accept(net)
     assert len(failed) == 1
+
+    assert net.case(MANAGER).active_embargo_id == in_force
+    assert net.case(MANAGER).proposed_embargo_ids == [revision_id]
+    assert committed_semantic_types(dl, net.case_id) == committed_before
+    assert list(dl.outbox_list()) == outbox_before
+    assert _invitee_row(net, MANAGER, revision_id) == row_before
     assert [
         i for i in _invites_to(dl, INVITEE) if i.in_reply_to == original_id
     ] == [], "the replacement is not stored"
     assert (
-        committed_semantic_types(dl, net.case_id).count("invite_actor_to_case")
-        == stubs_before
-    ), "the replacement is not committed"
-    before = _invitee_row(net, MANAGER, revision_id)
-
-    def _rerun() -> list[str]:
-        return _new_entries(
+        _new_entries(
             net,
             lambda: BTBridge(
                 datalayer=dl,
@@ -789,29 +787,8 @@ def test_a_replacement_whose_row_did_not_commit_is_undone_and_reissued(
                 actor_id=MANAGER,
             ),
         )
-
-    if revising:
-        # Nothing is stale while a proposal is open (CM-11-016): the stub
-        # waits for the answer that settles the embargo in force.
-        _propose(net, days=60)
-        assert net.case(MANAGER).em_state is EM.REVISE
-        assert _rerun() == []
-        assert [
-            i for i in _invites_to(dl, INVITEE) if i.in_reply_to == original_id
-        ] == []
-        return
-
-    assert _rerun() == [
-        "invite_actor_to_case",
-        UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
-    ]
-    replacement = _replacement(net, original_id)
-    assert dl.outbox_list().count(replacement.id_) == 1
-    row = _invitee_row(net, MANAGER, revision_id)
-    assert row.state is _S.INVITED
-    assert row.rsvp_deadline == replacement.end_time
-    assert before.rsvp_deadline != replacement.end_time
-    assert _rerun() == [], "a re-issued stub is not re-issued twice"
+        == []
+    ), "nothing is stale, so nothing is left to re-issue"
 
 
 # ---------------------------------------------------------------------------

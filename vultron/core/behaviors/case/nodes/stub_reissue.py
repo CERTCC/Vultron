@@ -81,10 +81,11 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
 
     Each replacement is built, queued, then committed (ADR-0119), under an
     id derived from the stub it replaces, and its invitee's row is committed
-    after it, all in one transaction (ADR-0146): a failure at any step
-    leaves no replacement stored, queued or committed and no row changed,
-    so the stub is still stale and the next run re-issues it from the
-    start.
+    after it, all in one transaction.  The tree runs this node in the same
+    ``ActTransaction`` as the act that staled the stub (CLP-07-015,
+    ADR-0146): a failure at any step keeps neither the act nor any
+    replacement, queued Invite or row change, so nothing is left for a later
+    run.
 
     Succeeds with nothing emitted when no stub is stale.
     """
@@ -140,18 +141,16 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
     ) -> None:
         """Send the replacement for *stale*, naming it: queue, then commit.
 
-        The replacement's id is derived from the Invite it replaces, so a
-        retry after a queued replacement whose commit failed — *stale* is
-        still the invitee's newest recorded stub — rebuilds the same
-        replacement, and the outbox does not queue it twice (OX-06-002,
-        ADR-0119).
+        The replacement's id is derived from the Invite it replaces, so the
+        same staled stub always gets the same replacement id (ID-04-004).
         """
         assert self.actor_id is not None
         assert self.trigger_activity_factory is not None
         dl = cast(CaseOutboxPersistence, self.datalayer)
         # The build stores the replacement, so it joins the transaction the
         # commits run in: a failed commit must not leave a stored
-        # replacement that makes the stub look answered for (ADR-0146).
+        # replacement that makes the stub look answered for.  Inside the
+        # act's ActTransaction this block is part of the act (ADR-0146).
         with dl.transaction():
             activity_id = self._build_send_and_commit(
                 dl, stale, embargo_in_force
@@ -215,7 +214,7 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
         embargo_id: str | None,
         activity_id: str,
         rsvp_deadline: datetime | None,
-        send_and_commit: Callable[[], None] | None = None,
+        send_and_commit: Callable[[], None],
     ) -> None:
         """Commit the replacement, then the invitee's row for the embargo in force.
 
@@ -229,8 +228,8 @@ class ReissueStubInvitesNode(_EmitSingleActivityBase, StateWriteCapable):
         ``Update(EmbargoConsent)`` entry after the replacement's, and written
         by copying (ADR-0124, CLP-07-013).  With no embargo in force
         (*embargo_id* ``None``, the re-issue after a termination) no row
-        changes and none is committed.  *send_and_commit* is ``None`` when
-        the replacement *activity_id* is already committed.
+        changes and none is committed.  *send_and_commit* queues and
+        commits the replacement *activity_id*.
         """
         assert self.actor_id is not None
         assert self.trigger_activity_factory is not None

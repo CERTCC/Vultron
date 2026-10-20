@@ -583,24 +583,24 @@ def test_a_replacement_carries_a_new_deadline_and_current_terms_and_roles(
     )
 
 
+@pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("CM-11-016")
-@pytest.mark.spec("OX-06-002")
-def test_a_replacement_whose_commit_failed_is_sent_once_by_the_next_run(
+def test_a_termination_whose_stub_re_issue_fails_is_not_kept(
     actor_store,
 ) -> None:
-    """A failed replacement leaves nothing behind; the next run sends it.
+    """An act and the re-issue it makes due succeed or fail as one.
 
-    The replacement is built, queued and committed in one transaction
-    (ADR-0146), so a failed commit leaves it neither stored, queued nor
-    committed, and the stub is still stale.  The next run of the re-issue
-    node re-issues it under the same derived id: one queued Invite, one
-    entry (ADR-0119, OX-06-002).
+    The termination and the replacement stub run in one transaction
+    (ADR-0146): when the replacement's commit fails, the embargo is still in
+    force, and no replacement is stored, queued or committed.  Nothing is
+    left for a later run, and the stub is not stale (CM-11-016).
     """
     from test.support.ledger import fail_commits
-    from vultron.core.behaviors.case.nodes.stub_reissue import (
-        ReissueStubInvitesNode,
+    from vultron.core.behaviors.case.stub_invite_lifetime import (
+        outstanding_stale_stubs,
     )
     from vultron.core.behaviors.sync import commit_tree
+    from vultron.core.models._helpers import now_utc
     from vultron.core.models.case_ledger_entry import CaseLedgerEntry
     from vultron.errors import VultronBTInternalError
 
@@ -610,7 +610,9 @@ def test_a_replacement_whose_commit_failed_is_sent_once_by_the_next_run(
     dl.create(finder)
     dl.create(invitee)
     case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
-    original = _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
+    _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
+    entries_before = {e.id_ for e in dl.list_objects("CaseLedgerEntry")}
+    outbox_before = list(dl.outbox_list())
 
     with pytest.MonkeyPatch.context() as mp:
         failed = fail_commits(
@@ -621,75 +623,18 @@ def test_a_replacement_whose_commit_failed_is_sent_once_by_the_next_run(
         with pytest.raises(VultronBTInternalError, match="commit failed"):
             _terminate(dl, owner.id_, case.id_)
     (replacement_id,) = failed
-    assert replacement_id not in dl.outbox_list()
-    assert dl.read(replacement_id) is None
-
-    def _recorded() -> list[str]:
-        return [
-            e.log_object_id
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry)
-            and e.log_object_id == replacement_id
-        ]
-
-    assert _recorded() == []
-
-    result = BTBridge(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        sync_port=SyncActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute_with_setup(
-        tree=ReissueStubInvitesNode(case_id=case.id_), actor_id=owner.id_
-    )
-
-    assert result.status.name == "SUCCESS", result
-    assert dl.outbox_list().count(replacement_id) == 1
-    assert _recorded() == [replacement_id]
-    replacements = [
-        i for i in _invites_to(dl, invitee.id_) if i.id_ != original["id"]
-    ]
-    assert [i.id_ for i in replacements] == [replacement_id]
-
-
-@pytest.mark.spec("CLP-07-015")
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "CLP-07-015: the stub re-issue commits in its own transaction after"
-        " the termination it follows. Tracked by #4949."
-    ),
-)
-def test_a_termination_whose_stub_re_issue_fails_is_not_kept(
-    actor_store,
-) -> None:
-    """An act and the re-issue it makes due succeed or fail as one: when
-    the replacement's commit fails, the termination is not kept either."""
-    from test.support.ledger import fail_commits
-    from vultron.core.behaviors.sync import commit_tree
-    from vultron.errors import VultronBTInternalError
-
-    owner, dl = actor_store("Vendor Owner")
-    finder, _ = actor_store("Finder")
-    invitee, _ = actor_store("Vendor Two")
-    dl.create(finder)
-    dl.create(invitee)
-    case, _, _ = _build_active_embargo_case(dl, owner.id_, finder.id_)
-    _send_stub_invite(dl, owner.id_, case.id_, invitee.id_)
-
-    with pytest.MonkeyPatch.context() as mp:
-        fail_commits(
-            mp,
-            commit_tree,
-            when=lambda kw: kw["semantic_type"] == "invite_actor_to_case",
-        )
-        with pytest.raises(VultronBTInternalError, match="commit failed"):
-            _terminate(dl, owner.id_, case.id_)
 
     stored = dl.read_case(case.id_)
     assert stored is not None
     assert stored.active_embargo_id == case.active_embargo_id
+    assert dl.read(replacement_id) is None
+    assert list(dl.outbox_list()) == outbox_before
+    assert {
+        e.id_
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry)
+    } == entries_before
+    assert outstanding_stale_stubs(dl, stored, owner.id_, now_utc()) == []
 
 
 @pytest.mark.spec("CM-11-016")

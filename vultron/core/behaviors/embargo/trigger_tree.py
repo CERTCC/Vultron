@@ -143,14 +143,19 @@ def _by_role(
 ) -> list[py_trees.behaviour.Behaviour]:
     """The two mutually exclusive arms every embargo trigger tree ends with.
 
-    *otherwise_suffix* names the non-manager arm for what it does; the
-    default fits every arm that asks the CASE_MANAGER.
+    The CASE_MANAGER arm is one act: its commit and every consequence a
+    later node in the arm commits (the stub re-issue, a proposal's relay)
+    run in one ``ActTransaction``, so a failure anywhere in the arm keeps
+    nothing it wrote (CLP-07-015, ADR-0146).  *otherwise_suffix* names the
+    non-manager arm for what it does; the default fits every arm that asks
+    the CASE_MANAGER.
     """
     return [
         create_case_manager_gated_tree(
             name=f"{name}AsCaseManager",
             case_id=case_id,
             children=as_case_manager,
+            as_one_act=True,
         ),
         create_participant_replica_gated_tree(
             name=f"{name}{otherwise_suffix}",
@@ -296,7 +301,8 @@ def _propose_arms(
                 proposer_id=actor_id,
                 # The manager's own proposal is the request each relayed
                 # Invite answers.  An Invite whose commit fails is rolled
-                # back with its queueing and its row (ADR-0146).
+                # back with the proposal itself: the arm is one act
+                # (ADR-0146).
                 answers=embargo.id_,
             ),
             IndexOwnEmbargoProposalNode(

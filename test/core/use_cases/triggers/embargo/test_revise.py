@@ -102,6 +102,68 @@ def test_manager_revision_relays_an_invite_to_each_other_participant(
     )
 
 
+@pytest.mark.spec("CLP-07-015")
+@pytest.mark.spec("EP-09-002")
+def test_a_manager_revision_whose_relay_commit_fails_is_not_kept(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """The CASE_MANAGER's own proposal and its relay succeed or fail as one.
+
+    The relayed Invite's commit fails, so the proposal is not kept either
+    (CLP-07-015, ADR-0146): EM is still ``ACTIVE``, no revision is proposed,
+    no entry is committed and nothing is queued.  Nothing relays the
+    proposal later, because there is no proposal left to relay.
+    """
+    from test.support.ledger import fail_commits
+    from vultron.core.behaviors.sync import commit_tree
+    from vultron.errors import VultronBTInternalError
+
+    actor, dl = finder_actor_and_dl
+    case = _build_active_embargo_case_with_case_manager(dl, actor.id_)
+    other_id = "https://example.org/actors/other-vendor"
+    _add_participant(dl, case.id_, other_id)
+    committed_before = committed_semantic_types(dl, case.id_)
+    outbox_before = list(dl.outbox_list())
+    embargoes_before = {e.id_ for e in dl.list_objects("EmbargoEvent")}
+    relayed_to: list[object] = []
+
+    def _is_relayed_invite(kwargs: dict[str, object]) -> bool:
+        snapshot = cast(
+            dict[str, object], kwargs.get("payload_snapshot") or {}
+        )
+        if kwargs["semantic_type"] != EMBARGO_INVITE_SEMANTIC_TYPE:
+            return False
+        if snapshot.get("to") != [other_id]:
+            return False
+        relayed_to.append(snapshot.get("to"))
+        return True
+
+    with pytest.MonkeyPatch.context() as mp:
+        fail_commits(mp, commit_tree, when=_is_relayed_invite)
+        with pytest.raises(VultronBTInternalError, match="commit failed"):
+            SvcProposeEmbargoRevisionUseCase(
+                dl,
+                ProposeEmbargoRevisionTriggerRequest(
+                    actor_id=actor.id_,
+                    case_id=case.id_,
+                    end_time=datetime.now(tz=UTC) + timedelta(days=14),
+                ),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
+
+    assert relayed_to == [[other_id]], "the relay, not the proposal, failed"
+    stored = cast(VulnerabilityCase, dl.read(case.id_))
+    assert stored.current_status.em.state == EM.ACTIVE
+    assert stored.proposed_embargo_ids == []
+    assert committed_semantic_types(dl, case.id_) == committed_before
+    assert list(dl.outbox_list()) == outbox_before
+    assert {e.id_ for e in dl.list_objects("EmbargoEvent")} == (
+        embargoes_before
+    )
+
+
 def test_propose_embargo_revision_invalid_em_state_raises_error(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

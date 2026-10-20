@@ -66,6 +66,7 @@ from typing import TYPE_CHECKING, Any
 
 import py_trees
 
+from vultron.core.behaviors.act_transaction import ActTransaction
 from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
 from vultron.core.behaviors.embargo.admission_backfill_tree import (
     embargo_admission_backfill_nodes,
@@ -430,15 +431,22 @@ def late_accept_diversions(
     honour = Diversion(
         name=LATE_ACCEPT_DIVERSIONS[LateAcceptRoute.HONOUR],
         condition=condition(LateAcceptRoute.HONOUR),
+        # The honour, the backfill and the stub re-issue are one act
+        # (CLP-07-015, ADR-0146).
         effects=(
-            create_commit_and_honour_late_accept_tree(
-                case_id=case_id,
-                accepting_actor_id=accepting_actor_id,
-                invite_id=invite_id,
-                embargo_id=embargo_id,
-                published=published,
+            ActTransaction(
+                name="HonourLateAcceptAsOneAct",
+                children=[
+                    create_commit_and_honour_late_accept_tree(
+                        case_id=case_id,
+                        accepting_actor_id=accepting_actor_id,
+                        invite_id=invite_id,
+                        embargo_id=embargo_id,
+                        published=published,
+                    ),
+                    *embargo_admission_backfill_nodes(case_id, actor_config),
+                ],
             ),
-            *embargo_admission_backfill_nodes(case_id, actor_config),
         ),
     )
     reinvite = Diversion(

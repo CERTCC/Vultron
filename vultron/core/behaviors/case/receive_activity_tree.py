@@ -220,7 +220,8 @@ def _check_gate_arguments(
     if gate_arguments_without_effects:
         raise VultronWiringError(
             f"{where}: manager_case_id, manager_gate_name,"
-            " manager_body_name and manager_case_may_be_absent configure"
+            " manager_body_name, manager_case_may_be_absent and"
+            " manager_effects_as_one_act configure"
             " the gate around manager_effects; pass them only with"
             " manager_effects"
             " (BT-17-008)"
@@ -297,8 +298,11 @@ def _manager_stage(
     manager_gate_name: str | None,
     manager_body_name: str | None,
     manager_case_may_be_absent: bool,
+    as_one_act: bool = False,
 ) -> CaseManagerGate:
     """Wrap *manager_effects* in the CASE_MANAGER gate.
+
+    With *as_one_act* they run in one ``ActTransaction`` (CLP-07-015).
 
     Raises:
         VultronWiringError: *manager_case_id* is ``None`` — there is no case
@@ -316,6 +320,7 @@ def _manager_stage(
         children=manager_effects,
         body_name=manager_body_name,
         case_may_be_absent=manager_case_may_be_absent,
+        as_one_act=as_one_act,
     )
 
 
@@ -823,6 +828,7 @@ def create_receive_activity_tree(
     manager_gate_name: str | None = None,
     manager_body_name: str | None = None,
     manager_case_may_be_absent: bool = False,
+    manager_effects_as_one_act: bool = False,
     refusal_effects: list[py_trees.behaviour.Behaviour] | None = None,
     refusal_notice_exemption: RefusalNoticeExemption | None = None,
     post_close_exemption: PostCloseExemption | None = None,
@@ -1041,6 +1047,11 @@ def create_receive_activity_tree(
             ``manager_effects``; defaults to ``{manager_gate_name}Body``.
         manager_case_may_be_absent: Passed to the gate; see
             :class:`CheckIsCaseManagerNode`.
+        manager_effects_as_one_act: Run ``manager_effects`` in one
+            :class:`~vultron.core.behaviors.act_transaction.ActTransaction`,
+            named ``manager_body_name``: the act's commit node and the later
+            nodes that commit its consequences succeed or fail as one
+            (CLP-07-015, ADR-0146).
         refusal_effects: Emit-capable nodes run only when a precondition
             guard refuses, at the CASE_MANAGER, once per received activity,
             after the refusal notice.
@@ -1093,6 +1104,7 @@ def create_receive_activity_tree(
             or manager_gate_name is not None
             or manager_body_name is not None
             or manager_case_may_be_absent
+            or manager_effects_as_one_act
         ),
     )
     _check_replica_effects(name, replica, replica_emit_exemption)
@@ -1189,6 +1201,7 @@ def create_receive_activity_tree(
                 manager_gate_name,
                 manager_body_name,
                 manager_case_may_be_absent,
+                manager_effects_as_one_act,
             )
         )
     return ReceivedActivityTree(

@@ -41,6 +41,7 @@ related_notes:
 relevant_packages:
   - vultron/wire/as2
   - vultron/core/models
+  - vultron/core/behaviors
 ---
 
 # Case Ledger Authority and Assertion Recording
@@ -189,10 +190,14 @@ an act never leaves work for a later run: `commit_and_apply_embargo_entries()`
 trial-applies, commits every entry and saves the case file inside one
 `CasePersistence.transaction()`, and any failure writes nothing. Never add a
 stored plan, a finishing node or a per-act repair pass; put the act's writes
-inside the transaction instead (CLP-07-015, ADR-0146). Known gaps: intake commits
-a received act's own entry in its own transaction first (ADR-0111, #4933), and
-a later node's consequences (the stub re-issue, a proposal's relay) commit after
-the act (#4949).
+inside the transaction instead (CLP-07-015, ADR-0146). A later node that commits
+a consequence of the act (the stub re-issue, a proposal's relay) runs in the
+same transaction: compose the act's commit node and it into one `ActTransaction`
+(`vultron/core/behaviors/act_transaction.py`), through
+`create_case_manager_gated_tree(as_one_act=True)` or
+`create_receive_activity_tree(manager_effects_as_one_act=True)` (#4949). Known
+gap: intake commits a received act's own entry in its own transaction first
+(ADR-0111, #4933).
 
 ### Two Meanings of "Reject"
 
