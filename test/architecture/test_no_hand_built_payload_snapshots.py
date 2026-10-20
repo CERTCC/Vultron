@@ -36,19 +36,18 @@ from test.architecture import _corpus
 
 _CORE = _corpus.REPO_ROOT / "vultron" / "core"
 
-#: The two embargo-invitation snapshots wait on the participant-record copy
-#: design (#4295): their natural form is the CASE_MANAGER's change to the
-#: invitee's consent row, carried in full and copied by a replica, and the
-#: replica steps that apply them today run the PEC transition themselves.
-_AWAITS_PARTICIPANT_COPY = "#4295"
-
-#: The ownership-transfer Offer expiry (CM-21-017, landed by #4586) is already
-#: the CASE_MANAGER's own act, but in the synthetic ``Expire`` type it shares
-#: with the invitation expiry.  ``Expire`` is no AS2 type and the wire
-#: vocabulary has no extension activity a factory could build it with; giving
-#: it one (a class and a JSON-LD term) or choosing another form is a protocol
-#: vocabulary decision, and it is the rest of #3743's AC-3.
-_AWAITS_EXPIRY_FORM = "#3743"
+#: All three remaining sites wait on one ledger-vocabulary decision, held for
+#: the maintainer in #4723 (ADR-0140): the AS2 shape that replaces the
+#: synthetic ``Expire`` type (no AS2 type, no wire vocabulary class a factory
+#: could build), and whether the honoured late Accept keeps an act entry of its
+#: own.  The consent-row copy the two embargo-invitation rows once waited on
+#: (#4295) has landed: each act is already followed by the CASE_MANAGER's
+#: ``Update(EmbargoConsent)`` carrying the row, which replicas copy, so the act
+#: entry changes no replica state; what is left is its shape and attribution
+#: (the invitee or the accepter, who sent nothing).  The ownership-transfer
+#: Offer expiry (CM-21-017) is already the CASE_MANAGER's own act and needs
+#: only the shape.
+_AWAITS_LEDGER_VOCABULARY = "#4723"
 
 #: Activity-shaped dict literals still built in core, by ``(file, function)``,
 #: with how many each holds.  Each row is removed by the issue it names; add
@@ -57,15 +56,15 @@ _BASELINE: dict[tuple[str, str], tuple[int, str]] = {
     (
         "vultron/core/behaviors/embargo/expiry_tree.py",
         "expiry_payload_snapshot",
-    ): (1, _AWAITS_PARTICIPANT_COPY),
+    ): (1, _AWAITS_LEDGER_VOCABULARY),
     (
         "vultron/core/behaviors/embargo/expiry_tree.py",
         "honour_late_accept_payload_snapshot",
-    ): (1, _AWAITS_PARTICIPANT_COPY),
+    ): (1, _AWAITS_LEDGER_VOCABULARY),
     (
         "vultron/core/behaviors/case/nodes/ownership_offer_expiry.py",
         "ownership_offer_expiry_snapshot",
-    ): (1, _AWAITS_EXPIRY_FORM),
+    ): (1, _AWAITS_LEDGER_VOCABULARY),
 }
 
 _ACTIVITY_KEYS = frozenset({"type", "actor"})
