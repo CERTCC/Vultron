@@ -92,9 +92,10 @@ warn, and send an `as_Question` asking the **report receiver** — the only acto
 already trusted — to resend the bootstrap.
 
 The queue record also carries the stub Invite's trust anchor (`invite_anchored`,
-PCR-03-004 path b), so expiry empties an anchored record but keeps it, and the window
-opens with the first activity queued, not with the Invite: the time an invitee takes
-to answer must not cost it the anchor that admits the case's `Announce` (#4915).
+PCR-03-004 path b), so expiry empties an anchored record but keeps it until the
+bootstrap arrives and deletes it, and the window opens with the first activity queued,
+not with the Invite: the time an invitee takes to answer must not cost it the anchor
+that admits the case's `Announce` (#4915).
 
 The queue's `case_actor_id` is a replay target until an Invite sets `invite_anchored`:
 the first deferred activity's sender writes it, so any actor could otherwise anchor

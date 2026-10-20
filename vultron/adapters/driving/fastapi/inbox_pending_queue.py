@@ -227,7 +227,8 @@ def _replay_pending_case_activities(
     """Move deferred activities for *case_id* back onto the live inbox queue.
 
     Before replaying, checks whether the pending queue has expired.  If
-    it has, the queue is dropped instead of replayed (CBT-03-003).  This
+    it has, the queue and its record are dropped instead of replayed
+    (CBT-03-003), a stub Invite's anchor included.  This
     handles the case where bootstrap arrives after the expiry window —
     the bootstrap itself is accepted, but the stale queued items are
     discarded.
@@ -263,6 +264,9 @@ def _replay_pending_case_activities(
             case_id,
             len(pending.activity_ids),
         )
+        # Expiry keeps a stub Invite's anchor, but the case is held now and
+        # names its CASE_MANAGER itself, so the record has no use left.
+        queue_dl.delete("PendingCaseInbox", pending_id)
         return
 
     for activity_id in pending.activity_ids:

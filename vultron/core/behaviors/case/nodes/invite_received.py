@@ -150,14 +150,25 @@ class RecordInviteTrustAnchorNode(DataLayerAction):
                     }
                 )
             )
-            self.logger.info(
-                "%s: trust anchor recorded for case '%s' (CaseActor '%s'),"
-                " replacing queue-recorded sender '%s'",
-                self.name,
-                self.case_id,
-                self.case_actor_id,
-                existing.case_actor_id,
-            )
+            if existing.case_actor_id is not None and same_actor_id(
+                existing.case_actor_id, self.case_actor_id
+            ):
+                self.logger.info(
+                    "%s: queue's sender for case '%s' confirmed as trust"
+                    " anchor (CaseActor '%s')",
+                    self.name,
+                    self.case_id,
+                    self.case_actor_id,
+                )
+            else:
+                self.logger.info(
+                    "%s: trust anchor recorded for case '%s' (CaseActor"
+                    " '%s'), replacing queue-recorded sender '%s'",
+                    self.name,
+                    self.case_id,
+                    self.case_actor_id,
+                    existing.case_actor_id,
+                )
         elif same_actor_id(existing.case_actor_id, self.case_actor_id):
             # Idempotent re-delivery of the same Invite — no action.
             self.logger.debug(
