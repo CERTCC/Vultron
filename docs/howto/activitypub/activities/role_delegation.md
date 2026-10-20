@@ -111,7 +111,7 @@ Reply to the Case Manager only, never to the Case Owner, with the forwarded `Off
 The Case Manager acts on your answer only if you are the target of a role offer it recorded, and only while that offer is open ([CM-33-005](../../../reference/specs/protocol.md#cm-33-005)).
 The offer is open until the Case Manager records an `Accept` or `Reject` of it.
 An answer that names the forward is matched to the recorded offer through the forward's `inReplyTo`, never through the copy of the offer your answer carries.
-That copy must still name the offered role and you as the target, because every participant grants the role from it.
+That copy must still name the offered role and you as the target, because every participant reads the grant from it, so the role granted is always the one the case offered and never one your answer names.
 The Case Manager refuses an answer from anyone else, an answer to an offer that is no longer open, and an answer whose copy names another role or target, and records nothing for it.
 If it refuses your own answer because the offer is no longer open or your copy differs, it sends you the [refusal notice](../../../reference/messages/faults_and_acknowledgements.md#refusal-notice): a `Reject` of your answer, with the reason in `summary`.
 If your answer is delivered again after the Case Manager recorded it, the Case Manager changes nothing.
