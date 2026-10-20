@@ -630,7 +630,8 @@ groups:
       stored under the note's id, the handler MUST refuse the `Add` before the
       commit, whatever the carried note says, unless the case's ledger already
       records that same `Add`, which it MUST report as a `SKIPPED` redelivery. It
-      MUST NOT replace a stored note; a change to one is an `Update(Note)`.
+      MUST NOT replace a stored note; a change to one would be an `Update(Note)`,
+      which this implementation does not route.
     rationale: >-
       Notes are persisted and linked to cases, consistent with the case management
       data model. The refusal keys on the id alone because the inbox's routing
