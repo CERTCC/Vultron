@@ -401,14 +401,10 @@ groups:
     rationale: >-
       Ingress is the first point at which the receiver can consult durable evidence of
       a prior delivery, so the HTTP adapter realises the early filtering ID-05-002
-      permits there, in the background task rather than the route handler. The
-      evidence is keyed by the receiver: a row under the sender's id is read as one of
-      the receiver's own activities (DL-06-006). A route-level check on the actor's
-      `inbox` collection was a no-op, since that field is a URI string (#3141). Intake's
-      archive keeps the core summary of an activity, not a body ingress can rebuild for
-      routing, so a redelivery of an archived activity is rebuilt from its own body and
-      the handlers' idempotency guards answer it (ID-04); comparing a resend's body
-      against the archive is #3762.
+      permits there. The evidence is keyed by the receiver: a row under the sender's
+      id reads as one of its own (DL-06-006). Intake's archive keeps a core summary,
+      not a routable body, so an archived activity's resend is rebuilt from its own
+      body and handler idempotency answers it (ID-04); body comparison is #3762.
     verification: >-
       `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_resend_under_a_held_id_routes_without_this_body_evidence`
       asserts a second body under a deferred id routes the held copy and is not held

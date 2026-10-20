@@ -493,10 +493,9 @@ groups:
       `Announce(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not
       reach nested models, and since ARCH-25-003 the nested objects are mutable core
       classes. The evidence is therefore a value taken at parse, not a property of the graph.
-      The record that holds a deferred activity keeps its sealed body (IO-03-004),
-      so the replay carries the same evidence as the first delivery (ADR-0149). A
-      resend is a different delivery: attaching its body to the copy routed in its
-      place would record a claim about the wrong event.
+      The deferred record keeps the sealed body (IO-03-004), so a replay carries the
+      first delivery's evidence (ADR-0149). A resend is another delivery: its body on
+      the copy routed in its place would claim the wrong event.
     verification: >-
       `test/architecture/test_wire_artifact_immutability.py` parses every example activity as a
       sender delivers it and, for each class reachable in the parsed tree, overwrites the fields
