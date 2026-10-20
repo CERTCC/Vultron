@@ -77,7 +77,6 @@ from vultron.primitives import NonEmptyString
 
 __all__ = [
     "ClearRefusedAssertionNode",
-    "EMBARGO_REFUSAL_ANSWERS",
     "EmitRefusalNoticeNode",
     "OWNER_CLOSE_DECLINE",
     "REFUSAL_NOTICE_EXEMPTIONS",
@@ -113,27 +112,10 @@ OWNER_CLOSE_DECLINE: Final = RefusalNoticeExemption(
     ),
 )
 
-EMBARGO_REFUSAL_ANSWERS: Final = RefusalNoticeExemption(
-    name="embargo-refusal-answers",
-    reason=(
-        "An embargo tree decides per message which of its refusals the"
-        " CASE_MANAGER answers and how (MSM-07-003, MSM-07-004, MSM-07-008,"
-        " MSM-07-010): several already answer in place through a diversion"
-        " (CLP-10-026), and a repeated answer to an embargo is reported"
-        " SKIPPED (CM-13-005).  #4755 retires this exemption: the notice"
-        " answers each embargo tree it can, and a tree with a diversion,"
-        " which the factory cannot give the notice (CLP-10-026), names an"
-        " exemption of its own that says how its refusals are answered."
-    ),
-)
-
 #: Every registered exemption, by name.  The factory refuses any other.
 REFUSAL_NOTICE_EXEMPTIONS: Final[Mapping[str, RefusalNoticeExemption]] = (
     MappingProxyType(
-        {
-            exemption.name: exemption
-            for exemption in (OWNER_CLOSE_DECLINE, EMBARGO_REFUSAL_ANSWERS)
-        }
+        {exemption.name: exemption for exemption in (OWNER_CLOSE_DECLINE,)}
     )
 )
 
@@ -151,30 +133,23 @@ def refusal_effects_with_notice(
     their refusal with the refusal notice to the asserter (CLP-05-001), ahead
     of the tree's own *refusal_effects*.  An exempt tree keeps only its own;
     so does a tree with no guards or no case, which refuses no assertion at
-    the CASE_MANAGER before a commit.
+    the CASE_MANAGER before a commit.  A tree with a :class:`Diversion`
+    takes the notice too: a diverted delivery has already been answered, so
+    the refusal stage runs no refusal effect for it, and the notice answers
+    only the refusals the guards make (CLP-10-026).
     :func:`~vultron.core.behaviors.case.receive_activity_tree.create_receive_activity_tree`
     calls it with the tree's *name*.
 
     Raises:
         VultronWiringError: *exemption* is not registered in
             :data:`REFUSAL_NOTICE_EXEMPTIONS`, or the tree would send no
-            notice without it (no case or no guards), so it exempts nothing,
-            or a tree with a :class:`Diversion` names no exemption: a
-            diverted delivery answers itself, so the notice would answer it
-            twice (CLP-10-026), and the tree must say how its other refusals
-            are answered.
+            notice without it (no case or no guards), so it exempts nothing.
     """
     where = f"create_receive_activity_tree({name})"
     guarded = bool(guards)
     if exemption is None:
         if case_id is None or not guarded:
             return refusal_effects
-        if any(isinstance(g, Diversion) for g in guards):
-            raise VultronWiringError(
-                f"{where}: a tree with a diversion answers its diverted"
-                " deliveries in place, so it takes no refusal notice; name a"
-                " registered refusal_notice_exemption (CLP-02-005, CLP-10-026)"
-            )
         return [refusal_notice(case_id), *refusal_effects]
     require_registered(
         exemption,

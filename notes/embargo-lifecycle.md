@@ -453,8 +453,9 @@ arms built by `_by_role()` (BT-17-001). Ratchet:
   activity to the CASE_MANAGER and `SvcEmbargoTriggerBase` records it with
   `record_pending_assertion()` (SYNC-11-002), keyed by `subject_id`, so a repeat
   inside the window is suppressed. The announced commit clears it (SYNC-11-003);
-  a refused proposal is closed by the manager's `Reject`
-  (`close_refused_embargo_proposal`).
+  a refused proposal, or an `Accept` refused with ER, is closed by the
+  manager's `Reject` (`close_refused_embargo_ask`); a participant takes a
+  `Reject(Invite(EmbargoEvent))` from the CASE_MANAGER alone.
 
 The receive-side cascade (`ThreatTerminationBranchNode`) reaches the same
 `terminate_embargo_bt`, so a non-manager receiver asks too, and that ask is a
@@ -491,7 +492,7 @@ embargo tree; a resolver that finds nobody fails.
 **Only the CASE_MANAGER records an answer, and only one it can apply.** Answer
 and owner-decision effects sit behind the CASE_MANAGER gate; anyone else reports
 `REFUSED` and writes nothing (HP-01-005). Refuse before the guarded commit, with
-read-only guards (`IsRejectableEmbargoNode`, `IsOpenEmbargoProposalNode`,
+read-only guards (`IsAnswerableEmbargoNode`, `IsOpenEmbargoProposalNode`,
 `OwnerMayActivateEmbargoNode`): once committed, a failing replica apply blocks
 its persist (SYNC-12-001) and stalls every later entry (SYNC-14-001).
 

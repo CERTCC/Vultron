@@ -1535,7 +1535,9 @@ groups:
       pending-assertion store (SYNC-11-002), write no EM state, and emit no case-status
       declaration of an EM state; the actor's replica moves when the CASE_MANAGER's commit is
       announced (EP-09-007). The CASE_MANAGER's `Reject` of a refused proposal closes the
-      pending entry.
+      pending entry, and so does its ER to an `Accept` it refuses once P/X/A is set
+      (EMB-02-002): a participant takes a `Reject(Invite(EmbargoEvent))` from the
+      CASE_MANAGER and from nobody else (PCR-08-001, HP-01-006).
     rationale: >-
       Every embargo trigger wrote its own local EM state before the CASE_MANAGER had
       answered, then declared that state to the manager, and nothing corrected the write when
@@ -1557,7 +1559,9 @@ groups:
       the CASE_MANAGER, the pending-assertion store holds the activity, and no
       `Add(CaseStatus)` was queued; a second runs it as the role holder and asserts
       `EM.PROPOSED`. Until the implementation lands the tests are strict `xfail`s naming
-      their tracking issue.
+      their tracking issue. `test/core/use_cases/received/test_embargo_refusal_notice.py`
+      asserts that the CASE_MANAGER's ER to a participant's `Accept` passes the
+      participant's sender guard and closes its pending `Accept`.
     relationships:
     - rel_type: depends_on
       spec_id: EP-09-007

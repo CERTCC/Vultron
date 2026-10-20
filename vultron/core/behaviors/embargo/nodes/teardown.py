@@ -61,6 +61,7 @@ from vultron.core.states.embargo_register import (
     termination_reason_from_content,
 )
 from vultron.errors import (
+    INTERNAL_FAULTS,
     BtNodePreconditionError,
     VultronEntryRefusedError,
     VultronError,
@@ -161,6 +162,8 @@ class TerminationIsTimelyNode(DataLayerConditionWithPorts):
             return failure
         try:
             violations = self._violations(case)
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
         except VultronError as exc:
             violations = [str(exc)]
         if not violations:

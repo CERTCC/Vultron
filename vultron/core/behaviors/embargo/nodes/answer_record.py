@@ -43,7 +43,7 @@ from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.embargo_apply import ConsentRowChange
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
-from vultron.errors import VultronBTInternalError, VultronError
+from vultron.errors import INTERNAL_FAULTS, VultronError
 
 
 def decide_answer(
@@ -111,8 +111,8 @@ class EmbargoDecisionAppliesNode(DataLayerConditionWithPorts):
         assert self.datalayer is not None
         try:
             self._decide(self.datalayer)
-        except VultronBTInternalError:
-            raise
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
         except VultronError as exc:
             self.feedback_message = (
                 f"{self._act()} records nothing on case '{self.case_id}':"

@@ -31,7 +31,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     verdict_from_bt,
 )
 from vultron.core.use_cases.received._pending_refusal import (
-    close_refused_embargo_proposal,
+    close_refused_embargo_ask,
 )
 
 if TYPE_CHECKING:
@@ -46,7 +46,10 @@ logger = logging.getLogger(__name__)
 
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+    # The invitee answers at the CASE_MANAGER (EP-09-010); a participant
+    # takes a Reject of an Invite only from the CASE_MANAGER, refusing its
+    # proposal or its Accept (PCR-08-001, EP-09-008, EMB-02-002).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.INVITEE
     )
 
@@ -133,12 +136,13 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
 
         if door_guards_admitted(tree):
             # The door guards admitted the Reject, so the sender has standing,
-            # and a CASE_MANAGER's Reject closes the proposer's pending ask,
-            # whatever the tree then decided about the consent (EP-09-008).
+            # and a CASE_MANAGER's Reject closes the participant's pending
+            # ask, whatever the tree then decided about the consent
+            # (EP-09-008, EMB-02-002).
             logger.info(
                 "'%s' rejected embargo '%s'", rejecting_actor_id, invite_id
             )
-            close_refused_embargo_proposal(self._dl, request)
+            close_refused_embargo_ask(self._dl, request)
 
         # A repeat of a Reject already recorded is refused by the tree's
         # repeat guard before the commit, and reported SKIPPED (CM-13-005,

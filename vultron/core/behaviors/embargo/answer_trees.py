@@ -37,9 +37,6 @@ from datetime import datetime
 import py_trees
 
 from vultron.config.actor import ActorConfig
-from vultron.core.behaviors.case.nodes.refusal_notice import (
-    EMBARGO_REFUSAL_ANSWERS,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -51,7 +48,7 @@ from vultron.core.behaviors.embargo.expiry_tree import (
     late_accept_diversions,
 )
 from vultron.core.behaviors.embargo.nodes import (
-    IsRejectableEmbargoNode,
+    IsAnswerableEmbargoNode,
     RecordParticipantAcceptanceNode,
     RecordParticipantRejectionNode,
     RejectIsNotWithdrawalNode,
@@ -118,6 +115,8 @@ def accept_invite_to_embargo_tree(
         ├─ HonourLateAccept / ReinviteLateAccepter / AcknowledgeLateAccept
         │                                       # late Accept arms (EMB-17)
         ├─ InviteNotExpiredNode                 # a late Accept is no answer
+        ├─ IsAnswerableEmbargoNode              # open or active (CM-18-003)
+        ├─ EmbargoAnswerApplies (gated)         # the row can be written
         └─ AcceptInviteToEmbargoBTAct (ActTransaction)  # one act (ADR-0151)
            ├─ GuardedCommitCaseLedgerEntryBT
            └─ RecordEmbargoAcceptance (CaseManagerGate)
@@ -130,7 +129,11 @@ def accept_invite_to_embargo_tree(
     Accept (:func:`~vultron.core.behaviors.embargo.refusal_tree.pxa_accept_refusal`).
     A late Accept is routed by its compatibility with the case's embargo
     (:func:`~vultron.core.behaviors.embargo.expiry_tree.late_accept_diversions`,
-    EMB-17-001) and is never recorded as an answer.
+    EMB-17-001) and is never recorded as an answer.  An Accept of an
+    embargo that is neither active nor an open proposal is refused before
+    the commit with the reason (CM-18-003).  Every refusal a guard makes
+    here is answered with the refusal notice (CLP-02-005); a diverted
+    delivery is answered by its diversion, and a repeat gets nothing.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -157,7 +160,6 @@ def accept_invite_to_embargo_tree(
     expiry_out = {} if expiry_out is None else expiry_out
     root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",
-        refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
@@ -209,6 +211,11 @@ def accept_invite_to_embargo_tree(
                 result_out=expiry_out,
                 invitee_id=accepting_actor_id,
                 case_id=case_id,
+            ),
+            # An Accept of terms the case decided, replaced or never knew
+            # records nothing (CM-18-003, MSM-07-003).
+            IsAnswerableEmbargoNode(
+                case_id=case_id, embargo_id=embargo_id, accept=True
             ),
             # The Accept's entry carries the row it states (ADR-0122), so an
             # Accept that records nothing the case can take is refused before
@@ -263,7 +270,7 @@ def reject_invite_to_embargo_tree(
         ├─ ActivityAddressedToReceiverNode    # door: addressee (HP-01-005)
         ├─ SenderIsInviteeNode                # sender guard (ADR-0115)
         ├─ ClockDecisionsIfCaseManager        # overdue invites (CM-28-015)
-        ├─ IsRejectableEmbargoNode            # read-only guard (CLP-10-009)
+        ├─ IsAnswerableEmbargoNode            # read-only guard (CLP-10-009)
         ├─ EmbargoAnswerNotRecorded (CASE_MANAGER gate)  # repeat guard
         ├─ RejectIsNotWithdrawalNode          # read-only guard (MSM-07-004)
         ├─ EmbargoAnswerApplies (CASE_MANAGER gate)  # the row can be written
@@ -299,7 +306,6 @@ def reject_invite_to_embargo_tree(
     """
     root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",
-        refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
@@ -307,7 +313,9 @@ def reject_invite_to_embargo_tree(
         ),
         clock_decisions=embargo_clock_decisions(case_id),
         precondition_guards=[
-            IsRejectableEmbargoNode(case_id=case_id, embargo_id=embargo_id),
+            IsAnswerableEmbargoNode(
+                case_id=case_id, embargo_id=embargo_id, accept=False
+            ),
             # A repeat of a Reject already recorded commits nothing and
             # announces nothing (CM-13-005, HP-01-003).
             case_manager_admits_embargo_answer_guard(

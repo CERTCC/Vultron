@@ -43,9 +43,9 @@ from vultron.core.behaviors.embargo.nodes.cascade import (
 from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
     IsActiveEmbargoNode,
+    IsAnswerableEmbargoNode,
     IsCloseBlockedByActiveEmbargoNode,
     IsProposedEmbargoNode,
-    IsRejectableEmbargoNode,
     LookupParticipantNode,
     ValidateCaseExistsNode,
 )
@@ -168,7 +168,7 @@ __all__ = [
     # Conditions
     "ValidateCaseExistsNode",
     "IsActiveEmbargoNode",
-    "IsRejectableEmbargoNode",
+    "IsAnswerableEmbargoNode",
     "EmbargoOutlivesDisclosureNode",
     "OwnerRejectionAppliesNode",
     "IsCloseBlockedByActiveEmbargoNode",
