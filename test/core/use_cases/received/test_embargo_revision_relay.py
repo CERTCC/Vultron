@@ -1172,7 +1172,7 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
     The first delivery raises while building the second Invite.  The rows
     the proposal creates, the relay and the manager's own consent are one
     act (ADR-0146), so the first Invite, its row and every new row are
-    undone with it: nothing is left for a later run to finish.
+    undone with it, and no redelivery finishes the act later.
     """
     case_id = "https://example.org/cases/relay-partial"
     dl, revision = _active_case_with_revision(
@@ -1197,6 +1197,20 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
 
     assert adapter.calls == 2, "the fault came after the first Invite"
     _assert_relay_kept_nothing(dl, case_id, revision.id_, entries_before)
+
+    # Nothing finishes the act later.  The proposal's entry and its PROPOSE
+    # step stand without rows (the #4933 gap), so a redelivery is refused
+    # and relays nothing.  #4933 removes the entry with its consequences.
+    again = InviteToEmbargoOnCaseReceivedUseCase(
+        dl,
+        event,
+        sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert again.disposition is HandlerDisposition.REFUSED
+    assert _relayed_invites(dl) == []
 
 
 @pytest.mark.spec("CLP-07-015")

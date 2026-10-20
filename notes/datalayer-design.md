@@ -32,6 +32,7 @@ related_notes:
   - notes/triggerable-behaviors.md
 relevant_packages:
   - vultron/core/ports
+  - vultron/core/behaviors
   - vultron/adapters/driven
   - vultron/wire/as2/vocab
 ---
@@ -311,6 +312,8 @@ block raises (DL-02-004, ADR-0146, CLP-07-015). The rules that keep it sound:
   the session lock, so other writers wait for the whole block. A waiter can be
   the event loop (the outbox drain writes synchronously), and on a file store a
   wait past SQLite's busy timeout (5 s by default) raises `database is locked`.
+  An `ActTransaction` holds the lock for a whole act's effects, so keep slow or
+  external work (a call-out, another store) out of it.
 
 ---
 

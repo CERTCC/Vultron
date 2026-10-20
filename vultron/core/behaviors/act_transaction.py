@@ -79,13 +79,28 @@ def act_transaction(datalayer: CasePersistence) -> Iterator[None]:
         committed = True
     finally:
         _AFTER_ROLLBACK.reset(token)
-        if not committed:
-            # Rolled back.  A change that cannot be applied again raises from
-            # here, with the block's own failure as its context.
-            for apply in owed:
-                apply()
+        # The outer block owes them too, whatever happens below: its own
+        # rollback would undo what this block applies.
         if outer is not None:
             outer.extend(owed)
+        if not committed:
+            _apply_each(owed)
+
+
+def _apply_each(owed: list[Callable[[], None]]) -> None:
+    """Run every one of *owed*, in order, even when one of them raises.
+
+    A change that cannot be applied again raises after the rest have run,
+    with the block's own failure (and any earlier such failure) as its
+    context.
+    """
+    if not owed:
+        return
+    first, *rest = owed
+    try:
+        first()
+    finally:
+        _apply_each(rest)
 
 
 def apply_after_rollback(apply: Callable[[], None]) -> None:
@@ -124,8 +139,8 @@ class ActTransaction(py_trees.composites.Sequence):
     back and the exception propagates to ``BTBridge``, as without the
     wrapper.  The decision is made before the parent sees this node's status.
 
-    Every child must finish in one tick: a ``RUNNING`` result rolls the block
-    back and raises :class:`ActTransactionError`.
+    Every child must finish in one tick: a ``RUNNING`` result stops the
+    children, rolls the block back and raises :class:`ActTransactionError`.
 
     Composable: an ``ActTransaction`` inside another is part of the outer
     one, so a subtree that wraps its own act (``terminate_embargo_bt``) may
@@ -189,9 +204,12 @@ class ActTransaction(py_trees.composites.Sequence):
                 break
             yield node
         if self.status == Status.RUNNING:
+            running = getattr(self.current_child, "name", None)
+            # INVALID stops every running child; the act itself failed.
+            self.stop(Status.INVALID)
+            self.status = Status.FAILURE
             raise ActTransactionError(
-                f"{self.name}: child"
-                f" {getattr(self.current_child, 'name', None)!r} returned"
+                f"{self.name}: child {running!r} returned"
                 " RUNNING; an act's transaction cannot stay open between"
                 " ticks (CLP-07-015)"
             )

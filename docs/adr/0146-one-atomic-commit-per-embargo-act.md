@@ -79,6 +79,8 @@ For a received act, intake commits the act's own entry first, in its own transac
 The consequences then commit as one transaction after it.
 So a failure in the consequences leaves the received act's entry committed without them.
 The change that entry itself carries, such as the register step of a received proposal, is applied again after the rollback, so the CASE_MANAGER holds what every replica copies from the entry.
+The consent rows and the relayed Invites that follow it are not kept, so a received proposal whose relay fails stays in the register with no rows, and a redelivery of it is refused.
+Nothing finishes it later; closing the gap removes the entry with its consequences.
 Closing this gap moves the received act's own entry into the same transaction as its consequences, which needs a revision of ADR-0111 (#4933).
 
 ### Why revision 1 was replaced

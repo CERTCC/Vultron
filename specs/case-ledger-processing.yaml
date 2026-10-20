@@ -694,9 +694,12 @@ groups:
       run finishes it and no repair pass re-decides its rows (ADR-0146). The same
       holds for the consequences a later node commits, such as the stub re-issue
       (CM-11-016) and a proposal's relay (EP-09-002): they run in the act's
-      transaction, so a failed relay never leaves a proposal that nothing relays
-      (#4949). Known atomicity gap: a received act's own entry is committed by
-      intake before its consequences (ADR-0111, #4933).
+      transaction, so a failed relay or re-issue keeps none of the act's
+      consequences, and a trigger act keeps nothing at all (#4949). Known
+      atomicity gap: a received act's own entry is committed by intake before its
+      consequences, and the change it carries stands with it, so a received
+      proposal whose relay fails stays in the register with no consent rows and
+      no Invites, and nothing relays it (ADR-0111, #4933).
     verification: >-
       A test fails the second commit of a two-entry act and asserts the
       CASE_MANAGER keeps no entry, no queued activity and no row change from it; a

@@ -158,6 +158,8 @@ def test_a_running_child_is_a_wiring_fault_that_keeps_nothing(
     assert "ActTransactionError" in result.feedback_message
     assert "'Waits' returned RUNNING" in result.feedback_message
     assert not _held(dl, "act")
+    assert tree.status is Status.FAILURE
+    assert all(child.status is not Status.RUNNING for child in tree.children)
 
 
 def test_an_act_inside_another_rolls_back_with_it(dl: SqliteDataLayer):
@@ -178,9 +180,12 @@ def test_an_act_inside_another_rolls_back_with_it(dl: SqliteDataLayer):
 def test_the_status_is_settled_before_the_parent_reads_it(
     dl: SqliteDataLayer,
 ):
-    """A Sequence parent that sees FAILURE stops; the rollback already ran."""
-    after_parent = _save(dl, "sibling")
-    tree = py_trees.composites.Sequence(
+    """A Selector parent that sees FAILURE runs its fallback outside the act.
+
+    Had the act yielded its status with its transaction still open, the
+    fallback's write would run inside it and be rolled back with it.
+    """
+    tree = py_trees.composites.Selector(
         name="Parent",
         memory=False,
         children=[
@@ -188,15 +193,49 @@ def test_the_status_is_settled_before_the_parent_reads_it(
                 name="Act",
                 children=[_save(dl, "act", status=Status.FAILURE)],
             ),
-            after_parent,
+            _save(dl, "fallback"),
         ],
     )
 
     result = _run(dl, tree)
 
-    assert result.status is Status.FAILURE
+    assert result.status is Status.SUCCESS
     assert not _held(dl, "act")
-    assert not _held(dl, "sibling")
+    assert _held(dl, "fallback")
+
+
+def test_an_inner_act_that_rolls_back_inside_an_outer_one_that_commits(
+    dl: SqliteDataLayer,
+):
+    """Only the inner act's writes are undone; the outer act keeps its own."""
+    tree = ActTransaction(
+        name="Outer",
+        children=[
+            _save(dl, "outer"),
+            py_trees.composites.Selector(
+                name="InnerOrFallback",
+                memory=False,
+                children=[
+                    ActTransaction(
+                        name="Inner",
+                        children=[
+                            _save(dl, "inner"),
+                            _save(dl, "fails", status=Status.FAILURE),
+                        ],
+                    ),
+                    _save(dl, "fallback"),
+                ],
+            ),
+        ],
+    )
+
+    result = _run(dl, tree)
+
+    assert result.status is Status.SUCCESS
+    assert _held(dl, "outer")
+    assert _held(dl, "fallback")
+    assert not _held(dl, "inner")
+    assert not _held(dl, "fails")
 
 
 def test_a_case_manager_gate_body_can_be_one_act():
@@ -257,6 +296,43 @@ class TestApplyAfterRollback:
 
         assert _held(dl, "committed")
         assert not _held(dl, "inner")
+
+    def test_an_inner_rollback_applies_it_inside_an_outer_act_that_commits(
+        self, dl: SqliteDataLayer
+    ):
+        with act_transaction(dl):
+            with pytest.raises(_Boom):
+                with act_transaction(dl):
+                    apply_after_rollback(lambda: dl.save(_note("committed")))
+                    dl.save(_note("inner"))
+                    _raise()
+            dl.save(_note("outer"))
+
+        assert _held(dl, "committed")
+        assert _held(dl, "outer")
+        assert not _held(dl, "inner")
+
+    def test_a_change_that_fails_again_does_not_stop_the_rest(
+        self, dl: SqliteDataLayer
+    ):
+        """Every owed change runs; the failure is raised with the act's own
+        failure as its context, and the outer act still owes them all."""
+        applied: list[str] = []
+
+        def _fails_again() -> None:
+            applied.append("first")
+            raise RuntimeError("cannot apply again")
+
+        with pytest.raises(RuntimeError, match="cannot apply again") as info:
+            with act_transaction(dl):
+                with act_transaction(dl):
+                    apply_after_rollback(_fails_again)
+                    apply_after_rollback(lambda: applied.append("second"))
+                    _raise()
+
+        assert isinstance(info.value.__context__, (_Boom, RuntimeError))
+        # The inner rollback ran both, and so did the outer one.
+        assert applied == ["first", "second", "first", "second"]
 
     def test_with_no_act_open_it_is_not_kept(self, dl: SqliteDataLayer):
         applied: list[str] = []
