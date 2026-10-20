@@ -15,25 +15,32 @@
 """Ingress rehydration carries the received evidence, untouched (VM-08-002).
 
 ``FastAPIIngressAdapter.rehydrate`` returns a *different* object from the one
-the parser sealed: a by-ID re-read built from storage, or an in-place hydration
+the parser sealed: a by-ID re-read from a staging store, or an in-place hydration
 for ``Announce(CaseLedgerEntry)``.  Neither is the received artifact, so the
 evidence must be carried onto it, and it must still be the body as it arrived —
 bare references included — rather than the hydrated form (ISSUE-3584).
 """
 
 import copy
+import json
 import logging
 from typing import Any
 
 import pytest
 
+from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
     StoredActivityIngressAdapter,
 )
+from vultron.adapters.driving.fastapi.inbox_staging import (
+    InlineObjectStaging,
+)
+from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
@@ -99,19 +106,29 @@ def test_by_id_rehydration_carries_the_evidence_as_received(
     assert artifact.received_evidence == received
 
 
+def _defer(dl: SqliteDataLayer, body: dict[str, Any]) -> None:
+    """Deliver *body* and hold it, as the inbox does for an unknown case."""
+    staging = InlineObjectStaging(dl)
+    adapter = FastAPIIngressAdapter(dl=dl, staging=staging)
+    artifact = adapter.parse(body)
+    assert artifact is not None
+    adapter.rehydrate(artifact)
+    assert staging.hold_for_replay(artifact.id_)
+
+
 @pytest.mark.spec("VM-08-002")
 @pytest.mark.spec("IE-10-001")
 def test_resend_under_a_held_id_routes_without_this_body_evidence(
     dl: SqliteDataLayer, caplog: pytest.LogCaptureFixture
 ):
-    """A second body under an id already stored does not lend it its evidence.
+    """A second body under a deferred id routes the held copy, unsealed.
 
-    The by-ID read rebuilds the *first* delivery, so sealing the second body's
-    text onto it would describe an activity other than the one routed.
+    The held copy is the *first* delivery, so sealing the second body's text
+    onto it would describe an activity other than the one routed.
     """
     first = _offer_of_stored_report(dl)
     first["summary"] = "first"
-    FastAPIIngressAdapter(dl=dl).parse(first)
+    _defer(dl, first)
     second = {**copy.deepcopy(first), "summary": "second"}
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(second)
@@ -120,9 +137,13 @@ def test_resend_under_a_held_id_routes_without_this_body_evidence(
     with caplog.at_level(logging.INFO):
         routed = adapter.rehydrate(artifact)
 
-    assert routed.summary == "first", "precondition: stored copy routed"
+    assert routed.summary == "first", "precondition: held copy routed"
     assert routed.received_evidence is None
     assert artifact.received_evidence == second
+    held = dl.read(DeferredInboxActivity.build_id(first["id"]))
+    assert isinstance(held, DeferredInboxActivity), "kept for its replay"
+    assert held.received_body is not None
+    assert json.loads(held.received_body) == first, "not held again"
     assert any(
         r.levelno == logging.INFO
         and first["id"] in r.getMessage()
@@ -132,15 +153,42 @@ def test_resend_under_a_held_id_routes_without_this_body_evidence(
 
 
 @pytest.mark.spec("VM-08-002")
-def test_replay_of_a_stored_activity_carries_no_evidence(dl: SqliteDataLayer):
-    """A replayed activity is rebuilt from its record, which keeps no body."""
+@pytest.mark.spec("IE-10-001")
+def test_resend_of_an_archived_activity_routes_without_its_evidence(
+    dl: SqliteDataLayer,
+):
+    """Detected from intake's archive, a resend carries no evidence.
+
+    The archive keeps the core summary, not a body ingress can rebuild, so
+    this delivery is rebuilt and routed unsealed; nothing is written.
+    """
     body = _offer_of_stored_report(dl)
-    FastAPIIngressAdapter(dl=dl).parse(body)
+    archive_received(dl, parse_activity(copy.deepcopy(body)))
+    before = dl.count_all()
+    adapter = FastAPIIngressAdapter(dl=dl)
+    artifact = adapter.parse(copy.deepcopy(body))
+    assert artifact is not None
+
+    routed = adapter.rehydrate(artifact)
+
+    assert routed.id_ == body["id"]
+    assert routed.received_evidence is None
+    assert artifact.received_evidence == body
+    assert dl.count_all() == before
+
+
+@pytest.mark.spec("VM-08-002")
+def test_replay_of_a_deferred_activity_carries_its_own_evidence(
+    dl: SqliteDataLayer,
+):
+    """The replay parses the body held for it, so it carries that body."""
+    body = _offer_of_stored_report(dl)
+    _defer(dl, body)
 
     replayed = StoredActivityIngressAdapter(dl=dl).parse(body["id"])
 
-    assert replayed is not None, "precondition: stored activity replayed"
-    assert replayed.received_evidence is None
+    assert replayed is not None, "precondition: held activity replayed"
+    assert replayed.received_evidence == body
 
 
 @pytest.mark.spec("VM-08-002")

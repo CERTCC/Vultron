@@ -387,10 +387,11 @@ branch-diff set, or `--paths <conflicted files>` after a conflict merge alone:
 
 ```bash
 git fetch origin <base_ref> || { echo "fetch failed — stop and report"; false; }
-PYTHONPATH= uv run targeted-tests <scope> > /tmp/targeted-tests.txt; rc=$?; cat /tmp/targeted-tests.txt; echo "exit: $rc"; (exit $rc)
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
+PYTHONPATH= uv run targeted-tests <scope> > "$logs-targeted.txt"; rc=$?; cat "$logs-targeted.txt"; echo "exit: $rc"; (exit $rc)
 ```
 
-Read the first line of `/tmp/targeted-tests.txt`:
+Read the first line of `"$logs-targeted.txt"`:
 
 - **A test path** — the gate is the targeted set. Paths printed on stderr as
   `no test maps to` are left to CI; that is expected, not an error.
@@ -404,13 +405,14 @@ It carries `-m ""` so integration-marked tests among the selected files are
 not deselected by the `addopts` default:
 
 ```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
 gate=$(PYTHONPATH= uv run targeted-tests <scope> --pytest); rc=$?
-[ "$rc" -eq 0 ] && { eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; }; echo "exit: $rc"; (exit $rc)
+[ "$rc" -eq 0 ] && { eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; }; echo "exit: $rc"; (exit $rc)
 ```
 
 **Add the CI failure being fixed when it is outside the set.**
 `targeted-tests` cannot see CI (PAD-18-003). If the gate is a targeted set
-(the first line of `/tmp/targeted-tests.txt` is a test path) and the
+(the first line of `"$logs-targeted.txt"` is a test path) and the
 iteration's input includes a CI test failure whose test file is not one of
 those paths (and is not under a listed directory), append that file to the
 gate, not the full suite: CI runs everything else on the push. A `full` gate
@@ -418,14 +420,15 @@ already runs every test; appending a path to it would narrow it to that one
 file, so leave it as printed.
 
 ```bash
+logs="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")"  # one set per worktree
 gate="$gate <failing test file>"
-eval "$gate" > /tmp/pytest-gate.log 2>&1; rc=$?; tail -20 /tmp/pytest-gate.log; echo "exit: $rc"; (exit $rc)
+eval "$gate" > "$logs-gate.log" 2>&1; rc=$?; tail -20 "$logs-gate.log"; echo "exit: $rc"; (exit $rc)
 ```
 
 Read the `exit:` line, not just the tail — see `run-tests/SKILL.md` § Constraints.
 A piped form would report 0 for a killed run and this step would push it.
 
-**If the tail output is insufficient**, grep or read `/tmp/pytest-gate.log`
+**If the tail output is insufficient**, grep or read `"$logs-gate.log"`
 — **do not re-run the test suite for more output**.
 
 **Count every gate run** for the execute summary's `Suite runs:` line

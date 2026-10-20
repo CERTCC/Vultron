@@ -13,13 +13,19 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The checks a role Offer must pass before it is recorded (CM-33-003).
+"""The checks a role Offer and its answer must pass before either is recorded.
 
-Provides :class:`RoleOfferAdmissibleNode`, the precondition guard of the
-``Offer(CaseParticipantRole)`` received tree (ADR-0039).  It runs after the
-sender guard, which has established that the CASE_MANAGER got the Offer from
-the Case Owner, or that a participant got it from the CASE_MANAGER
-(CM-33-002, CM-33-004).
+Provides:
+
+- :class:`RoleOfferAdmissibleNode` — the precondition guard of the
+  ``Offer(CaseParticipantRole)`` received tree (ADR-0039, CM-33-003).  It runs
+  after the sender guard, which has established that the CASE_MANAGER got the
+  Offer from the Case Owner, or that a participant got it from the
+  CASE_MANAGER (CM-33-002, CM-33-004).
+- :class:`RoleOfferOpenNode` — the precondition guard of the target's
+  ``Accept`` or ``Reject`` received trees (CM-33-005).  It runs after the
+  sender guard, which has established that the sender is the target of a role
+  Offer the CASE_MANAGER recorded.
 """
 
 from typing import ClassVar
@@ -28,10 +34,16 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.protocol_pair import (
+    ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE,
+)
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_offer import (
+    RecordedRoleOffer,
+    answered_role_offer,
     entry_names_role_offer,
     recorded_role_offer,
     role_offer_forward_id,
@@ -41,6 +53,7 @@ from vultron.core.predicates.addressing import (
     same_actor_id,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronBTInternalError, VultronNotFoundError
 
 
 class RoleOfferAdmissibleNode(
@@ -190,4 +203,178 @@ class RoleOfferAdmissibleNode(
         return Status.SUCCESS
 
 
-__all__ = ["RoleOfferAdmissibleNode"]
+class RoleOfferOpenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
+    """Guard: the role Offer an answer names is open, and the answer is to it.
+
+    Runs right after the answer's sender check, which has established that
+    the sender is the target of a role Offer the CASE_MANAGER recorded
+    (:class:`~vultron.core.behaviors.sender_entitlement.SenderIsRoleOfferTargetNode`),
+    so only the target learns the Offer's state.  The Offer and its state are
+    read from this store's ledger
+    (:func:`~vultron.core.participants.role_offer.answered_role_offer`).
+
+    - A **redelivery** of the answer that closed the Offer is not a refusal
+      (HP-01-003).  The guard sets :attr:`is_redelivery`, and the handler
+      reports the run as ``SKIPPED``.  When the answer's effects are done it
+      fails, so nothing downstream runs.  When it is an Accept whose grant
+      the CASE_MANAGER's own replica does not hold, the grant failed after
+      the commit, and the guard admits the redelivery to finish it: the
+      commit reuses the recorded entry rather than adding one, and the grant
+      is idempotent.  It admits only a redelivery that carries the recorded
+      role and target, the copy the entry already holds.
+    - An answer to an Offer another answer already closed is refused, with no
+      entry and no role change (CM-33-005).
+    - An answer whose carried Offer names another role or target than the
+      recorded Offer is refused.  The entry the CASE_MANAGER commits is the
+      answer as received, and every replica grants the role that entry's
+      carried Offer names (CM-02-016), so a carried copy that disagrees with
+      the recorded Offer would grant on the replicas what the CASE_MANAGER
+      never offered.
+
+    Read-only; the sender guard admits no sender at any store but the
+    CASE_MANAGER, so only the CASE_MANAGER runs it.
+
+    Spec: CM-33-005, CM-02-016, HP-01-003, CLP-10-022.
+    """
+
+    _REPEAT_FLAG = "is_redelivery"
+
+    def __init__(
+        self,
+        case_id: str,
+        offer_id: str | None,
+        reply_id: str,
+        carried_role: CVDRole | None,
+        carried_target_id: str | None,
+        name: str | None = None,
+    ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case the answer names.
+            offer_id: The Offer the answer names.
+            reply_id: The answer's own id, so a redelivery is recognised.
+            carried_role: The role the Offer the answer carries names.
+            carried_target_id: The target the Offer the answer carries names.
+            name: Optional node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.offer_id = offer_id
+        self.reply_id = reply_id
+        self.carried_role = carried_role
+        self.carried_target_id = carried_target_id
+        self.is_redelivery = False
+        """``True`` when the last run found the answer already ledgered as
+        the one that closed the Offer: a benign no-op, not a refusal."""
+
+    def _refuse(self, reason: str) -> Status:
+        self.feedback_message = f"{reason} — REFUSED (CM-33-005)"
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def _recorded_offer(self, case: VulnerabilityCase) -> RecordedRoleOffer:
+        """The Offer the answer names, as the CASE_MANAGER recorded it.
+
+        Raises:
+            VultronBTInternalError: The Offer the sender check found is not
+                recorded, a local anomaly rather than the sender's refusal.
+        """
+        assert self.datalayer is not None
+        # The sender check ran first and found this Offer, so its absence now
+        # is a local anomaly, not the sender's refusal: raise, so the bridge
+        # flags an internal error instead of a REFUSED verdict.
+        manager_id = resolve_case_manager_id(case, self.datalayer)
+        if manager_id is None or self.offer_id is None:
+            raise VultronBTInternalError(
+                f"{self.name}: the role Offer the sender check found is gone"
+                f" (offer {self.offer_id}, case '{self.case_id}', manager"
+                f" {manager_id})"
+            )
+        try:
+            return answered_role_offer(
+                self.datalayer, self.case_id, self.offer_id, manager_id
+            )
+        except VultronNotFoundError as exc:
+            raise VultronBTInternalError(
+                f"{self.name}: the role Offer the sender check found is gone"
+                f" ({exc})"
+            ) from exc
+
+    def _carries_recorded_offer(self, offer: RecordedRoleOffer) -> bool:
+        """Whether the answer's carried Offer names the recorded role and target."""
+        return self.carried_role is not None and entry_names_role_offer(
+            offer.entry, self.carried_role, self.carried_target_id
+        )
+
+    def _grant_pending(
+        self, case: VulnerabilityCase, offer: RecordedRoleOffer
+    ) -> bool:
+        """Whether the closing Accept's grant is missing from this replica."""
+        assert self.datalayer is not None and self.carried_role is not None
+        if (
+            offer.closed_by_semantic_type
+            != ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE
+        ):
+            return False
+        participant_id = participant_id_for_actor(
+            case.actor_participant_index, offer.target_id
+        )
+        participant = (
+            self.datalayer.read(participant_id) if participant_id else None
+        )
+        return isinstance(participant, CaseParticipant) and not (
+            participant.has_role(self.carried_role)
+        )
+
+    def _redelivery(
+        self, case: VulnerabilityCase, offer: RecordedRoleOffer
+    ) -> Status:
+        """Judge a redelivery of the answer that closed the Offer."""
+        self.is_redelivery = True
+        if self._carries_recorded_offer(offer) and self._grant_pending(
+            case, offer
+        ):
+            self.feedback_message = (
+                f"answer '{self.reply_id}' already closed role Offer"
+                f" '{offer.offer_id}' but its grant is not applied —"
+                " redelivery resumes the grant (HP-01-003)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+        self.feedback_message = (
+            f"answer '{self.reply_id}' already closed role Offer"
+            f" '{offer.offer_id}' — redelivery, nothing to apply"
+            " (HP-01-003)"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def update(self) -> Status:
+        """Check the Offer is open; see the class docstring."""
+        self.is_redelivery = False
+        if (f := self._require_datalayer()) is not None:
+            return f
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: the sender check found this case
+        offer = self._recorded_offer(case)
+        if offer.answer_id == self.reply_id:
+            return self._redelivery(case, offer)
+        if offer.answer_id is not None:
+            return self._refuse(
+                f"role Offer '{offer.offer_id}' for case '{self.case_id}' was"
+                f" already closed by '{offer.answer_id}'"
+                f" ({offer.closed_by_semantic_type})"
+            )
+        if not self._carries_recorded_offer(offer):
+            return self._refuse(
+                f"answer '{self.reply_id}' carries an Offer naming role"
+                f" {self.carried_role} for '{self.carried_target_id}', not"
+                f" the role and target of recorded role Offer"
+                f" '{offer.offer_id}'"
+            )
+        return Status.SUCCESS
+
+
+__all__ = ["RoleOfferAdmissibleNode", "RoleOfferOpenNode"]

@@ -22,11 +22,16 @@ under test reads it the way production does.
 
 from typing import Any
 
+from vultron.adapters.driving.fastapi.inbox_staging import (
+    InlineObjectStaging,
+)
+from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.semantic_registry import extract_event
+from vultron.wire.as2.parser import parse_activity
 
 
 def archive_received(dl: Any, activity: Any) -> ReceivedActivityRecord:
@@ -42,6 +47,41 @@ def archive_received(dl: Any, activity: Any) -> ReceivedActivityRecord:
     record = ReceivedActivityRecord.for_activity(received)
     dl.create(record)
     return record
+
+
+def hold_deferred(dl: Any, activity: Any) -> DeferredInboxActivity:
+    """Hold *activity* in *dl* as the inbox holds one it defers.
+
+    An activity waiting on its case has not reached intake, so it has no
+    ``ReceivedActivityRecord``; the inbox holds it whole in a
+    ``DeferredInboxActivity`` under the receiver's key (DL-06-006,
+    IO-03-004).  *activity* is delivered as a sender would send it: its body
+    is parsed, staged and held through the inbox's own staging, beside the
+    core summary its event carries.
+    """
+    body = activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    parsed = parse_activity(body)
+    staging = InlineObjectStaging(dl)
+    staging.rehydrate_parsed(parsed)
+    staging.hold_for_replay(parsed.id_, extract_event(parsed).activity)
+    held = staging.held(parsed.id_)
+    if held is None:
+        raise AssertionError(f"{parsed.id_!r} was not held for replay")
+    return held
+
+
+def received_of_type(dl: CasePersistence, activity_type: str) -> list[Any]:
+    """Every *activity_type* activity *dl* holds as received, as archived.
+
+    A receiver keeps a received activity only in its ``ReceivedActivityRecord``
+    (DL-06-006), so a per-type table scan never finds one.
+    """
+    return [
+        record.activity
+        for record in dl.list_objects(ReceivedActivityRecord.__name__)
+        if isinstance(record, ReceivedActivityRecord)
+        and record.activity.type_ == activity_type
+    ]
 
 
 def received_record(

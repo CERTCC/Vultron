@@ -234,14 +234,18 @@ class TestNoteUseCases:
             update={"receiving_actor_id": case_actor_id}
         )
         assert isinstance(event, AddNoteToCaseReceivedEvent)
-        return AddNoteToCaseReceivedUseCase(
+        result = AddNoteToCaseReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        # Ingress holds nothing under the Add's own id (DL-06-006).
+        assert dl.read(activity.id_) is None
+        return result
 
     @pytest.mark.spec("HP-08-006")
+    @pytest.mark.spec("DL-06-006")
     def test_add_note_through_ingress_with_a_taken_id_is_refused(self):
         """The conflicting Add of the test above, sent through the inbox
         ingress, is refused too: the routing rebuild hands the handler the
@@ -388,6 +392,7 @@ class TestNoteUseCases:
         )
         refreshed = cast(as_VulnerabilityCase, dl.read(case_id))
         assert note_id in refreshed.notes
+        assert dl.read(activity.id_) is None, "held only as received"
 
     @pytest.mark.spec("HP-01-005")
     def test_add_note_without_an_inline_note_is_refused(self, make_payload):

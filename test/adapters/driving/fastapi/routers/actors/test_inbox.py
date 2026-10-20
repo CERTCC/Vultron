@@ -2,9 +2,9 @@
 """
 Unit tests for vultron.adapters.driving.fastapi.routers.actors._inbox.
 
-Tests inbox processing helpers in isolation from the HTTP layer. The storage
-helpers moved to ``inbox_storage`` (#3705); their tests are in
-``test/adapters/driving/fastapi/test_inbox_storage.py``.
+Tests inbox processing helpers in isolation from the HTTP layer.  Ingress
+writes nothing to the receiver's store (DL-06-006); the staged rebuild's
+tests are in ``test/adapters/driving/fastapi/test_inbox_staging.py``.
 """
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.

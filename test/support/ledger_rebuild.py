@@ -49,6 +49,10 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi.inbox_staging import (
+    InlineObjectStaging,
+    hold_activity,
+)
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models import ledger_gap_buffer, pending_assertion
 from vultron.core.models.base import CoreObject
@@ -63,7 +67,6 @@ from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.semantic_registry import extract_event, use_case_map
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
-from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry,
@@ -101,7 +104,7 @@ def run_use_case(
         "sync_port": SyncActivityAdapter(cast(Any, dl)),
         "trigger_activity": TriggerActivityAdapter(cast(Any, dl)),
         "wire_render_port": As2WireRenderAdapter(),
-        "inbox_hand_back": InboxHandBackAdapter(cast(Any, dl)),
+        "inbox_hand_back": InboxHandBackAdapter(cast(Any, dl), hold_activity),
     }
     accepted = inspect.signature(use_case).parameters
     ports = {
@@ -110,7 +113,10 @@ def run_use_case(
     verdict = use_case(dl, event, **ports).execute()
     while (queued_id := dl.inbox_pop()) is not None:
         handed_back = received_event(
-            cast(as_Activity, rehydrate(queued_id, dl=dl)),
+            cast(
+                as_Activity,
+                InlineObjectStaging(dl).rehydrate_deferred(queued_id),
+            ),
             event.receiving_actor_id,
         )
         run_use_case(dl, handed_back, without=without)

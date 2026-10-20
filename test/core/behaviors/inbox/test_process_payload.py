@@ -124,6 +124,7 @@ class _StubQueuePort:
         activity_id: str,
         case_id: str,
         case_actor_id: str | None = None,
+        activity: object | None = None,
     ) -> None:
         self.queued.append((activity_id, case_id, case_actor_id))
 

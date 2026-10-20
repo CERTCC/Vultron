@@ -12,25 +12,18 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for CaseParticipantRole received use cases (ADR-0039)."""
 
-import logging
 from unittest.mock import MagicMock
 
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.core.use_cases.received.actor.accept_reject_case_participant_role import (
-    AcceptCaseParticipantRoleReceivedUseCase,
-    RejectCaseParticipantRoleReceivedUseCase,
-)
 from vultron.core.use_cases.received.actor.case_participant_role import (
     OfferCaseParticipantRoleReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
-    accept_case_participant_role_activity,
     offer_case_participant_role_activity,
-    reject_case_participant_role_activity,
 )
 
 
@@ -278,138 +271,3 @@ class TestOfferCaseParticipantRoleReceivedUseCase:
         assert result.disposition is HandlerDisposition.REFUSED
         assert result.reason
         assert dl.outbox_list() == []
-
-
-class TestAcceptCaseParticipantRoleReceivedUseCase:
-    """Tests for AcceptCaseParticipantRoleReceivedUseCase (ADR-0039, SE-08-003)."""
-
-    _VENDOR_URI = "https://example.org/actors/vendor"
-    _CASE_ACTOR_URI = "https://example.org/actors/case-actor"
-    _CASE_URI = "https://example.org/cases/urn:uuid:test-case-role"
-
-    def _make_offer(self):
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        case = as_VulnerabilityCase(id_=self._CASE_URI, name="ROLE-TEST")
-        actor = as_Actor(id_=self._CASE_ACTOR_URI)
-        return offer_case_participant_role_activity(
-            role=CVDRole.CASE_MANAGER,
-            target_actor=actor,
-            case=case,
-            actor=self._VENDOR_URI,
-        )
-
-    def test_accept_case_participant_role_persists_acceptance(
-        self, make_payload
-    ):
-        """AcceptCaseParticipantRoleReceivedUseCase persists the Accept activity."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
-        # The Accept is authored by the case actor and received by the vendor
-        # that made the offer, so this is the *vendor's* own store: with no
-        # receiving_actor_id on the payload, the receiving actor resolves to
-        # whoever owns the store we hand in (ADR-0073).
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
-        offer = self._make_offer()
-        accept = accept_case_participant_role_activity(
-            offer, actor=self._CASE_ACTOR_URI, to=[self._VENDOR_URI]
-        )
-        event = make_payload(accept)
-
-        result = AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
-
-        assert result.disposition is HandlerDisposition.APPLIED
-        assert _archived_by_intake(dl, accept.id_)
-
-    def test_accept_case_participant_role_idempotent(self, make_payload):
-        """Repeated AcceptCaseParticipantRoleReceivedUseCase execution is a no-op."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
-        # The Accept is authored by the case actor and received by the vendor
-        # that made the offer, so this is the *vendor's* own store: with no
-        # receiving_actor_id on the payload, the receiving actor resolves to
-        # whoever owns the store we hand in (ADR-0073).
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
-        offer = self._make_offer()
-        accept = accept_case_participant_role_activity(
-            offer, actor=self._CASE_ACTOR_URI, to=[self._VENDOR_URI]
-        )
-        event = make_payload(accept)
-
-        first = AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
-        second = AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
-
-        assert first.disposition is HandlerDisposition.APPLIED
-        assert second.disposition is HandlerDisposition.SKIPPED
-
-        assert _archived_by_intake(dl, accept.id_)
-
-    def test_accept_case_participant_role_logs_acceptance(
-        self, caplog, make_payload
-    ):
-        """AcceptCaseParticipantRoleReceivedUseCase logs acceptance at INFO level."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
-        # The Accept is authored by the case actor and received by the vendor
-        # that made the offer, so this is the *vendor's* own store: with no
-        # receiving_actor_id on the payload, the receiving actor resolves to
-        # whoever owns the store we hand in (ADR-0073).
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
-        offer = self._make_offer()
-        accept = accept_case_participant_role_activity(
-            offer, actor=self._CASE_ACTOR_URI, to=[self._VENDOR_URI]
-        )
-        event = make_payload(accept)
-
-        with caplog.at_level(logging.INFO):
-            AcceptCaseParticipantRoleReceivedUseCase(dl, event).execute()
-
-        assert any("accepted" in r.message.lower() for r in caplog.records)
-
-
-class TestRejectCaseParticipantRoleReceivedUseCase:
-    """Tests for RejectCaseParticipantRoleReceivedUseCase (ADR-0039, SE-08-003)."""
-
-    _VENDOR_URI = "https://example.org/actors/vendor"
-    _CASE_ACTOR_URI = "https://example.org/actors/case-actor"
-    _CASE_URI = "https://example.org/cases/urn:uuid:test-case-role"
-
-    def _make_offer(self):
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        case = as_VulnerabilityCase(id_=self._CASE_URI, name="ROLE-TEST")
-        actor = as_Actor(id_=self._CASE_ACTOR_URI)
-        return offer_case_participant_role_activity(
-            role=CVDRole.CASE_MANAGER,
-            target_actor=actor,
-            case=case,
-            actor=self._VENDOR_URI,
-        )
-
-    def test_reject_case_participant_role_logs_warning(
-        self, caplog, make_payload
-    ):
-        """RejectCaseParticipantRoleReceivedUseCase logs a warning without raising."""
-        offer = self._make_offer()
-        reject = reject_case_participant_role_activity(
-            offer, actor=self._CASE_ACTOR_URI, to=[self._VENDOR_URI]
-        )
-        event = make_payload(reject)
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self._VENDOR_URI)
-
-        with caplog.at_level(logging.WARNING):
-            result = RejectCaseParticipantRoleReceivedUseCase(
-                dl, event
-            ).execute()
-
-        assert any("rejected" in r.message.lower() for r in caplog.records)
-        # A declined offer leaves nothing on this side to change.
-        assert result.disposition is HandlerDisposition.SKIPPED
-        # The run still archives the Reject that arrived (CLP-10-017).
-        assert _archived_by_intake(dl, reject.id_)

@@ -195,13 +195,22 @@ def _forwarded_offer_payload() -> dict:
     }
 
 
+def _record(activity: dict) -> dict:
+    """*activity* as the transferee's archive record serves it (DL-06-006)."""
+    return {
+        "type": "ReceivedActivityRecord",
+        "id": "received-activity/x",
+        "activity": activity,
+    }
+
+
 class TestIsOwnershipTransferOfferFor:
     """Unit tests for the _is_ownership_transfer_offer_for discriminator (Bug #2178)."""
 
     def test_matches_forwarded_offer_with_dict_object(self):
         obj = _forwarded_offer_payload()
         assert _is_ownership_transfer_offer_for(
-            obj, _OT_CASE_ID, _OT_TRANSFEREE_ID
+            _record(obj), _OT_CASE_ID, _OT_TRANSFEREE_ID
         )
 
     def test_matches_offer_with_bare_string_object(self):
@@ -211,7 +220,7 @@ class TestIsOwnershipTransferOfferFor:
             "object": _OT_CASE_ID,
         }
         assert _is_ownership_transfer_offer_for(
-            obj, _OT_CASE_ID, _OT_TRANSFEREE_ID
+            _record(obj), _OT_CASE_ID, _OT_TRANSFEREE_ID
         )
 
     def test_matches_offer_with_dict_target(self):
@@ -221,7 +230,7 @@ class TestIsOwnershipTransferOfferFor:
             "object": {"id": _OT_CASE_ID, "type": "VulnerabilityCase"},
         }
         assert _is_ownership_transfer_offer_for(
-            obj, _OT_CASE_ID, _OT_TRANSFEREE_ID
+            _record(obj), _OT_CASE_ID, _OT_TRANSFEREE_ID
         )
 
     def test_rejects_wrong_activity_type(self):
@@ -231,7 +240,7 @@ class TestIsOwnershipTransferOfferFor:
             "object": {"id": _OT_CASE_ID},
         }
         assert not _is_ownership_transfer_offer_for(
-            obj, _OT_CASE_ID, _OT_TRANSFEREE_ID
+            _record(obj), _OT_CASE_ID, _OT_TRANSFEREE_ID
         )
 
     def test_rejects_wrong_transferee(self):
@@ -241,7 +250,7 @@ class TestIsOwnershipTransferOfferFor:
             "object": {"id": _OT_CASE_ID},
         }
         assert not _is_ownership_transfer_offer_for(
-            obj, _OT_CASE_ID, _OT_TRANSFEREE_ID
+            _record(obj), _OT_CASE_ID, _OT_TRANSFEREE_ID
         )
 
     def test_rejects_wrong_case_id(self):
@@ -251,7 +260,7 @@ class TestIsOwnershipTransferOfferFor:
             "object": {"id": "urn:uuid:different-case"},
         }
         assert not _is_ownership_transfer_offer_for(
-            obj, _OT_CASE_ID, _OT_TRANSFEREE_ID
+            _record(obj), _OT_CASE_ID, _OT_TRANSFEREE_ID
         )
 
     def test_original_offer_to_case_actor_not_matched(self):
@@ -262,7 +271,7 @@ class TestIsOwnershipTransferOfferFor:
             "object": {"id": _OT_CASE_ID, "type": "VulnerabilityCase"},
         }
         assert not _is_ownership_transfer_offer_for(
-            original, _OT_CASE_ID, _OT_TRANSFEREE_ID
+            _record(original), _OT_CASE_ID, _OT_TRANSFEREE_ID
         )
 
 

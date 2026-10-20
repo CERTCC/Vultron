@@ -30,6 +30,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.primitives import NonEmptyString
@@ -121,8 +122,14 @@ class PendingCaseQueuePort(Protocol):
         activity_id: str,
         case_id: str,
         case_actor_id: str | None = None,
+        activity: VultronActivity | None = None,
     ) -> None:
-        """Persist *activity_id* in the deferred queue for *case_id*."""
+        """Persist *activity_id* in the deferred queue for *case_id*.
+
+        *activity* is the event's core summary of the deferred activity, held
+        with it so a core reader finds it before intake archives it
+        (DL-06-006).
+        """
         ...  # pragma: no cover
 
     def check_and_expire(self, case_id: str) -> bool:

@@ -7,7 +7,7 @@
     - **When…** a participant declines a role offered to it on the case
     - **Send:** `Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])`
     - **Send to:** the case manager
-    - **Sent by:** not yet checked
+    - **Sent by:** the addressee of the case participant role offer
     - **Reference:** [Reject case participant role](../../case_management.md#reject-case-participant-role)
 
     ??? example "Example activity"

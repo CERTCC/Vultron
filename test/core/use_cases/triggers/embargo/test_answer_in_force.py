@@ -29,6 +29,7 @@ from typing import cast
 
 import pytest
 
+from test.support.received import hold_deferred
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -137,15 +138,15 @@ def _store_received_invite(
     manager_id: str,
     invitee_id: str,
     to: list[str] | None = None,
-    own_id_copy: bool = False,
-    archive_record: bool = True,
+    deferred: bool = False,
 ) -> str:
     """Store a relayed ``Invite(EmbargoEvent)`` as the invitee received it.
 
     Intake archives it as a ``ReceivedActivityRecord``, and nothing holds it
-    under the id its sender chose (DL-06-006), so by default only the archive
-    is written.  *own_id_copy* adds the copy an Invite the inbox deferred
-    leaves under that id.  *to* overrides the single-invitee addressing.
+    under the id its sender chose (DL-06-006).  With *deferred*, it is held
+    instead as the inbox holds an Invite it defers until the case is known
+    (``DeferredInboxActivity``), with no archive yet.  *to* overrides the
+    single-invitee addressing.
     """
     invite = em_propose_embargo_activity(
         embargo,
@@ -153,9 +154,9 @@ def _store_received_invite(
         actor=manager_id,
         to=to if to is not None else [invitee_id],
     )
-    if own_id_copy:
-        dl.create(invite)
-    if archive_record:
+    if deferred:
+        hold_deferred(dl, invite)
+    else:
         received = VultronActivity.model_validate(
             invite.model_dump(by_alias=True, exclude_none=True)
         )
@@ -405,16 +406,16 @@ def test_a_held_activity_that_is_not_an_invite_is_not_found(
 
 @pytest.mark.spec("EP-09-012")
 @pytest.mark.parametrize(("answer", "verb", "semantics"), _ANSWERS)
-def test_an_invite_held_only_under_its_own_id_is_answered(
+def test_an_invite_the_inbox_still_defers_is_answered(
     in_force: _InForce,
     answer: _Answer,
     verb: str,
     semantics: MessageSemantics,
 ) -> None:
-    """A copy held only under the Invite's own id still answers.
+    """An Invite held only by the inbox, waiting on its case, still answers.
 
-    That copy rehydrates as the wire class, as an Invite the inbox deferred
-    leaves it, and the resolver reads its fields the same way.
+    The inbox holds it in a ``DeferredInboxActivity`` with the core summary
+    intake would archive, never under the Invite's own id (DL-06-006).
     """
     embargo_id = in_force.case.active_embargo_id
     assert embargo_id is not None
@@ -425,9 +426,9 @@ def test_an_invite_held_only_under_its_own_id_is_answered(
         case_id=in_force.case.id_,
         manager_id=in_force.manager_id,
         invitee_id=in_force.finder_id,
-        own_id_copy=True,
-        archive_record=False,
+        deferred=True,
     )
+    assert in_force.dl.read(deferred_invite) is None
 
     result = answer(
         in_force.dl, in_force.finder_id, in_force.case.id_, deferred_invite

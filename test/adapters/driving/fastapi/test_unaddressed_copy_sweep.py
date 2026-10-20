@@ -24,8 +24,8 @@ tree family, and asserts the copy is refused, its archive is kept
 (CLP-10-018), nothing else is written and nothing is sent.
 
 The one family that writes before it checks is ``Offer(VulnerabilityReport)``:
-it keeps the report, the Offer and its offer record first (CM-15-002), then
-refuses (:data:`_KEPT_BEFORE_THE_CHECK`).
+it keeps the report and its offer record first (CM-15-002), then refuses
+(:data:`_KEPT_BEFORE_THE_CHECK`); the Offer itself is held only as its archive.
 """
 
 from collections import Counter
@@ -59,7 +59,6 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 _BYSTANDER = canonical_actor_uri("unaddressed-bystander")
 # A separate store, so measuring the ingress never touches the bystander's.
-_INGRESS_PROBE = canonical_actor_uri("unaddressed-ingress-probe")
 #: Who an example with no ``to`` is addressed to, so the bystander's copy is a
 #: copy of mail sent to someone else, as a misrouted one would be.
 _ADDRESSEE = canonical_actor_uri("the-actual-addressee")
@@ -80,9 +79,7 @@ _REFUSED_BEFORE_ANY_TREE: dict[str, str] = {}
 #: check (``OFFER_REPORT_STORED_FIRST``, CM-15-002), with the object types it
 #: keeps.
 _KEPT_BEFORE_THE_CHECK: dict[str, frozenset[str]] = {
-    "submit_report": frozenset(
-        {"VulnerabilityReport", "Offer", "OfferRecord"}
-    ),
+    "submit_report": frozenset({"VulnerabilityReport", "OfferRecord"}),
 }
 
 
@@ -95,21 +92,6 @@ def _object_counts(dl: SqliteDataLayer) -> Counter[str]:
             if type_ != "_default"
         }
     )
-
-
-def _ingress_writes(body: dict[str, Any]) -> Counter[str]:
-    """What the inbox ingress stores before any handler runs, by type.
-
-    The ingress keeps the received activity and its inline object for
-    rehydration whatever the handler decides (#3763); that is the adapter's,
-    not a tree's, so the sweep measures the handler's writes past it.
-    """
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_INGRESS_PROBE)
-    try:
-        FastAPIIngressAdapter(dl=dl).parse(body)
-        return _object_counts(dl)
-    finally:
-        dl.close()
 
 
 def _copy_for_someone_else(activity: as_Activity) -> as_Activity:
@@ -176,7 +158,6 @@ def test_an_unaddressed_copy_is_refused_and_acts_on_nothing(
     before = _object_counts(bystander_dl)
 
     body = wire_body(activity)
-    ingress = _ingress_writes(body)
     outcome = _deliver(bystander_dl, body)
 
     assert outcome.status is InboxOutcomeStatus.REJECTED, (
@@ -198,7 +179,9 @@ def test_an_unaddressed_copy_is_refused_and_acts_on_nothing(
         if name in _REFUSED_BEFORE_ANY_TREE
         else {ReceivedActivityRecord.__name__: 1}
     )
-    written = _object_counts(bystander_dl) - before - ingress - archived
+    # Ingress writes nothing (DL-06-006, IO-03-004), so every write counted
+    # here is the handler's.
+    written = _object_counts(bystander_dl) - before - archived
     others = {type_: n for type_, n in written.items() if type_ not in kept}
     assert not others, f"{name}: an unaddressed copy wrote {others}"
     held = _object_counts(bystander_dl)

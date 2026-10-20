@@ -1098,17 +1098,9 @@ class TestSvcSuggestActorToCaseUseCase:
 class TestSvcAcceptCaseInviteUseCase:
     """Tests for the accept-case-invite trigger use case."""
 
-    @pytest.mark.parametrize(
-        "hold",
-        [
-            pytest.param(archive_received, id="archived-by-intake"),
-            pytest.param(
-                lambda dl, invite: dl.create(invite),
-                id="held-by-the-inbox-until-the-case-bootstrap",
-            ),
-        ],
-    )
-    def test_accept_creates_activity(self, hold):
+    def test_accept_creates_activity(self):
+        """The Invite is read from intake's archive: a stub Invite precedes its
+        case, so the inbox never defers it (PCR-06-005)."""
         inviter, dl_inviter = _make_actor_dl("Coordinator")
         invitee, dl_invitee = _make_actor_dl("Finder")
         dl_inviter.create(invitee)
@@ -1125,7 +1117,7 @@ class TestSvcAcceptCaseInviteUseCase:
             to=[invitee.id_],
         )
         dl_invitee.create(inviter)
-        hold(dl_invitee, invite)
+        archive_received(dl_invitee, invite)
 
         request = AcceptCaseInviteTriggerRequest(
             actor_id=invitee.id_,

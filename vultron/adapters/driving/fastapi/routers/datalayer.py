@@ -37,7 +37,7 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
-from vultron.core.use_cases._helpers import read_received_activity
+from vultron.core.use_cases._helpers import read_held_activity
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -79,8 +79,8 @@ def _read_offer(
 ) -> PersistableModel | None:
     """The Offer *offer_id* as this actor holds it, or ``None``.
 
-    Read as :func:`~vultron.core.use_cases._helpers.read_received_activity`
-    reads any activity a receiver holds: a received Offer from its archive
+    Read as :func:`~vultron.core.use_cases._helpers.read_held_activity`
+    reads any activity this actor holds: a received Offer from its archive
     record, kept under a key the receiver derives from the sender's id
     (CLP-10-017, ADR-0111), since a receiver holds no received activity under
     the sender's id (DL-06-006); otherwise the row under *offer_id*, where an
@@ -89,7 +89,7 @@ def _read_offer(
     Offer: a received Invite is not served as one.
     """
     try:
-        held = read_received_activity(
+        held = read_held_activity(
             cast(CasePersistence, datalayer),
             full_object_id(offer_id),
             _OFFER_TYPE,

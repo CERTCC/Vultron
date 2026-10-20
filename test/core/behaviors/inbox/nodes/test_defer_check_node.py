@@ -31,6 +31,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.inbox.nodes.pipeline import DeferCheckNode
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import (
     CASE_BOOTSTRAP_SEMANTICS,
     MessageSemantics,
@@ -50,6 +51,7 @@ class _StubQueuePort:
     def __init__(self, case_known: bool = False) -> None:
         self._case_known = case_known
         self.queued: list[tuple] = []
+        self.held_activities: list[object] = []
 
     def is_case_known(self, case_id: str) -> bool:
         return self._case_known
@@ -58,12 +60,16 @@ class _StubQueuePort:
         return False
 
     def queue(
-        self, activity_id: str, case_id: str, case_actor_id=None
+        self, activity_id: str, case_id: str, case_actor_id=None, activity=None
     ) -> None:
         self.queued.append((activity_id, case_id, case_actor_id))
+        self.held_activities.append(activity)
 
 
-def _make_event(semantic_type=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY):
+def _make_event(
+    semantic_type=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+    activity: VultronActivity | None = None,
+):
     """Return a minimal VultronEvent stub for DeferCheckNode."""
     obj = CoreObject(id_=ACTIVITY_ID, type_=None)
     return VultronEvent(
@@ -72,6 +78,7 @@ def _make_event(semantic_type=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY):
         semantic_type=semantic_type,
         object_=obj,
         context=None,
+        activity=activity,
     )
 
 
@@ -89,6 +96,7 @@ def _run_node(
     context_id: str,
     queue_port: _StubQueuePort | None,
     semantic_type: MessageSemantics = MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+    activity: VultronActivity | None = None,
 ) -> Status:
     """Set up the blackboard and tick DeferCheckNode once."""
     setup_bb = py_trees.blackboard.Client(name="_setup")
@@ -97,7 +105,7 @@ def _run_node(
         "inbox_context_id", access=py_trees.common.Access.WRITE
     )
     setup_bb.register_key("inbox_queue", access=py_trees.common.Access.WRITE)
-    setup_bb.inbox_event = _make_event(semantic_type)
+    setup_bb.inbox_event = _make_event(semantic_type, activity)
     setup_bb.inbox_context_id = context_id
     if queue_port is not None:
         setup_bb.inbox_queue = queue_port
@@ -130,6 +138,19 @@ class TestDeferCheckNodeNonUriContextId:
 
         assert status == Status.FAILURE
         assert len(queue.queued) == 1
+
+    @pytest.mark.spec("DL-06-006")
+    def test_the_event_activity_is_held_with_the_deferral(self):
+        """The core summary is queued with the id, for core readers (#4871)."""
+        summary = VultronActivity(
+            id_=ACTIVITY_ID, type_="Announce", actor=ACTOR_ID
+        )
+        queue = _StubQueuePort(case_known=False)
+        _run_node(
+            "https://example.org/cases/unknown-case", queue, activity=summary
+        )
+
+        assert queue.held_activities == [summary]
 
     def test_no_queue_port_skips_deferral(self):
         """Without a queue port, deferral is skipped regardless of context_id."""

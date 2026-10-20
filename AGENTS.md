@@ -26,7 +26,7 @@ documentation structure guidance.
   lookup. `DispatchNode` maps the verdict onto `InboxOutcome.status`.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
 <!-- markdownlint-disable-next-line MD013 -->
-- Tests: `timeout -k 30 1800 uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`
+- Tests: `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)`
   — run once; read `exit:` first. Never end a gate command with a pipe: a pipeline
   exits with its last stage's status, so a killed run reads as success. See
   `.agents/skills/run-tests/SKILL.md`.

@@ -37,7 +37,7 @@ import pytest
     "module",
     [
         "vultron.adapters.driving.fastapi.inbox_orchestration",
-        "vultron.adapters.driving.fastapi.inbox_storage",
+        "vultron.adapters.driving.fastapi.inbox_staging",
     ],
 )
 def test_module_imports_first_in_a_fresh_interpreter(module: str) -> None:
