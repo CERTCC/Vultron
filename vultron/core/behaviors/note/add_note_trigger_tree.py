@@ -29,6 +29,10 @@ The tree runs three steps in sequence:
    the actor's outbox (PCR-08-001).  The Case Manager attaches the note and
    commits one ``add_note_to_case`` entry from it.
 
+At the CASE_MANAGER, :func:`case_manager_add_note_trigger_bt` replaces all
+three: the note is committed as the CASE_MANAGER's own ``add_note_to_case``
+entry and attached, with no ``Add(Note)`` sent to itself (HP-08-006).
+
 This refactoring satisfies #712 AC-2: all protocol-significant domain work
 (note creation, persistence, case attachment) is performed inside the BT so
 it is visible to BT analysis and auditing tools.
@@ -38,6 +42,10 @@ from collections.abc import Callable
 
 import py_trees
 
+from vultron.core.behaviors.note.case_manager_note import (
+    CaseManagerNote,
+    CommitRequestedCaseManagerNoteNode,
+)
 from vultron.core.behaviors.note.nodes import (
     AttachNoteFromResultNode,
     CreateNoteNode,
@@ -89,5 +97,44 @@ def add_note_to_case_trigger_bt(
             ),
             AttachNoteFromResultNode(case_id=case_id, result_out=result_out),
             sender_side_bt(case_id=case_id, activity_builder=activity_builder),
+        ],
+    )
+
+
+def case_manager_add_note_trigger_bt(
+    case_id: str,
+    note_name: str,
+    note_content: str,
+    result_out: dict,
+    in_reply_to: str | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the add-note-to-case trigger BT for the case's CASE_MANAGER.
+
+    An ``Add(Note)`` the CASE_MANAGER sent itself would be refused: the note
+    is already in its store (HP-08-006).  The note is committed as its own
+    ``add_note_to_case`` entry and then attached, which the ledger fan-out
+    delivers to replicas (CLP-07-013).
+
+    Args:
+        case_id: ID of the VulnerabilityCase to attach the note to.
+        note_name: Human-readable name/subject for the note.
+        note_content: Full text content of the note.
+        result_out: Mutable dict; ``note_id``, ``note_dict`` and
+            ``activity_blob`` are written for the enclosing use case.
+        in_reply_to: Optional ID of a parent note being replied to.
+    """
+    return py_trees.composites.Sequence(
+        name="CaseManagerAddNoteToCaseTriggerBT",
+        memory=False,
+        children=[
+            CommitRequestedCaseManagerNoteNode(
+                case_id=case_id,
+                note=CaseManagerNote(
+                    name=note_name,
+                    content=note_content,
+                    in_reply_to=in_reply_to,
+                ),
+                result_out=result_out,
+            ),
         ],
     )
