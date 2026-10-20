@@ -87,11 +87,11 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     Every entry is required (CLP-07-013): the first entry that fails to
     commit stops the sequence, so no later entry is committed out of order,
     and the node returns FAILURE.  The records those entries carry were
-    written before this node ran, so the failure is surfaced, not prevented.
-    The one case that can be undone is a failed genesis on the create-case
-    trigger path, where nothing is committed and the queued ``Create`` can
-    still be taken back out of the outbox: that tree withdraws the case
-    after this node fails (``WithdrawUncommittedCaseNode``).
+    written before this node ran.  The create-case trigger runs them and
+    this node in one ``ActTransaction`` (ADR-0146), so there the failure
+    rolls back the case, its records, the queued ``Create`` and every entry
+    committed before it.  On the proposal path the failure is surfaced, not
+    prevented: the records stay without their entries (#4442).
 
     On the proposal path it runs *after* the accept flow has queued its
     ``Create(VulnerabilityCase)`` (``EmitCreateVulnerabilityCaseNode``):

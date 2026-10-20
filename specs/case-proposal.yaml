@@ -1018,8 +1018,10 @@ groups:
       receiver's system must hold the case object before any fan-out that references
       it. It is also SYNC-09-002's order: the entries record a case whose creation
       was sent, and only the `Announce(CaseLedgerEntry)` fan-out follows its
-      commit. The create-case trigger takes the same order, and there a genesis
-      commit that fails withdraws the still-pending `Create` and the case with it.
+      commit. The create-case trigger takes the same order, and there the case,
+      its records, the `Create` and every creation entry are written in one
+      DataLayer transaction (ADR-0146), so any creation entry that fails rolls
+      all of them back before delivery is told of the `Create` (DL-02-004).
       The order has a cost that is accepted deliberately: a genesis `create_case`
       commit that fails can no longer withhold the `Accept` and `Create`, which
       are already queued and whose retry marker is already cleared; the failure

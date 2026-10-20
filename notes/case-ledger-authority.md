@@ -384,10 +384,10 @@ what changed, so a retry hands back the first sealed body (ID-04-004).
 - **Every creation entry is required.** The first entry that fails to commit
   stops the sequence and the node returns FAILURE, so no later entry lands out
   of order (CLP-07-013, #4442). On both paths the node runs after the `Create`
-  is queued (CM-14-011, CP-09-009, SYNC-09-002), so the failure is surfaced, not
-  prevented. Only the trigger path can undo a failed genesis: it withdraws the
-  still-pending `Create` from the outbox (`outbox_withdraw`) and the case with it,
-  and keeps the case once delivery has taken the `Create`.
+  is queued (CM-14-011, CP-09-009, SYNC-09-002). The trigger path writes the
+  case, its records, the `Create` and the entries in one `ActTransaction`
+  (ADR-0146), so a failed entry rolls back all of them; on the proposal path the
+  failure is surfaced, not prevented, and the records stay without entries (#4442).
 - **Step 4 names the vendor** because the vendor set the genesis status.
   `("Add", "CaseStatus")` is also in `_CASE_AUTHORED_SIGNATURES` (CLP-12-001), so
   single-actor deployments (vendor is the CASE_MANAGER) validate too. That
