@@ -24,6 +24,7 @@ with the received use case in
 ``test/core/use_cases/received/actor/test_ownership.py``.
 """
 
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -189,6 +190,30 @@ def test_raises_when_proposal_names_no_case():
 
     with pytest.raises(VultronNotFoundError):
         _execute(dl, actor_id, "https://example.org/activities/offer-nocase")
+
+
+@pytest.mark.spec("TRIG-11-006")
+@pytest.mark.parametrize(
+    "inner",
+    [
+        pytest.param(SimpleNamespace(type_="Offer"), id="core-str-type"),
+        pytest.param({"type": "Offer"}, id="dict-type"),
+        pytest.param({"type_": "Offer"}, id="dict-type_"),
+    ],
+)
+def test_a_proposal_is_recognised_whatever_form_its_inner_offer_takes(inner):
+    """The inner Offer's type is read from a wire StrEnum, a core ``str`` or
+    a dict under either key: none of them is refused as not-a-proposal."""
+    case_id = "https://example.org/cases/held-forms"
+    proposal = SimpleNamespace(object_=inner, context=case_id)
+    dl = MagicMock()
+    dl.read.return_value = proposal
+    use_case = SvcWithdrawCaseOwnershipTransferUseCase.__new__(
+        SvcWithdrawCaseOwnershipTransferUseCase
+    )
+    use_case._dl = dl
+
+    assert use_case._held_case_id("https://example.org/p/1") == case_id
 
 
 @pytest.mark.spec("TRIG-11-006")

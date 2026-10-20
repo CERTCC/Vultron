@@ -491,7 +491,7 @@ groups:
       `RejectCaseOwnershipTransferActivityPattern` wraps
       `OfferCaseOwnershipTransferActivityPattern` inside a `Reject` outer
       pattern; a test marked `VAM-04-009` in `test/test_semantic_activity_patterns.py`
-      matches an Reject of the Offer to it.
+      matches a Reject of the Offer to it.
     stories:
     - story_2022_048
     - story_2022_050

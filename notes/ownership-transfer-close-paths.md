@@ -40,7 +40,9 @@ an Offer can also close without an answer (#4490):
   (not delegated). The CASE_MANAGER withdraws the Offer it made from that proposal,
   whose id it derives (`ownership_offer_id`, ADR-0148). The trigger refuses, as not
   found, a case the owner does not hold or one with no CASE_MANAGER: a withdrawal
-  goes to the CASE_MANAGER or nowhere (PCR-08-011). The CASE_MANAGER ledgers it as
+  goes to the CASE_MANAGER or nowhere (PCR-08-011). It also refuses, as not found,
+  an `offer_id` naming anything but the owner's own proposal, such as the
+  CASE_MANAGER's Offer: the owner withdraws what it sent. The CASE_MANAGER ledgers it as
   `undo_case_ownership_transfer` and broadcasts it like a Reject
   (`UndoCaseOwnershipTransferReceivedUseCase`,
   `create_undo_ownership_transfer_tree`); ownership is unchanged.

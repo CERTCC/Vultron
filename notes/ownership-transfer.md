@@ -72,7 +72,7 @@ CASE_MANAGER inbox receives the proposal
               that is neither the CASE_MANAGER nor the proposer
       1. Commits CaseLedgerEntry (propose_case_ownership_transfer).
       2. MakeOwnershipTransferOfferNode (CASE_MANAGER gate):
-         Offer(VulnerabilityCase) id=ownership_offer_id(cm, case, proposal),
+         Offer(VulnerabilityCase) id=ownership_offer_id(cm, case, proposal, owner),
          actor=case_actor_id, attributed_to=owner, to=[transferee];
          build → outbox → commit offer_case_ownership_transfer, one transaction.
       3. Announce(CaseLedgerEntry) → all participants, for each entry.
@@ -172,7 +172,8 @@ actor's `case.attributed_to` changes on its own replica (`test/ci/invariants/`).
 
 - Builds the Offer from the validated fields only; the inner Offer's id, `actor`
   and `to` are ignored (ADR-0148). Its id is `ownership_offer_id()`, derived from the
-  proposal, so a redelivery rebuilds the same Offer (OX-06-002).
+  proposal and its proposer, so a redelivery rebuilds the same Offer (OX-06-002) and
+  another sender reusing the proposal id names another Offer.
 - Build, queue and commit run in one `transaction()`: a failed commit takes the
   queued Offer back out, so no transferee holds an Offer the ledger does not
   record (CLP-07-015, SYNC-09-002).

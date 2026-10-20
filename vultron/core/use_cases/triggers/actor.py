@@ -79,6 +79,7 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
 )
+from vultron.primitives import same_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -478,6 +479,28 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         offering_actor_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
+        # The Offer goes to the CASE_MANAGER or nowhere (CM-21-005,
+        # PCR-08-011).  A case always has a CASE_MANAGER (CM-24-006), so none
+        # is a fault, not a direct send to the transferee.
+        case_manager_id = resolve_case_manager_id(self._case, self._dl)
+        if case_manager_id is None:
+            raise VultronNotFoundError(
+                "CASE_MANAGER", f"(for case '{self._case.id_}')"
+            )
+        # Fail closed on a proposal the CASE_MANAGER must refuse (CM-21-005):
+        # it sends itself no Offer (BT-17-008), and the owner already owns
+        # the case.  Checked before anything is written.
+        for refused, why in (
+            (case_manager_id, "the case's CASE_MANAGER"),
+            (offering_actor_id, "the offering Case Owner itself"),
+        ):
+            if same_actor_id(request.transferee_id, refused):
+                raise VultronValidationError(
+                    f"transferee_id '{request.transferee_id}' is {why};"
+                    " ownership can be offered only to another actor"
+                    " (CM-21-005)"
+                )
+
         # A transferee is a peer named by URI — the same reasoning as an invitee
         # or a recommended actor; see ``_record_named_peer``. Handing ownership
         # to an actor on another node is the normal case, and that node's record
@@ -492,14 +515,6 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         self._transferee_id = request.transferee_id
         self._content = request.content
         self._end_time = request.end_time
-
-        # The Offer goes to the CASE_MANAGER or nowhere (CM-21-005,
-        # PCR-08-011).  A case always has a CASE_MANAGER (CM-24-006), so none
-        # is a fault, not a direct send to the transferee.
-        if resolve_case_manager_id(self._case, self._dl) is None:
-            raise VultronNotFoundError(
-                "CASE_MANAGER", f"(for case '{self._case.id_}')"
-            )
         self._actor_id = offering_actor_id
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
@@ -647,9 +662,13 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
             self._dl, offer_id, "Offer(Offer(VulnerabilityCase))"
         )
         inner = getattr(proposal, "object_", None)
-        inner_type = getattr(getattr(inner, "type_", None), "value", None)
-        if inner_type is None and isinstance(inner, dict):
-            inner_type = inner.get("type")
+        # A wire ``type_`` is a StrEnum and a core one a plain str; both
+        # compare equal to "Offer".  A dict inner may carry either key.
+        inner_type = (
+            inner.get("type") or inner.get("type_")
+            if isinstance(inner, dict)
+            else getattr(inner, "type_", None)
+        )
         raw_case_id = _as_id(getattr(proposal, "context", None))
         if inner_type != "Offer" or not raw_case_id:
             # The owner withdraws its own proposal, never the CASE_MANAGER's

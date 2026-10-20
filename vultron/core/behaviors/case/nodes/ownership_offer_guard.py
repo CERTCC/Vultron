@@ -62,8 +62,10 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
     The CASE_MANAGER validates the inner Offer rather than copying it
     (ADR-0148): its object must be the case the proposal names, and its
     ``target`` an actor the CASE_MANAGER can address — present, and not the
-    CASE_MANAGER itself, which sends itself no Offer (CM-21-019), nor the
-    proposing owner, who already owns the case.  Anything else in the inner
+    CASE_MANAGER itself, since a received tree emits nothing whose only
+    recipient is the executing actor (BT-17-008, ADR-0109; CM-33-003 refuses
+    the role offer on the same ground), nor the proposing owner, who already
+    owns the case.  Anything else in the inner
     Offer (its id, ``actor`` and ``to``) is the sender's and is never read,
     so the Offer the CASE_MANAGER makes carries its own id (CM-21-005).
 
@@ -71,7 +73,7 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
     gate (:func:`case_manager_admits_ownership_proposal_guard`): a refused
     proposal leaves no entry and sends nothing.
 
-    Spec: CM-21-005, CM-21-019.
+    Spec: CM-21-005, CM-21-019, BT-17-008.
     """
 
     def __init__(
@@ -117,7 +119,7 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
         if same_actor_id(transferee, self.actor_id):
             return self._refuse(
                 f"the inner Offer names the CASE_MANAGER '{transferee}' as"
-                " the transferee; it sends itself no Offer (CM-21-019)"
+                " the transferee; it sends itself no Offer (BT-17-008)"
             )
         if same_actor_id(transferee, self._proposer_id):
             return self._refuse(

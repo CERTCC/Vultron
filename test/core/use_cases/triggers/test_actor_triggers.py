@@ -1504,6 +1504,19 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         assert "cc" not in activity_data
         assert "inReplyTo" not in activity_data
 
+    @pytest.mark.spec("CM-21-005")
+    @pytest.mark.parametrize("who", ["case_manager", "owner"])
+    def test_offer_to_the_case_manager_or_the_owner_is_refused(self, who):
+        """A transferee the CASE_MANAGER must refuse (itself, BT-17-008, or
+        the proposing owner) fails the trigger before anything is queued."""
+        owner, dl = _make_actor_dl("Vendor")
+        case, case_actor = _seed_managed_case(owner, dl)
+        transferee_id = case_actor.id_ if who == "case_manager" else owner.id_
+
+        with pytest.raises(VultronValidationError, match="transferee_id"):
+            _offer_ownership(dl, owner, case, transferee_id)
+        assert dl.outbox_list() == []
+
     @pytest.mark.spec("TRIG-11-007")
     @pytest.mark.spec("CM-21-016")
     def test_offer_carries_the_requested_end_time(self):

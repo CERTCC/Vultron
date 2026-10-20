@@ -3245,7 +3245,9 @@ groups:
       participant is unaware a transfer is being negotiated. Making the Offer
       itself rather than forwarding the owner's gives a transfer one Offer, under
       an id no other party chose, told apart from the proposal by its shape
-      (ADR-0148, DL-06-006).
+      (ADR-0148, DL-06-006). The CASE_MANAGER cannot be the transferee: its Offer
+      would have itself as its only recipient, which BT-17-008 forbids, the same
+      ground on which CM-33-003 refuses a role offer to it.
     verification: >-
       A test marked `CM-21-005` delivers the owner's proposal to the CASE_MANAGER
       and asserts one `Offer(VulnerabilityCase)` is queued to the transferee with
