@@ -287,7 +287,7 @@ set. Normative status is not a `page_type`.
 |---|---|
 | `normative.md` | exactly the normative set: the specification's body pages and the two tier pages, never its annexes or open questions (DF-12-006) |
 | "specification governs" | informative pages that explain the protocol's design, such as Formal Protocol and the RM, EM and CS process models (DF-12-007) |
-| `not_normative.md` | informative pages that are not about the protocol's definition |
+| `not_normative.md` | every other informative page, including the protocol-floor companions (Messages, the Conformance Matrix, the Quick Reference); a page with no requirement-like statements may omit it |
 
 The middle banner exists because the older design pages are neither: they
 still explain how the protocol is defined, but the specification now carries
