@@ -16,6 +16,7 @@ import pytest
 
 # imported for vocabulary registration side-effect
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import VultronService
@@ -122,6 +123,54 @@ class _AnonymousStore:
 
     def __getattr__(self, name: str) -> object:
         return getattr(self._inner, name)
+
+
+def queued_bodies(dl: SqliteDataLayer) -> list[dict[str, object]]:
+    """The sealed wire bodies of every activity *dl*'s outbox holds."""
+    bodies = [read_sealed_body_dict(dl, i) for i in dl.outbox_list()]
+    return [body for body in bodies if body is not None]
+
+
+def assert_only_refusal_notice(
+    dl: SqliteDataLayer, refused_id: str, asserter: str
+) -> dict[str, object]:
+    """Assert *dl* queued one thing: the refusal notice for *refused_id*.
+
+    The notice is a ``Reject`` of the refused activity, inline, threaded by
+    ``inReplyTo`` and addressed to the asserter alone (CLP-05-001).  Returns
+    its body, for a test that checks the reason in ``summary``.
+    """
+    bodies = queued_bodies(dl)
+    assert len(bodies) == 1, f"expected one refusal notice, got {bodies}"
+    (notice,) = bodies
+    assert notice["type"] == "Reject"
+    assert notice["inReplyTo"] == refused_id
+    assert notice["to"] == [asserter]
+    refused = notice["object"]
+    assert isinstance(refused, dict) and refused["id"] == refused_id
+    assert notice["summary"]
+    return notice
+
+
+def refusal_notices_since(
+    dl: SqliteDataLayer, before: list[str], asserter: str
+) -> list[dict[str, object]]:
+    """The bodies *dl* queued since *before*, each a notice to *asserter*.
+
+    Asserts that everything queued since is a refusal notice: a ``Reject``
+    of an activity, inline, threaded to it and sent to *asserter* alone
+    (CLP-05-001).
+    """
+    sent = set(dl.outbox_list()) - set(before)
+    notices = [body for body in queued_bodies(dl) if body["id"] in sent]
+    assert len(notices) == len(sent), "a queued item has no sealed body"
+    for notice in notices:
+        refused = notice["object"]
+        assert notice["type"] == "Reject"
+        assert notice["to"] == [asserter]
+        assert isinstance(refused, dict)
+        assert notice["inReplyTo"] == refused["id"]
+    return notices
 
 
 @pytest.fixture

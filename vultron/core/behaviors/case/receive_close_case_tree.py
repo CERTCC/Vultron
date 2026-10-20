@@ -79,6 +79,9 @@ from vultron.core.behaviors.case.nodes.leave import (
     ExpirePendingInvitesOnCloseNode,
 )
 from vultron.core.behaviors.case.nodes.post_close import PostCloseExemption
+from vultron.core.behaviors.case.nodes.refusal_notice import (
+    OWNER_CLOSE_DECLINE,
+)
 from vultron.core.behaviors.case.owner_close_embargo_guards import (
     owner_close_blocked_by_embargo_guards,
 )
@@ -447,6 +450,9 @@ def create_close_case_received_tree(
     close_arm = create_receive_activity_tree(
         name="CloseCaseReceive",
         case_id=case_id,
+        # The decline arm answers the one refusal the close arm makes, with
+        # the CM-23-011 Reject(Leave), so the factory adds no refusal notice.
+        refusal_notice_exemption=OWNER_CLOSE_DECLINE,
         precondition_guards=[
             py_trees.decorators.Inverter(
                 name="NotOwnerCloseBlockedByEmbargo",

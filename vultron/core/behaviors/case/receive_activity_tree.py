@@ -37,10 +37,13 @@ A tree some of whose deliveries are answered by an act of the receiver's own
 instead of a commit passes a ``Diversion`` among its precondition guards: the
 factory builds its stage there, so the choice of arm is tree structure, never
 the use case's (CLP-10-026, ADR-0135).
-A tree that owes the sender feedback when its guards refuse passes
-``refusal_effects``: the factory runs them only on that refusal, at the
-CASE_MANAGER, once per received activity, and the tree still fails before
-the commit (CLP-10-022).
+Every tree that commits to a case and has precondition guards answers their
+refusal with the refusal notice, which the factory adds itself (CLP-02-005,
+CLP-05-001); a tree goes without it only by naming a registered
+``refusal_notice_exemption``.  A tree that owes the sender more feedback
+passes ``refusal_effects``.  The factory runs both only on that refusal, at
+the CASE_MANAGER, once per received activity, and the tree still fails
+before the commit (CLP-10-022).
 
 When ``sender_rule`` is provided, the factory composes the sender guard from
 it and places it after the post-close guard and the addressee check and
@@ -106,6 +109,10 @@ from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
     PostCloseExemption,
 )
+from vultron.core.behaviors.case.nodes.refusal_notice import (
+    RefusalNoticeExemption,
+    refusal_effects_with_notice,
+)
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
     RefusalEffectsBestEffort,
@@ -118,6 +125,7 @@ from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
 from vultron.core.behaviors.emit_capable import EmitCapable
+from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.note.case_manager_note import (
     _CommitCaseManagerNoteBase,
 )
@@ -233,19 +241,21 @@ def _check_replica_effects(
     """
     where = f"create_receive_activity_tree({name})"
     emitted = {type(n).__name__ for n in ungated_emitters(replica_effects)}
-    if exemption is None:
-        covered: frozenset[str] = frozenset()
-    elif REPLICA_EMIT_EXEMPTIONS.get(exemption.name) != exemption:
-        raise VultronWiringError(
-            f"{where}: replica emit exemption {exemption.name!r} is not"
-            " registered in REPLICA_EMIT_EXEMPTIONS (BT-17-008)"
+    covered: frozenset[str] = frozenset()
+    if exemption is not None:
+        require_registered(
+            exemption,
+            REPLICA_EMIT_EXEMPTIONS,
+            where=where,
+            kind="replica emit",
+            registry_name="REPLICA_EMIT_EXEMPTIONS",
+            spec_id="BT-17-008",
         )
-    elif not emitted & exemption.covers:
-        raise VultronWiringError(
-            f"{where}: replica emit exemption {exemption.name!r} covers"
-            " none of the tree's ungated emitters; drop it (BT-17-008)"
-        )
-    else:
+        if not emitted & exemption.covers:
+            raise VultronWiringError(
+                f"{where}: replica emit exemption {exemption.name!r} covers"
+                " none of the tree's ungated emitters; drop it (BT-17-008)"
+            )
         covered = exemption.covers
     if uncovered := sorted(emitted - covered):
         raise VultronWiringError(
@@ -269,12 +279,14 @@ def _addressee_stage(
     """
     if exemption is None:
         return [ActivityAddressedToReceiverNode(label=name)]
-    if ADDRESSEE_EXEMPTIONS.get(exemption.name) != exemption:
-        raise VultronWiringError(
-            f"create_receive_activity_tree({name}): addressee exemption"
-            f" {exemption.name!r} is not registered in ADDRESSEE_EXEMPTIONS"
-            " (HP-01-005)"
-        )
+    require_registered(
+        exemption,
+        ADDRESSEE_EXEMPTIONS,
+        where=f"create_receive_activity_tree({name})",
+        kind="addressee",
+        registry_name="ADDRESSEE_EXEMPTIONS",
+        spec_id="HP-01-005",
+    )
     return []
 
 
@@ -329,7 +341,9 @@ def _refusal_stage(
     case the guards judged: the CASE_MANAGER adjudicates, so only it answers a
     refusal (BT-17-008).  The gate reads a case this store does not hold as
     "not the CASE_MANAGER" at ``debug`` level, because the guard that refused
-    an unknown case has already reported it.
+    an unknown case has already reported it.  Each effect is best-effort on
+    its own, so one that fails (a refusal notice that cannot be built) does
+    not keep the next (the RSH-06-004 note) from running.
 
     Raises:
         VultronWiringError: a refusal effect is not emit-capable, or
@@ -363,7 +377,12 @@ def _refusal_stage(
     gate = create_case_manager_gated_tree(
         name=f"{name}{gate_suffix}",
         case_id=case_id,
-        children=refusal_effects,
+        children=[
+            RefusalEffectsBestEffort(
+                name=f"{effect.name}BestEffort", child=effect
+            )
+            for effect in refusal_effects
+        ],
         case_may_be_absent=True,
     )
     return PreconditionGuardStage(
@@ -534,7 +553,9 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
     A plain ``Sequence`` that also remembers which of its children are the
     door guards (intake, the post-close guard, the addressee check and the
     sender guard, CLP-10-010), so a handler can ask whether the delivery got
-    past them without knowing which guard the tree runs first.
+    past them without knowing which guard the tree runs first, and which
+    exemption, if any, it was built with in place of the refusal notice
+    (CLP-02-005).
     """
 
     def __init__(
@@ -542,10 +563,14 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
         name: str,
         children: list[py_trees.behaviour.Behaviour],
         door_guards: Sequence[py_trees.behaviour.Behaviour],
+        refusal_notice_exemption: RefusalNoticeExemption | None = None,
     ) -> None:
         super().__init__(name=name, memory=False, children=children)
         self.door_guards: tuple[py_trees.behaviour.Behaviour, ...] = tuple(
             door_guards
+        )
+        self.refusal_notice_exemption: RefusalNoticeExemption | None = (
+            refusal_notice_exemption
         )
 
     @property
@@ -799,6 +824,7 @@ def create_receive_activity_tree(
     manager_body_name: str | None = None,
     manager_case_may_be_absent: bool = False,
     refusal_effects: list[py_trees.behaviour.Behaviour] | None = None,
+    refusal_notice_exemption: RefusalNoticeExemption | None = None,
     post_close_exemption: PostCloseExemption | None = None,
     post_close_reply: list[py_trees.behaviour.Behaviour] | None = None,
     clock_decisions: list[py_trees.behaviour.Behaviour] | None = None,
@@ -941,10 +967,17 @@ def create_receive_activity_tree(
     A received-tree module does not call ``create_case_manager_gated_tree``
     itself.
 
-    ``refusal_effects`` answer a refusal in the moment — the RSH-06-004
-    clarification note for a refused backward RM declaration, or the refusal
-    notice (``refusal_notice(case_id)``, CLP-05-001), are the cases in
-    point.  They run only when a precondition guard refuses, never on an
+    A tree that commits to ``case_id`` and has precondition guards answers
+    their refusal with the refusal notice
+    (:func:`~vultron.core.behaviors.case.nodes.refusal_notice.refusal_notice`,
+    CLP-02-005, CLP-05-001): the factory places it first among the refusal
+    effects, so no tree writes its own copy.  A tree whose refusals are
+    answered otherwise names a registered ``refusal_notice_exemption`` that
+    says how (the close-case tree's CM-23-011 decline).
+    ``refusal_effects`` answer a refusal further — the RSH-06-004
+    clarification note for a refused backward RM declaration is the case in
+    point, sent alongside the notice.  Refusal effects run only when a
+    precondition guard refuses, never on an
     accepted delivery, so no effect precedes the commit (CLP-10-006).  They
     do not run when the sender guard refuses: a sender not entitled to send
     the message is owed no answer about its content (HP-01-006), nor when a
@@ -1009,7 +1042,11 @@ def create_receive_activity_tree(
         manager_case_may_be_absent: Passed to the gate; see
             :class:`CheckIsCaseManagerNode`.
         refusal_effects: Emit-capable nodes run only when a precondition
-            guard refuses, at the CASE_MANAGER, once per received activity.
+            guard refuses, at the CASE_MANAGER, once per received activity,
+            after the refusal notice.
+        refusal_notice_exemption: Why this tree sends no refusal notice;
+            ``None`` (the default) adds it to a tree that commits to
+            ``case_id`` and has precondition guards (CLP-02-005).
         post_close_exemption: Why this tree carries no post-close guard;
             ``None`` (the default) places it (CM-23-013).
         post_close_reply: Emit-capable nodes run only when the post-close
@@ -1023,7 +1060,9 @@ def create_receive_activity_tree(
             gate argument is passed without ``manager_effects``, an exemption
             is unregistered, an emit-capable node sits in ``replica_effects``
             without one (BT-17-008), or a refusal effect is not emit-capable or
-            holds a state writer (CLP-10-022), or an exempt tree passes a
+            holds a state writer (CLP-10-022), or a
+            ``refusal_notice_exemption`` is unregistered or exempts a tree
+            that would send no notice (CLP-02-005), or an exempt tree passes a
             ``post_close_reply`` (CM-23-013), or the sender arguments are
             inconsistent: an ``addressee_exemption`` is not registered
             (HP-01-005), ``sender_rule`` without ``sender_context``, a
@@ -1039,8 +1078,8 @@ def create_receive_activity_tree(
             ``post_close_exemption``, or hold the received activity's commit
             (CLP-10-025).
 
-    Per ``specs/case-ledger-processing.yaml`` CLP-10-006, CLP-10-010,
-    CLP-10-017, CLP-10-022, CLP-10-025, CLP-10-026,
+    Per ``specs/case-ledger-processing.yaml`` CLP-02-005, CLP-05-001,
+    CLP-10-006, CLP-10-010, CLP-10-017, CLP-10-022, CLP-10-025, CLP-10-026,
     ``specs/behavior-tree-integration.yaml``
     BT-17-008 and ``specs/case-management.yaml`` CM-23-013.
     """
@@ -1103,19 +1142,26 @@ def create_receive_activity_tree(
                 post_close_exemption=post_close_exemption,
             )
         )
+    effects = refusal_effects_with_notice(
+        name,
+        case_id,
+        precondition_guards,
+        refusal_effects or [],
+        refusal_notice_exemption,
+    )
     guards = _precondition_guards(
         name,
         precondition_guards,
         case_id or manager_case_id,
-        with_refusal_effects=bool(refusal_effects),
+        with_refusal_effects=bool(effects),
     )
-    if refusal_effects:
+    if effects:
         children.append(
             _refusal_stage(
                 name,
                 intake,
                 guards,
-                refusal_effects,
+                effects,
                 case_id,
             )
         )
@@ -1146,5 +1192,8 @@ def create_receive_activity_tree(
             )
         )
     return ReceivedActivityTree(
-        name=name, children=children, door_guards=door_guards
+        name=name,
+        children=children,
+        door_guards=door_guards,
+        refusal_notice_exemption=refusal_notice_exemption,
     )

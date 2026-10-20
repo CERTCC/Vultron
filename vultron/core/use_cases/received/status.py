@@ -23,9 +23,6 @@ from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
 )
-from vultron.core.models.fault_classes import (
-    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-)
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -54,7 +51,6 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import sender_guard_refused
 
 logger = logging.getLogger(__name__)
 
@@ -173,20 +169,9 @@ class AddCaseStatusToCaseReceivedUseCase:
                 request.activity_id,
                 verdict.reason,
             )
-            if sender_guard_refused(tree):
-                # A sender with no standing is owed no answer about the
-                # content it sent: nothing is sent (HP-01-006).
-                return verdict
-            if self._trigger_activity is not None and request.actor_id:
-                self._trigger_activity.emit_processing_fault(
-                    actor=resolve_receiving_actor_id(
-                        self._dl, request.receiving_actor_id
-                    ),
-                    failed_activity_id=request.activity_id,
-                    failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-                    to=[request.actor_id],
-                    case_id=case_id,
-                )
+            # A precondition refusal is answered by the tree's refusal notice
+            # alone, and a sender-guard refusal by nothing (CLP-05-001,
+            # HP-01-006); no ProcessingFault is sent as well (#4756).
         return verdict
 
 
@@ -291,14 +276,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 request.activity_id,
                 verdict.reason,
             )
-            if self._trigger_activity is not None and request.actor_id:
-                self._trigger_activity.emit_processing_fault(
-                    actor=receiving_actor_id,
-                    failed_activity_id=request.activity_id,
-                    failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
-                    to=[request.actor_id],
-                    case_id=case_id,
-                )
+            # The tree's refusal notice is the one answer (CLP-05-001); no
+            # ProcessingFault is sent as well (#4756).
             if _filter_node_wholly_refused(tree):
                 return HandlerResult.refused(
                     f"ParticipantStatus assertion wholly refused for activity"

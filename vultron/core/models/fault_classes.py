@@ -23,8 +23,9 @@ All URIs are under the Vultron namespace (ADR-0069).
 
 _VULTRON_NS = "https://certcc.github.io/Vultron/ns"
 
-# ASK-07-001, ASK-07-005: receiver refused a status assertion in full;
-# no dimension carried new state.
+# ASK-07-005: the parent class of the status-assertion faults below.  A
+# precondition guard's refusal of a status assertion is answered by the
+# refusal notice, never by this fault (CLP-05-001, MSM-05-001).
 VULTRON_FAILURE_STATUS_ASSERTION_REFUSED = (
     f"{_VULTRON_NS}/errors/StatusAssertionRefused"
 )

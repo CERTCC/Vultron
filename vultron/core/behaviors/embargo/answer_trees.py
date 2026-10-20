@@ -37,6 +37,9 @@ from datetime import datetime
 import py_trees
 
 from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.refusal_notice import (
+    EMBARGO_REFUSAL_ANSWERS,
+)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -153,6 +156,7 @@ def accept_invite_to_embargo_tree(
     expiry_out = {} if expiry_out is None else expiry_out
     root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",
+        refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(
@@ -290,6 +294,7 @@ def reject_invite_to_embargo_tree(
     """
     root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",
+        refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(

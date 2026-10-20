@@ -340,10 +340,14 @@ guards, commit, effects.
 4. **Guards** — read-only precondition checks that return FAILURE to refuse and
    write nothing. A refusal goes to the process log and, where the protocol
    calls for an answer, back to the sender — never to the ledger (CLP-05-002).
-   A tree that owes that answer passes it as `refusal_effects` (CLP-10-022): the
-   factory wraps the guards in a `PreconditionGuardStage`
-   (`case/nodes/refusal_stage.py`) that runs them only when a precondition guard
-   (not the sender guard) fails, inside a CASE_MANAGER gate, and skips them on a
+   The factory adds that answer, the refusal notice, to every tree that commits
+   to a case and has precondition guards, unless the tree names a registered
+   `RefusalNoticeExemption`; a tree passes only further feedback (the RSH-06-004
+   note) as `refusal_effects` (CLP-02-005, CLP-10-022). The factory wraps the
+   guards in a `PreconditionGuardStage` (`case/nodes/refusal_stage.py`) that
+   runs the refusal effects, each best-effort on its own, only when a
+   precondition guard (not the sender guard) fails, inside a CASE_MANAGER
+   gate, and skips them on a
    redelivery whose intake was already archived and on a failed guard whose
    `failed_as_repeat` is set (`ReportsIdempotentRepeat`, the repeat a handler
    reports `SKIPPED`). The stage then fails with the guard's reason, so nothing

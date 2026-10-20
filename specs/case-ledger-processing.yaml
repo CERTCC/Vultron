@@ -103,7 +103,18 @@ groups:
   - id: CLP-02-005
     priority: MUST
     kind: protocol
-    verification_debt: '#3612'
+    verification: >-
+      `test/architecture/test_received_tree_refusal_notice.py` builds every
+      received tree as it runs and asserts that each one that commits to a case
+      and has a precondition guard holds exactly one refusal notice among the
+      refusal effects of its guard stage, unless it was built with a registered
+      `RefusalNoticeExemption`; it pins which tree passes each exemption, each
+      with its reason and the node that answers instead, and pins with a
+      reason every received tree that commits nothing.
+      `test/core/use_cases/received/test_refusal_notice.py` drives production
+      trees end to end: a refused RM regression and a refused `Add(Note)` at
+      the CASE_MANAGER each queue one `Reject` of the refused activity to its
+      sender and commit nothing of it, and a sender-guard refusal queues none.
     statement: When a precondition guard at the CASE_MANAGER refuses an incoming
       assertion, the refusal MUST be emitted as a `Reject` protocol activity
       directed at the asserting participant (CLP-05-001); a refusal MUST NOT be
@@ -438,6 +449,12 @@ groups:
       `Reject` of an `Invite` or an `Offer` already means a decline, and a
       decline and a refusal leave the sender in the same place, so the shapes
       need not differ.
+    note: >-
+      The notice is the refusal's one answer. A refused `Add(CaseStatus)` or
+      `Add(ParticipantStatus)` gets no `Create(ProcessingFault)` beside it,
+      since a guard's refusal is "received and understood but declined"
+      (MSM-05-001; #4756). The replica's ImpossibleState fault for a ledger
+      entry it cannot apply (RSH-05-021) is a different failure and stays.
     adr:
     - ADR-0141
     stories:
@@ -1696,15 +1713,20 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      A receive-side tree that owes the sender feedback when a precondition
-      guard refuses its assertion MUST pass that feedback to
-      `create_receive_activity_tree` as `refusal_effects`. The factory MUST run
+      `create_receive_activity_tree` MUST itself add the refusal notice
+      (CLP-05-001) as the first refusal effect of every tree that commits to a
+      case and has a precondition guard, unless the tree names a registered
+      exemption that says what answers its refusals instead. A receive-side
+      tree that owes the sender further feedback when a precondition guard
+      refuses its assertion MUST pass that feedback to the factory as
+      `refusal_effects`. The factory MUST run
       the refusal effects only when a precondition guard refuses, never when
       the sender guard refuses or the guards pass, and never when a guard's
       failure is an idempotent repeat the handler reports `SKIPPED`; MUST run
       them only at the
       case's CASE_MANAGER; MUST NOT run them again for a redelivery that intake
-      found already archived; and MUST leave the tree failing with the guard's
+      found already archived; MUST run each refusal effect whether or not an
+      earlier one failed; and MUST leave the tree failing with the guard's
       refusal, so nothing of the refused assertion is committed and the handler
       reports `REFUSED` for the guard's reason. Every refusal effect MUST be
       emit-capable and MUST contain no state-write node: a refusal commits
@@ -1733,8 +1755,10 @@ groups:
     verification: >-
       `test/core/behaviors/case/test_receive_activity_tree.py` asserts the
       factory wraps the guards in the refusal stage ahead of the commit, gates
-      the refusal effects on the CASE_MANAGER, and refuses a refusal effect
-      that is not emit-capable; `test/core/behaviors/case/nodes/test_refusal_stage.py`
+      the refusal effects on the CASE_MANAGER, adds the refusal notice first
+      and wraps each effect on its own, honours only a registered exemption
+      (`TestRefusalNotice`), and refuses a refusal effect that is not
+      emit-capable; `test/core/behaviors/case/nodes/test_refusal_stage.py`
       asserts the effects never run on an admitted delivery, run once on a
       refusal, are skipped on a redelivery and on a guard's idempotent repeat,
       and leave the guard's failure reason;

@@ -17,16 +17,18 @@
 
 A precondition guard at the CASE_MANAGER that refuses an assertion owes the
 asserting participant one ``Reject`` of it (CLP-02-005, CLP-05-001,
-ADR-0141).  The tree here composes the refusal notice as ``refusal_effects``
-of :func:`create_receive_activity_tree` the way an adopting tree does, over
-the received embargo answer the ledger network already builds, and checks
-when the notice is sent and when it is not (CLP-10-022).  The participant's
-side runs the real use case on the delivered notice (CLP-06-006).
+ADR-0141).  :func:`create_receive_activity_tree` adds the refusal notice to
+every tree that commits to a case and has precondition guards; the tree here
+is built by it over the received embargo answer the ledger network already
+builds, and the tests check when the notice is sent and when it is not
+(CLP-10-022).  The participant's side runs the real use case on the delivered
+notice (CLP-06-006).  The last tests drive production trees end to end.
 """
 
 import json
 from typing import Any, cast
 
+import py_trees
 import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
@@ -55,6 +57,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
+from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.sender_check_context import SenderCheckContext
 from vultron.core.behaviors.sender_entitlement import (
@@ -144,7 +147,6 @@ def _tree(
         precondition_guards=[
             guard if guard is not None else _Refuses(name="Refuses")
         ],
-        refusal_effects=[refusal_notice(case_id)],
     )
 
 
@@ -276,6 +278,51 @@ def test_a_replica_queues_no_notice():
     emit = find_node(tree, EmitRefusalNoticeNode)
     assert emit is not None and emit.status == Status.INVALID
     assert _notices(net, BYSTANDER, OWNER) == []
+
+
+class _RanAfterNotice(EmitCapable, py_trees.behaviour.Behaviour):
+    """A refusal effect that records that it ran."""
+
+    def __init__(self) -> None:
+        super().__init__(name="RanAfterNotice")
+        self.ran = False
+
+    def update(self) -> Status:
+        self.ran = True
+        return Status.SUCCESS
+
+
+@pytest.mark.spec("CLP-10-022")
+def test_a_notice_that_cannot_be_built_does_not_stop_the_next_effect(
+    monkeypatch,
+):
+    """Each refusal effect is best-effort on its own (the RSH-06-004 note)."""
+
+    def _broken(self: EmitRefusalNoticeNode) -> tuple[str, str]:
+        raise ValueError("cannot render the refused activity")
+
+    monkeypatch.setattr(EmitRefusalNoticeNode, "_call_factory", _broken)
+    net, _, invite_id = _network("best-effort")
+    after = _RanAfterNotice()
+    tree = create_receive_activity_tree(
+        name="RefusalNoticeTestBT",
+        case_id=net.case_id,
+        sender_rule=SenderRule.in_case(SenderEntitlementKind.PARTICIPANT),
+        sender_context=SenderCheckContext(
+            sender_id=BYSTANDER, case_id=net.case_id
+        ),
+        precondition_guards=[_Refuses(name="Refuses")],
+        refusal_effects=[after],
+    )
+
+    result = _run(net, MANAGER, tree, _accept_event(net, invite_id))
+
+    assert result.status == Status.FAILURE
+    assert BTBridge.get_failure_reason(tree) == REFUSAL
+    emit = find_node(tree, EmitRefusalNoticeNode)
+    assert emit is not None and emit.status == Status.FAILURE
+    assert after.ran
+    assert _notices(net, MANAGER, BYSTANDER) == []
 
 
 def test_a_notice_outside_a_refusal_stage_fails_and_queues_nothing():
@@ -477,3 +524,124 @@ def test_an_event_naming_no_refused_activity_is_refused_at_construction():
         RefusalNoticeReceivedEvent(
             **{**dict(routed), "in_reply_to": None, "object_": None}
         )
+
+
+# ---------------------------------------------------------------------------
+# Production trees: the factory's notice, end to end (#4756)
+# ---------------------------------------------------------------------------
+
+
+def _notice_for(net: LedgerNetwork, refused_id: str) -> dict[str, Any]:
+    """The one notice the CASE_MANAGER queued for BYSTANDER, as its body."""
+    (notice,) = _notices(net, MANAGER, BYSTANDER)
+    body = read_sealed_body_dict(net.stores[MANAGER], notice.id_)
+    assert body is not None
+    assert body["inReplyTo"] == refused_id
+    assert body["object"]["id"] == refused_id
+    assert body["to"] == [BYSTANDER]
+    return body
+
+
+@pytest.mark.spec("CLP-02-005")
+@pytest.mark.spec("CLP-05-001")
+@pytest.mark.spec("RSH-06-004")
+def test_a_refused_rm_regression_gets_the_notice_and_the_note():
+    """The RSH-06-004 note is sent alongside the notice, not instead of it."""
+    from vultron.core.states.em import EM
+    from vultron.core.states.rm import RM
+
+    from .test_case_manager_note_replay import _declare_rm, _notes, _set_rm
+
+    net = LedgerNetwork(
+        "https://example.org/cases/refusal-notice-rm-regression",
+        em_state=EM.NONE,
+    )
+    _set_rm(net, BYSTANDER, RM.ACCEPTED)
+
+    verdict = _declare_rm(net, BYSTANDER, RM.VALID)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    refused_id = _notices(net, MANAGER, BYSTANDER)[0].in_reply_to
+    notice = _notice_for(net, cast(str, refused_id))
+    assert notice["object"]["type"] == "Add"
+    assert "refused in full" in str(notice["summary"])
+    assert any("backward" in (n.content or "") for n in _notes(net, MANAGER))
+    # The notice is the one answer: no ProcessingFault as well (the user's
+    # decision on #4756).
+    assert net.queued(MANAGER, to=BYSTANDER, type_="Create") == []
+    # The participant reads the notice and refuses none of what it is sent.
+    refused = [
+        v.reason
+        for _, v in net.deliver(MANAGER, to=BYSTANDER)
+        if v.disposition is HandlerDisposition.REFUSED
+    ]
+    assert refused == []
+
+
+@pytest.mark.spec("CLP-02-005")
+@pytest.mark.spec("CLP-05-001")
+def test_a_refused_add_note_gets_the_notice_with_the_guards_reason():
+    """A tree with no refusal effects of its own still answers (CS-22-001)."""
+    from vultron.core.states.em import EM
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    net = LedgerNetwork(
+        "https://example.org/cases/refusal-notice-note", em_state=EM.NONE
+    )
+    note_id = f"{BYSTANDER}/notes/one"
+
+    def _add(content: str, tag: str) -> Any:
+        activity = add_note_to_case_activity(
+            as_Note(
+                id_=note_id,
+                content=content,
+                attributed_to=BYSTANDER,
+                context=net.case_id,
+            ),
+            target=net.case_id,
+            actor=BYSTANDER,
+            to=[MANAGER],
+            id_=f"{BYSTANDER}/adds/{tag}",
+        )
+        return activity, net.receive(
+            MANAGER, json.loads(dump_outbound_body(activity))
+        )
+
+    _, first = _add("first", "1")
+    assert first.disposition is HandlerDisposition.APPLIED, first.reason
+    second_add, second = _add("a different note", "2")
+
+    assert second.disposition is HandlerDisposition.REFUSED
+    notice = _notice_for(net, second_add.id_)
+    assert "HP-08-006" in str(notice["summary"])
+
+
+@pytest.mark.spec("CLP-02-005")
+@pytest.mark.spec("CLP-05-001")
+def test_a_refused_case_status_gets_the_notice_and_no_fault():
+    """A wholly refused Add(CaseStatus) has one answer, the notice."""
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.dimensions import EmDimension
+    from vultron.core.states.em import EM
+    from vultron.wire.as2.factories import add_status_to_case_activity
+
+    net = LedgerNetwork(
+        "https://example.org/cases/refusal-notice-case-status",
+        em_state=EM.NONE,
+    )
+    status = CaseStatus(
+        context=net.case_id,
+        attributed_to=BYSTANDER,
+        # A participant cannot move EM by status, and nothing else is new.
+        em=EmDimension(state=EM.ACTIVE),
+    )
+    activity = add_status_to_case_activity(
+        status, target=net.case_id, actor=BYSTANDER, to=[MANAGER]
+    )
+
+    verdict = net.receive(MANAGER, json.loads(dump_outbound_body(activity)))
+
+    assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
+    _notice_for(net, activity.id_)
+    assert net.queued(MANAGER, to=BYSTANDER, type_="Create") == []

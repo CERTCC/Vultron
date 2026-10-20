@@ -35,6 +35,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.clock_decisions import clock_decision_node_ids
+from test.support.refusal_effects import refusal_effect_node_ids
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -1333,9 +1334,10 @@ def _effect_nodes(tree: py_trees.behaviour.Behaviour) -> list:
     """Leaves that write or emit: everything after the receipt commit.
 
     The CASE_MANAGER's clock decisions sit in their own gated stage before
-    the guards and are not effects of the received activity (CLP-10-025).
+    the guards and are not effects of the received activity (CLP-10-025),
+    nor is the refusal notice, which answers only a refusal (CLP-10-022).
     """
-    decisions = clock_decision_node_ids(tree)
+    decisions = clock_decision_node_ids(tree) | refusal_effect_node_ids(tree)
     return [
         n
         for n in tree.iterate()

@@ -2387,9 +2387,13 @@ class TestOwnerLeaveDuringActiveEmbargo:
         )
 
     @pytest.mark.spec("CM-23-011")
+    @pytest.mark.spec("CLP-05-001")
     def test_owner_leave_during_embargo_emits_reject_to_owner(self):
         """The decline is surfaced as an as:Reject of the Leave, addressed back
-        to the owner (AC-2, MSM-05-001)."""
+        to the owner (AC-2, MSM-05-001).
+
+        The decline is the refusal's answer: the close arm adds no refusal
+        notice, so exactly one Reject is queued (CLP-05-001, #4756)."""
         dl = _make_full_dl()
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
