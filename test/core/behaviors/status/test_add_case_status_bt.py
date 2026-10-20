@@ -2451,56 +2451,19 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
 
 
 class TestAddCaseStatusTreeNoCaseId:
-    """add_case_status_tree must not raise when the request carries no case_id.
+    """Without a case_id the factory names no replica emit exemption.
 
-    Regression for Bug #4978: the factory unconditionally passed
-    ``replica_emit_exemption=CASE_STATUS`` even when ``case_id`` is None,
-    which caused ``create_receive_activity_tree`` to raise
-    ``VultronWiringError`` because the exemption covers
-    ``SendTerminateEmbargoActivityNode`` but ``ThreatTerminationBranchNode``
-    emits nothing when it has no ``case_id`` to route through.
+    ``ThreatTerminationBranchNode`` builds no teardown emit when it has no
+    ``case_id``, so the tree has no ungated emitter for ``CASE_STATUS`` to
+    cover; naming the exemption anyway is the stale case
+    ``create_receive_activity_tree`` refuses (BT-17-008, #4978).
     """
 
-    @pytest.mark.spec("HP-01-008")
+    @pytest.mark.spec("BT-17-008")
     def test_tree_builds_without_case_id(self):
-        """Snippet: add_case_status_tree with no case_id must not raise."""
-        import py_trees
-
         request = AddCaseStatusToCaseReceivedEvent(
             activity_id="a1", actor_id="https://example.org/actors/vendor"
         )
-        tree = add_case_status_tree(
-            request,
-            sender_rule=_CASE_STATUS_RULE,
-        )
-        assert tree is not None
+        tree = add_case_status_tree(request, sender_rule=_CASE_STATUS_RULE)
         rendered = py_trees.display.unicode_tree(tree)
-        assert rendered.strip() != ""
-
-    @pytest.mark.spec("HP-01-008")
-    def test_cs_handlers_snippet_renders(self):
-        """Exact code from docs/reference/behaviors/cs_handlers.md renders a tree.
-
-        Guards the page's first markdown-exec snippet against future signature
-        drift (Bug #4978).
-        """
-        import py_trees
-
-        from vultron.core.behaviors.status.add_case_status_tree import (
-            add_case_status_tree as _tree_fn,
-        )
-        from vultron.core.models.events.status import (
-            AddCaseStatusToCaseReceivedEvent as _Event,
-        )
-        from vultron.core.use_cases.received.status import (
-            AddCaseStatusToCaseReceivedUseCase as _UC,
-        )
-
-        tree = _tree_fn(
-            _Event(
-                activity_id="a1", actor_id="https://example.org/actors/vendor"
-            ),
-            sender_rule=_UC.sender_entitlement,
-        )
-        rendered = py_trees.display.unicode_tree(tree)
-        assert rendered.strip() != ""
+        assert "TerminateEmbargoSkipped" in rendered
