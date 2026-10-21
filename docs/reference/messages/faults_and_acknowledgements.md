@@ -46,7 +46,7 @@ When the use case that processes a received activity fails on the receiver's own
 Its failure class is `https://certcc.github.io/Vultron/ns/errors/InternalProcessingError`, and it names the failed activity in `inReplyTo` and nothing else, with no cause and no diagnostics ([ASK-07-006](../specs/protocol.md#ask-07-006)).
 The receiver sends it after the act is rolled back, so the rollback does not remove it.
 The inbox retries an activity it holds and replays later, such as one deferred until its case arrived, a bounded number of times ([IE-06-004](../specs/project.md#ie-06-004)).
-For such an activity, the fault goes out only when the inbox stops retrying and moves the activity to its dead-letter store.
+For such an activity, the fault goes out only when the inbox stops retrying: when it moves the activity to its dead-letter store, or when it drops the activity at once because processing raised a protocol violation.
 The fault is a notice, not a recovery: the sender decides whether to send the activity again, and a later delivery runs the act again with the body the receiver kept from the first delivery ([IE-10-001](../specs/project.md#ie-10-001)).
 Its id is derived from the failed activity and the failure class, so a second failure of the same activity builds no second fault.
 The receiver may send the same fault again, with the same id and body, and the sender discards the repeat.

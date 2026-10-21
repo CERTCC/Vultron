@@ -8,7 +8,8 @@ description: >
   seam and verdict mapping, the path from receipt to permanent storage (ingress
   writes nothing; a deferred activity is held whole), redelivery detection and
   the reused-id refusal, the internal-error fault for a raised dispatch,
-  pending-queue port injection, and the test surface.
+  the queue replay's bounded retry and held fault, pending-queue port
+  injection, and the test surface.
 related_specs:
   - specs/inbox-orchestration.yaml
   - specs/case-ledger-processing.yaml

@@ -8,6 +8,7 @@ description: >
   are caught, how re-queues are bounded, and layer/import rules.
 related_specs:
   - specs/inbox-pipeline.yaml
+  - specs/inbox-endpoint.yaml
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/architecture-adapters.md
