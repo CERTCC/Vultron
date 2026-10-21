@@ -2656,6 +2656,32 @@ groups:
     - rel_type: refines
       spec_id: CM-17-002
       note: CM-17-002 lets the stub carry the embargo inline or by ID; this codebase always carries it inline
+  - id: CM-17-012
+    priority: MUST
+    kind: project
+    statement: >-
+      When the CASE_MANAGER receives `Accept(Invite(Actor, VulnerabilityCaseStub))`
+      from an invitee whose participant record is already joined, or removed,
+      it MUST treat the Accept as a duplicate: it commits no ledger entry,
+      changes no participant record or consent row, and sends no case snapshot,
+      backfill or full-case Invite. The test is the participant record alone,
+      not any replication state the CASE_MANAGER holds for that participant.
+    rationale: >-
+      A joined participant's Accept of a stub Invite is a redundant signal (maintainer
+      ruling, 2026-10-21, #5059). Case creation seeds the participants it seats as
+      signatories (CM-14-003, CM-14-005), so the Accept changes nothing. Other embargo
+      consent comes from that embargo's own answers. Replication state is no test:
+      the embargo pause and ledger sync write it too.
+    verification: >-
+      A test marked `CM-17-012` gives a seated participant an embargo-pause replication
+      state, delivers its Accept of a stub Invite, and asserts the duplicate answer: no
+      ledger entry, no record change and nothing queued. A second test delivers an inert
+      invitee's first Accept and asserts it joins and is backfilled (CM-17-004).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-17-004
+    - rel_type: depends_on
+      spec_id: CLP-13-001
 - id: CM-18
   title: Participant Embargo Consent (per-embargo rows)
   specs:
