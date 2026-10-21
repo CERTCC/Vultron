@@ -46,6 +46,21 @@ def now_utc() -> datetime:
     return datetime.now(UTC).replace(microsecond=0)
 
 
+def now_utc_after(latest: datetime | None) -> datetime:
+    """Return ``now_utc()``, or the next whole second after *latest* if later.
+
+    For a stamp that must sort strictly after *latest* on a clock that only
+    keeps whole seconds (CS-13-002, CS-13-003): when the clock has not passed
+    *latest* (two stamps in the same second, or a *latest* from a peer whose
+    clock runs ahead), the result is *latest* truncated to the second plus one
+    second, so it stays both second-precise and strictly greater.
+    """
+    now = now_utc()
+    if latest is None or latest < now:
+        return now
+    return latest.replace(microsecond=0) + timedelta(seconds=1)
+
+
 def from_now_utc(delta: timedelta) -> datetime:
     """Return the UTC instant *delta* from now, at second precision (CS-13-004).
 

@@ -8,7 +8,6 @@ and the handler only reads how the run ended.
 """
 
 import logging
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
@@ -30,7 +29,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.models._helpers import claimed_published_iso
+from vultron.core.models._helpers import claimed_published_iso, now_utc
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
 )
@@ -133,7 +132,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             accepting_actor_id=request.actor_id,
             invite_id=invite_id,
             sender_rule=self.sender_entitlement,
-            now=datetime.now(tz=UTC),
+            now=now_utc(),
             published=claimed_published_iso(request.activity),
             accept_id=request.activity_id,
             actor_config=self._actor_config,

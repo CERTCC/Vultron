@@ -22,7 +22,13 @@ use_cases/.
 """
 
 import ast
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from test.support.clock import SteppingClock
+from vultron.core.models import _helpers
+from vultron.core.models._helpers import now_utc_after
 
 # --- Architecture ratchet ------------------------------------------------
 
@@ -377,3 +383,49 @@ def test_strip_annotated_leaves_a_bare_type_alone():
     assert strip_annotated(str) is str
     assert strip_annotated(list[str]) == list[str]
     assert strip_annotated(str | None) == (str | None)
+
+
+_PINNED = datetime(2026, 5, 4, 12, 0, 0, 987654, tzinfo=UTC)
+_PINNED_SECOND = _PINNED.replace(microsecond=0)
+
+
+@pytest.fixture
+def _frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        _helpers, "datetime", SteppingClock(_PINNED, step=timedelta(0))
+    )
+
+
+@pytest.mark.parametrize(
+    "latest",
+    [None, _PINNED_SECOND - timedelta(seconds=1)],
+    ids=["no-latest", "latest-earlier"],
+)
+def test_now_utc_after_returns_now_utc_when_the_clock_is_ahead(
+    _frozen_clock: None, latest: datetime | None
+) -> None:
+    assert now_utc_after(latest) == _PINNED_SECOND
+
+
+@pytest.mark.parametrize(
+    ("latest", "expected"),
+    [
+        (_PINNED_SECOND, _PINNED_SECOND + timedelta(seconds=1)),
+        (
+            _PINNED_SECOND + timedelta(microseconds=1),
+            _PINNED_SECOND + timedelta(seconds=1),
+        ),
+        (
+            _PINNED_SECOND + timedelta(seconds=5, microseconds=400),
+            _PINNED_SECOND + timedelta(seconds=6),
+        ),
+    ],
+    ids=["same-second", "sub-second-ahead", "peer-clock-ahead"],
+)
+def test_now_utc_after_bumps_to_the_next_whole_second(
+    _frozen_clock: None, latest: datetime, expected: datetime
+) -> None:
+    result = now_utc_after(latest)
+    assert result == expected
+    assert result > latest
+    assert result.microsecond == 0

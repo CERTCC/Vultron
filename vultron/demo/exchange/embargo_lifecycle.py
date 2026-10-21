@@ -42,8 +42,9 @@ the actor; the helpers bind the case themselves.
 
 import logging
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.demo.actor_session import ActorSession
@@ -86,7 +87,7 @@ COMMIT_TIMEOUT_SECONDS = LEDGER_COVERAGE_TIMEOUT
 
 def _end_time(days: int) -> datetime:
     """A timezone-aware embargo end *days* from now (the trigger requires one)."""
-    return datetime.now().astimezone() + timedelta(days=days)
+    return days_from_now_utc(days)
 
 
 def _proposed_embargo_id(result_activity_object: object, verb: str) -> str:

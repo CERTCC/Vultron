@@ -31,9 +31,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Literal
 
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.primitives import require_non_empty
 
@@ -75,7 +76,7 @@ class PendingAssertion:
     case_id: str
     semantic_type: str
     object_id: str
-    emitted_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    emitted_at: datetime = field(default_factory=now_utc)
     status: Literal["pending", "cleared", "timed_out"] = "pending"
     subject_id: str | None = None
 
@@ -138,7 +139,7 @@ class PendingAssertionStore:
         """
         if entry.status != "pending":
             return False
-        now = datetime.now(UTC)
+        now = now_utc()
         age = (now - entry.emitted_at).total_seconds()
         if age >= self.timeout_seconds:
             entry.status = "timed_out"

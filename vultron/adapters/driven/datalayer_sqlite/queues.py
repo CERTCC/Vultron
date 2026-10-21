@@ -35,7 +35,6 @@ within a shared one.
 """
 
 import logging
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import delete, text
@@ -46,6 +45,7 @@ from vultron.adapters.outbox_dead_letter import (
     InboxDeadLetterEntry,
     OutboxDeadLetterEntry,
 )
+from vultron.core.models._helpers import now_utc
 
 from .schema import OUTBOX_PENDING_PREDICATE, QueueAttemptEntry, QueueEntry
 from .transaction import run_after_commit
@@ -486,7 +486,7 @@ def dead_letter_append(
         total_attempts=total_attempts,
         failed_recipients=list(failed_recipients),
         ledger_entry_id=ledger_entry_id,
-        recorded_at=datetime.now(UTC),
+        recorded_at=now_utc(),
     )
     dl.save(entry)
     logger.debug(
@@ -561,7 +561,7 @@ def inbox_dead_letter_append(
         reason=reason,
         total_attempts=total_attempts,
         last_error=last_error,
-        recorded_at=datetime.now(UTC),
+        recorded_at=now_utc(),
     )
     dl.save(entry)
     logger.debug(
