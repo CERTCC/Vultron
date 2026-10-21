@@ -31,6 +31,9 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.embargo.nodes.chosen_cause import (
+    ChosenTermination,
+)
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
 )
@@ -444,6 +447,40 @@ class TestTheAskCarriesTheParticipantCause:
         )
 
         assert factory.terminate_embargo.call_args.kwargs["cause"] == cause
+
+    @pytest.mark.spec("EMB-14-001")
+    def test_the_ask_carries_the_cause_chosen_before_it_is_sent(self) -> None:
+        """A :class:`ChosenTermination` is read when the ask is sent, so a
+        cause chosen after the tree was built still reaches the ask."""
+        factory = _factory()
+        chosen = ChosenTermination()
+        ask = ask_case_manager_to_terminate_once(
+            CASE_ID, chosen.reason, chosen
+        )
+        chosen.choose(FixDeployedCause())
+
+        _run(ask, _VENDOR_ID, factory)
+
+        assert (
+            factory.terminate_embargo.call_args.kwargs["cause"]
+            == FixDeployedCause()
+        )
+
+    @pytest.mark.spec("EMB-14-001")
+    def test_an_unchosen_cause_at_the_ask_is_a_wiring_fault(self) -> None:
+        """An ask that reads a :class:`ChosenTermination` no reason chose
+        is an internal error, never a FAILURE, and queues nothing."""
+        factory = _factory()
+        chosen = ChosenTermination()
+        ask = ask_case_manager_to_terminate_once(
+            CASE_ID, chosen.reason, chosen
+        )
+
+        _, result = _run(ask, _VENDOR_ID, factory)
+
+        assert result.internal_error is True
+        factory.terminate_embargo.assert_not_called()
+        assert _pending_ask(_VENDOR_ID) is None
 
 
 class TestParticipantCause:

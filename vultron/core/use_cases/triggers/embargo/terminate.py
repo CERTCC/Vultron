@@ -38,7 +38,10 @@ from vultron.core.behaviors.embargo.end_time_tree import (
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    OtherCause,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.services.embargo_lifecycle import (
     embargo_end_time_passed,
@@ -94,16 +97,25 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         ):
             logger.info(
                 "Actor '%s': embargo on case '%s' has reached its end time —"
-                " ending it with END_TIME_REACHED, not EARLY",
+                " ending it with END_TIME_REACHED, not EARLY, which records"
+                " no cause (requested cause: %s)",
                 self._actor_id,
                 self._case.id_,
+                request.cause.kind if request.cause is not None else "none",
             )
             self._reason = TerminationReason.END_TIME_REACHED
 
-        # The termination this request asks for: its what, and no cause yet
-        # (a chosen cause is #4858).  The Remove carries both, and the
-        # CASE_MANAGER records them on its TERMINATED entry (EMB-13-005).
-        self._termination = EmbargoTermination.from_reason(self._reason)
+        # The termination this request asks for: its what, and for an EARLY
+        # one the cause the requester names, OTHER when it names none
+        # (EMB-14-001).  An end-time termination has no cause.  The Remove
+        # carries both, and the CASE_MANAGER records them on its TERMINATED
+        # entry (EMB-13-005).
+        self._termination = EmbargoTermination.from_reason(
+            self._reason,
+            (request.cause or OtherCause())
+            if self._reason == TerminationReason.EARLY
+            else None,
+        )
 
         # An end-time request before the end time is refused on every actor,
         # so a participant never asks the CASE_MANAGER for one (ADR-0122).

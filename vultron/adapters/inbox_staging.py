@@ -349,19 +349,23 @@ class InlineObjectStaging:
 
         For a redelivery of an activity intake already archived: the archived
         body is parsed and routed in place of the redelivered one
-        (IE-10-001, ADR-0149), with no received evidence, because the
-        delivery being processed is not the one archived (VM-08-002).
+        (IE-10-001, ADR-0149).  It carries that body as its received
+        evidence: the body is the first delivery's, sealed at its parse, so
+        the copy routed is that delivery and not this one (VM-08-002).  The
+        resend's own bytes are never routed, so a resend with a different
+        body under the same id never replaces the first copy (#3762).  Held
+        for a replay, should the copy be deferred, it keeps the same body.
         Returns ``None`` when nothing is archived under *activity_id*.
         """
         record = self._dl.read(ReceivedActivityRecord.build_id(activity_id))
         if not isinstance(record, ReceivedActivityRecord):
             return None
-        # Rebuilt from the archived body, but held, should this resend be
-        # deferred, as no delivery's body: its replay must not carry the
-        # first delivery's evidence (VM-08-002).
-        return self._rehydrate_with(
-            parse_received_body(record.received_body), received_body=None
-        )
+        archived = parse_received_body(record.received_body)
+        evidence = archived.received_evidence_json
+        result = self._rehydrate_with(archived, received_body=evidence)
+        if result is not None and evidence is not None:
+            result.seal_received_evidence(evidence)
+        return result
 
     def rehydrate_deferred(self, activity_id: str) -> as_Activity | None:
         """Rebuild a deferred activity from its record, and release it.

@@ -1656,3 +1656,185 @@ def test_a_failed_item_stays_held_whether_retried_or_dead_lettered(
 
     assert staging.held(activity.id_) is not None
     assert dl.read(activity.id_) is None
+
+
+def _faults_queued(dl: SqliteDataLayer) -> list[dict[str, Any]]:
+    """Every ``Create(ProcessingFault)`` waiting in *dl*'s outbox."""
+    from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+    bodies = [read_sealed_body_dict(dl, item) for item in dl.outbox_list()]
+    return [
+        body
+        for body in bodies
+        if body is not None
+        and body.get("type") == "Create"
+        and isinstance(body.get("object"), dict)
+        and body["object"].get("type") == "ProcessingFault"
+    ]
+
+
+_RECEIVER = "https://example.org/actors/participant"
+_SENDER = "https://example.org/actors/case-actor"
+
+
+def _note_item(content: str = "fails") -> as_Activity:
+    """An extractable received activity for the dead-letter tests."""
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    case_id = "https://example.org/cases/case-dead-letter"
+    return add_note_to_case_activity(
+        as_Note(content=content, context=case_id),
+        target=case_id,
+        context=case_id,
+        actor=_SENDER,
+        to=[_RECEIVER],
+    )
+
+
+def _attempt(
+    dl: SqliteDataLayer, item: as_Activity, max_attempts: int
+) -> None:
+    """One failing ``_process_inbox_item`` attempt on *dl*'s own queues."""
+    from vultron.adapters.inbox_staging import InlineObjectStaging
+
+    ok = ih._process_inbox_item(
+        actor_id="participant",
+        canonical_actor_id=_RECEIVER,
+        item_id=item.id_,
+        item=item,
+        dl=dl,
+        queue_dl=dl,
+        retry=dl,
+        max_attempts=max_attempts,
+        staging=InlineObjectStaging(dl),
+    )
+    assert ok is False
+
+
+def _raise_on_dispatch(monkeypatch) -> None:
+    def _raise(**_kwargs: Any) -> None:
+        raise RuntimeError("the use case raised")
+
+    monkeypatch.setattr(ih, "_dispatch_or_defer_inbox_item", _raise)
+
+
+@pytest.mark.spec("ASK-07-010")
+@pytest.mark.spec("IE-06-004")
+def test_a_failing_replay_is_answered_only_when_dead_lettered(monkeypatch):
+    """A re-queued attempt may still succeed, so it is not answered; the
+    dead-lettered one is, with one internal-error fault to its sender."""
+    from vultron.core.models.fault_classes import (
+        VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+    )
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    item = _note_item()
+    _raise_on_dispatch(monkeypatch)
+
+    _attempt(dl, item, max_attempts=2)
+    assert dl.inbox_dead_letter_list() == []
+    assert item.id_ in dl.inbox_list(), "precondition: re-queued for retry"
+    assert _faults_queued(dl) == [], "a retried attempt is not answered"
+
+    _attempt(dl, item, max_attempts=2)
+    assert [e.activity_id for e in dl.inbox_dead_letter_list()] == [item.id_]
+    (fault,) = _faults_queued(dl)
+    assert fault["actor"] == _RECEIVER
+    assert fault["to"] == [_SENDER]
+    assert fault["object"]["failureClass"] == (
+        VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR
+    )
+    assert fault["object"]["inReplyTo"] == item.id_
+    assert "the use case raised" not in str(fault), "no diagnostics"
+
+
+@pytest.mark.spec("ASK-07-010")
+def test_a_failure_after_an_applied_dispatch_is_not_answered(monkeypatch):
+    """The post-bootstrap replay raising is no failure of the item's act:
+    dead-lettered or not, the sender of an applied act gets no fault."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    item = _note_item()
+    monkeypatch.setattr(
+        ih, "_dispatch_or_defer_inbox_item", lambda **_kw: object()
+    )
+    monkeypatch.setattr(ih, "is_case_bootstrap", lambda _event: True)
+    monkeypatch.setattr(
+        ih, "_activity_context_id", lambda _item, _event: "case"
+    )
+
+    def _replay_raises(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("replay storage fault")
+
+    monkeypatch.setattr(ih, "_replay_pending_case_activities", _replay_raises)
+
+    _attempt(dl, item, max_attempts=1)
+
+    assert [e.activity_id for e in dl.inbox_dead_letter_list()] == [item.id_]
+    assert _faults_queued(dl) == []
+
+
+@pytest.mark.spec("ASK-07-010")
+def test_a_dead_lettered_fault_is_not_answered_with_a_fault(monkeypatch):
+    """Two peers failing alike must not answer each other's faults."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    item = _note_item()
+    _raise_on_dispatch(monkeypatch)
+    monkeypatch.setattr(
+        ih,
+        "prepare_for_dispatch",
+        lambda activity: SimpleNamespace(
+            semantic_type=MessageSemantics.CREATE_PROCESSING_FAULT,
+            activity_id=activity.id_,
+            actor_id=_SENDER,
+        ),
+    )
+
+    _attempt(dl, item, max_attempts=1)
+
+    assert _faults_queued(dl) == []
+
+
+@pytest.mark.spec("ASK-07-010")
+def test_a_dead_lettered_item_that_names_no_sender_is_not_answered(
+    monkeypatch, caplog
+):
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    item = _note_item()
+    _raise_on_dispatch(monkeypatch)
+
+    def _unextractable(activity: as_Activity) -> None:
+        raise ValueError("no sender")
+
+    monkeypatch.setattr(ih, "prepare_for_dispatch", _unextractable)
+
+    with caplog.at_level("WARNING"):
+        _attempt(dl, item, max_attempts=1)
+
+    assert _faults_queued(dl) == []
+    assert any("names no sender" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("ASK-07-010")
+def test_a_dead_letter_fault_that_cannot_be_queued_is_logged(
+    monkeypatch, caplog
+):
+    """The item is already dead-lettered; the fault's failure only logs."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    item = _note_item()
+    _raise_on_dispatch(monkeypatch)
+
+    def _outbox_fails(*_args: Any, **_kwargs: Any) -> str:
+        raise RuntimeError("outbox write failed")
+
+    monkeypatch.setattr(ih, "emit_processing_fault", _outbox_fails)
+
+    with caplog.at_level("ERROR"):
+        _attempt(dl, item, max_attempts=1)
+
+    assert [e.activity_id for e in dl.inbox_dead_letter_list()] == [item.id_]
+    assert any(
+        "ProcessingFault not queued" in r.getMessage()
+        and r.exc_info is not None
+        for r in caplog.records
+    )

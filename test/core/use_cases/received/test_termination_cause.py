@@ -527,8 +527,8 @@ def test_the_threat_cascade_remove_carries_the_signals_it_records() -> None:
 
 @pytest.mark.spec("EMB-13-005")
 def test_an_uncaused_remove_carries_no_termination_cause() -> None:
-    """The trigger's early end names no cause yet (#4858), and its
-    ``Remove`` says so by leaving ``terminationCause`` out."""
+    """An early end with no cause is valid (EMB-13-004), and its ``Remove``
+    says so by leaving ``terminationCause`` out."""
     net = LedgerNetwork("https://example.org/cases/tc-uncaused")
 
     result = _bridge(net).execute_with_setup(
