@@ -137,7 +137,12 @@ def test_case_is_fully_closed_reads_only_the_named_case() -> None:
 
 @pytest.mark.spec("CM-23-013")
 def test_a_case_naming_no_case_manager_records_no_closure() -> None:
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER)
-    case = as_VulnerabilityCase(id_=CASE_ID, name="no manager")
-    dl.create(case)
-    assert not case_is_fully_closed(dl, case)
+    """The ledger holds a CASE_MANAGER closure entry, but the case read no
+    longer names a CASE_MANAGER, so there is no one to key the boundary on."""
+    dl = _store(MANAGER, closed=True)
+    held = dl.read_case(CASE_ID)
+    assert held is not None and case_is_fully_closed(dl, held)
+    unmanaged = held.model_copy(
+        update={"case_participants": [], "actor_participant_index": {}}
+    )
+    assert not case_is_fully_closed(dl, unmanaged)

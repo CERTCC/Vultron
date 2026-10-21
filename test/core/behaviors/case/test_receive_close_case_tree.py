@@ -12,8 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Structure of the owner-Leave arm of the close-case tree (ADR-0152).
 
-The owner arm records the Case Owner's closure, settles every pending
-embargo Invite, then records the CASE_MANAGER's own closure last: its
+The owner arm settles every pending embargo Invite, records the Case
+Owner's closure, then records the CASE_MANAGER's own closure last: its
 ``RM.CLOSED`` status entry is the write boundary (CM-23-002, CM-23-013,
 CM-23-014).  No node commits a separate closure marker.
 """

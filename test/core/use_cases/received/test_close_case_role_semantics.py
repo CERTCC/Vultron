@@ -641,6 +641,23 @@ class TestNonOwnerLeaveReceivePath:
             f" rm_states={rm_states}"
         )
 
+    @pytest.mark.spec("CM-23-010")
+    def test_a_case_manager_that_is_not_the_owner_cannot_leave(self):
+        """The CASE_MANAGER's RM.CLOSED is the write boundary, so its own
+        Leave, when it is not the Case Owner, is refused before the receipt
+        commit: nothing is committed and the case is not fully closed."""
+        dl = _make_full_dl()
+
+        result = _close(
+            dl, CASE_ACTOR_ID, "https://example.org/activities/cm-leave"
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None and "CM-23-010" in result.reason
+        assert _case_ledger(dl) == []
+        assert RM.CLOSED not in _participant_rm_states(dl, CASE_ACTOR_ID)
+        assert not _case_is_fully_closed(dl)
+
 
 def _close(
     dl: SqliteDataLayer, sender_actor_id: str, activity_id: str
@@ -2781,6 +2798,35 @@ class TestCaseActorRMClosedRecordingFailsClosed:
         assert result.disposition == HandlerDisposition.APPLIED
         assert _case_actor_rm_closed_entries(dl)
         assert _case_is_fully_closed(dl)
+
+    @pytest.mark.spec("CM-23-014")
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_failed_closure_keeps_no_invite_expiry(self, monkeypatch):
+        """Settling runs before the closure steps, but it is part of the same
+        act: a closure step that does not commit keeps none of the expiries,
+        and the redelivered Leave expires each Invite exactly once."""
+        dl = _make_full_dl()
+        embargo_id = _seed_pending_invite(dl)
+        with monkeypatch.context() as patch:
+            self._fail_case_actor_commits(patch, dl)
+            _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert (
+            _consent(dl, VENDOR_ID, embargo_id) == EmbargoConsentState.INVITED
+        )
+        assert not _expiry_entries(dl)
+
+        result = _redeliver_close(
+            dl, "https://example.org/activities/leave-owner"
+        )
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert (
+            _consent(dl, VENDOR_ID, embargo_id)
+            == EmbargoConsentState.TIMED_OUT
+        )
+        assert len(_expiry_entries(dl)) == 1
+        assert _boundary_is_last(dl)
 
     @pytest.mark.spec("CM-23-002")
     @pytest.mark.spec("CM-23-018")

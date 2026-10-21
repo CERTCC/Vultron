@@ -73,6 +73,7 @@ from vultron.core.behaviors.case.nodes.leave import (
     LATE_LEAVE_DECLINE,
     AdvanceCaseActorToRMClosedNode,
     AdvanceParticipantToRMClosedNode,
+    CaseManagerLeavesOnlyAsCaseOwnerNode,
     CommitRMClosureEntriesNode,
     EmitRejectCloseCaseNode,
     ExpirePendingInvitesOnCloseNode,
@@ -190,6 +191,7 @@ def create_close_case_received_tree(
                 ├── CloseCaseReceive (Sequence, via create_receive_activity_tree)
                 │   ├── IntakeReceivedActivityNode          # finds the archive; no-op
                 │   │   (no post-close guard: CloseCaseBT's guard runs first)
+                │   ├── CaseManagerLeavesOnlyAsCaseOwner    # guard: CM-23-010
                 │   ├── Inverter(OwnerCloseBlockedByEmbargoCheck)  # guard: SUCCESS iff NOT declining
                 │   │   └── Sequence: CheckIsCaseOwner → ReadEmState
                 │   │              → IsCloseBlockedByActiveEmbargo
@@ -415,6 +417,14 @@ def create_close_case_received_tree(
         # the CM-23-011 Reject(Leave), so the factory adds no refusal notice.
         refusal_notice_exemption=OWNER_CLOSE_DECLINE,
         precondition_guards=[
+            # CM-23-010: the CASE_MANAGER's RM.CLOSED is the write boundary,
+            # so a CASE_MANAGER that is not the Case Owner cannot leave as an
+            # ordinary leaver; refused before the receipt commit.
+            CaseManagerLeavesOnlyAsCaseOwnerNode(
+                case_id=case_id,
+                sender_actor_id=sender_actor_id,
+                name="CaseManagerLeavesOnlyAsCaseOwner",
+            ),
             py_trees.decorators.Inverter(
                 name="NotOwnerCloseBlockedByEmbargo",
                 child=py_trees.composites.Sequence(

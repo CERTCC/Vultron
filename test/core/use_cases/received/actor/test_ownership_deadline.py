@@ -337,3 +337,70 @@ def test_the_case_manager_authors_no_undo_of_an_offer():
     )
 
     assert ("Undo", "Offer") not in _CASE_AUTHORED_SIGNATURES
+
+
+@pytest.mark.spec("CM-21-017")
+@pytest.mark.spec("BT-17-001")
+def test_a_replica_never_evaluates_the_offers_deadline(make_payload):
+    """Run at the transferee's replica, the CASE_MANAGER's reply passes the
+    open-Offer stage untouched: its CASE_MANAGER gate skips the deadline
+    check, so a replica never judges the expiry (CM-21-017)."""
+    from py_trees.common import Status
+
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
+        OwnershipOfferOpenNode,
+    )
+    from vultron.core.behaviors.case.ownership_transfer_tree import (
+        create_accept_ownership_transfer_tree,
+    )
+    from vultron.core.use_cases.received._bt_verdict import find_node
+    from vultron.core.use_cases.received.actor.ownership import (
+        AcceptCaseOwnershipTransferReceivedUseCase,
+    )
+
+    case_id = "https://example.org/cases/case_dl_replica"
+    dl, _, _, offer = _expired_offer(make_payload, case_id)
+    # The transferee's replica: the case and its participant records, so the
+    # CASE_MANAGER is known there (PCR-03-001).
+    replica = SqliteDataLayer("sqlite:///:memory:", actor_id=_COORDINATOR_ID)
+    for kind in ("VulnerabilityCase", "CaseParticipant"):
+        for obj in dl.list_objects(kind):
+            replica.create(obj)
+    # A reply sent by the CASE_MANAGER, which a replica is entitled to
+    # receive (PCR-03-001), after the Offer's end_time.
+    reply = accept_case_ownership_transfer_activity(
+        offer, actor=_CASE_ACTOR_ID, to=[_COORDINATOR_ID]
+    )
+    tree = create_accept_ownership_transfer_tree(
+        case_id=case_id,
+        offer_id=offer.id_,
+        sender_id=_CASE_ACTOR_ID,
+        answer_id=reply.id_,
+        now=now_utc(),
+        sender_rule=AcceptCaseOwnershipTransferReceivedUseCase.sender_entitlement,
+    )
+
+    BTBridge(
+        datalayer=replica,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(replica),
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=_COORDINATOR_ID,
+        activity=make_payload(reply, receiving_actor_id=_COORDINATOR_ID),
+    )
+
+    check = find_node(tree, OwnershipOfferOpenNode)
+    assert check is not None and check.status is Status.INVALID
+    gate = next(
+        n
+        for n in tree.iterate()
+        if n.name == "OwnershipOfferOpenIfCaseManager"
+    )
+    assert gate.status is Status.SUCCESS
