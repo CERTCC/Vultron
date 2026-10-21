@@ -188,7 +188,7 @@ class _CaseOwnerParticipantMoveUseCase[
             )
             return verdict
         if not_case_manager(tree):
-            # No arm for a case without a CASE_MANAGER (CM-24-006): the
+            # No arm for a case without a CASE_MANAGER (CM-24-008): the
             # sender guard let it through only as the bootstrap window.
             if (
                 refusal := case_manager_absence_refusal(self._dl, case_id)

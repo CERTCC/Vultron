@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
+page_type: reference
 introduces: [Reachable State, Unreachable State]
 description: >
   The set of states of each Participant and its start state.

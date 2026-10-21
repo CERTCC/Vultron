@@ -84,13 +84,14 @@ repos:
         exclude: ^docs/adr/(index|README)\.md$
 
       - id: validate-docs-page-frontmatter
-        name: Validate docs page stakeholder_type and level
+        name: Validate docs page stakeholder_type, level and page_type
         entry: uv run python -m vultron.metadata.docs.page_frontmatter
         language: system
-        # Every docs page (DF-11-001), plus the inputs that change the verdict
-        # without touching a page: the nav, which decides what is an include
-        # fragment, and not_in_nav, which working record must match; the
-        # schema and patterns; and the nav and frontmatter readers they use.
+        # Every docs page (DF-11-001, DF-11-018), plus the inputs that change
+        # the verdict without touching a page: the nav, which decides what is
+        # an include fragment, and not_in_nav, which working record must
+        # match; the schema and patterns; and the nav and frontmatter readers
+        # they use.
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/page_.*|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 

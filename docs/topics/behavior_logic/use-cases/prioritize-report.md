@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+page_type: explanation
 description: >
   Triggers `engage_case` and `defer_case`: choosing whether to work the case now or park it, and announcing which.
 ---

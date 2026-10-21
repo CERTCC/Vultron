@@ -49,6 +49,7 @@ import py_trees
 from vultron.core.behaviors.case.nodes.on_behalf_guards import (
     CheckOnBehalfAuthorizedNode,
     CheckOnBehalfTargetIsParticipantNode,
+    on_behalf_required_roles,
 )
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
@@ -58,33 +59,8 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.states.cs import CS_d, CS_vf
-from vultron.enums.roles import CVDRole
 
-
-def on_behalf_required_roles(
-    vf_state: "CS_vf | None", d_state: "CS_d | None"
-) -> list[CVDRole]:
-    """Return the roles an on-behalf target MUST hold for the asserted dimensions.
-
-    ``VENDOR`` for a ``vf_state`` (v→V, PRM-06-003) and ``DEPLOYER`` for a
-    ``d_state`` (d→D, PRM-06-004).  The roles are derived from the dimensions,
-    never passed alongside them, so the guard cannot check a role the write
-    does not need.
-
-    Raises:
-        ValueError: when neither dimension is set — an assertion with no
-            dimension has no role to check (ARCH-10-001).
-    """
-    roles: list[CVDRole] = []
-    if vf_state is not None:
-        roles.append(CVDRole.VENDOR)
-    if d_state is not None:
-        roles.append(CVDRole.DEPLOYER)
-    if not roles:
-        raise ValueError(
-            "An on-behalf status assertion needs vf_state or d_state"
-        )
-    return roles
+__all__ = ["add_on_behalf_status_trigger_bt", "on_behalf_required_roles"]
 
 
 def add_on_behalf_status_trigger_bt(

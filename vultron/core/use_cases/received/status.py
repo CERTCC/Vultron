@@ -175,8 +175,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     Delegates DEMOMA-07-003 steps to the ``AddParticipantStatusBT``
     behavior tree:
-    1. Verify the sender: at the CASE_MANAGER, a known case participant;
-       at a participant replica, the CASE_MANAGER alone (PCR-03-001).
+    1. Verify the sender: at the CASE_MANAGER, the participant the target
+       record names, or the CASE_MANAGER or Case Owner asserting on its
+       behalf (RSH-08-007); at a participant replica, the CASE_MANAGER
+       alone (PCR-03-001).
     2. Append the ParticipantStatus to the CaseParticipant record.
     3. If the new status signals public awareness (CS.P) and the sender
        holds the CASE_OWNER role, initiate embargo teardown.
@@ -192,8 +194,15 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         specs/behavior-tree-integration.yaml BT-06-001.
     """
 
+    # Participant status is self-declared: the participant the target record
+    # names sends it, or the CASE_MANAGER or Case Owner asserts an on-behalf
+    # v→V or d→D for it, whose shape the tree checks (RSH-08-007,
+    # PRM-06-003/004).  A replica takes it from the CASE_MANAGER alone
+    # (PCR-03-001).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
-        SenderEntitlementKind.PARTICIPANT
+        SenderEntitlementKind.CASE_MANAGER,
+        SenderEntitlementKind.CASE_OWNER,
+        SenderEntitlementKind.AUTHOR,
     )
 
     def __init__(
@@ -230,7 +239,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
         # The case is the target participant's own (HP-08-008); the tree
         # refuses a status of any other case before the commit (HP-08-007).
-        case_id = self._target_participant_case_id()
+        target = self._stored_target_participant()
+        case_id = _as_id(target.context) if target is not None else None
 
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}
@@ -239,6 +249,11 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             request=request,
             case_id=case_id,
             sender_rule=self.sender_entitlement,
+            # The record's own participant, for the on-behalf guard
+            # (RSH-08-007, PRM-06-003/004).
+            target_actor_id=(
+                _as_id(target.attributed_to) if target is not None else None
+            ),
             **call_out_kwargs,
         )
         bridge = BTBridge(
@@ -286,18 +301,16 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 )
         return verdict
 
-    def _target_participant_case_id(self) -> str | None:
-        """The case the target participant's own record names (HP-08-008).
+    def _stored_target_participant(self) -> CaseParticipant | None:
+        """The receiver's stored record of the target participant.
 
-        The receiver's stored record of the participant decides the case,
-        never the status's ``context`` or the activity's: the sender chooses
-        those, while the status is appended to whichever case owns the
-        participant.  A participant the receiver does not hold, or whose
-        record names no case, leaves no case, and the sender guard refuses
-        (HP-01-008).
+        Its ``context`` is the case the Add acts on (HP-08-008), never the
+        status's ``context`` or the activity's: the sender chooses those,
+        while the status is appended to whichever case owns the participant.
+        Its ``attributed_to`` is whose status it is (RSH-08-007).  A
+        participant the receiver does not hold, or whose record names no
+        case, leaves no case, and the sender guard refuses (HP-01-008).
         """
         participant_id = self._request.participant_id
         stored = self._dl.read(participant_id) if participant_id else None
-        if not isinstance(stored, CaseParticipant):
-            return None
-        return _as_id(stored.context)
+        return stored if isinstance(stored, CaseParticipant) else None

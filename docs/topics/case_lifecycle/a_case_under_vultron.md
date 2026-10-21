@@ -5,6 +5,7 @@ description: >
   and controls, and what an embargo invitation asks of them.
 stakeholder_type: [cvd-practitioner]
 level: 200
+page_type: explanation
 ---
 
 # A Case Under Vultron

@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+page_type: explanation
 description: >
   Research discussion of what the model leaves out, including transition probabilities and the ordering of case histories.
 ---

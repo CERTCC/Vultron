@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+page_type: explanation
 description: >
   A baseline in which every allowed transition is equally likely, from the principle of indifference.
 ---

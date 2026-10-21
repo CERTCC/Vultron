@@ -4,6 +4,7 @@ description: >
   Sections 13 to 15 of the Vultron Protocol Specification: namespace considerations, security considerations, and references.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 ---
 
 # Considerations and References

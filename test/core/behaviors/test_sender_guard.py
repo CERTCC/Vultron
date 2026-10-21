@@ -778,7 +778,7 @@ _VENDOR_GUARDS = pytest.mark.parametrize(
 )
 
 
-@pytest.mark.spec("CM-23-018")
+@pytest.mark.spec("CM-23-018", "CM-23-020")
 @_VENDOR_GUARDS
 def test_each_active_participant_guard_admits_an_active_open_sender(
     make_guard: Callable[[], py_trees.behaviour.Behaviour],
@@ -791,7 +791,7 @@ def test_each_active_participant_guard_admits_an_active_open_sender(
     assert result.status == Status.SUCCESS, result.feedback_message
 
 
-@pytest.mark.spec("CM-23-018", "CM-10-004")
+@pytest.mark.spec("CM-23-018", "CM-23-020", "CM-10-004")
 @_MAY_NOT_ACT
 @_VENDOR_GUARDS
 def test_each_active_participant_guard_refuses_a_sender_that_may_not_act(

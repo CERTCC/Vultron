@@ -7,7 +7,7 @@ Announces that the report has reached the Vendor whose participant record is the
 - **When…** a Vendor becomes aware of the vulnerability
 - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
 - **Send to:** the case manager
-- **Sent by:** a participant (usually: vendor)
+- **Sent by:** the case manager or the case owner or the participant status's author (usually: vendor)
 - **Distinguished by:** `vfState` = `Vf`
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [Vendor Awareness (CV)](../../../formal_protocol/messages.md#cs-message-types)

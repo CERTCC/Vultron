@@ -5,6 +5,7 @@ description: >
   participant containers with Docker Compose.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
+page_type: tutorial
 ---
 
 # Tutorial: Running the Multi-Actor Container Demos

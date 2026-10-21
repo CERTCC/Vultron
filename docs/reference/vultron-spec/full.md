@@ -5,6 +5,7 @@ description: >
   annex in order, for printing or for searching the whole text at once.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 search:
   exclude: true
 ---

@@ -18,8 +18,8 @@
 The CASE_MANAGER evaluates invite expiry lazily, as a clock decision of the
 Invite Accept tree behind the received-tree factory's role gate
 (:func:`~vultron.core.behaviors.embargo.expiry_tree.invite_expiry_decision`,
-CLP-10-025, CM-28-014, BT-17-001).  The tree follows the guard → commit → effect pattern
-(CLP-10-006, BT-06-006):
+CLP-10-025, CM-28-014, CM-28-016, BT-17-001).  The tree follows the
+guard → commit → effect pattern (CLP-10-006, BT-06-006):
 
 1. :class:`EvaluateInviteExpiryNode` calls the **read-only**
    :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.assess_invite_expiry`,
@@ -38,7 +38,7 @@ CLP-10-025, CM-28-014, BT-17-001).  The tree follows the guard → commit → ef
 
 A participant replica never evaluates a deadline and runs no ``TIME_OUT``:
 it copies the ``Update(EmbargoConsent)`` entry through the consent slot of
-``create_announce_log_entry_tree`` (RSH-08-004, CM-28-014).
+``create_announce_log_entry_tree`` (RSH-08-004, CM-28-016).
 
 For the no-op late-Accept decision (EMB-17-004):
 :class:`ApplyInviteExpiryNoopFromLedgerNode` recognises the entry and
@@ -94,7 +94,7 @@ class EvaluateInviteExpiryNode(DataLayerActionWithPorts):
       and the commit + effect nodes need to run.
 
     This node makes **no writes** (CLP-10-006 guard role).
-    Placed only behind the CASE_MANAGER gate (CM-28-014, BT-17-001).
+    Placed only behind the CASE_MANAGER gate (CM-28-016, BT-17-001).
     """
 
     def __init__(

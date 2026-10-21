@@ -296,7 +296,7 @@ def removed_sender_dl(populated_dl):
 class TestClosedSenderRefused:
     """CM-23-018: the guard refuses every sender that may not act on the case."""
 
-    @pytest.mark.spec("CM-23-018")
+    @pytest.mark.spec("CM-23-018", "CM-23-020")
     @pytest.mark.parametrize(
         "store", ["closed_sender_dl", "inert_sender_dl", "removed_sender_dl"]
     )

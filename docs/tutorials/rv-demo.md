@@ -5,6 +5,7 @@ description: >
   readiness, public disclosure, embargo teardown, and case closure.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
+page_type: tutorial
 ---
 
 # Tutorial: Run the `rv` Demo
