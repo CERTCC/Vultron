@@ -81,7 +81,11 @@ from collections.abc import Sequence
 
 import py_trees
 
-from vultron.core.behaviors.act_transaction import ActTransaction
+from vultron.core.behaviors.act_transaction import (
+    ActTransaction,
+    OneActExemption,
+    received_act_stage,
+)
 from vultron.core.behaviors.case.case_clock_decisions import (
     case_clock_decisions,
 )
@@ -555,8 +559,8 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
     door guards (intake, the post-close guard, the addressee check and the
     sender guard, CLP-10-010), so a handler can ask whether the delivery got
     past them without knowing which guard the tree runs first, and which
-    exemption, if any, it was built with in place of the refusal notice
-    (CLP-02-005).
+    exemptions, if any, it was built with in place of the refusal notice
+    (CLP-02-005) and of one act (CLP-07-015).
     """
 
     def __init__(
@@ -565,6 +569,7 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
         children: list[py_trees.behaviour.Behaviour],
         door_guards: Sequence[py_trees.behaviour.Behaviour],
         refusal_notice_exemption: RefusalNoticeExemption | None = None,
+        one_act_exemption: OneActExemption | None = None,
     ) -> None:
         super().__init__(name=name, memory=False, children=children)
         self.door_guards: tuple[py_trees.behaviour.Behaviour, ...] = tuple(
@@ -573,6 +578,7 @@ class ReceivedActivityTree(py_trees.composites.Sequence):
         self.refusal_notice_exemption: RefusalNoticeExemption | None = (
             refusal_notice_exemption
         )
+        self.one_act_exemption: OneActExemption | None = one_act_exemption
 
     @property
     def door_guards_admitted(self) -> bool:
@@ -588,7 +594,7 @@ def received_stages(
 ) -> list[py_trees.behaviour.Behaviour]:
     """The stages *tree* runs, in order, with an act block opened in place.
 
-    A tree built with ``as_one_act`` holds its guarded commit and effects in
+    A tree that commits to a case holds its guarded commit and effects in
     one :class:`~vultron.core.behaviors.act_transaction.ActTransaction`
     child; its children stand in for it here, so a reader of the stage order
     (the commit-ordering and refusal-notice ratchets) sees the same stages
@@ -833,7 +839,7 @@ def create_receive_activity_tree(
     manager_gate_name: str | None = None,
     manager_body_name: str | None = None,
     manager_case_may_be_absent: bool = False,
-    as_one_act: bool = False,
+    one_act_exemption: OneActExemption | None = None,
     refusal_effects: list[py_trees.behaviour.Behaviour] | None = None,
     refusal_notice_exemption: RefusalNoticeExemption | None = None,
     post_close_exemption: PostCloseExemption | None = None,
@@ -853,11 +859,15 @@ def create_receive_activity_tree(
             → [*precondition_guards] → GuardedCommit
             → [*replica_effects] → CaseManagerGate[*manager_effects]
 
-    With ``as_one_act`` the last three stages are one
+    In a tree that commits to ``case_id`` the last three stages are one
     :class:`~vultron.core.behaviors.act_transaction.ActTransaction`,
     ``ActTransaction[GuardedCommit, *replica_effects, CaseManagerGate]``,
-    named ``{name}Act`` (ADR-0151); :func:`received_stages` lists a tree's
-    stages either way.
+    named ``{name}Act``: the act's own entry and every consequence a later
+    node commits are written together or not at all, so a failure keeps
+    nothing but intake's archive and a redelivery runs the act afresh
+    (CLP-07-015, ADR-0146, ADR-0151).  A tree runs them outside one only by
+    naming a registered ``one_act_exemption`` that records why.
+    :func:`received_stages` lists a tree's stages either way.
 
     The addressee door guard,
     :class:`~vultron.core.behaviors.case.nodes.addressee.ActivityAddressedToReceiverNode`,
@@ -1059,12 +1069,11 @@ def create_receive_activity_tree(
             ``manager_effects``; defaults to ``{manager_gate_name}Body``.
         manager_case_may_be_absent: Passed to the gate; see
             :class:`CheckIsCaseManagerNode`.
-        as_one_act: Run the guarded commit of the received act's own entry,
-            ``replica_effects`` and ``manager_effects`` in one
-            :class:`~vultron.core.behaviors.act_transaction.ActTransaction`:
-            the act's entry and every consequence a later node commits
-            succeed or fail as one (CLP-07-015, ADR-0146, ADR-0151).
-            Requires ``case_id``.
+        one_act_exemption: Why this tree runs its guarded commit and
+            effects outside one
+            :class:`~vultron.core.behaviors.act_transaction.ActTransaction`;
+            ``None`` (the default) runs them as one act whenever ``case_id``
+            is given (CLP-07-015, ADR-0146).
         refusal_effects: Emit-capable nodes run only when a precondition
             guard refuses, at the CASE_MANAGER, once per received activity,
             after the refusal notice.
@@ -1099,9 +1108,11 @@ def create_receive_activity_tree(
             diversion is ill-formed (CLP-10-026), or ``clock_decisions`` name no
             case, come without a ``sender_rule`` or with a
             ``post_close_exemption``, or hold the received activity's commit
-            (CLP-10-025).
+            (CLP-10-025), or a ``one_act_exemption`` is unregistered or
+            exempts a tree that commits to no case (CLP-07-015).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-02-005, CLP-05-001,
+    CLP-07-015,
     CLP-10-006, CLP-10-010, CLP-10-017, CLP-10-022, CLP-10-025, CLP-10-026,
     ``specs/behavior-tree-integration.yaml``
     BT-17-008 and ``specs/case-management.yaml`` CM-23-013.
@@ -1118,12 +1129,6 @@ def create_receive_activity_tree(
             or manager_case_may_be_absent
         ),
     )
-    if as_one_act and case_id is None:
-        raise VultronWiringError(
-            f"create_receive_activity_tree({name}): as_one_act runs the"
-            " received act's own commit with its effects, so it needs"
-            " case_id (CLP-07-015)"
-        )
     _check_replica_effects(name, replica, replica_emit_exemption)
 
     intake = IntakeReceivedActivityNode()
@@ -1220,15 +1225,13 @@ def create_receive_activity_tree(
                 manager_case_may_be_absent,
             )
         )
-    if as_one_act:
-        # The act's own entry commits with its consequences, or none of
-        # them is kept (CLP-07-015, ADR-0151).
-        children.append(ActTransaction(name=f"{name}Act", children=act))
-    else:
-        children.extend(act)
+    # The act's own entry commits with its consequences, or none of them is
+    # kept (CLP-07-015, ADR-0151).
+    children.extend(received_act_stage(name, act, case_id, one_act_exemption))
     return ReceivedActivityTree(
         name=name,
         children=children,
         door_guards=door_guards,
         refusal_notice_exemption=refusal_notice_exemption,
+        one_act_exemption=one_act_exemption,
     )

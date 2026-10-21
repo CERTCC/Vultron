@@ -42,14 +42,15 @@ logger = logging.getLogger(__name__)
 
 
 class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
-    """Snapshot the current last ledger-entry index for resume-case backfill.
+    """Snapshot the current last ledger-entry index for a seated joiner's backfill.
 
     This node MUST appear AFTER ``CheckInviteeNotAlreadyParticipantNode`` in
     the precondition-guards list, so it can read ``invitee_already_participant``
     and ``invitee_joined`` from the blackboard.
 
-    **Resume case** (invitee already registered, ``invitee_already_participant
-    = True``, ``invitee_joined = True``): the commit's ``FanOutLogEntryNode``
+    **Seated case** (invitee already joined, seated without a join and with no
+    backfill on record, ``invitee_already_participant = True``,
+    ``invitee_joined = True``): the commit's ``FanOutLogEntryNode``
     will include the invitee in its recipient list (they are a current case
     participant), so ``BackfillCanonicalLedgerToInviteeNode`` must limit its
     window to entries that existed *before* the commit to avoid sending the
@@ -118,13 +119,13 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
         # An inert participant (joined=False, ADR-0114) is not included in the
         # fan-out, so treat the same as fresh — no pre-commit snapshot.
         invitee_joined = self._invitee_joined_bb
-        is_resume = already_participant and invitee_joined is not False
+        is_seated = already_participant and invitee_joined is not False
 
-        if not is_resume:
+        if not is_seated:
             # Fresh case (or inert record): the commit fan-out won't reach the
             # invitee.  Write None so BackfillCanonicalLedgerToInviteeNode
             # uses the ledger tail at backfill time, and any stale value from
-            # a prior resume test is overwritten.
+            # a prior seated-case run is overwritten.
             self._set_output("pre_commit_backfill_target", None)
             self.logger.debug(
                 "%s: fresh/inert invite — clearing pre-commit backfill target"
@@ -133,7 +134,7 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        # Resume case: invitee IS already a fully-joined participant.
+        # Seated case: invitee IS already a joined participant.
         # Capture the current last index so backfill doesn't re-send the
         # accept-invite entry that the commit fan-out will deliver.
         if self.datalayer is None:
@@ -148,7 +149,7 @@ class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
         target = entries[-1].log_index if entries else -1
         self._set_output("pre_commit_backfill_target", target)
         self.logger.debug(
-            "%s: resume case — pre-commit backfill target for case '%s' is %d",
+            "%s: seated case — pre-commit backfill target for case '%s' is %d",
             self.name,
             self.case_id,
             target,
@@ -205,7 +206,7 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
         """Resolve the backfill target index.
 
         Uses ``pre_commit_backfill_target`` captured in ``initialise()`` when
-        set (resume case: CapturePreCommitBackfillTargetNode wrote the last
+        set (seated case: CapturePreCommitBackfillTargetNode wrote the last
         index BEFORE the commit so backfill does not re-send the new entry
         that the commit fan-out already delivered).  ``None`` means fresh case
         — fall back to the post-commit last entry.

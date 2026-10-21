@@ -40,6 +40,7 @@ from __future__ import annotations
 import pytest
 
 from test.support.embargo_register import (
+    activate,
     agree_to_active_embargo,
     register,
     write_consent_rows,
@@ -51,11 +52,13 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import (
     RmDimension,
 )
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import (
     InvalidateReportReceivedEvent,
@@ -765,6 +768,16 @@ class TestFullValidateReportLedgerChain:
             attributed_to=case_actor_id,
         )
         ca_case.vulnerability_reports.append(self.REPORT_ID)
+        # DUR-07-004: validation needs an embargo in force.  The validation
+        # and the received act's entry are one act (CLP-07-015), so a
+        # validation that fails keeps no validate_report entry either.
+        embargo = EmbargoEvent(
+            id_=f"{ca_case.id_}/embargoes/chain-embargo",
+            context=ca_case.id_,
+            end_time=days_from_now_utc(45),
+        )
+        case_actor_dl.create(embargo)
+        activate(ca_case, embargo.id_)
 
         ca_participant = as_CaseParticipant(
             attributed_to=case_actor_id,
@@ -778,6 +791,7 @@ class TestFullValidateReportLedgerChain:
         # CaseActor refuses a declaration from anyone else (HP-01-006).
         _add_participant_at_received(case_actor_dl, ca_case, self.VENDOR_ID)
         case_actor_dl.save(ca_case)
+        write_consent_rows(case_actor_dl, ca_case)
 
         # ── Step 5: dispatch ValidateReportReceivedUseCase on case_actor_dl ───
         # Seed the report-phase RM state on the CaseActor's DataLayer.

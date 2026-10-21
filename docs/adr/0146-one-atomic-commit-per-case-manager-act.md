@@ -2,8 +2,8 @@
 status: proposed
 date: 2026-10-16
 created: 2026-10-16
-updated: 2026-10-20
-revision: 4
+updated: 2026-10-21
+revision: 5
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0111, ADR-0119, ADR-0122, ADR-0124;
@@ -13,12 +13,14 @@ informed: []
 stakeholder_type: [project-contributor]
 ---
 
-# One Atomic Commit per Embargo Act
+# One Atomic Commit per CASE_MANAGER Act
 
 ## Context and Problem Statement
 
 Every change the CASE_MANAGER makes to the case file is its own ledger entry, and the act's entry comes first (CLP-07-013, ADR-0124).
-So one embargo act commits several entries: the act's own, then one `Create` or `Update(EmbargoConsent)` for each consent row it changes.
+So one act commits several entries.
+An embargo act commits its own entry, then one `Create` or `Update(EmbargoConsent)` for each consent row it changes.
+A received `Leave(VulnerabilityCase)` commits its `close_case` entry, then one status entry for each RM transition it causes (CM-23-001).
 The CASE_MANAGER decides every row before the first commit.
 
 The entries used to be committed one at a time, each in its own DataLayer write.
@@ -31,7 +33,7 @@ Nothing finished the act.
 A repeated trigger starts a new act, and a redelivered received act is stopped by its idempotency guard.
 One act, the stub re-issue, had its own repair pass that re-derived the row it owed; no other act had one.
 
-The question this record settles: how does the CASE_MANAGER keep a failure part-way through an act from leaving the act half done?
+The question this record settles: how does the CASE_MANAGER keep a failure part-way through any act from leaving the act half done?
 
 ## Decision Drivers
 
@@ -50,7 +52,7 @@ The question this record settles: how does the CASE_MANAGER keep a failure part-
 
 ## Decision Outcome
 
-Chosen option: **C, one DataLayer transaction per act**.
+Chosen option: **C, one DataLayer transaction per act**, for every act the CASE_MANAGER commits, not only embargo acts.
 
 The DataLayer port offers a transaction: every write inside the block commits together, or none of them does, and every read inside it sees its own writes.
 The CASE_MANAGER's embargo commit step opens one transaction for the act.
@@ -64,7 +66,9 @@ The stub re-issue is one: an act that changes the embargo in force makes every o
 The relay of a proposal is another: each relayed Invite commits with its invitee's row (EP-09-002).
 The tree runs the act's commit step and those later nodes inside the same transaction, as one composite node (`ActTransaction`).
 The commit step's own transaction is then part of the act's transaction, so a failure in any later node also rolls back the act.
-Each CASE_MANAGER arm of an embargo trigger tree is one such node, and so is each received embargo tree's commit of the act's own entry together with the effects after it (ADR-0151).
+Each CASE_MANAGER arm of an embargo trigger tree is one such node.
+So is every received tree's commit of the act's own entry together with the effects after it (ADR-0151): the received-tree factory gives every tree that commits to a case this shape by default.
+A tree runs outside it only by naming a registered, reasoned exemption, and none is registered.
 A tree that includes another act's tree, such as a rejection that ends the embargo, nests one `ActTransaction` inside another, and the inner one is part of the outer one.
 
 The ledger and the sync shape do not change.
@@ -80,6 +84,14 @@ That commit runs in the same transaction as the consequences, so a failure in an
 A later delivery of a failed received act is then not stopped as a repeat, and runs the act again.
 Revision 3 named this as a known gap: the entry was committed in its own transaction first, the change it carried was applied again after the rollback, and a received proposal whose relay failed stayed in the register with no rows, its redelivery refused.
 Revision 4 closes it (#4933).
+
+### What revision 5 changed
+
+Revisions 1 to 4 decided the rule for embargo acts, and the received-tree factory took the one-act shape as an opt-in that only embargo trees used.
+Case trees kept committing their consequences after the act.
+A received `Leave` could keep its `close_case` entry while the status entries it caused were missing, a joiner's relay or a reinstated participant's embargo Invite could fail after the join or reinstatement was kept, and recovery code finished such acts on a later delivery.
+Revision 5 applies the rule to every act the CASE_MANAGER commits.
+One act is the factory's default, so a new tree cannot drop it silently, and the recovery code that finished a half-done case act is removed (#4983).
 
 ### Why revision 1 was replaced
 
@@ -102,8 +114,10 @@ Option D was rejected: every register entry has a row on every participant (ADR-
 
 - Good, because a failed commit in the middle of an act leaves the case as it was before the act.
 - Good, because no act needs a repair pass, and no run finishes another run's work.
+- Good, because a received tree gets the one-act shape without asking for it, so a new tree cannot leave its consequences outside its act.
 - Good, because the ledger, the entry ids and the sync shape are unchanged.
 - Bad, because a transaction holds the store's write lock for the whole act, including its later nodes, so another writer on the same store waits for it.
+- Bad, because an effect that fails as an expected outcome, such as a withheld status adoption, must not return `FAILURE`, or the act loses its own entry.
 
 ## Validation
 
@@ -114,6 +128,9 @@ Option D was rejected: every register entry has a row on every participant (ADR-
 - Tests fail the stub re-issue after a termination and after an accept, and the relay after the CASE_MANAGER's own proposal and after a received one.
   Each asserts that the act keeps no consent row change, no re-issued or relayed Invite and no queued activity, and that a trigger act keeps no entry (#4949).
 - Tests fail a received withdrawal's row commit and a received proposal's relay, and assert the received act keeps no entry, and that a redelivery of the proposal is applied (#4933).
+- Tests fail the relay to a joiner and a reinstated participant's embargo Invite, and assert the act keeps no joined mark, consent row, outbox entry or ledger entry, and that a redelivery is processed afresh.
+  Tests fail a step of a Leave's closure and assert no `close_case` entry is kept (#4983).
+- An architecture test asserts that every received tree that commits runs its own entry and every node after it in one `ActTransaction`, or names a registered exemption, held to equality with a pinned set in both directions (#4983).
 
 ## More Information
 
@@ -125,5 +142,6 @@ Option D was rejected: every register entry has a row on every participant (ADR-
 - #4949 — revision 3: one transaction for the act and the consequences its later nodes commit.
 - #4933 — revision 4: a received act's own entry commits in that transaction too (ADR-0151).
 - ADR-0151 — a received act commits its own entry with its consequences.
+- #4983 — revision 5: one act for every CASE_MANAGER act, as the received-tree factory's default.
 
 Generated spec requirements: `case-ledger-processing.yaml` CLP-07-015, `datalayer.yaml` DL-02-004.

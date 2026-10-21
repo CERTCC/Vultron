@@ -27,6 +27,9 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.core.use_cases.received._archived_redelivery import (
+    archived_redelivery,
+)
 from test.core.use_cases.received.conftest import (
     assert_only_refusal_notice,
     queued_bodies,
@@ -1815,11 +1818,12 @@ class TestActorSuggestionFlowRecordsEachMessageAfterItIsSent:
 
 
 class TestActorSuggestionAnswersAreSentOnceOnRetry:
-    """A retry after a send whose commit failed sends nothing twice.
+    """A retry after a send whose commit failed sends the answer once.
 
-    Each answer's id is derived from the recommendation it answers, so the
-    retry rebuilds the queued answer under the same id: the outbox does not
-    queue it again (OX-06-002) and the commit records it once (ADR-0119).
+    The answer and its commit are one act with the received activity's own
+    entry, so the failed run keeps neither the queued answer nor any entry
+    (CLP-07-015).  The retry runs the act afresh: it queues the answer once
+    and the commit records it once (OX-06-002, ADR-0119).
     """
 
     @staticmethod
@@ -1868,10 +1872,21 @@ class TestActorSuggestionAnswersAreSentOnceOnRetry:
             with pytest.raises(VultronBTInternalError, match="commit failed"):
                 self._run(use_case_class, dl, event)
         (answer_id,) = failed
-        assert dl.outbox_list().count(answer_id) == 1
+        # The failed act keeps nothing it queued (CLP-07-015).
+        assert answer_id not in dl.outbox_list()
         assert self._entries_of(dl, semantic_type) == []
 
-        retry = self._run(use_case_class, dl, event)
+        # The inbox routes the retry as the copy intake archived
+        # (IE-10-001), not as the resent body.
+        retry = self._run(
+            use_case_class,
+            dl,
+            archived_redelivery(
+                dl,
+                event.activity_id,
+                receiving_actor_id=event.receiving_actor_id,
+            ),
+        )
 
         assert retry.disposition is HandlerDisposition.APPLIED, retry
         assert dl.outbox_list().count(answer_id) == 1
@@ -1973,6 +1988,7 @@ class TestAFailedAnswerCommitDoesNotFallThrough:
             for item in dl.outbox_list()
             if str(getattr(dl.read(item), "type_", "")) != "Announce"
         ]
-        assert answers == [accept_id], (
-            "only the Accept may be queued; no other arm may answer after it"
-        )
+        # The raise ended the act, so no other arm answered after the Accept,
+        # and the act keeps nothing it queued (CLP-07-015).
+        assert answers == [], "no arm may answer after the failed Accept"
+        assert dl.read(accept_id) is None

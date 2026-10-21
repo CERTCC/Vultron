@@ -37,23 +37,27 @@ CASE_MANAGER's alone (RSH-04-001, RSH-04-005).
     │   ├─ CarriedObjectInTargetCaseNode      # Guard: status of this case (HP-08-007)
     │   ├─ CheckParticipantStatusAcceptableNode  # Guard: accept whole or refuse whole (RSH-09)
     │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)
-    ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
-    │   ├─ Sequence("SkipIfNotCaseManager")
-    │   │   └─ Inverter(CheckIsCaseManagerNode)
-    │   └─ CommitCaseLedgerEntryNode
-    └─ AdoptParticipantStatusIfCaseManager (CaseManagerGate, from the factory)  # RSH-08-003
-        └─ Body (Sequence)                     # CASE_MANAGER only (#3814)
-            ├─ AppendParticipantStatusNode     # Step 2: append status to participant record
-            ├─ StatusAdoptionGate (Selector)    # StatusAdoptionGate authorization (RSH-01-002)
-            │   ├─ CheckIsCaseOwnerNode        # Hard bypass: CASE_OWNER gospel (RSH-01-002)
-            │   └─ CaseOwnerApprovesStatusUpdate  # Call-out: non-owners need approval
-            ├─ EmitCaseStatusUpdateNode        # Adopted P/X/A (RSH-01-003)
-            ├─ TeardownEffectsOrSkip (FailureIsSuccess)
-            │   └─ TeardownEffects (Sequence)
-            │       ├─ EmbargoTeardownAuthorizationGate  # Call-out gate (RSH-02-001)
-            │       └─ ThreatTerminationBranchNode       # Embargo teardown on P/X/A (RSH-03-001)
-            ├─ PxaEmInvariantDiagnosticNode    # CSB-18-002..004 post-cascade check (#4829)
-            └─ EmitRMGapNoteNode               # Commit add_note_to_case on RM anomaly (RSH-06-004)
+    └─ AddParticipantStatusBTAct (ActTransaction, only if case_id)  # One act (CLP-07-015)
+        ├─ GuardedCommitOrSkip (Selector)  # Record receipt first (CLP-10-006)
+        │   ├─ Sequence("SkipIfNotCaseManager")
+        │   │   └─ Inverter(CheckIsCaseManagerNode)
+        │   └─ CommitCaseLedgerEntryNode
+        └─ AdoptParticipantStatusIfCaseManager (CaseManagerGate, from the factory)  # RSH-08-003
+            └─ Body (Sequence)                 # CASE_MANAGER only (#3814)
+                ├─ AppendParticipantStatusNode # Step 2: append status to participant record
+                └─ AdoptOrWithhold (Selector)  # A withheld adoption keeps the act
+                    ├─ AdoptionWithheld (Inverter)
+                    │   └─ StatusAdoptionGate (Selector)  # Authorization (RSH-01-002)
+                    │       ├─ CheckIsCaseOwnerNode       # Hard bypass: CASE_OWNER gospel
+                    │       └─ CaseOwnerApprovesStatusUpdate  # Call-out: non-owners
+                    └─ AdoptStatus (Sequence)
+                        ├─ EmitCaseStatusUpdateNode  # Adopted P/X/A (RSH-01-003)
+                        ├─ TeardownEffectsOrSkip (FailureIsSuccess)
+                        │   └─ TeardownEffects (Sequence)
+                        │       ├─ EmbargoTeardownAuthorizationGate  # RSH-02-001
+                        │       └─ ThreatTerminationBranchNode       # RSH-03-001
+                        ├─ PxaEmInvariantDiagnosticNode  # CSB-18-002..004 check (#4829)
+                        └─ EmitRMGapNoteNode  # add_note_to_case on RM anomaly (RSH-06-004)
 
     A replica holding a copy of the ``Add(ParticipantStatus)`` writes nothing: the whole
     adoption body runs only at the CASE_MANAGER, and the replica takes the move
@@ -115,6 +119,37 @@ from vultron.core.models.events.status import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _adopt_or_withhold(
+    adoption_gate: py_trees.behaviour.Behaviour,
+    adoption: list[py_trees.behaviour.Behaviour],
+) -> py_trees.behaviour.Behaviour:
+    """Adopt the status when *adoption_gate* passes; else withhold, and succeed.
+
+    A withheld adoption is not a failure of the act: the raw claim is on the
+    participant record and its entry is committed (RSH-01-001, RSH-09-008).
+    So the act keeps them, and only a failure of *adoption* itself fails the
+    act and rolls it back (CLP-07-015).  The shape is the CASE_MANAGER
+    gate's: the ``Inverter`` makes a withheld adoption the Selector's
+    success, and a failed adoption its failure::
+
+        AdoptOrWithhold (Selector)
+        ├── AdoptionWithheld (Inverter(adoption_gate))
+        └── AdoptStatus (Sequence[*adoption])
+    """
+    return py_trees.composites.Selector(
+        name="AdoptOrWithhold",
+        memory=False,
+        children=[
+            py_trees.decorators.Inverter(
+                name="AdoptionWithheld", child=adoption_gate
+            ),
+            py_trees.composites.Sequence(
+                name="AdoptStatus", memory=False, children=adoption
+            ),
+        ],
+    )
 
 
 def add_participant_status_tree(
@@ -257,54 +292,58 @@ def add_participant_status_tree(
                 status_obj_fallback=status_obj,
                 validate_rm=False,
             ),
-            status_adoption_gate,
-            # The canonical CaseStatus adds every P, X or A latch the sender
-            # reported in its embedded case status, clearing none
-            # (RSH-01-003, #4956).
-            EmitCaseStatusUpdateNode(
-                case_id=tree_case_id,
-                name="EmitCaseStatusUpdate",
-                # The case adopts the report's P/X/A here, read at tick after
-                # the append, so a status received by reference is adopted
-                # too (RSH-01-003).
-                reported_status_id=status_id or None,
-            ),
-            py_trees.decorators.FailureIsSuccess(
-                name="TeardownEffectsOrSkip",
-                child=py_trees.composites.Sequence(
-                    name="TeardownEffects",
-                    memory=False,
-                    children=[
-                        call_out.embargo_teardown_authorization_gate_factory(
-                            "EmbargoTeardownAuthorizationGate"
+            _adopt_or_withhold(
+                status_adoption_gate,
+                [
+                    # The canonical CaseStatus adds every P, X or A latch the sender
+                    # reported in its embedded case status, clearing none
+                    # (RSH-01-003, #4956).
+                    EmitCaseStatusUpdateNode(
+                        case_id=tree_case_id,
+                        name="EmitCaseStatusUpdate",
+                        # The case adopts the report's P/X/A here, read at tick after
+                        # the append, so a status received by reference is adopted
+                        # too (RSH-01-003).
+                        reported_status_id=status_id or None,
+                    ),
+                    py_trees.decorators.FailureIsSuccess(
+                        name="TeardownEffectsOrSkip",
+                        child=py_trees.composites.Sequence(
+                            name="TeardownEffects",
+                            memory=False,
+                            children=[
+                                call_out.embargo_teardown_authorization_gate_factory(
+                                    "EmbargoTeardownAuthorizationGate"
+                                ),
+                                ThreatTerminationBranchNode(
+                                    # Prefer the peer's embedded CaseStatus for the
+                                    # PXA check: it was accepted whole, so it is the
+                                    # stored copy the emit adopted (RSH-09-001).
+                                    # Enable DataLayer fallback so that when it is
+                                    # absent _threat_present reads the case's
+                                    # current_status (written by
+                                    # EmitCaseStatusUpdateNode just above).
+                                    status_obj=getattr(
+                                        status_obj, "case_status", None
+                                    ),
+                                    case_id=tree_case_id,
+                                    name="ThreatTerminationBranch",
+                                    use_datalayer_fallback=True,
+                                ),
+                            ],
                         ),
-                        ThreatTerminationBranchNode(
-                            # Prefer the peer's embedded CaseStatus for the
-                            # PXA check: it was accepted whole, so it is the
-                            # stored copy the emit adopted (RSH-09-001).
-                            # Enable DataLayer fallback so that when it is
-                            # absent _threat_present reads the case's
-                            # current_status (written by
-                            # EmitCaseStatusUpdateNode just above).
-                            status_obj=getattr(
-                                status_obj, "case_status", None
-                            ),
-                            case_id=tree_case_id,
-                            name="ThreatTerminationBranch",
-                            use_datalayer_fallback=True,
-                        ),
-                    ],
-                ),
+                    ),
+                    # The CSB-18 note is the CASE_MANAGER's own act, committed and
+                    # replicated (#4829); it reads the post-teardown EM, so a gate
+                    # that blocked the teardown is reported (CSB-18-002..004).
+                    PxaEmInvariantDiagnosticNode(
+                        status_obj=status_obj,
+                        case_id=tree_case_id,
+                        name="PxaEmInvariantDiagnostic",
+                    ),
+                    rm_gap_note(actor_id, tree_case_id),
+                ],
             ),
-            # The CSB-18 note is the CASE_MANAGER's own act, committed and
-            # replicated (#4829); it reads the post-teardown EM, so a gate
-            # that blocked the teardown is reported (CSB-18-002..004).
-            PxaEmInvariantDiagnosticNode(
-                status_obj=status_obj,
-                case_id=tree_case_id,
-                name="PxaEmInvariantDiagnostic",
-            ),
-            rm_gap_note(actor_id, tree_case_id),
         ]
         if tree_case_id
         else None,

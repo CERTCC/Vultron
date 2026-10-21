@@ -26,7 +26,7 @@ Tree structure::
     ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
     ├── InviteeHasParticipantRecordNode        — refuse when no record (CM-11-021)
     ├── StubInviteAnswerableNode               — not superseded
-    ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
+    ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for a seated joiner
     ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
     └── AcceptInviteIfCaseManager (Selector)   — BT-17-001 gate
         ├── SkipIfNotCaseManager               — Inverter(CheckIsCaseManagerNode)
@@ -172,7 +172,7 @@ def create_accept_invite_actor_to_case_tree(
         ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
         ├── InviteeHasParticipantRecordNode        — refuse an Accept with no record (CM-11-021)
         ├── StubInviteAnswerableNode               — not superseded
-        ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
+        ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for a seated joiner
         ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
         └── AcceptInviteIfCaseManager              — BT-17-001 gate (#3752)
             └── AcceptInviteEffects (memory=False)
@@ -197,10 +197,13 @@ def create_accept_invite_actor_to_case_tree(
     The idempotency guard ``CheckInviteeNotAlreadyParticipantNode`` uses
     :class:`~vultron.core.behaviors.idempotency.SilentIdempotencyGuardMixin`
     to enforce CLP-13-001: when a true duplicate is detected (invitee already
-    joined AND backfill is complete), the guard returns ``Status.FAILURE`` with
-    an INFO log and no ledger write.  When backfill is incomplete, it returns
-    SUCCESS with ``invitee_already_participant = True`` so the tree continues
-    to the commit + backfill steps without re-creating the participant.
+    joined AND its backfill on record), the guard returns ``Status.FAILURE``
+    with an INFO log and no ledger write.  A participant seated without a
+    join (no backfill on record) gets SUCCESS with
+    ``invitee_already_participant = True``, so the tree continues to the
+    commit + backfill steps without re-creating the participant.  The
+    backfill commits with the Accept in one act (CLP-07-015), so no backfill
+    is ever on record part-way.
 
     The sender guard refuses an Accept unless its sender is the invitee of the
     stub Invite this store recorded for the case, before anything is written

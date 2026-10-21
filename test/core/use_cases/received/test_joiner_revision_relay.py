@@ -22,7 +22,11 @@ proposal to the joiner.
 from typing import cast
 
 import pytest
+from py_trees.common import Status
 
+from test.core.use_cases.received._archived_redelivery import (
+    archived_redelivery,
+)
 from test.core.use_cases.received.conftest import seed_inert_invitee
 from test.core.use_cases.received.test_embargo_revision_relay import (
     MANAGER,
@@ -36,6 +40,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.received import case_stub
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -87,10 +92,26 @@ def _relayed_to(dl: SqliteDataLayer, actor_id: str) -> list[VultronActivity]:
 
 
 def _join(dl: SqliteDataLayer, case_id: str, make_payload):
+    return _accept(dl, _invited_joiner(dl, case_id, make_payload))
+
+
+def _accept(dl: SqliteDataLayer, event):
+    """The CASE_MANAGER processes the joiner's Accept *event*."""
+    return AcceptInviteActorToCaseReceivedUseCase(
+        dl,
+        event,
+        sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+
+def _invited_joiner(dl: SqliteDataLayer, case_id: str, make_payload):
+    """Seat the joiner inert under a stub Invite; return its Accept event."""
     invite = rm_invite_to_case_activity(
         as_Actor(id_=JOINER),
         to=[JOINER],
-        target=case_id,
+        target=case_stub(case_id),
         actor=MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{case_id}/invitations/joiner",
@@ -102,16 +123,9 @@ def _join(dl: SqliteDataLayer, case_id: str, make_payload):
     assert isinstance(case, VulnerabilityCase)
     seed_inert_invitee(dl, case, JOINER)
     dl.save(case)
-    event = make_payload(
+    return make_payload(
         rm_accept_invite_to_case_activity(invite, actor=JOINER, to=[MANAGER])
     )
-    return AcceptInviteActorToCaseReceivedUseCase(
-        dl,
-        event,
-        sync_port=SyncActivityAdapter(dl),
-        trigger_activity=TriggerActivityAdapter(dl),
-        wire_render_port=As2WireRenderAdapter(),
-    ).execute()
 
 
 def _open_revision(case_id: str, make_payload, proposer: str = PROPOSER):
@@ -236,6 +250,69 @@ def test_joiner_that_accepts_the_relayed_revision_holds_its_consent(
     assert (
         _consent_of(dl, case_id, JOINER, active_before)
         is EmbargoConsentState.AGREED
+    )
+
+
+@pytest.mark.spec("CLP-07-015")
+@pytest.mark.spec("CM-17-004")
+@pytest.mark.spec("EP-09-011")
+def test_a_failed_relay_keeps_nothing_of_the_join_and_redelivery_runs_afresh(
+    make_payload, monkeypatch
+):
+    """The join and its relay are one act (CLP-07-015).
+
+    The relay fails after the Accept's entry, the join, the consent row, the
+    Announce and the backfill are written: the act keeps none of them, so
+    the joiner's record, the outbox and the ledger are as before.  The
+    redelivered Accept, routed as the copy intake archived, is processed
+    afresh and relays the revision once.
+    """
+    from vultron.core.behaviors.case.nodes.invite_revision_relay import (
+        RelayOpenProposalsToJoinerNode,
+    )
+
+    case_id = "https://example.org/cases/joiner-relay-fails"
+    dl, revision = _open_revision(case_id, make_payload)
+    accept = _invited_joiner(dl, case_id, make_payload)
+    case = cast(VulnerabilityCase, dl.read_case(case_id))
+    joiner_id = case.actor_participant_index[JOINER]
+    joiner_before = cast(CaseParticipant, dl.read(joiner_id)).model_dump()
+    ledger_before = {e.id_ for e in dl.list_objects("CaseLedgerEntry")}
+    outbox_before = dl.outbox_list()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            RelayOpenProposalsToJoinerNode,
+            "update",
+            lambda self: Status.FAILURE,
+        )
+        failed = _accept(dl, accept)
+
+    assert failed.disposition is not HandlerDisposition.APPLIED
+
+    joiner = cast(CaseParticipant, dl.read(joiner_id))
+    # No joined mark and no consent row change is kept.
+    assert joiner.model_dump() == joiner_before
+    assert joiner.joined is False
+    assert {e.id_ for e in dl.list_objects("CaseLedgerEntry")} == ledger_before
+    assert dl.outbox_list() == outbox_before, "no Announce or backfill"
+
+    # The inbox routes the redelivery as the copy intake archived
+    # (IE-10-001), not as the resent body.
+    result = _accept(
+        dl,
+        archived_redelivery(
+            dl,
+            accept.activity_id,
+            receiving_actor_id=accept.receiving_actor_id,
+        ),
+    )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert len(_relayed_to(dl, JOINER)) == 1
+    assert (
+        _consent_of(dl, case_id, JOINER, revision.id_)
+        is EmbargoConsentState.INVITED
     )
 
 

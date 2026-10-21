@@ -162,9 +162,11 @@ class MakeOwnershipTransferOfferNode(_EmitSingleActivityBase):
     It runs after the proposal's own entry, so a fault building, queuing or
     committing the Offer is the CASE_MANAGER's, never a refusal of the
     owner: it is not caught, and escapes to ``BTBridge`` as an internal error
-    (ARCH-15-001).  A redelivery of the proposal then makes the Offer under
-    the same id.  A missing factory raises :class:`VultronWiringError`, a
-    wiring fault the handler also reports as internal.
+    (ARCH-15-001).  The proposal's own entry is in the same act, so the
+    fault keeps nothing, and a redelivery of the proposal runs the act
+    afresh, making the Offer under the same id (CLP-07-015).  A missing
+    factory raises :class:`VultronWiringError`, a wiring fault the handler
+    also reports as internal.
     The Offer's timestamps serialise in UTC, as for any activity the
     CASE_MANAGER mints (CS-13-005).
     """

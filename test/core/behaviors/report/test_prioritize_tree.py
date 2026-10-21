@@ -36,6 +36,7 @@ from vultron.core.behaviors.case.nodes.refusal_stage import (
     PreconditionGuardStage,
 )
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
+from vultron.core.behaviors.case.receive_activity_tree import received_stages
 from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
@@ -367,7 +368,7 @@ def test_create_engage_case_tree_returns_sequence(
     # (CM-23-013), the addressee door guard (HP-01-005), the sender guard
     # (HP-01-008, #4696), the clock decisions (CLP-10-025), the guard stage,
     # the guarded commit, and that gate.
-    assert len(tree.children) == 8
+    assert len(received_stages(tree)) == 8
 
 
 @pytest.mark.spec("BT-06-002")
@@ -386,7 +387,7 @@ def test_create_defer_case_tree_returns_sequence(
     # addressee door guard (HP-01-005), sender guard, the clock decisions
     # (CLP-10-025), the guard stage, the guarded commit, and the CASE_MANAGER
     # gate holding the RM write + gap note.
-    assert len(tree.children) == 8
+    assert len(received_stages(tree)) == 8
 
 
 def test_engage_tree_node_names(case_with_participant, actor_id):
@@ -395,30 +396,31 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
         actor_id=actor_id,
         sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
     )
+    stages = received_stages(tree)
     # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
-    assert tree.children[0].name == "IntakeReceivedActivityNode"
-    assert tree.children[1].name == "CaseOpenToExternalWrites"
+    assert stages[0].name == "IntakeReceivedActivityNode"
+    assert stages[1].name == "CaseOpenToExternalWrites"
     # The copy must be addressed to the receiver (HP-01-005) ...
-    assert tree.children[2].name == "ActivityAddressedToReceiverNode"
+    assert stages[2].name == "ActivityAddressedToReceiverNode"
     # The sender must be a participant (HP-01-006), checked by the guard the
     # factory composes from the declared rule (HP-01-008, #4696) ...
-    assert tree.children[3].name == "SenderIsParticipantNode"
-    assert tree.children[4].name == "ClockDecisionsIfCaseManager"
+    assert stages[3].name == "SenderIsParticipantNode"
+    assert stages[4].name == "ClockDecisionsIfCaseManager"
     # ... and its declaration is adjudicated before the commit (RSH-06-006),
     # inside the refusal-effects stage (CLP-10-022); a refused regression is
     # still noted.
-    stage = tree.children[5]
+    stage = stages[5]
     assert isinstance(stage, PreconditionGuardStage)
     assert [g.name for g in stage.guards.children] == [
         "AdjudicateRMDeclarationNode",
     ]
     assert "EmitRMGapNote" in [n.name for n in stage.refusal.iterate()]
     # Commit runs before effects (CLP-10-006)
-    assert tree.children[6].name == "GuardedCommitCaseLedgerEntryBT"
+    assert stages[6].name == "GuardedCommitCaseLedgerEntryBT"
     # RSH-08-003 (#3814): the RM write, its gap note and the broadcast all run
     # only at the CASE_MANAGER, so they sit inside one gate; a replica takes
     # the move from the ledger fan-out.
-    gate = tree.children[7]
+    gate = stages[7]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "EngageEffectsIfCaseManager"
     body = gate.gated_branch
@@ -443,30 +445,31 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
         actor_id=actor_id,
         sender_rule=DEFER_RULE,
     )
+    stages = received_stages(tree)
     # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
-    assert tree.children[0].name == "IntakeReceivedActivityNode"
+    assert stages[0].name == "IntakeReceivedActivityNode"
     # The case must not be fully closed at the CASE_MANAGER (CM-23-013) ...
-    assert tree.children[1].name == "CaseOpenToExternalWrites"
+    assert stages[1].name == "CaseOpenToExternalWrites"
     # The copy must be addressed to the receiver (HP-01-005) ...
-    assert tree.children[2].name == "ActivityAddressedToReceiverNode"
+    assert stages[2].name == "ActivityAddressedToReceiverNode"
     # The sender must be a participant (HP-01-006) ...
-    assert tree.children[3].name == "SenderIsParticipantNode"
+    assert stages[3].name == "SenderIsParticipantNode"
     # ... then the CASE_MANAGER's clock decisions, the embargo end-time
     # check among them (CLP-10-025, EMB-13-003) ...
-    assert tree.children[4].name == "ClockDecisionsIfCaseManager"
+    assert stages[4].name == "ClockDecisionsIfCaseManager"
     # ... and its declaration is adjudicated before the commit (RSH-06-006),
     # inside the refusal-effects stage that notes a refused regression
     # (CLP-10-022)
-    stage = tree.children[5]
+    stage = stages[5]
     assert isinstance(stage, PreconditionGuardStage)
     assert [g.name for g in stage.guards.children] == [
         "AdjudicateRMDeclarationNode"
     ]
     # Commit runs before effects (CLP-10-006)
-    assert tree.children[6].name == "GuardedCommitCaseLedgerEntryBT"
+    assert stages[6].name == "GuardedCommitCaseLedgerEntryBT"
     # RSH-08-003 (#3814): the RM write and its gap note run only at the
     # CASE_MANAGER, inside one gate; a replica takes the move from the ledger.
-    gate = tree.children[7]
+    gate = stages[7]
     assert isinstance(gate, CaseManagerGate)
     assert gate.name == "DeferEffectsIfCaseManager"
     body = gate.gated_branch

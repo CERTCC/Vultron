@@ -590,23 +590,6 @@ class CaseParticipant(CoreObject):
             )
         self.participant_statuses.append(status)
 
-    def withdraw_participant_statuses(self, status_ids: set[str]) -> None:
-        """Remove the statuses whose ids are in *status_ids* from the history.
-
-        The undo of :meth:`add_participant_status` for a write whose ledger
-        entry did not commit: a change with no committed entry MUST NOT be
-        made (CLP-07-013).  Any other status stays where it is.
-
-        Args:
-            status_ids: Ids of the statuses to remove; an id not in the
-                history is ignored.
-        """
-        self.participant_statuses = [
-            status
-            for status in self.participant_statuses
-            if status.id_ not in status_ids
-        ]
-
     def add_role(
         self, role: CVDRole, raise_when_present: bool = False
     ) -> None:

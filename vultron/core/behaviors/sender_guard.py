@@ -338,9 +338,9 @@ def _case_owner_node(ctx: SenderCheckContext) -> py_trees.behaviour.Behaviour:
     composed here, beside the role check, rather than inside
     :class:`SenderIsCaseOwnerNode`, whose standing reads in the Leave,
     suggest-actor, status and embargo trees must keep asking the role alone.
-    The owner's own ``Leave`` is the exception (*closing_case_owner*): its
-    repeat finishes the case's closure, so the role alone is asked and the
-    tree's closed-sender door guard decides the repeat (CM-23-002).
+    The owner's own ``Leave`` is the exception (*closing_case_owner*): it
+    closes a case that is not fully closed, so the role alone is asked and
+    the tree's closed-sender door guard decides a repeat (CM-23-002).
     """
     owner = _case_owner_role_node(ctx)
     if ctx.case_id is None or ctx.closing_case_owner:

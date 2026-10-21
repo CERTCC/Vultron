@@ -26,8 +26,9 @@ id and times included, and derives nothing (CM-23-016).
 
 :class:`CommitParticipantStatusEntriesNode` is that recording step.  The
 writer just before it reports the id of each status it wrote in a shared list;
-this node commits one entry per id, in order, and takes back every status
-whose entry did not commit.
+this node commits one entry per id, in order.  Both run inside the received
+act's ``ActTransaction``, so a status whose entry does not commit is rolled
+back with the rest of the act (CLP-07-015).
 """
 
 import json
@@ -36,9 +37,6 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.participant.rm_closure import (
-    withdraw_closure_steps,
-)
 from vultron.core.behaviors.helpers import (
     TRIGGER_FACTORY_UNAVAILABLE,
     DataLayerActionWithPorts,
@@ -78,24 +76,21 @@ class CommitParticipantStatusEntriesNode(
     receiving CASE_MANAGER, its ``published`` the CASE_MANAGER's clock, and the
     status it carries is the subject's (``attributedTo``) exactly as stored.
 
-    **A status with no committed entry is taken back** (CLP-07-013).  The
-    writer writes each status before this node commits it, so a commit that
-    fails leaves a status the ledger lacks.  On every such path the node
-    withdraws each status not yet committed (:func:`~vultron.core.behaviors.case
-    .nodes.participant.rm_closure.withdraw_closure_steps`) and fails: a refused
-    commit returns FAILURE, a missing trigger-activity port raises
+    **A status with no committed entry is not kept** (CLP-07-013).  The
+    writer writes each status before this node commits it, and both run in
+    the received act's ``ActTransaction``, so a commit that fails takes the
+    status back with the rest of the act (CLP-07-015): a refused commit
+    returns FAILURE, a missing trigger-activity port raises
     :class:`~vultron.errors.VultronWiringError`, and a nested commit that
     reports ``internal_error`` raises
-    :class:`~vultron.errors.VultronBTInternalError`.  Statuses already
-    committed stay, because the ledger records them.
+    :class:`~vultron.errors.VultronBTInternalError`.
 
     No-op SUCCESS when the writer wrote nothing (the subject already held the
     state, RSH-08-002).  Idempotent by construction: ``CreateLogEntryNode``
     skips an entry that already exists for the same object (the status id).
 
     Authority: the receiver must hold ``CVDRole.CASE_MANAGER`` on the case at
-    invocation time (CLP-09-001, BT-17-005); otherwise the statuses are
-    withdrawn and the node fails.
+    invocation time (CLP-09-001, BT-17-005); otherwise the node fails.
 
     Per CLP-07-013, CM-23-016, ADR-0124.
     """
@@ -127,28 +122,9 @@ class CommitParticipantStatusEntriesNode(
         self._given_case_id = case_id
         self._case_id = case_id or ""
         self._status_ids = status_ids
-        # How many of the statuses have a committed entry; the statuses after
-        # them are the ones a raise part-way must take back.
-        self._committed = 0
 
-    def _withdraw(self, participant_id: str, unrecorded: list[str]) -> None:
-        """Take back the *unrecorded* statuses and log that they were."""
-        assert self.datalayer is not None
-        withdraw_closure_steps(self.datalayer, participant_id, unrecorded)
-        self.logger.warning(
-            "%s: withdrew %d participant status(es) of '%s' on case '%s'"
-            " that the ledger does not record (CLP-07-013)",
-            self.name,
-            len(unrecorded),
-            self._subject_actor_id,
-            self._case_id,
-        )
-
-    def _refuse(
-        self, reason: str, participant_id: str, unrecorded: list[str]
-    ) -> Status:
-        """Withdraw the *unrecorded* statuses, then report *reason*."""
-        self._withdraw(participant_id, unrecorded)
+    def _refuse(self, reason: str) -> Status:
+        """Fail with *reason*; the act's transaction takes the statuses back."""
         self.feedback_message = f"{self.name}: {reason}"
         self.logger.warning("%s", self.feedback_message)
         return Status.FAILURE
@@ -182,20 +158,17 @@ class CommitParticipantStatusEntriesNode(
             participant, CaseParticipant
         ):
             # The writer found this record to write the statuses on, so it
-            # vanishing in between is a fault, not a refusal: there is
-            # nothing left to take the statuses back from.
+            # vanishing in between is a fault, not a refusal.
             raise VultronBTInternalError(
                 f"{self.name}: participant record of '{self._subject_actor_id}'"
                 f" on case '{self._case_id}' is gone; its"
-                f" {len(self._status_ids)} status(es) cannot be recorded or"
-                " withdrawn"
+                f" {len(self._status_ids)} status(es) cannot be recorded"
             )
 
         if self.trigger_activity_factory is None:
             # The entry's snapshot is the factory-built activity's sealed blob
             # (VM-08-003), so without the port there is nothing to commit.  A
             # composition fault, not a refusal (ARCH-15-001).
-            self._withdraw(participant_id, list(self._status_ids))
             raise VultronWiringError(
                 f"{self.name}: {TRIGGER_FACTORY_UNAVAILABLE} to build the"
                 f" Add(ParticipantStatus) activities of"
@@ -211,44 +184,24 @@ class CommitParticipantStatusEntriesNode(
             return self._refuse(
                 f"receiving actor '{self.actor_id}' is not the CASE_MANAGER"
                 f" for case '{self._case_id}', so it cannot author the status"
-                f" entries of '{self._subject_actor_id}'",
-                participant_id,
-                list(self._status_ids),
+                f" entries of '{self._subject_actor_id}'"
             )
+        return self._record(participant)
 
-        # The sole try/except (BT-HELPER-01): whatever raises part-way
-        # through the commits, every status not yet committed is taken back
-        # before the fault propagates (CLP-07-013).
-        self._committed = 0
-        try:
-            return self._record(participant_id, participant)
-        except Exception:
-            self._withdraw(
-                participant_id, list(self._status_ids)[self._committed :]
-            )
-            raise
-
-    def _record(
-        self, participant_id: str, participant: CaseParticipant
-    ) -> Status:
-        """Commit one entry per status, withdrawing any that fail."""
+    def _record(self, participant: CaseParticipant) -> Status:
+        """Commit one entry per status, failing at the first that does not."""
         assert self.datalayer is not None
         recorded: list[str] = []
-        status_ids = list(self._status_ids)
-        for index, status_id in enumerate(status_ids):
-            unrecorded = status_ids[index:]
+        for status_id in self._status_ids:
             status = self.datalayer.read(status_id)
             if not isinstance(status, ParticipantStatus):
                 return self._refuse(
                     f"status '{status_id}' of '{self._subject_actor_id}'"
-                    " not found or wrong type",
-                    participant_id,
-                    unrecorded,
+                    " not found or wrong type"
                 )
             reason = self._commit_status(status, participant)
             if reason is not None:
-                return self._refuse(reason, participant_id, unrecorded)
-            self._committed = index + 1
+                return self._refuse(reason)
             recorded.append(participant_status_rm_state(status).name)
 
         self.logger.info(

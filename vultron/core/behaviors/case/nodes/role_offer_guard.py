@@ -37,16 +37,12 @@ from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.protocol_pair import (
-    ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE,
-)
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.role_offer import (
     RecordedRoleOffer,
     answered_role_offer,
     entry_names_role_offer,
     recorded_role_offer,
-    role_offer_forward_id,
 )
 from vultron.core.predicates.addressing import (
     participant_id_for_actor,
@@ -78,15 +74,14 @@ class RoleOfferAdmissibleNode(
     Offer that reuses a recorded id for another role or target is refused
     (ID-02-001).  The guard sets :attr:`is_redelivery` and skips the other
     checks, which the Offer passed when it was recorded and which the
-    target's later Accept would now fail.  When the forward is already
-    stored, the redelivery changes nothing: the guard fails, so nothing
-    downstream runs and nothing is sent again.  When it is not, the forward
-    failed after the commit, and the guard admits the redelivery to finish
-    it: the commit reuses the recorded entry rather than adding one, and the
-    forward is built under its derived id (OX-06-002).  Either way the
-    handler reports the run as ``SKIPPED``.  Only the CASE_MANAGER records
-    role Offers, and the forward a participant receives carries its own id,
-    so a participant never reads the forward as a redelivery.
+    target's later Accept would now fail.  The redelivery changes nothing:
+    the guard fails, so nothing downstream runs and nothing is sent again,
+    and the handler reports the run as ``SKIPPED``.  The Offer's entry and
+    its forward are one act (CLP-07-015), so a recorded Offer is always
+    forwarded: a forward that failed kept no entry either, and its
+    redelivery is a new Offer.  Only the CASE_MANAGER records role Offers,
+    and the forward a participant receives carries its own id, so a
+    participant never reads the forward as a redelivery.
 
     Read-only.  It runs on every store the Offer reaches: the target holds
     the case too, and refuses the same malformed Offer (CM-33-004).
@@ -115,7 +110,7 @@ class RoleOfferAdmissibleNode(
         self.target_actor_id = target_actor_id
         self.is_redelivery = False
         """``True`` when the last run found this Offer already ledgered: a
-        redelivery, which only finishes an unsent forward, not a refusal."""
+        benign no-op, not a refusal."""
 
     def _refuse(self, reason: str) -> Status:
         self.feedback_message = (
@@ -136,24 +131,13 @@ class RoleOfferAdmissibleNode(
                 " role or target (ID-02-001)"
             )
         self.is_redelivery = True
-        forward_id = role_offer_forward_id(
-            self.actor_id, self.case_id, self.offer_id
-        )
-        if self.datalayer.read(forward_id) is not None:
-            self.feedback_message = (
-                f"role Offer '{self.offer_id}' is already recorded and"
-                f" forwarded for case '{self.case_id}' — redelivery, nothing"
-                " to apply (HP-01-003)"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
         self.feedback_message = (
-            f"role Offer '{self.offer_id}' is already recorded for case"
-            f" '{self.case_id}' but not forwarded — redelivery resumes the"
-            " forward (HP-01-003)"
+            f"role Offer '{self.offer_id}' is already recorded and forwarded"
+            f" for case '{self.case_id}' — redelivery, nothing to apply"
+            " (HP-01-003)"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
+        return Status.FAILURE
 
     def update(self) -> Status:
         self.is_redelivery = False
@@ -214,14 +198,11 @@ class RoleOfferOpenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
     (:func:`~vultron.core.participants.role_offer.answered_role_offer`).
 
     - A **redelivery** of the answer that closed the Offer is not a refusal
-      (HP-01-003).  The guard sets :attr:`is_redelivery`, and the handler
-      reports the run as ``SKIPPED``.  When the answer's effects are done it
-      fails, so nothing downstream runs.  When it is an Accept whose grant
-      the CASE_MANAGER's own replica does not hold, the grant failed after
-      the commit, and the guard admits the redelivery to finish it: the
-      commit reuses the recorded entry rather than adding one, and the grant
-      is idempotent.  It admits only a redelivery that carries the recorded
-      role and target, the copy the entry already holds.
+      (HP-01-003).  The guard sets :attr:`is_redelivery` and fails, so
+      nothing downstream runs, and the handler reports the run as
+      ``SKIPPED``.  The answer's entry and its grant are one act
+      (CLP-07-015), so a recorded Accept's grant is always applied: a grant
+      that failed kept no entry either, and its redelivery is a new answer.
     - An answer to an Offer another answer already closed is refused, with no
       entry and no role change (CM-33-005).
     - An answer whose carried Offer names another role or target than the
@@ -307,41 +288,9 @@ class RoleOfferOpenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
             offer.entry, self.carried_role, self.carried_target_id
         )
 
-    def _grant_pending(
-        self, case: VulnerabilityCase, offer: RecordedRoleOffer
-    ) -> bool:
-        """Whether the closing Accept's grant is missing from this replica."""
-        assert self.datalayer is not None and self.carried_role is not None
-        if (
-            offer.closed_by_semantic_type
-            != ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE
-        ):
-            return False
-        participant_id = participant_id_for_actor(
-            case.actor_participant_index, offer.target_id
-        )
-        participant = (
-            self.datalayer.read(participant_id) if participant_id else None
-        )
-        return isinstance(participant, CaseParticipant) and not (
-            participant.has_role(self.carried_role)
-        )
-
-    def _redelivery(
-        self, case: VulnerabilityCase, offer: RecordedRoleOffer
-    ) -> Status:
+    def _redelivery(self, offer: RecordedRoleOffer) -> Status:
         """Judge a redelivery of the answer that closed the Offer."""
         self.is_redelivery = True
-        if self._carries_recorded_offer(offer) and self._grant_pending(
-            case, offer
-        ):
-            self.feedback_message = (
-                f"answer '{self.reply_id}' already closed role Offer"
-                f" '{offer.offer_id}' but its grant is not applied —"
-                " redelivery resumes the grant (HP-01-003)"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
         self.feedback_message = (
             f"answer '{self.reply_id}' already closed role Offer"
             f" '{offer.offer_id}' — redelivery, nothing to apply"
@@ -360,7 +309,7 @@ class RoleOfferOpenNode(FlaggedRepeatGuardMixin, DataLayerConditionWithPorts):
             return failure  # Regime 1: the sender check found this case
         offer = self._recorded_offer(case)
         if offer.answer_id == self.reply_id:
-            return self._redelivery(case, offer)
+            return self._redelivery(offer)
         if offer.answer_id is not None:
             return self._refuse(
                 f"role Offer '{offer.offer_id}' for case '{self.case_id}' was"

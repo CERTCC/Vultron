@@ -192,8 +192,8 @@ class SenderCheckContext:
             a proposal the CASE_MANAGER already made its Offer from on the
             sender's behalf (CM-21-019, HP-01-003, ADR-0148).
         closing_case_owner: The activity is the Case Owner's
-            ``Leave(VulnerabilityCase)``, whose repeat finishes the case's
-            closure (CM-23-002, CM-23-018): a ``CASE_OWNER`` sender is
+            ``Leave(VulnerabilityCase)``, which closes the case while it is
+            not fully closed (CM-23-002, CM-23-018): a ``CASE_OWNER`` sender is
             checked for the role alone, even once its own closure is
             recorded.  The tree's closed-sender door guard
             (:class:`ClosedSenderCheck` with ``case_owner_completes``)
@@ -241,10 +241,10 @@ class ClosedSenderCheck:
 
     Attributes:
         sender_id: The activity's sender.
-        case_owner_completes: The act closes the case as well, so the Case
-            Owner's repeat is not a repeat: it runs again to complete a
-            closure a failed first delivery left part-way (CM-23-002), and
-            the check passes for it.
+        case_owner_completes: The act closes the case as well, so a Case
+            Owner whose own closure is recorded on a case that is not fully
+            closed is not repeating it: its Leave runs to close the case
+            (CM-23-002), and the check passes for it.
     """
 
     sender_id: str

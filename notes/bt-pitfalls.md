@@ -138,8 +138,9 @@ writes (BTND-07-001). To make a failing guard leave nothing behind, put every
 read-only guard (case existence, role resolution, routing prerequisite) before the
 first mutation (BT-19-001). Worked example: `vultron/core/behaviors/note/AGENTS.md`
 § "`memory=False` Note Sequence". Where a later child's failure must keep nothing,
-as for an embargo act and the consequences its later nodes commit, make the
-Sequence an `ActTransaction` (`core/behaviors/act_transaction.py`, CLP-07-015).
+as for an act and the consequences its later nodes commit, make the
+Sequence an `ActTransaction` (`core/behaviors/act_transaction.py`, CLP-07-015);
+every received tree that commits to a case already gets one from its factory.
 
 ---
 
