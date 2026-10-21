@@ -4,6 +4,7 @@ description: >
   each advance an independent fix path with no coordinator.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 400
+page_type: how-to
 ---
 
 # How to Run the RVV Demo

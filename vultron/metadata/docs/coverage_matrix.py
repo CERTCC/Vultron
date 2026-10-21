@@ -25,14 +25,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from vultron.metadata.docs.landing_pages import WRITE_COMMAND
-from vultron.metadata.docs.page_frontmatter import (
-    DECLARATION_KEYS,
-    classify_docs_tree,
-)
+from vultron.metadata.docs.page_frontmatter import classify_docs_tree
 from vultron.metadata.docs.page_schema import (
     AUDIENCE_KEYS,
     LEVELS,
-    PageFrontmatter,
+    AudienceDeclaration,
     is_working_record,
 )
 from vultron.metadata.file_loading import (
@@ -40,6 +37,10 @@ from vultron.metadata.file_loading import (
     load_frontmatter,
     validate,
 )
+
+#: The keys the matrix counts. A page's ``page_type`` (DF-11-018) is validated
+#: by ``docs-frontmatter`` and has no axis here.
+_COUNTED_KEYS: tuple[str, ...] = tuple(AudienceDeclaration.model_fields)
 
 #: Repository-relative path of the committed matrix.
 MATRIX_PATH = "notes/site-coverage-matrix.md"
@@ -86,10 +87,10 @@ def measure_coverage(root: Path) -> Coverage:
             continue
         path = root / "docs" / rel
         metadata = load_frontmatter(path, root=root).metadata
-        declared = {k: metadata[k] for k in DECLARATION_KEYS if k in metadata}
+        declared = {k: metadata[k] for k in _COUNTED_KEYS if k in metadata}
         if not declared:
             continue
-        fm = validate(PageFrontmatter, declared, path=path, root=root)
+        fm = validate(AudienceDeclaration, declared, path=path, root=root)
         types = (
             [member.value for member in fm.stakeholder_type]
             if isinstance(fm.stakeholder_type, list)

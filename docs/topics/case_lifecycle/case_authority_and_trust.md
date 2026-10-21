@@ -3,6 +3,7 @@ description: >
   Who may change a case, why every case message goes through the CASE_MANAGER, how a new participant learns which actor to trust, and where a closed case stops accepting writes.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: explanation
 introduces: [Trust Bootstrap, Trust Anchor, Case Replica Seeding]
 ---
 

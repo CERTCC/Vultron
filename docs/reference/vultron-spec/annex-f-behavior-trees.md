@@ -4,6 +4,7 @@ description: >
   Informative Annex F of the Vultron Protocol Specification: the behavior-tree pattern the reference implementation uses.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: explanation
 ---
 
 # Annex F Behavior Trees as an Implementation Pattern

@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
+page_type: reference
 description: >
   The SYNC substrate that replicates the case ledger (ADR-0077).
 ---

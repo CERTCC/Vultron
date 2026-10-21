@@ -45,6 +45,7 @@ causal_edges:
       this causal chain is validate_report.
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
+page_type: reference
 ---
 
 # `rv` Scenario: Reporter + Vendor

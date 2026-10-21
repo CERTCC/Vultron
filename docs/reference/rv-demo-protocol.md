@@ -5,6 +5,7 @@ description: >
   ledger entries it produces.
 stakeholder_type: [platform-developer]
 level: 300
+page_type: reference
 ---
 
 # `rv` Demo — Protocol Reference

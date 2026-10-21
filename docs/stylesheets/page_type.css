@@ -1,0 +1,57 @@
+/*
+ * The page-type badge (DF-11-018, ADR-0136), rendered above a page's title by
+ * overrides/partials/page_type.html from the page's page_type frontmatter.
+ * One modifier per rendered type sets its icon and color; routing renders no
+ * badge, so it has no modifier. The icons ship with the theme and match the
+ * home page's cards for the same four kinds (material school, fontawesome
+ * solid wrench and book-open, material bookshelf); a CSS mask draws each one
+ * so it takes the badge color.
+ */
+
+.md-typeset .page-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  margin: 0 0 0.6em;
+  padding: 0.15em 0.6em;
+  border: 0.05rem solid var(--page-type-color);
+  border-radius: 1em;
+  color: var(--md-default-fg-color);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.md-typeset .page-type::before {
+  content: "";
+  width: 1.1em;
+  height: 1.1em;
+  flex-shrink: 0;
+  background-color: var(--page-type-color);
+  -webkit-mask-image: var(--page-type-icon);
+  mask-image: var(--page-type-icon);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.md-typeset .page-type--tutorial {
+  --page-type-color: #00796b;
+  --page-type-icon: url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"%3E%3Cpath d="M12 3 1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17z"/%3E%3C/svg%3E');
+}
+
+.md-typeset .page-type--how-to {
+  --page-type-color: #1565c0;
+  --page-type-icon: url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"%3E%3C%21--%21 Font Awesome Free 7.1.0 by %40fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free %28Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License%29 Copyright 2025 Fonticons, Inc.--%3E%3Cpath d="M509.4 98.6c7.6-7.6 20.3-5.7 24.1 4.3 6.8 17.7 10.5 37 10.5 57.1 0 88.4-71.6 160-160 160-17.5 0-34.4-2.8-50.2-8L146.9 498.9c-28.1 28.1-73.7 28.1-101.8 0s-28.1-73.7 0-101.8L232 210.2c-5.2-15.8-8-32.6-8-50.2C224 71.6 295.6 0 384 0c20.1 0 39.4 3.7 57.1 10.5 10 3.8 11.8 16.5 4.3 24.1l-88.7 88.7c-3 3-4.7 7.1-4.7 11.3V176c0 8.8 7.2 16 16 16h41.4c4.2 0 8.3-1.7 11.3-4.7z"/%3E%3C/svg%3E');
+}
+
+.md-typeset .page-type--explanation {
+  --page-type-color: #6a1b9a;
+  --page-type-icon: url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"%3E%3C%21--%21 Font Awesome Free 7.1.0 by %40fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free %28Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License%29 Copyright 2025 Fonticons, Inc.--%3E%3Cpath d="M256 141.3v309.3l.5-.2A449 449 0 0 1 428.8 416H448V96h-19.2c-42.2 0-84.1 8.4-123.1 24.6-16.8 7-33.4 13.9-49.7 20.7m-25.1-79.8L256 72l25.1-10.5C327.9 42 378.1 32 428.8 32H464c26.5 0 48 21.5 48 48v352c0 26.5-21.5 48-48 48h-35.2c-50.7 0-100.9 10-147.7 29.5l-12.8 5.3c-7.9 3.3-16.7 3.3-24.6 0l-12.8-5.3C184.1 490 133.9 480 83.2 480H48c-26.5 0-48-21.5-48-48V80c0-26.5 21.5-48 48-48h35.2c50.7 0 100.9 10 147.7 29.5"/%3E%3C/svg%3E');
+}
+
+.md-typeset .page-type--reference {
+  --page-type-color: #bf360c;
+  --page-type-icon: url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"%3E%3Cpath d="M9 3v15h3V3zm3 2 4 13 3-1-4-13zM5 5v13h3V5zM3 19v2h18v-2z"/%3E%3C/svg%3E');
+}

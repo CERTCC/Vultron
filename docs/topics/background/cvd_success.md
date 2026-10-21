@@ -5,6 +5,7 @@ description: >
   Coordinator acts on them during a case.
 stakeholder_type: [cvd-practitioner, process-researcher]
 level: 200
+page_type: explanation
 ---
 
 # What Does *Success* Mean in CVD?

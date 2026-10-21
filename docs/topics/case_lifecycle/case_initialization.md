@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
+page_type: explanation
 description: >
   Why the CASE_MANAGER, not the report receiver, creates the case, and the
   ledger entries case creation commits.

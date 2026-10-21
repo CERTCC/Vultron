@@ -4,6 +4,7 @@ description: >
   Section 12 of the Vultron Protocol Specification: capability sets, role taxonomy, role-specific requirements, and the conformance testing approach.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 ---
 
 # Conformance

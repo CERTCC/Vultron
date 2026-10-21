@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+page_type: how-to
 ---
 
 # How to Establish an Embargo

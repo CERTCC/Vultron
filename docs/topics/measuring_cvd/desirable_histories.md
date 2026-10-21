@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+page_type: explanation
 description: >
   The twelve desired orderings and the partial order they induce over the histories.
 ---

@@ -6,6 +6,7 @@ description: >
   sub-commands.
 stakeholder_type: [platform-developer]
 level: 300
+page_type: tutorial
 ---
 
 # Tutorial: Running the Other Demos

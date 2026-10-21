@@ -4,6 +4,7 @@ description: >
   only a shared message format, and what this documentation gives you toward it.
 stakeholder_type: [cvd-practitioner, platform-developer, process-researcher]
 level: 200
+page_type: explanation
 ---
 
 # The Need for Interoperability in Coordinated Vulnerability Disclosure

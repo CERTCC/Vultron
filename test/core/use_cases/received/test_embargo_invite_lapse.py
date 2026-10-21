@@ -2877,7 +2877,7 @@ class TestLateAcceptHandling:
 class TestExpiryIsTheManagersAlone:
     """CM-28-014: only the CASE_MANAGER evaluates expiry and commits its entry."""
 
-    @pytest.mark.spec("CM-28-014")
+    @pytest.mark.spec("CM-28-014", "CM-28-016")
     def test_non_manager_commits_no_expiry_entry(self, make_payload):
         """A replica that sees a late Accept writes no expiry entry."""
 

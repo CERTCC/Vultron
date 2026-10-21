@@ -4,6 +4,7 @@ description: >
   Sections 6 to 9 of the Vultron Protocol Specification: the state machines participants use to track a shared case.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 ---
 
 # Case Tracking Models
