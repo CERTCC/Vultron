@@ -62,7 +62,6 @@ from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 from vultron.core.behaviors.embargo.nodes import (
     ChooseTerminationCauseNode,
     ChosenTermination,
-    EmbargoActivityBuilder,
     HasActiveEmbargoNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
@@ -102,7 +101,6 @@ def create_terminate_active_embargo_tree(
     *,
     case_id: str,
     result_out: dict[str, object],
-    activity_builder: EmbargoActivityBuilder | None = None,
     call_out: "EmbargoCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the actor-voluntary active embargo termination BT (EMB-14).
@@ -126,14 +124,15 @@ def create_terminate_active_embargo_tree(
         case_id: ID of the VulnerabilityCase whose active embargo to terminate.
         result_out: Mutable dict for BT result propagation; passed to
             :func:`~vultron.core.behaviors.embargo.trigger_tree.terminate_embargo_bt`.
-        activity_builder: Optional activity builder for the trigger path.
-            ``None`` uses the cascade path, whose nodes build the
-            ``Remove(EmbargoEvent)`` from the blackboard factory.
-            Forwarded to :func:`terminate_embargo_bt`.
         call_out: Bundle of call-out backend factories for this domain.
             Defaults to
             :data:`~vultron.core.behaviors.call_out.bundles.embargo.EMBARGO_DETERMINISTIC`
             (BT-23-003, BT-23-005).
+
+    The tree takes no activity builder: its nodes build the
+    ``Remove(EmbargoEvent)`` from the blackboard factory when the cause has
+    been chosen, so the ``Remove`` carries it.  A builder made with the tree
+    would be made before any reason runs.
 
     Returns:
         Root node of the terminate-active-embargo behavior tree.
@@ -193,7 +192,6 @@ def create_terminate_active_embargo_tree(
                 case_id=case_id,
                 result_out=result_out,
                 termination=chosen,
-                activity_builder=activity_builder,
             ),
         ],
     )

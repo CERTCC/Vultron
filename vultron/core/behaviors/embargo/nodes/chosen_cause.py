@@ -135,7 +135,8 @@ class ChooseTerminationCauseNode(DataLayerAction):
         chosen: ChosenTermination,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or f"Choose{kind.title()}Cause")
+        words = "".join(word.title() for word in kind.split("_"))
+        super().__init__(name=name or f"Choose{words}Cause")
         if kind == TerminationCauseKind.THREAT_SIGNAL:
             raise VultronWiringError(
                 "a voluntary termination cannot choose a THREAT_SIGNAL"

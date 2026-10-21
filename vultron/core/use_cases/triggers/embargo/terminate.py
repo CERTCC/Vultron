@@ -97,9 +97,11 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         ):
             logger.info(
                 "Actor '%s': embargo on case '%s' has reached its end time —"
-                " ending it with END_TIME_REACHED, not EARLY",
+                " ending it with END_TIME_REACHED, not EARLY, which records"
+                " no cause (requested cause: %s)",
                 self._actor_id,
                 self._case.id_,
+                request.cause.kind if request.cause is not None else "none",
             )
             self._reason = TerminationReason.END_TIME_REACHED
 

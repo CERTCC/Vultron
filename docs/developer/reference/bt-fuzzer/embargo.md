@@ -38,7 +38,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`exit_embargo_when_fix_ready_factory` param) — condition guard in the ReasonSelector, checked before delegating to `terminate_embargo_bt`; the same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
 - **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the termination's cause to `FIX_READY`, naming the case's vendors whose fix is ready, which the `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry (EMB-14-001, EMB-13-004).
-  When no vendor's fix is ready, that node fails, and the ReasonSelector tries the next reason
+  When no vendor's fix is ready, that node fails, and the ReasonSelector tries the next reason.
 
 ## `ExitEmbargoForOtherReason`
 

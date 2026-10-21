@@ -457,3 +457,36 @@ def test_an_end_time_request_naming_a_cause_is_refused() -> None:
             reason=TerminationReason.END_TIME_REACHED,
             cause=FixDeployedCause(),
         )
+
+
+@pytest.mark.spec("EMB-14-001")
+@pytest.mark.spec("EMB-13-005")
+@pytest.mark.parametrize(
+    "cause,carried",
+    [(None, OtherCause()), (FixDeployedCause(), FixDeployedCause())],
+)
+def test_a_participant_ask_carries_the_requested_cause_or_other(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+    cause: TerminationCause | None,
+    carried: TerminationCause,
+) -> None:
+    """A participant's ask to the CASE_MANAGER carries its cause, OTHER when
+    the request names none."""
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, _, _ = _build_active_embargo_case(finder_dl, owner.id_, finder.id_)
+
+    result = SvcTerminateEmbargoUseCase(
+        finder_dl,
+        TerminateEmbargoTriggerRequest(
+            actor_id=finder.id_, case_id=case.id_, cause=cause
+        ),
+        trigger_activity=TriggerActivityAdapter(finder_dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.activity is not None
+    assert result.activity["to"] == [owner.id_]
+    assert result.activity["terminationCause"] == carried.model_dump(
+        mode="json", by_alias=True
+    )

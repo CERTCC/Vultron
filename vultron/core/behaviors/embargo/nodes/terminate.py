@@ -139,6 +139,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         super().__init__(case_id=case_id, name=name)
         self._reason = reason
         self._cause = cause
+        self._resolved_cause: TerminationCause | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **_SendEmbargoActivityBase.INPUT_PORTS,
@@ -173,6 +174,9 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
                 f" teardown ask on case '{self._case_id}' — its arm commits"
                 " the teardown itself (EP-09-008, EMB-19-001)"
             )
+        # Read here, outside the factory call's failure handler: an unchosen
+        # cause is a wiring fault that escapes update(), never a FAILURE.
+        self._resolved_cause = self._ask_cause()
         return self.embargo_id, self.case_manager_id
 
     def _ask_cause(self) -> TerminationCause | None:
@@ -190,7 +194,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
             case_id=self._case_id,
             actor=actor_id,
             reason=self._reason,
-            cause=self._ask_cause(),
+            cause=self._resolved_cause,
             to=[case_manager_id],
         )
 

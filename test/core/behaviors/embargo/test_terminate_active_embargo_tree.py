@@ -31,6 +31,7 @@ from test.support.embargo_register import (
     agree_to_active_embargo,
     write_consent_rows,
 )
+from test.support.ledger import ledger_entries
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -45,13 +46,18 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
 )
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.core.behaviors.embargo.nodes import (
+    EMBARGO_TEARDOWN_SEMANTIC_TYPE,
     ChooseTerminationCauseNode,
     ChosenTermination,
     HasActiveEmbargoNode,
 )
+from vultron.core.behaviors.embargo.nodes.chosen_cause import (
+    fix_ready_vendors,
+)
 from vultron.core.behaviors.embargo.terminate_active_embargo_tree import (
     create_terminate_active_embargo_tree,
 )
+from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
@@ -452,7 +458,13 @@ class _World:
     party the teardown reaches.
     """
 
-    def __init__(self, *, manager_fix_ready: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        manager_fix_ready: bool = True,
+        vendor_fix_ready: bool = False,
+        vendor_agrees: bool = True,
+    ) -> None:
         self.manager = as_Service(name="Vendor Co")
         self.vendor = as_Service(name="Other Vendor")
         self.finder = as_Service(name="Finder Co")
@@ -471,7 +483,9 @@ class _World:
             self.manager.id_, case.id_, fix_ready=manager_fix_ready
         )
         owner.add_role(CVDRole.CASE_MANAGER)
-        vendor = self._vendor(self.vendor.id_, case.id_, fix_ready=False)
+        vendor = self._vendor(
+            self.vendor.id_, case.id_, fix_ready=vendor_fix_ready
+        )
         finder = ReporterParticipant(
             attributed_to=self.finder.id_, context=case.id_
         )
@@ -490,9 +504,10 @@ class _World:
         write_consent_rows(self.dl, case)
         # Every party is a signatory, so each is an active participant
         # (CM-10-004).
-        agree_to_active_embargo(
-            self.dl, case, self.manager.id_, self.vendor.id_, self.finder.id_
-        )
+        signatories = [self.manager.id_, self.finder.id_]
+        if vendor_agrees:
+            signatories.append(self.vendor.id_)
+        agree_to_active_embargo(self.dl, case, *signatories)
 
     @staticmethod
     def _vendor(
@@ -525,6 +540,19 @@ class _World:
             actor_id=self.manager.id_,
             sync_port=SyncActivityAdapter(self.dl),
         )
+
+    def case(self) -> VulnerabilityCase:
+        case = self.dl.read(self.case_id)
+        assert isinstance(case, VulnerabilityCase)
+        return case
+
+    def teardown_snapshot(self) -> dict:
+        (entry,) = [
+            e
+            for e in ledger_entries(self.dl, self.case_id)
+            if e.semantic_type == EMBARGO_TEARDOWN_SEMANTIC_TYPE
+        ]
+        return entry.payload_snapshot or {}
 
     def termination(self) -> EmbargoTermination | None:
         case = self.dl.read(self.case_id)
@@ -562,6 +590,12 @@ def test_the_chosen_reason_is_recorded_as_the_cause(field, expected):
     cause: TerminationCause = expected(world)
     assert world.termination() == EmbargoTermination(
         reason=TerminationReason.EARLY, cause=cause
+    )
+    # The committed Remove carries the same cause (EMB-13-005).
+    snapshot = world.teardown_snapshot()
+    assert snapshot["content"] == "EARLY"
+    assert snapshot["terminationCause"] == cause.model_dump(
+        mode="json", by_alias=True
     )
 
 
@@ -605,3 +639,58 @@ def test_a_voluntary_termination_cannot_choose_a_threat_signal():
             kind=TerminationCauseKind.THREAT_SIGNAL,
             chosen=ChosenTermination(),
         )
+
+
+@pytest.mark.spec("VP-09-007")
+def test_fix_ready_vendors_are_the_active_fix_ready_vendors_sorted():
+    world = _World(vendor_fix_ready=True)
+
+    vendors = fix_ready_vendors(world.dl, world.case())
+
+    assert vendors == sorted([world.manager.id_, world.vendor.id_])
+
+
+@pytest.mark.spec("VP-09-007")
+def test_an_inert_fix_ready_vendor_is_not_in_the_quorum():
+    world = _World(vendor_fix_ready=True, vendor_agrees=False)
+
+    assert fix_ready_vendors(world.dl, world.case()) == [world.manager.id_]
+
+
+def test_an_unchosen_cause_at_the_commit_is_a_wiring_fault():
+    """The commit reads the cause outside its refusal handler, so a missing
+    choice is reported as an internal error, not a refusal."""
+    world = _World()
+
+    result = BTBridge(
+        datalayer=world.dl,
+        trigger_activity=TriggerActivityAdapter(world.dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute_with_setup(
+        tree=terminate_embargo_bt(
+            case_id=world.case_id,
+            result_out={},
+            termination=ChosenTermination(),
+        ),
+        actor_id=world.manager.id_,
+        sync_port=SyncActivityAdapter(world.dl),
+    )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert world.case().active_embargo_id == world.embargo.id_
+
+
+@pytest.mark.parametrize(
+    "kind,name",
+    [
+        (TerminationCauseKind.FIX_DEPLOYED, "ChooseFixDeployedCause"),
+        (TerminationCauseKind.FIX_READY, "ChooseFixReadyCause"),
+        (TerminationCauseKind.OTHER, "ChooseOtherCause"),
+    ],
+)
+def test_choose_node_names(kind, name):
+    node = ChooseTerminationCauseNode(
+        case_id=CASE_ID, kind=kind, chosen=ChosenTermination()
+    )
+    assert node.name == name
