@@ -153,7 +153,9 @@ def _epoch_claim(
     today: _dt.date,
     tested: bool,
 ) -> str:
-    dependent = " and a test-verified dependent" if tested else ""
+    # Credit the dependent only when it, not the clock, ended epoch 1.
+    decided = tested and epoch_for(fm.updated, today) is AdrEpoch.PROPOSED
+    dependent = " and a test-verified dependent" if decided else ""
     return (
         f"{name}: status is '{fm.status.value}' but updated {fm.updated}"
         f"{dependent} put it in epoch {int(epoch)} "

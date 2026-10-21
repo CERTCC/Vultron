@@ -127,6 +127,24 @@ def test_drift_fault_is_one_sided(
     assert (fault is not None) is behind
 
 
+@pytest.mark.parametrize(
+    "status, age_days, credited",
+    [
+        ("proposed", 0, True),  # the dependent ended epoch 1
+        ("proposed", 14, False),  # the clock ended epoch 1 first
+        ("accepted-provisional", 28, False),  # epoch 3 is the clock's alone
+    ],
+)
+@pytest.mark.spec("MS-14-007")
+def test_drift_report_credits_dependent_only_when_it_decided_the_epoch(
+    status: str, age_days: int, credited: bool
+) -> None:
+    fm = _fm(status, TODAY - dt.timedelta(days=age_days))
+    fault = status_behind_fault("0001-x.md", fm, TODAY, tested=True)
+    assert fault is not None
+    assert ("test-verified dependent" in fault) is credited
+
+
 def test_status_override_lets_disagreement_stand() -> None:
     fm = _fm(
         "accepted",
