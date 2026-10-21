@@ -19,6 +19,7 @@ from vultron.metadata.docs.normative_banner import (
     check_normative_banner,
     main,
 )
+from vultron.metadata.docs.page_frontmatter import include_directives
 from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
 
 _NORMATIVE = ("spec/part.md",)
@@ -145,9 +146,6 @@ class TestNormativeSet:
 
         assert _check(root).normative_pages == 1
 
-    def test_example_page_is_exempt(self, tmp_path):
-        assert _check(_repo(tmp_path, _tree())).scanned_files == 4
-
     def test_example_page_is_not_exempt_without_listing(self, tmp_path):
         root = _repo(tmp_path, _tree())
 
@@ -252,6 +250,30 @@ def test_pre_commit_hook_runs_on_every_input(changed):
     assert re.search(hook["files"], changed)
 
 
+#: The Formal Protocol and process-model pages that explain the protocol's
+#: design (DF-12-007).
+_PROTOCOL_DESIGN_PAGES = [
+    "reference/formal_protocol/conclusion.md",
+    "reference/formal_protocol/index.md",
+    "reference/formal_protocol/messages.md",
+    "reference/formal_protocol/protocol_definition.md",
+    "reference/formal_protocol/states.md",
+    "reference/formal_protocol/transitions.md",
+    "topics/process_models/cs/cs_model.md",
+    "topics/process_models/cs/index.md",
+    "topics/process_models/cs/transitions.md",
+    "topics/process_models/em/defaults.md",
+    "topics/process_models/em/early_termination.md",
+    "topics/process_models/em/index.md",
+    "topics/process_models/em/negotiating.md",
+    "topics/process_models/em/principles.md",
+    "topics/process_models/em/split_merge.md",
+    "topics/process_models/em/working_with_others.md",
+    "topics/process_models/model_interactions/rm_em.md",
+    "topics/process_models/model_interactions/rm_em_cs.md",
+    "topics/process_models/rm/index.md",
+]
+
 _RFC_2119 = re.compile(
     r"\b(MUST|SHALL|SHOULD|REQUIRED|RECOMMENDED|MAY|OPTIONAL)\b", re.IGNORECASE
 )
@@ -271,16 +293,12 @@ class TestSpecificationGovernsBanner:
         assert "the specification governs" in text
         assert _RFC_2119.search(text) is None
 
-    @pytest.mark.parametrize(
-        "page",
-        [
-            "reference/formal_protocol/index.md",
-            "topics/process_models/rm/index.md",
-            "topics/process_models/em/index.md",
-            "topics/process_models/cs/index.md",
-        ],
-    )
-    def test_protocol_design_pages_carry_it(self, page):
-        text = (repo_root() / "docs" / page).read_text(encoding="utf-8")
+    @pytest.mark.parametrize("page", _PROTOCOL_DESIGN_PAGES)
+    def test_protocol_design_pages_include_it(self, page):
+        docs = repo_root() / "docs"
 
-        assert "includes/specification_governs.md" in text
+        targets = {
+            target for _, target, _ in include_directives(docs / page, docs)
+        }
+
+        assert "includes/specification_governs.md" in targets

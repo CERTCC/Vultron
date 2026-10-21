@@ -261,8 +261,11 @@ In this order:
 
 1. `lint-docs` on the pages written — fixes mechanical findings, reports the rest.
    Resolve every reported finding before proceeding.
-2. `uv run docs-frontmatter` and `uv run docs-level-order`, the frontmatter and
-   level-order gates the pre-commit hooks run. Both are site-wide, so a new
+2. `uv run docs-frontmatter`, `uv run docs-level-order` and
+   `uv run docs-normative-banner`, the frontmatter, level-order and banner
+   gates the pre-commit hooks run. The banner gate fails a page outside the
+   normative set that includes `normative.md` (DF-12-006). The first two are
+   site-wide, so a new
    `introduces:` term can also flag an existing lower-level page that uses it
    unlinked. Link that use; if the finding is on a page this change does not
    touch and linking it would collide with another task's ownership of that
