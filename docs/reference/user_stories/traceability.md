@@ -993,11 +993,11 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Adequate operation of the protocol MUST NOT depend on perfect knowledge of all Participants.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[VP-15-001](../specs/protocol.md#vp-15-001)</td>
+<td markdown="span">[VP-15-001](../specs/architecture.md#vp-15-001)</td>
 <td markdown="span">Vultron Protocol messages SHOULD use well-defined format — interoperable, decentralized messaging.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[VP-15-002](../specs/protocol.md#vp-15-002)</td>
+<td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
 <td markdown="span">Implementations SHOULD use common identity mechanisms (`PROD_ONLY`) — federated identity.</td>
 </tr>
 <tr markdown="1">
@@ -1034,7 +1034,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">All ActivityStreams object IDs MUST use full URI form — global ID format.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[VP-15-002](../specs/protocol.md#vp-15-002)</td>
+<td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
 <td markdown="span">Implementations SHOULD use common identity mechanisms (`PROD_ONLY`) — federated identity.</td>
 </tr>
 <tr markdown="1">
@@ -1052,7 +1052,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">The CaseActor MUST publish its public key in its actor profile (`PROD_ONLY`) — verifiable identity.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[VP-15-002](../specs/protocol.md#vp-15-002)</td>
+<td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
 <td markdown="span">Implementations SHOULD use common identity mechanisms (`PROD_ONLY`) — federated identity.</td>
 </tr>
 <tr markdown="1">
@@ -1062,7 +1062,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Each CaseActor MUST generate an asymmetric key (`PROD_ONLY`) — auth model via keys.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[VP-15-002](../specs/protocol.md#vp-15-002)</td>
+<td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
 <td markdown="span">Implementations SHOULD use common identity mechanisms (`PROD_ONLY`) — auth/authz integration.</td>
 </tr>
 <tr markdown="1">
@@ -1084,7 +1084,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Implementations MAY use end-to-end encryption (`PROD_ONLY`) — integrity mechanism.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[VP-15-005](../specs/protocol.md#vp-15-005)</td>
+<td markdown="span">[VP-15-005](../specs/architecture.md#vp-15-005)</td>
 <td markdown="span">Implementations MAY use encryption for messages (`PROD_ONLY`) — transport integrity.</td>
 </tr>
 <tr markdown="1">
@@ -1098,7 +1098,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">CaseActor MUST share its public key with Participants (`PROD_ONLY`) — key exchange for auth.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[VP-15-002](../specs/protocol.md#vp-15-002)</td>
+<td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
 <td markdown="span">Implementations SHOULD use common identity mechanisms (`PROD_ONLY`) — identity framework.</td>
 </tr>
 <tr markdown="1">
