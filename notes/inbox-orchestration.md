@@ -137,7 +137,9 @@ whose sealed body exactly matches the held one is a redelivery. A different body
 under a held id is refused with a WARNING naming the activity id and sender, and
 neither body is routed nor anything written; routing the held copy in its place
 silently dropped the new body (#3762). The match is exact, with no normalisation,
-so a body re-serialized with a different key order is refused too.
+so a body re-serialized with a different key order is refused too. The rule covers
+every activity type: an `Announce(CaseLedgerEntry)` hydrated in place (SYNC-13-004)
+gets the same comparison, and only a same-body repeat reaches SYNC-12-003's gate.
 
 ---
 

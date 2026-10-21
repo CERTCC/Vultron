@@ -487,9 +487,8 @@ groups:
       evidence. An activity routed or rebuilt from anything other than its own
       delivery's body (a resend of the held body under an id already held, routed
       as the held copy, or an activity the receiver built itself and holds as a stored
-      row) carries
-      no received evidence, and it MUST NOT be given the evidence of a different
-      delivery.
+      row) carries no received evidence, and it MUST NOT be given the evidence of a
+      different delivery.
     rationale: >-
       The received artifact is the evidence of what arrived, and the ledger replicates it via
       `Announce(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not

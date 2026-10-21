@@ -435,9 +435,12 @@ groups:
       MUST NOT be routed, the held copy MUST NOT be routed in its place, and the
       endpoint MUST NOT write or change anything in the receiving actor's store for
       it, so the first delivery's record stays as it was. The refusal MUST be logged
-      at WARNING with the activity id and the sending actor.
+      at WARNING with the activity id and the sending actor. This applies to every
+      activity type, including an `Announce(CaseLedgerEntry)` that ingress hydrates in
+      place (SYNC-13-004); a repeat of its held body is still answered by the
+      already-stored gate (SYNC-12-003).
     rationale: >-
-      An activity id names one activity (ID-01-002): a second body under a held id is
+      An activity id names one activity (ID-01-001): a second body under a held id is
       a sender bug or a rewrite of what was said, and routing the held copy instead
       hid it (#3762). Maintainer decisions (2026-10-21, #3762): refuse, do not
       quarantine, so the WARNING is the refused body's only trace; compare the sealed
@@ -461,9 +464,11 @@ groups:
     - rel_type: depends_on
       spec_id: VM-08-002
     - rel_type: depends_on
-      spec_id: ID-01-002
+      spec_id: ID-01-001
     - rel_type: refines
       spec_id: ID-02-001
+    - rel_type: depends_on
+      spec_id: SYNC-12-003
 - id: IE-11
   title: Activity Addressing
   specs:
