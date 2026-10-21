@@ -484,11 +484,14 @@ groups:
       as a separate object, and it MUST carry the same evidence unchanged.
       A replay of a deferred activity, or a load of an archived one, is parsed
       again from the received body held for it, and carries that body as its
-      evidence. An activity routed or rebuilt from anything other than its own
-      delivery's body (a resend under an id already held, routed as the held copy,
-      or an activity the receiver built itself and holds as a stored row) carries
-      no received evidence, and it MUST NOT be given the evidence of a different
-      delivery.
+      evidence. A resend of an archived activity with the same body is routed as the
+      archived copy, parsed from the body intake archived, and carries that body, the
+      first delivery's, as its evidence. An activity routed or rebuilt from anything
+      other than a delivery's sealed body (a resend of the held body under the id of a
+      still-deferred activity, routed as the held copy before its replay, or an
+      activity the receiver built itself and holds as a stored row) carries no
+      received evidence, and it MUST NOT be given the evidence of a
+      different delivery.
     rationale: >-
       The received artifact is the evidence of what arrived, and the ledger replicates it via
       `Announce(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not
@@ -496,8 +499,15 @@ groups:
       classes. The evidence is therefore a value taken at parse, not a property of the graph.
       The deferred record and intake's archive keep the sealed body (IO-03-004,
       CLP-10-017), so a replay carries the first delivery's evidence and a load
-      sees the body that arrived (ADR-0149). A resend is another delivery: the held
-      body on the copy routed in its place would claim the wrong event.
+      sees the body that arrived (ADR-0149). A resend is another delivery, so its
+      own body never becomes the evidence of the copy routed in its place: that
+      would claim the wrong event. The archived copy routed for a resend is the
+      first delivery's sealed body, so carrying it as evidence claims exactly the
+      event that arrived first; the repeat guards then decide, so a committed act is
+      a repeat and an act that never committed, such as a failed one, runs as a
+      first delivery and records that body (ADR-0151, #4981). A resend of a
+      different body under a held id is refused, not routed (IE-10-002), so an id's
+      evidence has one answer.
     verification: >-
       `test/architecture/test_wire_artifact_immutability.py` parses every example activity as a
       sender delivers it and, for each class reachable in the parsed tree, overwrites the fields
@@ -507,8 +517,9 @@ groups:
       body. `test/adapters/driving/fastapi/test_ingress_received_evidence.py` asserts ingress
       rehydration carries the evidence, bare references included, onto the
       routing copy, that a replay of a deferred activity carries the evidence of
-      its own delivery, and that a resend under an already-held id is routed
-      without it.
+      its own delivery, that a resend of a still-deferred activity is routed
+      without it, and that a resend of an archived activity is routed with the
+      archived body as its evidence.
     adr:
     - ADR-0074
     - ADR-0099

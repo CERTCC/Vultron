@@ -84,6 +84,9 @@ from vultron.core.behaviors.embargo.nodes import (
     ask_case_manager_to_terminate_once,
     embargo_ending_notice_nodes,
 )
+from vultron.core.behaviors.embargo.nodes.chosen_cause import (
+    ChosenTermination,
+)
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     _EmbargoLifecycleNode,
 )
@@ -633,7 +636,7 @@ def terminate_embargo_bt(
     *,
     case_id: str,
     result_out: dict[str, object],
-    termination: TerminationRequest,
+    termination: TerminationRequest | ChosenTermination,
     activity_builder: EmbargoActivityBuilder | None = None,
     requested_by: str | None = None,
     actor_config: ActorConfig | None = None,
@@ -644,7 +647,9 @@ def terminate_embargo_bt(
     *termination* is how the embargo ends (ADR-0122): ``EARLY`` with the
     cause the requester names, or none, for a participant's own decision;
     :class:`ThreatSignalTermination` for the CS ``P``/``X``/``A`` cascades
-    (``EARLY``, caused by the signals the case carries at the write); and
+    (``EARLY``, caused by the signals the case carries at the write);
+    :class:`ChosenTermination` for an actor's voluntary termination, whose
+    reason call-out chose the cause earlier in the same run (EMB-14-001); and
     ``END_TIME_REACHED``, with no cause, for the end-time paths, claimed at
     *terminated_at* and refused before the embargo's end time.  The
     CASE_MANAGER's ``Remove`` carries the what in ``content`` and the cause
@@ -701,7 +706,11 @@ def terminate_embargo_bt(
         # THREAT_SIGNAL cause from anyone but the CASE_MANAGER is refused
         # (EMB-13-005).
         ask = ask_case_manager_to_terminate_once(
-            case_id, termination.reason, termination.participant_cause
+            case_id,
+            termination.reason,
+            termination
+            if isinstance(termination, ChosenTermination)
+            else termination.participant_cause,
         )
     capture, notices = embargo_ending_notice_nodes(
         case_id, requested_by=requested_by

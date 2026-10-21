@@ -52,7 +52,7 @@ relevant_packages:
   - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
   - vultron/core/models/pending_assertion.py
-  - vultron/core/use_cases/triggers/embargo.py
+  - vultron/core/use_cases/triggers/embargo/
   - vultron/core/use_cases/received/embargo/
 ---
 
@@ -119,7 +119,11 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   entry as one `EmbargoTermination`, required there and refused elsewhere. The
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
   triggering status, or, when unknown at build time, the case's PXA at the
-  write. The `Remove` carries the why as `terminationCause` (a field on the
+  write. A voluntary termination passes `ChosenTermination`, set by the
+  `ChooseTerminationCauseNode` after the reason call-out that succeeded and
+  read at the write, so the choice and the commit are one act (EMB-14-001);
+  the trigger records the request's cause, or `OTHER` when it names none.
+  The `Remove` carries the why as `terminationCause` (a field on the
   base `as_Remove`, marked a Vultron property so `context.jsonld` names it),
   checked at the parse edge (EMB-13-005), because a replica learns the why
   only from the ledger entry: it copies the cause, never works it out from its
@@ -231,8 +235,9 @@ catch-up fetch or deferral, refuse instead.
 ## Late Accepts and Expiry (EMB-17, CM-23-014)
 
 - **A late `Accept(Invite(EmbargoEvent))`** — deadline passed, or row already
-  `TIMED_OUT`/`DECLINED` — first commits a CASE_MANAGER-authored expiry entry
-  if the row still needs `TIME_OUT` (the Accept tree's clock decision,
+  `TIMED_OUT`/`DECLINED` — first commits the CASE_MANAGER's
+  `Update(EmbargoConsent)` carrying the `TIMED_OUT` row if the row still needs
+  `TIME_OUT` (the Accept tree's clock decision,
   CLP-10-025), then routes to honour (EMB-17-001),
   re-invite (EMB-17-003) or no-op (EMB-17-004). Each branch commits an entry so
   replicas learn the outcome (RSH-08-004), and each runs only at the

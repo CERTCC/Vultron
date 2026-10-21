@@ -272,8 +272,8 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   for one row.
 - **The replica side** subclasses `ApplyEmbargoChangeFromLedgerNode`
   (`sync/nodes/embargo_copy_effect.py`) and names its entry's change in
-  `_change()`; a refused entry is held in `LedgerGapBuffer` and the announce is
-  reported deferred, never patched over. An entry whose result the replica
+  `_change()`; a refused entry's received Announce is held (SYNC-14-001) and the
+  announce is reported deferred, never patched over. An entry whose result the replica
   already holds (saved, but not yet stored, before a stop) is an idempotent
   no-op (`change_is_in_place()`); the CASE_MANAGER's trial still refuses an
   entry that would change nothing. So is a refused entry the case file is
@@ -358,14 +358,15 @@ Only `Invite(EmbargoEvent)` is enforced; there is no `Offer` in the embargo path
 
 Expiry is derived from `(end_time, now)` when the CASE_MANAGER processes an
 inbound `Accept`; no scheduler is needed (an `EmbargoTimerExpired` Sentinel
-would only accelerate it, #1893). The outcomes are four CASE_MANAGER-authored
-ledger entries (`vultron/core/models/rsvp_deadline.py`, trees in
+would only accelerate it, #1893). Each outcome is the occasion for one
+CASE_MANAGER act, built by a factory and committed from its sealed blob, never
+an entry attributed to the invitee (ADR-0140; trees in
 `vultron/core/behaviors/embargo/expiry_tree.py`):
 
 | Situation | Behaviour |
 |---|---|
-| `INVITED` row past its deadline | entry `INVITE_EXPIRED_SEMANTIC_TYPE`, then `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-014) |
-| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: entry `HONOUR_LATE_ACCEPT_SEMANTIC_TYPE`, then `Update(EmbargoConsent)` carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED` (EMB-17-001/002) |
+| `INVITED` row past its deadline | `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-009, CM-28-014) |
+| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: `Update(EmbargoConsent)` carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; the late Accept is not committed (EMB-17-002, EMB-17-009) |
 | Accepted embargo is stale | send a fresh Invite to the current embargo with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003) |
 | No current embargo (EM `EXITED`/`NONE`) | acknowledge as a no-op; rows and case participation unchanged (EMB-17-004) |
 

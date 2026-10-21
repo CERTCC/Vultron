@@ -41,8 +41,8 @@ class ExpirePendingInvitesOnCloseNode(ExpireInvitationsNode):
 
     Runs in the owner-close sequence after
     :class:`~vultron.core.behaviors.case.nodes.leave.record.CommitRMClosureEntriesNode`
-    and before ``case_fully_closed``, so every expired-invitation entry
-    precedes ``case_fully_closed``.  The invitations are
+    and before ``case_fully_closed``, so every expiry's ``TIMED_OUT``
+    ``Update(EmbargoConsent)`` precedes ``case_fully_closed``.  The invitations are
     :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.pending_invitations`.
 
     The CASE_MANAGER gate is the received tree's own: the node sits in the

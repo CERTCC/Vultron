@@ -37,11 +37,6 @@ from typing import Any
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models._helpers import as_utc, now_utc, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.rsvp_deadline import (
-    EXPIRE_SNAPSHOT_TYPE,
-    HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
-    INVITE_EXPIRED_SNAPSHOT_TYPE,
-)
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.errors import VultronCanonicalEntryError
@@ -78,9 +73,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Reject", "Offer"),
     # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-003, CLP-02-013).
     # The Case Owner's withdrawal of its ownership-transfer proposal
-    # (CM-21-015, ADR-0148), the only Undo(Offer) semantic today; a second
-    # one would share this signature.  Owner-authored, so not in
-    # ``_CASE_AUTHORED_SIGNATURES``.
+    # (CM-21-015, ADR-0148), and the CASE_MANAGER's own withdrawal of the
+    # Offer it made once it passed its end_time unanswered (CM-21-017), which
+    # is why it is also case-authored below.
     ("Undo", "Offer"),
     # No ``("Create", "Note")``: a received Create(Note) is not a protocol
     # message, so ``Add(Note)`` is a note's one entry (VAM-01-011).
@@ -125,13 +120,6 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # The Case Owner's removal request, committed as received (CM-31-005,
     # ADR-0116).  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
     ("Remove", "CaseParticipant"),
-    # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
-    # ADR-0118).  Distinct from ("Reject", "Invite"), an explicit refusal.
-    (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
-    # CASE_MANAGER-authored record that an ownership-transfer Offer passed its
-    # end_time unanswered (CM-21-017).  Distinct from ("Reject", "Offer"), the
-    # transferee's decline.
-    (EXPIRE_SNAPSHOT_TYPE, "Offer"),
     # CASE_MANAGER-authored no-op acknowledgement of a late Accept when the
     # embargo is no longer active: it ignores the Accept, carried inline as
     # received (EMB-17-004, CLP-07-013).
@@ -147,9 +135,6 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # (create_embargo_consent, update_embargo_consent; ADR-0122, CLP-07-013).
     ("Create", "EmbargoConsent"),
     ("Update", "EmbargoConsent"),
-    # CASE_MANAGER-authored honour decision for a late Accept when the embargo
-    # is still active and matching (EMB-17-001, ADR-0118).
-    (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
 )
 # Signatures the CaseActor itself is authorized to author (CLP-07-003).  Per
 # CLP-12-002 this MUST be a superset of every pair the CaseActor emits during
@@ -171,11 +156,9 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Reject", "Offer"),
         ("Add", "CaseParticipant"),
         ("Create", "CaseParticipant"),
-        # CASE_MANAGER-authored synthetic invite-expiry event (CM-28-009,
-        # ADR-0118)
-        (INVITE_EXPIRED_SNAPSHOT_TYPE, "Invite"),
-        # CASE_MANAGER-authored ownership-transfer Offer expiry (CM-21-017)
-        (EXPIRE_SNAPSHOT_TYPE, "Offer"),
+        # CASE_MANAGER-authored withdrawal of an ownership-transfer Offer
+        # that passed its end_time unanswered (CM-21-017)
+        ("Undo", "Offer"),
         # CASE_MANAGER-authored no-op acknowledgement (EMB-17-004, ADR-0118)
         ("Ignore", "Accept"),
         # CASE_MANAGER-authored case closure (CM-23-002 step 3) and new
@@ -186,8 +169,6 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         # CASE_MANAGER-authored consent-row changes (ADR-0122, CLP-07-013)
         ("Create", "EmbargoConsent"),
         ("Update", "EmbargoConsent"),
-        # CASE_MANAGER-authored honour decision (EMB-17-001, ADR-0118)
-        (HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE, "Invite"),
         # native case-initialization entries (ADR-0041, CM-22-003)
         ("Create", "VulnerabilityCase"),
         ("Add", "VulnerabilityReport"),

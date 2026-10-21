@@ -53,10 +53,6 @@ from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
-from vultron.core.models.ledger_gap_buffer import (
-    LedgerGapBuffer,
-    resolve_ledger_gap_buffer,
-)
 from vultron.core.models.pending_assertion import (
     PendingAssertionStore,
     get_pending_assertion_store,
@@ -66,17 +62,17 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.ports.inbox_hand_back import InboxHandBackPort
+from vultron.core.ports.inbox_replay import InboxReplayPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    case_manager_verdict,
     door_refusal,
     named_node_status,
     node_failed,
     node_succeeded,
-    not_case_manager_refusal,
     verdict_from_bt,
 )
 
@@ -87,15 +83,14 @@ def _run_announce_bt(
     dl: CaseOutboxPersistence,
     request: AnnounceLogEntryReceivedEvent,
     receiving_actor_id: str,
-    gap_buffer: LedgerGapBuffer | None,
     sync_port: SyncActivityPort | None,
     wire_render_port: WireRenderPort | None,
-    inbox_hand_back: InboxHandBackPort | None,
+    inbox_replay: InboxReplayPort | None,
 ) -> tuple[py_trees.behaviour.Behaviour, BTExecutionResult]:
-    """Run the announce receive BT for *request* with the gap buffer wired.
+    """Run the announce receive BT for *request*.
 
-    The tree hands a buffered successor back to the inbox through
-    *inbox_hand_back* rather than running it here (SYNC-14-009).  Returns the
+    The tree replays a held successor's ``Announce`` through the inbox via
+    *inbox_replay* rather than running it here (SYNC-14-009).  Returns the
     tree along with the result so the caller can tell which branch decided
     the outcome (#2255).
     """
@@ -110,8 +105,7 @@ def _run_announce_bt(
         tree=tree,
         actor_id=receiving_actor_id,
         activity=request,
-        gap_buffer=gap_buffer,
-        inbox_hand_back=inbox_hand_back,
+        inbox_replay=inbox_replay,
     )
     return tree, result
 
@@ -155,7 +149,8 @@ def _refused_announce_verdict(
     if node_succeeded(tree, BufferOutOfOrderEntryNode):
         return HandlerResult.deferred(
             f"ledger entry '{entry.id_}' (log_index={entry.log_index})"
-            " buffered until its predecessor arrives (SYNC-14-001)"
+            " held in its Announce until its predecessor arrives"
+            " (SYNC-14-001)"
         )
     if any(
         isinstance(node, ApplyEmbargoChangeFromLedgerNode)
@@ -164,12 +159,12 @@ def _refused_announce_verdict(
     ):
         return HandlerResult.deferred(
             f"ledger entry '{entry.id_}' does not apply to this replica's"
-            f" case '{entry.case_id}'; held in the gap buffer, never patched"
+            f" case '{entry.case_id}'; its Announce is held, never patched"
             " over (ADR-0124)"
         )
     if node_succeeded(tree, BufferPreGenesisEntryNode):
         return HandlerResult.deferred(
-            f"ledger entry '{entry.id_}' buffered until case"
+            f"ledger entry '{entry.id_}' held in its Announce until case"
             f" '{entry.case_id}' is seeded (SYNC-15-004)"
         )
     if sender_guard_refused(tree):
@@ -212,14 +207,14 @@ class AnnounceLedgerEntryReceivedUseCase:
     future emits for the same ``(case_id, semantic_type, log_object_id)``
     triple are no longer suppressed (SYNC-11-003).
 
-    Out-of-order delivery is tolerated: a received entry whose predecessor has
-    not yet arrived is held in an actor-local
-    :class:`~vultron.core.models.ledger_gap_buffer.LedgerGapBuffer` rather than
-    dropped.  Once the entry that closes the gap is committed, the tree hands
-    the buffered successor back to this actor's inbox through the injected
-    :class:`~vultron.core.ports.inbox_hand_back.InboxHandBackPort`, as an
-    ``Announce(CaseLedgerEntry)`` from the case's CASE_MANAGER and a delivery
-    of its own; that delivery's tree hands back the next one.  This makes
+    Out-of-order delivery is tolerated: the received ``Announce`` of an entry
+    whose predecessor has not yet arrived is held as it was received
+    (:mod:`~vultron.core.services.held_ledger_announces`) rather than
+    dropped.  Once the entry that closes the gap is committed, the tree
+    replays that held ``Announce`` through this actor's inbox via the
+    injected :class:`~vultron.core.ports.inbox_replay.InboxReplayPort`, as a
+    delivery of its own; that delivery's tree replays the next one.  Nothing
+    is rebuilt or attributed to a sender who did not send it.  This makes
     convergence independent of ``Announce`` delivery order (issue #1556,
     SYNC-10-004) while each delivery still runs exactly one tree
     (SYNC-14-009, CLP-10-005).
@@ -238,13 +233,12 @@ class AnnounceLedgerEntryReceivedUseCase:
         request: AnnounceLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         pending_assertions: PendingAssertionStore | None = None,
-        gap_buffer: LedgerGapBuffer | None = None,
         wire_render_port: "WireRenderPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
-        inbox_hand_back: InboxHandBackPort | None = None,
+        inbox_replay: InboxReplayPort | None = None,
     ) -> None:
         self._dl = dl
-        self._inbox_hand_back = inbox_hand_back
+        self._inbox_replay = inbox_replay
         # The received baseline supplies the trigger port to every use case;
         # this one runs no tree that builds an activity, so it is unused.
         del trigger_activity
@@ -252,7 +246,6 @@ class AnnounceLedgerEntryReceivedUseCase:
         self._request = request
         self._sync_port = sync_port
         self._pending_assertions = pending_assertions
-        self._gap_buffer = gap_buffer
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -270,9 +263,6 @@ class AnnounceLedgerEntryReceivedUseCase:
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        gap_buffer = resolve_ledger_gap_buffer(
-            self._gap_buffer, request.receiving_actor_id
-        )
 
         logger.info(
             "sync: received log-entry announcement '%s' for case '%s' "
@@ -286,10 +276,9 @@ class AnnounceLedgerEntryReceivedUseCase:
             self._dl,
             request,
             receiving_actor_id,
-            gap_buffer,
             self._sync_port,
             self._wire_render_port,
-            self._inbox_hand_back,
+            self._inbox_replay,
         )
 
         # A copy the door guards refused (an unaddressed one, HP-01-005, or a
@@ -412,14 +401,11 @@ class RejectLedgerEntryReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RejectLogEntryReceivedBT"
         )
-        if verdict.disposition is HandlerDisposition.APPLIED:
-            # Only the CASE_MANAGER answers a rejection; a replica that
-            # receives one was misaddressed (SYNC-03-005, HP-01-005).
-            refusal = not_case_manager_refusal(
-                tree, self._dl, rejected_entry.case_id
-            )
-            if refusal is not None:
-                verdict = refusal
+        # Only the CASE_MANAGER answers a rejection; a replica that
+        # receives one was misaddressed (SYNC-03-005, HP-01-005).
+        verdict = case_manager_verdict(
+            tree, verdict, self._dl, rejected_entry.case_id
+        )
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "sync: could not act on Reject(CaseLedgerEntry) '%s': %s",

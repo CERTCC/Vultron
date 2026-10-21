@@ -41,7 +41,7 @@ groups:
     rationale: >-
       Detection lives at ingress (IE-10-001): the receiver already holds the activity
       under a key it derives from the id, so the redelivered body is not held again
-      and is routed without its received evidence. It does not live at the HTTP
+      and the copy the receiver holds is routed in its place. It does not live at the HTTP
       route. A route-level check keyed on the actor record's inbox
       collection was a production no-op, because the core actor's `inbox` is a URI
       string (ARCH-12-006), and its tests passed only by supplying a wire actor shape
@@ -92,7 +92,8 @@ groups:
       acknowledgement — not a fault the operator must act on, so it is a lifecycle
       event, not a WARNING (SL-03-001). The ingress adapter already logs the
       redelivery it detects at INFO with the activity and actor ids (IE-10-001,
-      #3638).
+      #3638). A different body under a held id is not a redelivery: it is refused and
+      logged at WARNING (IE-10-002).
     relationships:
     - rel_type: depends_on
       spec_id: SL-03-001

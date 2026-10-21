@@ -62,8 +62,6 @@ from vultron.core.behaviors.embargo.nodes.activation_effect import (
     ApplyEmbargoProposalRejectionFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.expiry import (
-    ApplyHonourLateAcceptFromLedgerNode,
-    ApplyInviteExpiryFromLedgerNode,
     ApplyInviteExpiryNoopFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
@@ -119,10 +117,9 @@ _SLOTS = [
     ApplyEmbargoProposalRejectionFromLedgerNode,
     # abandonment (EMB-16-001)
     ApplyEmbargoAbandonmentFromLedgerNode,
-    # expiry and late Accepts (CM-28-014, EMB-17)
-    ApplyInviteExpiryFromLedgerNode,
+    # the no-op late Accept (EMB-17-004); an expiry and an honoured late
+    # Accept are consent-row entries (CM-28-014, ADR-0140)
     ApplyInviteExpiryNoopFromLedgerNode,
-    ApplyHonourLateAcceptFromLedgerNode,
     # teardown (EP-08-004)
     ApplyEmbargoTeardownNode,
     # withdrawal (MSM-07-010)

@@ -18,7 +18,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import normalise_actor_id
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    not_case_manager_refusal,
+    case_manager_verdict,
     verdict_from_bt,
 )
 
@@ -147,10 +147,7 @@ class OfferActorToCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RecommendActorToCaseReceivedBT"
         )
-        if verdict.disposition is not HandlerDisposition.REFUSED:
-            refusal = not_case_manager_refusal(tree, self._dl, case_id)
-            if refusal is not None:
-                verdict = refusal
+        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "OfferActorToCaseReceived: refused '%s': %s",

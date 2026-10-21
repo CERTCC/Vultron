@@ -231,9 +231,12 @@ def trigger_propose_embargo_revision(
     summary="Trigger embargo termination.",
     description=(
         "Triggers the terminate-embargo behavior for the given actor. "
-        "Announces the end of the active embargo by emitting an "
-        "AnnounceEmbargoActivity activity. Updates the case EM state to EXITED "
-        "and clears the active embargo. "
+        "Ends the active embargo with a Remove(EmbargoEvent) activity. "
+        "Updates the case EM state to EXITED and clears the active embargo. "
+        "An EARLY request may name its cause (FIX_READY with its vendors, "
+        "FIX_DEPLOYED or OTHER); one that names none is recorded as OTHER. "
+        "A THREAT_SIGNAL cause, or any cause on END_TIME_REACHED, is refused "
+        "with HTTP 422 (EMB-13-004, EMB-13-005). "
         "Returns HTTP 409 if no active embargo exists. "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
@@ -256,7 +259,10 @@ def trigger_terminate_embargo(
     """
     return run_trigger(
         TerminateEmbargoTriggerRequest(
-            actor_id=actor_id, case_id=body.case_id, reason=body.reason
+            actor_id=actor_id,
+            case_id=body.case_id,
+            reason=body.reason,
+            cause=body.cause,
         ),
         dispatcher=dispatcher,
         dl=actor_dl,

@@ -107,7 +107,7 @@ class ApplyEmbargoActivationFromLedgerNode(ApplyEmbargoChangeFromLedgerNode):
     id it does not hold, or a copy that belongs to another case, fails.
     An embargo already activated is in place, so a re-delivered entry changes
     nothing.  An entry naming an embargo that is not an open proposal here
-    is refused into the gap buffer (ADR-0124); one that names no embargo
+    is refused and its Announce held (ADR-0124); one that names no embargo
     fails, so it is not persisted (SYNC-12-001).  SUCCESS with nothing
     written when the replica holds no copy of the case (Regime 2, ADR-0087).
     """
@@ -175,7 +175,7 @@ class ApplyEmbargoProposalRejectionFromLedgerNode(
     (ADR-0114).
 
     An entry naming an embargo that is not an open proposal here is refused
-    into the gap buffer (ADR-0124); one that names no embargo fails, so it
+    and its Announce held (ADR-0124); one that names no embargo fails, so it
     is not persisted (SYNC-12-001).  SUCCESS with nothing written when the
     replica holds no copy of the case (Regime 2, ADR-0087).
     """

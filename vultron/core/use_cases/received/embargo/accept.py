@@ -29,7 +29,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
-from vultron.core.models._helpers import claimed_published_iso, now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
 )
@@ -43,9 +43,9 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    case_manager_verdict,
     embargo_answer_repeat_verdict,
     failure_reason,
-    not_case_manager_refusal,
     pxa_refusal_verdict,
     taken_diversion,
     verdict_from_bt,
@@ -133,7 +133,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             invite_id=invite_id,
             sender_rule=self.sender_entitlement,
             now=now_utc(),
-            published=claimed_published_iso(request.activity),
             accept_id=request.activity_id,
             actor_config=self._actor_config,
         )
@@ -208,7 +207,4 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         Only the CASE_MANAGER records an answer; a replica learns it from the
         ledger broadcast (BT-17-001, HP-01-005).
         """
-        if verdict.disposition is not HandlerDisposition.APPLIED:
-            return verdict
-        refusal = not_case_manager_refusal(tree, self._dl, case_id)
-        return verdict if refusal is None else refusal
+        return case_manager_verdict(tree, verdict, self._dl, case_id)

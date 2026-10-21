@@ -424,11 +424,18 @@ groups:
       stores the pre-constructed `Create(VulnerabilityCase)` payload verbatim. The corrected field assignment
       (`context=case_uri`, `in_reply_to=accept_uri` per CP-05-003 and ADR-0045) is baked into the payload so the retry
       runner can replay the exact activity without re-running the BT.
-    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTMarkerWiring::test_marker_present_when_create_fails`
-      confirm the retry marker is stored when `Create(VulnerabilityCase)` fails, without resending `Accept(as_CaseProposal)`.
-      The Create's id is derived from the proposal, so a redelivery after the marker is cleared queues no second
-      `Create(VulnerabilityCase)`; `TestARedeliveryAnnouncesTheCaseOnce` pins this after a late-tree failure and after
-      a full success (#4146).
+    verification: >-
+      The `Accept`, the `Create`, the retry marker and the case are written in one
+      DataLayer transaction (ADR-0146, CP-09-009). The marker is cleared inside
+      that transaction, so after the commit the durable outbox, which already
+      holds the `Create`, is what retries its delivery (OX-13); a `Create` that
+      cannot be queued rolls back the `Accept` with it, and no `Accept` is ever
+      sent without its `Create`.
+      `test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTMarkerWiring::test_a_failed_create_emit_rolls_back_the_accept_and_the_marker`
+      pins that. The Create's id is derived from the proposal, so a redelivery
+      queues no second `Create(VulnerabilityCase)`;
+      `TestARedeliveryAnnouncesTheCaseOnce` pins this after a late-tree failure and
+      after a full success (#4146).
     stories:
     - story_2022_012
   - id: CP-05-006
@@ -1018,21 +1025,21 @@ groups:
       receiver's system must hold the case object before any fan-out that references
       it. It is also SYNC-09-002's order: the entries record a case whose creation
       was sent, and only the `Announce(CaseLedgerEntry)` fan-out follows its
-      commit. The create-case trigger takes the same order, and there a genesis
-      commit that fails withdraws the still-pending `Create` and the case with it.
-      The order has a cost that is accepted deliberately: a genesis `create_case`
-      commit that fails can no longer withhold the `Accept` and `Create`, which
-      are already queued and whose retry marker is already cleared; the failure
-      is surfaced as a non-APPLIED verdict and an ERROR log rather than
-      prevented. Holding the `Create` back would put the genesis entry's fan-out
-      ahead of it, which is the pre-genesis path this rule exists to avoid.
+      commit. The create-case trigger takes the same order. On both paths the
+      case, its records, the queued `Accept` and `Create` and every creation entry
+      are written in one DataLayer transaction (ADR-0146), so any creation entry
+      that fails rolls all of them back before delivery is told of either
+      activity (DL-02-004, CLP-07-013). Holding the `Create` back until after the
+      commit would put the genesis entry's fan-out ahead of it, which is the
+      pre-genesis path this rule exists to avoid.
     verification: >-
       `test/core/behaviors/case/test_case_proposal_received_tree.py::test_accept_and_create_are_queued_before_any_ledger_fanout`
       runs the accept tree with a real sync adapter and asserts the outbox order is
       Accept, Create, then every Announce;
-      `test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued`
-      pins the accepted failure shape (non-APPLIED verdict, Accept and Create
-      queued, no Announce, no retry marker).
+      `test_a_genesis_commit_failure_queues_neither_accept_nor_create` asserts a
+      failed genesis leaves a non-APPLIED verdict, an empty outbox and no case,
+      and `TestADR0041GenesisCommitFailure::test_each_creation_entry_that_fails_leaves_nothing_of_the_case`
+      fails each creation entry in turn and asserts nothing of the case is kept.
     relationships:
     - rel_type: refines
       spec_id: CP-05-003

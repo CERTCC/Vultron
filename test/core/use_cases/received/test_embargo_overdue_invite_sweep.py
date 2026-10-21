@@ -34,6 +34,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
 )
 from test.support.embargo_register import activate, propose, reject
+from test.support.ledger import is_consent_row_update
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -56,7 +57,6 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
-from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_SEMANTIC_TYPE
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.participant_embargo_consent import (
@@ -210,11 +210,26 @@ def _semantic_types(dl: SqliteDataLayer) -> list[str]:
 
 
 def _expiries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
+    """The CASE_MANAGER's ``Update(EmbargoConsent)`` entries to ``TIMED_OUT``."""
     return [
         e
         for e in _ledger(dl)
-        if e.semantic_type == INVITE_EXPIRED_SEMANTIC_TYPE
+        if is_consent_row_update(e, EmbargoConsentState.TIMED_OUT)
     ]
+
+
+def _expiry_index(dl: SqliteDataLayer) -> int:
+    """The ledger position of the first expiry (its ``TIMED_OUT`` row)."""
+    return next(
+        i
+        for i, e in enumerate(_ledger(dl))
+        if is_consent_row_update(e, EmbargoConsentState.TIMED_OUT)
+    )
+
+
+def _row_actor(entry: CaseLedgerEntry) -> str:
+    """The participant whose consent row *entry* carries."""
+    return str(entry.payload_snapshot["object"]["attributedTo"])
 
 
 def _consent(
@@ -254,14 +269,13 @@ class TestOwnerDecision:
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
         types = _semantic_types(dl)
-        expiry = types.index(INVITE_EXPIRED_SEMANTIC_TYPE)
-        # The expiry, then the CASE_MANAGER's TIMED_OUT row, then the
-        # owner's decision (CM-28-014, ADR-0124).
-        assert types[expiry + 1] == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
-        assert expiry < types.index(decided)
+        # The CASE_MANAGER's TIMED_OUT row, then the owner's decision
+        # (CM-28-014, ADR-0124).
+        assert _expiry_index(dl) < types.index(decided)
         assert _consent(dl, _INVITEE) == EmbargoConsentState.TIMED_OUT
         (entry,) = _expiries(dl)
-        assert entry.payload_snapshot["actor"] == _INVITEE
+        assert _row_actor(entry) == _INVITEE
+        assert entry.payload_snapshot["actor"] == _MANAGER
 
     @pytest.mark.spec("CM-28-015")
     @pytest.mark.parametrize(("factory", "use_case", "decided"), _DECISIONS)
@@ -316,10 +330,8 @@ class TestDoorGuardsFirst:
         result = _decide(dl, make_payload, factory, use_case, stray)
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert _semantic_types(dl) == [
-            INVITE_EXPIRED_SEMANTIC_TYPE,
-            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
-        ]
+        assert _semantic_types(dl) == [UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE]
+        assert len(_expiries(dl)) == 1
         assert _consent(dl, _INVITEE) == EmbargoConsentState.TIMED_OUT
 
 
@@ -343,7 +355,7 @@ class TestSweepScope:
         _sweep(dl)
 
         (entry,) = _expiries(dl)
-        assert entry.payload_snapshot["actor"] == _INVITEE
+        assert _row_actor(entry) == _INVITEE
         assert _consent(dl, _OTHER) == EmbargoConsentState.INVITED
 
     @pytest.mark.spec("CM-28-015")
@@ -396,7 +408,7 @@ class TestSweepScope:
 
         assert status is py_trees.common.Status.SUCCESS
         (entry,) = _expiries(dl)
-        assert entry.payload_snapshot["actor"] == _OTHER
+        assert _row_actor(entry) == _OTHER
         assert _consent(dl, _INVITEE) == EmbargoConsentState.INVITED
         assert _consent(dl, _OTHER) == EmbargoConsentState.TIMED_OUT
         assert any(
@@ -461,7 +473,6 @@ class TestOtherEmbargoActivity:
         dl: SqliteDataLayer,
         make_payload,
         sync: Any,
-        published: datetime | None = None,
     ):
         """``_OTHER`` declines its Invite to the proposal."""
         invite = em_propose_embargo_activity(
@@ -472,13 +483,11 @@ class TestOtherEmbargoActivity:
             id_=f"{_CASE_ID}/invites/other",
         )
         dl.create(invite)
-        claimed = {"published": published} if published else {}
         answer = em_reject_embargo_activity(
             proposal=invite,
             context=_CASE_ID,
             actor=_OTHER,
             to=[_MANAGER],
-            **claimed,
         )
         event = make_payload(answer, receiving_actor_id=_MANAGER)
         return RejectInviteToEmbargoOnCaseReceivedUseCase(
@@ -495,43 +504,25 @@ class TestOtherEmbargoActivity:
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
         types = _semantic_types(dl)
-        assert types.index(INVITE_EXPIRED_SEMANTIC_TYPE) < types.index(
+        assert _expiry_index(dl) < types.index(
             "reject_invite_to_embargo_on_case"
         )
         assert _consent(dl, _INVITEE) == EmbargoConsentState.TIMED_OUT
         assert _consent(dl, _OTHER) == EmbargoConsentState.DECLINED
 
     @pytest.mark.spec("CM-28-015")
-    @pytest.mark.spec("CLP-15-003")
-    def test_a_late_reject_times_out_then_declines_on_the_senders_clock(
-        self, make_payload
-    ):
-        """The sender's own overdue row is swept too, and its expiry entry
-        carries the Reject's claimed time, so the sender's claimed stream
-        never runs backwards (CLP-15-003, CLP-10-025); the Reject then
-        declines the timed-out row."""
+    def test_a_late_reject_times_out_then_declines(self, make_payload):
+        """The sender's own overdue row is swept too, as the CASE_MANAGER's
+        own act on its own clock; the Reject then declines the timed-out
+        row."""
         dl, _embargo = _store(other_deadline=_PAST)
-        # Earlier than the CASE_MANAGER's clock, within the clock-skew
-        # tolerance of the case's creation (CLP-14-006).
-        sent_at = datetime.now(tz=UTC).replace(microsecond=0) - timedelta(
-            minutes=1
-        )
 
-        result = self._reject_invite(
-            dl, make_payload, SyncActivityAdapter(dl), published=sent_at
-        )
+        result = self._reject_invite(dl, make_payload, SyncActivityAdapter(dl))
 
         assert result.disposition is HandlerDisposition.APPLIED, result.reason
-        by_actor = {e.payload_snapshot["actor"]: e for e in _expiries(dl)}
-        assert set(by_actor) == {_INVITEE, _OTHER}
-        own = datetime.fromisoformat(
-            by_actor[_OTHER].payload_snapshot["published"]
-        )
-        assert own == sent_at
-        other = datetime.fromisoformat(
-            by_actor[_INVITEE].payload_snapshot["published"]
-        )
-        assert other > sent_at  # the CASE_MANAGER's clock
+        expiries = _expiries(dl)
+        assert {_row_actor(e) for e in expiries} == {_INVITEE, _OTHER}
+        assert {e.payload_snapshot["actor"] for e in expiries} == {_MANAGER}
         types = _semantic_types(dl)
         assert types[-1] == "reject_invite_to_embargo_on_case"
         assert _consent(dl, _OTHER) == EmbargoConsentState.DECLINED
@@ -555,7 +546,7 @@ class TestOtherEmbargoActivity:
                 str(c.kwargs["entry"].semantic_type), set()
             ).update(c.kwargs["to"])
         for semantic_type in (
-            INVITE_EXPIRED_SEMANTIC_TYPE,
+            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
             "reject_invite_to_embargo_on_case",
         ):
             assert _OWNER in announced[semantic_type], announced
@@ -608,7 +599,7 @@ class TestOwnerTrigger:
         ).execute()
 
         types = _semantic_types(dl)
-        assert types.index(INVITE_EXPIRED_SEMANTIC_TYPE) < types.index(decided)
+        assert _expiry_index(dl) < types.index(decided)
         assert _consent(dl, _INVITEE) == EmbargoConsentState.TIMED_OUT
 
 

@@ -57,13 +57,18 @@ from vultron.core.models.dimensions import (
     RmDimension,
 )
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.events.report import ValidateReportReceivedEvent
+from vultron.core.models.events.report import (
+    InvalidateReportReceivedEvent,
+    ValidateReportReceivedEvent,
+)
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.received.report import (
+    InvalidateReportReceivedUseCase,
     ValidateReportReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.report import SvcValidateReportUseCase
@@ -366,12 +371,18 @@ class TestCaseActorReceivedWritesLedgerEntry:
     OFFER_ID = "https://example.org/activities/offer-ledger"
     ACCEPT_ID = "https://example.org/activities/accept-ledger"
     CASE_ID = "https://example.org/cases/c-ledger-test"
+    PARTICIPANT_ID = "https://example.org/actors/participant-ledger"
 
-    def _make_case_actor_dl(self) -> SqliteDataLayer:
-        """DataLayer as seen by the CaseActor: case + CASE_MANAGER + Service link."""
+    def _make_case_actor_dl(
+        self, owner_id: str | None = None
+    ) -> SqliteDataLayer:
+        """DataLayer as seen by the CaseActor: case + CASE_MANAGER + Service link.
+
+        With *owner_id* the same case is that participant's replica instead.
+        """
         from vultron.core.models.actor import VultronService
 
-        dl = _make_dl(self.CASE_ACTOR_ID)
+        dl = _make_dl(owner_id or self.CASE_ACTOR_ID)
 
         # The CaseActor Service must have context=case_id so that
         # _find_case_actor_id resolves it via the Service scan.
@@ -411,6 +422,8 @@ class TestCaseActorReceivedWritesLedgerEntry:
         # embargo in force.  RM.RECEIVED is the state it holds before
         # validate-report.
         _add_participant_at_received(dl, case, self.VENDOR_ID)
+        if owner_id is not None:
+            _add_participant_at_received(dl, case, owner_id)
         dl.save(case)
         write_consent_rows(dl, case)
         agree_to_active_embargo(dl, case, self.VENDOR_ID)
@@ -421,6 +434,101 @@ class TestCaseActorReceivedWritesLedgerEntry:
         )
 
         return dl
+
+    def _at_participant(
+        self,
+        event: ValidateReportReceivedEvent | InvalidateReportReceivedEvent,
+    ) -> ValidateReportReceivedEvent | InvalidateReportReceivedEvent:
+        """*event* as the copy a participant that is not the CASE_MANAGER got.
+
+        Addressed to that participant too, so the run reaches the role gate
+        rather than stopping at the door (HP-01-012).
+        """
+        assert event.activity is not None
+        return event.model_copy(
+            update={
+                "receiving_actor_id": self.PARTICIPANT_ID,
+                "activity": event.activity.model_copy(
+                    update={"to": [self.CASE_ACTOR_ID, self.PARTICIPANT_ID]}
+                ),
+            }
+        )
+
+    def _make_invalidate_event(self) -> InvalidateReportReceivedEvent:
+        """The TentativeReject(Offer(Report)) twin of the validate event."""
+        validate = self._make_validate_event()
+        assert validate.activity is not None
+        return with_evidence(
+            InvalidateReportReceivedEvent(
+                semantic_type=MessageSemantics.INVALIDATE_REPORT,
+                activity_id=validate.activity_id,
+                actor_id=validate.actor_id,
+                object_=validate.object_,
+                inner_object=validate.inner_object,
+                activity=validate.activity.model_copy(
+                    update={"type_": "TentativeReject"}
+                ),
+                receiving_actor_id=validate.receiving_actor_id,
+            )
+        )
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.parametrize(
+        ("use_case", "make_event"),
+        [
+            (ValidateReportReceivedUseCase, "_make_validate_event"),
+            (InvalidateReportReceivedUseCase, "_make_invalidate_event"),
+        ],
+        ids=["validate", "invalidate"],
+    )
+    def test_participant_that_is_not_the_case_manager_refuses(
+        self, use_case, make_event
+    ):
+        """A participant the Accept/TentativeReject reached refuses it.
+
+        The RM write, the commit and every effect sit behind the CASE_MANAGER
+        gate, so the participant does nothing; it reports the misaddressed
+        message as a refusal, never as applied (HP-01-005).
+        """
+        dl = self._make_case_actor_dl(owner_id=self.PARTICIPANT_ID)
+        event = self._at_participant(getattr(self, make_event)())
+
+        result = use_case(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "not the CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == []
+        assert _ledger_semantic_types(dl) == []
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.parametrize(
+        ("use_case", "make_event"),
+        [
+            (ValidateReportReceivedUseCase, "_make_validate_event"),
+            (InvalidateReportReceivedUseCase, "_make_invalidate_event"),
+        ],
+        ids=["validate", "invalidate"],
+    )
+    def test_case_manager_still_applies(self, use_case, make_event):
+        """The control: the CASE_MANAGER itself applies the declaration."""
+        dl = self._make_case_actor_dl()
+
+        result = use_case(
+            dl,
+            getattr(self, make_event)(),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED
 
     def _make_validate_event(
         self, receiving_actor_id: str | None = None
