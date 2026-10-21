@@ -52,6 +52,7 @@ from vultron.core.use_cases._helpers import (
 )
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
+    intake_verdict,
     not_case_manager,
     verdict_from_bt,
 )
@@ -158,8 +159,11 @@ class OfferCaseParticipantReceivedUseCase:
             # CASE_MANAGER sends an Offer(CaseParticipant), and it addresses
             # the Case Owner, so a non-CASE_MANAGER store never holds its own
             # copy (HP-01-005).  The Offer is now the addressee's to decide,
-            # by a separate outbound Accept or Reject.
-            return HandlerResult.applied()
+            # by a separate outbound Accept or Reject; a redelivery archives
+            # nothing new and is SKIPPED.
+            return intake_verdict(
+                tree, result, label="ReceiveOfferCaseParticipantBT"
+            )
         return verdict
 
 
