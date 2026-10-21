@@ -4,10 +4,11 @@ status: active
 kind: guidance
 description: >
   Rules for the dispatcher's exception boundary and the adapter-layer
-  `InboxPipeline` / `build_test_pipeline()` test seam: where unroutable errors
-  are caught, how re-queues are bounded, and layer/import rules.
+  `InboxPipeline` / `build_test_pipeline()` test seam: where a new raise is
+  caught, how re-queues are bounded, and layer/import rules.
 related_specs:
   - specs/inbox-pipeline.yaml
+  - specs/dispatch-routing.yaml (DR-03-002)
   - specs/inbox-endpoint.yaml
 related_notes:
   - notes/architecture-hexagonal.md
@@ -25,19 +26,17 @@ The production inbox runs the core BT (`notes/inbox-orchestration.md`). This not
 covers the dispatcher's exception boundary and the adapter-layer `InboxPipeline` test
 seam.
 
-## `UnroutableActivityError` Must Be Caught Inside `_handle`, Not Above It
+## A New `raise` Must Be Caught Below Any Retry Loop
 
-A gate helper called before the `try/except` in `DispatcherBase._handle`
-(`vultron/core/dispatcher.py`) escapes `_handle`. The inbox queue replay in
-`run_inbox_pipeline` retries every exception except `VultronProtocolViolationError`,
-so an escaping `UnroutableActivityError` is retried as if transient, to the retry
-budget, and then dead-lettered (IE-06-004).
-Wrap the gate call (`_enforce_join_backfill_gate`) in its own `try` inside `_handle`.
+When a silent failure (return `None`/`False`) becomes a `raise`, trace every handler
+above the raise site. The inbox queue replay in `run_inbox_pipeline` retries every
+exception except `VultronProtocolViolationError`, to the retry budget, and then
+dead-letters it (IE-06-004). So a raise that escapes to it is retried as if transient.
+Catch the new exception below the retry loop, or refuse instead of raising (ISSUE-1377).
 
-**General rule**: when a silent failure (return `None`/`False`) becomes a `raise`, trace
-every handler above the raise site. If one has retry or re-queue semantics, catch the
-new exception below it; letting it propagate turns the silent failure into an infinite
-retry (ISSUE-1377).
+The dispatcher turns no raise into a verdict (DR-03-002). It routes by semantics
+alone, so an activity that names no case reaches its handler, and the handler refuses
+it (HP-05-002). A raise from a handler goes to the adapter boundary.
 
 ---
 

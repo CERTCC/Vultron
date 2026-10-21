@@ -527,8 +527,7 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: 'A helper function that requires a non-None ID MUST check the result and raise VultronValidationError (or UnroutableActivityError
-      for routing failures) immediately. The strict guarantee lives in the caller or the helper itself — never deferred silently
+    statement: 'A helper function that requires a non-None ID MUST check the result and raise VultronValidationError immediately. The strict guarantee lives in the caller or the helper itself — never deferred silently
       to downstream code.'
     rationale: 'Returning None from a helper that conceptually requires a valid ID moves the error from the point of failure
       to the point of use, making stack traces and logs point to the wrong location. See notes/domain-validation.md and ADR-0032.'
@@ -536,21 +535,6 @@ groups:
     - rel_type: refines
       spec_id: ARCH-10-001
       note: Extends construction-time fail-fast to helper function entry points.
-    adr:
-    - ADR-0032
-  - id: ARCH-15-003
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: 'The dispatcher MUST raise UnroutableActivityError when no case_id can be extracted from an inbound event.
-      It MUST NOT return None and silently drop the activity from ledger indexing.'
-    rationale: 'A silently dropped activity produces an invisible gap in the canonical case ledger and leaves no audit trail.
-      The dispatcher caller must make an explicit decision about how to handle unroutable activities. See notes/domain-validation.md
-      and ADR-0032.'
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-10-001
-      note: Extends construction-time fail-fast to dispatcher routing entry points.
     adr:
     - ADR-0032
   - id: ARCH-15-004

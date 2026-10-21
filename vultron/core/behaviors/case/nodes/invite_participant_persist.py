@@ -47,8 +47,8 @@ class ActivateInviteeParticipantNode(
 ):
     """Set ``joined=True`` on the invitee's existing participant record.
 
-    A record that is already joined (the backfill-resume path) is left as it
-    is.  RM stays at ``RECEIVED``: accepting the stub is joining, not judging
+    A record that is already joined (a participant seated without a join) is
+    left as it is.  RM stays at ``RECEIVED``: accepting the stub is joining, not judging
     the case (CM-11-001).
     """
 

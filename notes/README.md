@@ -251,7 +251,7 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   **Load when**: changing `process_payload` or adding an inbound entry point.
 - **`inbox-pipeline.md`** · `guidance`
   The dispatcher exception boundary and the `InboxPipeline` test seam.
-  **Load when**: changing where unroutable errors are caught or re-queues bounded.
+  **Load when**: adding a raise under the inbox retry loop or bounding re-queues.
 - **`outbox.md`** · `guidance`
   Outbox addressing enforcement, `handle_outbox_item`, and required test coverage.
   **Load when**: changing outbox delivery or adding an outbound activity type.

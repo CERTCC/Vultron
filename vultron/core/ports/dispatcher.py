@@ -43,8 +43,9 @@ class ActivityDispatcher(Protocol):
     fully-populated ``VultronEvent`` and the ``DataLayer`` instance scoped to
     the current actor.  The concrete implementation looks up the matching use
     case from the routing table, invokes it, and returns its ``HandlerResult``
-    (UCORG-05-010). When no handler runs because the activity is unroutable,
-    the dispatcher synthesizes a ``REFUSED`` verdict instead (UCORG-05-012).
+    (UCORG-05-010). When no use case is registered for the event's
+    semantics, no handler runs and ``dispatch()`` raises instead
+    (UCORG-05-012).
     Callers other than the inbox pipeline MAY ignore the result.
     """
 

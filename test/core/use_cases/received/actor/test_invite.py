@@ -1598,7 +1598,7 @@ class TestInviteActorUseCases:
             "the Accept's own entry is rolled back with the backfill"
         )
 
-    def test_accept_invite_resumes_when_participant_exists_without_marker(
+    def test_accept_invite_backfills_a_participant_seated_without_a_marker(
         self, make_payload
     ):
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -1714,6 +1714,117 @@ class TestInviteActorUseCases:
         # accept_invite entry (2) first (invitee already registered), then
         # backfill sends entries 0 and 1 that the invitee missed.
         assert [entry.log_index for entry in announced_entries] == [2, 0, 1]
+
+    @pytest.mark.spec("CM-10-005")
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_seated_non_signatory_joins_under_an_active_embargo(
+        self, make_payload
+    ):
+        """The Accept's own fan-out pauses the seated invitee (CM-10-005).
+
+        The invitee is joined but has not accepted the active embargo, so
+        the Accept entry's fan-out withholds it and records a pause in its
+        replication state.  The backfill later in the same act finds that
+        state and records its target beside the pause, which the admission
+        backfill serves (CM-10-006).
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.embargo_consent import EmbargoConsent
+        from vultron.core.models.embargo_event import EmbargoEvent
+        from vultron.core.models.replication_state import (
+            VultronReplicationState,
+        )
+        from vultron.core.states.participant_embargo_consent import (
+            EmbargoConsentState,
+        )
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Organization,
+            as_Service,
+        )
+
+        case_actor_id = "https://example.org/actors/case-actor-lj4"
+        invitee_id = "https://example.org/users/seated-non-signatory"
+        case_id = "https://example.org/cases/caseLJ4"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        invitee = as_Organization(id_=invitee_id)
+        dl.create(invitee)
+        dl.create(as_Service(id_=case_actor_id, context=case_id))
+        embargo = EmbargoEvent(
+            id_=f"{case_id}/embargoes/1",
+            context=case_id,
+            end_time=days_from_now_utc(45),
+        )
+        dl.create(embargo)
+        case = VulnerabilityCase(id_=case_id, attributed_to=case_actor_id)
+        activate(case, embargo)
+        for actor_id, consent, roles in (
+            (
+                case_actor_id,
+                EmbargoConsentState.AGREED,
+                [CVDRole.CASE_MANAGER],
+            ),
+            (invitee_id, EmbargoConsentState.INVITED, []),
+        ):
+            participant = CaseParticipant(
+                id_=f"{case_id}/participants/{actor_id.rsplit('/', 1)[-1]}",
+                attributed_to=actor_id,
+                context=case_id,
+                case_roles=roles,
+                embargo_consents=[
+                    EmbargoConsent(embargo_id=embargo.id_, state=consent)
+                ],
+            )
+            dl.create(participant)
+            case.add_participant(participant)
+        dl.create(case)
+        invite = rm_invite_to_case_activity(
+            invitee,
+            to=[invitee_id],
+            target=case_id,
+            actor=case_actor_id,
+            id_=f"{case_id}/invitations/1",
+        )
+        dl.create(invite)
+        for index in range(2):
+            _seed_ledger_entry(
+                dl,
+                case_id=case_id,
+                object_id=f"{case_id}/events/{index}",
+                semantic_type="submit_report",
+                actor_id=case_actor_id,
+                payload_snapshot={"index": index},
+            )
+
+        trigger_activity = with_ledger_records(MagicMock(), dl)
+        trigger_activity.announce_vulnerability_case.return_value = (
+            f"{case_id}/announce/1"
+        )
+        trigger_activity.invite_actor_to_full_case.side_effect = (
+            TriggerActivityAdapter(dl).invite_actor_to_full_case
+        )
+        sync_port = MagicMock()
+
+        result = AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            make_payload(_accept_invite(invite, actor=invitee_id)),
+            sync_port=sync_port,
+            trigger_activity=trigger_activity,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED, result
+        state = dl.read(
+            VultronReplicationState(case_id=case_id, peer_id=invitee_id).id_
+        )
+        assert isinstance(state, VultronReplicationState)
+        # The pause the Accept's fan-out recorded is kept, from the Accept's
+        # own entry (2), beside the join backfill of the prefix (0, 1).
+        assert state.embargo_paused_from_index == 2
+        assert state.join_backfill_target_index == 1
+        assert state.join_backfill_last_sent_index == 1
+        assert state.join_backfill_complete is True
 
     def test_accept_invite_backfill_runs_when_the_announce_cannot_be_sent(
         self, make_payload

@@ -47,7 +47,6 @@ from vultron.core.dispatcher import DirectActivityDispatcher
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.use_case_result import HandlerResult
-from vultron.errors import UnroutableActivityError
 from vultron.wire.as2.factories import rm_create_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -154,21 +153,44 @@ def test_deferred_handler_yields_deferred(dl, body):
     assert outcome.failure_reason == "awaiting entry 3"
 
 
-@pytest.mark.spec("UCORG-05-012")
-def test_unroutable_activity_is_not_processed(dl, body, monkeypatch):
-    """No handler ran, so the dispatcher's synthesized verdict is a refusal."""
+@pytest.mark.spec("HP-05-002")
+def test_remove_embargo_naming_no_case_is_refused_by_its_handler(dl):
+    """A ``Remove(EmbargoEvent)`` with no ``origin`` names no case to act on.
 
-    def _unroutable(self: Any, event: Any, dl: Any) -> None:
-        raise UnroutableActivityError(event.activity_id, "no case_id")
+    Its pattern requires no case field, so it still routes to the Remove
+    handler, which reads the case from ``origin`` alone and refuses it. The verdict is the handler's own, reached
+    through the production dispatcher; the dispatcher refuses nothing.
+    """
+    from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
+    from vultron.core.states.embargo_register import TerminationReason
+    from vultron.wire.as2.factories import remove_embargo_from_case_activity
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    monkeypatch.setattr(
-        DirectActivityDispatcher, "_enforce_join_backfill_gate", _unroutable
+    remove = remove_embargo_from_case_activity(
+        as_EmbargoEvent(
+            id_="https://example.org/embargoes/e-chain-1",
+            context="https://example.org/cases/c-chain-remove",
+            end_time=days_from_now_utc(45),
+        ),
+        reason=TerminationReason.EARLY,
+        actor=_SENDER_ID,
+        to=[_RECEIVER_ID],
+    )
+    body = _wire_body(remove)
+    assert "origin" not in body
+
+    outcome = process_payload(
+        body,
+        FastAPIIngressAdapter(dl=dl),
+        FastAPIDispatchAdapter(
+            dl=dl, actor_id=_RECEIVER_ID, dispatcher=make_dispatcher()
+        ),
     )
 
-    outcome = _process(dl, body, _dispatcher_for(HandlerResult.applied()))
-
     assert outcome.status is InboxOutcomeStatus.REJECTED
-    assert "unroutable" in (outcome.failure_reason or "")
+    assert outcome.failure_reason == (
+        "Remove(EmbargoEvent) is missing its embargo id or case id"
+    )
 
 
 @pytest.mark.spec("UCORG-05-012")
