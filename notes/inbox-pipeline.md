@@ -10,6 +10,8 @@ description: >
 related_specs:
   - specs/inbox-pipeline.yaml
   - specs/inbox-endpoint.yaml
+  - specs/datalayer.yaml
+  - specs/protocol-asks.yaml
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/architecture-adapters.md
@@ -66,9 +68,9 @@ Run each `drain_inbox_queue` attempt inside one `actor_dl.transaction()`: the
 and the settlement (`hold_again`, the attempt count, `inbox_append`, the dead letter
 and the held fault) (IE-06-005).
 
-- **Why.** The held record is the receiver's only copy of the activity (DL-06-006).
-  Committed one by one, a stop after the pop or the delete leaves nothing queued or
-  nothing held, and no sender is answered (ASK-07-010).
+- **Why.** The held record is the only copy the replay can rebuild the activity
+  from (DL-06-006). Committed one by one, a stop after the pop or the delete leaves
+  nothing queued or nothing held, and no sender is answered (ASK-07-010).
 - **Nesting is the point.** The act's `ActTransaction` becomes a savepoint inside the
   attempt's block, so a failed act still keeps nothing (ADR-0151) while the
   settlement that follows it commits with the pop.

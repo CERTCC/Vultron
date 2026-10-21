@@ -320,22 +320,30 @@ groups:
       commit as one DataLayer transaction: taking the item's id off the queue,
       releasing the record that holds it for its replay, the attempt itself, and the
       attempt's settlement (its attempt count, the record held again, the id queued
-      again, its dead letter, and any fault held for its sender). A process stop or a
-      raise at any point in the attempt MUST leave the item queued and held, with
-      the attempt count it had before the attempt began.
+      again, its dead letter, and any fault held for its sender). A process stop, or
+      a raise the drain does not catch and settle as a failed attempt (IE-06-004),
+      at any point in the attempt MUST leave the item queued and held, with the
+      attempt count it had before the attempt began, and MUST end that drain with
+      the raise, so the item waits for the next replay.
     rationale: >-
-      The receiver keeps no other copy of a received activity (DL-06-006), and the
-      sender is not answered while the item is retried (ASK-07-010), so an item lost
-      between its dequeue and its settlement is never recovered. Writes that must
-      land together share one transaction, never a repair pass (ADR-0146). The act's
-      own transaction nests inside the attempt's, so a failed act still keeps
-      nothing (ADR-0151).
+      The held record is the only copy of a received activity the replay can rebuild
+      it from (DL-06-006), and the sender is not answered while the item is retried
+      (ASK-07-010), so an item lost between its dequeue and its settlement is never
+      recovered. Writes that must land together share one transaction, never a
+      repair pass (ADR-0146). The act's own transaction nests inside the attempt's,
+      so a failed act still keeps nothing (ADR-0151). The attempt count bounds an
+      activity's failures, not the store's: a raise that escapes the attempt rolls
+      back the count with everything else, so it is not counted but surfaced, and an
+      item whose settlement fails every time is retried by each drain until the
+      store fault is fixed.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_queue_drain.py` interrupts a replay
       attempt with an exception the drain does not catch, once during the act and
-      once during its settlement, and shows that the item's id is still queued, its
-      `DeferredInboxActivity` is still held, its attempt count is unchanged, and
-      nothing the act wrote is kept.
+      once during its settlement, and shows that the drain raises, and that the
+      item's id is still queued, its `DeferredInboxActivity` is still held, its
+      attempt count is unchanged, and nothing the act wrote is kept. The act-time
+      interrupt is one the tree's nodes do not catch as `Exception`, such as a
+      `BaseException` subclass, so it escapes the act as a process stop would.
     adr:
     - ADR-0146
     relationships:
