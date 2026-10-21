@@ -1658,3 +1658,78 @@ def test_a_failed_item_stays_held_whether_retried_or_dead_lettered(
 
     assert staging.held(activity.id_) is not None
     assert dl.read(activity.id_) is None
+
+
+def _faults_queued(dl: SqliteDataLayer) -> list[dict[str, Any]]:
+    """Every ``Create(ProcessingFault)`` waiting in *dl*'s outbox."""
+    from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+    bodies = [read_sealed_body_dict(dl, item) for item in dl.outbox_list()]
+    return [
+        body
+        for body in bodies
+        if body is not None
+        and body.get("type") == "Create"
+        and isinstance(body.get("object"), dict)
+        and body["object"].get("type") == "ProcessingFault"
+    ]
+
+
+@pytest.mark.spec("ASK-07-010")
+@pytest.mark.spec("IE-06-004")
+def test_a_failing_replay_is_answered_only_when_dead_lettered(monkeypatch):
+    """A re-queued attempt may still succeed, so it is not answered; the
+    dead-lettered one is, with one internal-error fault to its sender."""
+    from vultron.adapters.inbox_staging import InlineObjectStaging
+    from vultron.core.models.fault_classes import (
+        VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+    )
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    receiver = "https://example.org/actors/participant"
+    sender = "https://example.org/actors/case-actor"
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
+    case_id = "https://example.org/cases/case-dead-letter"
+    item = add_note_to_case_activity(
+        as_Note(content="fails", context=case_id),
+        target=case_id,
+        context=case_id,
+        actor=sender,
+        to=[receiver],
+    )
+
+    def _raise(**_kwargs: Any) -> None:
+        raise RuntimeError("the use case raised")
+
+    monkeypatch.setattr(ih, "_dispatch_or_defer_inbox_item", _raise)
+
+    def _attempt() -> None:
+        ok = ih._process_inbox_item(
+            actor_id="participant",
+            canonical_actor_id=receiver,
+            item_id=item.id_,
+            item=item,
+            dl=dl,
+            queue_dl=dl,
+            retry=dl,
+            max_attempts=2,
+            staging=InlineObjectStaging(dl),
+        )
+        assert ok is False
+
+    _attempt()
+    assert dl.inbox_dead_letter_list() == []
+    assert item.id_ in dl.inbox_list(), "precondition: re-queued for retry"
+    assert _faults_queued(dl) == [], "a retried attempt is not answered"
+
+    _attempt()
+    assert [e.activity_id for e in dl.inbox_dead_letter_list()] == [item.id_]
+    (fault,) = _faults_queued(dl)
+    assert fault["actor"] == receiver
+    assert fault["to"] == [sender]
+    assert fault["object"]["failureClass"] == (
+        VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR
+    )
+    assert fault["object"]["inReplyTo"] == item.id_
+    assert "the use case raised" not in str(fault), "no diagnostics"

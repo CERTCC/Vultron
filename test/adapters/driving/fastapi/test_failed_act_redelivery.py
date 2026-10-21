@@ -39,6 +39,7 @@ from test.core.use_cases.received._ledger_network import (
     PROPOSER,
     LedgerNetwork,
 )
+from test.support.emitter import RecordingEmitter
 from test.support.ledger import fail_commits, ledger_entries
 from test.support.ledger_rebuild import case_file_differences
 from vultron.adapters.driven.db_record import object_to_record
@@ -68,21 +69,6 @@ _PROPOSAL_ENTRY = "invite_to_embargo_on_case"
 _AS2_OBJECT_ENVELOPE = {"@context", "id", "type", "published", "updated"}
 
 
-class _RecordingEmitter:
-    """Keeps every body the CASE_MANAGER's outbox delivers, and to whom."""
-
-    def __init__(self) -> None:
-        self.sent: list[tuple[dict[str, Any], list[str]]] = []
-
-    async def emit(
-        self, activity_id: str, json_body: str, recipients: list[str]
-    ) -> None:
-        self.sent.append((json.loads(json_body), list(recipients)))
-
-    def to(self, recipient: str) -> list[dict[str, Any]]:
-        return [body for body, to in self.sent if recipient in to]
-
-
 @pytest.fixture
 def served_manager():
     """The CASE_MANAGER's store served by a real app, plus its network."""
@@ -100,7 +86,7 @@ def served_manager():
     )
     app = create_app(docs_url=None, openapi_url=None)
     app.dependency_overrides[get_actor_dl] = lambda actor_id: manager_dl
-    emitter = _RecordingEmitter()
+    emitter = RecordingEmitter()
     with TestClient(app) as client:
         app.state.emitter = emitter
         yield client, net, emitter
@@ -156,7 +142,7 @@ def _assert_routed_as_archived_redelivery(
     ), "the post was not routed as a redelivery"
 
 
-def _faults(emitter: _RecordingEmitter) -> list[dict[str, Any]]:
+def _faults(emitter: RecordingEmitter) -> list[dict[str, Any]]:
     """Every delivered ``Create(ProcessingFault)``."""
     return [
         body
@@ -168,7 +154,7 @@ def _faults(emitter: _RecordingEmitter) -> list[dict[str, Any]]:
 
 
 def _assert_answered_with_an_internal_error_fault(
-    emitter: _RecordingEmitter, failed_id: str
+    emitter: RecordingEmitter, failed_id: str
 ) -> dict[str, Any]:
     """The only delivery is the fault to the sender (ASK-07-010)."""
     assert [to for _body, to in emitter.sent] == [[PROPOSER]]

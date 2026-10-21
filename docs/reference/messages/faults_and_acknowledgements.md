@@ -33,12 +33,23 @@ in a way that state-machine origin is not.
 | Failure mode | Wire activity | Formal counterpart |
 |---|---|---|
 | Received and **not understood** | `Create(ProcessingFault)` | `RE` / `EE` / `CE` / `GE` |
+| Received, understood, **processing failed** | `Create(ProcessingFault)`, internal-error class | `RE` / `EE` / `CE` / `GE` |
 | Received, understood, **declined** | `as:Reject` | `RE` / `EE` / `CE` / `GE` |
 | Received, understood, **needs explanation** | `Add(Note → Case)` | `RE` / `EE` / `CE` / `GE` |
 
 {% include-markdown "./_occasions/sections/create-processing-fault.md" heading-offset=1 %}
 
 In the example, a Vendor cannot apply a ledger entry from the CASE_MANAGER whose participant status names an impossible state, and reports the fault to the CASE_MANAGER ([RSH-09-006](../specs/protocol.md#rsh-09-006)).
+
+A fault also answers a message that the receiver understood but failed to process.
+When the use case that processes a received activity fails on the receiver's own internal error, the receiver keeps nothing of the act and its inbox sends the sender one `Create(ProcessingFault)` ([ASK-07-010](../specs/protocol.md#ask-07-010)).
+Its failure class is `https://certcc.github.io/Vultron/ns/errors/InternalProcessingError`, and it names the failed activity in `inReplyTo` and nothing else, with no cause and no diagnostics ([ASK-07-006](../specs/protocol.md#ask-07-006)).
+The receiver sends it after the act is rolled back, so the rollback does not remove it.
+The fault is a notice, not a recovery: the sender decides whether to send the activity again, and a later delivery runs the act again with the body the receiver kept from the first delivery ([IE-10-001](../specs/project.md#ie-10-001)).
+Its id is derived from the failed activity and the failure class, so a second failure of the same activity sends no second fault.
+The receiver sends no fault for a message it could not parse, or one that names no sender ([ASK-07-002](../specs/protocol.md#ask-07-002)).
+An activity the receiver will try again later is answered only when it stops trying, so a later success never follows a fault.
+The fault is not ledgered.
 
 The formal fault shorthands have no dedicated wire counterpart ([MSM-05-001](../specs/protocol.md#msm-05-001)).
 
@@ -54,7 +65,7 @@ Its id is derived from the CASE_MANAGER and the refused activity, so a refused a
 The CASE_MANAGER sends it only when a precondition guard refuses the assertion.
 It sends none when the sender guard refuses the sender, when the activity repeats one whose effect is already in place, when the activity is a redelivery, or when the case is fully closed ([CLP-02-005](../specs/protocol.md#clp-02-005)).
 It sends none for a delivery that an answer of its own replaces, such as the `ER` to an embargo `Invite` or `Accept` once the case is public, an exploit is public, or attacks are observed, because that answer already tells the sender ([CLP-10-026](../specs/project.md#clp-10-026)).
-It sends none for a failure inside the CASE_MANAGER, which is not a refusal.
+It sends none for a failure inside the CASE_MANAGER, which is not a refusal: the internal-error fault above answers that.
 A refusal is not a case event, so the notice is not ledgered ([CLP-05-002](../specs/protocol.md#clp-05-002)).
 
 The participant closes the pending assertion it recorded for the refused activity ([CLP-06-006](../specs/project.md#clp-06-006)).

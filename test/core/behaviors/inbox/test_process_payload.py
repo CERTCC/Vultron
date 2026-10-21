@@ -491,6 +491,11 @@ class _NoVerdictDispatchAdapter:
     def dispatch(self, event: VultronEvent) -> Any:
         return None
 
+    def emit_processing_fault(
+        self, event: VultronEvent, failure_class: str
+    ) -> None:
+        raise AssertionError("a returned value is no raise to answer")
+
 
 class TestProcessPayloadHandlerDisposition:
     @pytest.mark.spec("UCORG-05-011")

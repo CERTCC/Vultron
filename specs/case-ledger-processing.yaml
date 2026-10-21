@@ -723,7 +723,11 @@ groups:
       with no consent rows and no Invites, and its redelivery would be refused,
       so nothing would ever relay it. With the entry in the act's transaction, a
       failed received act keeps nothing, and a later delivery of the activity is
-      not stopped as a repeat (ADR-0151, #4933).
+      not stopped as a repeat (ADR-0151, #4933). Through the inbox that later
+      delivery is routed as the copy intake archived, carrying the archived body as
+      its evidence (IE-10-001, VM-08-002), so it commits with the first delivery's
+      body; the sender is told of the failure by an internal-error fault
+      (ASK-07-010, #4981).
     verification: >-
       A test fails the second commit of a two-entry act and asserts the
       CASE_MANAGER keeps no entry, no queued activity and no row change from it; a
@@ -734,9 +738,9 @@ groups:
       own proposal and a received one, and assert the act keeps none of its
       consequences. Tests fail a received withdrawal's row commit and a received
       proposal's relay and assert the received act's own entry is not kept, and
-      that a redelivery of the proposal is applied; an architecture test asserts
-      every received embargo tree commits its own entry inside the act's
-      `ActTransaction` (#4933).
+      that a redelivery of the proposal is applied, in process and through the
+      FastAPI inbox; an architecture test asserts every received embargo tree
+      commits its own entry inside the act's `ActTransaction` (#4933).
     relationships:
     - rel_type: refines
       spec_id: CLP-07-013

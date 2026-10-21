@@ -132,22 +132,12 @@ class DispatchNode(_InboxNodeWithPorts):
         fault is a notice, not a recovery; it carries the internal-error
         class and no diagnostics (ASK-07-006).
 
-        A fault that cannot be queued is logged, never raised: the outcome
-        stays the dispatch's rejection (MV-01-007).
+        Raises whatever the dispatch adapter raises; ``update()`` catches
+        it, so the outcome stays the dispatch's rejection (MV-01-007).
         """
-        try:
-            dispatch.emit_processing_fault(
-                event, VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR
-            )
-        except Exception:
-            self.logger.exception(
-                "%s: ProcessingFault not queued for activity_id=%s"
-                " actor_id=%s",
-                self.name,
-                event.activity_id,
-                event.actor_id,
-            )
-            return
+        dispatch.emit_processing_fault(
+            event, VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR
+        )
         self.logger.info(
             "%s: queued ProcessingFault/InternalProcessingError to actor_id=%s"
             " for activity_id=%s",
@@ -178,7 +168,17 @@ class DispatchNode(_InboxNodeWithPorts):
                 getattr(event, "activity_id", None),
                 getattr(event, "actor_id", None),
             )
-            self._answer_with_internal_error_fault(dispatch, event)
+            try:
+                self._answer_with_internal_error_fault(dispatch, event)
+            except Exception:
+                # A fault that cannot be queued is logged, never raised.
+                self.logger.exception(
+                    "%s: ProcessingFault not queued for activity_id=%s"
+                    " actor_id=%s",
+                    self.name,
+                    event.activity_id,
+                    event.actor_id,
+                )
             return self._reject(f"Dispatch raised exception: {exc}")
 
         if not isinstance(result, HandlerResult):

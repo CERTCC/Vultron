@@ -41,7 +41,7 @@ groups:
     rationale: >-
       Detection lives at ingress (IE-10-001): the receiver already holds the activity
       under a key it derives from the id, so the redelivered body is not held again
-      and is routed without its received evidence. It does not live at the HTTP
+      and the copy the receiver holds is routed in its place. It does not live at the HTTP
       route. A route-level check keyed on the actor record's inbox
       collection was a production no-op, because the core actor's `inbox` is a URI
       string (ARCH-12-006), and its tests passed only by supplying a wire actor shape
