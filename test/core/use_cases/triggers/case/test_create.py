@@ -21,6 +21,8 @@ verifying state mutation, outbox effect, and error handling.
 Spec: specs/triggerable-behaviors.yaml TRIG-09.
 """
 
+import re
+
 import pytest
 
 from test.support.ledger import (
@@ -615,9 +617,12 @@ class TestCreateCaseTriggerLedger:
 
         fail_commits(monkeypatch, proposal_ledger, allowed=allowed)
 
-        with pytest.raises(VultronValidationError, match=failing):
+        with pytest.raises(VultronValidationError, match=failing) as raised:
             self._create(to=[_RECIPIENT])
 
+        assert re.search(r"on case '[^']+'", str(raised.value)), (
+            "the error names the case"
+        )
         self._assert_nothing_of_the_case_is_kept()
 
     @pytest.mark.spec("DL-02-004")
@@ -640,6 +645,12 @@ class TestCreateCaseTriggerLedger:
 
         assert woken == []
         self._assert_nothing_of_the_case_is_kept()
+
+        # Positive control: the same callback is woken once a creation
+        # commits, so the empty list above is not a callback never wired.
+        monkeypatch.undo()
+        self._create(to=[_RECIPIENT])
+        assert woken, "a committed creation wakes delivery"
 
     @pytest.mark.spec("SYNC-09-002")
     @pytest.mark.spec("CP-09-009")

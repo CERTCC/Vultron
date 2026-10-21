@@ -426,9 +426,11 @@ groups:
       runner can replay the exact activity without re-running the BT.
     verification: >-
       The `Accept`, the `Create`, the retry marker and the case are written in one
-      DataLayer transaction (ADR-0146, CP-09-009), so the marker covers only a
-      delivery failure after that commit; a `Create` that cannot be queued rolls
-      back the `Accept` with it, and no `Accept` is ever sent without its `Create`.
+      DataLayer transaction (ADR-0146, CP-09-009). The marker is cleared inside
+      that transaction, so after the commit the durable outbox, which already
+      holds the `Create`, is what retries its delivery (OX-13); a `Create` that
+      cannot be queued rolls back the `Accept` with it, and no `Accept` is ever
+      sent without its `Create`.
       `test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTMarkerWiring::test_a_failed_create_emit_rolls_back_the_accept_and_the_marker`
       pins that. The Create's id is derived from the proposal, so a redelivery
       queues no second `Create(VulnerabilityCase)`;

@@ -341,8 +341,10 @@ def create_case_proposal_received_tree(
     Nodes from the admission record through node 12 run in one
     ``ActTransaction`` (ADR-0146): if any of them fails, nothing they wrote is
     kept, the ``Accept`` and the marker of node 9 included, and delivery is
-    told of neither activity (DL-02-004).  The marker therefore only matters
-    for a delivery failure after the commit (CP-05-005).
+    told of neither activity (DL-02-004).  The marker of node 9 is written
+    and cleared inside the act, so it never outlives it; once the act
+    commits, the durable outbox holds the ``Create`` and retries its delivery
+    (OX-13, CP-05-005).
 
     Spec: CP-05-001 through CP-05-006, CP-05-008.
     Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``.

@@ -4295,6 +4295,7 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
 
 @pytest.mark.spec("CP-09-009")
 @pytest.mark.spec("CP-05-005")
+@pytest.mark.spec("DL-02-004")
 def test_a_genesis_commit_failure_queues_neither_accept_nor_create(
     make_payload,
 ):
@@ -4303,7 +4304,9 @@ def test_a_genesis_commit_failure_queues_neither_accept_nor_create(
     The commit runs after the emits (CP-09-009), so the fan-out queues behind
     the ``Create``, but all of them are one act (ADR-0146): the failure rolls
     back the queued ``Accept`` and ``Create``, the retry marker and the case,
-    and the handler does not report APPLIED.
+    and the handler does not report APPLIED.  Delivery is told of neither
+    activity, since the outbox monitor learns of a queued item only once the
+    block commits (DL-02-004); a redelivery that succeeds wakes it.
     """
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
@@ -4315,10 +4318,12 @@ def test_a_genesis_commit_failure_queues_neither_accept_nor_create(
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
     _seed_report(dl)
+    woken: list[str] = []
+    dl.set_enqueue_callback(woken.append)
     event = _make_full_event(make_payload)
-    with pytest.MonkeyPatch.context() as patch_ctx:
-        fail_commits(patch_ctx, proposal_ledger)
-        result = CreateCaseProposalReceivedUseCase(
+
+    def _execute():
+        return CreateCaseProposalReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
@@ -4326,10 +4331,19 @@ def test_a_genesis_commit_failure_queues_neither_accept_nor_create(
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
+    with pytest.MonkeyPatch.context() as patch_ctx:
+        fail_commits(patch_ctx, proposal_ledger)
+        result = _execute()
+
     assert result.disposition is not HandlerDisposition.APPLIED, (
         "a failed genesis commit must not read as a successful case creation"
     )
     assert "genesis create_case ledger commit failed" in (result.reason or "")
     assert _outbox_labels(dl) == []
     assert dl.list_objects("Accept") == []
+    assert woken == [], "delivery must not be told of a rolled-back Accept"
     _assert_nothing_of_the_case_is_left(dl)
+
+    # Positive control: the same callback is woken once a creation commits.
+    assert _execute().disposition is HandlerDisposition.APPLIED
+    assert woken, "a committed creation wakes delivery"
