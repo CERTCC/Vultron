@@ -4189,9 +4189,12 @@ groups:
     rationale: >-
       `RM.CLOSED` on the CASE_MANAGER's own participant record is the terminal state; it
       signals that no further ledger entries will be authored for this case.  See ADR-0051.
-    verification: Inspection of `vultron/core/` confirms that `RM.CLOSED` on the CASE_MANAGER's
-      `CaseParticipant` denotes that the Case Owner has left the case and the case is fully
-      closed.
+    verification: >-
+      A test marked `CM-23-010` in
+      `test/core/use_cases/received/test_close_case_role_semantics.py` delivers a
+      Leave from a CASE_MANAGER that is not the Case Owner and asserts it is refused
+      with nothing committed and the case not fully closed; the owner-close tests
+      there assert the CASE_MANAGER reaches `RM.CLOSED` only on the Case Owner's Leave.
     relationships:
     - rel_type: refines
       spec_id: CM-23-006
