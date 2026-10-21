@@ -750,14 +750,13 @@ groups:
       `{% include-markdown %}` fragment that each page includes satisfies this
       requirement.
     rationale: >-
-      Readers arrive from search results and deep links rather than in navigation order,
-      which is why DF-09-003 resets acronym first use per page and SG-12 requires stated
-      rather than inherited prerequisites. Content that looks duplicated between neighbors
-      is therefore usually the rule working, not accretion damage, and removing it degrades
-      every deep-link arrival. Nav order carries dependency and prominence, not narrative.
-      The requirement is on what the reader sees, not on the source: a block that one
-      authority owns, such as a banner, a pointer, or a shared prerequisite list, is
-      sourced once (DF-10-002) and still renders on every page.
+      Readers arrive from search results and deep links rather than in navigation order
+      (DF-09-003, SG-12), so a block repeated between neighbors is usually the rule
+      working, and removing it degrades every deep-link arrival. Nav order carries
+      dependency and prominence, not narrative. The requirement is on what the reader
+      sees, not on the source: a block one authority owns, such as a banner, a pointer,
+      or a shared prerequisite list, is sourced once (DF-10-002) and still renders on
+      every page.
     verification: >-
       Inspection of any change that removes an opening, a prerequisite statement, or an
       acronym expansion from a rendered page confirms the page still stands alone for a
