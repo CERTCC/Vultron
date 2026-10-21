@@ -240,23 +240,14 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
 
         if state.join_backfill_complete:
             self.logger.info(
-                "%s: join-time backfill already complete for '%s' in case '%s'"
-                " at log_index=%d",
+                "%s: no ledger entries to backfill for '%s' in case '%s'",
                 self.name,
                 self.invitee_id,
                 self.case_id,
-                state.join_backfill_last_sent_index,
             )
             return Status.SUCCESS
 
-        if state.join_backfill_last_sent_index >= target_index:
-            state.join_backfill_complete = True
-            self.datalayer.save(state)
-            return Status.SUCCESS
-
         for entry in entries:
-            if entry.log_index <= state.join_backfill_last_sent_index:
-                continue
             if entry.log_index > target_index:
                 break
             self._sync_port.send_announce_log_entry(
@@ -265,7 +256,6 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
                 to=[self.invitee_id],
             )
             state.join_backfill_last_sent_index = entry.log_index
-            self.datalayer.save(state)
 
         state.join_backfill_complete = (
             state.join_backfill_last_sent_index
@@ -285,6 +275,17 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
     def _load_or_create_state(
         self, target_index: int
     ) -> VultronReplicationState:
+        """Return the invitee's replication state with a fresh backfill target.
+
+        The backfill commits with its Accept in one act (CLP-07-015), so no
+        part-way backfill is ever on record to resume.  The tree reaches this
+        node only when ``CheckInviteeNotAlreadyParticipantNode`` found no
+        state for a joined invitee.  A state can still exist from earlier in
+        the same act: a seated invitee that had not accepted the active
+        embargo has its stream paused by the Accept entry's fan-out
+        (CM-10-005).  That state keeps its pause and gains the backfill
+        target.
+        """
         if self.datalayer is None:
             raise RuntimeError(
                 "_load_or_create_state requires an injected DataLayer"
@@ -294,25 +295,16 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
             case_id=self.case_id, peer_id=self.invitee_id
         ).id_
         existing = dl.read(state_id)
-        if isinstance(existing, VultronReplicationState):
-            existing.join_backfill_target_index = max(
-                existing.join_backfill_target_index,
-                target_index,
+        state = (
+            existing
+            if isinstance(existing, VultronReplicationState)
+            else VultronReplicationState(
+                case_id=self.case_id, peer_id=self.invitee_id
             )
-            if (
-                existing.join_backfill_last_sent_index
-                < existing.join_backfill_target_index
-            ):
-                existing.join_backfill_complete = False
-            dl.save(existing)
-            return existing
-        state = VultronReplicationState(
-            case_id=self.case_id,
-            peer_id=self.invitee_id,
-            join_backfill_target_index=target_index,
-            join_backfill_last_sent_index=-1,
-            join_backfill_complete=(target_index == -1),
         )
+        # Assignment is validated: clear the flag before raising the target.
+        state.join_backfill_complete = target_index == -1
+        state.join_backfill_target_index = target_index
         dl.save(state)
         return state
 

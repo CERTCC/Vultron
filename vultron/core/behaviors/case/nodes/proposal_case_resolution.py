@@ -71,7 +71,7 @@ class LoadExistingCaseNode(DataLayerActionWithPorts):
       report (#4650).
 
     Writes the existing ``case_id`` to the blackboard so
-    ``EmitAcceptCaseProposalNode`` and ``WriteCreateCaseMarkerNode`` can
+    ``EmitAcceptCaseProposalNode`` and ``EmitCreateVulnerabilityCaseNode`` can
     reference it, then returns SUCCESS.  Returns FAILURE when the proposal
     resolves to no stored case, allowing the Selector to fall through to
     ``CreateCaseFromProposalNode`` (normal path).

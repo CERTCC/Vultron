@@ -4,6 +4,7 @@ description: >
   Informative Annex E of the Vultron Protocol Specification: where the protocol follows ActivityPub conventions and where it adds constraints.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: explanation
 ---
 
 # Annex E Relationship to ActivityPub

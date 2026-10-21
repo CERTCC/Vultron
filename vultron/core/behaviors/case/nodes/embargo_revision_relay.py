@@ -25,8 +25,7 @@ The marker is what makes a failed relay recoverable (#4121).  Initialization
 runs once per case (EP-04-012), so a redelivered proposal never registers the
 revision again; the marker survives the failure instead, and the next
 delivery's relay or the startup retry runner
-(``retry_pending_creation_time_revision_relays``) completes it, in the shape of
-the ``PendingCreateCaseActivity`` marker (CP-05-005).
+(``retry_pending_creation_time_revision_relays``) completes it.
 
 This module is not re-exported from ``vultron.core.behaviors.case.nodes``:
 the relay subclasses the embargo relay emit, whose module imports the case

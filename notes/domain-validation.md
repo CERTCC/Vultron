@@ -9,8 +9,8 @@ description: >
   every violation reported), and Pydantic/Python pitfalls that silently mask
   invalid state.
 related_specs:
-  - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-003, ARCH-15-001
-    through ARCH-15-004, ARCH-18-005, ARCH-20-008, ARCH-21-001 through ARCH-21-004,
+  - specs/architecture.yaml (ARCH-10-001, ARCH-12-001, ARCH-12-003, ARCH-15-001,
+    ARCH-15-002, ARCH-15-004, ARCH-18-005, ARCH-20-008, ARCH-21-001 through ARCH-21-004,
     ARCH-25-003)
   - specs/case-management.yaml (CM-01-001, CM-18-005, CM-23-001, CM-27-001
     through CM-27-003, CM-31-001)
@@ -72,13 +72,12 @@ if manager_id is None:
     raise VultronValidationError("CASE_MANAGER participant has no attributed_to")
 ```
 
-### Routing failures vs. validation failures
+### A missing case ID is the handler's refusal, not a dispatcher error
 
-- `VultronValidationError` (`vultron/errors.py`): an object or request fails a
-  required invariant.
-- `UnroutableActivityError`: no case ID could be extracted from an inbound event.
-  Raise it rather than returning `None`; the dispatcher caller handles it
-  explicitly instead of dropping the activity.
+The dispatcher routes by semantics alone and extracts no case ID. A received event
+that names no case reaches its handler, which refuses it with a `HandlerResult`
+(HP-05-002). Do not add a routing exception for it: the handler already knows which
+field must carry the case.
 
 ## Canonical Helper Locations
 

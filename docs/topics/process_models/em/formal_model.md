@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
+page_type: explanation
 introduces: [Embargo Grammar]
 description: >
   The EM process as a formal state machine, with its grammar and every possible history.

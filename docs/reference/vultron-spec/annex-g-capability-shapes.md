@@ -4,6 +4,7 @@ description: >
   Informative Annex G of the Vultron Protocol Specification: the contracts for optional capabilities that connect to call-out points.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: explanation
 ---
 
 # Annex G Capability Shapes

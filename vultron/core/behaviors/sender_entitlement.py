@@ -28,7 +28,7 @@ Entitlement kinds
 - ``ACTIVE_PARTICIPANT`` — sender must be an active participant per CM-10-004
   (joined and a signatory to the embargo in force) whose closure the case does
   not record: a participant at RM ``CLOSED`` may act on nothing further
-  (CM-23-018).  Every guard for it asks one predicate,
+  (CM-23-018).  Every guard for it asks one predicate (CM-23-020),
   :func:`~vultron.core.participants.recipients.may_act_on_case`
 - ``PARTICIPANT`` — sender must have a participant record on the case, active
   or not, whose closure the case does not record (CM-23-018)
@@ -286,7 +286,8 @@ class SenderEntitlementKind(Enum):
     Active per CM-10-004: joined and, while an embargo is in force, a
     signatory to it; a removed participant is not active.  And not at RM
     ``CLOSED``: a participant that has left the case may act on nothing
-    further (CM-23-018).  Every guard for this kind asks one predicate,
+    further (CM-23-018).  Every guard for this kind asks one predicate
+    (CM-23-020),
     :func:`~vultron.core.participants.recipients.may_act_on_case`.  Compare
     ``PARTICIPANT``, which any open participant record on the case satisfies.
     """
@@ -310,7 +311,7 @@ class SenderEntitlementKind(Enum):
     The standing of a ``Reject(CaseLedgerEntry)`` resync request
     (SYNC-03-005): a closed participant keeps it, and the replay it is
     answered with stops at the entries that record its own closure
-    (CM-23-004, CM-23-018).  No other use case declares it.
+    (CM-23-004, CM-23-018).  No other use case declares it (CM-23-020).
     """
 
     NAMED_ACTOR = ("the addressee of the {object}", "Addressee")
@@ -766,7 +767,7 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
 class SenderIsActiveParticipantNode(SenderEntitlementConditionNode):
     """Guard: sender must be an active participant whose closure is not recorded.
 
-    The guard of the ``ACTIVE_PARTICIPANT`` kind (CM-23-018).  Active means
+    The guard of the ``ACTIVE_PARTICIPANT`` kind (CM-23-018, CM-23-020).  Active means
     joined, not removed, and a signatory to the embargo in force (CM-10-004);
     the sender must also not be at RM ``CLOSED``, because a participant that
     has left may act on nothing further.  Both are asked through the one
@@ -2165,10 +2166,9 @@ class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
     admits the proposal (``CaseProposalAdmissionRecord``) or declines it
     (``CaseProposalDeclineRecord``), and it stores the proposal itself, whose
     ``attributed_to`` is the proposer, when it sends the ``Accept`` or
-    ``Reject``.  A store written before the admission record existed holds
-    only that stored proposal, so it is read too.  A delivery of that
-    proposal id is a redelivery only from that proposer (CP-05-006,
-    CP-05-010).
+    ``Reject``.  CP-05-010 counts each of the three as recording the
+    proposal, so all three are read.  A delivery of that proposal id is a
+    redelivery only from that proposer (CP-05-006, CP-05-010).
 
     - Nothing recorded for the proposal id: ``SUCCESS``.  It is a new
       proposal, and the parse edge has already refused a proposal whose

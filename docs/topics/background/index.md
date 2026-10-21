@@ -4,6 +4,7 @@ description: >
   Coordinated Vulnerability Disclosure case is trying to reach.
 stakeholder_type: [cvd-practitioner, platform-developer, process-researcher]
 level: 200
+page_type: routing
 contents: generated
 ---
 

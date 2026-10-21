@@ -28,7 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-from test.support.received import received_event
+from test.support.received import delivered_body, received_event
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
@@ -41,6 +41,7 @@ from vultron.core.services.held_ledger_announces import (
 )
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
@@ -148,12 +149,15 @@ def hold_activity(dl: Any, activity: as_Activity) -> bool:
 
     For a test that queues an activity by id outside a delivery: the activity
     is held as a deferred record would hold it, never under its own id
-    (DL-06-006), as its received body when it carries one, and the inbox
-    replay rebuilds it from there.
+    (DL-06-006), as its received body, and the inbox replay rebuilds it from
+    there.  An activity built in process carries no body, so it is delivered
+    as a sender would send it and held as that sealed body (VM-08-002).
 
     Returns whether this call held it; ``False`` when a record for the same
     id is already held.
     """
+    if activity.received_evidence_json is None:
+        activity = parse_activity(delivered_body(activity))
     staging = InlineObjectStaging(dl)
     staging.rehydrate_parsed(activity)
     return staging.hold_for_replay(activity.id_)

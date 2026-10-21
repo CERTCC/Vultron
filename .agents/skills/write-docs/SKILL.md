@@ -87,9 +87,10 @@ so each depends only on what precedes it (SG-10). Concepts the page will not
 introduce get a link to their canonical introduction instead (SG-11).
 
 Settle the page's frontmatter here, because the concept list decides it
-(SG-40). Both keys are required on every reader-facing page (DF-11-001); a
-working-record page declares `stakeholder_type: [project-contributor]` and no
-`level` (DF-11-012); a fragment declares neither (DF-11-010):
+(SG-40). All three keys are required on every reader-facing page (DF-11-001,
+DF-11-018); a working-record page declares `stakeholder_type:
+[project-contributor]` and no `level` (DF-11-012) or `page_type` (DF-11-018); a
+fragment declares none of them (DF-11-010):
 
 - **`stakeholder_type`**: who the page is *addressed to* — not what it is about,
   and not who might find it useful. A list of members from
@@ -109,6 +110,12 @@ working-record page declares `stakeholder_type: [project-contributor]` and no
   page whose concepts it uses unlinked (DF-11-002). If the concept list forces
   a level higher than the intended reader can meet, the page is doing two jobs:
   split it, or link out (SG-11) instead of introducing.
+- **`page_type`**: the quadrant you classified in Step 1 — `tutorial`, `how-to`,
+  `explanation` or `reference` — or `routing` for a page that mainly gives
+  directions (the home page, a start page, an index that only routes). The site
+  renders it as a badge above the title (DF-11-019), so it must match what the
+  page is, not the directory it sits in. An index that mostly explains is
+  `explanation`, whatever its `contents:` shape.
 - **`introduces:`**: the glossary terms for which this page is the canonical
   introduction. Leave a term out if another page already introduces it: check
   with `grep -rn "introduces:" docs/`, since a term has one introducer.
@@ -277,8 +284,9 @@ In this order:
 - Only write under `docs/`, plus `docs/_acronyms/index.md`, `glossary.md`, and
   `mkdocs.yml`. Do not modify code, tests, or `specs/`.
 - One page, one quadrant (DF-01-002, DF-01-003). Split rather than blend.
-- Every reader-facing page declares `stakeholder_type` and `level` (DF-11-001)
-  and renders neither (DF-11-004, DF-11-009). `stakeholder_type` is a reader
+- Every reader-facing page declares `stakeholder_type`, `level` (DF-11-001) and
+  `page_type` (DF-11-018), and renders neither of the first two (DF-11-004,
+  DF-11-009). `stakeholder_type` is a reader
   type, never a CVDRole.
 - Never leave a new page out of the nav without a `not_in_nav` match.
 - Escalate judgment calls with a recommendation, not an open question. This

@@ -5,6 +5,7 @@ description: >
   to avoid and the ambiguities to watch for.
 stakeholder_type: ALL
 level: 100
+page_type: reference
 ---
 
 # Glossary — Vultron
@@ -68,6 +69,7 @@ The normative role definitions are in [§2.2 Roles in the specification](vultron
 |------|-----------|-----------------|
 | **Stakeholder Type** | Why a reader is here reading about Vultron, declared as `stakeholder_type` in a `docs/` page's frontmatter and used to organize reader-facing documentation (ADR-0102). The permitted values are normative in DF-11-001 and are listed below. A stakeholder type is **not** a **CVDRole**, and the two vocabularies deliberately share no value: *a role is assumable, inhabitable, temporal; a type is ontological, identity-formed, and slow to change.* An organization's roles vary from case to case, while what brought its engineer to this documentation does not. No page shows its own type to readers (DF-11-009). | Role, audience track, reader level |
 | **Prerequisite Level** | How much a reader must already know before a `docs/` page makes sense, declared as `level` (100–500) in its frontmatter. One ladder that sorts site-wide, though each subject area judges its own 300 by its own criteria. A property of a **page**, never of a reader — there is no "300-level reader". A page's own level is never rendered and never navigated by (DF-11-004). | Difficulty, reader level, track |
+| **Page Type** | Which kind of page a reader-facing `docs/` page is, declared as `page_type` in its frontmatter (DF-11-018, ADR-0136): one of the four Diátaxis content types (`tutorial`, `how-to`, `explanation`, `reference`), or `routing` for a page that mainly gives directions. Unlike the stakeholder type and level, it is shown: the site renders it as a badge above the page title, and a routing page shows none (DF-11-019). A property of the page's content, not of the directory it sits in. | Content type, quadrant label |
 
 {% include-markdown "../includes/stakeholder_types.md" %}
 
@@ -505,7 +507,6 @@ The [Concept Taxonomy](vultron-taxonomy.md) explains the boundary: `vultron/core
 | **Dead Letter Record** | A persistence record created when an inbound activity's `object_` URI cannot be resolved after rehydration; stored for administrative review and retry rather than raising an error. | Dead letter queue entry, failed delivery record |
 | **OfferRecord** | A core state record capturing domain facts from a received `Offer(VulnerabilityReport)` activity; stored so core can recover these facts without re-reading the wire Activity. | — |
 | **ReportCaseLink** | A persisted mapping from a vulnerability report to its associated case replica. Stores the trust anchors established during **Trust Bootstrap** — specifically, which actor the report was originally submitted to and which actor holds `CASE_MANAGER` (is authoritative) for the resulting case — so that subsequent messages can be validated against those known-good identities. | — |
-| **PendingCreateCaseActivity** | A durable marker written after `Accept(CaseProposal)` is sent but before `Create(VulnerabilityCase)` delivery; enables retry if the process crashes between the two sends. | — |
 | **PendingCreationTimeRevisionRelay** | A durable marker the `CASE_MANAGER` writes when case creation registers an embargo revision it still owes the other party as an `Invite(EmbargoEvent)`; deleted once the relay is sent or no longer needed, and retried at startup if the relay failed (EP-04-011). | — |
 | **Outbox Terminal State** | The condition reached when the delivery mechanism exhausts its retry budget for an outbound Activity; the Activity is moved to the dead-letter store and no further delivery is attempted. | Delivery failure, max retries exceeded |
 | **HeldLedgerAnnounce** | A received out-of-order `Announce(CaseLedgerEntry)` that a participant holds, as the body that arrived, until its entry's hash-chain predecessor commits, then replays through its own inbox, enabling order-independent convergence (SYNC-10-004, SYNC-14-001, SYNC-14-009). | Gap buffer, LedgerGapBuffer, out-of-order buffer |

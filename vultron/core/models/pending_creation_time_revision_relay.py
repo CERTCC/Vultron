@@ -24,9 +24,8 @@ a redelivered ``Create(as_CaseProposal)`` never registers it again: had the
 relay failed, nothing would send the Invite and the winning party would never
 be asked.
 
-This record carries what the relay needs across executions, in the shape of
-the ``PendingCreateCaseActivity`` marker (CP-05-005): committed in the same
-write that registers the revision (#4142), so no failure leaves a revision
+This record carries what the relay needs across executions: committed in the
+same write that registers the revision (#4142), so no failure leaves a revision
 nobody owes (#4156); deleted once the relay is discharged; and found by a
 later delivery's relay or by the startup retry runner while it remains.
 

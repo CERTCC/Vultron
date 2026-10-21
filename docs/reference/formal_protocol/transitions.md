@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 description: >
   The transition function for sending and receiving each message type.
 ---

@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
+page_type: explanation
 ---
 
 # Activity Vocabulary Design

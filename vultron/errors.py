@@ -282,6 +282,33 @@ class VultronProtocolViolationError(
         super().__init__(message)
 
 
+class VultronReusedActivityIdError(VultronProtocolViolationError):
+    """Raised when a delivery reuses a held activity id with a different body.
+
+    An activity id names one activity (ID-01-001), so a second body under an
+    id the receiver already holds is not a redelivery: it is refused at
+    ingress and neither body is routed (IE-10-002).  The comparison is an
+    exact match of the sealed received texts (VM-08-002).
+
+    The message names the reused id, which becomes the inbox outcome's
+    ``failure_reason``; the sending actor is kept on :attr:`actor_id` for the
+    WARNING the ingress adapter logs.
+
+    Args:
+        activity_id: The id the delivery reuses.
+        actor_id: The sending actor the delivery names, if any.
+    """
+
+    def __init__(self, activity_id: str, actor_id: str | None):
+        self.activity_id = activity_id
+        self.actor_id = actor_id
+        super().__init__(
+            f"activity id '{activity_id}' is reused with a different body"
+            " than the one held for it, so the delivery is refused"
+            " (IE-10-002)"
+        )
+
+
 class VultronReferenceResolutionError(VultronError, ValueError):
     """Raised when an IRI reference in an object-only slot cannot be materialised.
 
@@ -367,22 +394,6 @@ class TriggerRegistryError(VultronError):
     request to one use case (ADR-0110, TRIG-12-004).  Fails fast so a bad row
     is impossible to miss, as ``RegistryOrderError`` does for the received side.
     """
-
-
-class UnroutableActivityError(VultronError):
-    """Raised when an inbound activity cannot be routed to a case.
-
-    Raised by the dispatcher when no ``case_id`` can be extracted from an
-    inbound event whose semantic type requires case-scoped join-backfill
-    gating.  The caller MUST handle this exception explicitly rather than
-    silently dropping the activity.  See ``specs/architecture.yaml``
-    ARCH-15-003 and ``notes/domain-validation.md``.
-    """
-
-    def __init__(self, activity_id: str, reason: str):
-        self.activity_id = activity_id
-        self.reason = reason
-        super().__init__(f"Activity '{activity_id}' is unroutable: {reason}")
 
 
 class BtNodePreconditionError(VultronError):

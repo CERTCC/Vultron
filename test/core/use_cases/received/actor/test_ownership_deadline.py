@@ -311,6 +311,7 @@ class TestLazyExpiry:
 
     @pytest.mark.spec("CM-21-017")
     @pytest.mark.spec("BT-17-001")
+    @pytest.mark.spec("CM-21-020")
     def test_only_the_case_manager_computes_an_expiry(self, make_payload):
         """Run at a replica, the reply's tree reaches the clock-decision
         stage and its CASE_MANAGER gate skips the expiry."""

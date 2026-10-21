@@ -30,8 +30,7 @@ Three properties depend on it:
   it previously refused (CP-05-006 applies the same rule to the accept side).
 - **A lost ``Reject`` is recoverable.** Because the record is written first, a
   redelivery can see "declined, but nothing was queued" and emit the ``Reject``
-  then — the same ordering ``PendingCreateCaseActivity`` uses for the accept
-  side's ``Create`` obligation (CP-05-005).
+  then.
 
 ``reject_activity_id`` is what keeps the second and third properties from
 contradicting each other. "Has the proposer been told?" cannot be answered from

@@ -95,8 +95,8 @@ class CaseEmbargoAlreadyInitializedNode(DataLayerConditionWithPorts):
     while the state stays ``EXITED``, and a guard keyed on it let a
     redelivery after exit into the creation arm, which stored a fresh
     ``EmbargoEvent`` before the register refused a proposal after ``EXITED``
-    (#3986).  ``EM.NONE`` is FAILURE, so a half-built case finishes
-    initialization, and a case left at ``NONE`` by refusal (EP-04-008) falls
+    (#3986).  ``EM.NONE`` is FAILURE, so the case this delivery is creating
+    is initialized, and a case left at ``NONE`` by refusal (EP-04-008) falls
     through to the eligibility arm, which refuses it again.  Skipping the
     creation arm is also what keeps a reused case's embargo the case's own:
     terms carried on the redelivered proposal are never reconciled against

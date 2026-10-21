@@ -112,6 +112,15 @@ def _store_snapshot(dl: SqliteDataLayer) -> dict[str, Any]:
     }
 
 
+def _record_contents(dl: SqliteDataLayer) -> dict[str, Any]:
+    """Every record in the store, as JSON, keyed by id."""
+    all_objects = cast(dict[str, Any], dl.all())
+    return {
+        key: obj.model_dump(mode="json", by_alias=True)
+        for key, obj in all_objects.items()
+    }
+
+
 def _run_pipeline_once(
     dl: SqliteDataLayer, body: dict[str, Any]
 ) -> InboxOutcome:
@@ -392,3 +401,55 @@ def test_redelivery_sweep_idempotent(name: str, sweep_dl: SqliteDataLayer):
         f"Second run for '{name}' returned a different status: "
         f"first={outcome1.status}, second={outcome2.status}"
     )
+
+
+# ---------------------------------------------------------------------------
+# IE-10-002: a different body under a held id is refused through the route
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("IE-10-002")
+@pytest.mark.spec("ID-02-001")
+def test_a_different_body_under_a_delivered_id_is_refused(
+    actor_client, caplog: pytest.LogCaptureFixture
+):
+    """A post reusing the id with another body changes nothing, every time.
+
+    Every post is answered 202 (IE-07-002); each rewritten one is refused in
+    the background, so the store's records and outbox after it are exactly
+    those the first post left, and one WARNING names the activity id and the
+    sender (IE-10-002).
+    """
+    client, store = actor_client
+    body = _create_report_body()
+    activity_id = body["id"]
+    inbox = f"{_API_PREFIX}/actors/{_ACTOR_SLUG}/inbox/"
+
+    assert client.post(inbox, json=body).status_code == 202
+    state_after_first = _store_snapshot(store)
+    records_after_first = _record_contents(store)
+    assert (
+        ReceivedActivityRecord.build_id(activity_id) in records_after_first
+    ), "precondition: the first post was archived"
+    rewritten = {**body, "summary": "a different body under the same id"}
+
+    for attempt in (1, 2):
+        caplog.clear()
+        with caplog.at_level(logging.INFO):
+            assert client.post(inbox, json=rewritten).status_code == 202
+
+        assert _store_snapshot(store) == state_after_first, attempt
+        assert _record_contents(store) == records_after_first, attempt
+        refusals = [
+            r
+            for r in caplog.records
+            if r.levelno == logging.WARNING
+            and activity_id in r.getMessage()
+            and _SENDER_ID in r.getMessage()
+        ]
+        assert len(refusals) == 1, [r.getMessage() for r in refusals]
+        assert not [
+            r
+            for r in caplog.records
+            if r.levelno == logging.INFO and "already held" in r.getMessage()
+        ], "the held copy is not routed in the refused body's place"

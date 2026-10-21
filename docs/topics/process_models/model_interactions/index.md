@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
+page_type: explanation
 contents: generated
 ---
 

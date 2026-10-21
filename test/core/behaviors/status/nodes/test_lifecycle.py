@@ -268,14 +268,22 @@ class TestEmitCloseCaseNode:
             "ADR-0113)."
         ),
     )
-    @pytest.mark.spec("CM-24-006")
-    def test_fails_when_case_manager_id_missing(self, populated_bridge):
-        """No CASE_MANAGER resolved is a fault: FAILURE, not a skip."""
-        node = EmitCloseCaseNode(case_id=CASE_ID)
-        result = populated_bridge.execute_with_setup(
-            tree=node, actor_id=ACTOR_ID
+    @pytest.mark.spec("CM-24-006", "CM-24-008")
+    def test_fails_when_case_manager_id_missing(self, populated_dl):
+        """No CASE_MANAGER resolved is a fault: FAILURE, sending nothing."""
+        factory = MagicMock()
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            trigger_activity=factory,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
         )
+        node = EmitCloseCaseNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
         assert result.status == Status.FAILURE
+        factory.close_case.assert_not_called()
+        assert populated_dl.outbox_list() == []
 
     @pytest.mark.spec("CM-23-001")
     def test_happy_path_emits_leave_and_records_outbox(self, populated_dl):

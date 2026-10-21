@@ -50,7 +50,6 @@ _SAMPLES: dict[str, dict[str, Any]] = {
     },
     "CaseProposalAdmissionRecord": {**_PROPOSAL, "proposer_uri": _URI},
     "CaseProposalDeclineRecord": {**_PROPOSAL, "proposer_uri": _URI},
-    "PendingCreateCaseActivity": {**_PROPOSAL, "owner_uri": _URI},
     "DeadLetterRecord": {
         "unresolvable_uri": _URI,
         "actor_id": _URI,

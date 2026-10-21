@@ -4,6 +4,7 @@ description: >
   to the page that answers it in full.
 stakeholder_type: ALL
 level: 100
+page_type: explanation
 ---
 
 # Vultron Protocol Frequently Asked Questions

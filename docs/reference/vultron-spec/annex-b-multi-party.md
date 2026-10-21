@@ -4,6 +4,7 @@ description: >
   Informative Annex B of the Vultron Protocol Specification: a case with a coordinator and a second vendor.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: explanation
 ---
 
 # Annex B Worked Example: Multi-Party CVD

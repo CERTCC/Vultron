@@ -1,7 +1,7 @@
-"""Validate the ``stakeholder_type`` and ``level`` every ``docs/`` page declares.
+"""Validate the ``stakeholder_type``, ``level`` and ``page_type`` of ``docs/`` pages.
 
 Requirements: specs/diataxis-requirements.yaml DF-11-001, DF-11-003,
-DF-11-010, DF-11-012, DF-09-009; attribution per MS-17 via
+DF-11-010, DF-11-012, DF-11-018, DF-09-009; attribution per MS-17 via
 :mod:`vultron.metadata.file_loading`. Schema:
 :mod:`vultron.metadata.docs.page_schema`.
 
@@ -10,15 +10,16 @@ Every ``docs/**/*.md`` file is one of three things:
 * an **include fragment** — a file some page pulls in whole with
   ``{% include-markdown %}`` and that is not itself in the nav, or a
   ``pymdownx.snippets`` ``auto_append`` file. It has no reader of its own, so it
-  is excluded from the target set and reported if it declares either key
-  (DF-11-010); its hosts' declarations govern it.
+  is excluded from the target set and reported if it declares any of the
+  three keys (DF-11-010, DF-11-018); its hosts' declarations govern it.
 * a **working-record page** — matched by
   :data:`~vultron.metadata.docs.page_schema.WORKING_RECORD_PATTERNS`. It
-  declares ``[project-contributor]`` and no ``level`` (DF-11-012), and it is
+  declares ``[project-contributor]``, no ``level`` (DF-11-012) and no
+  ``page_type`` (DF-11-018), and it is
   absent from the ``mkdocs.yml`` nav and matched by ``not_in_nav``
   (DF-11-003).
-* a **reader-facing page** — everything else. It declares both keys
-  (DF-11-001).
+* a **reader-facing page** — everything else. It declares all three keys
+  (DF-11-001, DF-11-018).
 
 A file matched by ``exclude_docs`` that no page includes is none of the three:
 MkDocs never builds it, so it has no reader until a page pulls it in. The
@@ -28,7 +29,8 @@ A page included only from a ``start=`` marker (a user story on its
 traceability page, a worked example quoted by the specification's annexes) is
 still a page: it has a URL and readers of its own. A page included *whole* has
 its frontmatter copied into its host, which would render its declarations
-there (DF-11-004), so such a page that declares either key is reported too.
+there (DF-11-004), so such a page that declares any of the keys is reported
+too.
 
 Every page declares: an undeclared page is a failure. The shrink-only
 baseline that let this check land before the content audit (#3526) reached
@@ -71,9 +73,9 @@ from vultron.metadata.file_loading import (
     validate,
 )
 
-#: The two keys this check owns. Any other frontmatter key belongs to another
+#: The three keys this check owns. Any other frontmatter key belongs to another
 #: schema and is ignored here.
-DECLARATION_KEYS: tuple[str, ...] = ("stakeholder_type", "level")
+DECLARATION_KEYS: tuple[str, ...] = ("stakeholder_type", "level", "page_type")
 
 # ``{% include-markdown "path" ... %}`` and the plugin's plain ``include``.
 _INCLUDE_RE = re.compile(
@@ -292,8 +294,8 @@ def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
                 key = next(iter(declared))
                 raise MetadataLoadError(
                     f"an include fragment must not declare {key}; it takes "
-                    f"both keys from the pages hosting it ({', '.join(hosts)})"
-                    f" (DF-11-010)",
+                    f"its declarations from the pages hosting it "
+                    f"({', '.join(hosts)}) (DF-11-010, DF-11-018)",
                     path=shown(rel),
                     line=frontmatter_key_lines(path).get(key),
                 )
@@ -324,12 +326,14 @@ def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
             if not declared:
                 wanted = (
                     "stakeholder_type: [project-contributor] (working record, "
-                    "no level; DF-11-012)"
+                    "no level or page_type; DF-11-012, DF-11-018)"
                     if working
-                    else "stakeholder_type and level (DF-11-001)"
+                    else "stakeholder_type, level (DF-11-001) and page_type "
+                    "(DF-11-018)"
                 )
                 raise MetadataLoadError(
-                    f"declares neither key; add {wanted}", path=shown(rel)
+                    f"declares none of the keys; add {wanted}",
+                    path=shown(rel),
                 )
 
             key_lines = frontmatter_key_lines(path)
@@ -363,7 +367,10 @@ def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
 def main(argv: list[str] | None = None) -> None:
     """Entry point for the ``docs-frontmatter`` command."""
     parser = argparse.ArgumentParser(
-        description="Validate stakeholder_type and level in docs/ frontmatter."
+        description=(
+            "Validate stakeholder_type, level and page_type in docs/ "
+            "frontmatter."
+        )
     )
     parser.parse_args(argv)
 

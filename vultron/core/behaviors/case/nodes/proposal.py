@@ -28,8 +28,6 @@ instead — the container's identity, not a per-case one derived from the report
 (#1872).
 """
 
-from typing import cast
-
 from py_trees.common import Status
 
 from vultron.config import get_config
@@ -37,15 +35,7 @@ from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
-from vultron.core.behaviors.emit_capable import EmitCapable
-from vultron.core.behaviors.helpers import (
-    DataLayerAction,
-    _EmitSingleActivityBase,
-)
-from vultron.core.models.pending_create_case_activity import (
-    PendingCreateCaseActivity,
-)
-from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 
 
 class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
@@ -142,106 +132,3 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
             self.report_id,
         )
         return Status.SUCCESS
-
-
-class RequeuePendingCreateCaseActivityNode(DataLayerAction, EmitCapable):
-    """Re-queue a persisted ``Create(VulnerabilityCase)`` obligation.
-
-    Crash recovery: when the process died between persisting a
-    ``PendingCreateCaseActivity`` marker and delivering the activity, the
-    obligation survives in storage and must be re-queued on the next startup.
-
-    This is protocol-significant behaviour — it causes an outbound delivery —
-    so it lives in a BT node rather than in the adapter that schedules the scan
-    (BT-15-001).  It previously ran directly in
-    ``vultron/adapters/driving/fastapi/pending_retry.py``, bypassing the BT
-    audit trail.
-
-    No ``CASE_MANAGER`` gate: recovery makes no new authorship claim.  The
-    activity was authored when the marker was written, and this node only
-    re-queues it in the store it already belongs to.
-
-    Idempotent (AC-4): ``outbox_append`` leaves an activity already pending
-    alone rather than queuing it twice (OX-06-002).  Returns SUCCESS when the
-    activity is in the outbox, whether this node put it there or found it.
-    """
-
-    def __init__(
-        self,
-        marker: PendingCreateCaseActivity,
-        activity_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.marker = marker
-        self.activity_id = activity_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        if (failure := self._ensure_queued()) is not None:
-            return failure
-        self._discard_marker()
-
-        self.logger.info(
-            "Actor '%s' re-queued Create(VulnerabilityCase) '%s' from marker"
-            " '%s' (crash recovery)",
-            self.marker.case_actor_id,
-            self.activity_id,
-            self.marker.id_,
-        )
-        return Status.SUCCESS
-
-    def _ensure_queued(self) -> Status | None:
-        """Queue the activity unless it is already there; ``None`` when queued.
-
-        Returns ``Status.FAILURE`` on a storage error rather than raising:
-        recovery runs during boot, so one undeliverable obligation must not stop
-        the server from starting.
-        """
-        assert self.datalayer is not None
-        outbox = cast(CaseOutboxPersistence, self.datalayer)
-        try:
-            queued = outbox.outbox_append(self.activity_id)
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
-            self.feedback_message = f"could not enqueue: {exc}"
-            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                "%s: could not enqueue Create(VulnerabilityCase) '%s'"
-                " for actor '%s': %s",
-                self.name,
-                self.activity_id,
-                self.marker.case_actor_id,
-                exc,
-            )
-            return Status.FAILURE
-        if not queued:
-            self.logger.debug(
-                "%s: Create(VulnerabilityCase) '%s' already queued for actor"
-                " '%s'; not duplicating.",
-                self.name,
-                self.activity_id,
-                self.marker.case_actor_id,
-            )
-        return None
-
-    def _discard_marker(self) -> None:
-        """Delete the discharged marker, best-effort.
-
-        The obligation is discharged once the activity is queued.  A surviving
-        marker is re-scanned next startup and skipped by the outbox-id
-        idempotency check (OX-06-002), so failing to delete it is a warning,
-        not an error.
-        """
-        assert self.datalayer is not None
-        if self.datalayer.delete("PendingCreateCaseActivity", self.marker.id_):
-            return
-        self.logger.warning(
-            "%s: marker '%s' could not be deleted after successful"
-            " re-queue for actor '%s'. The next startup scan will find the"
-            " activity already in the outbox and skip it.",
-            self.name,
-            self.marker.id_,
-            self.marker.case_actor_id,
-        )

@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+page_type: explanation
 description: >
   Inferring the likely state of a case from incomplete information.
 ---

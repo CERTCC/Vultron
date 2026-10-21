@@ -30,9 +30,6 @@ from vultron.core.models.case_proposal_admission import (
     CaseProposalAdmissionRecord,
 )
 from vultron.core.models.case_proposal_decline import CaseProposalDeclineRecord
-from vultron.core.models.pending_create_case_activity import (
-    PendingCreateCaseActivity,
-)
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
 PROPOSAL_ID = "https://example.org/proposals/p-legacy"
@@ -43,7 +40,6 @@ OWNER_ID = "https://example.org/actors/vendor"
 _RenamedRecord = (
     type[CaseProposalAdmissionRecord]
     | type[CaseProposalDeclineRecord]
-    | type[PendingCreateCaseActivity]
     | type[VultronReportCaseLink]
 )
 
@@ -68,13 +64,6 @@ _CASES: list[tuple[_RenamedRecord, str, dict[str, Any], str, str]] = [
         _PROPOSAL_FIELDS,
         "vendor_uri",
         "proposer_uri",
-    ),
-    (
-        PendingCreateCaseActivity,
-        PROPOSAL_ID,
-        _PROPOSAL_FIELDS,
-        "vendor_uri",
-        "owner_uri",
     ),
     (
         VultronReportCaseLink,
