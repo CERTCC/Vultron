@@ -29,7 +29,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.participants.stub_reply import (
+    apply_stub_accept,
     apply_stub_reject,
+    settle_stub_accept,
     stub_accept_consent,
     stub_reject_consent,
 )
@@ -98,6 +100,38 @@ def test_a_reject_that_moves_no_row_changes_nothing(case, held):
 
     assert stub_reject_consent(case, record) is record
     assert apply_stub_reject(case, record, PUBLISHED) is None
+
+
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.parametrize("joined", [False, True], ids=["inert", "seated"])
+def test_the_case_manager_writes_the_record_a_replica_writes(joined):
+    """The CASE_MANAGER's settle and a replica's apply leave one record.
+
+    A seated record (already joined) keeps the signed row too (#5056).
+    """
+    stored = _record(_S.INVITED)
+    stored.joined = joined
+    case = _case()
+
+    record = stub_accept_consent(case, stored)
+    assert settle_stub_accept(stored, record, PUBLISHED) is True
+    replica = apply_stub_accept(case, stored.model_copy(deep=True), PUBLISHED)
+
+    assert replica is not None
+    assert record == replica
+    assert record.consent_for(EMBARGO) is _S.AGREED
+    assert record.updated == PUBLISHED
+
+
+def test_a_seated_accept_that_moves_nothing_is_not_saved():
+    stored = _record(_S.AGREED)
+    stored.joined = True
+    case = _case()
+
+    record = stub_accept_consent(case, stored)
+
+    assert settle_stub_accept(stored, record, PUBLISHED) is False
+    assert apply_stub_accept(case, stored, PUBLISHED) is None
 
 
 _STATED = pytest.mark.parametrize(
