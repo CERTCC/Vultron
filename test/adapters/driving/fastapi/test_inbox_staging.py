@@ -27,6 +27,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.engine import (
@@ -133,7 +134,6 @@ def test_deferred_activity_replays_with_its_inline_object(dl):
     assert isinstance(held, DeferredInboxActivity)
     assert held.received_body is not None
     assert json.loads(held.received_body) == body, "held as it arrived"
-    assert held.activity_row_json is None
     assert dl.read(routed.id_) is None, "never under the sender's id"
 
     dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="arrived"))
@@ -647,25 +647,34 @@ def test_a_released_activity_queued_again_is_held_as_first_held(dl):
     assert json.loads(held.received_body) == body
 
 
-@pytest.mark.spec("VM-08-002", "DL-06-006")
-def test_an_activity_with_no_sealed_body_is_held_as_its_row(dl):
-    """One this process built carries no evidence, held or replayed."""
+@pytest.mark.spec("VM-08-002", "DL-06-006", "ARCH-15-001")
+def test_an_activity_with_no_sealed_body_cannot_be_held(dl):
+    """A deferred record holds only a sealed body, and every delivery is
+    sealed at its parse, so an unsealed one is a wiring fault (#5019)."""
     parsed = parse_activity(_add_note_body())
     built = parsed.model_copy(deep=True)
     built._received_evidence = None
     staging = InlineObjectStaging(dl)
     staging.rehydrate_parsed(built)
-    assert staging.hold_for_replay(built.id_)
 
-    held = staging.held(built.id_)
-    assert held is not None
-    assert held.received_body is None and held.activity_row_json is not None
-    replayed = InlineObjectStaging(dl).rehydrate_deferred(built.id_)
-    assert replayed is not None
-    assert replayed.received_evidence is None
-    assert getattr(getattr(replayed, "object_", None), "content", None) == (
-        "staged"
-    )
+    with pytest.raises(VultronWiringError, match="no sealed body"):
+        staging.hold_for_replay(built.id_)
+    assert staging.held(built.id_) is None
+    assert sum(dl.count_all().values()) == 0, "nothing is written"
+
+
+@pytest.mark.spec("VM-08-002")
+def test_a_stored_row_form_deferred_record_is_refused_naming_the_reset():
+    """The row form of a deferred record is retired, not aliased (#5019)."""
+    with pytest.raises(ValidationError, match="must be reset") as excinfo:
+        DeferredInboxActivity.model_validate(
+            {
+                "activity_id": "urn:uuid:row-held",
+                "activity_row_json": '{"id_": "urn:uuid:row-held"}',
+            }
+        )
+    assert "'activity_row_json'" in str(excinfo.value)
+    assert "#5019" in str(excinfo.value)
 
 
 def test_a_stage_that_stages_no_activity_row_fails_loudly(dl):

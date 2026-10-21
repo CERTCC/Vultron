@@ -437,30 +437,6 @@ def test_a_different_body_under_a_held_ledger_announce_id_is_refused(
 
 @pytest.mark.spec("IE-10-002")
 @pytest.mark.spec("ARCH-15-001")
-def test_a_held_copy_with_no_sealed_body_is_a_wiring_fault(
-    dl: SqliteDataLayer,
-):
-    """Only an activity handed to the inbox in process is held as a row, so
-    a delivery meeting one is a wiring fault, not a comparison (AC-7)."""
-    body = _offer_of_stored_report(dl)
-    unsealed = parse_activity(copy.deepcopy(body))
-    unsealed._received_evidence = None
-    staging = InlineObjectStaging(dl)
-    FastAPIIngressAdapter(dl=dl, staging=staging).rehydrate(unsealed)
-    assert staging.hold_for_replay(body["id"])
-    held = dl.read(DeferredInboxActivity.build_id(body["id"]))
-    assert isinstance(held, DeferredInboxActivity)
-    assert held.received_body is None, "precondition: held as a row"
-    adapter = FastAPIIngressAdapter(dl=dl)
-    artifact = adapter.parse(copy.deepcopy(body))
-    assert artifact is not None
-
-    with pytest.raises(VultronWiringError, match="no sealed body"):
-        adapter.rehydrate(artifact)
-
-
-@pytest.mark.spec("IE-10-002")
-@pytest.mark.spec("ARCH-15-001")
 def test_an_unsealed_activity_under_a_held_id_is_a_wiring_fault(
     dl: SqliteDataLayer,
 ):

@@ -334,23 +334,9 @@ class FastAPIIngressAdapter:
 
         The deferred record's while the first delivery is still deferred,
         else the body intake archived (IE-10-001, IE-10-002).
-
-        Raises:
-            VultronWiringError: When the deferred record holds the activity
-                as a row, with no sealed body to compare (ARCH-15-001).  Only
-                an activity handed to the inbox in process, never a
-                delivery, is held that way.
         """
         pending = self._staging.held(activity_id)
         if pending is not None:
-            if pending.received_body is None:
-                raise VultronWiringError(
-                    f"activity '{activity_id}' is held for its replay as a"
-                    " row with no sealed body, so a delivery under its id"
-                    " cannot be compared with it (IE-10-002); only an"
-                    " activity handed to the inbox in process is held that"
-                    " way"
-                )
             return _HeldBody("deferred", pending.received_body)
         record = self._dl.read(ReceivedActivityRecord.build_id(activity_id))
         if isinstance(record, ReceivedActivityRecord):
