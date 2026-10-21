@@ -340,6 +340,9 @@ plugins:
         # issues, specs and notes since it merged.
         adr/0017-domain-wire-object-separation.md: adr/archived/0017-domain-wire-object-separation.md
         adr/0082-wire-core-boundary-pairing-registry.md: adr/archived/0082-wire-core-boundary-pairing-registry.md
+        # ADR-0146 was renamed when it widened from embargo acts to every
+        # CASE_MANAGER act (#4983).
+        adr/0146-one-atomic-commit-per-embargo-act.md: adr/0146-one-atomic-commit-per-case-manager-act.md
         howto/activitypub/activities/_accept_embargo.md: reference/messages/em.md
         howto/activitypub/activities/_accept_invite_to_case.md: reference/messages/case_management.md
         howto/activitypub/activities/_activate_embargo.md: reference/messages/em.md
