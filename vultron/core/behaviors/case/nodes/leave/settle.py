@@ -17,9 +17,10 @@
 
 After a case closes, a pending Invite can only expire.  Waiting for its RSVP
 deadline would keep the CASE_MANAGER working for a closed case, only to write
-one more entry after ``case_fully_closed``.  So the owner-close sequence
-(CM-23-002) expires each one first, between the CASE_MANAGER's own
-``RM.CLOSED`` entry and ``case_fully_closed``.
+one more entry after the write boundary.  So the owner-close sequence
+(CM-23-002) expires each one first, after the ``close_case`` entry and before
+any closure entry: the CASE_MANAGER's own ``RM.CLOSED`` entry is the boundary,
+and a Case Owner that also holds CASE_MANAGER writes it in its own closure.
 
 Each expiry is the same commit → effect pair the lazy late-Accept path and
 the overdue-invitation sweep (CM-28-015) run, through their shared
@@ -39,10 +40,10 @@ from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 class ExpirePendingInvitesOnCloseNode(ExpireInvitationsNode):
     """Expire every embargo Invite still awaiting a reply (CM-23-014).
 
-    Runs in the owner-close sequence after
-    :class:`~vultron.core.behaviors.case.nodes.leave.record.CommitRMClosureEntriesNode`
-    and before ``case_fully_closed``, so every expiry's ``TIMED_OUT``
-    ``Update(EmbargoConsent)`` precedes ``case_fully_closed``.  The invitations are
+    Runs first in the owner-close sequence, before any
+    :class:`~vultron.core.behaviors.case.nodes.leave.record.CommitRMClosureEntriesNode`,
+    so every expiry's ``TIMED_OUT`` ``Update(EmbargoConsent)`` precedes the
+    write boundary (CM-23-013).  The invitations are
     :meth:`~vultron.core.services.embargo_lifecycle.EmbargoLifecycle.pending_invitations`.
 
     The CASE_MANAGER gate is the received tree's own: the node sits in the

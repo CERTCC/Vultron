@@ -265,8 +265,7 @@ The wire shape is the same whatever roles the participant holds; only `caseRoles
 
 - **Protocol role:** it is reserved as the snapshot shape of a ledger entry.
   Every change the CASE_MANAGER makes to the case file must be its own ledger entry ([CLP-07-013](../specs/protocol.md#clp-07-013)), and an `Update` carrying the case in full is the shape such an entry takes for a change to a case field.
-  The prototype does not yet commit an `Update(VulnerabilityCase)` entry: the canonical-entry check does not yet admit that signature.
-  Once it does, replicas copy the entry from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
+  The prototype commits one such entry, `update_case_owner`, when an ownership transfer changes the case owner ([CM-21-002](../specs/protocol.md#cm-21-002)), and replicas copy it from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
   A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to the CASE_MANAGER or to its peers.
 - **On receipt:** an inbox refuses a direct `Update(VulnerabilityCase)` as an unrecognized activity and changes nothing.
 - **Triggering transition:** none — metadata change, not a state transition.

@@ -111,7 +111,7 @@ def accept_invite_to_embargo_tree(
         ├─ ValidateCaseExistsNode
         ├─ EmbargoAnswerNotRecorded (gated)     # repeat → SKIPPED (CM-13-005)
         ├─ PxaAcceptRefusal (DiversionStage)    # P/X/A → ER (EMB-02-002)
-        ├─ HonourLateAccept / ReinviteLateAccepter / AcknowledgeLateAccept
+        ├─ HonourLateAccept / ReinviteLateAccepter / LateAcceptBindsNothing
         │                                       # late Accept arms (EMB-17)
         ├─ InviteNotExpiredNode                 # a late Accept is no answer
         ├─ IsAnswerableEmbargoNode              # open or active (CM-18-003)

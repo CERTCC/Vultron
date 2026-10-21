@@ -140,7 +140,7 @@ class CloseCaseReceivedUseCase:
     post-close boundary refuses it (CM-23-013).  The owner's closure and the
     case's are one act (CLP-07-015), so a failed Leave keeps neither.
 
-    A Leave that arrives after ``case_fully_closed`` is ``REFUSED`` and
+    A Leave that arrives after the case is fully closed is ``REFUSED`` and
     records nothing (CM-23-013); ``actor_config.post_close_reply`` decides
     whether the sender gets ``Reject(Leave(VulnerabilityCase))`` or no reply
     (ADR-0131).
@@ -172,7 +172,7 @@ class CloseCaseReceivedUseCase:
         # or answer a late Leave under PostCloseReply.REJECT (CM-23-013).
         self._trigger_activity = trigger_activity
         # actor_config carries post_close_reply, the one policy point for the
-        # reply to a Leave after case_fully_closed (ADR-0131).
+        # reply to a Leave after the case is fully closed (ADR-0131).
         self._actor_config = actor_config or ActorConfig()
         # wire_render_port renders each RM closure status (the leaver's and,
         # on owner Leave, the CASE_MANAGER's own) into the canonical ledger

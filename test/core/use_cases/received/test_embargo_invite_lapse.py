@@ -58,9 +58,6 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
-from vultron.core.models.rsvp_deadline import (
-    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
-)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.em import EM
@@ -120,6 +117,15 @@ def _answers_in_outbox(dl: SqliteDataLayer, actor_id: str) -> list[str]:
             assert getattr(activity, "to", None) == [_COORD]
             answers.append(str(type_))
     return answers
+
+
+def _case_entries(dl: SqliteDataLayer, case_id: str) -> list[str]:
+    """The ids of *case_id*'s ledger entries in *dl*, sorted."""
+    return sorted(
+        obj.id_
+        for obj in dl.list_objects("CaseLedgerEntry")
+        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+    )
 
 
 def _relayed_deadline_to(dl: SqliteDataLayer, invitee_id: str) -> datetime:
@@ -2369,11 +2375,12 @@ class TestLateAcceptHandling:
 
     @pytest.mark.spec("EMB-17-004")
     def test_late_accept_noop_when_em_exited(self, make_payload):
-        """Late Accept after EM EXITED → ack no-op, actor stays in case (AC-4 #2213).
+        """Late Accept after EM EXITED → a no-op, actor stays in case (AC-4 #2213).
 
         Termination writes no consent (ADR-0122) and, with no embargo in
         force, nobody is a signatory; once EM is EXITED a late Accept records
-        no acceptance, so the invitee never becomes a signatory.
+        no acceptance, so the invitee never becomes a signatory.  The Accept
+        changes nothing, so no entry is committed for it (EMB-17-004).
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea3"
@@ -2400,13 +2407,15 @@ class TestLateAcceptHandling:
         dl.create(proposal)
 
         event = _make_accept_event(proposal, case, _INVITEE, make_payload)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        entries_before = _case_entries(dl, case_id)
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition is HandlerDisposition.SKIPPED
 
         # Actor must still be a case participant (not removed)
         fresh_case = dl.read(case_id)
@@ -2425,38 +2434,32 @@ class TestLateAcceptHandling:
         )
         assert not participant.is_signatory(fresh_case.active_embargo_id)
 
-        # The acknowledgement is the CASE_MANAGER's own Ignore of the Accept
-        # (CLP-07-013), and a redelivered Accept is acknowledged once: the
-        # Ignore's id is derived from the Accept (ID-04-004).
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        # Nothing is ledgered for the no-op, and a redelivered Accept gets
+        # the same result (EMB-17-004, ADR-0152).
+        assert _case_entries(dl, case_id) == entries_before
+        again = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
-        (noop,) = [
-            e
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry)
-            and e.semantic_type == INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
-        ]
-        assert noop.payload_snapshot["type"] == "Ignore"
-        assert noop.payload_snapshot["actor"] == _COORD
-        assert noop.payload_snapshot["object"]["actor"] == _INVITEE
+        assert again.disposition is HandlerDisposition.SKIPPED
+        assert _case_entries(dl, case_id) == entries_before
 
     @pytest.mark.spec("EMB-17-004")
     @pytest.mark.spec("CM-28-004")
     def test_late_accept_with_no_embargo_leaves_the_invitee_row_frozen(
         self, make_payload
     ):
-        """Late Accept with EM NONE → an ack no-op, and the frozen row is kept.
+        """Late Accept with EM NONE → a no-op, and the frozen row is kept.
 
         The invitee was invited to a proposal the owner then rejected, so EM
         is ``NONE`` and nothing is in force: the late Accept has nothing to
         sign.  The rejected entry is final, so its rows accept no trigger
         (ADR-0122): the invitation is not timed out and no expiry entry is
-        committed; the no-op acknowledgement is (EMB-17-004, EMB-17-010).
+        committed, and nothing is committed for the Accept either
+        (EMB-17-004).
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea-none"
@@ -2488,13 +2491,15 @@ class TestLateAcceptHandling:
         dl.create(proposal)
 
         event = _make_accept_event(proposal, case, _INVITEE, make_payload)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        entries_before = _case_entries(dl, case_id)
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition is HandlerDisposition.SKIPPED
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
@@ -2503,18 +2508,13 @@ class TestLateAcceptHandling:
         assert (
             participant.consent_for(embargo_id) == EmbargoConsentState.INVITED
         )
-        semantic_types = [
-            obj.semantic_type
-            for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
-        ]
+        assert _case_entries(dl, case_id) == entries_before
         assert (
             consent_row_updates(
                 dl, case_id, EmbargoConsentState.TIMED_OUT, _INVITEE
             )
             == []
         )
-        assert semantic_types.count(INVITE_EXPIRED_NOOP_SEMANTIC_TYPE) == 1
 
     def test_late_accept_honored_when_em_revise_with_matching_embargo(
         self, make_payload

@@ -279,27 +279,54 @@ def test_attributed_to_counts_only_on_an_offer_the_manager_sent(dl):
 def test_withdrawal_closes_the_offer(dl):
     """A withdrawal entry closes the Offer as an answer does (AC-7)."""
     _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
-    assert open_ownership_offer(dl, _CASE_ID) is not None
+    assert open_ownership_offer(dl, _CASE_ID, _T0) is not None
     _ledger(dl, 1, "urn:undo:1", "undo_case_ownership_transfer", _T0)
 
     offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
     assert offer.answer_id == "urn:undo:1"
     assert offer.closed_by_semantic_type == "undo_case_ownership_transfer"
-    assert open_ownership_offer(dl, _CASE_ID) is None
+    assert open_ownership_offer(dl, _CASE_ID, _T0) is None
 
 
 @pytest.mark.spec("CM-21-014")
 @pytest.mark.spec("CM-21-017")
-def test_expiry_closes_the_offer(dl):
-    """The CASE_MANAGER's expiry entry closes the Offer (AC-7)."""
-    _ledger(dl, 0, "urn:offer:1", "offer_case_ownership_transfer", _T0)
-    _ledger(dl, 1, "urn:offer:1", "offer_case_ownership_transfer_expired", _T0)
+def test_an_offer_past_its_end_time_is_closed_with_no_entry(dl):
+    """The ledgered Offer's own endTime closes it; nothing records the
+    expiry (ADR-0152)."""
+    _ledger(
+        dl,
+        0,
+        "urn:offer:1",
+        "offer_case_ownership_transfer",
+        _T0,
+        endTime=_T0.isoformat(),
+    )
 
     offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
 
-    assert offer.closed_by_expiry
-    assert open_ownership_offer(dl, _CASE_ID) is None
+    assert offer.answer_id is None
+    assert offer.is_open_at(_T0 - timedelta(seconds=1))
+    assert not offer.is_open_at(_T0)
+    assert open_ownership_offer(dl, _CASE_ID, _T0 - timedelta(seconds=1))
+    assert open_ownership_offer(dl, _CASE_ID, _T0) is None
+
+
+@pytest.mark.spec("CM-21-014")
+def test_an_answered_offer_is_closed_before_its_end_time(dl):
+    _ledger(
+        dl,
+        0,
+        "urn:offer:1",
+        "offer_case_ownership_transfer",
+        _T0,
+        endTime=_T0.isoformat(),
+    )
+    _ledger(dl, 1, "urn:undo:1", "undo_case_ownership_transfer", _T0)
+
+    offer = recorded_ownership_offer(dl, _CASE_ID, "urn:offer:1")
+
+    assert not offer.is_open_at(_T0 - timedelta(days=1))
 
 
 @pytest.mark.spec("CM-21-016")

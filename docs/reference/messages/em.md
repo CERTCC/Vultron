@@ -167,6 +167,7 @@ Some deliveries get no notice:
 - An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with `ER` instead (EMB-01-002, EMB-02-002).
   The Case Manager's `ER` to an `Accept` reaches the participant, which closes its pending `Accept`.
 - A late `Accept` is answered by the Case Manager's own late-acceptance entry or re-invitation (EMB-17).
+  A late `Accept` of an embargo the case no longer has changes nothing, so the Case Manager records and sends nothing for it (EMB-17-004).
 - A failure inside the Case Manager is not a refusal, and is never answered with a notice.
 
 ## Formal messages with no dedicated wire activity

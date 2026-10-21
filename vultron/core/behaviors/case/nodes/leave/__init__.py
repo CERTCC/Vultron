@@ -31,17 +31,12 @@ by semantic concern (BTND-07-004):
   derive them (CM-23-001, CM-23-005).
 
 - :mod:`.settle` — :class:`ExpirePendingInvitesOnCloseNode`, which expires
-  every embargo Invite still awaiting a reply before ``case_fully_closed``
-  (CM-23-014).
-
-- :mod:`.fully_closed` — :class:`CommitCaseFullyClosedNode`, which commits
-  ``case_fully_closed`` as the CASE_MANAGER's own factory-built
-  ``Update(VulnerabilityCase)`` carrying the closed case (CM-23-002 step 3,
-  CLP-07-013).
+  every embargo Invite still awaiting a reply before the CASE_MANAGER's own
+  closure, whose ``RM.CLOSED`` status entry is the write boundary (CM-23-014).
 
 - :mod:`.decline` — :class:`EmitRejectCloseCaseNode`, the ``as:Reject`` arm for
   an owner close blocked by a live embargo (CM-23-011), and the optional reply
-  to a Leave that arrives after ``case_fully_closed`` (CM-23-013).
+  to a Leave that arrives after the case is fully closed (CM-23-013).
 
 - :mod:`.refuse` — :class:`RefuseOwnerLeaveWhileEmbargoedNode`, the sender-side
   refusal of the Case Owner's own ``leave-case`` call while its replica records
@@ -61,9 +56,6 @@ from vultron.core.behaviors.case.nodes.leave.decline import (
     LATE_LEAVE_DECLINE,
     EmitRejectCloseCaseNode,
 )
-from vultron.core.behaviors.case.nodes.leave.fully_closed import (
-    CommitCaseFullyClosedNode,
-)
 from vultron.core.behaviors.case.nodes.leave.record import (
     CommitRMClosureEntriesNode,
 )
@@ -77,7 +69,6 @@ from vultron.core.behaviors.case.nodes.leave.settle import (
 __all__ = [
     "AdvanceCaseActorToRMClosedNode",
     "AdvanceParticipantToRMClosedNode",
-    "CommitCaseFullyClosedNode",
     "CommitRMClosureEntriesNode",
     "EmitRejectCloseCaseNode",
     "ExpirePendingInvitesOnCloseNode",

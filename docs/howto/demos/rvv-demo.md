@@ -179,13 +179,13 @@ The Case Actor sees the publication report from the Case Owner and terminates th
 
 Each actor closes its participation with `Leave(VulnerabilityCase)` (RM → CLOSED).
 Vendor2 and the Reporter leave first.
-Vendor1 is the Case Owner, so it leaves last, and its closure also closes the case: the Case Actor advances itself to `RM.CLOSED` and records that the case is fully closed.
+Vendor1 is the Case Owner, so it leaves last, and its closure also closes the case: the Case Actor advances itself to `RM.CLOSED`, and its own status entry that reaches `RM.CLOSED` marks the case fully closed.
 
 A participant that has closed receives the ledger entries that record its own closure, and nothing after them (CM-23-004).
-No replica therefore holds every participant's closure: the Reporter's replica does not learn that Vendor1 left, and Vendor1's replica does not receive the Case Actor's own closure or the `case_fully_closed` entry.
+No replica therefore holds every participant's closure: the Reporter's replica does not learn that Vendor1 left, and Vendor1's replica does not receive the Case Actor's own closure.
 The Case Actor's own store is where every closure is checked.
 
-**M7 verified when:** the Case Actor's ledger records every departure before `case_fully_closed`, every participant is `RM.CLOSED` in the Case Actor's store, and each departing actor's replica holds the ledger through its own closure and nothing after it.
+**M7 verified when:** the Case Actor's ledger records every departure before its own `RM.CLOSED` status entry, every participant is `RM.CLOSED` in the Case Actor's store, and each departing actor's replica holds the ledger through its own closure and nothing after it.
 
 ---
 

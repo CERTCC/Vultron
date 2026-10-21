@@ -164,7 +164,7 @@ An act whose entry fails to commit changes nothing.
 | Invitation deadline passes | the expiry of that invitation (CM-28-009) | an `Update(EmbargoConsent)` moving the row to `TIMED_OUT` |
 | Late `Accept` of the current embargo | the decision to honor it | an `Update(EmbargoConsent)` moving the row to `AGREED` |
 | Late `Accept` of a superseded embargo | the fresh invitation | an `Update(EmbargoConsent)` moving the row to `INVITED`, with its deadline |
-| Late `Accept` of an embargo the case no longer has | the case manager's `Ignore` of it | nothing |
+| Late `Accept` of an embargo the case no longer has | nothing: the `Accept` changes nothing, so no entry is committed (EMB-17-004) | nothing |
 | Stub invitation re-sent after the embargo changed | the replacement invitation | an `Update(EmbargoConsent)` moving the invitee's row for the embargo in force to `INVITED`; with no embargo in force, nothing |
 
 A Participant joining through its stub invitation agrees to the embargo in force with that same `Accept`, so the joiner's `AGREED` row has no entry of its own either.
@@ -288,7 +288,7 @@ The case manager instead asks whether the accepted embargo is still the case's c
 |---|---|
 | The case's current embargo | Honor it; record the Participant's consent row as `AGREED`, exactly as for an on-time Accept, directly from `TIMED_OUT` or `DECLINED`, since a Participant that accepts after declining has changed its answer (EMB-17-002) |
 | A superseded embargo | Send a fresh invitation carrying the current terms. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005) |
-| An embargo the case no longer has | Acknowledge as a no-op: record its own `Ignore` of the late `Accept`, and change no consent. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008, EMB-17-010) |
+| An embargo the case no longer has | Nothing: the `Accept` changes nothing, so record no entry, send no reply, and change no consent. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008) |
 
 Note what none of the three rows does: remove the accepting actor.
 Answering late is not a protocol violation.

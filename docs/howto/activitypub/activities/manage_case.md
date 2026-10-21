@@ -139,8 +139,9 @@ What your closure does to the case depends on whether you are the Case Owner.
 - If you are **not** the Case Owner, only your own RM state advances to `RM.CLOSED`.
   The case stays open for everyone else (CM-23-003).
 - If you **are** the Case Owner, your `Leave(VulnerabilityCase)` closes the case.
-  The CASE_MANAGER advances you and itself to `RM.CLOSED` and commits a `case_fully_closed` ledger entry (CM-23-002).
-  Before that entry, it expires every embargo Invite that still waits for a reply, and records each expiry as its own change to that invitee's consent row, now `TIMED_OUT` (CM-23-014).
+  The CASE_MANAGER first expires every embargo Invite that still waits for a reply, and records each expiry as its own change to that invitee's consent row, now `TIMED_OUT` (CM-23-014).
+  It then advances you to `RM.CLOSED`, then itself, and records each step as a status entry (CM-23-002).
+  The CASE_MANAGER's own status entry that reaches `RM.CLOSED` is the last entry of the closure: from then on the case is fully closed.
   Every other participant keeps the RM state it already held — closure does not advance bystanders (CM-23-012).
 - If you want your departure recorded, leave **before** the Case Owner does (CM-23-015).
   Once the case is fully closed, the CASE_MANAGER records nothing more for it (CM-23-013).
@@ -163,7 +164,7 @@ What your closure does to the case depends on whether you are the Case Owner.
 |---|---|
 | `Join(VulnerabilityCase)` | Your participant record shows `rmState` = `ACCEPTED`. |
 | `Ignore(VulnerabilityCase)` | Your participant record shows `rmState` = `DEFERRED`. |
-| `Leave(VulnerabilityCase)` | Your participant record shows `rmState` = `CLOSED`. Your replica holds no ledger entry after the last entry that records your closure. A Case Owner does not receive the `case_fully_closed` entry, because it is already closed when the CASE_MANAGER writes it; that entry is in the CASE_MANAGER's ledger. |
+| `Leave(VulnerabilityCase)` | Your participant record shows `rmState` = `CLOSED`. Your replica holds no ledger entry after the last entry that records your closure. A Case Owner does not receive the CASE_MANAGER's own closure entries, because it is already closed when the CASE_MANAGER writes them; those entries are in the CASE_MANAGER's ledger. |
 | `Reject(Offer(VulnerabilityReport))` | Your RM state is `CLOSED` and no case was created. |
 
 Each transition is committed to the case ledger, so the same `rmState` should be visible on the replica of every participant that has not closed, not only your own.

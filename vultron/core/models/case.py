@@ -753,8 +753,8 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         whatever its embargo consent: a removed signatory stays bound but
         receives no content (CM-31-008, ADR-0116).  RM ``CLOSED`` is deliberately
         not part of this check: a closed participant is still owed the
-        ledger entries that record its own closure, and nothing after them,
-        ``case_fully_closed`` included (CM-23-004), so each recipient
+        ledger entries that record its own closure, and nothing after them
+        (CM-23-004), so each recipient
         selection applies the ``CLOSED`` filter itself
         (:mod:`vultron.core.participants.recipients`).  The sender checks
         apply it too: a closed participant may act on nothing further

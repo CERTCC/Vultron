@@ -19,7 +19,8 @@ the owner in ``attributedTo`` (ADR-0148, CM-21-005).  The CASE_MANAGER
 commits an ``offer_case_ownership_transfer`` entry for it once it is queued,
 and that Offer is the one the transferee holds, answers, and the one that is
 closed and expired.  "Recorded" means ledgered, and whether the Offer is
-still open is read from the same ledger (CM-21-014, CLP-11-001).
+still open is read from the same ledger and the ``end_time`` the ledgered
+Offer carries (CM-21-014, CM-21-017, CLP-11-001).
 
 A reply names it directly: the transferee's ``Accept`` or ``Reject`` by its
 id, and the owner's ``Undo`` of its proposal through the id derived from the
@@ -45,7 +46,6 @@ from vultron.core.models._helpers import parse_published
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.protocol_pair import (
-    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
     OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES,
     OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE,
     ProtocolPair,
@@ -117,8 +117,9 @@ class RecordedOwnershipOffer:
         """The ledgered entry that closed the Offer, or ``None`` while open.
 
         Any semantic type in ``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``
-        closes it: the transferee's answer, the offerer's withdrawal or the
-        CASE_MANAGER's expiry record.
+        closes it: the transferee's answer or the offerer's withdrawal.  An
+        Offer past its ``end_time`` is closed too, with no entry: see
+        :meth:`is_open_at`.
         """
         return self.pair.reply_object_id
 
@@ -127,23 +128,25 @@ class RecordedOwnershipOffer:
         """The ``semantic_type`` of the entry that closed the Offer, if any."""
         return self.pair.reply_semantic_type
 
-    @property
-    def closed_by_expiry(self) -> bool:
-        """``True`` when the CASE_MANAGER's expiry record closed the Offer."""
-        return (
-            self.closed_by_semantic_type
-            == OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE
-        )
-
     def is_past_deadline(self, now: datetime) -> bool:
         """Return ``True`` when *now* is at or after the Offer's ``end_time``.
 
         The comparison an embargo Invite's expiry makes (``now >= end_time``),
         so the deadline instant itself is too late (CM-21-016).  An Offer
         with no ``end_time`` never passes it.  Whether the Offer is still
-        open is a separate question: see :attr:`answer_id`.
+        open is a separate question: see :meth:`is_open_at`.
         """
         return self.end_time is not None and now >= self.end_time
+
+    def is_open_at(self, now: datetime) -> bool:
+        """Return ``True`` when the Offer is still open at *now* (CM-21-014).
+
+        Open until the ledger records an answer or a withdrawal for it, or
+        *now* reaches its ``end_time``.  Nothing records the expiry: it is
+        read from the ledgered Offer's own ``end_time`` (CM-21-017,
+        ADR-0152).
+        """
+        return self.answer_id is None and not self.is_past_deadline(now)
 
     def is_answered_other_than(self, answer_id: str) -> bool:
         """Return ``True`` when another answer has already closed the Offer.
@@ -309,16 +312,16 @@ def offer_made_from_proposal(
 
 
 def open_ownership_offer(
-    dl: CasePersistence, case_id: str
+    dl: CasePersistence, case_id: str, now: datetime
 ) -> RecordedOwnershipOffer | None:
     """Return a recorded ownership-transfer Offer for *case_id* still open.
 
-    An Offer is open until the ledger holds an answer, a withdrawal or an
-    expiry recorded after it (CM-21-014, CM-21-015, CM-21-017, CLP-11-001),
-    read through
-    ``find_protocol_pair()`` with ``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``.
-    The latest open Offer is returned; ``None`` when every recorded Offer is
-    closed.
+    An Offer is open until the ledger holds an answer or a withdrawal
+    recorded after it, read through ``find_protocol_pair()`` with
+    ``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``, or until *now* reaches the
+    ``end_time`` the ledgered Offer carries (CM-21-014, CM-21-015,
+    CM-21-017, CLP-11-001).  The latest open Offer is returned; ``None``
+    when every recorded Offer is closed.
 
     An Offer that names no transferee could never be answered, so it does not
     hold the case open.
@@ -328,12 +331,14 @@ def open_ownership_offer(
         case_id: The case a new proposal names.  The caller has already
             ruled out a redelivery (:func:`offer_made_from_proposal`), so
             every recorded Offer is an earlier one.
+        now: The CASE_MANAGER's clock, compared with each Offer's
+            ``end_time``.
     """
     for entry in reversed(_offer_entries(dl, case_id)):
         if entry_target(entry) is None:
             continue
         offer = _recorded(dl, case_id, entry)
-        if offer.answer_id is None:
+        if offer.is_open_at(now):
             return offer
     return None
 

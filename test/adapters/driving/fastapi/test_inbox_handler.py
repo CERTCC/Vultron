@@ -506,7 +506,7 @@ def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
     All three come from the received baseline every semantic gets (#4113).  Without
     the ``WireRenderPort``, ``CommitRMClosureEntriesNode`` cannot render the
     CASE_MANAGER's own ``RM.CLOSED`` snapshot and hard-fails, which would abort
-    the owner-Leave path before ``case_fully_closed`` is committed.  This guards
+    the owner-Leave path before its write boundary is committed.  This guards
     the wiring rather than the node, because a lost registration is silent at
     the node (ISSUE-2505 stayed hidden for months behind exactly that shape of
     absent port).

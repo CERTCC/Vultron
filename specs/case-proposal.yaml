@@ -447,7 +447,8 @@ groups:
       same proposal (the same proposal identifier) has already been accepted, it MUST
       re-send the stored `Accept(CaseProposal)` unchanged, with its original identifier, and
       MUST NOT create a second `VulnerabilityCase`. When that case is fully closed (its
-      ledger holds `case_fully_closed`), it MUST instead answer with `Reject(CaseProposal)`
+      ledger holds the CASE_MANAGER's own RM.CLOSED status entry, CM-23-013), it MUST
+      instead answer with `Reject(CaseProposal)`
       and MUST NOT commit any `CaseLedgerEntry` for the case or change its state
       (CM-23-013).
     rationale: >-
@@ -515,7 +516,8 @@ groups:
       already has a case. The case-actor service MUST subject it to the admission decision (CP-05-002) and MUST answer it with
       its own `Accept(as_CaseProposal)` or `Reject(as_CaseProposal)`. When the proposer is that case's owner it MUST reuse the
       existing case and MUST NOT create a second `VulnerabilityCase`, unless that case is fully closed (its ledger holds
-      `case_fully_closed`), in which case it MUST answer with `Reject(as_CaseProposal)` and MUST NOT commit any
+      the CASE_MANAGER's own RM.CLOSED status entry), in which case it MUST answer with
+      `Reject(as_CaseProposal)` and MUST NOT commit any
       `CaseLedgerEntry` for the case or change its state (CM-23-013). For any other proposer it MUST create a separate case
       and MUST NOT add that proposer to the existing case.
     rationale: >-

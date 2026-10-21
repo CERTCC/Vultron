@@ -40,7 +40,6 @@ from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
-    ignore_late_embargo_accept_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
     withdraw_from_embargo_activity,
@@ -49,7 +48,6 @@ from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
-    as_Ignore,
     as_Invite,
     as_Leave,
     as_Reject,
@@ -579,81 +577,6 @@ def test_all_embargo_factories_importable_from_package():
         reject_embargo_proposal_activity,
         remove_embargo_from_case_activity,
     )
-
-
-# ---------------------------------------------------------------------------
-# ignore_late_embargo_accept_activity (EMB-17-004)
-# ---------------------------------------------------------------------------
-
-_MANAGER_URI = "https://example.org/actors/case-manager"
-
-
-def _late_accept(sample_proposal) -> dict:
-    accept = em_accept_embargo_activity(
-        proposal=sample_proposal, context=_CASE_URI, actor=_ACTOR_URI
-    )
-    return accept.model_dump(mode="json", by_alias=True, exclude_none=True)
-
-
-@pytest.mark.spec("EMB-17-004")
-@pytest.mark.spec("CLP-07-013")
-def test_ignore_late_embargo_accept_carries_the_accept_inline(
-    sample_proposal,
-):
-    late_accept = _late_accept(sample_proposal)
-    activity = ignore_late_embargo_accept_activity(
-        late_accept, actor=_MANAGER_URI
-    )
-    assert isinstance(activity, as_Ignore)
-    assert activity.actor == _MANAGER_URI
-    carried = activity.model_dump(mode="json", by_alias=True)["object"]
-    assert carried["id"] == late_accept["id"]
-    assert carried["actor"] == _ACTOR_URI
-    assert carried["object"]["id"] == sample_proposal.id_
-
-
-@pytest.mark.spec("CLP-07-007")
-def test_ignore_late_embargo_accept_defaults_context_to_the_case(
-    sample_proposal,
-):
-    activity = ignore_late_embargo_accept_activity(
-        _late_accept(sample_proposal), actor=_MANAGER_URI
-    )
-    assert activity.context == _CASE_URI
-
-
-@pytest.mark.spec("DL-06-004")
-def test_ignore_late_embargo_accept_embeds_the_accept_as_its_sender_sent_it(
-    sample_proposal,
-):
-    """The late Accept, parsed from its archived body, is embedded as that
-    body, verbatim: its ``cc`` and a key no vocabulary names survive into
-    the acknowledgement (ADR-0149)."""
-    late_accept = _late_accept(sample_proposal)
-    late_accept["cc"] = ["https://example.org/actors/observer"]
-    late_accept["fooBar"] = {"kept": True}
-
-    activity = ignore_late_embargo_accept_activity(
-        late_accept, actor=_MANAGER_URI
-    )
-
-    # Dumped as the outbox seals an outbound body (OUTBOUND_DUMP_KWARGS).
-    embedded = json.loads(
-        activity.model_dump_json(
-            by_alias=True, exclude_none=True, serialize_as_any=True
-        )
-    )["object"]
-    assert embedded == parse_activity(late_accept).received_evidence
-    assert embedded["cc"] == ["https://example.org/actors/observer"]
-    assert embedded["fooBar"] == {"kept": True}
-
-
-def test_ignore_late_embargo_accept_refuses_a_non_embargo_accept():
-    with pytest.raises(VultronActivityConstructionError):
-        ignore_late_embargo_accept_activity(
-            {"type": "Accept", "actor": _ACTOR_URI, "object": "urn:x"},
-            actor=_MANAGER_URI,
-        )
 
 
 def _received(activity: as_Invite, **extra: object) -> as_Invite:

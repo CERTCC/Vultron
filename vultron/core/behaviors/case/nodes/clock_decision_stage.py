@@ -17,7 +17,7 @@
 
 A clock decision is a decision the CASE_MANAGER takes from its own clock or
 local policy before it judges the received activity, such as an expiry
-(CLP-07-013, CM-21-017, CM-28-009).  It is ledgered even when the activity
+(CLP-07-013, CM-28-009).  It is ledgered even when the activity
 that prompted it is then admitted, so it cannot be a refusal effect, and it
 must not wait for the activity's commit.
 
@@ -139,7 +139,7 @@ def create_clock_decision_gate(
 
     The gate reads a case this store does not hold as "not the CASE_MANAGER"
     at ``debug`` level: a replica, or an invitee holding only a stub, never
-    computes a clock decision (CM-21-017, CM-28-014).  The received-tree
+    computes a clock decision (CM-28-014).  The received-tree
     factory places it after the door guards (CLP-10-025); a case-scoped
     trigger places it ahead of its own tree.
     """

@@ -135,8 +135,9 @@ A participant that has closed receives its own `close_case` entry and the status
 The Reporter leaves first.
 After its closure, the Reporter receives no further entries, so it does not learn of the Vendor's departure.
 The Vendor is the Case Owner, so it leaves last: its departure also closes the case, and a departure sent after that is not recorded.
-The Case Actor records its own closure as a participant status entry, then records `case_fully_closed`, the last entry for a participant's act.
-The Vendor has already closed when the Case Actor writes these two entries, so the Vendor does not receive them.
+The Case Actor records its own closure as a participant status entry.
+That entry is the last of the close: no participant act is recorded after it.
+The Vendor has already closed when the Case Actor writes it, so the Vendor does not receive it.
 The Case Actor's own ledger is where the closure of every participant is recorded.
 
 *Antecedent:* `validate_report` and `engage_case` are both present in the ledger.

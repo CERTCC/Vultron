@@ -35,10 +35,8 @@ from test.support.received import with_evidence
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
-from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
-    OfferParty,
-)
 from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
+    OfferParty,
     OwnershipOfferOpenNode,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (

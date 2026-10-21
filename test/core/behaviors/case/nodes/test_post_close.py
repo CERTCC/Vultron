@@ -24,7 +24,7 @@ from py_trees.common import Status
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
-from test.support.ledger import commit_case_fully_closed
+from test.support.ledger import commit_case_manager_closure
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.post_close import (
@@ -49,7 +49,7 @@ def _store(actor_id: str, closed: bool) -> SqliteDataLayer:
     seed_case_manager_participant(dl, case, MANAGER)
     dl.create(case)
     if closed:
-        commit_case_fully_closed(dl, CASE_ID, OTHER)
+        commit_case_manager_closure(dl, CASE_ID)
     return dl
 
 
@@ -124,5 +124,20 @@ def test_a_store_error_does_not_admit() -> None:
 @pytest.mark.spec("CM-23-013")
 def test_case_is_fully_closed_reads_only_the_named_case() -> None:
     dl = _store(MANAGER, closed=True)
-    assert case_is_fully_closed(dl, CASE_ID)
-    assert not case_is_fully_closed(dl, "https://example.org/cases/other")
+    case = dl.read_case(CASE_ID)
+    assert case is not None
+    assert case_is_fully_closed(dl, case)
+    other = as_VulnerabilityCase(
+        id_="https://example.org/cases/other", name="other"
+    )
+    seed_case_manager_participant(dl, other, MANAGER)
+    dl.create(other)
+    assert not case_is_fully_closed(dl, other)
+
+
+@pytest.mark.spec("CM-23-013")
+def test_a_case_naming_no_case_manager_records_no_closure() -> None:
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER)
+    case = as_VulnerabilityCase(id_=CASE_ID, name="no manager")
+    dl.create(case)
+    assert not case_is_fully_closed(dl, case)
