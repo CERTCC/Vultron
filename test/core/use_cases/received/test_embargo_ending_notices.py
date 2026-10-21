@@ -1066,6 +1066,50 @@ def test_paused_replica_refuses_a_stored_embargo_of_another_case() -> None:
     assert replica.embargo_state() == before
 
 
+_CASE_REPORT = "https://example.org/reports/ending-notice-report"
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.spec("EP-04-009")
+@pytest.mark.parametrize(
+    ("held_context", "disposition"),
+    [
+        pytest.param(_CASE_REPORT, HandlerDisposition.APPLIED, id="own"),
+        pytest.param(
+            "https://example.org/reports/another-report",
+            HandlerDisposition.REFUSED,
+            id="another",
+        ),
+    ],
+)
+def test_paused_replica_checks_a_stored_revision_about_a_report(
+    held_context: str, disposition: HandlerDisposition
+) -> None:
+    """A held record about one of the stored case's reports is the case's."""
+    replica = _Replica(REMOVED)
+    replica.dl.save(
+        replica.case().model_copy(
+            update={"vulnerability_reports": [_CASE_REPORT]}
+        )
+    )
+    replica.dl.create(
+        as_EmbargoEvent(
+            id_=REVISION_ID,
+            context=held_context,
+            end_time=days_from_now_utc(30),
+        )
+    )
+    before = replica.embargo_state()
+
+    result = _shorter_revision_announced_by(MANAGER, replica)
+
+    assert result.disposition is disposition
+    if disposition is HandlerDisposition.APPLIED:
+        assert replica.case().active_embargo_id == REVISION_ID
+    else:
+        assert replica.embargo_state() == before
+
+
 @pytest.mark.spec("CM-31-009")
 @pytest.mark.spec("BT-14-001")
 def test_owed_notice_without_a_trigger_factory_is_an_internal_fault() -> None:
