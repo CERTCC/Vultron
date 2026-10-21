@@ -184,11 +184,13 @@ recommendation, never applied:
   if a prerequisite is assumed rather than stated and linked (SG-12), or if an
   acronym is used unexpanded because "the previous page expands it" (SG-07).
   **An opening, a restated prerequisite, or a re-expanded acronym that also
-  appears on an adjacent page is compliant** — never recommend removing it from
-  the rendered page. That repetition is the rule working, and a recommendation
-  to remove it so neighbors "read as a sequence" is itself a defect in the
-  review (DF-11-007). A page introducing itself in its own words is never an
-  SG-43 finding. A block one authority owns (a banner, a pointer, a shared
+  appears on an adjacent page is compliant on the rendered page** — never
+  recommend removing it. That repetition is the rule working, and a
+  recommendation to remove it so neighbors "read as a sequence" is itself a
+  defect in the review (DF-11-007). Where the block's source lives is a separate
+  SG-43 question. A page introducing itself in its own words (prose describing
+  this page, not content another authority owns, SG-44) is never an SG-43
+  finding. A block one authority owns (a banner, a pointer, a shared
   prerequisite list) is one even when it serves arrival: recommend sourcing it
   from a fragment every page still includes, which satisfies DF-11-007.
 - **Rendered level or audience** (DF-11-004, DF-11-009; SG-40) — the page's own
@@ -238,9 +240,11 @@ recommendation, never applied:
   coverage. Do not auto-fix — this is a judgment call requiring the author to
   decide whether the duplication is intentional and whether verification has
   occurred. A drifted near-copy gets resolution (a) too, keeping the wording
-  that is correct against its authority. A page's opening in its own words and
-  its acronym expansions are exempt even when a neighbor repeats them word for
-  word (SG-44, DF-11-007) — see "Self-sufficiency on arrival" above.
+  that is correct against its authority, unless a documented reason keeps the
+  two apart (DF-10-002). A page's own opening (prose describing this page, not
+  content another authority owns) and its acronym expansions are exempt even
+  when a neighbor's text matches them (SG-44, DF-11-007) — see
+  "Self-sufficiency on arrival" above.
 
 ### Quadrant misclassification
 

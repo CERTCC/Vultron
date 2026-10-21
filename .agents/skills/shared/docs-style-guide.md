@@ -349,9 +349,10 @@ each including file. Never copy the block. A copy passes lint on both pages
 because neither is wrong by itself, then drifts when one is updated. Reported,
 never auto-fixed: whether the duplication is intentional is the author's call.
 A drifted near-copy is the same finding: merge it into one fragment, keeping the
-wording that is correct against its authority. Normative anchors: DF-10-001,
-DF-10-002. SG-44 names the one class of repeat that is never a finding under
-this rule: a page introducing itself in its own words.
+wording that is correct against its authority, unless a documented reason keeps
+the two apart (DF-10-002). Normative anchors: DF-10-001, DF-10-002. SG-44 names
+the repeats that are never a finding under this rule: a page introducing itself
+in its own words, and its acronym expansions (SG-07).
 
 **SG-44 — Self-sufficient on arrival.** A page must make sense to a reader who
 lands on it from a search result or a deep link and has read none of its nav
@@ -361,14 +362,16 @@ expanded at first use on this page (SG-07). The nav neighbors are irrelevant to
 the check, and so is the fact that the previous page carries the same opening,
 the same prerequisite sentence, or the same expansion. **An opening, a restated
 prerequisite, or a re-expanded acronym that also appears on an adjacent page is
-compliant, never a duplication to remove from the rendered page.** Deleting one
-to make two pages read as a continuous sequence degrades every deep-link arrival
-and is a regression, whatever it does for the one reader who starts at the top.
-The rule governs the rendered page, not the source: a repeated block sourced
-from one fragment that each page includes satisfies it. A page introducing
-itself in its own words is not an SG-43 copy. A block one authority owns — a
-banner, a pointer, a shared prerequisite list — is, even when it serves arrival,
-and becomes a fragment that every page still renders. Page-scoped:
+compliant on the rendered page; never remove it.** Deleting one to make two
+pages read as a continuous sequence degrades every deep-link arrival and is a
+regression, whatever it does for the one reader who starts at the top. The rule
+governs the rendered page, not the source: a block sourced from one fragment
+that each page includes satisfies it, and where the source lives is a separate
+SG-43 question. A page introducing itself in its own words — prose
+describing this page, not content another authority owns — stays inline and is
+never an SG-43 copy. A block one authority owns (a banner, a pointer, a shared
+prerequisite list) is an SG-43 copy even when it serves arrival, and becomes a
+fragment that every page still renders. Page-scoped:
 evaluated against the assembly unit, never a fragment (DF-09-007). Implements
 DF-11-007; rationale in `notes/site-information-architecture.md` § "Pages stay
 self-sufficient; nav order carries dependency".

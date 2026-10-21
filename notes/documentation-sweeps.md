@@ -68,7 +68,8 @@ fragment instead of copying prose — one source, many render points
   (DF-09-008). Pass a new fragment to `lint-docs` explicitly. Lint checks the
   prose, not the claims, so the claims are still verified at the move.
 - **Near-copies merge too.** A copy that has drifted is merged into one
-  fragment, not left as two. Pick the wording that is correct against its
+  fragment, not left as two, unless a documented reason keeps them apart
+  (DF-10-002). Pick the wording that is correct against its
   authority and verify it at the merge (DF-10-001); two near-copies are twice
   the upkeep and already disagree (SG-43).
 
