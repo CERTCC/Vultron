@@ -52,6 +52,10 @@ from vultron.core.behaviors.embargo.copy_commit import (
     read_embargo_case_file,
     trial_apply,
 )
+from vultron.core.behaviors.embargo.nodes.chosen_cause import (
+    ChosenTermination,
+    resolve_chosen,
+)
 from vultron.core.behaviors.embargo.nodes.em_state import read_case_em_state
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
@@ -82,8 +86,10 @@ class CommitAndApplyEmbargoTerminationNode(
 ):
     """End the embargo in force as the CASE_MANAGER, committing first.
 
-    *termination* is how the embargo ends (ADR-0122); *terminated_at* is the
-    time an ``END_TIME_REACHED`` termination is claimed at.  *builder* is
+    *termination* is how the embargo ends (ADR-0122); a
+    :class:`ChosenTermination` is read when this node runs (EMB-14-001).
+    *terminated_at* is the time an ``END_TIME_REACHED`` termination is
+    claimed at.  *builder* is
     the trigger use case's own ``Remove`` builder; ``None`` (the end-time
     check and the threat cascades) builds it through the trigger-activity
     factory, carrying the decided termination's what in ``content`` and its
@@ -104,7 +110,7 @@ class CommitAndApplyEmbargoTerminationNode(
         self,
         case_id: str,
         result_out: dict[str, object],
-        termination: TerminationRequest,
+        termination: TerminationRequest | ChosenTermination,
         terminated_at: datetime | None = None,
         builder: EmbargoActivityBuilder | None = None,
         name: str | None = None,
@@ -178,9 +184,12 @@ class CommitAndApplyEmbargoTerminationNode(
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
+        # Read outside the refusal handler: an unchosen cause is a wiring
+        # fault, not a refusal (VultronWiringError escapes update()).
+        termination = resolve_chosen(self._termination)
         try:
             step = decide_termination(
-                dl, case, self._termination, self._terminated_at
+                dl, case, termination, self._terminated_at
             )
         except VultronError as exc:
             return self._refuse(exc)
