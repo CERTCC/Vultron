@@ -78,6 +78,8 @@ A case also never names an embargo whose record its store does not hold (EMB-18-
 Activating an embargo reads both the record being activated and the one it replaces, and refuses before any write if either cannot be read.
 A sender carries the embargo record inline with the case, and a receiver stores that record before the case that names it, so a case naming an embargo the receiver lacks is refused rather than stored.
 A receiver refuses an inline embargo record whose context is a different case, so a sender cannot plant one case's embargo under another's id.
+It checks the record it already holds under that id the same way, whether the case or ledger entry carries the embargo inline or names it by id only (EMB-18-004).
+An embargo whose context is one of the case's own reports counts as the case's, because a reporter's proposal names its report until the case exists (EP-04-009).
 
 A receiver also checks who sent each embargo message before it changes anything (ADR-0115).
 The case manager takes a proposal only from an active participant, and takes an acceptance or rejection only from the actor the recorded invitation was addressed to.
