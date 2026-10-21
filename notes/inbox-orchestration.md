@@ -6,7 +6,8 @@ description: >
   Rules for the core BT-backed inbox orchestration module: orchestration
   belongs in core/, the narrow route-level guard exception, the two-adapter
   seam and verdict mapping, the path from receipt to permanent storage (ingress
-  writes nothing; a deferred activity is held whole), redelivery detection,
+  writes nothing; a deferred activity is held whole), redelivery detection and
+  the reused-id refusal,
   pending-queue port injection, and the test surface.
 related_specs:
   - specs/inbox-orchestration.yaml
@@ -129,8 +130,16 @@ is lost, and `hold_for_replay` raises rather than queue one (DL-06-006).
 **A redelivery is detected from the receiver's own key** (IE-10-001): a deferred
 record routes the held copy and keeps it for the replay; an intake archive routes
 the archived body's parse. Either way the held copy is routed without received
-evidence, the handler's idempotency answers it (ID-02-003), and the redelivered body
-is left untouched at ingress for #3762's comparison.
+evidence, and the handler's idempotency answers it (ID-02-003).
+
+**Compare the body before you route the held copy** (IE-10-002): only a resend
+whose sealed body exactly matches the held one is a redelivery. A different body
+under a held id is refused with a WARNING naming the activity id and sender, and
+neither body is routed nor anything written; routing the held copy in its place
+silently dropped the new body (#3762). The match is exact, with no normalisation,
+so a body re-serialized with a different key order is refused too. The rule covers
+every activity type: an `Announce(CaseLedgerEntry)` hydrated in place (SYNC-13-004)
+gets the same comparison, and only a same-body repeat reaches SYNC-12-003's gate.
 
 ---
 

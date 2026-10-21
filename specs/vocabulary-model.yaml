@@ -485,10 +485,10 @@ groups:
       A replay of a deferred activity, or a load of an archived one, is parsed
       again from the received body held for it, and carries that body as its
       evidence. An activity routed or rebuilt from anything other than its own
-      delivery's body (a resend under an id already held, routed as the held copy,
-      or an activity the receiver built itself and holds as a stored row) carries
-      no received evidence, and it MUST NOT be given the evidence of a different
-      delivery.
+      delivery's body (a resend of the held body under an id already held, routed
+      as the held copy, or an activity the receiver built itself and holds as a stored
+      row) carries no received evidence, and it MUST NOT be given the evidence of a
+      different delivery.
     rationale: >-
       The received artifact is the evidence of what arrived, and the ledger replicates it via
       `Announce(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not
@@ -497,7 +497,9 @@ groups:
       The deferred record and intake's archive keep the sealed body (IO-03-004,
       CLP-10-017), so a replay carries the first delivery's evidence and a load
       sees the body that arrived (ADR-0149). A resend is another delivery: the held
-      body on the copy routed in its place would claim the wrong event.
+      body on the copy routed in its place would claim the wrong event. A resend of a
+      different body under a held id is refused, not routed (IE-10-002), so an id's
+      evidence has one answer.
     verification: >-
       `test/architecture/test_wire_artifact_immutability.py` parses every example activity as a
       sender delivers it and, for each class reachable in the parsed tree, overwrites the fields
