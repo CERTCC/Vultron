@@ -21,8 +21,9 @@ its own CASE_MANAGER ``Update(EmbargoConsent)`` (EP-05-001).  The owner's
 ``Reject(EmbargoEvent, target=Case)`` is one entry too, the whole ``REJECT``
 step, and changes no consent row (MSM-07-009).  An RSVP
 time-out is the CASE_MANAGER's one ``Update(EmbargoConsent)`` carrying the
-``TIMED_OUT`` row (CM-28-009, CM-28-014).  A replica copies every entry through the one apply function and
-reaches the CASE_MANAGER's register and rows.  Each actor has its own store
+``TIMED_OUT`` row (CM-28-009, CM-28-014).  A replica copies every entry
+through the one apply function and reaches the CASE_MANAGER's register and
+rows.  Each actor has its own store
 (TB-06-007); a replica is handed the CASE_MANAGER's ledger broadcast only.
 """
 
