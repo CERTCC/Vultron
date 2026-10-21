@@ -183,9 +183,12 @@ def _make_lifespan(*, configure_globals: bool = True):
         configure_globals: When ``True`` (the default for the production
             singleton ``app_v2``), the lifespan installs the
             ``HttpDeliveryAdapter`` as the module-level default emitter,
-            configures logging, and starts the background ``OutboxMonitor``.
+            configures logging, starts the background ``OutboxMonitor``, and
+            starts the startup replay of every hosted actor's inbox queue
+            (IE-06-006).
             When ``False`` (used by :func:`create_app` for isolated test apps),
-            these global side-effects are skipped so that multiple apps
+            these global side-effects are skipped, the startup replay
+            included, so that multiple apps
             running in the same process do not contaminate each other's state.
     """
 

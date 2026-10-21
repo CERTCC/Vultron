@@ -59,6 +59,15 @@ _SENDER = "https://example.org/actors/case-actor"
 _CASE = "https://example.org/cases/case-replay-retry"
 
 
+@pytest.fixture(autouse=True)
+def clear_actor_locks():
+    """Drop cached per-actor locks: an asyncio.Lock binds to its first loop,
+    and these tests run several loops."""
+    io._actor_inbox_locks.clear()
+    yield
+    io._actor_inbox_locks.clear()
+
+
 @pytest.fixture
 def dl() -> SqliteDataLayer:
     """The receiver's store, holding the case so a replay is not deferred."""
@@ -581,12 +590,11 @@ def test_an_attempt_interrupted_during_its_settlement_leaves_the_item_queued(
     def _stop(*_args: Any, **_kwargs: Any) -> None:
         raise _ProcessStop()
 
-    monkeypatch.setattr(dl, "inbox_append", _stop)
+    with monkeypatch.context() as m:
+        m.setattr(dl, "inbox_append", _stop)
+        with pytest.raises(_ProcessStop):
+            _run(dl, _dispatcher(_writes_then(dl, RuntimeError("act failed"))))
 
-    with pytest.raises(_ProcessStop):
-        _run(dl, _dispatcher(_writes_then(dl, RuntimeError("act failed"))))
-
-    monkeypatch.undo()
     _assert_untouched(dl, item, 1)
 
 
@@ -687,8 +695,9 @@ def test_a_failing_startup_replay_is_requeued_with_its_count(
 def test_a_startup_replay_that_raises_does_not_stop_the_next_actor(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch, caplog
 ) -> None:
-    """One actor's raise is logged; its item stays queued, an actor with an
-    empty queue is skipped, and the next actor is still replayed."""
+    """One actor's raise is logged, an actor with an empty queue is
+    skipped, and the next actor is still replayed.  (That the raised
+    attempt's item stays queued is the act-time interrupt test's.)"""
     from vultron.adapters.driving.fastapi import (
         inbox_startup_replay as startup,
     )
@@ -697,7 +706,7 @@ def test_a_startup_replay_that_raises_does_not_stop_the_next_actor(
     empty_id = "https://example.org/actors/empty"
     other = SqliteDataLayer("sqlite:///:memory:", actor_id=other_id)
     empty = SqliteDataLayer("sqlite:///:memory:", actor_id=empty_id)
-    item = _queued_item(dl)
+    _queued_item(dl)
     other.inbox_append("https://example.org/activities/other")
     stores = {_RECEIVER: dl, empty_id: empty, other_id: other}
     replayed: list[str] = []
@@ -717,7 +726,6 @@ def test_a_startup_replay_that_raises_does_not_stop_the_next_actor(
         assert asyncio.run(startup.replay_hosted_inbox_queues()) == 2
 
     assert replayed == [_RECEIVER, other_id]
-    assert dl.inbox_list() == [item.id_]
     assert _logged(caplog, _RECEIVER, "stay queued")
 
 

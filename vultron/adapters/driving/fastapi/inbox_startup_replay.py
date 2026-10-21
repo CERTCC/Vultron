@@ -60,17 +60,18 @@ async def replay_hosted_inbox_queues(
     """
     replayed = 0
     for actor_id in actor_hosts.hosted_actor_ids():
-        actor_dl = get_datalayer(actor_id)
-        if not actor_dl.inbox_list():
-            continue
-        replayed += 1
-        logger.info(
-            "Replaying %d queued inbox item(s) for actor_id=%s at startup"
-            " (IE-06-006).",
-            len(actor_dl.inbox_list()),
-            actor_id,
-        )
         try:
+            actor_dl = get_datalayer(actor_id)
+            queued = len(actor_dl.inbox_list())
+            if not queued:
+                continue
+            replayed += 1
+            logger.info(
+                "Replaying %d queued inbox item(s) for actor_id=%s at startup"
+                " (IE-06-006).",
+                queued,
+                actor_id,
+            )
             await replay_inbox_queue(actor_dl, actor_id, None, emitter)
         except Exception:
             # The startup boundary: one actor's failed replay must not stop
