@@ -47,3 +47,10 @@ VULTRON_FAILURE_MISROUTED_EMBARGO_INVITE = (
 VULTRON_FAILURE_EMBARGO_INVITE_WITHOUT_EMBARGO = (
     f"{_VULTRON_NS}/errors/EmbargoInviteWithoutEmbargo"
 )
+
+# ASK-07-010: the receiver understood the activity but failed to process it:
+# the received use case raised, and the act's transaction rolled back.  The
+# fault names no cause; the diagnosis stays in the receiver's log (ASK-07-006).
+VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR = (
+    f"{_VULTRON_NS}/errors/InternalProcessingError"
+)

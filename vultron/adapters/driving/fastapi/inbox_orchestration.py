@@ -33,7 +33,10 @@ import logging
 from typing import Any, cast
 
 from vultron.adapters.driving.fastapi import inbox_port_factories
-from vultron.adapters.driving.fastapi.inbox_handler import dispatch
+from vultron.adapters.driving.fastapi.inbox_handler import (
+    dispatch,
+    emit_processing_fault,
+)
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
     _queue_pending_case_activity,
@@ -378,6 +381,18 @@ class FastAPIDispatchAdapter:
             event=scoped_event,
             dl=self._dl,
             dispatcher=self._dispatcher,
+        )
+
+    def emit_processing_fault(
+        self, event: VultronEvent, failure_class: str
+    ) -> None:
+        """Queue the receiving actor's fault to *event*'s sender (ASK-07-010)."""
+        emit_processing_fault(
+            self._dl,
+            self._actor_id,
+            event.activity_id,
+            event.actor_id,
+            failure_class,
         )
 
 

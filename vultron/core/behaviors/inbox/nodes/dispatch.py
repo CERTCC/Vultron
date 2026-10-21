@@ -27,7 +27,10 @@ from __future__ import annotations
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.inbox.models import InboxOutcomeStatus
+from vultron.core.behaviors.inbox.models import (
+    DispatchAdapter,
+    InboxOutcomeStatus,
+)
 from vultron.core.behaviors.inbox.nodes.pipeline import (
     KEY_CONTEXT_ID,
     KEY_DISPATCH,
@@ -37,6 +40,9 @@ from vultron.core.behaviors.inbox.nodes.pipeline import (
     _InboxNodeWithPorts,
 )
 from vultron.core.models.events import VultronEvent, is_case_bootstrap
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+)
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -60,7 +66,9 @@ class DispatchNode(_InboxNodeWithPorts):
     :class:`BuildOutcomeNode` records ``processed``; ``DEFERRED`` records
     ``deferred`` and ``REFUSED`` records ``rejected`` with the handler's
     ``reason``, both returning FAILURE. A dispatch that returns anything but a
-    ``HandlerResult`` is rejected — no verdict is not a success.
+    ``HandlerResult`` is rejected — no verdict is not a success.  A dispatch
+    that raises is rejected too, and its sender is answered with an
+    internal-error ``Create(ProcessingFault)`` (ASK-07-010).
 
     After a bootstrap the handler accepted (``processed``), triggers replay
     of any activities that were deferred pending this case's local replica.
@@ -110,6 +118,44 @@ class DispatchNode(_InboxNodeWithPorts):
                 "%s: triggered replay for case '%s'", self.name, context_id
             )
 
+    def _answer_with_internal_error_fault(
+        self, dispatch: DispatchAdapter, event: VultronEvent
+    ) -> None:
+        """Answer the sender of a raised dispatch with a fault (ASK-07-010).
+
+        The dispatch has returned by raising, so any transaction the act
+        opened has rolled back and the fault is not undone with it.  The
+        pipeline never retries a raised dispatch, so this attempt is the
+        last and the fault cannot be contradicted by a later success.  The
+        sender is the event's ``actor_id``: an activity that names none is
+        refused at extraction and never reaches dispatch (ASK-07-002).  The
+        fault is a notice, not a recovery; it carries the internal-error
+        class and no diagnostics (ASK-07-006).
+
+        A fault that cannot be queued is logged, never raised: the outcome
+        stays the dispatch's rejection (MV-01-007).
+        """
+        try:
+            dispatch.emit_processing_fault(
+                event, VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR
+            )
+        except Exception:
+            self.logger.exception(
+                "%s: ProcessingFault not queued for activity_id=%s"
+                " actor_id=%s",
+                self.name,
+                event.activity_id,
+                event.actor_id,
+            )
+            return
+        self.logger.info(
+            "%s: queued ProcessingFault/InternalProcessingError to actor_id=%s"
+            " for activity_id=%s",
+            self.name,
+            event.actor_id,
+            event.activity_id,
+        )
+
     def update(self) -> Status:
         try:
             event = self.get_input(KEY_EVENT)
@@ -124,15 +170,15 @@ class DispatchNode(_InboxNodeWithPorts):
             # is the one ERROR record naming the failed act and its sender,
             # with the traceback, so a programming error stays
             # distinguishable from a handler's REFUSED.  The driving adapter
-            # names the receiver when it logs the rejected outcome.  The
-            # sender is sent nothing; an act that kept nothing runs again on
-            # a redelivery (ADR-0151).
+            # names the receiver when it logs the rejected outcome.  An act
+            # that kept nothing runs again on a redelivery (ADR-0151).
             self.logger.exception(
                 "%s: dispatch raised for activity_id=%s actor_id=%s",
                 self.name,
                 getattr(event, "activity_id", None),
                 getattr(event, "actor_id", None),
             )
+            self._answer_with_internal_error_fault(dispatch, event)
             return self._reject(f"Dispatch raised exception: {exc}")
 
         if not isinstance(result, HandlerResult):

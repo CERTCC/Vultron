@@ -10,15 +10,16 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""A failed received act runs again when its activity is posted again (#4986).
+"""A failed received act is answered with a fault and runs again (#4981).
 
 A received embargo act commits its own entry with its consequences, or none
 of them (ADR-0151).  When the act fails, only intake's archive of the
-activity (``ReceivedActivityRecord``) is kept.  Through the FastAPI inbox the
-archive makes the ingress adapter treat the next post of the same body as a
-redelivery (IE-10-001), so these tests check that the rebuilt activity still
-commits as a first delivery would, and that the redelivery of a committed act
-is still a repeat.
+activity (``ReceivedActivityRecord``) is kept, and the inbox answers the
+sender with an internal-error ``Create(ProcessingFault)`` (ASK-07-010).
+Through the FastAPI inbox the archive makes the ingress adapter treat the
+next post of the same body as a redelivery (IE-10-001), so these tests check
+that the rebuilt activity still commits as a first delivery would, and that
+the redelivery of a committed act is still a repeat.
 
 The CASE_MANAGER is served by a real app; the replica is a second store fed
 the bodies the CASE_MANAGER's outbox delivers (TB-06-007).
@@ -48,6 +49,9 @@ from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+)
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -60,6 +64,8 @@ pytestmark = pytest.mark.integration
 
 _INBOX = "/api/v2/actors/coord/inbox/"
 _PROPOSAL_ENTRY = "invite_to_embargo_on_case"
+# The members every serialized object carries; anything else is fault content.
+_AS2_OBJECT_ENVELOPE = {"@context", "id", "type", "published", "updated"}
 
 
 class _RecordingEmitter:
@@ -150,6 +156,38 @@ def _assert_routed_as_archived_redelivery(
     ), "the post was not routed as a redelivery"
 
 
+def _faults(emitter: _RecordingEmitter) -> list[dict[str, Any]]:
+    """Every delivered ``Create(ProcessingFault)``."""
+    return [
+        body
+        for body, _to in emitter.sent
+        if body["type"] == "Create"
+        and isinstance(body.get("object"), dict)
+        and body["object"].get("type") == "ProcessingFault"
+    ]
+
+
+def _assert_answered_with_an_internal_error_fault(
+    emitter: _RecordingEmitter, failed_id: str
+) -> dict[str, Any]:
+    """The only delivery is the fault to the sender (ASK-07-010)."""
+    assert [to for _body, to in emitter.sent] == [[PROPOSER]]
+    (fault,) = _faults(emitter)
+    assert fault["actor"] == MANAGER
+    # The class and the failed activity, and nothing else: no diagnostics
+    # (ASK-07-006).
+    assert fault["object"]["failureClass"] == (
+        VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR
+    )
+    assert fault["object"]["inReplyTo"] == failed_id
+    assert set(fault["object"]) - _AS2_OBJECT_ENVELOPE == {
+        "failureClass",
+        "inReplyTo",
+    }
+    assert "commit failed" not in json.dumps(fault), "the cause is not sent"
+    return fault
+
+
 def _fail_the_relay(client: TestClient, body: dict[str, Any]) -> None:
     """Post *body* while the second relayed Invite's commit fails."""
     with pytest.MonkeyPatch.context() as mp:
@@ -171,10 +209,13 @@ def _fail_the_relay(client: TestClient, body: dict[str, Any]) -> None:
 @pytest.mark.spec("IE-10-001")
 @pytest.mark.spec("CM-23-016")
 @pytest.mark.spec("HP-06-003")
+@pytest.mark.spec("ASK-07-010")
+@pytest.mark.spec("ASK-07-006")
 def test_a_failed_proposal_is_applied_when_posted_again(
     served_manager, caplog: pytest.LogCaptureFixture
 ):
-    """The first post fails and keeps nothing; the second applies the act."""
+    """The first two posts fail, keep nothing and are answered with one
+    fault; the third applies the act."""
     client, net, emitter = served_manager
     body, revision_id = _proposal_body(net)
     manager_dl = net.stores[MANAGER]
@@ -194,8 +235,11 @@ def test_a_failed_proposal_is_applied_when_posted_again(
     participants = len(net.case(MANAGER).actor_participant_index)
     assert _held_rows(net, MANAGER, revision_id) == [None] * participants
     assert net.case(MANAGER).em_state == EM.ACTIVE
-    # The sender gets no notice, and nobody else gets anything (ADR-0151).
-    assert emitter.sent == []
+    # The sender is answered with the internal-error fault, after the
+    # rollback, so the fault is kept; nobody else gets anything.  Like every
+    # fault the inbox sends, it is not ledgered: the entries above are
+    # unchanged (ASK-07-008 is Concern #4800).
+    fault = _assert_answered_with_an_internal_error_fault(emitter, body["id"])
     errors = [
         r
         for r in caplog.records
@@ -215,11 +259,22 @@ def test_a_failed_proposal_is_applied_when_posted_again(
         for r in caplog.records
     ), "the failed act's outcome is rejected"
 
+    # A second failing post of the same body builds no second fault: the
+    # fault id derives from the failed activity and the class, so the sealed
+    # fault is queued again under its own id at most (ID-04-004).
+    _fail_the_relay(client, body)
+    assert {f["id"] for f in _faults(emitter)} == {fault["id"]}
+    assert [
+        e.id_ for e in ledger_entries(manager_dl, net.case_id)
+    ] == entries_before
+    emitter.sent.clear()
+
     caplog.clear()
     with caplog.at_level(logging.INFO):
         _post(client, body)
 
     _assert_routed_as_archived_redelivery(caplog, body["id"])
+    assert _faults(emitter) == [], "the applied act is answered by no fault"
     # The redelivery ran as a first delivery: the proposal's entry and one
     # relayed Invite per other participant are committed.
     new_entries = [
