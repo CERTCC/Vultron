@@ -73,9 +73,7 @@ from vultron.core.models.protocol_pair import (
 )
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_SEMANTIC_TYPE,
-    HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
     INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
-    INVITE_EXPIRED_SEMANTIC_TYPE,
 )
 
 _EMBARGO = {"type": "EmbargoEvent", "id": "urn:uuid:embargo"}
@@ -107,8 +105,6 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.REMOVE_NOTE_FROM_CASE.value,
         MS.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
         EMBARGO_REINVITE_SEMANTIC_TYPE,
-        HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
-        INVITE_EXPIRED_SEMANTIC_TYPE,
         INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
         _ABANDONED,
     )
@@ -252,7 +248,7 @@ def test_the_derivation_finds_both_commit_paths():
     assert {
         "create_case",
         "case_fully_closed",
-        INVITE_EXPIRED_SEMANTIC_TYPE,
+        OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
     } <= explicit_semantic_types()
     # A replay slot's own constant is compared, never committed, so defining
     # it must not make its type look committed: Remove(Note) is committed

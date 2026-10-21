@@ -38,9 +38,7 @@ from vultron.core.models.participant_semantic_types import (
 )
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_SEMANTIC_TYPE,
-    HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
     INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
-    INVITE_EXPIRED_SEMANTIC_TYPE,
 )
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -453,18 +451,6 @@ class IsEmbargoReinviteEventNode(_SingleSemanticTypeNode):
     matched_semantic_type = EMBARGO_REINVITE_SEMANTIC_TYPE
 
 
-class IsInviteExpiryEventNode(_SingleSemanticTypeNode):
-    """Precondition: this entry is the CASE_MANAGER's expiry of an embargo Invite.
-
-    Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_SEMANTIC_TYPE`.
-    Used in the ``InviteExpiryEffects`` slot of ``AnnounceLogEntryReceivedBT``.
-
-    Per CM-28-009, CM-28-014, ADR-0118, BTND-08-001, SYNC-12-001.
-    """
-
-    matched_semantic_type = INVITE_EXPIRED_SEMANTIC_TYPE
-
-
 class IsInviteExpiryNoopEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is the CASE_MANAGER's no-op expiry acknowledgement.
 
@@ -478,18 +464,3 @@ class IsInviteExpiryNoopEventNode(_SingleSemanticTypeNode):
     """
 
     matched_semantic_type = INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
-
-
-class IsHonourLateAcceptEventNode(_SingleSemanticTypeNode):
-    """Precondition: this entry is the CASE_MANAGER's honour-late-accept decision.
-
-    Matches :data:`~vultron.core.models.rsvp_deadline.HONOUR_LATE_ACCEPT_SEMANTIC_TYPE`.
-    Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives and the
-    embargo is still active and matching (EMB-17-001, ADR-0118).  Used in
-    the ``InviteHonourLateAcceptEffects`` slot of
-    ``AnnounceLogEntryReceivedBT``.
-
-    Per EMB-17-001, ADR-0118, BTND-08-001, SYNC-12-001.
-    """
-
-    matched_semantic_type = HONOUR_LATE_ACCEPT_SEMANTIC_TYPE

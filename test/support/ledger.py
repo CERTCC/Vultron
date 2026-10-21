@@ -28,7 +28,14 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent_semantic_types import (
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
+)
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.predicates.addressing import snapshot_actor_id
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 
 
 def committed_semantic_types(dl: DataLayer, case_id: str) -> list[str]:
@@ -48,6 +55,41 @@ def ledger_entries(dl: DataLayer, case_id: str) -> list[CaseLedgerEntry]:
         if isinstance(entry, CaseLedgerEntry) and entry.case_id == case_id
     ]
     return sorted(entries, key=lambda entry: entry.log_index)
+
+
+def is_consent_row_update(
+    entry: CaseLedgerEntry,
+    state: EmbargoConsentState,
+    participant_id: str | None = None,
+) -> bool:
+    """Whether *entry* is the CASE_MANAGER's ``Update(EmbargoConsent)`` to *state*.
+
+    An invitation expiry is the ``TIMED_OUT`` row's ``Update`` and an
+    honoured late Accept the ``AGREED`` row's (CM-28-009, EMB-17-002,
+    ADR-0140).  *participant_id*, when given, must be the row's participant.
+    """
+    if entry.semantic_type != UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE:
+        return False
+    row = entry.payload_snapshot.get("object")
+    if not isinstance(row, dict) or row.get("state") != state.value:
+        return False
+    return participant_id is None or (
+        snapshot_actor_id(row.get("attributedTo")) == participant_id
+    )
+
+
+def consent_row_updates(
+    dl: DataLayer,
+    case_id: str,
+    state: EmbargoConsentState,
+    participant_id: str | None = None,
+) -> list[CaseLedgerEntry]:
+    """*case_id*'s ``Update(EmbargoConsent)`` entries to *state*, in order."""
+    return [
+        entry
+        for entry in ledger_entries(dl, case_id)
+        if is_consent_row_update(entry, state, participant_id)
+    ]
 
 
 def commit_case_fully_closed(

@@ -277,7 +277,7 @@ def create_close_case_received_tree(
 
     The owner arm's ledger order is therefore: ``close_case``, the Case
     Owner's status entries, the CASE_MANAGER's own status entries, one
-    expired-invitation entry per pending embargo Invite, then
+    ``TIMED_OUT`` ``Update(EmbargoConsent)`` per pending embargo Invite, then
     ``case_fully_closed`` (CM-23-002, CM-23-014).  Each advance shares a
     ``closure_steps`` list with the record node after it, so the record
     commits exactly the statuses that advance wrote, in order.
