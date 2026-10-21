@@ -12,7 +12,7 @@ page_type: reference
 {% include-markdown "../includes/not_normative.md" %}
 
 This page describes the conventions the documentation uses to mark different kinds of information.
-It covers the call-out boxes that appear throughout the site, the badge that says what kind of page you are reading, and the banners that say whether a page states requirements.
+It covers the call-out boxes that appear throughout the site, the badge that names each page's kind, and the banners that say whether a page states requirements.
 The mathematical and diagram notation used in the formal treatment of the protocol is on the [Notation](notation.md) page.
 
 ## Call-out boxes
@@ -76,15 +76,15 @@ An admonition used on some page but not listed here, or an inconsistency with th
 
 A badge above a page's title says which of four kinds of page it is.
 
-| Badge | What the page does |
+| Badge | What the page holds |
 |---|---|
-| Tutorial | Walks you through a guided lesson, such as running a demo |
-| How-to guide | Gives the steps for one task you already know you need to do |
-| Explanation | Says why the protocol works the way it does |
-| Reference | States facts to look up: messages, fields, states, terms |
+| Tutorial | A guided lesson, such as running a demo |
+| How-to guide | The steps for one task the reader already knows they need to do |
+| Explanation | Why the protocol and the Coordinated Vulnerability Disclosure (CVD) process work the way they do |
+| Reference | Facts to look up: messages, fields, states, terms |
 
 Pages that only point to other pages, such as the home page and the start pages, carry no badge.
-The badge says what kind of page you are reading, not whether it states requirements; the banners below say that.
+The badge names the kind of page, not whether it states requirements; the banners below say that.
 
 ## Normative and non-normative pages
 
