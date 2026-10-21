@@ -84,7 +84,6 @@ def accept_invite_to_embargo_tree(
     *,
     sender_rule: SenderRule,
     now: datetime,
-    published: str,
     accept_id: str | None = None,
     expiry_out: dict[str, object] | None = None,
     actor_config: ActorConfig | None = None,
@@ -144,8 +143,6 @@ def accept_invite_to_embargo_tree(
             composes the sender guard from it (HP-01-008).
         now: The CASE_MANAGER's clock reading the RSVP deadline is compared
             against.
-        published: The Accept's claimed ``published`` time, carried as
-            received on the expiry entry (CLP-15-003); it decides nothing.
         accept_id: The Accept's own id; a re-invite's id derives from it,
             so a redelivery rebuilds the same Invite (OX-06-002).
         expiry_out: Receives the expiry decision's ``IS_EXPIRED_KEY`` and
@@ -171,7 +168,6 @@ def accept_invite_to_embargo_tree(
                 invitee_id=accepting_actor_id,
                 invite_id=invite_id,
                 embargo_id=embargo_id,
-                published=published,
                 now=now,
                 result_out=expiry_out,
             ),
@@ -201,7 +197,6 @@ def accept_invite_to_embargo_tree(
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
                 invite_id=invite_id,
-                published=published,
                 answers=accept_id,
                 result_out=expiry_out,
                 actor_config=actor_config,

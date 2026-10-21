@@ -669,6 +669,24 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """
         ...
 
+    def record_ownership_offer_expired(
+        self,
+        offer_id: str,
+        case_id: str,
+        actor: str,
+        published: datetime,
+    ) -> tuple[str, str]:
+        """``Undo(Offer(VulnerabilityCase))``: the CASE_MANAGER withdraws an expired Offer.
+
+        Recorded as ``offer_case_ownership_transfer_expired`` when the
+        ownership-transfer Offer *offer_id* passed its ``end_time``
+        unanswered (CM-21-017).  The Offer is carried inline, with the
+        deadline it passed; *published* is the CASE_MANAGER's clock reading.
+        The id is derived from *actor* and the Offer, so one expiry is one
+        entry.
+        """
+        ...
+
     def record_case_announced(
         self,
         case_id: str,

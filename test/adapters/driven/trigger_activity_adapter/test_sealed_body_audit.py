@@ -34,6 +34,7 @@ a new outbound activity cannot be added without being audited here.
 import inspect
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -379,6 +380,14 @@ RECIPES: dict[str, Recipe] = {
     ),
     "record_case_owner_updated": lambda w: w.adapter.record_case_owner_updated(
         case=w.case, actor=_CASE_ACTOR, cause_id=_CAUSE_ID
+    ),
+    "record_ownership_offer_expired": lambda w: (
+        w.adapter.record_ownership_offer_expired(
+            offer_id=w.ownership_offer_id(),
+            case_id=w.case_id,
+            actor=_CASE_ACTOR,
+            published=datetime(2026, 1, 1, tzinfo=UTC),
+        )
     ),
     "record_case_announced": lambda w: w.adapter.record_case_announced(
         case_id=w.case_id,

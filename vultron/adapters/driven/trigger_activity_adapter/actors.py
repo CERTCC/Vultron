@@ -29,6 +29,7 @@ from vultron.adapters.received_archive import (
     read_received_as_received,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -64,6 +65,7 @@ from vultron.wire.as2.factories.case import (
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
     undo_case_ownership_transfer_activity,
+    withdraw_expired_case_ownership_offer_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -81,6 +83,7 @@ from ._base import (
     _case_for_wire,
     _create_and_seal,
     _seal,
+    _seal_record,
     _to_wire,
 )
 
@@ -854,6 +857,36 @@ class _ActorsMixin:
         return _create_and_seal(
             self._dl, activity, "withdraw_case_ownership_transfer"
         )
+
+    def record_ownership_offer_expired(
+        self,
+        offer_id: str,
+        case_id: str,
+        actor: str,
+        published: datetime,
+    ) -> tuple[str, str]:
+        """Build and seal the CASE_MANAGER's ``Undo(Offer(VulnerabilityCase))``.
+
+        The CASE_MANAGER withdraws the ownership-transfer Offer it made
+        (ADR-0148) once it passed its ``end_time`` unanswered (CM-21-017).
+        The Offer is read as this actor holds it, under its own id, and
+        carried inline, its ``endTime`` the deadline that passed.  The ledger
+        fan-out is its delivery, so it is sealed as a record, not queued (see
+        ``_seal_record``).  Its id derives from the CASE_MANAGER and the
+        Offer, so a re-run hands back the body the first run sealed
+        (ID-04-004).
+        """
+        offer = read_held_as_received(
+            self._dl, offer_id, "Offer(VulnerabilityCase)"
+        )
+        activity = withdraw_expired_case_ownership_offer_activity(
+            offer=cast(as_Offer, offer),
+            actor=actor,
+            context=case_id,
+            published=published,
+            id_=derived_activity_id("ownership-offer-expired", actor, offer_id),
+        )
+        return _seal_record(self._dl, activity)
 
     def _ownership_answer(
         self,

@@ -210,12 +210,6 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
             "vultron.core.behaviors.case.nodes.lifecycle",
             "CommitCaseLedgerEntryNode",
         ),
-        # Mints the CASE_MANAGER's ownership-transfer Offer expiry entry and
-        # fans it out (CM-21-017); sends nothing else.
-        (
-            "vultron.core.behaviors.case.nodes.ownership_offer_expiry",
-            "ExpireOverdueOwnershipOfferNode",
-        ),
         (
             "vultron.core.behaviors.case.nodes.proposal_ledger",
             "CommitNativeLedgerEntriesNode",

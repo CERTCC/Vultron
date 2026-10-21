@@ -1071,8 +1071,9 @@ groups:
       CASE_MANAGER-authored ledger entry is written per CM-28-005, and that
       detect_and_apply_expiry() applies it only to the named invitation's row, and only from
       INVITED. A test asserts an active case owner that does not hold CVDRole.CASE_MANAGER is
-      among ledger_entry_recipients for both the expiry entry and a Reject(Invite(EmbargoEvent))
-      entry, and that neither commit emits any activity other than the Announce fan-out.
+      among ledger_entry_recipients for both the expiry's TIMED_OUT
+      Update(EmbargoConsent) and a Reject(Invite(EmbargoEvent)) entry, and that
+      neither commit emits any activity other than the Announce fan-out.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-002

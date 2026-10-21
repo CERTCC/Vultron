@@ -48,14 +48,13 @@ from vultron.core.behaviors.embargo.nodes import (
     EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.sync import commit_tree
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
     CONSENT_ROW_VERBS,
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
-from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_SEMANTIC_TYPE
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
@@ -87,7 +86,6 @@ _S = EmbargoConsentState
 _EMBARGO_ENTRY_TYPES = {
     EMBARGO_ACTIVATION_SEMANTIC_TYPE,
     EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
-    INVITE_EXPIRED_SEMANTIC_TYPE,
     *CONSENT_ROW_VERBS,
 }
 
@@ -545,7 +543,6 @@ def _expire(net: LedgerNetwork, embargo_id: str):
             invitee_id=BYSTANDER,
             invite_id=None,
             embargo_id=embargo_id,
-            published=now_utc().isoformat(),
         ),
         actor_id=MANAGER,
     )
@@ -555,14 +552,14 @@ class TestInviteTimeOut:
     @pytest.mark.spec("CM-28-009")
     @pytest.mark.spec("CM-28-014")
     @pytest.mark.spec("CLP-07-013")
-    def test_the_expiry_then_the_timed_out_row(self):
+    def test_the_expiry_is_the_timed_out_row(self):
+        """One CASE_MANAGER act: its Update carrying the TIMED_OUT row."""
         net, revision_id = _invited_bystander("ac-timeout")
         since = _count(net)
 
         assert _expire(net, revision_id).status.name == "SUCCESS"
 
         assert _embargo_entries(net, since) == [
-            INVITE_EXPIRED_SEMANTIC_TYPE,
             UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
         ]
         assert _state(net, MANAGER, BYSTANDER, revision_id) is (_S.TIMED_OUT)
@@ -577,18 +574,14 @@ class TestInviteTimeOut:
         assert _state(net, BYSTANDER, BYSTANDER, revision_id) is (_S.TIMED_OUT)
 
     @pytest.mark.spec("CLP-07-013")
-    @pytest.mark.parametrize(
-        "failing",
-        [INVITE_EXPIRED_SEMANTIC_TYPE, UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE],
-    )
-    def test_a_failed_commit_leaves_the_row_invited(
-        self, monkeypatch, failing
-    ):
-        net, revision_id = _invited_bystander(f"ac-timeout-fail-{failing}")
+    def test_a_failed_commit_leaves_the_row_invited(self, monkeypatch):
+        net, revision_id = _invited_bystander("ac-timeout-fail")
         failed = fail_commits(
             monkeypatch,
             commit_tree,
-            when=lambda kw: kw["semantic_type"] == failing,
+            when=lambda kw: (
+                kw["semantic_type"] == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
+            ),
         )
 
         assert _expire(net, revision_id).status.name != "SUCCESS"

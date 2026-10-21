@@ -17,13 +17,12 @@
 
 Provides:
 
-- :func:`ownership_offer_expiry_snapshot` — the expiry entry's
-  ``payloadSnapshot``, a CASE_MANAGER-authored ``Expire(Offer)``.
 - :class:`OfferParty` and :class:`ExpiryPrompt` — the reply that prompts the
   check, and which party to the Offer must have sent it.
 - :class:`ExpireOverdueOwnershipOfferNode` — finds the case's open
-  ownership-transfer Offer and, when its ``end_time`` has passed, commits the
-  expiry entry and broadcasts it.
+  ownership-transfer Offer and, when its ``end_time`` has passed, withdraws
+  it: the CASE_MANAGER's own factory-built ``Undo(Offer)``, committed from its
+  sealed blob and broadcast.
 
 The node is a clock decision (CLP-10-025): the ownership-transfer received
 trees (``ownership_transfer_tree``) pass it to
@@ -35,29 +34,29 @@ expiry, and a replica learns it from the entry, never by reading the clock
 (CM-21-017).  When the Offer has passed its ``end_time``, the expiry entry
 closes it before the received activity is judged (CM-21-014), and is
 ledgered whether that activity is then admitted (a new Offer) or refused (a
-late reply, CM-21-016).  The entry changes no replica state of its own; it
-closes the Offer because every "is it open?" reader includes its
-``semantic_type`` (``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``).
+late reply, CM-21-016).  The expiry is the occasion; the act is the
+CASE_MANAGER's ``Undo`` of the Offer, carrying the Offer inline with the
+``endTime`` it passed.  The CASE_MANAGER as its ``actor`` is what tells it
+from the Case Owner's own withdrawal (CM-21-015), and it is recorded as
+``offer_case_ownership_transfer_expired`` (ADR-0140).  The entry changes no
+replica state of its own; it closes the Offer because every "is it open?"
+reader includes its ``semantic_type``
+(``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``).
 """
 
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, cast
+from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.behaviors.sync.commit_tree import (
-    create_commit_log_entry_tree,
-)
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
 )
-from vultron.core.models.rsvp_deadline import EXPIRE_SNAPSHOT_TYPE
-from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.ownership_offer import (
     RecordedOwnershipOffer,
     open_ownership_offer,
@@ -65,7 +64,7 @@ from vultron.core.participants.ownership_offer import (
 )
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.addressing import same_actor_id
-from vultron.errors import VultronBTInternalError, VultronNotFoundError
+from vultron.errors import VultronNotFoundError
 
 
 class OfferParty(Enum):
@@ -98,45 +97,14 @@ class ExpiryPrompt:
     party: OfferParty
 
 
-def ownership_offer_expiry_snapshot(
-    *,
-    case_id: str,
-    offer_id: str,
-    manager_id: str,
-    end_time: datetime,
-    published: datetime,
-) -> dict[str, Any]:
-    """The expiry entry's snapshot: the CASE_MANAGER's ``Expire(Offer)``.
-
-    Attributed to the CASE_MANAGER, whose decision it is: nobody sent
-    anything, the deadline passed by its clock (CLP-07-013).  *published* is
-    that clock's reading, so the CASE_MANAGER's claimed times stay in one
-    stream (CLP-15-003).  The Offer is named by id with the deadline it
-    passed and the case it was for, every nested object inline (CLP-07-006).
-
-    The type is the synthetic ``Expire`` the embargo Invite expiry also
-    uses (CM-28-009); its object type tells the two apart.
-    """
-    return {
-        "type": EXPIRE_SNAPSHOT_TYPE,
-        "actor": manager_id,
-        "context": case_id,
-        "published": published.isoformat(),
-        "object": {
-            "type": "Offer",
-            "id": offer_id,
-            wire_key("end_time"): end_time.isoformat(),
-            "object": {"type": "VulnerabilityCase", "id": case_id},
-        },
-    }
-
-
 class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
     """Ledger the expiry of the case's open ownership-transfer Offer, if due.
 
     Reads the case's open Offer from the ledger
     (:func:`~vultron.core.participants.ownership_offer.open_ownership_offer`,
-    CM-21-014).  When its ``end_time`` is at or before *now*, it commits one
+    CM-21-014).  When its ``end_time`` is at or before *now*, it builds the
+    CASE_MANAGER's ``Undo`` of that Offer through the trigger-activity port,
+    commits it from its sealed blob as one
     ``offer_case_ownership_transfer_expired`` entry and broadcasts
     ``Announce(CaseLedgerEntry)`` to the case's participants (CM-21-017).
     That entry closes the Offer, so the activity the CASE_MANAGER processes
@@ -158,11 +126,10 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
 
     SUCCESS when there is nothing to expire (no open Offer, no deadline, one
     not yet passed, or a reply that does not prompt it) and when the expiry
-    is committed.  The commit runs as
-    a nested tree, as the owner-close settle step's does, because which Offer
-    expires is known only when the node runs.  A commit the nested tree
-    refuses is FAILURE with its reason; an internal error is raised
-    (ADR-0095).
+    is committed.  The commit runs as a nested tree, as the owner-close
+    settle step's does, because which Offer expires is known only when the
+    node runs.  A commit the ledger refuses is FAILURE with its reason; an
+    internal error is raised (ADR-0095).
 
     Sits only in a received tree's clock-decision stage, behind the
     CASE_MANAGER gate the factory places around it (BT-17-001).
@@ -259,32 +226,27 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
         self, offer: RecordedOwnershipOffer, now: datetime
     ) -> Status:
         assert self.actor_id is not None and offer.end_time is not None
-        tree = create_commit_log_entry_tree(
-            case_id=self._case_id,
-            object_id=offer.offer_id,
-            semantic_type=OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
-            payload_snapshot=ownership_offer_expiry_snapshot(
-                case_id=self._case_id,
+        activity_id, blob = (
+            self._require_trigger_activity_port().record_ownership_offer_expired(
                 offer_id=offer.offer_id,
-                manager_id=self.actor_id,
-                end_time=offer.end_time,
+                case_id=self._case_id,
+                actor=self.actor_id,
                 published=now,
-            ),
-        )
-        result = BTBridge(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer)
-        ).execute_with_setup(tree=tree, actor_id=self.actor_id)
-        if result.internal_error:
-            raise VultronBTInternalError(
-                f"{self.name}: expiry commit for ownership-transfer Offer"
-                f" '{offer.offer_id}' on case '{self._case_id}' failed:"
-                f" {result.feedback_message}"
             )
-        if result.status != Status.SUCCESS:
+        )
+        try:
+            commit_emitted_activity(
+                datalayer=cast(CaseOutboxPersistence, self.datalayer),
+                actor_id=self.actor_id,
+                case_id=self._case_id,
+                activity_id=activity_id,
+                activity_blob=blob,
+                semantic_type=OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
+            )
+        except RuntimeError as exc:
             self.feedback_message = (
                 f"could not ledger the expiry of ownership-transfer Offer"
-                f" '{offer.offer_id}' on case '{self._case_id}':"
-                f" {result.feedback_message}"
+                f" '{offer.offer_id}' on case '{self._case_id}': {exc}"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -292,8 +254,8 @@ class ExpireOverdueOwnershipOfferNode(DataLayerActionWithPorts):
         self.feedback_message = (
             f"ownership-transfer Offer '{offer.offer_id}' to"
             f" '{offer.transferee_id}' on case '{self._case_id}' passed its"
-            f" end_time {offer.end_time.isoformat()} unanswered; expiry"
-            " ledgered and broadcast (CM-21-017)"
+            f" end_time {offer.end_time.isoformat()} unanswered; withdrawn by"
+            " the CASE_MANAGER's Undo, ledgered and broadcast (CM-21-017)"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
@@ -303,5 +265,4 @@ __all__ = [
     "ExpireOverdueOwnershipOfferNode",
     "ExpiryPrompt",
     "OfferParty",
-    "ownership_offer_expiry_snapshot",
 ]

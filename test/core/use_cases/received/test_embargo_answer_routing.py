@@ -28,6 +28,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.embargo_register import terminate
+from test.support.ledger import consent_row_updates
 from test.support.received import received_event
 from test.support.refusal_notice import assert_no_refusal_notice
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -50,7 +51,6 @@ from vultron.core.models.embargo_termination import (
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_SEMANTIC_TYPE,
     INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
-    INVITE_EXPIRED_SEMANTIC_TYPE,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -363,8 +363,12 @@ def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
 
     # The accepted embargo is a pending revision, not the current one, so the
     # manager also re-invites (EMB-17-003) and the replica ends re-invited; the
-    # expiry it replayed on the way is the entry in its ledger.
-    assert _semantic_types(net, OWNER).count(INVITE_EXPIRED_SEMANTIC_TYPE) == 1
+    # expiry it replayed on the way, the CASE_MANAGER's TIMED_OUT row, is the
+    # entry in its ledger.
+    expiries = consent_row_updates(
+        net.stores[OWNER], net.case_id, EmbargoConsentState.TIMED_OUT
+    )
+    assert len(expiries) == 1
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
     # The expired row is the revision's; the re-invite names the embargo in
     # force, so its INVITED row is a different one.
@@ -675,7 +679,10 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
     # nowhere, and the no-op entry made no change.
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
     assert replayed.consent_for(revision_id) == EmbargoConsentState.INVITED
-    assert INVITE_EXPIRED_SEMANTIC_TYPE not in _semantic_types(net, MANAGER)
+    assert (
+        consent_row_updates(dl_mgr, net.case_id, EmbargoConsentState.TIMED_OUT)
+        == []
+    )
     # The replica's ledger contains the no-op entry, proving the replay slot
     # fired rather than silently skipping it (SYNC-12-001, RSH-08-004).
     noop_entries = [

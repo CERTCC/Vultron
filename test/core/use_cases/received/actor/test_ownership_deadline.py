@@ -237,10 +237,10 @@ class TestLazyExpiry:
         assert trigger_activity.offer_case_ownership_transfer.call_count == 2
 
     @pytest.mark.spec("CM-21-017")
-    def test_expiry_entry_is_the_case_managers_expire_of_the_offer(
+    def test_expiry_entry_is_the_case_managers_undo_of_the_offer(
         self, make_payload
     ):
-        """Distinct from the Reject entry: the CASE_MANAGER's Expire(Offer)."""
+        """Distinct from the Reject entry: the CASE_MANAGER's Undo(Offer)."""
         case_id = "https://example.org/cases/case_dl_snapshot"
         dl, _, _, offer = _expired_offer(make_payload, case_id)
 
@@ -248,8 +248,8 @@ class TestLazyExpiry:
 
         (entry,) = _expiry_entries(dl)
         snapshot = entry.payload_snapshot
-        assert entry.log_object_id == offer.id_
-        assert snapshot["type"] == "Expire"
+        assert entry.log_object_id == snapshot["id"]
+        assert snapshot["type"] == "Undo"
         assert snapshot["actor"] == _CASE_ACTOR_ID
         assert snapshot["context"] == case_id
         assert snapshot["object"]["type"] == "Offer"
@@ -517,14 +517,13 @@ def test_a_replica_admits_the_expiry_entry_the_case_manager_commits(
         _CASE_AUTHORED_SIGNATURES,
         _validate_canonical_entry,
     )
-    from vultron.core.models.rsvp_deadline import EXPIRE_SNAPSHOT_TYPE
 
     case_id = "https://example.org/cases/case_dl_replica_admits"
     dl, _, _, offer = _expired_offer(make_payload, case_id)
     _accept(dl, make_payload, offer)
     (entry,) = _expiry_entries(dl)
 
-    assert (EXPIRE_SNAPSHOT_TYPE, "Offer") in _CASE_AUTHORED_SIGNATURES
+    assert ("Undo", "Offer") in _CASE_AUTHORED_SIGNATURES
     _validate_canonical_entry(
         case_id=case_id,
         payload_snapshot=entry.payload_snapshot,

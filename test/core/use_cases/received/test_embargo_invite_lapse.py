@@ -31,7 +31,12 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
-from test.support.ledger import committed_semantic_types, fail_commits
+from test.support.ledger import (
+    committed_semantic_types,
+    consent_row_updates,
+    fail_commits,
+    is_consent_row_update,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -45,7 +50,7 @@ from vultron.core.behaviors.embargo.expiry_tree import (
     create_commit_and_record_expiry_tree,
 )
 from vultron.core.behaviors.sync import commit_tree
-from vultron.core.models._helpers import days_from_now_utc, now_utc
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -54,9 +59,7 @@ from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.rsvp_deadline import (
-    HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
     INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
-    INVITE_EXPIRED_SEMANTIC_TYPE,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
@@ -1706,10 +1709,10 @@ class TestAssessAndRecordInviteExpiry:
 
     @pytest.mark.spec("CLP-10-006", "BT-06-006", "CM-28-009", "CLP-07-013")
     def test_the_expiry_commits_then_times_the_row_out(self):
-        """The commit node moves INVITED → TIMED_OUT once both entries commit.
+        """The commit node moves INVITED → TIMED_OUT once its entry commits.
 
-        The expired-invitation entry, then the CASE_MANAGER's
-        ``Update(EmbargoConsent)`` carrying the row (ADR-0124).
+        The CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the row is the
+        expiry's one entry (CM-28-009, ADR-0124, ADR-0140).
         """
         dl = _make_dl()
         case_id = "https://example.org/cases/record1"
@@ -1728,14 +1731,16 @@ class TestAssessAndRecordInviteExpiry:
                 invitee_id=_INVITEE,
                 invite_id=f"{case_id}/invites/i1",
                 embargo_id=embargo_id,
-                published=now_utc().isoformat(),
             ),
         )
         assert result.status is py_trees.common.Status.SUCCESS
-        assert committed_semantic_types(dl, case_id)[-2:] == [
-            INVITE_EXPIRED_SEMANTIC_TYPE,
-            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
-        ]
+        assert committed_semantic_types(dl, case_id)[-1] == (
+            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
+        )
+        (expiry,) = consent_row_updates(
+            dl, case_id, EmbargoConsentState.TIMED_OUT, _INVITEE
+        )
+        assert expiry.payload_snapshot["actor"] == dl.actor_id
         assert _invitee_consent(dl, case_id, embargo_id) is (
             EmbargoConsentState.TIMED_OUT
         )
@@ -1766,7 +1771,7 @@ class TestAssessAndRecordInviteExpiry:
             monkeypatch,
             commit_tree,
             when=lambda kw: (
-                kw["semantic_type"] == INVITE_EXPIRED_SEMANTIC_TYPE
+                kw["semantic_type"] == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
             ),
         )
         result_out2: dict = {}
@@ -1775,7 +1780,6 @@ class TestAssessAndRecordInviteExpiry:
             invitee_id=_INVITEE,
             invite_id=f"{case_id}/invites/i1",
             embargo_id=embargo_id,
-            published="2026-01-01T00:00:00Z",
             now=_NOW,
             result_out=result_out2,
         )
@@ -1830,7 +1834,6 @@ class TestAssessAndRecordInviteExpiry:
                 invitee_id=_INVITEE,
                 invite_id=f"{case_id}/invites/i1",
                 embargo_id=embargo_id,
-                published="2026-01-01T00:00:00Z",
                 now=_NOW,
                 result_out={},
             ),
@@ -1872,7 +1875,6 @@ class TestAssessAndRecordInviteExpiry:
                 invitee_id=_INVITEE,
                 invite_id=f"{case_id}/invites/i1",
                 embargo_id=embargo_id,
-                published=now_utc().isoformat(),
             ),
         )
 
@@ -1884,7 +1886,7 @@ class TestAssessAndRecordInviteExpiry:
 
 
 class TestHonourLateAcceptCommit:
-    """The honour tree commits its entry and the AGREED row, then writes it."""
+    """The honour tree commits the AGREED row's Update, then writes it."""
 
     @staticmethod
     def _honour(dl: SqliteDataLayer, case_id: str, embargo_id: str):
@@ -1895,7 +1897,6 @@ class TestHonourLateAcceptCommit:
                 accepting_actor_id=_INVITEE,
                 invite_id=f"{case_id}/invites/i1",
                 embargo_id=embargo_id,
-                published=now_utc().isoformat(),
             ),
         )
 
@@ -1920,10 +1921,12 @@ class TestHonourLateAcceptCommit:
             py_trees.common.Status.SUCCESS
         )
 
-        assert committed_semantic_types(dl, case_id)[-2:] == [
-            HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
-            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
-        ]
+        assert committed_semantic_types(dl, case_id)[-1] == (
+            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
+        )
+        assert consent_row_updates(
+            dl, case_id, EmbargoConsentState.AGREED, _INVITEE
+        )
         assert _invitee_consent(dl, case_id, embargo_id) is (
             EmbargoConsentState.AGREED
         )
@@ -1966,7 +1969,6 @@ class TestHonourLateAcceptCommit:
                 accepting_actor_id="https://example.org/actors/stranger",
                 invite_id=f"{case_id}/invites/i1",
                 embargo_id=embargo_id,
-                published=now_utc().isoformat(),
             ),
         )
 
@@ -2122,14 +2124,12 @@ class TestLateAcceptHandling:
             and "ledger refused the expiry entry" in r.getMessage()
             for r in caplog.records
         )
-        entries = [
-            e
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry)
-            and e.case_id == case_id
-            and e.semantic_type == INVITE_EXPIRED_SEMANTIC_TYPE
-        ]
-        assert entries == []
+        assert (
+            consent_row_updates(
+                dl, case_id, EmbargoConsentState.TIMED_OUT, _INVITEE
+            )
+            == []
+        )
         case = dl.read(case_id)
         assert isinstance(case, CoreCase)
         participant = dl.read(case.actor_participant_index[_INVITEE])
@@ -2508,7 +2508,12 @@ class TestLateAcceptHandling:
             for obj in dl.list_objects("CaseLedgerEntry")
             if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
         ]
-        assert INVITE_EXPIRED_SEMANTIC_TYPE not in semantic_types
+        assert (
+            consent_row_updates(
+                dl, case_id, EmbargoConsentState.TIMED_OUT, _INVITEE
+            )
+            == []
+        )
         assert semantic_types.count(INVITE_EXPIRED_NOOP_SEMANTIC_TYPE) == 1
 
     def test_late_accept_honored_when_em_revise_with_matching_embargo(
@@ -2724,27 +2729,17 @@ class TestLateAcceptHandling:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
-        # A CaseLedgerEntry with the expiry semantic type must exist
-        # (CM-28-005, CM-28-009, ADR-0118).
-        ledger_entries = [
-            obj
-            for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
-        ]
-        expiry_entries = [
-            e
-            for e in ledger_entries
-            if e.semantic_type == INVITE_EXPIRED_SEMANTIC_TYPE
-        ]
-        assert expiry_entries, (
-            "Expected a CaseLedgerEntry with semantic_type"
-            f" '{INVITE_EXPIRED_SEMANTIC_TYPE}' but none found"
+        # The CASE_MANAGER's Update(EmbargoConsent) carrying the TIMED_OUT
+        # row records the expiry (CM-28-005, CM-28-009, ADR-0140).
+        expiry_entries = consent_row_updates(
+            dl, case_id, EmbargoConsentState.TIMED_OUT, _INVITEE
         )
+        assert expiry_entries, "Expected the TIMED_OUT row's Update entry"
         expiry_entry = expiry_entries[0]
-        # Entry must be distinguishable from an explicit Reject
+        # Distinguishable from an explicit Reject: the CASE_MANAGER authors
+        # it, and the row it carries is TIMED_OUT, not DECLINED.
         assert expiry_entry.semantic_type != "reject_invite_to_embargo_on_case"
-        # payloadSnapshot must be non-empty (CLP-02-003)
-        assert expiry_entry.payload_snapshot
+        assert expiry_entry.payload_snapshot["actor"] == dl.actor_id
 
     def test_late_accept_ac2_signatory_participant_no_crash(
         self, make_payload
@@ -2928,7 +2923,7 @@ class TestExpiryIsTheManagersAlone:
             e
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
-            and e.semantic_type == INVITE_EXPIRED_SEMANTIC_TYPE
+            and is_consent_row_update(e, EmbargoConsentState.TIMED_OUT)
         ]
         assert expiry_entries == []
         # Nor does it compute one: the invitee's consent is left as it was,

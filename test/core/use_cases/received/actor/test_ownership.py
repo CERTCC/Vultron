@@ -2181,6 +2181,7 @@ def _undo(dl, make_payload, offer, sender=_VENDOR_ID, undo=None, to=None):
         make_payload(undo, receiving_actor_id=dl.actor_id),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
     ).execute()
 
 
@@ -2446,7 +2447,16 @@ class TestWithdrawalOfOwnershipTransfer:
         )
         assert late.reason is not None and expected in late.reason
         assert _semantic_types(dl) == entries_before
-        assert dl.outbox_list() == outbox_before
+        # Nothing is queued but, at most, the refusal notice to the offerer
+        # (ADR-0141).
+        queued = [
+            dl.read(i) for i in dl.outbox_list() if i not in outbox_before
+        ]
+        assert all(
+            getattr(getattr(a, "type_", None), "value", None) == "Reject"
+            and getattr(a, "to", None) == [_VENDOR_ID]
+            for a in queued
+        )
 
     @pytest.mark.spec("CM-21-015")
     def test_second_withdrawal_of_a_withdrawn_offer_is_refused(
