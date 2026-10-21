@@ -133,37 +133,15 @@ def _close_and_record(
         )
     )
 
-    def _record(name: str) -> CommitRMClosureEntriesNode:
-        return CommitRMClosureEntriesNode(
+    # A refused step fails the act, which keeps none of it (CLP-07-015).
+    return [
+        advance,
+        CommitRMClosureEntriesNode(
             closing_actor_id=closing_actor_id,
             case_id=case_id,
             closure_steps=closure_steps,
-            name=name,
-        )
-
-    # A refused step stops the walk, but the steps written before it stay
-    # in the store, so they are recorded before the failure propagates:
-    # the CASE_MANAGER commits an entry for every transition it writes
-    # (CM-23-001), whether or not the closure completes.
-    return [
-        py_trees.composites.Selector(
-            name=f"Advance{label}OrRecordPartial",
-            memory=False,
-            children=[
-                advance,
-                py_trees.composites.Sequence(
-                    name=f"Record{label}PartialClosure",
-                    memory=False,
-                    children=[
-                        _record(f"Commit{label}PartialRMClosureEntries"),
-                        py_trees.behaviours.Failure(
-                            name=f"{label}ClosureIncomplete"
-                        ),
-                    ],
-                ),
-            ],
+            name=f"Commit{label}RMClosureEntries",
         ),
-        _record(f"Commit{label}RMClosureEntries"),
     ]
 
 
@@ -543,14 +521,14 @@ def create_close_case_received_tree(
         case_id=None,
         precondition_guards=[],
         # A sender whose closure the case records repeats a closing act; the
-        # Case Owner's Leave also closes the case, so its repeat runs again
-        # to finish a closure left part-way (CM-23-018, CM-23-002).
+        # Case Owner's Leave also closes the case, so while the case is not
+        # fully closed its Leave runs to close it (CM-23-018, CM-23-002).
         closed_sender=ClosedSenderCheck(
             sender_id=sender_actor_id, case_owner_completes=True
         ),
         sender_rule=sender_rule,
-        # The owner's repeat Leave finishes the closure, so its CASE_OWNER
-        # standing is the role alone; the closed-sender door decides it.
+        # The owner's Leave closes the case, so its CASE_OWNER standing is
+        # the role alone; the closed-sender door decides a repeat.
         sender_context=SenderCheckContext(
             sender_id=sender_actor_id,
             case_id=case_id,

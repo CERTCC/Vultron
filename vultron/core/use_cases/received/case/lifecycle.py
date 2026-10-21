@@ -135,9 +135,10 @@ class CloseCaseReceivedUseCase:
     sender whose closure the case already records is a repeat of a closing
     act: it is ``SKIPPED``, whatever its activity id, with nothing committed
     or sent (CM-23-018, ID-05-003).  The Case Owner's is the exception: its
-    Leave closes the case as well, so its redelivery runs again to complete
-    a closure a failed first delivery left part-way (CM-23-002); once the
-    case is fully closed, the post-close boundary refuses it (CM-23-013).
+    Leave closes the case as well, so while the case is not fully closed it
+    runs to close it (CM-23-002); once the case is fully closed, the
+    post-close boundary refuses it (CM-23-013).  The owner's closure and the
+    case's are one act (CLP-07-015), so a failed Leave keeps neither.
 
     A Leave that arrives after ``case_fully_closed`` is ``REFUSED`` and
     records nothing (CM-23-013); ``actor_config.post_close_reply`` decides
@@ -148,8 +149,8 @@ class CloseCaseReceivedUseCase:
     # A participant leaves through the CASE_MANAGER; a replica takes the
     # closure from the CASE_MANAGER alone (CM-23-001, PCR-03-001).  The Case
     # Owner is named too: once its own closure is recorded it is no longer
-    # an open participant, but its redelivered Leave must still complete a
-    # case closure a failed first delivery left part-way (CM-23-002).
+    # an open participant, but its Leave must still close a case that is
+    # not fully closed (CM-23-002).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
         SenderEntitlementKind.CASE_OWNER, SenderEntitlementKind.PARTICIPANT
     )

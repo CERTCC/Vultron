@@ -232,9 +232,6 @@ def accept_invite_to_embargo_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="RecordEmbargoAcceptance",
-        # The Accept's own entry, its row and the backfill are one act
-        # (CLP-07-015, ADR-0151).
-        as_one_act=True,
     )
     logger.info(
         "Created AcceptInviteToEmbargoBT for case=%s embargo=%s"
@@ -340,9 +337,6 @@ def reject_invite_to_embargo_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="AnswerRejectedEmbargo",
-        # The Reject's own entry and its row are one act (CLP-07-015,
-        # ADR-0151).
-        as_one_act=True,
     )
     logger.info(
         "Created RejectInviteToEmbargoBT for case=%s rejecting_actor=%s"

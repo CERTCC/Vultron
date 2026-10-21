@@ -31,11 +31,12 @@ OX-14-003, and ``specs/inbox-endpoint.yaml`` IE-06-004.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Literal, Protocol
 
 from pydantic import Field
 
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import CoreRecord, NonEmptyString
 
 
@@ -74,7 +75,7 @@ class OutboxDeadLetterEntry(CoreRecord):
     total_attempts: int
     failed_recipients: list[str] = Field(default_factory=list)
     ledger_entry_id: NonEmptyString | None = None
-    recorded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    recorded_at: datetime = Field(default_factory=now_utc)
 
 
 class InboxDeadLetterEntry(CoreRecord):
@@ -104,7 +105,7 @@ class InboxDeadLetterEntry(CoreRecord):
     reason: NonEmptyString
     total_attempts: int
     last_error: str = ""
-    recorded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    recorded_at: datetime = Field(default_factory=now_utc)
 
 
 class OutboxRetryStore(Protocol):

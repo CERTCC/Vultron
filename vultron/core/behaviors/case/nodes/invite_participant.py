@@ -46,13 +46,14 @@ class CheckInviteeNotAlreadyParticipantNode(
 
     Returns SUCCESS (allow proceeding) when the invitee is NOT yet
     registered in ``case.actor_participant_index``, or when the invitee IS
-    registered but join-time backfill is still incomplete (resume path), or
-    when the invitee IS in the index as an *inert* record (``joined=False``,
+    registered and joined but has no join backfill on record, or when the
+    invitee IS in the index as an *inert* record (``joined=False``,
     CM-11-006) that has not yet accepted the stub Invite.
 
     Returns FAILURE (abort tree) with no ledger write when the invitee is
-    already a participant AND backfill is complete — a true idempotent no-op
-    (CLP-13-001, CLP-13-002).
+    already a participant AND its join backfill is on record — a true
+    idempotent no-op (CLP-13-001, CLP-13-002).  The backfill commits with the
+    Accept in one act (CLP-07-015), so a recorded backfill is never part-way.
 
     Four paths:
 
@@ -65,14 +66,15 @@ class CheckInviteeNotAlreadyParticipantNode(
        ``invitee_already_participant=True``, ``invitee_joined=False``.
        Downstream nodes activate the existing record, and the backfill uses
        the *fresh* path (fan-out doesn't reach an inert invitee).
-    3. **Backfill-incomplete resume**: invitee in index, ``joined=True``, but
-       backfill is still in progress → SUCCESS with
-       ``invitee_already_participant=True``, ``invitee_joined=True``.
-    4. **Backfill-complete (true duplicate)**: invitee in index, backfill done
-       → ``_idempotent_failure`` (FAILURE, INFO log, no ledger write —
-       CLP-13-001).  A *removed* participant (CM-31-001) takes this path
-       whatever its backfill state: it is sent no full-case Invite and no
-       backfill until it is reinstated (CM-31-013).
+    3. **Seated, no backfill yet**: invitee in index, ``joined=True`` (seated
+       without a join, for example at case creation), no replication marker
+       → SUCCESS with ``invitee_already_participant=True``,
+       ``invitee_joined=True``: it gets its first join-time backfill.
+    4. **Backfill on record (true duplicate)**: invitee in index, a
+       replication marker recorded → ``_idempotent_failure`` (FAILURE, INFO
+       log, no ledger write — CLP-13-001).  A *removed* participant
+       (CM-31-001) takes this path whatever its backfill state: it is sent no
+       full-case Invite and no backfill until it is reinstated (CM-31-013).
     """
 
     def __init__(
@@ -166,14 +168,12 @@ class CheckInviteeNotAlreadyParticipantNode(
                 self.case_id,
             )
 
-        # joined=True (or unknown): check backfill state
+        # joined=True: a recorded replication state means the join's
+        # backfill ran.  It commits with the Accept in one act (CLP-07-015),
+        # so a recorded state is never part-way: a redelivery is a true
+        # duplicate — silent FAILURE, no ledger write (CLP-13-001).
         state = self._read_replication_state(case.id_)
-        if state is not None and (
-            state.join_backfill_complete
-            or state.join_backfill_target_index == -1
-        ):
-            # True duplicate: backfill complete — silent FAILURE, no ledger
-            # write (CLP-13-001).
+        if state is not None:
             self._set_output("invitee_already_participant", True)
             self._set_output("invitee_joined", True)
             return self._idempotent_failure(
@@ -185,23 +185,16 @@ class CheckInviteeNotAlreadyParticipantNode(
                 self.case_id,
             )
 
-        # Resume path: backfill is incomplete (or no marker yet).
-        if state is None:
-            self.logger.info(
-                "%s: actor '%s' already participant in case '%s' with no "
-                "replication marker; resuming join-time backfill",
-                self.name,
-                self.invitee_id,
-                self.case_id,
-            )
-        else:
-            self.logger.info(
-                "%s: actor '%s' already participant in case '%s' but"
-                " backfill is incomplete; resuming join-time backfill",
-                self.name,
-                self.invitee_id,
-                self.case_id,
-            )
+        # A joined participant with no replication marker was seated without
+        # a join (for example at case creation) and now answers a stub
+        # Invite: it gets its first join-time backfill.
+        self.logger.info(
+            "%s: actor '%s' already participant in case '%s' with no "
+            "replication marker; running join-time backfill",
+            self.name,
+            self.invitee_id,
+            self.case_id,
+        )
         self._set_output("invitee_already_participant", True)
         self._set_output("invitee_joined", True)
         self._set_output("invitee_case", case)

@@ -125,9 +125,6 @@ def withdraw_from_embargo_on_case_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="RecordEmbargoWithdrawal",
-        # The Leave's own entry and the rows it declines are one act
-        # (CLP-07-015, ADR-0151).
-        as_one_act=True,
     )
     logger.info(
         "Created WithdrawFromEmbargoOnCaseBT for case=%s embargo=%s"

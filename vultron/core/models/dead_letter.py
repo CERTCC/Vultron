@@ -21,11 +21,12 @@ See ``specs/semantic-extraction.yaml`` SE-04-003.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import Field
 
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import (
     CoreRecord,
     NonEmptyString,
@@ -55,4 +56,4 @@ class DeadLetterRecord(CoreRecord):
     activity_id: NonEmptyString
     activity_type: NonEmptyString | None = None
     activity_summary: dict[NonEmptyString, Any] | None = None
-    received_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    received_at: datetime = Field(default_factory=now_utc)

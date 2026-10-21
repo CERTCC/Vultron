@@ -71,7 +71,7 @@ def _status_refused(tree: py_trees.behaviour.Behaviour) -> bool:
 
 
 def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
-    """Return True if the StatusAdoptionGate Selector returned FAILURE."""
+    """True when the StatusAdoptionGate withheld adoption (returned FAILURE)."""
     gate = find_named(tree, "StatusAdoptionGate")
     return gate is not None and gate.status == Status.FAILURE
 
@@ -260,12 +260,13 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             # Only the CASE_MANAGER adjudicates the status (HP-01-005).  With
             # no case the sender guard has already refused.
             verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        if verdict.disposition is HandlerDisposition.REFUSED and (
+        if verdict.disposition is HandlerDisposition.APPLIED and (
             _adoption_gate_blocked(tree)
         ):
             # The raw claim is on the participant record; only its adoption as
             # canonical was withheld (RSH-01-001, RSH-01-002).  That is not a
-            # refusal of the assertion's content (RSH-09-008), so no fault.
+            # refusal of the assertion's content (RSH-09-008), so the act
+            # keeps its entry and the append, and no fault is sent.
             return HandlerResult.skipped(
                 f"ParticipantStatus '{request.status_id}' recorded but not"
                 " adopted: CASE_OWNER approval required (RSH-01-002)"

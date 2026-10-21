@@ -203,7 +203,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0099 One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy](0099-one-object-model-as2-is-a-serialization.md) — supersedes 0017-domain-wire-object-separation.md, 0082-wire-core-boundary-pairing-registry.md; partially supersedes 0063-wire-rendering-port-for-core-objects.md, 0074-wire-activity-artifact-immutability.md
 - [ADR-0100 There Is No Multi-Candidate Embargo Poll; Open Proposals Resolve in Earliest-Expiration Order](0100-no-multi-candidate-embargo-poll.md)
 - [ADR-0101 Spec Item Format Is Field Presence, Not a Class Choice; a Bare Item Cannot Be a `BehavioralSpec`](0101-spec-item-format-is-field-presence.md)
-- [ADR-0102 Organize reader-facing documentation by stakeholder type and invisible prerequisite level](0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md) *(provisional)* — partially superseded by 0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md
+- [ADR-0102 Organize reader-facing documentation by stakeholder type and invisible prerequisite level](0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md) — partially superseded by 0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md
 - [ADR-0103 An Object's Time Is Carried, Never Minted by the Receiver](0103-object-time-is-carried-never-minted.md)
 - [ADR-0104 The Interactive Demo UI Is a React/ReactFlow Operator-Side Ledger Watcher, Fed by a Prototype-Only SSE Stream](0104-interactive-demo-ui-live-ledger-watcher.md)
 - [ADR-0105 Two Cases for One Vulnerability Merge by Owner Consent: the Offered Case Freezes and Redirects](0105-case-merge-freeze-and-redirect-by-owner-consent.md) *(provisional)*
@@ -249,13 +249,14 @@ General information about architectural decision records is available at <https:
 - [ADR-0136 Organize the Site's Top Level by Subject and Reader, Not Diátaxis Type](0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md) *(revision 2)* — partially supersedes 0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md
 - [ADR-0138 A Pushed Pull Request Is Merged Locally Only on Conflict](0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 - [ADR-0139 A Fresh Agent Reviews the Branch Before Its First Push](0139-a-fresh-agent-reviews-the-branch-before-its-first-push.md)
-- [ADR-0140 A Ledger Entry's Semantic Type Is the Registry Label of Its AS2 Payload](0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md) *(revision 2)*
+- [ADR-0140 A Ledger Entry's Semantic Type Is the Registry Label of Its AS2 Payload](0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md) *(revision 2)* — partially superseded by 0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md
 - [ADR-0143 A Fix Commit's Local Gate Escalates Only for Shared Test Infrastructure](0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
-- [ADR-0146 One Atomic Commit per Embargo Act](0146-one-atomic-commit-per-embargo-act.md) *(revision 4)*
+- [ADR-0146 One Atomic Commit per CASE_MANAGER Act](0146-one-atomic-commit-per-case-manager-act.md) *(revision 5)*
 - [ADR-0147 The Protocol Specification Renders Its Normative Text from the YAML Requirements](0147-the-protocol-specification-renders-its-normative-text-from-the-yaml-requirements.md)
 - [ADR-0148 An Owner Proposes an Ownership-Transfer Offer and the CASE_MANAGER Makes It](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md) — partially supersedes 0053-ownership-transfer-routed-via-caseactor.md
 - [ADR-0150 A Reading-Path Thread Is Staged Data on Its Start Page, Rendered at Both Ends](0150-a-reading-path-thread-is-staged-data-on-its-start-page-rendered-at-both-ends.md)
 - [ADR-0151 A Received Act Commits Its Own Entry with Its Consequences](0151-a-received-act-commits-its-own-entry-with-its-consequences.md) *(revision 2)* — partially supersedes 0111-intake-is-the-first-received-side-stage.md
+- [ADR-0152 A Case Manager's Act Shares the Participants' Semantic Type, and an Observation Is Not Ledgered](0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md) — partially supersedes 0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md
 
 ## Rejected ADRs
 

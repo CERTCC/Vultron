@@ -292,3 +292,239 @@ def test_an_entrys_copied_embargo_of_another_case_is_refused(
 
     with pytest.raises(VultronValidationError, match=other_case):
         entry_embargo(dl, _CASE, _snapshot(context=other_case))
+
+
+_OTHER_CASE = "https://example.org/cases/other"
+
+
+def _held_for_other_case(dl: SqliteDataLayer) -> EmbargoEvent:
+    """Store, under this case's embargo id, a record of another case."""
+    foreign = EmbargoEvent(
+        id_=_embargo().id_,
+        context=_OTHER_CASE,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(foreign)
+    return foreign
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_a_case_naming_a_held_embargo_of_another_case_is_refused_unwritten(
+    dl: SqliteDataLayer, as_reference: bool
+) -> None:
+    """A bare id, or an inline copy, whose held record is another case's."""
+    foreign = _held_for_other_case(dl)
+    active: EmbargoEvent | str = foreign.id_ if as_reference else _embargo()
+    case = VulnerabilityCase(
+        id_=_CASE, name="c", embargo_register=register(active=active)
+    )
+
+    with pytest.raises(VultronValidationError, match=_OTHER_CASE):
+        store_carried_embargo(case, dl)
+
+    assert read_embargo_event(dl, foreign.id_).context == _OTHER_CASE
+    assert len(dl.list_objects("EmbargoEvent")) == 1
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_an_entry_naming_a_held_embargo_of_another_case_is_refused(
+    dl: SqliteDataLayer, as_reference: bool
+) -> None:
+    foreign = _held_for_other_case(dl)
+    data: object = foreign.id_ if as_reference else _snapshot()
+
+    with pytest.raises(VultronValidationError, match=_OTHER_CASE):
+        carried_entry_embargo(dl, _CASE, data)
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_an_entrys_copied_held_embargo_of_another_case_is_refused(
+    dl: SqliteDataLayer, as_reference: bool
+) -> None:
+    foreign = _held_for_other_case(dl)
+    data: object = foreign.id_ if as_reference else _snapshot()
+
+    with pytest.raises(VultronValidationError, match=_OTHER_CASE):
+        entry_embargo(dl, _CASE, data)
+
+
+_REPORT = "https://example.org/reports/carried-report"
+_OTHER_REPORT = "https://example.org/reports/other-report"
+
+
+def _held_for_report(dl: SqliteDataLayer, report_id: str) -> EmbargoEvent:
+    """Store a Reporter's pre-case proposal, about *report_id* (EP-04-009)."""
+    proposal = EmbargoEvent(
+        id_=_embargo().id_,
+        context=report_id,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(proposal)
+    return proposal
+
+
+def _case_with_report(
+    active: EmbargoEvent | str, *, inline_report: bool = False
+) -> VulnerabilityCase:
+    """This case, holding ``_REPORT`` by id or as an inline report."""
+    report: VulnerabilityReport | str = (
+        VulnerabilityReport(id_=_REPORT, name="r", content="c")
+        if inline_report
+        else _REPORT
+    )
+    return VulnerabilityCase(
+        id_=_CASE,
+        name="c",
+        vulnerability_reports=[report],
+        embargo_register=register(active=active),
+    )
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.spec("EP-04-009")
+@pytest.mark.parametrize("inline_report", [False, True])
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_a_held_proposal_about_the_cases_own_report_is_accepted(
+    dl: SqliteDataLayer, as_reference: bool, inline_report: bool
+) -> None:
+    """The Reporter holds its proposal about the report the case holds."""
+    proposal = _held_for_report(dl, _REPORT)
+
+    store_carried_embargo(
+        _case_with_report(
+            proposal.id_ if as_reference else _embargo(),
+            inline_report=inline_report,
+        ),
+        dl,
+    )
+
+    assert read_embargo_event(dl, proposal.id_).context == _REPORT
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_a_held_proposal_about_another_cases_report_is_refused(
+    dl: SqliteDataLayer, as_reference: bool
+) -> None:
+    proposal = _held_for_report(dl, _OTHER_REPORT)
+
+    with pytest.raises(VultronValidationError, match=_OTHER_REPORT):
+        store_carried_embargo(
+            _case_with_report(proposal.id_ if as_reference else _embargo()),
+            dl,
+        )
+
+    assert len(dl.list_objects("EmbargoEvent")) == 1
+
+
+@pytest.mark.spec("EMB-18-004")
+def test_an_inline_embargo_about_another_cases_report_is_refused_unstored(
+    dl: SqliteDataLayer,
+) -> None:
+    foreign = EmbargoEvent(
+        id_=f"{_CASE}/embargo_events/e1",
+        context=_OTHER_REPORT,
+        end_time=days_from_now_utc(45),
+    )
+
+    with pytest.raises(VultronValidationError, match=_OTHER_REPORT):
+        store_carried_embargo(_case_with_report(foreign), dl)
+
+    assert dl.read(foreign.id_) is None
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.spec("EP-04-009")
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_an_entry_naming_a_held_proposal_about_the_cases_report_is_accepted(
+    dl: SqliteDataLayer, as_reference: bool
+) -> None:
+    """The ledger helpers read the report ids from the stored case."""
+    dl.create(_case_with_report(_embargo().id_))
+    proposal = _held_for_report(dl, _REPORT)
+    data: object = proposal.id_ if as_reference else _snapshot()
+
+    assert carried_entry_embargo(dl, _CASE, data) is None
+    assert entry_embargo(dl, _CASE, data).id_ == proposal.id_
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_an_entry_naming_a_held_proposal_about_another_report_is_refused(
+    dl: SqliteDataLayer, as_reference: bool
+) -> None:
+    dl.create(_case_with_report(_embargo().id_))
+    proposal = _held_for_report(dl, _OTHER_REPORT)
+    data: object = proposal.id_ if as_reference else _snapshot()
+
+    with pytest.raises(VultronValidationError, match=_OTHER_REPORT):
+        carried_entry_embargo(dl, _CASE, data)
+    with pytest.raises(VultronValidationError, match=_OTHER_REPORT):
+        entry_embargo(dl, _CASE, data)
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.spec("EP-04-009")
+def test_an_inline_embargo_about_the_cases_report_is_stored(
+    dl: SqliteDataLayer,
+) -> None:
+    """With nothing held, an inline copy about the case's report is stored."""
+    carried = EmbargoEvent(
+        id_=_embargo().id_, context=_REPORT, end_time=days_from_now_utc(45)
+    )
+
+    store_carried_embargo(_case_with_report(carried), dl)
+
+    assert read_embargo_event(dl, carried.id_).context == _REPORT
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.spec("EP-04-009")
+def test_an_entrys_inline_embargo_about_the_cases_report_is_accepted(
+    dl: SqliteDataLayer,
+) -> None:
+    """The entry helpers read the report from the stored case."""
+    dl.create(_case_with_report(_embargo().id_))
+    data = _snapshot(context=_REPORT)
+
+    carried = carried_entry_embargo(dl, _CASE, data)
+    assert carried is not None and carried.context == _REPORT
+    assert entry_embargo(dl, _CASE, data).context == _REPORT
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.parametrize("as_reference", [True, False])
+def test_an_entry_on_a_case_not_held_accepts_no_report_context(
+    dl: SqliteDataLayer, as_reference: bool
+) -> None:
+    """A store without the case knows none of its reports."""
+    proposal = _held_for_report(dl, _REPORT)
+    data: object = proposal.id_ if as_reference else _snapshot(context=_REPORT)
+
+    with pytest.raises(VultronValidationError, match=_REPORT):
+        carried_entry_embargo(dl, _CASE, data)
+    with pytest.raises(VultronValidationError, match=_REPORT):
+        entry_embargo(dl, _CASE, data)
+
+
+@pytest.mark.spec("EMB-18-004")
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({"context": _OTHER_CASE}, id="another-case"),
+        pytest.param({"endTime": "not a time"}, id="malformed"),
+    ],
+)
+def test_an_entrys_bad_inline_copy_is_refused_though_the_record_is_held(
+    dl: SqliteDataLayer, overrides: dict[str, object]
+) -> None:
+    """The inline copy is checked even when this case's record is held."""
+    dl.create(_embargo())
+
+    with pytest.raises(VultronValidationError):
+        carried_entry_embargo(dl, _CASE, _snapshot(**overrides))
+    with pytest.raises(VultronValidationError):
+        entry_embargo(dl, _CASE, _snapshot(**overrides))

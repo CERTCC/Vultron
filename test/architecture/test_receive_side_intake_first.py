@@ -293,6 +293,7 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
     )
     from vultron.core.behaviors.case.receive_activity_tree import (
         create_receive_activity_tree,
+        received_stages,
     )
 
     guard = Success(name="Guard")
@@ -303,7 +304,9 @@ def test_shared_factory_orders_intake_guards_commit_effects() -> None:
         precondition_guards=[guard],
         replica_effects=[effect],
     )
-    names = [child.name for child in tree.children]
+    # The commit and the effects are one act (CLP-07-015); its block is
+    # opened in place.
+    names = [stage.name for stage in received_stages(tree)]
     assert isinstance(tree.children[0], IntakeReceivedActivityNode)
     assert names == [
         "IntakeReceivedActivityNode",

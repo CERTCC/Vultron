@@ -37,6 +37,7 @@ from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _CheckEmbargoActiveStateNode,
     _SignEmbargoConsentLeafNode,
 )
+from vultron.core.behaviors.case.receive_activity_tree import received_stages
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -514,7 +515,7 @@ def test_every_accept_invite_effect_is_inside_the_case_manager_gate():
     outside = [type(n).__name__ for n in effects if id(n) not in inside]
     assert outside == [], f"effect nodes outside the gate: {outside}"
 
-    children = list(tree.children)
+    children = received_stages(tree)
     commit_index = next(
         i
         for i, c in enumerate(children)

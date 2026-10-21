@@ -119,7 +119,6 @@ _SLOTS = [
 _WRITER_NAMES = frozenset(
     {
         "add_participant_status",
-        "withdraw_participant_statuses",
         "add_participant",
         "add_case_status",
         "add_role",

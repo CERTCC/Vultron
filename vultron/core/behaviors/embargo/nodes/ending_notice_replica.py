@@ -40,14 +40,15 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.participants.recipients import awaits_embargo_ending_notice
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.carried_embargo import hold_embargo_for_case
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.errors import VultronError
 
 
@@ -128,26 +129,21 @@ class ApplyAnnouncedEmbargoRevisionNode(
         self._embargo = embargo
         self.applied = False
 
-    def _hold_announced_embargo(self, datalayer: CasePersistence) -> None:
+    def _hold_announced_embargo(
+        self, datalayer: CasePersistence, case: VulnerabilityCase
+    ) -> None:
         """Store the inline embargo if absent; refuse one from another case.
 
         The case check covers the stored record as well as the inline copy:
         an id the replica already holds for another case's embargo is
-        refused too.
+        refused too, unless it is about one of the case's reports
+        (EP-04-009, EMB-18-004).
         """
-        if self._embargo is not None:
-            self._require_this_case(self._embargo.context)
-            if datalayer.read(self.embargo_id) is None:
-                datalayer.save(self._embargo)
-        stored = read_embargo_event(datalayer, self.embargo_id)
-        self._require_this_case(stored.context)
-
-    def _require_this_case(self, context: object) -> None:
-        if context != self.case_id:
-            raise VultronError(
-                f"Announced embargo '{self.embargo_id}' belongs to"
-                f" '{context}', not case '{self.case_id}'"
-            )
+        hold_embargo_for_case(
+            datalayer,
+            case,
+            self._embargo if self._embargo is not None else self.embargo_id,
+        )
 
     def update(self) -> Status:
         self.applied = False
@@ -166,7 +162,7 @@ class ApplyAnnouncedEmbargoRevisionNode(
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
         try:
-            self._hold_announced_embargo(datalayer)
+            self._hold_announced_embargo(datalayer, case)
             notice = embargo_ending_notice(
                 datalayer, before=current, after=self.embargo_id
             )

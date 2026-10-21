@@ -285,7 +285,12 @@ groups:
   - id: CS-13-002
     priority: MUST
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      `test_application_code_reads_the_clock_only_through_now_utc` in
+      `test/core/models/test_helpers.py` parses every module under `vultron/`
+      except the `vultron/metadata/` repo tooling and fails on any
+      `datetime.now()`, `utcnow()` or `date.today()` call outside the body
+      of `now_utc` itself.
     statement: All datetime values MUST be created via the `now_utc()` helper in `vultron.core.models._helpers`
   - id: CS-13-003
     priority: SHOULD

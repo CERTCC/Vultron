@@ -68,6 +68,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     SeatRecordedInviteeNode,
     SuggestedActorIsInvitableNode,
 )
+from vultron.core.behaviors.case.receive_activity_tree import received_stages
 from vultron.core.behaviors.case.suggest_actor_tree import (
     ActorAlreadyParticipantNode,
     EmitAcceptActorRecommendationNode,
@@ -1410,7 +1411,7 @@ def test_every_effect_is_inside_the_case_manager_gate(
     assert outside == [], f"effect nodes outside the gate: {outside}"
 
     # The gate follows the receipt commit: commit first, effects second.
-    children = list(tree.children)
+    children = received_stages(tree)
     commit_index = next(
         i
         for i, c in enumerate(children)
@@ -1471,7 +1472,7 @@ def test_sender_guard_follows_intake_and_precedes_the_commit(
 
     A refused sender therefore writes and sends nothing (ADR-0115).
     """
-    children = list(factory(**kwargs).children)
+    children = received_stages(factory(**kwargs))
     names = [c.name for c in children]
     # The check may sit inside a child: a rule whose two sides differ composes
     # a SenderRuleGuard holding the side checks (HP-01-008), and a CASE_OWNER

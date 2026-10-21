@@ -8,7 +8,8 @@ description: >
   seam and verdict mapping, the path from receipt to permanent storage (ingress
   writes nothing; a deferred activity is held whole), redelivery detection and
   the reused-id refusal, the internal-error fault for a raised dispatch,
-  pending-queue port injection, and the test surface.
+  the queue replay's bounded retry and held fault, pending-queue port
+  injection, and the test surface.
 related_specs:
   - specs/inbox-orchestration.yaml
   - specs/case-ledger-processing.yaml
@@ -157,15 +158,25 @@ ingress (ADR-0151, `test_failed_act_redelivery.py`).
 
 **A raised dispatch is answered with a fault** (ASK-07-010): `DispatchNode` logs it
 once at ERROR with the activity and sender ids and queues one internal-error
-`Create(ProcessingFault)` to the sender through `DispatchAdapter`. The pipeline never
-retries a raised dispatch, so no inbox retry follows the fault; only the sender's own
-resend, which the fault invites, can later succeed. The bounded-retry loop in
-`inbox_handler.py` answers only on dead-letter, never on a re-queue, or a later
-success would follow a false fault (ASK-07-007), and never for a raise after the
-dispatch returned (the post-bootstrap replay). Never answer a raised
+`Create(ProcessingFault)` to the sender through `DispatchAdapter`. A live delivery is
+never retried, so only the sender's own resend, which the fault invites, can later
+succeed. A queued replay is retried (IE-06-004, `inbox_queue_drain.py`), so its
+`ReplayDispatchAdapter` holds the fault and sends it only when the item is
+dead-lettered or dropped as a protocol violation, never on a re-queue, or a later
+success would follow a false fault (ASK-07-007). A raise after the dispatch returned
+(the post-bootstrap replay) is logged by `DispatchNode` and is neither retried nor
+answered. Never answer a raised
 `Create(ProcessingFault)` with a fault (`answers_with_internal_error_fault`), or two
 peers failing alike answer each other forever. The fault goes to the claimed `actor`:
 the inbox does not authenticate senders yet (#509). It is not ledgered (#4800).
+
+**The queue replay retries back to back and settles on what it saw.** A re-queued item
+goes to the back of the inbox queue and is attempted again in the same drain, so the
+retries are not spaced in time; the persisted count matters across runs. The rebuild
+releases the held record, so a rejection after the rebuild and before dispatch (a node
+that caught its own raise, such as extraction) is retried like a raise, or the item is
+lost; a handler's verdict is final. A dead-lettered item stays held for the operator, so
+a resend of it routes the held copy as a redelivery (IE-10-001) and does not release it.
 
 ---
 

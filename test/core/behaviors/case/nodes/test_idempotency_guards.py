@@ -141,35 +141,11 @@ class TestCheckInviteeNotAlreadyParticipantNode:
             f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"
         )
 
-    def test_returns_success_for_backfill_incomplete_resume_no_state(
+    def test_returns_success_for_a_seated_participant_with_no_backfill(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Resume path (no replication state marker) → SUCCESS, tree continues."""
+        """Seated, no replication state marker → SUCCESS, tree continues."""
         _seed_case_with_participant(bt_scenario, backfill_complete=False)
-        node = CheckInviteeNotAlreadyParticipantNode(
-            case_id=_CASE_ID, invitee_id=_INVITEE_ID
-        )
-        result = bt_scenario.run(node, actor_id=_ACTOR_ID)
-        assert result.status == Status.SUCCESS
-
-    def test_returns_success_for_backfill_incomplete_resume_with_state(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        """Resume path (replication state exists, join_backfill_complete=False) → SUCCESS."""
-        from vultron.core.models.replication_state import (
-            VultronReplicationState,
-        )
-
-        _seed_case_with_participant(bt_scenario, backfill_complete=False)
-        # Explicitly create an incomplete replication state record.
-        state = VultronReplicationState(
-            case_id=_CASE_ID,
-            peer_id=_INVITEE_ID,
-            join_backfill_target_index=5,
-            join_backfill_last_sent_index=2,
-            join_backfill_complete=False,
-        )
-        bt_scenario.dl.save(state)
         node = CheckInviteeNotAlreadyParticipantNode(
             case_id=_CASE_ID, invitee_id=_INVITEE_ID
         )

@@ -388,10 +388,10 @@ class CaseLedger:
 
     Usage example::
 
-        from datetime import datetime, timezone
+        from vultron.core.models._helpers import now_utc
         case_id = "https://example.org/cases/abc123"
         owner_id = "https://example.org/actors/vendor"
-        created_at = datetime.now(timezone.utc)
+        created_at = now_utc()
         g_hash = compute_genesis_hash(case_id, created_at, owner_id)
         log = CaseLedger(case_id=case_id, genesis_hash=g_hash)
         entry = log.append(

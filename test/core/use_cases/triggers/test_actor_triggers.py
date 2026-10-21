@@ -32,6 +32,9 @@ import pytest
 from pydantic import ValidationError
 
 from test.conftest import seed_case_owner_participant
+from test.core.use_cases.received._archived_redelivery import (
+    route_archived_redelivery,
+)
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -841,7 +844,8 @@ class TestInviteRetrySendsOnce:
         offer = harness.trigger(roles=[CVDRole.VENDOR])
 
         # The first attempt builds, seals and queues the Invite, but its
-        # commit fails: the Invite is sent and not yet recorded (ADR-0119).
+        # commit fails.  The Invite is one act with the received Offer's own
+        # entry, so the act keeps neither (CLP-07-015).
         with pytest.MonkeyPatch.context() as mp:
             failed = fail_commits(
                 mp,
@@ -855,9 +859,15 @@ class TestInviteRetrySendsOnce:
         assert len(failed) == 1, "the first attempt never built the Invite"
         invite_id = failed[0]
         assert self._invite_entries(harness) == []
-        assert self._queued_invites(harness) == [invite_id]
+        assert self._queued_invites(harness) == []
 
-        retry = harness.deliver_to_manager(offer["id"], make_payload)
+        # The inbox routes the retry as the copy intake archived
+        # (IE-10-001), not as the resent body.
+        retry = route_archived_redelivery(
+            harness.manager_dl,
+            offer["id"],
+            receiving_actor_id=harness.manager.id_,
+        )
 
         assert retry.disposition.value == "applied", retry
         assert self._queued_invites(harness) == [invite_id]
