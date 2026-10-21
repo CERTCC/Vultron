@@ -156,7 +156,7 @@ ingress (ADR-0151, `test_failed_act_redelivery.py`).
 once at ERROR with the activity and sender ids and queues one internal-error
 `Create(ProcessingFault)` to the sender through `DispatchAdapter`. A live delivery is
 never retried, so only the sender's own resend, which the fault invites, can later
-succeed. A queued replay is retried (IE-06-004, `inbox_replay.py`), so its
+succeed. A queued replay is retried (IE-06-004, `inbox_queue_drain.py`), so its
 `ReplayDispatchAdapter` holds the fault and sends it only when the item is
 dead-lettered or dropped as a protocol violation, never on a re-queue, or a later
 success would follow a false fault (ASK-07-007). A raise after the dispatch returned

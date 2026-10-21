@@ -11,7 +11,7 @@ DataLayer and dispatcher infrastructure:
 
 The replay of the inbox queue, with its bounded retry and dead letter, and
 its ``StoredActivityIngressAdapter`` live in
-:mod:`~vultron.adapters.driving.fastapi.inbox_replay` (IE-06-004).
+:mod:`~vultron.adapters.driving.fastapi.inbox_queue_drain` (IE-06-004).
 
 These adapters are constructed in the inbox background task and passed to
 :func:`~vultron.core.behaviors.inbox.process_payload` (IO-03-001,
@@ -45,7 +45,7 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
-from vultron.adapters.driving.fastapi.inbox_replay import (
+from vultron.adapters.driving.fastapi.inbox_queue_drain import (
     drain_inbox_queue,
     warn_if_rejected,
 )
@@ -443,7 +443,7 @@ async def run_inbox_pipeline(
     Calls :func:`~vultron.core.behaviors.inbox.process_payload` for the
     immediate payload, then replays every activity queued in the inbox
     (e.g., after bootstrap dispatch) with bounded retry and dead letter
-    (:func:`~vultron.adapters.driving.fastapi.inbox_replay.drain_inbox_queue`,
+    (:func:`~vultron.adapters.driving.fastapi.inbox_queue_drain.drain_inbox_queue`,
     IE-06-004), and finally drains the outbox.
     The synchronous BT work runs in a worker thread so the ASGI event loop
     keeps serving while a handler executes (IE-06-002, BT-11-002); only the
@@ -502,7 +502,8 @@ async def run_inbox_pipeline(
         warn_if_rejected(outcome, actor_id, replayed=False)
 
         # Replay what this delivery, or an earlier one, queued: activities
-        # pushed back by the post-bootstrap replay and ledger hand-backs.
+        # pushed back by the post-bootstrap replay, and held ledger
+        # Announces replayed once their entry applies (SYNC-14-009).
         drain_inbox_queue(
             actor_dl,
             actor_id,

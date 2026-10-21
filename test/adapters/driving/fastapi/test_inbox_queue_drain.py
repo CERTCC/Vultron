@@ -29,12 +29,13 @@ from unittest.mock import Mock
 
 import pytest
 
+from test.support.inbox_replay import hold_activity
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import (
     inbox_orchestration as io,
-    inbox_replay as replay,
+    inbox_queue_drain as drain,
 )
-from vultron.adapters.inbox_staging import InlineObjectStaging, hold_activity
+from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.inbox import InboxOutcome, InboxOutcomeStatus
 from vultron.core.models.fault_classes import (
@@ -171,7 +172,7 @@ def test_a_failing_replay_is_answered_only_when_dead_lettered(
         faults_seen.append(len(_faults_queued(dl)))
         return _raises(event, store)
 
-    with caplog.at_level(logging.ERROR, logger=replay.__name__):
+    with caplog.at_level(logging.ERROR, logger=drain.__name__):
         _run(dl, _dispatcher(_raise))
 
     assert faults_seen == [0, 0, 0], "a retried attempt is not answered"
@@ -303,7 +304,7 @@ def test_a_protocol_violation_is_dropped_and_answered_at_once(
         Mock(side_effect=VultronProtocolViolationError("never valid"))
     )
 
-    with caplog.at_level(logging.ERROR, logger=replay.__name__):
+    with caplog.at_level(logging.ERROR, logger=drain.__name__):
         _run(dl, dispatcher)
 
     dispatcher.dispatch.assert_called_once()
@@ -383,7 +384,7 @@ def test_a_replay_rejected_before_dispatch_is_not_lost(
 
 def test_a_rejection_with_no_reason_is_still_a_failure() -> None:
     """The pipeline records no reason when no node wrote an outcome."""
-    attempt = replay.ReplayAttempt()
+    attempt = drain.ReplayAttempt()
     attempt.rebuilt = True
 
     attempt.settle_rejection(InboxOutcome(status=InboxOutcomeStatus.REJECTED))
@@ -457,7 +458,7 @@ def test_a_dead_letter_fault_that_cannot_be_queued_is_logged(
 
     monkeypatch.setattr(io, "emit_processing_fault", _outbox_fails)
 
-    with caplog.at_level(logging.ERROR, logger=replay.__name__):
+    with caplog.at_level(logging.ERROR, logger=drain.__name__):
         _run(dl, _dispatcher(_raises))
 
     assert [e.activity_id for e in dl.inbox_dead_letter_list()] == [item.id_]
@@ -520,4 +521,4 @@ def test_a_replay_ingress_with_no_attempt_still_raises(
     _rebuild_raises(monkeypatch, RuntimeError("rebuild failed"))
 
     with pytest.raises(RuntimeError, match="rebuild failed"):
-        replay.StoredActivityIngressAdapter(dl=dl).parse(item.id_)
+        drain.StoredActivityIngressAdapter(dl=dl).parse(item.id_)

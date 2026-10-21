@@ -298,7 +298,7 @@ groups:
       act keeps nothing (ADR-0151), so a retry re-runs the whole act. A live delivery
       is not queued: its retry is the sender's resend (ASK-07-010).
     verification: >-
-      `test/adapters/driving/fastapi/test_inbox_replay_retry.py` runs
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py` runs
       `run_inbox_pipeline` with a queued item whose dispatch, rebuild or extraction
       raises: it is re-queued until the configured attempt limit, counting attempts
       an earlier run stored, and then appears in the dead-letter store with its last

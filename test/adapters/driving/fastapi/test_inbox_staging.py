@@ -40,7 +40,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
 )
-from vultron.adapters.driving.fastapi.inbox_replay import (
+from vultron.adapters.driving.fastapi.inbox_queue_drain import (
     StoredActivityIngressAdapter,
 )
 from vultron.adapters.inbox_staging import (

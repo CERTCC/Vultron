@@ -584,7 +584,7 @@ def test_unprocessable_activity_is_not_committed_to_the_ledger() -> None:
 # (TestARaisedDispatchIsAnsweredWithAFault),
 # test/adapters/driving/fastapi/test_failed_act_redelivery.py
 # (test_a_failed_proposal_is_applied_when_posted_again) and
-# test/adapters/driving/fastapi/test_inbox_replay_retry.py
+# test/adapters/driving/fastapi/test_inbox_queue_drain.py
 # (test_a_failing_replay_is_answered_only_when_dead_lettered, #4981, #5021).
 
 

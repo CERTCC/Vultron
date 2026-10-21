@@ -35,7 +35,7 @@ from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
 )
-from vultron.adapters.driving.fastapi.inbox_replay import (
+from vultron.adapters.driving.fastapi.inbox_queue_drain import (
     StoredActivityIngressAdapter,
 )
 from vultron.adapters.inbox_staging import (
