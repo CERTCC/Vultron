@@ -37,10 +37,7 @@ from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
-    EmDimension,
-    PxaDimension,
     RmDimension,
 )
 from vultron.core.models.note import VultronNote
@@ -50,7 +47,6 @@ from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.wire.as2.factories import (
-    add_status_to_case_activity,
     add_status_to_participant_activity,
     recommend_actor_activity,
     rm_engage_case_activity,
@@ -189,27 +185,23 @@ def test_rm_regression_note_reaches_the_declaring_participants_replica():
 @pytest.mark.spec("CSB-18-002", "SYNC-02-002", "CLP-10-001")
 def test_cs_diagnostic_note_reaches_the_declaring_participants_replica():
     """P declared under an active embargo the gate keeps: the CSB-18 note
-    replicates to the participant that declared it."""
+    replicates to the participant that declared it.
+
+    The case owner declares it in its own participant status, which the
+    CASE_MANAGER adopts without a call-out (RSH-01-002, RSH-04-001); the
+    default teardown gate waits for the owner's approval, so the embargo
+    stays in force beside the adopted P (CSB-18-002, #4829).
+    """
     net = LedgerNetwork(
         "https://example.org/cases/manager-note-csb-18", em_state=EM.ACTIVE
     )
-    status = CaseStatus(
-        context=net.case_id,
-        attributed_to=BYSTANDER,
-        em=EmDimension(state=EM.ACTIVE),
-        pxa=PxaDimension(state=CS_pxa.Pxa),
-    )
 
-    verdict = _to_manager(
-        net,
-        add_status_to_case_activity(
-            status, target=net.case_id, actor=BYSTANDER, to=[MANAGER]
-        ),
-    )
+    verdict = _to_manager(net, net.pxa_report(OWNER, CS_pxa.Pxa))
 
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     assert net.case(MANAGER).em_state == EM.ACTIVE
-    _assert_note_reaches(net, BYSTANDER, "Cross-machine entailment violated")
+    assert net.case(MANAGER).current_status.pxa.state == CS_pxa.Pxa
+    _assert_note_reaches(net, OWNER, "Cross-machine entailment violated")
 
 
 @pytest.mark.spec("CM-16-016", "CM-16-017", "SYNC-02-002", "CLP-10-001")

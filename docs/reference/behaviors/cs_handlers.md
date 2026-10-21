@@ -22,9 +22,8 @@ The behavioral requirements for these trees are specified in the
 
 ## Add Case Status Tree
 
-Handles receipt of an `Add(CaseStatus, VulnerabilityCase)` activity. Applies the
-two-gate authorization model (ADR-0046): idempotency check, ephemeral-state guard,
-history-prefix guard, a whole accept-or-reject check of EM and P/X/A, and optional embargo teardown.
+Handles receipt of an `Add(CaseStatus, VulnerabilityCase)` activity, which a participant replica admits from the case's CASE_MANAGER alone (RSH-04-005).
+It runs the idempotency check, ephemeral-state guard, history-prefix guard and a whole accept-or-reject check of EM and P/X/A, and writes nothing: the replica takes the status from the ledger.
 Constructed from
 `vultron.core.behaviors.status.add_case_status_tree.add_case_status_tree`.
 
@@ -52,9 +51,8 @@ print("```")
 ## Add Participant Status Tree
 
 Handles receipt of an `Add(ParticipantStatus, CaseParticipant)` activity.
-Implements the StatusAdoptionGate workflow (ADR-0046, RSH-01): verifies the sender
-is a participant, appends the raw peer status, then gates adoption and optional
-embargo teardown through authorization call-outs.
+Implements the StatusAdoptionGate workflow (ADR-0046, RSH-01): verifies the sender is a participant, appends the raw peer status, then gates adoption and optional embargo teardown through authorization call-outs.
+An adopted P, X or A reaches the case status here, and nowhere else on the received side (RSH-01-003).
 Constructed from
 `vultron.core.behaviors.status.add_participant_status_tree.add_participant_status_tree`.
 

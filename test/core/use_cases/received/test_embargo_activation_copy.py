@@ -275,6 +275,10 @@ class TestReceivedActivation:
         for replica in (OWNER, BYSTANDER):
             assert net.case(replica).em_state is EM.ACTIVE
 
+    # Integration tier, with the rest of the LedgerNetwork replay group
+    # (#4917): about 11s idle, most of it in DataLayer reads, so under the full
+    # unit run's load it can pass the 30s ceiling (notes/testing-pitfalls.md).
+    @pytest.mark.integration
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("EMB-18-005")
     def test_with_another_proposal_open(self):

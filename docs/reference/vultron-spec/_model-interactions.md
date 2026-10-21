@@ -134,8 +134,8 @@ whether to adopt it as canonical:
   gate is correctly blocking.
 - The CASE_MANAGER accepts a reported status as sent or refuses all of it, and the refusal names every refused value and why.
   A valid `vfd` update is refused with an `rm` value in the same report that cannot be accepted, and the sender corrects and resends the status.
-- On adoption, the CASE_MANAGER performs the canonical write by emitting
-  `Add(CaseStatus)` addressed to itself.
+- On adoption, the CASE_MANAGER commits the adopted status as its own `Add(CaseStatus)` case ledger entry, setting every public-state flag the report sets and clearing none.
+  It writes the entry directly, never by sending an `Add(CaseStatus)` to itself, and a receiver refuses an `Add(CaseStatus)` from any other sender.
 - The component that records the claim MUST NOT execute side-effects.
 
 !!! warning "The default is Case Owner authorization, not automatic adoption"

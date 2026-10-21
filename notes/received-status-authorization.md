@@ -88,8 +88,13 @@ questions, each behind its own seam:
    a blocked teardown still leaves the tree `SUCCESS`.
 
 On the adoption path the gates run in one tree, in order, with no inbox
-round-trip (RSH-01-003, RSH-01-004). `add_case_status_tree` runs the teardown
-gate only.
+round-trip (RSH-01-003, RSH-01-004). `add_case_status_tree` runs neither: it
+is admitted only at a participant replica, from the CASE_MANAGER, and writes
+nothing on receipt (RSH-04-005, RSH-08-003).
+
+**Assert a P/X/A report against `case.current_status`, not the sender's
+record.** Teardown reads the report itself, so checks on the sender's record
+pass even when the adoption commit adopts nothing (#4956).
 
 **Both seams are call-outs that require Case Owner approval by default**
 (RSH-07-001, RSH-07-002, ADR-0076). A permissive backend
@@ -116,7 +121,8 @@ are not wired into the received pipeline (see
 
 `CheckParticipantStatusAcceptableNode` accepts a received `ParticipantStatus` as
 sent or refuses all of it; `CheckCaseStatusAcceptableNode` does the same for
-`CaseStatus`. Rules:
+`CaseStatus`, at the participant replica that is its only receiver
+(RSH-04-005, RSH-09-005). Rules:
 
 - **Never record a status nobody sent.** No guard rewrites the received status
   and no node patches the ledger snapshot: the ledger records what was asserted
@@ -153,31 +159,36 @@ sent or refuses all of it; `CheckCaseStatusAcceptableNode` does the same for
 `CaseStatus` carries CS.P, CS.X or CS.A (RSH-03-001 to RSH-03-003). It does no
 sender check: authorization happened at the gates.
 
-- **A CASE_MANAGER-declared status is torn down by the CASE_MANAGER.** At any
-  other actor the branch does nothing (`_DeclaredByCaseManagerNode`, RSH-03-004);
-  the replica waits for the committed teardown entry. The skip decides *who*
-  tears down, not *whether*.
+- **Only the CASE_MANAGER runs the teardown.** The branch is built only by
+  `add_participant_status_tree`, under its CASE_MANAGER gate
+  (`test/architecture/test_teardown_branch_sites.py`); a replica learns the
+  teardown from the committed entries and never asks for one (RSH-03-004). Do not
+  add a teardown to a tree a replica runs, or the out-of-order ask of #4149
+  returns.
 - **A blocked teardown leaves the PXA↔EM entailment violated** (CSB-18-002 to
-  CSB-18-004). `PxaEmInvariantDiagnosticNode` detects it after the cascade, at
-  the CASE_MANAGER only, and commits a note as its own `add_note_to_case`
-  entry, so a lagging replica never reports the gap (RSH-06-004, #4829).
+  CSB-18-004). `PxaEmInvariantDiagnosticNode` detects it after the cascade in
+  `add_participant_status_tree`, at the CASE_MANAGER only, and commits a note as
+  its own `add_note_to_case` entry, so a lagging replica never reports the gap
+  (RSH-06-004, #4829).
 
 ## CaseStatus emission authority (RSH-04)
 
 - **Only the CASE_MANAGER emits `Add(CaseStatus)`.** Other participants embed a
   suggested `CaseStatus` in `Add(ParticipantStatus)` and let the gates decide
   (RSH-04-001).
-- **Refuse `Add(CaseStatus)` from anyone else.** `add_case_status_tree` has no
-  adoption gate, so admitting it from a participant skips the Case Owner's
-  approval (RSH-04-005, RSH-07-001).
+- **Refuse `Add(CaseStatus)` from anyone else, and at the CASE_MANAGER.**
+  `add_case_status_tree` has no adoption gate, so admitting it from a
+  participant skips the Case Owner's approval (RSH-04-005, RSH-07-001). The
+  CASE_MANAGER still moves the case status: by its embargo trees and by adopting
+  any participant's `Add(ParticipantStatus)`, its own included.
 - **Every CASE_MANAGER-side EM or P/X/A mutation is followed by a canonical
   `CaseStatus` ledger write** through `EmitCaseStatusUpdateNode` (RSH-04-002,
   RSH-04-003); without it every replica stays stale. Wire it after any new EM
   lifecycle node.
 - **Adoption passes the report to the snapshot.** On the participant path the
   case has not moved when `EmitCaseStatusUpdateNode` runs, so a bare snapshot
-  re-commits the old P/X/A. Pass `reported_status_id`; the node adopts the
-  report's P/X/A unless it regresses the case's (RSH-01-003, RSH-09-005, #4956).
+  re-commits the old P/X/A. Pass `reported_status_id`; the node adds every
+  P/X/A latch the report sets and clears none (`adopted_pxa`, RSH-01-003, #4956).
 - **Write directly, never through the inbox.** The CASE_MANAGER records its own
   state change by an inner commit, not by sending `Add(CaseStatus)` to itself
   (RSH-04-004, ADR-0108). The inbox gates exist for *external* suggestions.

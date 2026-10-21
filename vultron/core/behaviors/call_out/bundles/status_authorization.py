@@ -33,7 +33,7 @@ CaseStatus canonicalization model (ADR-0046):
   ``add_participant_status_tree``.  Decides whether a non-owner participant's
   reported CaseStatus is adopted as canonical (RSH-01).
 - ``embargo_teardown_authorization_gate_factory`` — EmbargoTeardownAuthorizationGate, the ``EmbargoTeardownAuthorizationGate`` Evaluator
-  call-out in ``add_case_status_tree``.  Gates execution of
+  call-out in ``add_participant_status_tree``.  Gates execution of
   ``ThreatTerminationBranchNode`` (embargo teardown) after the canonical write
   (RSH-02).
 
@@ -87,8 +87,8 @@ class StatusAuthorizationCallOutBundle(CallOutBundle):
       (StatusAdoptionGate).
     - ``embargo_teardown_authorization_gate_factory`` → the ``EmbargoTeardownAuthorizationGate`` Evaluator
       call-out in
-      :func:`~vultron.core.behaviors.status.add_case_status_tree.add_case_status_tree`
-      (EmbargoTeardownAuthorizationGate).
+      :func:`~vultron.core.behaviors.status.add_participant_status_tree.add_participant_status_tree`
+      (EmbargoTeardownAuthorizationGate), after the canonical write.
 
     Both default to ``RequireCaseOwnerApprovalNode`` (conservative: blocks
     until Case Owner approves).  Use :data:`STATUS_AUTHORIZATION_PERMISSIVE`
