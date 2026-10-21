@@ -360,9 +360,9 @@ the page sits. The key is not `content_type`, which reads as a MIME type.
 
 ### Type signal first, nav gated, files stay
 
-The order is: the `page_type` schema, validator and badge land with the
-DF-01-001 rewording first; the usability test runs against a build with badges
-(#4687); then the nav changes (#4684). The proposed nav stays on a branch or
+The `page_type` badge is the type signal, and it is already on every page. The
+usability test runs against a build with badges (#4687); then the nav changes
+(#4684). The proposed nav stays on a branch or
 preview build until it passes against `main`'s nav; a failing nav is revised
 and retested, and `main` keeps its current top level meanwhile.
 

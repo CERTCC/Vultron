@@ -16,7 +16,7 @@
   "reference": "Reference",
 } -%}
 {%- set page_type = page.meta.get("page_type") if page and page.meta else none -%}
-{%- if page_type in page_type_labels -%}
+{%- if page_type is string and page_type in page_type_labels -%}
 <div class="page-type page-type--{{ page_type }}">
   <span class="page-type__label">{{ page_type_labels[page_type] }}</span>
 </div>

@@ -19,7 +19,7 @@ groups:
     statement: >-
       Each reader-facing page SHOULD be one of the four Diátaxis content types —
       tutorial, how-to guide, explanation or reference — and declare it as its
-      `page_type` (DF-11-018); the content types label pages and do not organize the
+      `page_type` (DF-11-018); the content types label pages and need not organize the
       site's navigation.
     rationale: >-
       A reader arriving from search learns what kind of page they landed on from the
@@ -997,9 +997,14 @@ groups:
       would be noise.
     verification: >-
       `test/metadata/docs/test_page_type_badge.py` renders the badge template for
-      every `page_type`, confirming the label for each rendered type, no output for
-      `routing` or an undeclared page, a stylesheet rule for every rendered type, and
-      that the theme override includes the template.
+      every `page_type`, confirming the label for each rendered type and no output for
+      `routing`, an undeclared page or a malformed value; confirms a stylesheet rule
+      for every rendered type, that the theme override includes the template in the
+      content block every page renders, and that no reader-facing page replaces that
+      template; and fails on any `docs/` Markdown file that writes the badge markup
+      by hand. With `test/metadata/docs/test_page_frontmatter.py::test_committed_tree_passes` (every reader-facing page declares a
+      valid `page_type`), a page that rendered the wrong badge or none would fail one
+      of these.
   - id: DF-11-020
     priority: MUST_NOT
     kind: process
@@ -1012,10 +1017,10 @@ groups:
       A reader who wants the protocol must be able to trust that every page in a
       protocol section binds them or explains what binds them; a reference-
       implementation page beside them reads as part of the protocol. The nav is the
-      only place the two are grouped together, so the rule is stated on it.
-    verification: >-
-      Not yet machine-checked: a review rule until #4946 adds a `subject` frontmatter
-      key and a check over the `mkdocs.yml` nav that fails on a section holding both.
+      only place the two are grouped together. The Diátaxis-type sections predate
+      the rule and mix the two until #4684 replaces them; until #4946 adds a check
+      over the nav, it is a review rule for new and moved pages.
+    verification_debt: '#2571'
     tracking_issue: '#4946'
 - id: DF-12
   title: Protocol Specification normative text rendered from the requirement tiers

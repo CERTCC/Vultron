@@ -16,7 +16,13 @@ import jinja2
 import pytest
 
 from vultron.metadata.base import mkdocs_config, repo_root
-from vultron.metadata.docs.page_schema import PAGE_TYPE_BADGES, PageType
+from vultron.metadata.docs.page_frontmatter import classify_docs_tree
+from vultron.metadata.docs.page_schema import (
+    PAGE_TYPE_BADGES,
+    PageType,
+    is_working_record,
+)
+from vultron.metadata.file_loading import load_frontmatter
 
 pytestmark = pytest.mark.spec("DF-11-019")
 
@@ -64,9 +70,19 @@ def test_every_type_but_routing_has_a_badge():
         _Page({"title": "No declaration"}),
         _Page({}),
         _Page({"page_type": "howto"}),
+        _Page({"page_type": ["reference"]}),
+        _Page({"page_type": {"reference": True}}),
         None,
     ],
-    ids=["routing", "undeclared", "no-meta", "unknown", "no-page"],
+    ids=[
+        "routing",
+        "undeclared",
+        "no-meta",
+        "unknown",
+        "list",
+        "mapping",
+        "no-page",
+    ],
 )
 def test_no_badge_without_a_rendered_type(page):
     assert _render(page) == ""
@@ -126,3 +142,48 @@ def test_the_site_loads_the_override_and_the_stylesheet():
     assert isinstance(extra_css_files, list)
     assert "stylesheets/extra.css" in extra_css_files
     assert '@import "page_type.css";' in extra_css
+
+
+def test_no_reader_facing_page_replaces_the_theme_template():
+    """A page with its own ``template:`` would skip the badge's content block."""
+    tree = classify_docs_tree(_ROOT)
+    replacing = [
+        rel
+        for rel in tree.pages
+        if not is_working_record(rel)
+        and "template"
+        in load_frontmatter(_ROOT / "docs" / rel, root=_ROOT).metadata
+    ]
+
+    assert tree.pages
+    assert replacing == []
+
+
+_HAND_BADGE = re.compile(
+    r"""class=["'][^"']*\bpage-type\b|\{[^}]*\.page-type\b"""
+)
+
+
+def test_no_page_writes_a_badge_by_hand():
+    """Badges come only from frontmatter; no check compares a hand-written one."""
+    sources = sorted((_ROOT / "docs").rglob("*.md"))
+    hand_written = [
+        path.relative_to(_ROOT).as_posix()
+        for path in sources
+        if _HAND_BADGE.search(path.read_text(encoding="utf-8"))
+    ]
+
+    assert sources
+    assert hand_written == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '<span class="page-type page-type--reference">Reference</span>',
+        "[Reference](x.md){ .page-type }",
+    ],
+    ids=["html", "attr-list"],
+)
+def test_the_hand_badge_pattern_catches_both_spellings(text):
+    assert _HAND_BADGE.search(text)
