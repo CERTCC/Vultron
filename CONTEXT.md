@@ -30,10 +30,26 @@ service that sends and receives protocol messages. Actors have persistent identi
 (URIs) and maintain their own DataLayer. *Avoid*: user, agent (in the
 protocol-participant sense; see Capability Shapes below)
 
+**Case Manager**:
+The participant holding the CASE_MANAGER role in a case. It alone writes the case's
+canonical ledger, admits or refuses what participants send, and fans the results out to
+them. Authority comes from the role, never from the actor's kind or where it is
+hosted, so any actor may hold it, and one actor may manage one case while being a plain
+participant in another (ADR-0088).
+*Avoid*: treating the Case Manager as a kind of actor; conflating it with the Case Owner
+
+**Case Owner**:
+The participant holding the CASE_OWNER role: the actor the case is attributed to, which
+may offer roles to others and transfer ownership. Like every participant it holds a
+replica and sends its changes through the Case Manager. Usually a different actor from
+the Case Manager.
+*Avoid*: assuming the Case Owner writes the canonical ledger
+
 **Case Actor**:
-A special-purpose service actor that owns the canonical ledger for a case, coordinates
-participant invitations, and fans out protocol messages to all participants. Not a human.
-*Avoid*: coordinator (the Case Actor is a protocol role, not an organizational role)
+The service actor a deployment runs to take the Case Manager role for the cases proposed
+to it. Not a human. It has no authority beyond the roles it holds in each case.
+*Avoid*: coordinator (an organizational role); using "Case Actor" to mean the Case
+Manager role
 
 **Active participant / inert participant**:
 A participant is *active* — entitled to case content — when it was seated by case
