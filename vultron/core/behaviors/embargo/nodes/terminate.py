@@ -25,6 +25,9 @@ of the ask clears it (SYNC-11-003).  BTND-07-005.
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.nodes.chosen_cause import (
+    ChosenTermination,
+)
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
@@ -131,7 +134,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
         reason: TerminationReason,
         name: str | None = None,
         *,
-        cause: TerminationCause | None = None,
+        cause: TerminationCause | ChosenTermination | None = None,
     ) -> None:
         super().__init__(case_id=case_id, name=name)
         self._reason = reason
@@ -172,6 +175,12 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
             )
         return self.embargo_id, self.case_manager_id
 
+    def _ask_cause(self) -> TerminationCause | None:
+        """The cause the ask carries; a chosen one is read now (EMB-14-001)."""
+        if isinstance(self._cause, ChosenTermination):
+            return self._cause.termination.participant_cause
+        return self._cause
+
     def _call_factory(
         self, actor_id: str, embargo_id: str, case_manager_id: str
     ) -> tuple[str, object]:
@@ -181,7 +190,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
             case_id=self._case_id,
             actor=actor_id,
             reason=self._reason,
-            cause=self._cause,
+            cause=self._ask_cause(),
             to=[case_manager_id],
         )
 
@@ -209,7 +218,7 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
 def ask_case_manager_to_terminate_once(
     case_id: str,
     reason: TerminationReason,
-    cause: TerminationCause | None = None,
+    cause: TerminationCause | ChosenTermination | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """The cascades' ask: queue ``Remove(EmbargoEvent)`` unless already asked.
 
@@ -220,7 +229,8 @@ def ask_case_manager_to_terminate_once(
     SUCCESS without sending when the ask is still pending, else the send
     node's result, whose FAILURE still fails the tree (BT-14-001).  The ask
     carries *reason*, the termination's what (ADR-0122), and *cause*, its
-    why, when given (EMB-13-005).
+    why, when given (EMB-13-005); a :class:`ChosenTermination` is read when
+    the ask is sent (EMB-14-001).
     """
     return py_trees.composites.Selector(
         name="AskCaseManagerToTerminateOnce",

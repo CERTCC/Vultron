@@ -44,6 +44,10 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from vultron.core.models._helpers import require_future_aware
 from vultron.core.models.base import NonEmptyString, UriString
+from vultron.core.models.embargo_termination import (
+    CASE_MANAGER_ONLY_CAUSE_KINDS,
+    TerminationCause,
+)
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.enums.roles import CVDRole, parse_role, validate_roles
@@ -207,9 +211,35 @@ class TerminateEmbargoRequest(CaseTriggerRequest):
     Sentinel monitoring embargo timers sends: refused before the end time,
     and answered as already done, with no activity, once the embargo has
     ended.
+
+    ``cause`` is why an ``EARLY`` termination ends the embargo (EMB-13-004):
+    ``FIX_READY`` with its vendors, ``FIX_DEPLOYED`` or ``OTHER``.  An
+    ``EARLY`` request with no cause is recorded as ``OTHER``.  A
+    ``THREAT_SIGNAL`` cause is refused: a case status update setting ``P``,
+    ``X`` or ``A`` is how a threat signal ends an embargo (EMB-13-005).  A
+    cause on an ``END_TIME_REACHED`` request is refused too.
     """
 
     reason: TerminationReason = TerminationReason.EARLY
+    cause: TerminationCause | None = None
+
+    @model_validator(mode="after")
+    def _cause_fits_request(self) -> "TerminateEmbargoRequest":
+        """Refuse a cause this request may not name (EMB-13-004/005)."""
+        if self.cause is None:
+            return self
+        if self.reason == TerminationReason.END_TIME_REACHED:
+            raise ValueError(
+                "an END_TIME_REACHED termination cannot have a cause"
+                " (EMB-13-004)"
+            )
+        if self.cause.kind in CASE_MANAGER_ONLY_CAUSE_KINDS:
+            raise ValueError(
+                f"a terminate-embargo request cannot name a {self.cause.kind}"
+                " cause: a case status update setting P, X or A is how a"
+                " threat signal ends an embargo (EMB-13-005)"
+            )
+        return self
 
 
 class WithdrawEmbargoRequest(CaseTriggerRequest):

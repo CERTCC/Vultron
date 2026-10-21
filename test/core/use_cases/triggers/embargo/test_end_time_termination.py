@@ -51,6 +51,7 @@ from vultron.core.models.case_participant import (
 from vultron.core.models.dimensions import PxaDimension, RmDimension
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
+    OtherCause,
     ThreatSignal,
     ThreatSignalTermination,
 )
@@ -497,7 +498,11 @@ def test_an_early_termination_runs_the_full_cascade() -> None:
 
     world.sentinel_request(reason=TerminationReason.EARLY)
 
-    _assert_full_cascade(world, EmbargoTermination.early())
+    # An EARLY request naming no cause is recorded as OTHER (EMB-14-001).
+    _assert_full_cascade(
+        world,
+        EmbargoTermination(reason=TerminationReason.EARLY, cause=OtherCause()),
+    )
 
 
 @pytest.mark.spec("EP-08-004")

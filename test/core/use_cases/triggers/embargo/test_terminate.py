@@ -5,6 +5,7 @@ from typing import cast
 import py_trees
 import pytest
 from py_trees.common import Status
+from pydantic import ValidationError
 
 from test.support.embargo_register import (
     propose,
@@ -25,6 +26,15 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    FixDeployedCause,
+    FixReadyCause,
+    OtherCause,
+    TerminationCause,
+    ThreatSignal,
+    ThreatSignalCause,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.core.states.participant_embargo_consent import (
@@ -373,3 +383,77 @@ def test_terminate_embargo_unknown_actor_raises_not_found(
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
+
+
+_VENDOR_ID = "https://example.org/actors/vendor-co"
+
+
+@pytest.mark.spec("EMB-14-001")
+@pytest.mark.spec("EMB-13-005")
+@pytest.mark.parametrize(
+    "cause,recorded",
+    [
+        (None, OtherCause()),
+        (FixDeployedCause(), FixDeployedCause()),
+        (
+            FixReadyCause(vendors=[_VENDOR_ID]),
+            FixReadyCause(vendors=[_VENDOR_ID]),
+        ),
+        (OtherCause(), OtherCause()),
+    ],
+)
+def test_an_early_request_records_its_cause_or_other(
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+    cause: TerminationCause | None,
+    recorded: TerminationCause,
+) -> None:
+    """The requested cause reaches the Remove and the TERMINATED entry; an
+    EARLY request naming none is recorded as OTHER."""
+    owner, owner_dl = owner_actor_and_dl
+    finder = _persist_actor(owner_dl, "Finder Co")
+    case, _, _ = _build_active_embargo_case(owner_dl, owner.id_, finder.id_)
+    embargo_id = case.active_embargo_id
+    assert embargo_id is not None
+
+    result = SvcTerminateEmbargoUseCase(
+        owner_dl,
+        TerminateEmbargoTriggerRequest(
+            actor_id=owner.id_, case_id=case.id_, cause=cause
+        ),
+        trigger_activity=TriggerActivityAdapter(owner_dl),
+        sync_port=SyncActivityAdapter(owner_dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    expected = EmbargoTermination(
+        reason=TerminationReason.EARLY, cause=recorded
+    )
+    updated = cast(VulnerabilityCase, owner_dl.read(case.id_))
+    entry = updated.embargo_register_entry(embargo_id)
+    assert entry is not None
+    assert entry.termination == expected
+    assert result.activity is not None
+    assert result.activity["terminationCause"] == recorded.model_dump(
+        mode="json", by_alias=True
+    )
+
+
+@pytest.mark.spec("EMB-13-005")
+def test_a_request_naming_a_threat_signal_is_refused() -> None:
+    with pytest.raises(ValidationError, match="case status update"):
+        TerminateEmbargoTriggerRequest(
+            actor_id=_VENDOR_ID,
+            case_id="https://example.org/cases/c1",
+            cause=ThreatSignalCause(signals=[ThreatSignal.P]),
+        )
+
+
+@pytest.mark.spec("EMB-13-004")
+def test_an_end_time_request_naming_a_cause_is_refused() -> None:
+    with pytest.raises(ValidationError, match="END_TIME_REACHED"):
+        TerminateEmbargoTriggerRequest(
+            actor_id=_VENDOR_ID,
+            case_id="https://example.org/cases/c1",
+            reason=TerminationReason.END_TIME_REACHED,
+            cause=FixDeployedCause(),
+        )

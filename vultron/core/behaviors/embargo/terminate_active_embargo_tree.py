@@ -22,14 +22,25 @@ Tree structure::
     Sequence("TerminateActiveEmbargoBT"):
       HasActiveEmbargoNode(case_id)        # precondition guard
       Selector("ReasonSelector"):          # why are we exiting?
-        ExitEmbargoWhenDeployed            # Evaluator call-out (EMB-14-001)
-        ExitEmbargoWhenFixReady            # Evaluator call-out (EMB-14-001)
-        ExitEmbargoForOtherReason          # Evaluator call-out (EMB-14-001)
+        Sequence("ExitWhenDeployed"):
+          ExitEmbargoWhenDeployed          # Evaluator call-out (EMB-14-001)
+          ChooseFixDeployedCause           # cause FIX_DEPLOYED
+        Sequence("ExitWhenFixReady"):
+          ExitEmbargoWhenFixReady          # Evaluator call-out (EMB-14-001)
+          ChooseFixReadyCause              # cause FIX_READY, fix-ready vendors
+        Sequence("ExitForOtherReason"):
+          ExitEmbargoForOtherReason        # Evaluator call-out (EMB-14-001)
+          ChooseOtherCause                 # cause OTHER
       Selector("AuthorizeEmbargoExit"):    # are we allowed to proceed?
         EmbargoExitPolicyGuard             # Evaluator call-out (EMB-14-002)
         EmbargoExitOverride                # Evaluator call-out (EMB-14-003)
       OnEmbargoExit                        # Actuator call-out point
       terminate_embargo_bt(case_id, ...)   # existing mechanism (BT-19-001)
+
+The reason Sequence that succeeds records its cause in the tree's
+:class:`~vultron.core.behaviors.embargo.nodes.chosen_cause.ChosenTermination`,
+which ``terminate_embargo_bt`` reads at the write, so the ``Remove`` and
+the ``TERMINATED`` entry carry the chosen cause (EMB-13-004).
 
 References
 ----------
@@ -47,12 +58,15 @@ import py_trees
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
 )
+from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 from vultron.core.behaviors.embargo.nodes import (
+    ChooseTerminationCauseNode,
+    ChosenTermination,
     EmbargoActivityBuilder,
     HasActiveEmbargoNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
-from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.embargo_termination import TerminationCauseKind
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.embargo import (
@@ -60,6 +74,28 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+
+def _reason_branch(
+    name: str,
+    call_out: CallOutBackendFactory,
+    call_out_name: str,
+    *,
+    case_id: str,
+    kind: TerminationCauseKind,
+    chosen: ChosenTermination,
+) -> py_trees.behaviour.Behaviour:
+    """One reason: its call-out, then the cause it stands for (EMB-14-001)."""
+    return py_trees.composites.Sequence(
+        name=name,
+        memory=False,
+        children=[
+            call_out(call_out_name),
+            ChooseTerminationCauseNode(
+                case_id=case_id, kind=kind, chosen=chosen
+            ),
+        ],
+    )
 
 
 def create_terminate_active_embargo_tree(
@@ -75,7 +111,10 @@ def create_terminate_active_embargo_tree(
 
     1. Guard that an active embargo exists (precondition).
     2. Reason Selector — one of three Evaluator call-out points must return
-       SUCCESS to supply a termination reason (EMB-14-001).
+       SUCCESS to supply a termination reason, recorded as the termination's
+       cause: ``FIX_DEPLOYED``, ``FIX_READY`` naming the case's fix-ready
+       vendors, or ``OTHER`` (EMB-14-001).  A fix-ready reason with no
+       fix-ready vendor fails, and the next reason is tried.
     3. Authorization Selector — EmbargoExitPolicyGuard (happy path, EMB-14-002)
        or EmbargoExitOverride (audit-trail fallback, EMB-14-003) must allow the
        exit to proceed.
@@ -101,18 +140,34 @@ def create_terminate_active_embargo_tree(
     """
     bundle = call_out if call_out is not None else EMBARGO_DETERMINISTIC
 
+    chosen = ChosenTermination()
     reason_selector = py_trees.composites.Selector(
         name="ReasonSelector",
         memory=False,
         children=[
-            bundle.exit_embargo_when_deployed_factory(
-                "ExitEmbargoWhenDeployed"
+            _reason_branch(
+                "ExitWhenDeployed",
+                bundle.exit_embargo_when_deployed_factory,
+                "ExitEmbargoWhenDeployed",
+                case_id=case_id,
+                kind=TerminationCauseKind.FIX_DEPLOYED,
+                chosen=chosen,
             ),
-            bundle.exit_embargo_when_fix_ready_factory(
-                "ExitEmbargoWhenFixReady"
+            _reason_branch(
+                "ExitWhenFixReady",
+                bundle.exit_embargo_when_fix_ready_factory,
+                "ExitEmbargoWhenFixReady",
+                case_id=case_id,
+                kind=TerminationCauseKind.FIX_READY,
+                chosen=chosen,
             ),
-            bundle.exit_embargo_for_other_reason_factory(
-                "ExitEmbargoForOtherReason"
+            _reason_branch(
+                "ExitForOtherReason",
+                bundle.exit_embargo_for_other_reason_factory,
+                "ExitEmbargoForOtherReason",
+                case_id=case_id,
+                kind=TerminationCauseKind.OTHER,
+                chosen=chosen,
             ),
         ],
     )
@@ -137,7 +192,7 @@ def create_terminate_active_embargo_tree(
             terminate_embargo_bt(
                 case_id=case_id,
                 result_out=result_out,
-                termination=EmbargoTermination.early(),
+                termination=chosen,
                 activity_builder=activity_builder,
             ),
         ],
