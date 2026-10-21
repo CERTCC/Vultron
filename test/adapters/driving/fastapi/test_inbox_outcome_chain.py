@@ -158,8 +158,9 @@ def test_remove_embargo_naming_no_case_is_refused_by_its_handler(dl):
     """A ``Remove(EmbargoEvent)`` with no ``origin`` names no case to act on.
 
     Its pattern requires no case field, so it still routes to the Remove
-    handler, which reads the case from ``origin`` alone and refuses it. The verdict is the handler's own, reached
-    through the production dispatcher; the dispatcher refuses nothing.
+    handler, which reads the case from ``origin`` alone and refuses it. The
+    verdict is the handler's own, reached through the production dispatcher;
+    the dispatcher refuses nothing.
     """
     from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
     from vultron.core.states.embargo_register import TerminationReason

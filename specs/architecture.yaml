@@ -527,8 +527,9 @@ groups:
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: 'A helper function that requires a non-None ID MUST check the result and raise VultronValidationError immediately. The strict guarantee lives in the caller or the helper itself — never deferred silently
-      to downstream code.'
+    statement: 'A helper function that requires a non-None ID MUST check the result
+      and raise VultronValidationError immediately. The strict guarantee lives in the
+      caller or the helper itself — never deferred silently to downstream code.'
     rationale: 'Returning None from a helper that conceptually requires a valid ID moves the error from the point of failure
       to the point of use, making stack traces and logs point to the wrong location. See notes/domain-validation.md and ADR-0032.'
     relationships:

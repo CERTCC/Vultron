@@ -123,7 +123,7 @@ class CommitInviteeAcceptEntriesNode(DataLayerActionWithPorts):
     id and times, so it has its own ``add_participant_status_to_participant``
     entry.  It is committed here, after the case announce and the backfill of
     the prior ledger, so it reaches the invitee in chain order and not before
-    its case seed (#2898).  A resumed Accept that appended no status commits
+    its case seed (#2898).  An Accept that appended no status commits
     nothing.
     """
 
