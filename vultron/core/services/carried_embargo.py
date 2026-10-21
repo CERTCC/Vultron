@@ -28,8 +28,11 @@ could not read: the manager's teardown then failed to announce
 (``terminate_embargo`` reads the ``EmbargoEvent`` first and raised), and every
 participant kept an embargo already torn down, with EM stuck at ACTIVE.
 
-:func:`carried_entry_embargo` is the same rule for a ledger entry that names
-an embargo, for the replica slot that activates it.
+:func:`carried_entry_embargo` and :func:`entry_embargo` are the same rule for
+a ledger entry that names an embargo, for the replica slots that apply it.
+Every path checks the inline copy and the record already held under its id
+alike (:func:`hold_embargo_for_case` for a case, EMB-18-004): its ``context``
+must be the case or one of the case's reports (EP-04-009).
 """
 
 from pydantic import ValidationError
@@ -95,7 +98,7 @@ def hold_embargo_for_case(
 
     An inline ``EmbargoEvent`` is stored when *store* lacks it; a bare id
     must already resolve.  The inline copy and the held record must both be
-    *case*'s (:func:`held_embargo_of_case`, EMB-18-004), and the inline
+    *case*'s, about *case* or one of its reports (EMB-18-004), and the inline
     copy is checked before anything is written.
 
     Raises:
@@ -111,29 +114,7 @@ def hold_embargo_for_case(
             store.save(embargo)
     else:
         embargo_id = embargo
-    return held_embargo_of_case(store, case, embargo_id)
-
-
-def held_embargo_of_case(
-    store: CasePersistence | DataLayer,
-    case: VulnerabilityCase,
-    embargo_id: str,
-) -> EmbargoEvent:
-    """The ``EmbargoEvent`` *store* holds under *embargo_id*, for *case*.
-
-    The record a case would name is the stored one, so its ``context`` is
-    checked as an inline copy's is (EMB-18-004): it must be *case*, or a
-    report *case* holds, since a Reporter's proposal names its report
-    before the case exists and keeps its id once it is about the case
-    (EP-04-004, EP-04-009).  Any other ``context`` is refused.  Writes
-    nothing.
-
-    Raises:
-        VultronNotFoundError: *store* holds no record under *embargo_id*.
-        VultronValidationError: the held record is not an ``EmbargoEvent``,
-            or its ``context`` is neither *case* nor one of its reports.
-    """
-    return _held_embargo(store, _case_subjects(case), case.id_, embargo_id)
+    return _held_embargo(store, subjects, case.id_, embargo_id)
 
 
 def _held_embargo(
@@ -142,6 +123,19 @@ def _held_embargo(
     case_id: str,
     embargo_id: str,
 ) -> EmbargoEvent:
+    """The ``EmbargoEvent`` *store* holds under *embargo_id*, for the case.
+
+    The record a case would name is the stored one, so its ``context`` is
+    checked as an inline copy's is (EMB-18-004): it must be one of
+    *subjects*, the case or a report it holds, since a Reporter's proposal
+    names its report before the case exists and keeps its id once it is
+    about the case (EP-04-004, EP-04-009).  Writes nothing.
+
+    Raises:
+        VultronNotFoundError: *store* holds no record under *embargo_id*.
+        VultronValidationError: the held record is not an ``EmbargoEvent``,
+            or its ``context`` is not one of *subjects*.
+    """
     embargo = read_embargo_event(store, embargo_id)
     _require_this_case(subjects, case_id, embargo_id, embargo.context)
     return embargo
@@ -251,9 +245,10 @@ def carried_entry_embargo(
     record must be held in the same store (EMB-18-003).  Returns ``None``
     when *store* already holds it, else the validated inline copy for the
     caller to store once the entry has applied, so a refused entry stores
-    nothing.  A held record must be this case's, as the inline copy must:
+    nothing.  An inline copy and a held record must both be this case's:
     about the case or one of the reports the replica's stored case holds
-    (EMB-18-004).  Writes nothing.
+    (EMB-18-004).  The inline copy is checked even when the record is held,
+    as :func:`entry_embargo` checks it.  Writes nothing.
 
     Raises:
         VultronNotFoundError: the entry names, by bare reference, an embargo
@@ -264,18 +259,22 @@ def carried_entry_embargo(
     """
     embargo_id = _entry_embargo_id(case_id, embargo_data)
     subjects = _entry_subjects(store, case_id)
+    inline = (
+        _inline_entry_embargo(subjects, case_id, embargo_id, embargo_data)
+        if isinstance(embargo_data, dict)
+        else None
+    )
     if store.read(embargo_id) is not None:
         _held_embargo(store, subjects, case_id, embargo_id)
         return None
-    if not isinstance(embargo_data, dict):
+    if inline is None:
         raise VultronNotFoundError("EmbargoEvent", embargo_id)
-    return _inline_entry_embargo(subjects, case_id, embargo_id, embargo_data)
+    return inline
 
 
 __all__ = [
     "carried_entry_embargo",
     "entry_embargo",
-    "held_embargo_of_case",
     "hold_embargo_for_case",
     "store_carried_embargo",
 ]

@@ -116,9 +116,9 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         The canonical entry carries the object inline, so the replica stores
         it from there rather than fetching it from the proposer (EMB-18-003,
         CLP-10-017).  A bare id is enough when the record is already here; an
-        inline copy, or a held record, whose ``context`` is another case is
-        refused, as the case-seeding path refuses one
-        (``carried_entry_embargo``, EMB-18-004).
+        inline copy, or a held record, whose ``context`` is neither the case
+        nor one of its reports is refused, as the case-seeding path refuses
+        one (``carried_entry_embargo``, EMB-18-004).
         """
         assert self.datalayer is not None
         try:
@@ -198,8 +198,8 @@ def _carried_embargo(
 
     The entry carries it inline (EMB-18-003, CLP-10-017); a bare id is
     enough when this store already holds the record.  An inline copy, or a
-    held record, whose ``context`` is another case is refused, as the
-    case-seeding path refuses one
+    held record, whose ``context`` is neither the case nor one of its
+    reports is refused, as the case-seeding path refuses one
     (:func:`~vultron.core.services.carried_embargo.entry_embargo`,
     EMB-18-004).
 

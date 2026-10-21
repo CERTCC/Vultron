@@ -217,15 +217,18 @@ catch-up fetch or deferral, refuse instead.
   receiving writer calls `store_carried_embargo()`
   (`vultron/core/services/carried_embargo.py`) before saving the case; a case
   naming an unreadable embargo is refused and nothing is saved. An inline
-  embargo whose `context` is not the carrying case is refused unstored, because
-  a first write wins and a sender must not plant another case's embargo. The
-  record already held under the id is checked too, inline or bare id, since the
-  case names the held record (EMB-18-004, `hold_embargo_for_case()`). A
-  `context` naming one of the case's reports counts as the case's: the Reporter
-  holds its own proposal about the report it submitted (EP-04-009).
+  embargo whose `context` is neither the carrying case nor one of its reports
+  is refused unstored, because a first write wins and a sender must not plant
+  another case's embargo. The record already held under the id is checked too,
+  inline or bare id, since the case names the held record (EMB-18-004,
+  `hold_embargo_for_case()`). A report counts because the Reporter holds its
+  own proposal about the report it submitted (EP-04-009).
 - **Ledger replay.** Each embargo apply node stores the `EmbargoEvent` its entry
   carries before calling `EmbargoLifecycle`, and fails (blocking the persist,
   SYNC-12-001) when the entry names it by id only and the replica lacks it.
+  The entry's inline copy and the record already held under its id must each
+  be about the case or a report of the replica's stored case, or the entry is
+  refused (EMB-18-004, `carried_entry_embargo()`, `entry_embargo()`).
 - **Activation.** `activate_embargo()` and `initialize_creation_embargo()` read
   the activated record, and on a revision the replaced one, through
   `_activation_arm()` before any write, raising in either mode. The owner's
