@@ -209,9 +209,9 @@ a URL an earlier build served and this one dropped. `uv run docs-legacy-urls`
 - **Snapshot the incoming publish, not the outgoing one.** A pull request to
   `publish` fails until every page its merge result builds is recorded
   (DOCBW-03-012), whatever paths the pull request changes: run
-  `--snapshot origin/main` on `main` and commit it. Recording each publish as
-  it ships covers every earlier one, and the check reuses the snapshot's
-  definition of a built page, so the two cannot disagree.
+  `--snapshot origin/main` on a branch from `main` and merge it into `main`.
+  Recording each publish as it ships covers every earlier one, and the check
+  reuses the snapshot's definition of a built page, so the two cannot disagree.
 - **A snapshot records what the ref built, not what it held** — it applies that
   ref's own `draft_docs` and `exclude_docs`.
 - **The baseline lists built pages, not nav entries.** Fragments built as their
@@ -227,7 +227,11 @@ a URL an earlier build served and this one dropped. `uv run docs-legacy-urls`
 Both publication-side checks run through one composite action,
 `.github/actions/check-site-publication`, in `docs-build-check.yml` and in
 `deploy_site.yml`, so the workflow that ships is gated by exactly what the
-workflow that reviews is gated by.
+workflow that reviews is gated by. The `--require-recorded` step stays out of
+that action: it is a `docs-build-check.yml` step conditioned on a `publish` base
+branch, and `docs-publish-check.yml` calls that workflow on every pull request
+to `publish`, because the reviewing workflow's own trigger carries a `paths:`
+filter and a workflow has only one `pull_request` trigger.
 
 ## Nav Visibility Is Not a Content Class: Fragments vs. Assembly Units
 

@@ -35,6 +35,7 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    case_manager_verdict,
     door_refusal,
     find_named,
     node_failed,
@@ -255,6 +256,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         if (refusal := door_refusal(tree)) is not None:
             return refusal  # a door refused: no reply, no fault (CM-23-017)
         verdict = verdict_from_bt(tree, result, label="AddParticipantStatusBT")
+        if case_id is not None:
+            # Only the CASE_MANAGER adjudicates the status (HP-01-005).  With
+            # no case the sender guard has already refused.
+            verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.APPLIED and (
             _adoption_gate_blocked(tree)
         ):

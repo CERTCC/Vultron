@@ -252,6 +252,11 @@ _PROPOSAL_INDEX = (
     "records which Invite proposed an embargo to this replica, a per-replica"
     " correlation the replay never displaces (EP-09-003, EP-09-007)"
 )
+_HELD_ANNOUNCE = (
+    "holds or releases a received out-of-order Announce(CaseLedgerEntry) for"
+    " its replay, the receiver's inbox bookkeeping, never a ledger entry or"
+    " a record of the case (SYNC-14-001, SYNC-14-005, SYNC-14-009)"
+)
 _B = "vultron.core.behaviors"
 # permanent: RSH-08-003 (writes that are not participant or case state)
 WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
@@ -357,7 +362,13 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         "BackfillAdmittedParticipantsNode",
     ): _REPLICATION,
     (f"{_B}.sync.nodes.fanout", "SendLogEntryToEachNode"): _REPLICATION,
+    (f"{_B}.sync.nodes.receive", "BufferOutOfOrderEntryNode"): _HELD_ANNOUNCE,
+    (f"{_B}.sync.nodes.receive", "BufferPreGenesisEntryNode"): _HELD_ANNOUNCE,
     (f"{_B}.sync.nodes.receive", "PersistReceivedLogEntryNode"): _LEDGER,
+    (
+        f"{_B}.sync.nodes.replay_held",
+        "ReplayHeldSuccessorNode",
+    ): _HELD_ANNOUNCE,
     (f"{_B}.sync.nodes.replay", "SendMissingEntriesNode"): _REPLICATION,
 }
 

@@ -18,9 +18,9 @@ from typing import Any
 
 import pytest
 
+from test.support.inbox_replay import hold_activity
 from test.support.received import archive_delivered, hold_deferred
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.inbox_staging import hold_activity
 from vultron.adapters.received_archive import (
     load_received_view,
     read_held_as_received,

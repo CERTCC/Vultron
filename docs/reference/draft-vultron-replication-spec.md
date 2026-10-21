@@ -54,8 +54,8 @@ covers:
   Participant Actors via `Announce(CaseLedgerEntry)` activities.
 - **Conflict handling and recovery** — the reject-and-replay protocol that
   re-synchronises a diverged replica.
-- **Gap detection and ordering guarantees** — the receiver-side buffer that
-  makes convergence independent of delivery order.
+- **Gap detection and ordering guarantees** — the receiver-side holding area
+  that makes convergence independent of delivery order.
 - **Commit discipline** — the invariant that external messages are emitted
   only after a ledger entry is committed.
 - **Normative replication architecture** — the single-hub / single-writer +
@@ -283,7 +283,7 @@ A participant that already holds the case compares the tail with its own chain. 
 - If its chain is already past the tail, the copy is stale and the participant leaves its case unchanged.
 - If it holds a different entry at the tail's index, the chains conflict and the participant leaves its case unchanged.
 - Otherwise it replaces its case with the copy.
-  If its chain falls short of the tail, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before the tail, replayed or drained from its gap buffer, as a no-op. (SYNC-16-007)
+  If its chain falls short of the tail, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before the tail, replayed or drained from its holding area, as a no-op. (SYNC-16-007)
 
 A divergence fault for an entry the last re-seed already reflected means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
 
@@ -300,52 +300,38 @@ relying solely on the reject/replay round-trip does not converge under
 adversarial reordering, because replay re-announces entries individually over
 the same unordered transport.
 
-### 6.2 Receiver-Side Gap Buffer
+### 6.2 Receiver-Side Holding Area
 
-When a participant receives a valid `Announce(CaseLedgerEntry)` whose
-`prev_log_hash` does not match its current chain tail, but whose `log_index`
-is strictly greater than `tail_index + 1` (a forward gap), the participant
-MUST NOT permanently discard the entry. It MUST retain the entry in a
-non-ledger holding area, keyed by `prev_log_hash`, pending arrival of its
-predecessor. (SYNC-14-001)
+When a participant receives a valid `Announce(CaseLedgerEntry)` whose `prev_log_hash` does not match its current chain tail, but whose `log_index` is strictly greater than `tail_index + 1` (a forward gap), the participant MUST NOT permanently discard the entry.
+It MUST retain the `Announce(CaseLedgerEntry)` that carried it, as the body that arrived, in a non-ledger holding area, keyed by the entry's `prev_log_hash`, pending arrival of its predecessor.
+It MUST NOT retain the entry apart from that `Announce`. (SYNC-14-001)
 
-A forward-gap entry that is buffered MUST still trigger resynchronisation:
-the participant MUST send `Reject(CaseLedgerEntry)` carrying its last accepted
-hash, so the CASE_MANAGER can replay entries that are genuinely lost (not merely
-reordered). (SYNC-14-002)
+A forward-gap entry whose `Announce` is held MUST still trigger resynchronization: the participant MUST send `Reject(CaseLedgerEntry)` carrying its last accepted hash, so the CASE_MANAGER can replay entries that are genuinely lost (not merely reordered). (SYNC-14-002)
 
 ### 6.3 Drain on Predecessor Commit
 
-After a participant commits a `CaseLedgerEntry`, it MUST drain the holding
-area. For each newly committed tail, the participant MUST locate the buffered
-entry (if any) whose `prev_log_hash` equals the new tail's `entry_hash`,
-apply and persist that entry via the same apply-then-persist path as in-order
-delivery, and repeat, cascading until no buffered entry extends the current
-tail. (SYNC-14-003, SYNC-14-008)
+After a participant commits a `CaseLedgerEntry`, it MUST drain the holding area.
+For each newly committed tail, the participant MUST locate the held `Announce` (if any) whose entry's `prev_log_hash` equals the new tail's `entry_hash`, apply and persist that entry via the same apply-then-persist path as in-order delivery, starting from the received `Announce`, and repeat, cascading until no held `Announce` extends the current tail. (SYNC-14-003, SYNC-14-008)
 
 [I] In this implementation, each drained entry is its own inbox delivery.
-When a commit makes a buffered entry appliable, the participant hands that one entry back to its own inbox, wrapped in an `Announce(CaseLedgerEntry)` attributed to the case's CASE_MANAGER.
+When a commit makes a held entry appliable, the participant replays the `Announce(CaseLedgerEntry)` it received for that entry through its own inbox, parsed again from the body held for it.
+It never builds an `Announce` of its own, so nothing is attributed to a sender that did not send it.
 The participant does not apply the entry inside the delivery that made it appliable.
-That delivery's commit hands back the next entry, so the cascade follows from in-order delivery itself. (SYNC-14-009)
+That delivery's commit replays the next `Announce`, so the cascade follows from in-order delivery itself. (SYNC-14-009)
 
-Draining a buffered entry MUST apply domain effects before persisting it.
-(SYNC-14-004)
+Draining a held entry MUST apply domain effects before persisting it. (SYNC-14-004)
 
 The drain path MUST NOT re-apply effects for an entry already present in the
 local ledger. (SYNC-14-007)
 
-### 6.4 Buffer Bounds
+### 6.4 Holding Area Bounds
 
-The out-of-order holding area MUST NOT be the canonical ledger/DataLayer
-store. A buffered entry MUST NOT be persisted as a `CaseLedgerEntry` until it
-is drained (i.e. until its predecessor is present), so that presence of a
-`CaseLedgerEntry` in the DataLayer continues to mean "committed and effects
-applied." (SYNC-14-005, SYNC-13-001)
+The out-of-order holding area MUST NOT be the canonical ledger: it MAY keep the held `Announce` in the receiver's DataLayer only as records of its own kind, never as a `CaseLedgerEntry`.
+A held entry MUST NOT be persisted as a `CaseLedgerEntry` until it is drained (i.e. until its predecessor is present), so that presence of a `CaseLedgerEntry` in the DataLayer continues to mean "committed and effects applied." (SYNC-14-005, SYNC-13-001)
 
-The holding area SHOULD be bounded in size per case. When full it SHOULD
-evict the entry farthest ahead of the current gap (highest `log_index`) and
-log a warning. Eviction is recoverable because the Reject required by
-§6.2 was already sent. (SYNC-14-006)
+The holding area SHOULD be bounded in size per case.
+When full it SHOULD evict the held `Announce` whose entry is farthest ahead of the current gap (highest `log_index`), body and all, and log a warning, or decline to hold the new one when its entry is itself the farthest ahead.
+Eviction is recoverable because the Reject required by §6.2 was already sent. (SYNC-14-006)
 
 ### 6.5 Monotonic Visibility
 
@@ -430,22 +416,14 @@ A `CaseLedgerEntry` received when the per-case genesis hash is unavailable
 MUST NOT be persisted (SYNC-15-002), MUST NOT be treated as committed
 (SYNC-15-006), and its domain effects MUST NOT be applied (SYNC-15-007).
 
-### 8.2 Pre-Genesis Buffer and Drain
+### 8.2 Pre-Genesis Hold and Drain
 
-The participant MUST NOT rely solely on the reject/replay round-trip for
-pre-genesis entries. It MUST retain the entry in the same non-ledger holding
-area used for forward gaps (§6.2), keyed by `prev_log_hash`, pending arrival
-of the case seed. (SYNC-15-004)
+The participant MUST NOT rely solely on the reject/replay round-trip for pre-genesis entries.
+It MUST retain the `Announce` that carried the entry, as received, in the same non-ledger holding area used for forward gaps (§6.2), keyed by the entry's `prev_log_hash`, pending arrival of the case seed. (SYNC-15-004)
 
-After a participant seeds the `VulnerabilityCase` (via `Create` or
-`Announce(VulnerabilityCase)`), which anchors the deterministic per-case
-genesis hash, it MUST drain the holding area for that case: it MUST locate
-the buffered entry (if any) whose `prev_log_hash` equals the per-case genesis
-hash, apply-and-persist it via the same path as in-order delivery, and
-cascade in hash-chain order until no buffered entry extends the current tail.
-(SYNC-15-005)
+After a participant seeds the `VulnerabilityCase` (via `Create` or `Announce(VulnerabilityCase)`), which anchors the deterministic per-case genesis hash, it MUST drain the holding area for that case: it MUST locate the held `Announce` (if any) whose entry's `prev_log_hash` equals the per-case genesis hash, replay it so its entry is applied and persisted via the same path as in-order delivery, and cascade in hash-chain order until no held `Announce` extends the current tail. (SYNC-15-005)
 
-[I] The seed hands the first buffered entry back to the participant's own inbox, as §6.3 describes for a commit. (SYNC-14-009)
+[I] The seed replays the first held `Announce` through the participant's own inbox, as §6.3 describes for a commit. (SYNC-14-009)
 
 ---
 
@@ -569,20 +547,20 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-13-004 | §4.3 | First delivery MUST be recognized without a stored record of the entry |
 | SYNC-13-005 | §2.1 | Only the CASE_MANAGER MUST author CaseLedgerEntry records |
 | SYNC-13-006 | §2.2 | Participants MUST obtain entries only via Announce receive behavior |
-| SYNC-14-001 | §6.2 | Forward-gap entry MUST be retained in non-ledger holding area |
-| SYNC-14-002 | §6.2 | Buffered forward-gap entry MUST still trigger Reject |
+| SYNC-14-001 | §6.2 | Forward-gap entry's received Announce MUST be retained in non-ledger holding area |
+| SYNC-14-002 | §6.2 | Held forward-gap entry MUST still trigger Reject |
 | SYNC-14-003 | §6.3 | After commit, MUST drain holding area in hash-chain order |
 | SYNC-14-004 | §6.3 | Drain MUST apply effects before persisting |
-| SYNC-14-005 | §6.4 | Holding area MUST NOT be the canonical DataLayer store |
+| SYNC-14-005 | §6.4 | Holding area MUST NOT be the canonical ledger |
 | SYNC-14-006 | §6.4 | Holding area SHOULD be bounded; evict farthest-ahead on overflow |
 | SYNC-14-007 | §6.3 | Drain MUST NOT re-apply effects for already-committed entry |
 | SYNC-14-008 | §6.3 | Drain path MUST be the same apply-then-persist path as in-order delivery |
-| SYNC-14-009 | §6.3, §8.2 | Drain MUST hand each appliable entry back to the receiver's own inbox as its own delivery |
+| SYNC-14-009 | §6.3, §8.2 | Drain MUST replay each appliable held Announce, as received, through the receiver's own inbox as its own delivery |
 | SYNC-15-001 | §8.1 | Pre-genesis entry MUST NOT be silently dropped; MUST send Reject |
 | SYNC-15-002 | §8.1 | Participant MUST NOT persist entry when genesis hash unavailable |
 | SYNC-15-003 | §5.4 | CASE_MANAGER MUST bound replay rate for non-advancing peer |
-| SYNC-15-004 | §8.2 | Pre-genesis entry MUST be buffered pending case seed |
-| SYNC-15-005 | §8.2 | After case seed, MUST drain pre-genesis buffer |
+| SYNC-15-004 | §8.2 | Pre-genesis entry's Announce MUST be held pending case seed |
+| SYNC-15-005 | §8.2 | After case seed, MUST drain the pre-genesis holds |
 | SYNC-15-006 | §8.1 | Pre-genesis entry MUST NOT be treated as committed |
 | SYNC-15-007 | §8.1 | Pre-genesis entry domain effects MUST NOT be applied |
 | SYNC-15-008 | §5.4 | Leader MUST record per-peer position and timestamp of last non-empty replay |
@@ -643,6 +621,6 @@ The reject/replay round-trip alone does not converge under adversarial
 reordering (ADR-0037). Replay re-announces entries individually over the same
 unordered transport; they can reorder again and be dropped. Receiver-side
 buffering keyed on `prev_log_hash` makes convergence independent of delivery
-order: a buffered entry is applied only when an entry whose `entry_hash`
-equals the buffered entry's `prev_log_hash` is committed, so a fork/rewrite
+order: a held entry is applied only when an entry whose `entry_hash`
+equals the held entry's `prev_log_hash` is committed, so a fork/rewrite
 cannot masquerade as the predecessor.

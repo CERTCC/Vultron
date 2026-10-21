@@ -50,6 +50,7 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_absence_refusal,
     failure_reason,
+    intake_verdict,
     node_failed,
     not_case_manager,
     verdict_from_bt,
@@ -74,8 +75,9 @@ class _CaseOwnerParticipantMoveUseCase[
     effects), and are judged the same way: a guard failure is ``REFUSED``,
     a failed effect after the commit is an internal fault, and at any other
     replica the activity is stored and nothing else is written
-    (RSH-08-003) — the CASE_MANAGER's notice is ``SKIPPED``, because the
-    replica takes the move from the ledger entry, and the same message from
+    (RSH-08-003) — the CASE_MANAGER's notice is ``APPLIED``, because the
+    replica is its addressee and takes the move from the ledger entry
+    (HP-01-005), its redelivery is ``SKIPPED``, and the same message from
     anyone else is ``REFUSED`` by the sender guard.
     """
 
@@ -195,11 +197,22 @@ class _CaseOwnerParticipantMoveUseCase[
                 return refusal
             # Only the CASE_MANAGER's notice passes the replica's sender
             # guard; the replica stored it and applies the move from the
-            # ledger entry instead (CM-31-007, RSH-08-003).
-            return HandlerResult.skipped(
-                f"{label}: {self._MESSAGE} notice for '{participant_id}'"
-                " stored; a replica applies it from its ledger entry"
+            # ledger entry instead (CM-31-007, RSH-08-003).  The notice was
+            # sent to this participant, so its first receipt is APPLIED and
+            # only a redelivery, which archives nothing new, is SKIPPED
+            # (HP-01-005).
+            verdict = intake_verdict(tree, result, label=label)
+            if verdict.disposition is HandlerDisposition.SKIPPED:
+                return verdict
+            logger.info(
+                "%s stored the %s notice for participant '%s' of case '%s';"
+                " a replica applies it from its ledger entry",
+                label,
+                self._MESSAGE,
+                participant_id,
+                case_id,
             )
+            return verdict
         logger.info(
             "%s applied %s for participant '%s' of case '%s'",
             label,

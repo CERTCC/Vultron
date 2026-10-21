@@ -232,11 +232,12 @@ Two shapes look like a second tree and are not:
 
 - **A CASE_MANAGER clock decision** (an expiry) is a stage of the one tree,
   between the door guards and the precondition guards (CLP-10-025).
-- **A drained gap-buffer entry** is another delivery: hand it back to the
-  receiving actor's inbox, never run its tree inline or from a node — a bridge
-  run nested in a node hides the inner tree's internal error (SYNC-14-009).
-  `HandBackBufferedSuccessorNode` does this through `InboxHandBackPort`, passed
-  to the bridge as the `inbox_hand_back` context key; the port only queues.
+- **A drained out-of-order entry** is another delivery: replay the held
+  `Announce` that carried it through the receiving actor's inbox, never run its
+  tree inline or from a node — a bridge run nested in a node hides the inner
+  tree's internal error (SYNC-14-009). `ReplayHeldSuccessorNode` does this
+  through `InboxReplayPort`, passed to the bridge as the `inbox_replay` context
+  key; the port only queues.
 
 ### The Received-Side Stages (ADR-0111, ADR-0135)
 

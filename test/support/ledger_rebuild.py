@@ -42,20 +42,15 @@ from typing import Any, cast
 from test.support.ledger import ledger_entries
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.inbox_hand_back_adapter import (
-    InboxHandBackAdapter,
-)
+from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.adapters.inbox_staging import (
-    InlineObjectStaging,
-    hold_activity,
-)
+from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
-from vultron.core.models import ledger_gap_buffer, pending_assertion
+from vultron.core.models import pending_assertion
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -88,16 +83,16 @@ def run_use_case(
     """Run the use case for an extracted *event* against *dl*.
 
     It is composed with the ports it accepts, as the inbox composes it, minus
-    the ones named in *without*.  Then delivers whatever the run handed back
-    to the receiver's own inbox (SYNC-14-009), oldest first, as the inbox loop
-    does after a delivery.  Returns the first delivery's own verdict.
+    the ones named in *without*.  Then delivers each held ``Announce`` the
+    run replayed through the receiver's own inbox (SYNC-14-009), oldest
+    first, as the inbox loop does after a delivery.  Returns the first delivery's own verdict.
     """
     use_case = use_case_map()[event.semantic_type]
     offered: dict[str, Any] = {
         "sync_port": SyncActivityAdapter(cast(Any, dl)),
         "trigger_activity": TriggerActivityAdapter(cast(Any, dl)),
         "wire_render_port": As2WireRenderAdapter(),
-        "inbox_hand_back": InboxHandBackAdapter(cast(Any, dl), hold_activity),
+        "inbox_replay": InboxReplayAdapter(cast(Any, dl)),
     }
     accepted = inspect.signature(use_case).parameters
     ports = {
@@ -105,14 +100,14 @@ def run_use_case(
     }
     verdict = use_case(dl, event, **ports).execute()
     while (queued_id := dl.inbox_pop()) is not None:
-        handed_back = received_event(
+        replayed = received_event(
             cast(
                 as_Activity,
                 InlineObjectStaging(dl).rehydrate_deferred(queued_id),
             ),
             receiving_actor_id=event.receiving_actor_id,
         )
-        run_use_case(dl, handed_back, without=without)
+        run_use_case(dl, replayed, without=without)
     return verdict
 
 
@@ -183,13 +178,9 @@ def rebuild_from_ledger(
     replica = _fresh_store(as_actor)
     for record in creation_records(entries) if seed is None else seed:
         replica.create(record.model_copy(deep=True))
-    # The gap buffer and the pending-assertion store are per actor and
-    # process-wide; the rebuild gets its own of each, so it neither reads nor
-    # changes those of the live store it stands in for.
-    registries: list[dict[str, Any]] = [
-        ledger_gap_buffer._BUFFERS,
-        pending_assertion._STORES,
-    ]
+    # The pending-assertion store is per actor and process-wide; the rebuild
+    # gets its own, so it neither reads nor changes the live store's.
+    registries: list[dict[str, Any]] = [pending_assertion._STORES]
     held = [registry.pop(as_actor, None) for registry in registries]
     try:
         _replay(replica, entries, manager_id=manager_id, as_actor=as_actor)

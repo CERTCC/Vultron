@@ -128,9 +128,9 @@ class VultronEntryRefusedError(VultronInvalidStateTransitionError):
     The one apply function checks the starting state an entry implies before
     it writes what the entry carries (ADR-0124, CM-23-016).  On a replica a
     refusal means an earlier entry is missing or the replica's case has
-    diverged, so the entry goes to gap handling (``LedgerGapBuffer``) and is
-    never patched over.  On the CASE_MANAGER a refused trial apply stops the
-    act before anything is committed.
+    diverged, so the Announce that carried the entry is held for gap handling
+    (SYNC-14-001) and the entry is never patched over.  On the CASE_MANAGER a
+    refused trial apply stops the act before anything is committed.
     """
 
 

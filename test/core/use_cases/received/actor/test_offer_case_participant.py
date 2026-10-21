@@ -60,7 +60,10 @@ from vultron.core.models.events.actor import (
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.use_cases.received.actor.offer_case_participant import (
     AcceptOfferCaseParticipantReceivedUseCase,
     OfferCaseParticipantReceivedUseCase,
@@ -276,6 +279,25 @@ class TestOfferCaseParticipantReceivedUseCase:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
         assert result.disposition is HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-005")
+    @pytest.mark.spec("ID-04-004")
+    def test_case_owner_redelivery_is_skipped(self):
+        """Only the addressee's first receipt is APPLIED; a repeat is a skip."""
+        dl, _ = _seed_dl_for_case_owner()
+        event = self._event()
+
+        def deliver() -> HandlerResult:
+            return OfferCaseParticipantReceivedUseCase(
+                dl,
+                event,
+                trigger_activity=TriggerActivityAdapter(dl),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+
+        assert deliver().disposition is HandlerDisposition.APPLIED
+        assert deliver().disposition is HandlerDisposition.SKIPPED
 
     @pytest.mark.spec("HP-01-005")
     def test_bystander_copy_is_refused(self):

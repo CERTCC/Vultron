@@ -25,6 +25,7 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    case_manager_verdict,
     closed_sender_verdict,
     door_refusal,
     find_named,
@@ -247,8 +248,15 @@ class CloseCaseReceivedUseCase:
             reason = f"close of case '{case_id}' declined: embargo active"
             logger.info("CloseCaseReceivedUseCase: %s (CM-23-011)", reason)
             return HandlerResult.refused(f"{reason} (CM-23-011)")
-        verdict = verdict_from_bt(
-            _close_arm(tree) or tree, result, label="CloseCaseBT"
+        # The whole close-or-decline step is the CASE_MANAGER's; a replica
+        # the sender guard admitted did nothing past the gate (HP-01-005).
+        verdict = case_manager_verdict(
+            tree,
+            verdict_from_bt(
+                _close_arm(tree) or tree, result, label="CloseCaseBT"
+            ),
+            self._dl,
+            case_id,
         )
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
