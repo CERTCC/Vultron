@@ -79,7 +79,8 @@ lookup table is mostly links.
   term to a glossary row. A position's wording names its object with an
   `{object}` placeholder ("the addressee of the case proposal", "the note's
   author"), and a nested request by its object and verb ("the addressee of the
-  vulnerability case offer"); an exemption reads "not yet checked". A request
+  vulnerability case offer"); an exemption reads "not yet checked", and an
+  entry with no received use case reads "not handled" (SE-05-002). A request
   the pattern does not nest is named on the entry (`SemanticEntry.answers`):
   the bootstrap `Create(VulnerabilityCase)` answers a case proposal or a report
   offer (MSM-08-010). The column fills in only as exemptions close; never paper

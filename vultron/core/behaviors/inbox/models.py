@@ -26,9 +26,9 @@ Per specs/inbox-orchestration.yaml:
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, Self, runtime_checkable
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
@@ -63,6 +63,19 @@ class InboxOutcome(BaseModel):
     context_id: str | None = None
     activity_id: NonEmptyString | None = None
     failure_reason: str | None = None
+    #: The activity's semantic type is recognized, but no use case handles
+    #: it ("no use case found", SE-05-002).  Only a ``rejected`` outcome is
+    #: unhandled; the driving adapter logs it at INFO, not WARNING, because
+    #: the message is not invalid (IO-01-005).
+    unhandled: bool = False
+
+    @model_validator(mode="after")
+    def _only_a_rejection_is_unhandled(self) -> Self:
+        if self.unhandled and self.status is not InboxOutcomeStatus.REJECTED:
+            raise ValueError(
+                f"an unhandled InboxOutcome is rejected, not {self.status}"
+            )
+        return self
 
 
 @runtime_checkable

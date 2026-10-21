@@ -144,6 +144,29 @@ groups:
       A unit test confirms that every `ActivityPattern` entry in
       `SEMANTIC_REGISTRY` has a non-`None` `activity_` field and a
       non-`None` `object_` field.
+  - id: SE-03-004
+    priority: MUST
+    kind: project
+    statement: >-
+      An `ActivityPattern` MUST NOT discriminate on the sender's identity or role: it
+      matches only the activity's type and the types of its object, target, context and
+      recipients. When the CASE_MANAGER performs the same verb on the same kind of object
+      as a participant, its activity MUST match the participant's pattern, and whether the
+      sender may send it MUST be decided after routing, by the handler's sender-entitlement
+      check (HP-01-006, HP-01-007).
+    rationale: >-
+      A semantic type says what an activity is; the sender's standing says whether it is
+      permitted (ADR-0152). A matcher that read the sender would need to know who holds
+      the CASE_MANAGER role for each case, and would give one shape two meanings depending
+      on who sent it.
+    verification: >-
+      A unit test confirms that `ActivityPattern` and every subclass declare no field for
+      the sender's identity or role.
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-01-006
+    adr:
+    - ADR-0152
 - id: SE-04
   title: Unrecognized Activity Handling
   specs:
@@ -209,15 +232,34 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      All patterns MUST have a corresponding use-case class in the mapping returned by
-      `use_case_map()`
+      A pattern's semantic type MUST have a use-case class in the mapping returned by
+      `use_case_map()` when, and only when, its `SEMANTIC_REGISTRY` entry is handled on
+      receipt. An entry whose `use_case_class` is `None` is recognized but not handled:
+      the dispatcher MUST report a received activity of that type as "no use case found",
+      a `REFUSED` verdict logged at INFO with the activity and actor IDs, and MUST NOT
+      raise, send a `ProcessingFault` or treat the activity as unrecognized (SE-04).
+    rationale: >-
+      Recognizing a semantic type does not imply a handler for it (ADR-0140 item 5).
+      Several CASE_MANAGER shapes are written to the ledger but never handled when
+      received (ADR-0152), and the registry still has to label them. "No use case found"
+      says the receiver does not handle the message, not that the message is invalid, so
+      it is not answered with a fault. No handler ran, so the verdict is not `processed`
+      (UCORG-05-012).
     verification: >-
-      A unit test confirms that every `MessageSemantics` value carrying a pattern in
-      `SEMANTIC_REGISTRY` has a corresponding entry in the mapping returned by
-      `use_case_map()`.
+      A unit test confirms that `use_case_map()` holds exactly the `SEMANTIC_REGISTRY`
+      entries that name a use case, each mapped to that entry's class, and that every
+      dispatcher fallback names one. A test drives a recognized type with no use case
+      through the inbox and confirms a `rejected` outcome whose reason says no use case
+      was found, one INFO record carrying the activity and actor IDs, no traceback and an
+      empty outbox.
     relationships:
     - rel_type: derives_from
       spec_id: DR-02-002
+    - rel_type: refines
+      spec_id: UCORG-05-012
+    adr:
+    - ADR-0140
+    - ADR-0152
   - id: SE-05-003
     priority: MUST
     kind: project
@@ -226,20 +268,6 @@ groups:
       Inspection of `test/` confirms that each `ActivityPattern` in
       `SEMANTIC_REGISTRY` has at least one test exercising
       `find_matching_semantics()` for the corresponding semantic type.
-  - id: SE-05-004
-    priority: SHOULD
-    kind: protocol
-    statement: >-
-      Pattern matching SHOULD be actor-subtype-aware where the semantics of an activity
-      differ based on whether the sender is a `Vendor`, `Coordinator`, `Researcher`, or
-      other `CVDRole`. Patterns that match on object type alone (e.g., `InviteActorToCasePattern`)
-      without inspecting the sender's role produce a single use-case handler that must
-      internally branch; a separate pattern per sender subtype is the preferred decomposition.
-    rationale: >-
-      Open design question (as of 2026-07): `InviteActorToCasePattern` matches regardless
-      of the invitee's role. This is correct for the current single-handler path but will
-      need revisiting when role-specific invite acceptance logic is introduced. This entry
-      marks the known limitation so it is not rediscovered.
 - id: SE-06
   title: Registry Order Enforcement
   specs:

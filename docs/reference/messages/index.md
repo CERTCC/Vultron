@@ -13,6 +13,7 @@ Each row of the table below is an [occasion](../glossary.md#messaging-and-protoc
 The row names the activity to send, whom to send it to, who may send it, and the section that documents it.
 "Send to" is the addressee: the Case Manager, a participant, or, before a case exists, an actor outside any case.
 "Sent by" is the standing a receiver requires of the sender of an activity sent to that addressee.
+It reads "not handled" when Vultron recognizes the activity but no receiver handles it, and such an activity is reported as "no use case found" rather than processed.
 One activity sent to two addressees can therefore have two rows with different senders.
 Where several rows share one activity, a field value, the receiver's Embargo Management (EM) state, the register status of the embargo the activity names, the sender's standing, or the addressee tells them apart.
 The groups follow the case lifecycle, then the protocol mechanics that carry it.

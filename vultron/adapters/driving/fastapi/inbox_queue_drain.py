@@ -58,9 +58,23 @@ def warn_if_rejected(
 
     Every outcome is logged at DEBUG; a refusal is also logged here so it is
     visible in an actor log at the default level. ``processed`` and
-    ``deferred`` stay at DEBUG — both are expected, routine outcomes.
+    ``deferred`` stay at DEBUG — both are expected, routine outcomes.  An
+    ``unhandled`` outcome (no use case found) is logged at INFO: the
+    receiver does not handle the message, which does not make it an anomaly
+    (IO-01-005, SE-05-002).
     """
     if outcome.status is not InboxOutcomeStatus.REJECTED:
+        return
+    if outcome.unhandled:
+        logger.info(
+            "Inbox activity not handled (actor_id=%s activity_id=%s"
+            " context_id=%s replayed=%s): %s",
+            actor_id,
+            outcome.activity_id,
+            outcome.context_id,
+            replayed,
+            outcome.failure_reason,
+        )
         return
     logger.warning(
         "Inbox activity rejected (actor_id=%s activity_id=%s context_id=%s"
