@@ -1,4 +1,3 @@
-import asyncio
 from datetime import UTC
 from types import SimpleNamespace
 from typing import Any, cast
@@ -10,12 +9,12 @@ from test.support.received import assert_held_only_as_received, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi import inbox_handler as ih
+from vultron.adapters.driving.fastapi.inbox_pending_queue import (
+    _expire_pending_case_activities,
+)
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.models.use_case_result import HandlerResult
-from vultron.errors import VultronProtocolViolationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -82,168 +81,6 @@ def test_handle_inbox_item_dispatches(monkeypatch):
         dispatched_event.receiving_actor_id
         == "https://example.org/actors/actor1"
     )
-
-
-def test_inbox_handler_failing_item_dead_lettered_on_exhaustion(monkeypatch):
-    """An inbox item that always fails is dead-lettered after max_attempts.
-
-    Replaces the old abort-after-3-errors test: the new mechanism (IE-06-004)
-    tracks per-item attempts via the RetryStore.  When ``get_inbox_attempt_count``
-    returns ``max_attempts - 1``, the next failure is the last — the item is
-    dead-lettered and NOT re-appended to the queue.
-    """
-    item_id = "https://example.org/activities/itm-001"
-
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = None
-    _queue = [item_id]
-    mock_dl.inbox_list.side_effect = lambda: list(_queue)
-    mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
-    mock_dl.inbox_append.side_effect = _queue.append
-    mock_dl.outbox_list.return_value = []
-    # Simulate attempt count at max_attempts - 1 so the next failure exhausts
-    # the budget and triggers dead-lettering instead of requeue.
-    mock_dl.get_inbox_attempt_count.return_value = 11  # default max = 12
-
-    monkeypatch.setattr(
-        ih.InlineObjectStaging,
-        "rehydrate_deferred",
-        lambda self, x: (_ for _ in ()).throw(RuntimeError("always fails")),
-    )
-
-    asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
-
-    # Item exhausted its budget: dead-lettered, not re-queued.
-    mock_dl.inbox_dead_letter_append.assert_called_once()
-    assert item_id not in _queue
-
-
-def test_inbox_handler_rehydrate_protocol_violation_does_not_propagate(
-    monkeypatch,
-):
-    """AC-2 (#3044): VultronProtocolViolationError from rehydrate() inside
-    inbox_handler() must not propagate — permanent failure, item not re-queued.
-    """
-    item_id = "https://example.org/activities/perm-fail-001"
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = None
-    _queue = [item_id]
-    mock_dl.inbox_list.side_effect = lambda: list(_queue)
-    mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
-    mock_dl.inbox_append.side_effect = _queue.append
-    mock_dl.outbox_list.return_value = []
-
-    monkeypatch.setattr(
-        ih.InlineObjectStaging,
-        "rehydrate_deferred",
-        lambda self, x: (_ for _ in ()).throw(
-            VultronProtocolViolationError("perm rehydrate failure")
-        ),
-    )
-
-    asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
-
-    assert item_id not in _queue, (
-        "VultronProtocolViolationError from rehydrate() is a permanent failure"
-        " — the item must NOT be re-queued (#3044)"
-    )
-
-
-def test_inbox_handler_rehydrate_transient_error_requeues_item(monkeypatch):
-    """AC-2 (#3044): A generic exception from rehydrate() inside inbox_handler()
-    must not propagate — transient failure, item must be re-queued for retry
-    (when below the attempt limit, IE-06-004).
-
-    The test uses separate lists for the active queue (what inbox_list sees)
-    and the retry buffer (what inbox_append writes to) so that a single
-    loop pass is enough to confirm requeue without an infinite loop.
-    """
-    item_id = "https://example.org/activities/transient-fail-001"
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = None
-
-    # Active queue: only one item; after pop it is empty (ends the loop).
-    _active = [item_id]
-    # Retry buffer: collects requeued IDs without feeding the active loop.
-    _retried: list[str] = []
-
-    mock_dl.inbox_list.side_effect = lambda: list(_active)
-    mock_dl.inbox_pop.side_effect = lambda: _active.pop(0) if _active else None
-    mock_dl.inbox_append.side_effect = _retried.append
-    mock_dl.outbox_list.return_value = []
-    # Attempt 0 → total 1 < max_attempts(12): item is requeued, not dead-lettered.
-    mock_dl.get_inbox_attempt_count.return_value = 0
-
-    monkeypatch.setattr(
-        ih.InlineObjectStaging,
-        "rehydrate_deferred",
-        lambda self, x: (_ for _ in ()).throw(
-            RuntimeError("transient rehydrate failure")
-        ),
-    )
-
-    asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
-
-    assert item_id in _retried, (
-        "A transient rehydrate() failure must re-queue the item for retry"
-        " (#3044, IE-06-004)"
-    )
-
-
-def _process_item_raising(
-    monkeypatch, item_id: str, exc: Exception, queue_dl: MagicMock
-) -> bool:
-    """Run ``_process_inbox_item`` with dispatch raising *exc*."""
-
-    def _raise(**_kwargs: Any) -> None:
-        raise exc
-
-    monkeypatch.setattr(ih, "_dispatch_or_defer_inbox_item", _raise)
-    return ih._process_inbox_item(
-        actor_id="actor-xyz",
-        canonical_actor_id="https://example.org/actors/actor-xyz",
-        item_id=item_id,
-        item=as_Activity(
-            id_=item_id,
-            type_="irrelevant",
-            actor="https://example.org/actors/test",
-        ),
-        dl=MagicMock(),
-        queue_dl=queue_dl,
-        staging=ih.InlineObjectStaging(MagicMock()),
-    )
-
-
-def test_process_inbox_item_protocol_violation_does_not_requeue(monkeypatch):
-    """#2865: VultronProtocolViolationError raised during dispatch is a
-    permanent failure — ``_process_inbox_item`` must not re-queue the item,
-    or every later ``inbox_handler()`` call retries it forever.
-    """
-    item_id = "https://example.org/activities/perm-dispatch-001"
-    queue_dl = MagicMock()
-    ok = _process_item_raising(
-        monkeypatch,
-        item_id,
-        VultronProtocolViolationError("perm dispatch failure"),
-        queue_dl,
-    )
-
-    assert ok is False
-    queue_dl.inbox_append.assert_not_called()
-
-
-def test_process_inbox_item_transient_error_requeues(monkeypatch):
-    """#2865: a non-protocol exception raised during dispatch is transient —
-    ``_process_inbox_item`` must still re-queue the item for retry.
-    """
-    item_id = "https://example.org/activities/transient-dispatch-001"
-    queue_dl = MagicMock()
-    ok = _process_item_raising(
-        monkeypatch, item_id, RuntimeError("transient failure"), queue_dl
-    )
-
-    assert ok is False
-    queue_dl.inbox_append.assert_called_once_with(item_id)
 
 
 def test_dispatch_uses_explicit_dispatcher(monkeypatch):
@@ -463,240 +300,9 @@ def _add_note_activity(activity_id: str, case_id: str, to: str) -> as_Activity:
     )
 
 
-def test_dispatch_or_defer_inbox_item_queues_unknown_case_context(monkeypatch):
-    actor_id = "https://example.org/actors/participant"
-    case_id = "https://example.org/cases/case-unknown"
-    item_id = "https://example.org/activities/add-note-1"
-    shared_dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
-    queue_dl = shared_dl.clone_for_actor(actor_id)
-    item = _add_note_activity(item_id, case_id, actor_id)
-    fake_event = VultronEvent(
-        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
-        activity_id=item_id,
-        actor_id="https://example.org/actors/case-actor",
-    )
-
-    monkeypatch.setattr(
-        ih, "prepare_for_dispatch", lambda activity: fake_event
-    )
-    mock_dispatcher = Mock()
-    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
-
-    staging = ih.InlineObjectStaging(shared_dl)
-    staging.rehydrate_parsed(item)
-
-    result = ih._dispatch_or_defer_inbox_item(
-        actor_id=actor_id,
-        obj=item,
-        dl=shared_dl,
-        queue_dl=queue_dl,
-        staging=staging,
-    )
-
-    assert result is None
-    pending = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
-    assert isinstance(pending, VultronPendingCaseInbox)
-    assert pending.activity_ids == [item_id]
-    assert staging.held(item_id) is not None, (
-        "the deferred item is held for its replay (DL-06-006)"
-    )
-    mock_dispatcher.dispatch.assert_not_called()
-
-
-@pytest.mark.spec("DL-06-006", "CBT-03-001")
-def test_dispatch_or_defer_a_failed_hold_queues_nothing(monkeypatch):
-    """The legacy worker holds the record before queueing the id, so a hold
-    that raises leaves no queued id with nothing behind it."""
-    from vultron.errors import VultronWiringError
-
-    actor_id = "https://example.org/actors/participant"
-    case_id = "https://example.org/cases/case-unheld"
-    item_id = "https://example.org/activities/add-note-unheld"
-    shared_dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
-    queue_dl = shared_dl.clone_for_actor(actor_id)
-    item = as_Activity(
-        id_=item_id,
-        type_="Add",
-        actor="https://example.org/actors/case-actor",
-        context=case_id,
-    )
-    fake_event = VultronEvent(
-        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
-        activity_id=item_id,
-        actor_id="https://example.org/actors/case-actor",
-    )
-    monkeypatch.setattr(
-        ih, "prepare_for_dispatch", lambda activity: fake_event
-    )
-    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", Mock())
-
-    with pytest.raises(VultronWiringError):
-        ih._dispatch_or_defer_inbox_item(
-            actor_id=actor_id,
-            obj=item,
-            dl=shared_dl,
-            queue_dl=queue_dl,
-            staging=ih.InlineObjectStaging(shared_dl),
-        )
-
-    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
-
-
-@pytest.mark.parametrize(
-    ("verdict", "replays"),
-    [
-        (HandlerResult.applied(), True),
-        (HandlerResult.refused("not the case owner"), False),
-    ],
-)
-def test_inbox_handler_replays_deferred_items_after_case_announce(
-    monkeypatch: pytest.MonkeyPatch, verdict: HandlerResult, replays: bool
-) -> None:
-    """Held items replay only after a bootstrap whose verdict took effect."""
-    actor_id = "https://example.org/actors/participant"
-    case_id = "https://example.org/cases/case-replay"
-    note_id = "https://example.org/activities/add-note-2"
-    announce_id = "https://example.org/activities/announce-case-1"
-    shared_dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
-    shared_dl.save(as_Service(id_=actor_id, name="Participant"))
-    queue_dl = shared_dl.clone_for_actor(actor_id)
-    queue_dl.inbox_append(note_id)
-    queue_dl.inbox_append(announce_id)
-
-    note_item = as_Activity(
-        id_=note_id,
-        type_="Add",
-        actor="https://example.org/actors/case-actor",
-        context=case_id,
-        name="deferred-note",
-    )
-    announce_item = as_Activity(
-        id_=announce_id,
-        type_="Announce",
-        actor="https://example.org/actors/case-actor",
-        context=case_id,
-        name="announce-case",
-    )
-    items = {note_id: note_item, announce_id: announce_item}
-
-    def fake_prepare(activity: as_Activity) -> VultronEvent:
-        if activity.id_ == note_id:
-            return VultronEvent(
-                semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
-                activity_id=note_id,
-                actor_id="https://example.org/actors/case-actor",
-            )
-        return VultronEvent(
-            semantic_type=MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
-            activity_id=announce_id,
-            actor_id="https://example.org/actors/case-actor",
-        )
-
-    dispatched: list[str] = []
-
-    def fake_dispatch(
-        event: VultronEvent, dl: SqliteDataLayer
-    ) -> HandlerResult:
-        dispatched.append(event.activity_id)
-        if event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE:
-            # Stored either way, so only the verdict decides the replay.
-            dl.save(as_VulnerabilityCase(id_=case_id, name="Replica"))
-            return verdict
-        return HandlerResult.applied()
-
-    async def fake_outbox_handler(*_args: object, **_kwargs: object) -> None:
-        return None
-
-    mock_dispatcher = Mock()
-    mock_dispatcher.dispatch.side_effect = fake_dispatch
-    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
-    monkeypatch.setattr(ih, "prepare_for_dispatch", fake_prepare)
-    # The verdict decides the replay; holding and rebuilding the queued items
-    # are the staging's, tested in test_inbox_staging.py.
-    monkeypatch.setattr(
-        ih.InlineObjectStaging,
-        "rehydrate_deferred",
-        lambda self, item_id: items[item_id],
-    )
-    monkeypatch.setattr(
-        ih.InlineObjectStaging,
-        "hold_for_replay",
-        lambda self, activity_id, activity=None: True,
-    )
-    monkeypatch.setattr(ih, "outbox_handler", fake_outbox_handler)
-
-    asyncio.run(ih.inbox_handler(actor_id, shared_dl, queue_dl))
-
-    pending = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
-    if replays:
-        assert dispatched == [announce_id, note_id]
-        assert pending is None
-    else:
-        assert dispatched == [announce_id]
-        assert isinstance(pending, VultronPendingCaseInbox)
-        assert pending.activity_ids == [note_id]
-
-
 # ---------------------------------------------------------------------------
 # CBT-03 / CBT-05-003: Pre-bootstrap queue expiry tests (issue #500)
 # ---------------------------------------------------------------------------
-
-
-def test_pre_bootstrap_activity_queued_not_dispatched(monkeypatch):
-    """AC-5: Pre-bootstrap CaseActor activities are queued but NOT dispatched.
-
-    Covers CBT-05-003 (first bullet): pre-bootstrap messages remain unapplied.
-    """
-    actor_id = "https://example.org/actors/reporter"
-    case_id = "https://example.org/cases/cbt-ac5"
-    activity_id = "https://example.org/activities/cbt-ac5-note"
-    shared_dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
-    queue_dl = shared_dl.clone_for_actor(actor_id)
-
-    item = _add_note_activity(activity_id, case_id, actor_id)
-    fake_event = VultronEvent(
-        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
-        activity_id=activity_id,
-        actor_id="https://example.org/actors/case-actor",
-    )
-    monkeypatch.setattr(
-        ih, "prepare_for_dispatch", lambda activity: fake_event
-    )
-    mock_dispatcher = Mock()
-    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
-
-    staging = ih.InlineObjectStaging(shared_dl)
-    staging.rehydrate_parsed(item)
-
-    result = ih._dispatch_or_defer_inbox_item(
-        actor_id=actor_id,
-        obj=item,
-        dl=shared_dl,
-        queue_dl=queue_dl,
-        staging=staging,
-    )
-
-    assert result is None, (
-        "Pre-bootstrap activity should be deferred, not dispatched"
-    )
-    mock_dispatcher.dispatch.assert_not_called()
-
-    pending = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
-    assert isinstance(pending, VultronPendingCaseInbox)
-    assert activity_id in pending.activity_ids
-    assert pending.case_actor_id == "https://example.org/actors/case-actor"
 
 
 def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
@@ -727,7 +333,7 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     queue_dl.save(pending)
 
     with caplog.at_level(logging.WARNING, logger="vultron"):
-        expired = ih._expire_pending_case_activities(
+        expired = _expire_pending_case_activities(
             case_id=case_id,
             actor_id=actor_id,
             dl=shared_dl,
@@ -739,86 +345,6 @@ def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
     assert any("Dropping expired" in r.message for r in caplog.records)
     assert any(activity_id in r.message for r in caplog.records)
-
-
-def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
-    monkeypatch,
-):
-    """AC-2: inbox_handler pops from actor_dl; rehydration/dispatch use dl.
-
-    When ``actor_dl`` is passed as a separate actor-scoped instance (distinct
-    from the shared ``dl``), queue operations (``inbox_list``, ``inbox_pop``)
-    must use ``actor_dl`` while rehydration and dispatch must receive the
-    shared ``dl`` (ARCH-13-003; DL-07-001 removed the second identity, so
-    there is no mismatch to test).
-    """
-    actor_id = "https://example.org/actors/participant"
-    activity_id = "https://example.org/activities/act-dual-dl"
-    shared_dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
-    shared_dl.save(
-        as_Service(id_=actor_id, name="Participant")  # type: ignore[call-arg]
-    )
-    actor_dl = shared_dl.clone_for_actor(actor_id)
-
-    # Item is queued on the actor-scoped DL only
-    actor_dl.inbox_append(activity_id)
-
-    item = as_Activity(
-        id_=activity_id,
-        type_="Create",
-        actor="https://example.org/actors/other",
-        name="dual-dl-test",
-    )
-    rehydrate_dl_args: list = []
-
-    def capture_rehydrate(self, item_id):
-        rehydrate_dl_args.append(self._dl)
-        return item
-
-    monkeypatch.setattr(
-        ih.InlineObjectStaging, "rehydrate_deferred", capture_rehydrate
-    )
-
-    fake_event = VultronEvent(
-        semantic_type=MessageSemantics.UNKNOWN,
-        activity_id=activity_id,
-        actor_id="https://example.org/actors/other",
-    )
-    monkeypatch.setattr(
-        ih, "prepare_for_dispatch", lambda activity: fake_event
-    )
-
-    mock_dispatcher = Mock()
-    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
-
-    async def fake_outbox_handler(*args, **kwargs):
-        return None
-
-    monkeypatch.setattr(ih, "outbox_handler", fake_outbox_handler)
-
-    asyncio.run(ih.inbox_handler(actor_id, shared_dl, actor_dl=actor_dl))
-
-    # Queue pop occurred on actor_dl — its inbox must now be empty
-    assert actor_dl.inbox_list() == [], (
-        "actor_dl inbox must be empty after processing; "
-        "inbox_handler must pop from actor_dl, not shared_dl"
-    )
-
-    # Rehydration must have received the shared dl
-    assert len(rehydrate_dl_args) == 1
-    assert rehydrate_dl_args[0] is shared_dl, (
-        "rehydrate must be called with shared dl, not actor_dl"
-    )
-
-    # Dispatch must have been called with the shared dl
-    mock_dispatcher.dispatch.assert_called_once()
-    _, dispatch_dl = mock_dispatcher.dispatch.call_args.args
-    assert dispatch_dl is shared_dl, (
-        "dispatch must be called with shared dl, not actor_dl"
-    )
 
 
 def test_inbox_port_factories_has_no_demo_import():
@@ -1387,7 +913,7 @@ def test_pending_case_queue_expiry_emits_question(monkeypatch):
     pending.queued_at = old_time
     queue_dl.save(pending)
 
-    expired = ih._expire_pending_case_activities(
+    expired = _expire_pending_case_activities(
         case_id=case_id,
         actor_id=actor_id,
         dl=shared_dl,
@@ -1497,56 +1023,6 @@ def test_make_dispatcher_gives_ledger_replay_semantics_the_inbox_port(
             assert port is None, f"{sem.name} was given an inbox replay"
 
 
-@pytest.mark.spec("PCR-06-005")
-def test_dispatch_or_defer_inbox_item_dispatches_stub_invite_for_unknown_case(
-    monkeypatch,
-):
-    """The stub Invite precedes its case, so it is dispatched, not queued.
-
-    The invitee holds no replica until it answers the Invite (MV-10-005);
-    deferring it until the case is known would hold it until the Announce its
-    own Accept brings (#4915).
-    """
-    actor_id = "https://example.org/actors/invitee"
-    case_id = "https://example.org/cases/case-not-held"
-    item_id = "https://example.org/activities/stub-invite-1"
-    shared_dl = SqliteDataLayer(
-        "sqlite:///:memory:",
-        actor_id="https://test.example/api/v2/actors/test-actor",
-    )
-    queue_dl = shared_dl.clone_for_actor(actor_id)
-    item = as_Activity(
-        id_=item_id,
-        type_="Invite",
-        actor="https://example.org/actors/case-actor",
-        context=case_id,
-        name="stub-invite",
-    )
-    fake_event = VultronEvent(
-        semantic_type=MessageSemantics.INVITE_ACTOR_TO_CASE,
-        activity_id=item_id,
-        actor_id="https://example.org/actors/case-actor",
-    )
-    monkeypatch.setattr(
-        ih, "prepare_for_dispatch", lambda activity: fake_event
-    )
-    mock_dispatcher = Mock()
-    mock_dispatcher.dispatch.return_value = HandlerResult.applied()
-    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
-
-    result = ih._dispatch_or_defer_inbox_item(
-        actor_id=actor_id,
-        obj=item,
-        dl=shared_dl,
-        queue_dl=queue_dl,
-        staging=ih.InlineObjectStaging(shared_dl),
-    )
-
-    assert result is not None
-    mock_dispatcher.dispatch.assert_called_once()
-    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
-
-
 @pytest.mark.spec("CBT-03-003", "PCR-03-004")
 def test_expired_queue_keeps_a_stub_invite_trust_anchor():
     """Expiry drops what was queued but keeps the Invite's anchor (#4915)."""
@@ -1569,7 +1045,7 @@ def test_expired_queue_keeps_a_stub_invite_trust_anchor():
     )
     queue_dl.save(pending)
 
-    expired = ih._expire_pending_case_activities(
+    expired = _expire_pending_case_activities(
         case_id=case_id,
         actor_id=actor_id,
         dl=shared_dl,
@@ -1606,7 +1082,7 @@ def test_a_queue_holding_no_activity_does_not_expire():
         )
     )
 
-    assert not ih._expire_pending_case_activities(
+    assert not _expire_pending_case_activities(
         case_id=case_id,
         actor_id=actor_id,
         dl=shared_dl,
@@ -1614,227 +1090,3 @@ def test_a_queue_holding_no_activity_does_not_expire():
         timeout_seconds=60,
     )
     assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is not None
-
-
-@pytest.mark.spec("IE-06-004", "DL-06-006")
-@pytest.mark.parametrize("max_attempts", [1, 12], ids=["dead-letter", "retry"])
-def test_a_failed_item_stays_held_whether_retried_or_dead_lettered(
-    max_attempts: int,
-) -> None:
-    """The rebuild released the item's record; the failure path holds it
-    again, so neither the retry nor the dead letter loses the activity."""
-    from test.support.inbox_replay import hold_activity
-    from vultron.adapters.inbox_staging import InlineObjectStaging
-    from vultron.wire.as2.factories import add_note_to_case_activity
-    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-
-    actor_id = "https://example.org/actors/participant"
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-    case_id = "https://example.org/cases/case-held"
-    activity = add_note_to_case_activity(
-        as_Note(content="held", context=case_id),
-        target=case_id,
-        context=case_id,
-        actor="https://example.org/actors/case-actor",
-        to=[actor_id],
-    )
-    hold_activity(dl, activity)
-    staging = InlineObjectStaging(dl)
-    assert staging.rehydrate_deferred(activity.id_) is not None
-    assert staging.held(activity.id_) is None, "precondition: released"
-
-    ih._inbox_retry_or_dead_letter(
-        activity.id_,
-        actor_id,
-        "processing_error",
-        "boom",
-        dl,
-        dl,
-        max_attempts,
-        staging,
-    )
-
-    assert staging.held(activity.id_) is not None
-    assert dl.read(activity.id_) is None
-
-
-def _faults_queued(dl: SqliteDataLayer) -> list[dict[str, Any]]:
-    """Every ``Create(ProcessingFault)`` waiting in *dl*'s outbox."""
-    from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-
-    bodies = [read_sealed_body_dict(dl, item) for item in dl.outbox_list()]
-    return [
-        body
-        for body in bodies
-        if body is not None
-        and body.get("type") == "Create"
-        and isinstance(body.get("object"), dict)
-        and body["object"].get("type") == "ProcessingFault"
-    ]
-
-
-_RECEIVER = "https://example.org/actors/participant"
-_SENDER = "https://example.org/actors/case-actor"
-
-
-def _note_item(content: str = "fails") -> as_Activity:
-    """An extractable received activity for the dead-letter tests."""
-    from vultron.wire.as2.factories import add_note_to_case_activity
-    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-
-    case_id = "https://example.org/cases/case-dead-letter"
-    return add_note_to_case_activity(
-        as_Note(content=content, context=case_id),
-        target=case_id,
-        context=case_id,
-        actor=_SENDER,
-        to=[_RECEIVER],
-    )
-
-
-def _attempt(
-    dl: SqliteDataLayer, item: as_Activity, max_attempts: int
-) -> None:
-    """One failing ``_process_inbox_item`` attempt on *dl*'s own queues."""
-    from vultron.adapters.inbox_staging import InlineObjectStaging
-
-    ok = ih._process_inbox_item(
-        actor_id="participant",
-        canonical_actor_id=_RECEIVER,
-        item_id=item.id_,
-        item=item,
-        dl=dl,
-        queue_dl=dl,
-        retry=dl,
-        max_attempts=max_attempts,
-        staging=InlineObjectStaging(dl),
-    )
-    assert ok is False
-
-
-def _raise_on_dispatch(monkeypatch) -> None:
-    def _raise(**_kwargs: Any) -> None:
-        raise RuntimeError("the use case raised")
-
-    monkeypatch.setattr(ih, "_dispatch_or_defer_inbox_item", _raise)
-
-
-@pytest.mark.spec("ASK-07-010")
-@pytest.mark.spec("IE-06-004")
-def test_a_failing_replay_is_answered_only_when_dead_lettered(monkeypatch):
-    """A re-queued attempt may still succeed, so it is not answered; the
-    dead-lettered one is, with one internal-error fault to its sender."""
-    from vultron.core.models.fault_classes import (
-        VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
-    )
-
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
-    item = _note_item()
-    _raise_on_dispatch(monkeypatch)
-
-    _attempt(dl, item, max_attempts=2)
-    assert dl.inbox_dead_letter_list() == []
-    assert item.id_ in dl.inbox_list(), "precondition: re-queued for retry"
-    assert _faults_queued(dl) == [], "a retried attempt is not answered"
-
-    _attempt(dl, item, max_attempts=2)
-    assert [e.activity_id for e in dl.inbox_dead_letter_list()] == [item.id_]
-    (fault,) = _faults_queued(dl)
-    assert fault["actor"] == _RECEIVER
-    assert fault["to"] == [_SENDER]
-    assert fault["object"]["failureClass"] == (
-        VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR
-    )
-    assert fault["object"]["inReplyTo"] == item.id_
-    assert "the use case raised" not in str(fault), "no diagnostics"
-
-
-@pytest.mark.spec("ASK-07-010")
-def test_a_failure_after_an_applied_dispatch_is_not_answered(monkeypatch):
-    """The post-bootstrap replay raising is no failure of the item's act:
-    dead-lettered or not, the sender of an applied act gets no fault."""
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
-    item = _note_item()
-    monkeypatch.setattr(
-        ih, "_dispatch_or_defer_inbox_item", lambda **_kw: object()
-    )
-    monkeypatch.setattr(ih, "is_case_bootstrap", lambda _event: True)
-    monkeypatch.setattr(
-        ih, "_activity_context_id", lambda _item, _event: "case"
-    )
-
-    def _replay_raises(*_args: Any, **_kwargs: Any) -> None:
-        raise RuntimeError("replay storage fault")
-
-    monkeypatch.setattr(ih, "_replay_pending_case_activities", _replay_raises)
-
-    _attempt(dl, item, max_attempts=1)
-
-    assert [e.activity_id for e in dl.inbox_dead_letter_list()] == [item.id_]
-    assert _faults_queued(dl) == []
-
-
-@pytest.mark.spec("ASK-07-010")
-def test_a_dead_lettered_fault_is_not_answered_with_a_fault(monkeypatch):
-    """Two peers failing alike must not answer each other's faults."""
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
-    item = _note_item()
-    _raise_on_dispatch(monkeypatch)
-    monkeypatch.setattr(
-        ih,
-        "prepare_for_dispatch",
-        lambda activity: SimpleNamespace(
-            semantic_type=MessageSemantics.CREATE_PROCESSING_FAULT,
-            activity_id=activity.id_,
-            actor_id=_SENDER,
-        ),
-    )
-
-    _attempt(dl, item, max_attempts=1)
-
-    assert _faults_queued(dl) == []
-
-
-@pytest.mark.spec("ASK-07-010")
-def test_a_dead_lettered_item_that_names_no_sender_is_not_answered(
-    monkeypatch, caplog
-):
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
-    item = _note_item()
-    _raise_on_dispatch(monkeypatch)
-
-    def _unextractable(activity: as_Activity) -> None:
-        raise ValueError("no sender")
-
-    monkeypatch.setattr(ih, "prepare_for_dispatch", _unextractable)
-
-    with caplog.at_level("WARNING"):
-        _attempt(dl, item, max_attempts=1)
-
-    assert _faults_queued(dl) == []
-    assert any("names no sender" in r.getMessage() for r in caplog.records)
-
-
-@pytest.mark.spec("ASK-07-010")
-def test_a_dead_letter_fault_that_cannot_be_queued_is_logged(
-    monkeypatch, caplog
-):
-    """The item is already dead-lettered; the fault's failure only logs."""
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
-    item = _note_item()
-    _raise_on_dispatch(monkeypatch)
-
-    def _outbox_fails(*_args: Any, **_kwargs: Any) -> str:
-        raise RuntimeError("outbox write failed")
-
-    monkeypatch.setattr(ih, "emit_processing_fault", _outbox_fails)
-
-    with caplog.at_level("ERROR"):
-        _attempt(dl, item, max_attempts=1)
-
-    assert [e.activity_id for e in dl.inbox_dead_letter_list()] == [item.id_]
-    assert any(
-        "ProcessingFault not queued" in r.getMessage()
-        and r.exc_info is not None
-        for r in caplog.records
-    )

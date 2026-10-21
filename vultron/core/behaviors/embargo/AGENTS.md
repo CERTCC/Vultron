@@ -182,10 +182,11 @@ cause must be the act itself (the relayed Invite, the re-issued stub), never
 an id two acts share.
 
 A decision the CASE_MANAGER takes from the clock or policy about one row (an
-RSVP time-out, honouring a late Accept) commits the act's entry and then the
-row's `Update(EmbargoConsent)` before writing it (`nodes/expiry_commit.py`);
-the act's replica slot records the act and changes nothing, since the consent
-slot copies the row. A row the actor's own activity states (the owner's
+RSVP time-out, honouring a late Accept) is the occasion for one act, its
+factory-built `Update(EmbargoConsent)` carrying the row, committed before the
+row is written (`nodes/expiry_commit.py`, ADR-0140). No second entry records
+the decision, and none is attributed to the invitee; the consent slot copies
+the row. A row the actor's own activity states (the owner's
 agreement at activation, a joiner's at its stub Accept) is applied from that
 activity's entry on both sides, decided by the same function
 (`models/embargo_consent_move.py`: `owner_agreement`, `joiner_agreement`).

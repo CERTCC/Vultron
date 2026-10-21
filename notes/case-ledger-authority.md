@@ -331,13 +331,9 @@ Rules:
    claimed time** (`claimed_published_iso()`). Stamping `now_utc()` under a
    participant's URI puts a foreign clock in its stream. A snapshot the
    CASE_MANAGER genuinely authors (its own URI, such as the `Leave` closure
-   status entries) uses its own clock. One exception: the expired-invitation
-   entry from the owner-close settle step (CM-23-014) or the overdue-invitation
-   sweep (CM-28-015) names the invitee in `actor` but carries the
-   CASE_MANAGER's clock, because the invitee sent nothing. When the sweep's
-   invitee is the sender of the activity that prompted it, its own entry would
-   precede that activity's entry, so it carries the activity's claimed time
-   instead, as the late-`Accept` expiry does. Do not copy the CASE_MANAGER's
+   status entries) uses its own clock. A decision the CASE_MANAGER takes for
+   someone else, such as an invitation expiry, is its own act, never a
+   snapshot under the other party's URI (ADR-0140). Do not copy the CASE_MANAGER's
    clock to any other entry a participant's own entries can follow.
 4. **A missing or blank top-level inbound `published` is refused at parse**
    (CLP-15-006, MV-03-002): the wire default would otherwise pose the
@@ -447,7 +443,7 @@ else. Hence the CASE_MANAGER's own `RM.CLOSED` needs its own entry
 `close_case` (the leaver) nor `case_fully_closed` (the owner) can stand in.
 
 Owner-close order: `close_case`, the Case Owner's RM steps, the CASE_MANAGER's
-own steps, one expired-invitation entry per pending Invite, then
+own steps, one `TIMED_OUT` `Update(EmbargoConsent)` per pending Invite, then
 `case_fully_closed` (CM-23-002, CM-23-014). `close_case` has no replay slot
 (CM-23-001, CM-23-016).
 

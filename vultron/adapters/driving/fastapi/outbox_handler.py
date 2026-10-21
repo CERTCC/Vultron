@@ -253,9 +253,8 @@ async def outbox_handler(
         emitter if emitter is not None else get_default_emitter(),
     )
 
-    # Resolve actor by full ID first, then fall back to short ID (mirrors
-    # inbox_handler resolution so both handlers accept the same actor_id
-    # forms).
+    # Resolve actor by full ID first, then fall back to short ID, so the
+    # handler accepts either actor_id form.
     actor = dl.read(actor_id)
     if actor is None:
         actor = dl.find_actor_by_short_id(actor_id)

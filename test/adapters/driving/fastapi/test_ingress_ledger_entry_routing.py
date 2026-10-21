@@ -32,6 +32,8 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
+)
+from vultron.adapters.driving.fastapi.inbox_queue_drain import (
     StoredActivityIngressAdapter,
 )
 from vultron.adapters.inbox_staging import (

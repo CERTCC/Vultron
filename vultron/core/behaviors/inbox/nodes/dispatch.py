@@ -140,10 +140,12 @@ class DispatchNode(_InboxNodeWithPorts):
 
         The dispatch has returned by raising, so any transaction the act
         opened has closed: an act that runs as one act has rolled back, and
-        the fault is not undone with it.  The pipeline never retries a
-        raised dispatch, so no inbox retry can contradict the fault; only
-        the sender's own resend, which the fault invites, can later succeed
-        (ADR-0151).  The sender is the event's
+        the fault is not undone with it.  A live delivery is never retried,
+        so only the sender's own resend, which the fault invites, can later
+        succeed (ADR-0151).  A replay of a queued item the inbox may retry
+        gets a dispatch adapter that holds the fault until the item is
+        dead-lettered, so a retry that succeeds follows no false fault
+        (IE-06-004, ASK-07-007).  The sender is the event's
         ``actor_id``: an activity that names none is refused at extraction
         and never reaches dispatch.  The inbox does not yet authenticate that
         sender (#509), so the fault goes to the actor the activity claims.

@@ -28,18 +28,17 @@ guard → commit → effect pattern (CLP-10-006, BT-06-006)::
     └─ CommitAndApplyExpiryIfDue (Selector)
        ├─ Inverter(InviteExpiryNeedsApplyNode)   # nothing to commit
        └─ CommitAndApplyInviteExpiryNode
-          # commit INVITE_EXPIRED_SEMANTIC_TYPE, then Update(EmbargoConsent)
-          # carrying the TIMED_OUT row; only then write INVITED → TIMED_OUT
+          # commit the CASE_MANAGER's Update(EmbargoConsent) carrying the
+          # TIMED_OUT row; only then write INVITED → TIMED_OUT
 
 A failed commit leaves the invitee unchanged: the row is written only once
-both entries have committed (CLP-07-013, ADR-0124).
+its entry has committed (CLP-07-013, ADR-0124).
 
 A store that is not the CASE_MANAGER runs nothing and leaves ``result_out``
 unset; the Accept tree's late-Accept arms and its expiry guard read
 ``IS_EXPIRED_KEY`` as False, and the Accept's own effects are gated on the
 CASE_MANAGER too (BT-17-001, HP-01-005).
-The entry's replica apply node is
-:class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyInviteExpiryFromLedgerNode`.
+A replica copies the row from the ``Update`` entry (CM-23-016).
 
 A late Accept is then answered by one of three CASE_MANAGER diversions of the
 Accept tree (:func:`late_accept_diversions`, EMB-17, CLP-10-026), each
@@ -92,10 +91,6 @@ from vultron.core.behaviors.embargo.nodes.late_accept import (
 from vultron.core.behaviors.embargo.nodes.reinvite import (
     ReinviteLateAccepterNode,
 )
-from vultron.core.models.rsvp_deadline import (
-    HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
-    INVITE_EXPIRED_SNAPSHOT_TYPE,
-)
 
 if TYPE_CHECKING:
     from vultron.config.actor import ActorConfig
@@ -105,109 +100,39 @@ if TYPE_CHECKING:
 CONSENT_CHANGED_KEY = NEEDS_APPLY_KEY
 
 
-def expiry_payload_snapshot(
-    *,
-    case_id: str,
-    invitee_id: str,
-    invite_id: str | None,
-    embargo_id: str,
-    published: str,
-) -> dict[str, Any]:
-    """The CM-28-009 expiry entry's snapshot, attributed to the expired invitee.
-
-    *published* is the invitee's own claimed time when it answered late — not
-    the CASE_MANAGER's clock: mixing the two inside one actor's claimed stream
-    is what CLP-15-003 reads as a regression.  The owner-close settle step
-    (CM-23-014) and the overdue-invitation sweep (CM-28-015) have no answer
-    to take a time from, so they pass the CASE_MANAGER's own.
-
-    The Invite carries no ``id`` when *invite_id* is ``None`` or empty: a
-    blank id is not an id (CS-08-002), and the replica apply node reads only
-    the invitee and the embargo.
-    """
-    invite: dict[str, Any] = {"type": "Invite"}
-    if invite_id:
-        invite["id"] = invite_id
-    invite["object"] = {"type": "EmbargoEvent", "id": embargo_id}
-    return {
-        "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
-        "actor": invitee_id,
-        "context": case_id,
-        "published": published,
-        "object": invite,
-    }
-
-
-def honour_late_accept_payload_snapshot(
-    *,
-    case_id: str,
-    accepting_actor_id: str,
-    invite_id: str,
-    embargo_id: str,
-    published: str,
-) -> dict[str, Any]:
-    """Snapshot for the honour-late-accept entry (EMB-17-001, ADR-0118).
-
-    Attributed to *accepting_actor_id*, so replicas can extract who
-    agreed from the entry's ``actor`` field.
-    """
-    return {
-        "type": HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
-        "actor": accepting_actor_id,
-        "context": case_id,
-        "published": published,
-        "object": {
-            "type": "Invite",
-            "id": invite_id,
-            "object": {"type": "EmbargoEvent", "id": embargo_id},
-        },
-    }
-
-
 def create_commit_and_record_expiry_tree(
     *,
     case_id: str,
     invitee_id: str,
     invite_id: str | None,
     embargo_id: str,
-    published: str,
 ) -> py_trees.behaviour.Behaviour:
-    """Commit one expired invitation and its ``TIMED_OUT`` row, then apply it.
+    """Commit one expired invitation's ``TIMED_OUT`` row, then apply it.
 
     The commit → effect half of the CM-28-009 expiry, shared by the lazy
     late-Accept evaluation (:func:`invite_expiry_decision`), the
     owner-close settle step (CM-23-014) and the overdue-invitation sweep
     (CM-28-015), which both reach it through
     :class:`~vultron.core.behaviors.embargo.nodes.invitation_expiry.ExpireInvitationsNode`.
-    The caller decides *that* the invitation has expired; this node commits
-    the expired-invitation entry, then the CASE_MANAGER's
-    ``Update(EmbargoConsent)`` carrying the row, and only then writes it,
-    so a failed commit leaves the invitee unchanged
-    (CLP-07-013, ADR-0124).  It is not gated: the caller places it behind
-    the CASE_MANAGER role gate (CM-28-014, BT-17-001).
+    The caller decides *that* the invitation has expired, the occasion; this
+    node commits the CASE_MANAGER's act on it, the factory-built
+    ``Update(EmbargoConsent)`` carrying the row, and only then writes it, so
+    a failed commit leaves the invitee unchanged (CLP-07-013, ADR-0124).  It
+    is not gated: the caller places it behind the CASE_MANAGER role gate
+    (CM-28-014, BT-17-001).
 
     Args:
         case_id: The case the Invite was for.
         invitee_id: The participant whose invitation expires.
-        invite_id: The expired Invite; the entry's object id.  ``None`` when
-            the caller cannot name it, in which case the entry's object is
-            the case and the snapshot's Invite carries no ``id``.
+        invite_id: The expired Invite, which seeds the ``Update``'s id;
+            ``None`` when the caller cannot name it, and the case seeds it.
         embargo_id: The embargo the Invite proposed.
-        published: The snapshot's claimed time (see
-            :func:`expiry_payload_snapshot`).
     """
     return CommitAndApplyInviteExpiryNode(
         case_id=case_id,
         invitee_id=invitee_id,
         embargo_id=embargo_id,
-        act_object_id=invite_id or case_id,
-        act_snapshot=expiry_payload_snapshot(
-            case_id=case_id,
-            invitee_id=invitee_id,
-            invite_id=invite_id,
-            embargo_id=embargo_id,
-            published=published,
-        ),
+        cause_object_id=invite_id or case_id,
         name="CommitAndApplyExpiry",
     )
 
@@ -218,37 +143,28 @@ def create_commit_and_honour_late_accept_tree(
     accepting_actor_id: str,
     invite_id: str,
     embargo_id: str,
-    published: str,
 ) -> py_trees.behaviour.Behaviour:
-    """Commit an honoured late Accept and its ``AGREED`` row, then apply it.
+    """Commit an honoured late Accept's ``AGREED`` row, then apply it.
 
-    The commit → effect half of the EMB-17-001 honour: the node commits the
-    :data:`~vultron.core.models.rsvp_deadline.HONOUR_LATE_ACCEPT_SEMANTIC_TYPE`
-    entry, then the CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the
-    accepter's row, and only then writes ``TIMED_OUT → AGREED`` or
-    ``DECLINED → AGREED`` (CLP-10-006, ADR-0124).  It is not gated: the honour
+    The commit → effect half of the EMB-17-002 honour: the honour is the
+    occasion, and the node commits the CASE_MANAGER's act on it, the
+    factory-built ``Update(EmbargoConsent)`` carrying the accepter's row, and
+    only then writes ``TIMED_OUT → AGREED`` or ``DECLINED → AGREED``
+    (CLP-10-006, ADR-0124).  It is not gated: the honour
     diversion of :func:`late_accept_diversions` places it behind the
     CASE_MANAGER gate (BT-17-001, CLP-10-026).
 
     Args:
         case_id: The case the Invite was for.
         accepting_actor_id: The participant whose late Accept is honoured.
-        invite_id: The answered Invite; the entry's object id.
+        invite_id: The answered Invite, which seeds the ``Update``'s id.
         embargo_id: The active embargo being accepted.
-        published: The answer's claimed time.
     """
     return CommitAndApplyHonourLateAcceptNode(
         case_id=case_id,
         invitee_id=accepting_actor_id,
         embargo_id=embargo_id,
-        act_object_id=invite_id or case_id,
-        act_snapshot=honour_late_accept_payload_snapshot(
-            case_id=case_id,
-            accepting_actor_id=accepting_actor_id,
-            invite_id=invite_id,
-            embargo_id=embargo_id,
-            published=published,
-        ),
+        cause_object_id=invite_id or case_id,
         name="CommitAndApplyHonourLateAccept",
     )
 
@@ -259,7 +175,6 @@ def invite_expiry_decision(
     invitee_id: str,
     invite_id: str,
     embargo_id: str,
-    published: str,
     now: datetime,
     result_out: dict[str, Any],
 ) -> py_trees.behaviour.Behaviour:
@@ -283,15 +198,13 @@ def invite_expiry_decision(
 
     The deadline is compared against *now*, the CASE_MANAGER's clock; the
     Accept only names the invitee and the embargo, so its claimed time is
-    never the evidence.  The entry carries that claimed time as received
-    (*published*, CLP-15-003), which decides nothing.
+    never the evidence.
 
     Args:
         case_id: The case the Invite was for.
         invitee_id: The participant answering.
-        invite_id: The answered Invite; the entry's object id.
+        invite_id: The answered Invite, which seeds the ``Update``'s id.
         embargo_id: The embargo the Invite proposed.
-        published: The answer's claimed time (see :func:`expiry_payload_snapshot`).
         now: The instant the deadline is compared against.
         result_out: Receives ``IS_EXPIRED_KEY`` and ``NEEDS_APPLY_KEY``
             from :class:`EvaluateInviteExpiryNode`; left unset on a store
@@ -302,7 +215,6 @@ def invite_expiry_decision(
         invitee_id=invitee_id,
         invite_id=invite_id,
         embargo_id=embargo_id,
-        published=published,
     )
     commit_and_apply_if_due = py_trees.composites.Selector(
         name="CommitAndApplyExpiryIfDue",
@@ -387,7 +299,6 @@ def late_accept_diversions(
     embargo_id: str,
     accepting_actor_id: str,
     invite_id: str,
-    published: str,
     answers: str | None,
     result_out: dict[str, Any],
     actor_config: "ActorConfig | None" = None,
@@ -403,14 +314,12 @@ def late_accept_diversions(
     reads from the case; the three conditions are exclusive, so one answer
     runs at most, and the late Accept itself is never committed.
 
-    - **Honour** (EMB-17-002, EMB-17-009): commit the honour entry and the
-      CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the accepter's
-      ``AGREED`` row, and only then write the row (CLP-10-006, ADR-0124);
-      then send what the embargo gate withheld from it and re-issue stale
-      stub Invites (CM-10-006, CM-11-016).  Replicas copy the row from its
-      own entry and recognise the honour entry through
-      :class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyHonourLateAcceptFromLedgerNode`
-      (RSH-08-004, ADR-0118).
+    - **Honour** (EMB-17-002, EMB-17-009): commit the CASE_MANAGER's
+      ``Update(EmbargoConsent)`` carrying the accepter's ``AGREED`` row, and
+      only then write the row (CLP-10-006, ADR-0124); then send what the
+      embargo gate withheld from it and re-issue stale stub Invites
+      (CM-10-006, CM-11-016).  Replicas copy the row from that entry
+      (CM-23-016).
     - **Re-invite** (EMB-17-003, EMB-17-011): invite the accepter to the
       embargo in force; the node stamps a fresh deadline, queues the Invite,
       commits it once queued and applies PEC ``INVITE`` (ADR-0119,
@@ -422,8 +331,8 @@ def late_accept_diversions(
         case_id: The case the Invite was for.
         embargo_id: The embargo the late Accept names.
         accepting_actor_id: The late accepter.
-        invite_id: The answered Invite; the honour entry's object id.
-        published: The Accept's claimed time, carried on the honour entry.
+        invite_id: The answered Invite, which seeds the honour ``Update``'s
+            id.
         answers: The late Accept's id; the re-invite's id derives from it.
         result_out: The Invite expiry decision's findings.
         actor_config: The CASE_MANAGER's configuration (RSVP window, stub
@@ -453,7 +362,6 @@ def late_accept_diversions(
                         accepting_actor_id=accepting_actor_id,
                         invite_id=invite_id,
                         embargo_id=embargo_id,
-                        published=published,
                     ),
                     *embargo_admission_backfill_nodes(case_id, actor_config),
                 ],
@@ -491,8 +399,6 @@ __all__ = [
     "NEEDS_APPLY_KEY",
     "create_commit_and_honour_late_accept_tree",
     "create_commit_and_record_expiry_tree",
-    "expiry_payload_snapshot",
-    "honour_late_accept_payload_snapshot",
     "invite_expiry_decision",
     "late_accept_diversions",
 ]
