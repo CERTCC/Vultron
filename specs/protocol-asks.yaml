@@ -834,7 +834,8 @@ groups:
       A received act whose consequence raises through the inbox leaves one
       queued `Create(ProcessingFault)` to the sender with the internal-error
       class and no diagnostics; a second failing delivery of the same body
-      queues nothing new. A deferred activity whose replay raises queues no
+      builds no new fault and queues at most the same fault again, with the
+      same id and body. A deferred activity whose replay raises queues no
       fault while it is re-queued, and one fault when it is dead-lettered.
     adr:
     - ADR-0080

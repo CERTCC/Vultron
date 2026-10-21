@@ -272,8 +272,8 @@ raises `VultronEntryRefusedError` otherwise. It never runs `apply_pec_transition
   for one row.
 - **The replica side** subclasses `ApplyEmbargoChangeFromLedgerNode`
   (`sync/nodes/embargo_copy_effect.py`) and names its entry's change in
-  `_change()`; a refused entry is held in `LedgerGapBuffer` and the announce is
-  reported deferred, never patched over. An entry whose result the replica
+  `_change()`; a refused entry's received Announce is held (SYNC-14-001) and the
+  announce is reported deferred, never patched over. An entry whose result the replica
   already holds (saved, but not yet stored, before a stop) is an idempotent
   no-op (`change_is_in_place()`); the CASE_MANAGER's trial still refuses an
   entry that would change nothing. So is a refused entry the case file is

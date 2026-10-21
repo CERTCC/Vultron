@@ -2,16 +2,17 @@
 
 ## Attacks observed in a case status { #attacks-observed }
 
-Announces evidence that attackers are exploiting the vulnerability.
+Tells a participant that the case status now records that attackers are exploiting the vulnerability.
 
-- **When…** a Participant observes attacks that exploit the vulnerability
+- **When…** the Case Manager records that attackers are exploiting the vulnerability
 - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
-- **Send to:** the case manager
-- **Sent by:** a participant
+- **Send to:** a participant
+- **Sent by:** the case manager
 - **Distinguished by:** `pxaState` = `pxA`
-- **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [Attacks Observed (CA)](../../../formal_protocol/messages.md#cs-message-types)
 - **Mapping status:** [collapse](../../index.md#mapping-status)
+
+Only the Case Manager sends a case status, as its record of the `pxaState` it adopted, and a receiver refuses one from any other sender. A participant reports public awareness, a public exploit or observed attacks in its own participant status instead.
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (

@@ -250,22 +250,6 @@ def _reset_pending_assertion_stores_between_tests():
 
 
 @pytest.fixture(autouse=True)
-def _reset_ledger_gap_buffers_between_tests():
-    """Drop every per-actor ledger gap buffer after each test.
-
-    ``get_ledger_gap_buffer()`` returns a process-global, in-memory singleton
-    per actor, and the received sync and actor-announce use cases buffer
-    out-of-order ledger entries in it.  An entry one test buffers under an
-    actor id would otherwise be waiting in the next test that names the same
-    actor, and be applied there as if it had just arrived (TB-06-003).
-    """
-    yield
-    from vultron.core.models.ledger_gap_buffer import _reset_buffers
-
-    _reset_buffers()
-
-
-@pytest.fixture(autouse=True)
 def _restore_third_party_log_levels_between_tests():
     """Undo third-party log-level suppression after each test (TB-06-003).
 

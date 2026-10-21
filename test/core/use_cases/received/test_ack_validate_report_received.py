@@ -348,6 +348,7 @@ class TestFullReportFlow:
             "(case was created at RM.RECEIVED per ADR-0015)"
         )
 
+    @pytest.mark.spec("HP-01-005")
     def test_full_flow_validate_at_a_replica_is_gated(self, make_payload):
         """RSH-08-003 (#3814): the vendor is the CASE_OWNER, not the case's
         CASE_MANAGER (the CaseActor is), so processing its own validate-report
@@ -378,7 +379,10 @@ class TestFullReportFlow:
             self._make_validate_event(),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
-        assert result.disposition == HandlerDisposition.APPLIED
+        # Not the CASE_MANAGER the Accept is for, so refused (HP-01-005).
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "not the CASE_MANAGER" in result.reason
 
         # The gated write did not run: the report-phase link and the
         # case-scoped participant both stay at RECEIVED on the replica.

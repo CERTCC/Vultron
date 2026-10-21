@@ -694,48 +694,54 @@ groups:
   occasions:
   - anchor: public-awareness
     heading: Public awareness in a case status
-    when: a Participant learns that the public knows of the vulnerability
+    when: the Case Manager records that the public knows of the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
-    send_to: the case manager
-    sent_by: a participant
+    send_to: a participant
+    sent_by: the case manager
     distinguished_by: '`pxaState` = `Pxa`'
     semantics: add_case_status_to_case
     shorthand: CP
     status: collapse
-    description: Announces evidence that the vulnerability is known to the public.
-    seen_in:
-    - path: howto/activitypub/activities/status_updates.md
-      title: How to Post a Status Update or a Case Note
+    description: Tells a participant that the case status now records that the public knows
+      of the vulnerability.
+    notes: Only the Case Manager sends a case status, as its record of the `pxaState` it adopted,
+      and a receiver refuses one from any other sender. A participant reports public awareness,
+      a public exploit or observed attacks in its own participant status instead.
+    seen_in: []
     example: add_public_awareness_to_case
   - anchor: exploit-public
     heading: Exploit public in a case status
-    when: a Participant learns that an exploit for the vulnerability is public
+    when: the Case Manager records that an exploit for the vulnerability is public
     send: Add(CaseStatus)[target=VulnerabilityCase]
-    send_to: the case manager
-    sent_by: a participant
+    send_to: a participant
+    sent_by: the case manager
     distinguished_by: '`pxaState` = `PXa`'
     semantics: add_case_status_to_case
     shorthand: CX
     status: collapse
-    description: Announces evidence that an exploit is publicly available.
-    seen_in:
-    - path: howto/activitypub/activities/status_updates.md
-      title: How to Post a Status Update or a Case Note
+    description: Tells a participant that the case status now records that an exploit is publicly
+      available.
+    notes: Only the Case Manager sends a case status, as its record of the `pxaState` it adopted,
+      and a receiver refuses one from any other sender. A participant reports public awareness,
+      a public exploit or observed attacks in its own participant status instead.
+    seen_in: []
     example: add_exploit_public_to_case
   - anchor: attacks-observed
     heading: Attacks observed in a case status
-    when: a Participant observes attacks that exploit the vulnerability
+    when: the Case Manager records that attackers are exploiting the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
-    send_to: the case manager
-    sent_by: a participant
+    send_to: a participant
+    sent_by: the case manager
     distinguished_by: '`pxaState` = `pxA`'
     semantics: add_case_status_to_case
     shorthand: CA
     status: collapse
-    description: Announces evidence that attackers are exploiting the vulnerability.
-    seen_in:
-    - path: howto/activitypub/activities/status_updates.md
-      title: How to Post a Status Update or a Case Note
+    description: Tells a participant that the case status now records that attackers are exploiting
+      the vulnerability.
+    notes: Only the Case Manager sends a case status, as its record of the `pxaState` it adopted,
+      and a receiver refuses one from any other sender. A participant reports public awareness,
+      a public exploit or observed attacks in its own participant status instead.
+    seen_in: []
     example: add_attacks_observed_to_case
   - anchor: vendor-awareness
     heading: Vendor Awareness (CV)
@@ -1008,9 +1014,10 @@ groups:
     sent_by: not yet checked
     semantics: create_processing_fault
     status: evolved
-    description: Tells the sender that its message was received but not understood. It names
-      the failed activity and a failure class, with no implementation diagnostics. This fault
-      serves the not-understood purpose of the formal RE, EE, CE and GE messages.
+    description: Tells the sender that its message was received but not understood, or understood
+      but its processing failed on the receiver's internal error. It names the failed activity
+      and a failure class, with no implementation diagnostics. This fault serves the not-understood
+      purpose of the formal RE, EE, CE and GE messages.
     seen_in:
     - path: howto/activitypub/activities/error.md
       title: How to Report a Protocol Fault

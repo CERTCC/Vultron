@@ -8,8 +8,8 @@ status_override: >-
   its trigger scope note.
 date: 2026-10-14
 created: 2026-10-14
-updated: 2026-10-15
-revision: 2
+updated: 2026-10-21
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0022; ADR-0111; specs/case-ledger-processing.yaml
@@ -137,3 +137,19 @@ Generated spec requirements: `case-ledger-processing.yaml` CLP-10-005, CLP-10-00
 Source: ISSUE-4585.
 
 Revision 2 (2026-10-15), from the maintainer's decisions on ISSUE-4641: detail 4 counts a clock decision's entries by the AS2 activities it needs instead of limiting it to one entry, and detail 5 makes the embargo end-time check a clock decision of every case tree with both door guards, with the scope note that a case-scoped trigger composes the same stage.
+
+## Amendment — 2026-10-21
+
+Detail 6 stands in its rule (a drained entry is its own delivery, under the receiving actor, never run inline or in a nested bridge run), but what is handed back is replaced.
+
+Replaced text, in detail 6: "The buffer holds the entry, not the Announce that carried it, so the hand-back wraps it in an Announce attributed to the case's CASE_MANAGER."
+In Consequences: "a handed-back entry comes from the CASE_MANAGER and runs the same inbox path as any delivery"; "Bad, because the hand-back needs a new driven port and an adapter for the actor's own inbox"; and "Neutral, because the gap buffer stays in memory, so a restart loses parked entries exactly as it does today."
+
+Now: a participant holds the `Announce(CaseLedgerEntry)` it received, as the body that arrived, the way the inbox holds an activity deferred until its case is known (IO-03-004), never the entry alone (SYNC-14-001).
+When a commit or a case seed makes that entry appliable, the drain replays the held `Announce` through the receiving actor's own inbox as a delivery of its own (SYNC-14-009).
+Nothing is built and nothing is attributed to a sender who did not send it: the replay carries the first delivery's received evidence, and intake, which archived that delivery when it arrived, archives nothing new.
+The driven port only queues a held activity for replay, and the holding area is kept in the receiver's store, so a restart no longer loses what is held.
+
+The wrapped Announce was never sent by anyone, yet since received bodies became the archive (ADR-0149) intake recorded it as received evidence from the CASE_MANAGER.
+In the maintainer's words: "If you didn't receive the Announce, you didn't receive the Announce, you can't just make one up."
+Decided by Allen D. Householder, 2026-10-21 (ISSUE-5012, Epic #3738).

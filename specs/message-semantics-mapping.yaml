@@ -405,22 +405,22 @@ groups:
     kind: protocol
     statement: >-
       Protocol shorthand `CP` (Public Aware) MUST dispatch as
-      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
-      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), and as
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
-      reports it in the `CaseStatus` that its
-      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001). In
-      both forms the `CaseStatus` payload encodes the `public_aware` state flag.
+      reports it, which it does only in the `CaseStatus` that its
+      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001), and
+      as `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
+      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), the
+      CASE_MANAGER's record of the case status it adopted (RSH-04-001,
+      RSH-04-005). In both forms the `CaseStatus` payload encodes the
+      `public_aware` state flag.
     rationale: >-
-      RSH-04-001 has every participant other than the CASE_MANAGER embed a
-      suggested `CaseStatus` in `Add(ParticipantStatus)` instead of sending
-      `Add(CaseStatus)`, so the same formal message reaches the CASE_MANAGER in
-      two wire forms. The participant's form is its view of the case status,
-      not a change to it: the CASE_MANAGER chooses whether to adopt it, by
-      default only with the Case Owner's authorization (RSH-07-001), and an
-      adopted value reaches the case as the CASE_MANAGER's own case status.
-      Each form dispatches to its own entry, which declares the message as one
-      of its occasions (MSM-08-001, #4569).
+      A participant embeds its suggested `CaseStatus` in
+      `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
+      form per sender. The participant's is its view, not a change: the
+      CASE_MANAGER adopts it, by default only with the Case Owner's
+      authorization (RSH-07-001), as its own `Add(CaseStatus)` ledger entry
+      (RSH-01-003), and a receiver refuses an `Add(CaseStatus)` from anyone
+      else (RSH-04-005). Each form dispatches to its own entry (MSM-08-001).
     verification: >-
       `test/test_message_semantics_mapping.py` asserts that `CP` rides both
       the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
@@ -440,22 +440,22 @@ groups:
     kind: protocol
     statement: >-
       Protocol shorthand `CX` (Exploit Published) MUST dispatch as
-      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
-      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), and as
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
-      reports it in the `CaseStatus` that its
-      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001). In
-      both forms the `CaseStatus` payload encodes the `exploit_published` state flag.
+      reports it, which it does only in the `CaseStatus` that its
+      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001), and
+      as `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
+      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), the
+      CASE_MANAGER's record of the case status it adopted (RSH-04-001,
+      RSH-04-005). In both forms the `CaseStatus` payload encodes the
+      `exploit_published` state flag.
     rationale: >-
-      RSH-04-001 has every participant other than the CASE_MANAGER embed a
-      suggested `CaseStatus` in `Add(ParticipantStatus)` instead of sending
-      `Add(CaseStatus)`, so the same formal message reaches the CASE_MANAGER in
-      two wire forms. The participant's form is its view of the case status,
-      not a change to it: the CASE_MANAGER chooses whether to adopt it, by
-      default only with the Case Owner's authorization (RSH-07-001), and an
-      adopted value reaches the case as the CASE_MANAGER's own case status.
-      Each form dispatches to its own entry, which declares the message as one
-      of its occasions (MSM-08-001, #4569).
+      A participant embeds its suggested `CaseStatus` in
+      `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
+      form per sender. The participant's is its view, not a change: the
+      CASE_MANAGER adopts it, by default only with the Case Owner's
+      authorization (RSH-07-001), as its own `Add(CaseStatus)` ledger entry
+      (RSH-01-003), and a receiver refuses an `Add(CaseStatus)` from anyone
+      else (RSH-04-005). Each form dispatches to its own entry (MSM-08-001).
     verification: >-
       `test/test_message_semantics_mapping.py` asserts that `CX` rides both
       the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's
@@ -475,22 +475,22 @@ groups:
     kind: protocol
     statement: >-
       Protocol shorthand `CA` (Attacks Observed) MUST dispatch as
-      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
-      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), and as
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
-      reports it in the `CaseStatus` that its
-      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001). In
-      both forms the `CaseStatus` payload encodes the `attacks_observed` state flag.
+      reports it, which it does only in the `CaseStatus` that its
+      `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001), and
+      as `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
+      `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), the
+      CASE_MANAGER's record of the case status it adopted (RSH-04-001,
+      RSH-04-005). In both forms the `CaseStatus` payload encodes the
+      `attacks_observed` state flag.
     rationale: >-
-      RSH-04-001 has every participant other than the CASE_MANAGER embed a
-      suggested `CaseStatus` in `Add(ParticipantStatus)` instead of sending
-      `Add(CaseStatus)`, so the same formal message reaches the CASE_MANAGER in
-      two wire forms. The participant's form is its view of the case status,
-      not a change to it: the CASE_MANAGER chooses whether to adopt it, by
-      default only with the Case Owner's authorization (RSH-07-001), and an
-      adopted value reaches the case as the CASE_MANAGER's own case status.
-      Each form dispatches to its own entry, which declares the message as one
-      of its occasions (MSM-08-001, #4569).
+      A participant embeds its suggested `CaseStatus` in
+      `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
+      form per sender. The participant's is its view, not a change: the
+      CASE_MANAGER adopts it, by default only with the Case Owner's
+      authorization (RSH-07-001), as its own `Add(CaseStatus)` ledger entry
+      (RSH-01-003), and a receiver refuses an `Add(CaseStatus)` from anyone
+      else (RSH-04-005). Each form dispatches to its own entry (MSM-08-001).
     verification: >-
       `test/test_message_semantics_mapping.py` asserts that `CA` rides both
       the `Add(CaseStatus)` pattern and the `Add(ParticipantStatus)` pattern's

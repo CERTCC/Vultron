@@ -2,7 +2,7 @@
 
 !!! info "Create processing fault"
 
-    Tells the sender that its message was received but not understood. It names the failed activity and a failure class, with no implementation diagnostics. This fault serves the not-understood purpose of the formal RE, EE, CE and GE messages.
+    Tells the sender that its message was received but not understood, or understood but its processing failed on the receiver's internal error. It names the failed activity and a failure class, with no implementation diagnostics. This fault serves the not-understood purpose of the formal RE, EE, CE and GE messages.
 
     - **When…** a Participant has received a message it cannot process
     - **Send:** `Create(ProcessingFault)`

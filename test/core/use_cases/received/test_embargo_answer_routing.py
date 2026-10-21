@@ -143,6 +143,10 @@ def _deliver_all(net: _Network, to: str) -> None:
         )
 
 
+# Integration tier, with the rest of the LedgerNetwork replay group
+# (#4917): about 9s idle plus a 2s teardown rebuild, so under the
+# full unit run's load it can pass the 30s ceiling.
+@pytest.mark.integration
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("SYNC-12-001")
 def test_a_late_reject_is_refused_uncommitted_and_the_replica_keeps_up():
@@ -166,6 +170,10 @@ def test_a_late_reject_is_refused_uncommitted_and_the_replica_keeps_up():
         assert first not in case.proposed_embargo_ids, actor_id
 
 
+# Integration tier, with the rest of the LedgerNetwork replay group
+# (#4917): about 9s idle plus a 2s teardown rebuild, so under the
+# full unit run's load it can pass the 30s ceiling.
+@pytest.mark.integration
 @pytest.mark.spec("EP-08-001")
 @pytest.mark.spec("EP-08-003")
 def test_the_owner_rejecting_one_of_two_revisions_keeps_the_other_open():
@@ -738,6 +746,33 @@ def test_a_resent_late_accept_without_evidence_keeps_its_acknowledgement():
         _semantic_types(net, MANAGER).count(INVITE_EXPIRED_NOOP_SEMANTIC_TYPE)
         == 1
     )
+
+
+@pytest.mark.spec("EMB-17-004")
+@pytest.mark.spec("IE-10-001")
+@pytest.mark.spec("ID-04-004")
+def test_a_resent_late_accept_with_the_archived_body_commits_nothing_new():
+    """A resend routed as the archived copy carries the first body.
+
+    The inbox routes the body intake archived, as its evidence (IE-10-001,
+    VM-08-002), so the acknowledgement arm has a body to carry; the
+    acknowledgement already recorded still stands and no second one is
+    committed.
+    """
+    net = _Network("https://example.org/cases/answer-late-accept-archived")
+    body, _accept_id, _bystander_pid, _revision_id = (
+        _late_accept_on_an_exited_embargo(net)
+    )
+    net.receive(MANAGER, body)
+    entries = len(_semantic_types(net, MANAGER))
+
+    net.receive(MANAGER, body)
+
+    assert (
+        _semantic_types(net, MANAGER).count(INVITE_EXPIRED_NOOP_SEMANTIC_TYPE)
+        == 1
+    )
+    assert len(_semantic_types(net, MANAGER)) == entries
 
 
 @pytest.mark.spec("CLP-10-026")

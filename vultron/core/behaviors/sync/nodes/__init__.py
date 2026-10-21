@@ -23,7 +23,7 @@ continue to work without modification.
 Submodules:
 - ``conditions``: Idempotency guard and sender verification condition nodes
 - ``receive``: Log entry delivery and validation action nodes
-- ``hand_back``: Hand a buffered ledger successor back to the inbox (SYNC-14-009)
+- ``replay_held``: Replay the held Announce of a ledger successor (SYNC-14-009)
 - ``chain``: Chain reconstruction and log entry creation action nodes
 - ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
 - ``replay``: Reject-driven replay action nodes for replication
@@ -98,9 +98,6 @@ from vultron.core.behaviors.sync.nodes.fanout import (
 from vultron.core.behaviors.sync.nodes.genesis_announce import (
     AnnounceCaseOnGenesisRejectNode,
 )
-from vultron.core.behaviors.sync.nodes.hand_back import (
-    HandBackBufferedSuccessorNode,
-)
 from vultron.core.behaviors.sync.nodes.ledger_authority import (
     DeclineForeignLedgerCommitNode,
 )
@@ -149,6 +146,9 @@ from vultron.core.behaviors.sync.nodes.replay import (
     FindDivergenceIndexNode,
     ReplayMissingEntriesNode,
     SendMissingEntriesNode,
+)
+from vultron.core.behaviors.sync.nodes.replay_held import (
+    ReplayHeldSuccessorNode,
 )
 from vultron.core.behaviors.sync.nodes.role_grant_effect import (
     ApplyCaseParticipantRoleGrantFromLedgerNode,
@@ -210,8 +210,8 @@ __all__ = [
     "CheckHashMatchesNode",
     "BufferOutOfOrderEntryNode",
     "BufferPreGenesisEntryNode",
-    # hand_back
-    "HandBackBufferedSuccessorNode",
+    # replay_held
+    "ReplayHeldSuccessorNode",
     "SendRejectLogEntryNode",
     "CheckHashOrRejectOnMismatchNode",
     # chain

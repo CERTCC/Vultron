@@ -33,7 +33,10 @@ import logging
 from typing import Any, cast
 
 from vultron.adapters.driving.fastapi import inbox_port_factories
-from vultron.adapters.driving.fastapi.inbox_handler import dispatch
+from vultron.adapters.driving.fastapi.inbox_handler import (
+    dispatch,
+    emit_processing_fault,
+)
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
     _queue_pending_case_activity,
@@ -179,17 +182,22 @@ class FastAPIIngressAdapter:
         reaches the receiver's store (DL-06-006, IO-03-004).
 
         A redelivery is routed in place of this body, as the copy the
-        receiver already holds, and without received evidence, because the
-        delivery routed is not this one (VM-08-002, IE-10-001):
+        receiver already holds (VM-08-002, IE-10-001):
 
-        - when the first delivery is still deferred, its held copy is routed,
-          and the record holding it is kept for the replay;
+        - when the first delivery is still deferred, its held copy is routed
+          without received evidence, and the record holding it is kept for
+          the replay, which carries it;
         - when intake already archived it, the archived body is parsed and
-          routed (ADR-0149), and the handlers' own idempotency guards answer
-          the repeat (ID-04).
+          routed (ADR-0149) with that body as its received evidence: it is
+          the first delivery's sealed body.  The handlers' own idempotency
+          guards answer the repeat (ID-04): a committed act is ``SKIPPED``,
+          and an act that never committed, such as one that failed, runs as
+          a first delivery and commits with the archived body (ADR-0151).
 
-        Either way this delivery's own body is left untouched for whatever
-        compares it with the held one (#3762).
+        When either held copy rebuilds, this delivery's own body is
+        never routed, and is left untouched for whatever compares it with
+        the held one (#3762).  Only when the held copy does not rebuild is
+        this delivery's body routed in its place, without received evidence.
 
         An ``Announce(CaseLedgerEntry)`` is the exception to the staged
         rebuild: per SYNC-13-002 the inline entry is deliberately NOT staged,
@@ -275,13 +283,19 @@ class FastAPIIngressAdapter:
 
     @staticmethod
     def _log_redelivery(activity: as_Activity, kind: str) -> None:
+        evidence = (
+            "with the archived body as its received evidence"
+            if kind == "archived"
+            else "without received evidence"
+        )
         logger.info(
             "FastAPIIngressAdapter.rehydrate: activity %s (actor %s) is"
-            " already held (%s); routing the held copy, without received"
-            " evidence (IE-10-001, VM-08-002).",
+            " already held (%s); routing the held copy, %s"
+            " (IE-10-001, VM-08-002).",
             activity.id_,
             getattr(activity.actor, "id_", activity.actor),
             kind,
+            evidence,
         )
 
     def _hydrate_in_place(self, activity: as_Activity) -> as_Activity:
@@ -304,8 +318,9 @@ class StoredActivityIngressAdapter:
     """Ingress adapter for the replay of a held activity.
 
     Used when the payload is an activity-ID string popped from the inbox
-    queue: an activity deferred pending its case, or a ledger entry handed
-    back to the inbox (SYNC-14-009).  Either is held whole in a
+    queue: an activity deferred pending its case, or a held
+    ``Announce(CaseLedgerEntry)`` replayed once its entry applies
+    (SYNC-14-009).  Either is held whole, as received, in a
     :class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`,
     never under its own id (DL-06-006).
 
@@ -378,6 +393,18 @@ class FastAPIDispatchAdapter:
             event=scoped_event,
             dl=self._dl,
             dispatcher=self._dispatcher,
+        )
+
+    def emit_processing_fault(
+        self, event: VultronEvent, failure_class: str
+    ) -> None:
+        """Queue the receiving actor's fault to *event*'s sender (ASK-07-010)."""
+        emit_processing_fault(
+            self._dl,
+            self._actor_id,
+            event.activity_id,
+            event.actor_id,
+            failure_class,
         )
 
 

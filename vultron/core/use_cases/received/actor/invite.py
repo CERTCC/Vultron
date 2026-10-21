@@ -32,10 +32,10 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    case_manager_verdict,
     closed_sender_verdict,
     intake_verdict,
     node_failed,
-    not_case_manager_refusal,
     verdict_from_bt,
 )
 
@@ -240,11 +240,8 @@ class AcceptInviteActorToCaseReceivedUseCase:
             verdict = verdict_from_bt(
                 tree, result, label="AcceptInviteActorToCaseBT"
             )
-            if verdict.disposition is not HandlerDisposition.REFUSED:
-                # Admitting the invitee is the CASE_MANAGER's job alone.
-                refusal = not_case_manager_refusal(tree, self._dl, case_id)
-                if refusal is not None:
-                    verdict = refusal
+            # Admitting the invitee is the CASE_MANAGER's job alone.
+            verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "accept_invite_actor_to_case: refused invitee '%s' case"
@@ -336,12 +333,9 @@ class RejectInviteActorToCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RejectInviteActorToCaseReceivedBT"
         )
-        if verdict.disposition is not HandlerDisposition.REFUSED:
-            # Recording the decline is the CASE_MANAGER's job alone; the gate
-            # also reads a case we do not hold as "not the manager".
-            refusal = not_case_manager_refusal(tree, self._dl, case_id)
-            if refusal is not None:
-                verdict = refusal
+        # Recording the decline is the CASE_MANAGER's job alone; the gate
+        # also reads a case we do not hold as "not the manager".
+        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "RejectInviteActorToCaseReceivedUseCase: invite '%s' refused:"

@@ -202,7 +202,9 @@ class DataLayer(Protocol):
 
         ``False`` means the id is not pending: delivery already took it, or
         it was never queued.  Only a send whose act turned out not to happen
-        is withdrawn (the create-case trigger's ``Create`` whose genesis
-        entry did not commit, ADR-0119).
+        is withdrawn: a CASE_MANAGER activity whose ledger entry did not
+        commit and whose act opens no transaction
+        (``_CommitCaseManagerActivityBase._withdraw_unrecorded``).  An act in
+        a transaction rolls its queued activity back instead (ADR-0146).
         """
         ...

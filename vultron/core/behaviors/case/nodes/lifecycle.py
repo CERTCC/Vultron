@@ -158,34 +158,49 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     def _resolve_activity(self) -> Any | None:
         return self._activity
 
-    def _answer_resend(self, activity: Any, case_id: str) -> Status:
-        """Answer a resend routed without received evidence (IE-10-001).
+    def _first_entry_stands(self, activity: Any, case_id: str) -> bool:
+        """Whether the ledger already records *activity* as this semantic.
 
-        It has no body to record.  When the ledger records its first delivery
-        as the same semantic, that entry stands.  Otherwise the resend is
-        refused, not recorded: its first delivery was never recorded, or the
-        id is recorded for a different activity, which a resend rebuilt from
-        a different body would otherwise pass for (CLP-07-013).
+        A redelivery routed as the copy the receiver archived carries the
+        first delivery's body (IE-10-001, VM-08-002), so a tree with no
+        repeat guard of its own, such as RM engage, reaches this commit with
+        a body to record.  The ledger's entry for the activity is its
+        record: the first entry stands and no second one is committed
+        (ID-04-004, CLP-07-013).
+        """
+        assert self.datalayer is not None
+        semantic_type = _semantic_type_of(activity)
+        if not is_ledgered_activity(
+            self.datalayer,
+            case_id,
+            activity.activity_id,
+            semantic_type=semantic_type,
+        ):
+            return False
+        self.logger.info(
+            "%s: activity '%s' is a redelivery already recorded for case"
+            " '%s'; its first delivery's entry stands",
+            self.name,
+            activity.activity_id,
+            case_id,
+        )
+        return True
+
+    def _refuse_unrecordable(self, activity: Any, case_id: str) -> Status:
+        """Refuse an activity routed with no received body (VM-08-002).
+
+        It has no body to record: its id is recorded for a different
+        activity, which a copy rebuilt from a different body would otherwise
+        pass for, or its first delivery was never recorded (CLP-07-013).
         """
         assert self.datalayer is not None
         activity_id = activity.activity_id
-        semantic_type = _semantic_type_of(activity)
-        if is_ledgered_activity(
-            self.datalayer, case_id, activity_id, semantic_type=semantic_type
-        ):
-            self.logger.info(
-                "%s: activity '%s' is a redelivery already recorded for case"
-                " '%s'; its first delivery's entry stands",
-                self.name,
-                activity_id,
-                case_id,
-            )
-            return Status.SUCCESS
         if is_ledgered_activity(self.datalayer, case_id, activity_id):
             self.feedback_message = (
                 f"activity '{activity_id}' is recorded for case '{case_id}'"
-                f" as another activity than '{semantic_type}', and this"
-                " resend carries no received body to record (IE-10-001)"
+                f" as another activity than '{_semantic_type_of(activity)}',"
+                " and this copy carries no received body to record"
+                " (IE-10-001)"
             )
         else:
             self.feedback_message = unrecordable_resend_reason(
@@ -228,8 +243,10 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
+        if self._first_entry_stands(activity, case_id):
+            return Status.SUCCESS
         if carries_no_received_body(activity):
-            return self._answer_resend(activity, case_id)
+            return self._refuse_unrecordable(activity, case_id)
 
         object_id, semantic_type, payload_snapshot = self._activity_metadata(
             activity, case_id

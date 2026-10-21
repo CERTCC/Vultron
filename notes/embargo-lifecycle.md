@@ -52,7 +52,7 @@ relevant_packages:
   - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
   - vultron/core/models/pending_assertion.py
-  - vultron/core/use_cases/triggers/embargo.py
+  - vultron/core/use_cases/triggers/embargo/
   - vultron/core/use_cases/received/embargo/
 ---
 
@@ -119,7 +119,11 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   entry as one `EmbargoTermination`, required there and refused elsewhere. The
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
   triggering status, or, when unknown at build time, the case's PXA at the
-  write. The `Remove` carries the why as `terminationCause` (a field on the
+  write. A voluntary termination passes `ChosenTermination`, set by the
+  `ChooseTerminationCauseNode` after the reason call-out that succeeded and
+  read at the write, so the choice and the commit are one act (EMB-14-001);
+  the trigger records the request's cause, or `OTHER` when it names none.
+  The `Remove` carries the why as `terminationCause` (a field on the
   base `as_Remove`, marked a Vultron property so `context.jsonld` names it),
   checked at the parse edge (EMB-13-005), because a replica learns the why
   only from the ledger entry: it copies the cause, never works it out from its
@@ -459,17 +463,17 @@ arms built by `_by_role()` (BT-17-001). Ratchet:
   `Reject(Invite(EmbargoEvent))` from the CASE_MANAGER alone.
 
 The receive-side cascade (`ThreatTerminationBranchNode`) reaches the same
-`terminate_embargo_bt`, so a non-manager receiver asks too, and that ask is a
-pending assertion: `TeardownAskPendingNode` suppresses a repeat, and trigger and
-cascade suppress each other (#4147).
+`terminate_embargo_bt`. Run as a non-manager it would ask too, as a pending
+assertion: `TeardownAskPendingNode` suppresses a repeat, and trigger and cascade
+suppress each other (#4147). No received tree runs it off the CASE_MANAGER
+(next rule).
 
 **A replica never asks for a teardown the CASE_MANAGER declared** (RSH-03-004).
-The declaration can arrive before the teardown entries, so
-`_DeclaredByCaseManagerNode` skips the branch when the status's sender holds
-CASE_MANAGER and is not the executing actor. It decides *who* tears down, not
-*whether* — it is not a sender-role authorization gate (RSH-03-002). The
-CSB-18 diagnostic needs no such skip: `PxaEmInvariantDiagnosticNode` runs only
-at the CASE_MANAGER (#4829).
+The CASE_MANAGER only ledgers its own status, and the threat teardown runs only
+in `add_participant_status_tree` under the CASE_MANAGER gate, so a replica learns
+the teardown from the committed entries alone. It decides *who* tears down, not
+*whether* (RSH-03-002). The CSB-18 diagnostic runs only at the CASE_MANAGER too
+(#4829).
 
 **The P/X/A abandonment decides every open proposal (EMB-16-001).** The
 CASE_MANAGER commits one `Reject(Invite(EmbargoEvent))` per proposal under

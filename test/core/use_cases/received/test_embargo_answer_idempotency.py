@@ -377,6 +377,10 @@ def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
     assert net.queued(MANAGER, to=BYSTANDER, type_="Invite") == invites
 
 
+# Integration tier, with the rest of the LedgerNetwork replay group
+# (#4917): about 9s idle plus a 2s teardown rebuild, so under the
+# full unit run's load it can pass the 30s ceiling.
+@pytest.mark.integration
 @pytest.mark.spec("CM-13-005")
 @pytest.mark.spec("EMB-17-003")
 def test_an_accept_after_a_reject_of_replaced_terms_is_invited_to_the_current():

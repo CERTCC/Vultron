@@ -24,8 +24,8 @@ lifecycle nodes that compose the embargo trigger trees, so an embargo tree
 importing from it would close an import cycle (CS-05-003).
 
 :func:`promote_pxa` is the SM-09-001 persistence-boundary promotion this node
-and :class:`~vultron.core.behaviors.status.nodes.case_status.AppendCaseStatusToCaseNode`
-both apply.
+applies.  :func:`adopted_pxa` is the case ``pxa`` after a participant's
+adopted report, the union of the two sets of latches (RSH-01-003).
 """
 
 import json
@@ -45,7 +45,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.states.cs import CS_pxa, is_pxa_assertion_acceptable
+from vultron.core.states.cs import CS_pxa
 from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -60,6 +60,48 @@ def promote_pxa(pxa: CS_pxa) -> CS_pxa:
     return pxa
 
 
+def _latch_pairs(
+    current: CS_pxa, reported: CS_pxa
+) -> list[tuple[str, bool, bool]]:
+    """Each of P, X and A as ``(letter, set in current, set in reported)``.
+
+    ``CS_pxa`` names spell each latch upper-case when set (``PxA``)."""
+    return [
+        (mine.upper(), mine.isupper(), theirs.isupper())
+        for mine, theirs in zip(current.name, reported.name, strict=True)
+    ]
+
+
+def adopted_pxa(current: CS_pxa, reported: CaseStatus | None) -> CS_pxa:
+    """The case ``pxa`` after adopting *reported* (RSH-01-003).
+
+    P, X and A are one-way latches, so the adopted state sets every latch
+    either *current* or *reported* sets, and clears none: a report that
+    omits a latch the case holds still adds the ones it newly sets.  With no
+    report the result is *current*.  It is promoted at the persistence
+    boundary either way (SM-09-001).
+    """
+    if reported is None:
+        return promote_pxa(current)
+    union = "".join(
+        letter if mine or theirs else letter.lower()
+        for letter, mine, theirs in _latch_pairs(current, reported.pxa.state)
+    )
+    return promote_pxa(CS_pxa[union])
+
+
+def latches_cleared_by(current: CS_pxa, reported: CaseStatus | None) -> str:
+    """The latches *current* sets that *reported* does not, as ``"PXA"``
+    letters (empty when none): what adopting *reported* ignores."""
+    if reported is None:
+        return ""
+    return "".join(
+        letter
+        for letter, mine, theirs in _latch_pairs(current, reported.pxa.state)
+        if mine and not theirs
+    )
+
+
 class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     """Snapshot the post-mutation CaseStatus, commit a CaseLedgerEntry, and fan out.
 
@@ -67,9 +109,9 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
 
     1. Reads the VulnerabilityCase from the DataLayer (post-mutation).
     2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa`` state.
-       With ``reported_status_id`` set, the ``pxa`` is instead the adopted
-       ``ParticipantStatus``'s reported value when it is acceptable from the
-       case's current one (RSH-01-003, RSH-09-005).
+       With ``reported_status_id`` set, the ``pxa`` also sets every P/X/A
+       latch the adopted ``ParticipantStatus`` reports, clearing none
+       (RSH-01-003).
     3. Builds the CASE_MANAGER's ``Add(CaseStatus)`` through the
        trigger-activity port and commits its sealed blob as a CaseLedgerEntry
        via ``create_commit_log_entry_tree`` (VM-08-003).
@@ -79,6 +121,15 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
 
     MUST NOT route through the inbox seam (RSH-04-004).
     Per RSH-04-002 (EM mutations) and RSH-04-003 (PXA mutations).
+
+    Args:
+        case_id: The case whose status is snapshotted.
+        name: Node name; defaults to the class name.
+        reported_status_id: The adopted ``ParticipantStatus``, read at tick
+            time, whose embedded ``case_status`` reports P/X/A.  Every latch it
+            sets is added to the case's, and none is cleared
+            (:func:`adopted_pxa`, RSH-01-003).  ``None`` for trees that mutate
+            the case before the snapshot (EM lifecycle).
     """
 
     def __init__(
@@ -87,28 +138,18 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
         name: str | None = None,
         reported_status_id: str | None = None,
     ) -> None:
-        """
-        Args:
-            case_id: The case to snapshot.
-            name: Node name; defaults to the class name.
-            reported_status_id: The adopted ``ParticipantStatus`` whose
-                embedded ``case_status`` reports P/X/A.  ``None`` for trees
-                that mutate the case before the snapshot (EM lifecycle).
-        """
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.reported_status_id = reported_status_id
         self._committed_status_id: str | None = None
 
-    def _adopted_pxa(self, current: CS_pxa) -> CS_pxa:
-        """Return the reported pxa when acceptable from *current*, else *current*.
+    def _reported(self) -> CaseStatus | None:
+        """The case status the adopted ``ParticipantStatus`` embeds.
 
-        The case does not move on the participant's report until this
-        snapshot, so it is adjudicated here against the case's own value:
-        a regressing report keeps the case's state (RSH-09-005).  The
-        report is read from the stored status the append step saved, which
-        is the status as received (RSH-09-001).  A status that embeds no
-        ``case_status`` reports no P/X/A, so the case's state is kept.
+        Read from the stored status the append step saved, which is the
+        status as received (RSH-09-001), so a status received by reference is
+        adopted too.  ``None`` when no report is named, or the status embeds
+        no ``case_status`` (it reports no P/X/A).
 
         Raises:
             VultronNotFoundError: no ``ParticipantStatus`` is stored at
@@ -117,28 +158,14 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
                 report to skip (ARCH-15-001).
         """
         if self.reported_status_id is None:
-            return current
+            return None
         assert self.datalayer is not None
         reported = self.datalayer.read(self.reported_status_id)
         if not isinstance(reported, ParticipantStatus):
             raise VultronNotFoundError(
                 "ParticipantStatus", self.reported_status_id
             )
-        if reported.case_status is None:
-            return current
-        asserted = promote_pxa(reported.case_status.pxa.state)
-        if is_pxa_assertion_acceptable(current, asserted):
-            return asserted
-        self.logger.warning(
-            "%s: reported PXA %s from status '%s' regresses case '%s' PXA"
-            " %s; keeping the case's state",
-            self.name,
-            asserted,
-            self.reported_status_id,
-            self.case_id,
-            current,
-        )
-        return current
+        return reported.case_status
 
     def update(self) -> Status:
         if not self.case_id:
@@ -178,9 +205,8 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
         try:
-            pxa_state = self._adopted_pxa(promote_pxa(current.pxa.state))
+            reported = self._reported()
         except VultronNotFoundError as exc:
             self.feedback_message = (
                 f"Cannot adopt reported status into case '{self.case_id}':"
@@ -188,6 +214,18 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             self.logger.exception("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
+        pxa_state = adopted_pxa(current.pxa.state, reported)
+        if cleared := latches_cleared_by(current.pxa.state, reported):
+            self.logger.info(
+                "%s: status '%s' for case '%s' omits %s, which the case"
+                " already records; kept (RSH-01-003, actor_id=%s)",
+                self.name,
+                self.reported_status_id,
+                self.case_id,
+                cleared,
+                self.actor_id,
+            )
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,

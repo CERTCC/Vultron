@@ -2,12 +2,12 @@
 
 !!! info "Attacks observed in a case status"
 
-    Announces evidence that attackers are exploiting the vulnerability.
+    Tells a participant that the case status now records that attackers are exploiting the vulnerability.
 
-    - **When…** a Participant observes attacks that exploit the vulnerability
+    - **When…** the Case Manager records that attackers are exploiting the vulnerability
     - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
-    - **Send to:** the case manager
-    - **Sent by:** a participant
+    - **Send to:** a participant
+    - **Sent by:** the case manager
     - **Distinguished by:** `pxaState` = `pxA`
     - **Reference:** [Attacks observed in a case status](../../cs.md#attacks-observed)
 

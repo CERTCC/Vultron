@@ -250,19 +250,15 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             f"{_C}/case_proposal_received_tree.py",
             "create_case_proposal_received_tree",
         ),
-        (
-            "CASE_STATUS",
-            f"{_S}/add_case_status_tree.py",
-            "add_case_status_tree",
-        ),
         # The RM-declaration gap-note exemptions (engage, defer, the three
         # report verdicts) and RSH_STATUS were retired by #3814: once each
         # tree's state write moved under the CASE_MANAGER gate (RSH-08-003),
         # its whole ordered effect pipeline — gap note and, for
         # add_participant_status, the adoption emit and threat teardown —
         # moved with it, so those trees emit nothing outside the gate.
-        # add_case_status keeps CASE_STATUS: it gates only the append, leaving
-        # the CSB-18 diagnostic and the threat-ask ungated.
+        # CASE_STATUS was retired by #4851: add_case_status runs only at a
+        # participant replica, from the CASE_MANAGER (RSH-04-005), and has no
+        # effects to exempt.
         (
             "EMBARGO_INVITE_ANSWER",
             f"{_E}/announce_teardown_tree.py",

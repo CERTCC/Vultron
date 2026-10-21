@@ -2481,9 +2481,9 @@ def wait_for_pending_inbox_quiescent(
     confirms that the pending inbox has been drained — i.e. the case seed has
     arrived and all buffered activities were processed.
 
-    ``LedgerGapBuffer`` (ADR-0037) is intentionally excluded: it is an
-    in-memory structure not observable via the DataLayer API and therefore
-    cannot be used as a harness gate.
+    A held out-of-order ``Announce(CaseLedgerEntry)`` (``HeldLedgerAnnounce``,
+    SYNC-14) is intentionally excluded: it waits on a ledger predecessor, not
+    on the case seed, so it is no signal that the seed has been processed.
 
     Args:
         client: DataLayerClient connected to the container to check.

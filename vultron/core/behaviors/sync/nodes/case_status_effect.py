@@ -25,14 +25,14 @@ replays the entry on a participant replica, so the replica's
 the ``Add(CaseStatus)`` reaching the replica directly (PCR-03-001).
 
 The replica copies the status the entry carries, id, times and every
-dimension included (CM-23-016, ADR-0124).  The CASE_MANAGER adjudicated the
-``Add(CaseStatus)`` before committing it (RSH-09-005), so the
-replica does not adjudicate again, and it never carries its own EM or P/X/A
-value forward over the entry's: two replicas at the same ledger position hold
-the same case statuses.
+dimension included (CM-23-016, ADR-0124).  The entry records the
+CASE_MANAGER's own ``Add(CaseStatus)``, the status it derived or adopted
+(RSH-04-001, RSH-01-003), so the replica does not adjudicate it, and it never
+carries its own EM or P/X/A value forward over the entry's: two replicas at
+the same ledger position hold the same case statuses.
 
 The status is appended the way the CASE_MANAGER's
-``AppendCaseStatusToCaseNode`` appends it, so both stores record the same
+``EmitCaseStatusUpdateNode`` appends it, so both stores record the same
 object under the same id (ADR-0124).
 """
 

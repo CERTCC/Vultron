@@ -654,8 +654,11 @@ def test_a_refused_add_note_gets_the_notice_with_the_guards_reason():
 
 @pytest.mark.spec("CLP-02-005")
 @pytest.mark.spec("CLP-05-001")
-def test_a_refused_case_status_gets_the_notice_and_no_fault():
-    """A wholly refused Add(CaseStatus) has one answer, the notice."""
+@pytest.mark.spec("RSH-04-005")
+def test_a_participants_case_status_gets_no_notice_and_no_fault():
+    """A participant's Add(CaseStatus) is refused by the sender guard, since
+    only the CASE_MANAGER sends one (RSH-04-005), so it has no answer: no
+    notice and no fault."""
     from vultron.core.models.case_status import CaseStatus
     from vultron.core.models.dimensions import EmDimension
     from vultron.core.states.em import EM
@@ -668,7 +671,6 @@ def test_a_refused_case_status_gets_the_notice_and_no_fault():
     status = CaseStatus(
         context=net.case_id,
         attributed_to=BYSTANDER,
-        # A participant cannot move EM by status, and nothing else is new.
         em=EmDimension(state=EM.ACTIVE),
     )
     activity = add_status_to_case_activity(
@@ -678,5 +680,5 @@ def test_a_refused_case_status_gets_the_notice_and_no_fault():
     verdict = net.receive(MANAGER, json.loads(dump_outbound_body(activity)))
 
     assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
-    _notice_for(net, activity.id_)
-    assert net.queued(MANAGER, to=BYSTANDER, type_="Create") == []
+    assert "HP-01-006" in (verdict.reason or "")
+    assert net.queued(MANAGER, to=BYSTANDER) == []

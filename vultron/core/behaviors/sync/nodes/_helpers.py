@@ -15,7 +15,8 @@
 
 """Shared helpers for SYNC log-replication effect nodes.
 
-Provides the ``_extract_id_from_field`` utility and the
+Provides the ``_extract_id_from_field`` utility, the
+``hold_received_announce`` step every holding node shares, and the
 ``_LedgerEffectNode`` base class used by all per-semantic-type effect nodes.
 """
 
@@ -32,8 +33,36 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes.conditions import (
     _require_log_entry,
 )
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.held_ledger_announces import hold_ledger_announce
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
+
+
+def hold_received_announce(
+    node_name: str,
+    dl: CasePersistence,
+    activity: object,
+    actor_id: str | None = None,
+) -> bool:
+    """Hold the received ``Announce`` that carried *activity*'s ledger entry.
+
+    Holds the ``Announce`` as it was received, never its entry alone
+    (:func:`~vultron.core.services.held_ledger_announces.hold_ledger_announce`,
+    SYNC-14-001).  Returns whether it is now held.
+
+    Raises:
+        VultronWiringError: When the event names no activity to hold.
+    """
+    entry = _require_log_entry(activity, node_name)
+    activity_id = getattr(activity, "activity_id", None)
+    if not isinstance(activity_id, str) or not activity_id:
+        raise VultronWiringError(
+            f"{node_name}: the event carrying ledger entry '{entry.id_}'"
+            " names no activity to hold"
+        )
+    return hold_ledger_announce(dl, entry, activity_id, actor_id=actor_id)
 
 
 def _extract_id_from_field(value: Any) -> str | None:

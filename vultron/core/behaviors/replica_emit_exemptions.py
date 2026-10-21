@@ -47,7 +47,6 @@ from vultron.primitives import NonEmptyString
 
 __all__ = [
     "CASE_PROPOSAL",
-    "CASE_STATUS",
     "EMBARGO_INVITE_ANSWER",
     "EMBARGO_INVITE_FAULT",
     "EMBARGO_INVITE_REFUSAL",
@@ -112,20 +111,6 @@ CASE_PROPOSAL: Final = ReplicaEmitExemption(
             "RelayCreationTimeRevisionNode",
         }
     ),
-)
-
-CASE_STATUS: Final = ReplicaEmitExemption(
-    name="case-status",
-    reason=(
-        "Add(CaseStatus) emits only as the executing actor: the threat"
-        " teardown's terminate request runs in the participant-replica arm of"
-        " terminate_embargo_bt and asks the CASE_MANAGER (RSH-03-001,"
-        " RSH-03-004, EP-09-008).  The ``CaseStatus`` append (#3814) and the"
-        " CSB-18 diagnostic note, a committed CASE_MANAGER act (#4829), run"
-        " under the CASE_MANAGER gate; the ask stays ungated so a replica"
-        " still signals a threat it detects in a peer's status."
-    ),
-    covers=frozenset({"SendTerminateEmbargoActivityNode"}),
 )
 
 EMBARGO_INVITE_ANSWER: Final = ReplicaEmitExemption(
@@ -213,9 +198,9 @@ REPORTER_INTRODUCTION: Final = ReplicaEmitExemption(
 #: write moved under the CASE_MANAGER gate (RSH-08-003), the whole ordered
 #: effect pipeline — gap note and, for add_participant_status, the adoption
 #: emit and threat teardown — moved with it, so nothing in those trees emits
-#: outside the gate.  ``case-status`` survives: add_case_status gates only its
-#: ``CaseStatus`` append, leaving the CSB-18 diagnostic and the threat-ask
-#: ungated so a replica can still signal a threat it detects in a peer's status.
+#: outside the gate.  ``case-status`` was retired by #4851: add_case_status
+#: now runs only at a participant replica, from the CASE_MANAGER (RSH-04-005),
+#: and has no effects to exempt, so its threat-ask went with its teardown.
 REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
     MappingProxyType(
         {
@@ -223,7 +208,6 @@ REPLICA_EMIT_EXEMPTIONS: Final[Mapping[str, ReplicaEmitExemption]] = (
             for exemption in (
                 OFFER_ROLE,
                 CASE_PROPOSAL,
-                CASE_STATUS,
                 EMBARGO_INVITE_ANSWER,
                 EMBARGO_INVITE_FAULT,
                 EMBARGO_INVITE_REFUSAL,

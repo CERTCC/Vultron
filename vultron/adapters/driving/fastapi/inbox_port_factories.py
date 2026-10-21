@@ -27,9 +27,7 @@ import logging
 from collections.abc import Callable
 from typing import Any, cast
 
-from vultron.adapters.driven.inbox_hand_back_adapter import (
-    InboxHandBackAdapter,
-)
+from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
 from vultron.adapters.driven.sync_activity_adapter import (
     SyncActivityAdapter,
 )
@@ -37,7 +35,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.adapters.inbox_staging import hold_activity
 from vultron.config.actor import ActorConfig
 from vultron.config.app import load_actor_config
 from vultron.core.behaviors.call_out.bundles.case_proposal import (
@@ -46,7 +43,7 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_PERMISSIVE,
 )
-from vultron.core.behaviors.sync.nodes.hand_back import INBOX_HAND_BACK_KEY
+from vultron.core.behaviors.sync.nodes.replay_held import INBOX_REPLAY_KEY
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
@@ -269,8 +266,10 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
 )
 
 # Status-authorization call-out seam (ADR-0076, RSH-07-003):
-# ADD_CASE_STATUS_TO_CASE and ADD_PARTICIPANT_STATUS_TO_PARTICIPANT both
-# carry a StatusAuthorizationCallOutBundle injection point.  The adapter
+# ADD_PARTICIPANT_STATUS_TO_PARTICIPANT carries a
+# StatusAuthorizationCallOutBundle injection point.  ADD_CASE_STATUS_TO_CASE
+# carries none: it is admitted only at a participant replica, from the
+# CASE_MANAGER, and gates nothing (RSH-04-005).  The adapter
 # wires STATUS_AUTHORIZATION_PERMISSIVE (explicit trusted/demo configuration)
 # so the EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed
 # without a live Case Owner approval round-trip.  Production deployments that
@@ -278,10 +277,6 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
 # bundle here.
 _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
     {
-        # ADD_CASE_STATUS_TO_CASE also needs trigger_activity so that
-        # ThreatTerminationBranchNode can dispatch TerminateEmbargo when
-        # P/X/A is set (RSH-03-001, ADR-0046).
-        MessageSemantics.ADD_CASE_STATUS_TO_CASE,
         # ADD_PARTICIPANT_STATUS_TO_PARTICIPANT triggers the downstream
         # participant-status activity.
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
@@ -290,11 +285,12 @@ _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
 
 
 # ANNOUNCE_CASE_LEDGER_ENTRY commits a replica entry and ANNOUNCE_VULNERABILITY_CASE
-# seeds the case (anchoring its genesis hash); either can make an entry parked
-# in the gap buffer appliable.  That entry is handed back to the receiving
-# actor's own inbox as a delivery of its own, through the InboxHandBackPort
-# (SYNC-14-009, SYNC-15-005, ADR-0135).  See _inbox_hand_back_port_factory.
-_LEDGER_HAND_BACK_SEMANTICS = frozenset(
+# seeds the case (anchoring its genesis hash); either can make a held
+# Announce(CaseLedgerEntry) appliable.  That Announce, as it was received, is
+# replayed through the receiving actor's own inbox as a delivery of its own,
+# through the InboxReplayPort (SYNC-14-009, SYNC-15-005, ADR-0135).  See
+# _inbox_replay_port_factory.
+_LEDGER_REPLAY_SEMANTICS = frozenset(
     {
         MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
         MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
@@ -302,21 +298,20 @@ _LEDGER_HAND_BACK_SEMANTICS = frozenset(
 )
 
 
-def _inbox_hand_back_port_factory(dl: DataLayer) -> dict[str, Any]:
-    """Inject the ``InboxHandBackPort`` that queues to *dl*'s own inbox.
+def _inbox_replay_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Inject the ``InboxReplayPort`` that queues to *dl*'s own inbox.
 
-    *dl* is the receiving actor's store (ADR-0073), so the handed-back
+    *dl* is the receiving actor's store (ADR-0073), so the replayed
     ``Announce(CaseLedgerEntry)`` lands in the queue the same inbox loop
     drains after the current delivery (SYNC-14-009).
     """
-    return {INBOX_HAND_BACK_KEY: InboxHandBackAdapter(dl, hold_activity)}
+    return {INBOX_REPLAY_KEY: InboxReplayAdapter(dl)}
 
 
 def _status_auth_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Inject trigger_activity + STATUS_AUTHORIZATION_PERMISSIVE.
 
-    Used for ``ADD_CASE_STATUS_TO_CASE`` and
-    ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``.  Wires the permissive
+    Used for ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``.  Wires the permissive
     authorization bundle (RSH-07-003, ADR-0076) so the
     EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed in this
     adapter's trusted/demo deployment context.

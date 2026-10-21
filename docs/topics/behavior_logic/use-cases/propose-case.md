@@ -67,10 +67,12 @@ Each commit fans its entry out through the same first-in-first-out outbox that c
 A commit placed ahead of the `Create` therefore hands every Participant ledger entries for a case it does not hold yet.
 Each such entry takes the pre-genesis recovery path — buffer, `Reject`, replay from genesis — while the replica waits behind the whole fan-out (CP-09-009).
 Emitting the case first makes that recovery path what it was designed to be: a backstop for transport reordering, not the normal route.
+Every step from the case to the last ledger entry is written in one storage transaction, so a step that fails keeps none of them, including the queued `Accept` and `Create` (CLP-07-013).
+Delivery learns of the queued messages only once that transaction commits, so a failed creation sends nothing, and a redelivered proposal starts again from the beginning.
 
 The two emissions are separate steps for a reason worth understanding.
 The `Accept` is irrevocable once sent: the service has committed to managing the case.
-The replica delivery can still fail.
+The replica delivery can still fail after both are queued.
 So a durable marker is written between them, and a retry runner completes only the `Create` — never resending the `Accept` (CP-05-005).
 The marker is deleted once the `Create` is queued, so it cannot tell a redelivered proposal that the case was already announced.
 The `Create` therefore takes an id derived from the proposal: a redelivery that finds that activity already stored announces nothing again, and one that finds a `Create` for a different case under it fails rather than leave the new case unannounced.

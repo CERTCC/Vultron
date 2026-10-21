@@ -44,7 +44,6 @@ from vultron.core.behaviors.sync.nodes import (
     CheckEntryHashIntactNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
-    HandBackBufferedSuccessorNode,
     IsAcceptCaseParticipantRoleEventNode,
     IsAcceptEmbargoInviteEventNode,
     IsAddCaseStatusEventNode,
@@ -70,6 +69,7 @@ from vultron.core.behaviors.sync.nodes import (
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
+    ReplayHeldSuccessorNode,
     SendRejectLogEntryNode,
 )
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
@@ -355,9 +355,9 @@ def create_announce_log_entry_tree(
     )
     # When the VulnerabilityCase is not yet seeded on this replica, chain tail
     # reconstruction fails and no tail_hash is available for the mismatch check.
-    # Wrap reconstruct in a Selector so that on failure we (1) park the entry in
-    # the actor-local gap buffer so the case-seed path can drain it once the
-    # genesis anchor is known (SYNC-15-004, #2186), and (2) still send a Reject
+    # Wrap reconstruct in a Selector so that on failure we (1) hold the received
+    # Announce so the case-seed path can replay it once the genesis anchor is
+    # known (SYNC-15-004, SYNC-15-005, #2186), and (2) still send a Reject
     # (with last_accepted_hash="" meaning "replay from genesis") as the loss
     # backstop, exiting the Sequence without persisting the entry (SYNC-15-001,
     # CLP-08-005).  FailureIsSuccess lets the reject fire whether or not the
@@ -421,10 +421,10 @@ def create_announce_log_entry_tree(
             CheckEntryHashIntactNode(name="CheckEntryHashIntact"),
             entry_processing,
             # The entry this delivery stored (or found stored) may be the
-            # predecessor a buffered entry waits on.  That successor is its
-            # own delivery, handed back to this actor's inbox; its tree hands
-            # back the next one (SYNC-14-009, ADR-0135).
-            HandBackBufferedSuccessorNode(name="HandBackBufferedSuccessor"),
+            # predecessor a held Announce waits on.  That Announce, as it was
+            # received, is replayed through this actor's inbox as its own
+            # delivery; its tree replays the next one (SYNC-14-009, ADR-0135).
+            ReplayHeldSuccessorNode(name="ReplayHeldSuccessor"),
         ],
     )
     # The replication envelope is never itself a canonical entry (CLP-10-004),

@@ -21,7 +21,8 @@ verifying state mutation, outbox effect, and error handling.
 Spec: specs/triggerable-behaviors.yaml TRIG-09.
 """
 
-import py_trees
+import re
+
 import pytest
 
 from test.support.ledger import (
@@ -649,34 +650,80 @@ class TestCreateCaseTriggerLedger:
         assert self.dl.list_objects("CaseLedgerEntry") == []
         assert self.dl.outbox_list() == []
 
-    @pytest.mark.spec("CLP-07-013")
-    def test_a_failed_genesis_commit_withdraws_the_case(self, monkeypatch):
-        """AC-3: a case whose genesis does not commit is not kept (#4442).
+    def _assert_nothing_of_the_case_is_kept(self) -> None:
+        """The store holds nothing the failed creation wrote (CLP-07-013).
 
-        The trigger queues the ``Create`` before it commits (ADR-0119), so a
-        failed genesis withdraws the still-pending ``Create`` from the outbox:
-        nothing about the case was committed or sent, the case, the creator's
-        participant record and the unsent ``Create`` are removed and the
-        trigger raises.  The report it was created from was not the
-        creation's write and stays.
+        The report the case was created from was not the creation's write,
+        so it stays.
         """
-        from vultron.core.behaviors.case.nodes import proposal_ledger
-
-        fail_commits(monkeypatch, proposal_ledger)
-
-        with pytest.raises(
-            VultronValidationError, match="genesis create_case ledger commit"
-        ) as raised:
-            self._create(to=[_RECIPIENT])
-
-        assert "withdrawn" in str(raised.value)
         assert self.dl.list_objects("VulnerabilityCase") == []
         assert self.dl.list_objects("CaseParticipant") == []
         assert self.dl.list_objects("ParticipantStatus") == []
+        assert self.dl.list_objects("CaseStatus") == []
         assert self.dl.list_objects("CaseLedgerEntry") == []
         assert self.dl.outbox_list() == []
         assert self.dl.list_objects("Create") == [], "the unsent Create too"
         assert self.dl.read(self.report.id_) is not None
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.parametrize(
+        ("allowed", "failing"),
+        [
+            (0, "create_case"),
+            (1, "add_report_to_case"),
+            (2, "create_case_participant"),
+            (3, "add_case_status_to_case"),
+        ],
+        ids=lambda v: v if isinstance(v, str) else None,
+    )
+    def test_a_creation_entry_that_fails_keeps_nothing_of_the_case(
+        self, monkeypatch, allowed, failing
+    ):
+        """AC-1, AC-3: no record of the case outlives a failed entry (#4442).
+
+        The creation is one act (ADR-0146): the case, the creator's record,
+        the queued ``Create`` and every entry already committed, genesis
+        included, are rolled back with the entry that failed, and the
+        trigger raises with that entry's reason.
+        """
+        from vultron.core.behaviors.case.nodes import proposal_ledger
+
+        fail_commits(monkeypatch, proposal_ledger, allowed=allowed)
+
+        with pytest.raises(VultronValidationError, match=failing) as raised:
+            self._create(to=[_RECIPIENT])
+
+        assert re.search(r"on case '[^']+'", str(raised.value)), (
+            "the error names the case"
+        )
+        self._assert_nothing_of_the_case_is_kept()
+
+    @pytest.mark.spec("DL-02-004")
+    @pytest.mark.spec("CLP-07-013")
+    def test_delivery_is_never_told_of_a_rolled_back_create(self, monkeypatch):
+        """A ``Create`` whose case is rolled back is never offered for delivery.
+
+        The outbox monitor learns of a queued item only after the block
+        commits (DL-02-004), so a failed genesis cannot race delivery into
+        sending a case the CASE_MANAGER then does not hold (#4653).
+        """
+        from vultron.core.behaviors.case.nodes import proposal_ledger
+
+        woken: list[str] = []
+        self.dl.set_enqueue_callback(woken.append)
+        fail_commits(monkeypatch, proposal_ledger)
+
+        with pytest.raises(VultronValidationError):
+            self._create(to=[_RECIPIENT])
+
+        assert woken == []
+        self._assert_nothing_of_the_case_is_kept()
+
+        # Positive control: the same callback is woken once a creation
+        # commits, so the empty list above is not a callback never wired.
+        monkeypatch.undo()
+        self._create(to=[_RECIPIENT])
+        assert woken, "a committed creation wakes delivery"
 
     @pytest.mark.spec("SYNC-09-002")
     @pytest.mark.spec("CP-09-009")
@@ -706,14 +753,14 @@ class TestCreateCaseTriggerLedger:
         ]
 
     @pytest.mark.spec("CLP-07-013")
-    def test_a_create_the_outbox_cannot_take_withdraws_the_case(
+    def test_a_create_the_outbox_cannot_take_keeps_nothing_of_the_case(
         self, monkeypatch
     ):
-        """A failed outbox write leaves nothing committed or sent.
+        """A failed outbox write rolls the creation back.
 
         The ``Create`` is queued before the creation entries (ADR-0119), so
-        when the queue write fails the case has no entry and was sent to
-        no one: it is withdrawn, as for a failed genesis.
+        when the queue write fails no entry is committed, and the case
+        written ahead of it is rolled back with it (ADR-0146).
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
@@ -721,72 +768,10 @@ class TestCreateCaseTriggerLedger:
             raise RuntimeError("outbox unavailable")
 
         monkeypatch.setattr(SqliteDataLayer, "outbox_append", _refuse)
-        with pytest.raises(
-            VultronValidationError, match="could not be queued"
-        ):
+        with pytest.raises(VultronValidationError, match="UpdateActorOutbox"):
             self._create(to=[_RECIPIENT])
 
-        assert self.dl.list_objects("VulnerabilityCase") == []
-        assert self.dl.list_objects("CaseParticipant") == []
-        assert self.dl.list_objects("Create") == []
-        assert self.dl.list_objects("CaseLedgerEntry") == []
-        assert self.dl.read(self.report.id_) is not None
-
-    @pytest.mark.spec("CLP-07-013")
-    def test_a_create_already_taken_for_delivery_keeps_the_case(
-        self, monkeypatch
-    ):
-        """A failed genesis cannot withdraw a ``Create`` already being sent.
-
-        Delivery popped the ``Create`` before the commit ran, so its
-        recipient may hold the case: the case is kept and the failure is
-        surfaced, as on the proposal path (CP-09-009).
-        """
-        from vultron.core.behaviors.case.nodes import proposal_ledger
-
-        def _taken_then_failed(*args, **kwargs):
-            self.dl.outbox_pop()  # the outbox monitor took the Create
-            return py_trees.behaviours.Failure(name="ForcedCommitFailure")
-
-        monkeypatch.setattr(
-            proposal_ledger, "create_commit_log_entry_tree", _taken_then_failed
-        )
-        with pytest.raises(
-            VultronValidationError, match="already taken for delivery"
-        ):
-            self._create(to=[_RECIPIENT])
-
-        (case,) = self.dl.list_objects("VulnerabilityCase")
-        assert ledger_entries(self.dl, case.id_) == []
-        assert self.dl.outbox_list() == []
-        assert len(self.dl.list_objects("Create")) == 1
-
-    @pytest.mark.spec("CLP-07-013")
-    def test_a_failed_later_entry_fails_with_the_create_queued(
-        self, monkeypatch
-    ):
-        """After genesis the first failed entry stops the trigger (#4442).
-
-        No later entry is committed out of order.  The ``Create`` was queued
-        before the commits (ADR-0119): the case's creation was sent, and its
-        genesis entry records it.
-        """
-        from vultron.core.behaviors.case.nodes import proposal_ledger
-
-        fail_commits(monkeypatch, proposal_ledger, allowed=1)
-
-        with pytest.raises(
-            VultronValidationError, match="creation entries stop there"
-        ) as raised:
-            self._create(to=[_RECIPIENT])
-
-        (case,) = self.dl.list_objects("VulnerabilityCase")
-        assert case.id_ in str(raised.value), "the error names the case"
-        assert [
-            e.semantic_type for e in ledger_entries(self.dl, case.id_)
-        ] == ["create_case"]
-        (queued,) = self.dl.outbox_list()
-        assert getattr(self.dl.read(queued), "type_", None) == "Create"
+        self._assert_nothing_of_the_case_is_kept()
 
 
 @pytest.mark.spec("CLP-07-013")

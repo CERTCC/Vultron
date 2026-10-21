@@ -188,7 +188,7 @@ Reject(Invite(stub)) instead of Accept → RM.CLOSED on the kept, inert record
   [inbox-orchestration](inbox-orchestration.md)).
 - The CASE_MANAGER processes the Accept (PCR-08-009). The same handler runs on any
   actor holding a copy, so its effects sit behind the role gate, and a receiver the gate
-  turns away reports `REFUSED` through `not_case_manager_refusal()`, never `SKIPPED`
+  turns away reports `REFUSED` through `case_manager_verdict()`, never `SKIPPED`
   (HP-01-005).
 - The handler runs the tree as the **receiving** actor (`resolve_receiving_actor_id()`),
   never as a CASE_MANAGER address looked up from the store (BT-17-006).
@@ -269,7 +269,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 | `accept_invite_to_embargo_on_case` | `EmbargoAcceptance` | stores B; copies the `AGREED` row the Accept states, the owner's included; no register change (ADR-0122) |
 | `reject_invite_to_embargo_on_case` | `EmbargoRejection` | stores B; copies the `DECLINED` row the Reject states; no register change |
 | `withdraw_from_embargo_on_case` (`Leave(EmbargoEvent)`) | `EmbargoWithdrawal` | stores the embargo if absent; writes no row: each row it declines follows as its own `update_embargo_consent` (MSM-07-010) |
-| `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed, an invitation expiry (`TIMED_OUT`, CM-28-014) and an honoured late Accept (`AGREED`, EMB-17-009) included; a no-op when the seed is past it, else refuses it into the gap buffer |
+| `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed, an invitation expiry (`TIMED_OUT`, CM-28-014) and an honoured late Accept (`AGREED`, EMB-17-009) included; a no-op when the seed is past it, else refuses it and holds its Announce |
 | `activate_embargo_on_case` (owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | copies the `ACTIVATE` step (B `ACTIVE`, A `SUPERSEDED`) and the owner's `AGREED` row; each `CARRY_OVER` row follows as its own `update_embargo_consent` |
 | `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | copies the `REJECT` step: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent. After disclosure the CASE_MANAGER's teardown entry follows in the same act and terminates A (EMB-04-002, MSM-07-009); the replica copies both and decides nothing |
 | `invite_to_embargo_on_case_expired_noop` | `InviteExpiryNoop` | no PEC change (EMB-17-004) |
@@ -334,7 +334,7 @@ stub `Accept` moves no RM state (CM-11-001).
 
 ## Antipattern: Reading the CASE_MANAGER Gate as a Sender Check
 
-`create_case_manager_gated_tree` and `not_case_manager_refusal()` check that the
+`create_case_manager_gated_tree` and `case_manager_verdict()` check that the
 **receiving** actor holds `CVDRole.CASE_MANAGER` (BT-17-001, HP-01-005); they say
 nothing about the sender. A gated tree applies an assertion from *any* sender unless
 something else checks who sent it.
@@ -363,7 +363,7 @@ canonical ledger never gets the entry (ADR-0021). Run the tree as the receiving 
 (`resolve_receiving_actor_id()`) and pass the CASE_MANAGER effects as
 `create_receive_activity_tree(..., manager_effects=[...])`; the factory wraps them in
 the gate, and a received tree never calls the gate itself (BT-17-008). Then map a
-skipped gate to `REFUSED` with `not_case_manager_refusal()` (HP-01-005). See
+skipped gate to `REFUSED` with `case_manager_verdict()` (HP-01-005). See
 `vultron/core/behaviors/note/add_note_received_tree.py` for the shape.
 
 The gate is what makes identity correct: role holder, receiving actor and store owner
