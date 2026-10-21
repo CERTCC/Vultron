@@ -85,7 +85,7 @@ def test_only_the_participant_status_tree_builds_the_teardown_branch():
     ],
 )
 def test_every_call_form_is_counted(source: str):
-    tree = ast.parse(source)
+    tree = _corpus.parse_inline(source)
     names = {_NODE} | _aliases(tree)
     assert any(
         isinstance(node, ast.Call) and _calls_node(node, names)
