@@ -23,9 +23,9 @@ StatusAdoptionGate of the two-seam authorization model (ADR-0046, RSH-01-001 to 
 after ``AppendParticipantStatusNode`` records the raw peer update, a
 ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
 should adopt the status, then ``EmitCaseStatusUpdateNode`` writes the
-post-adoption CaseStatus, carrying the P, X or A the sender reported, directly
-to the case ledger without routing through the inbox seam (RSH-01-003,
-RSH-04-004).  The embargo teardown and the CSB-18 diagnostic follow it
+post-adoption CaseStatus, adding every P, X or A latch the sender reported and
+clearing none, directly to the case ledger without routing through the inbox
+seam (RSH-01-003, RSH-04-004).  The embargo teardown and the CSB-18 diagnostic follow it
 (RSH-01-004).  This tree is the only received path by which a participant's
 P, X or A report reaches the case status: ``Add(CaseStatus)`` is the
 CASE_MANAGER's alone (RSH-04-001, RSH-04-005).
@@ -258,9 +258,9 @@ def add_participant_status_tree(
                 validate_rm=False,
             ),
             status_adoption_gate,
-            # The adopted P, X or A the sender reported in its embedded case
-            # status is what the canonical CaseStatus records (RSH-01-003,
-            # #4956).
+            # The canonical CaseStatus adds every P, X or A latch the sender
+            # reported in its embedded case status, clearing none
+            # (RSH-01-003, #4956).
             EmitCaseStatusUpdateNode(
                 case_id=tree_case_id,
                 name="EmitCaseStatusUpdate",
@@ -280,9 +280,11 @@ def add_participant_status_tree(
                         ),
                         ThreatTerminationBranchNode(
                             # Prefer the peer's embedded CaseStatus for the
-                            # PXA check; enable DataLayer fallback so that
-                            # when it is absent _threat_present reads the
-                            # case's current_status (written by
+                            # PXA check: it was accepted whole, so it is the
+                            # stored copy the emit adopted (RSH-09-001).
+                            # Enable DataLayer fallback so that when it is
+                            # absent _threat_present reads the case's
+                            # current_status (written by
                             # EmitCaseStatusUpdateNode just above).
                             status_obj=getattr(
                                 status_obj, "case_status", None

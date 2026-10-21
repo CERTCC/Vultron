@@ -2146,15 +2146,28 @@ class TestAdoptedPxaReachesTheCaseStatus:
     @pytest.mark.spec("RSH-01-003")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_a_report_omitting_a_latch_keeps_it(
-        self, populated_dl, make_payload
+        self, populated_dl, make_payload, caplog
     ):
-        """Case at PXa; a report of Pxa omits X, which the case keeps."""
+        """Case at PXa; a report of Pxa omits X, which the case keeps, and
+        the kept latch is logged at INFO."""
+        import logging
 
         _seed_case_pxa(populated_dl, CS_pxa.PXa)
 
-        result = _run_at_case_manager(
-            populated_dl, make_payload(_pxa_report(CS_pxa.Pxa))
-        )
+        with caplog.at_level(logging.INFO):
+            result = _run_at_case_manager(
+                populated_dl, make_payload(_pxa_report(CS_pxa.Pxa))
+            )
+
+        kept = [
+            r.getMessage()
+            for r in caplog.records
+            if r.levelno == logging.INFO
+            and "already records; kept" in r.getMessage()
+        ]
+        assert len(kept) == 1, kept
+        assert f"for case '{CASE_ID}' omits X" in kept[0], kept[0]
+        assert f"actor_id={CASE_MANAGER_ID}" in kept[0], kept[0]
 
         assert result.status == Status.SUCCESS, result.feedback_message
         assert _case_pxa(populated_dl) == CS_pxa.PXa

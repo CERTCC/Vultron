@@ -60,6 +60,18 @@ def promote_pxa(pxa: CS_pxa) -> CS_pxa:
     return pxa
 
 
+def _latch_pairs(
+    current: CS_pxa, reported: CS_pxa
+) -> list[tuple[str, bool, bool]]:
+    """Each of P, X and A as ``(letter, set in current, set in reported)``.
+
+    ``CS_pxa`` names spell each latch upper-case when set (``PxA``)."""
+    return [
+        (mine.upper(), mine.isupper(), theirs.isupper())
+        for mine, theirs in zip(current.name, reported.name, strict=True)
+    ]
+
+
 def adopted_pxa(current: CS_pxa, reported: CaseStatus | None) -> CS_pxa:
     """The case ``pxa`` after adopting *reported* (RSH-01-003).
 
@@ -72,10 +84,8 @@ def adopted_pxa(current: CS_pxa, reported: CaseStatus | None) -> CS_pxa:
     if reported is None:
         return promote_pxa(current)
     union = "".join(
-        mine.upper() if theirs.isupper() else mine
-        for mine, theirs in zip(
-            current.name, reported.pxa.state.name, strict=True
-        )
+        letter if mine or theirs else letter.lower()
+        for letter, mine, theirs in _latch_pairs(current, reported.pxa.state)
     )
     return promote_pxa(CS_pxa[union])
 
@@ -86,11 +96,9 @@ def latches_cleared_by(current: CS_pxa, reported: CaseStatus | None) -> str:
     if reported is None:
         return ""
     return "".join(
-        mine
-        for mine, theirs in zip(
-            current.name, reported.pxa.state.name, strict=True
-        )
-        if mine.isupper() and not theirs.isupper()
+        letter
+        for letter, mine, theirs in _latch_pairs(current, reported.pxa.state)
+        if mine and not theirs
     )
 
 
@@ -197,7 +205,6 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
         try:
             reported = self._reported()
         except VultronNotFoundError as exc:
@@ -207,6 +214,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             self.logger.exception("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
         pxa_state = adopted_pxa(current.pxa.state, reported)
         if cleared := latches_cleared_by(current.pxa.state, reported):
             self.logger.info(
