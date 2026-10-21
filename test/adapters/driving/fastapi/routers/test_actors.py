@@ -901,7 +901,7 @@ def test_post_inbox_does_not_persist_core_class_for_core_only_type(
     stages the inline object for routing (#3763), so the staging is what is
     watched.
     """
-    from vultron.adapters.driving.fastapi import inbox_staging
+    from vultron.adapters import inbox_staging
     from vultron.core.models.base import CoreObject
 
     persisted: list[object] = []

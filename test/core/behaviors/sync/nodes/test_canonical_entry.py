@@ -339,15 +339,57 @@ def test_bare_target_equal_to_the_case_uri_is_accepted():
 
 
 @pytest.mark.spec("CLP-07-006")
-def test_bare_target_naming_another_case_is_refused():
-    with pytest.raises(VultronCanonicalEntryError, match="target"):
-        _validate_canonical_entry(
-            case_id=CASE_ID,
-            payload_snapshot=_offer_participant_snapshot(
-                "https://example.org/cases/some-other-case"
-            ),
-            semantic_type="offer_case_participant",
-        )
+@pytest.mark.spec("AKM-02-002")
+def test_bare_target_naming_a_held_object_is_recorded_as_received():
+    """``Add(ParticipantStatus, target=<participant uri>)`` is not refused.
+
+    The participant a status is added to is an object the case's replicas
+    hold, so its sender may name it by URI (AKM-02-002).  The commit boundary
+    records the reference as it arrived; it neither inlines it nor refuses
+    it (CLP-07-006, ADR-0107).
+    """
+    snapshot = {
+        "type": "Add",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "ParticipantStatus",
+            "id": "https://example.org/statuses/status-1",
+        },
+        "target": "https://example.org/actors/vendor#participant",
+        "context": CASE_ID,
+    }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=snapshot,
+        semantic_type="add_participant_status_to_participant",
+    )
+
+
+@pytest.mark.spec("CLP-07-006")
+def test_a_bare_reference_nested_in_the_object_is_recorded_as_received():
+    """Only the entry's own ``object`` must be inline; nested slots are as sent.
+
+    An answered Invite names its invitee by URI (AKM-02-002), and the
+    snapshot keeps it so.
+    """
+    snapshot = {
+        "type": "Accept",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "Invite",
+            "id": "https://example.org/activities/invite-1",
+            "object": "https://example.org/actors/vendor",
+            "target": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=snapshot,
+        semantic_type="rm_accept_invite_to_case",
+    )
 
 
 @pytest.mark.spec("CLP-07-006")
@@ -372,7 +414,7 @@ def test_bare_target_naming_the_case_is_accepted_when_nested():
 
 @pytest.mark.spec("CLP-07-006")
 def test_bare_object_is_still_refused():
-    """Only ``target`` gets the case-URI allowance; ``object`` never does."""
+    """The entry's ``object`` travels inline: its type is half the signature."""
     snapshot = _offer_participant_snapshot(CASE_ID)
     snapshot["object"] = "https://example.org/actors/vendor#participant"
     with pytest.raises(VultronCanonicalEntryError, match="object"):
@@ -475,4 +517,89 @@ def test_ack_report_snapshot_is_not_a_canonical_signature():
             case_id=CASE_ID,
             payload_snapshot=snapshot,
             semantic_type="ack_report",
+        )
+
+
+# ---------------------------------------------------------------------------
+# A received snapshot is the body as sent (CLP-07-011, ADR-0107)
+# ---------------------------------------------------------------------------
+
+
+def _note_snapshot(**overrides: object) -> dict[str, object]:
+    snapshot: dict[str, object] = {
+        "type": "Add",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {"type": "Note", "id": "https://example.org/notes/n1"},
+        "target": CASE_ID,
+        "context": CASE_ID,
+    }
+    snapshot.update(overrides)
+    return {k: v for k, v in snapshot.items() if v is not None}
+
+
+@pytest.mark.spec("CLP-07-011")
+def test_a_snapshot_naming_no_context_is_accepted():
+    """The entry names its case on the envelope; the body need not.
+
+    The Offer that opens a case predates it, so its body carries no
+    ``context``, and nothing writes one in.
+    """
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=_note_snapshot(context=None),
+        semantic_type="add_note_to_case",
+    )
+
+
+@pytest.mark.spec("CLP-07-011")
+def test_a_context_naming_the_case_inline_is_accepted():
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=_note_snapshot(
+            context={"type": "VulnerabilityCase", "id": CASE_ID}
+        ),
+        semantic_type="add_note_to_case",
+    )
+
+
+@pytest.mark.spec("CLP-07-007")
+def test_a_context_naming_another_case_inline_is_refused():
+    with pytest.raises(
+        VultronCanonicalEntryError, match="not the entry's case"
+    ):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            payload_snapshot=_note_snapshot(
+                context={
+                    "type": "VulnerabilityCase",
+                    "id": "https://example.org/cases/other",
+                }
+            ),
+            semantic_type="add_note_to_case",
+        )
+
+
+@pytest.mark.spec("CLP-07-003")
+@pytest.mark.spec("CP-01-010")
+def test_an_inline_actor_profile_is_accepted():
+    """A Create(CaseProposal) names its actor by inline profile, as sent."""
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        payload_snapshot=_note_snapshot(
+            actor={"type": "Organization", "id": OWNER_ACTOR_ID}
+        ),
+        semantic_type="add_note_to_case",
+    )
+
+
+@pytest.mark.spec("CLP-07-003")
+def test_an_actor_naming_no_id_is_refused():
+    with pytest.raises(VultronCanonicalEntryError, match="actor URI"):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            payload_snapshot=_note_snapshot(
+                actor={"type": "Organization", "name": "nobody"}
+            ),
+            semantic_type="add_note_to_case",
         )

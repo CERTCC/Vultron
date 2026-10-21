@@ -13,6 +13,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.embargo_register import register
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.create_case_received_tree import (
@@ -39,7 +40,6 @@ from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import create_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -61,7 +61,7 @@ _REPORT_ID = "https://example.org/reports/tree-test"
 @pytest.fixture
 def make_payload():
     """Extract the received event from an AS2 activity."""
-    return extract_event
+    return received_event
 
 
 @pytest.fixture
@@ -357,7 +357,7 @@ def _run_at_owner(
     if pending_link:
         owner_dl.save(_link(creator=sender))
     activity = create_case_activity(case, actor=sender, to=[_OWNER])
-    event = cast(CreateCaseReceivedEvent, extract_event(activity))
+    event = cast(CreateCaseReceivedEvent, received_event(activity))
     tree = create_create_case_received_tree(
         event.case,
         _CASE_ID,

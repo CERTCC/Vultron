@@ -227,12 +227,14 @@ def _build_activity_snapshot(
     CaseActor itself.  See CM-24-002 and notes/ownership-transfer.md.
 
     ``published`` is carried for the same class of reason (ISSUE-3149).  It is
-    the sender's *claimed* event time, and it is the only field the CLP-14-007
-    and CLP-14-008 commit-boundary guards have to work with.  Omitting it let
-    ``VultronActivity.published`` fall back to ``default_factory=now_utc`` —
-    the receiver's own clock — so both guards compared the receiver's clock
-    against itself and could never fire.  See CLP-15-004 and ADR-0079
-    § "Residual Uncertainty".
+    the sender's *claimed* event time; omitting it let
+    ``VultronActivity.published`` fall back to ``default_factory=now_utc``, the
+    receiver's own clock, so core read the receiver's clock as the sender's
+    claim (CLP-15-004).
+
+    This summary is what core reads and intake archives, not what a received
+    ledger entry records: the entry records the received body itself, which
+    the event carries (``VultronEvent.received_evidence``, CLP-07-011).
     """
     activity_type = str(activity.type_) if activity.type_ else "Activity"
     return VultronActivity(

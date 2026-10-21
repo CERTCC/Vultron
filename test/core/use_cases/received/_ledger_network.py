@@ -31,10 +31,10 @@ from test.support.embargo_register import (
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
-    received_event,
     register_rows,
     run_use_case,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import _as_id
@@ -43,14 +43,22 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import add_status_to_participant_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+)
 
 from .conftest import make_embargo_case_with_actor
 
@@ -206,7 +214,9 @@ class LedgerNetwork:
 
         *without* names ports the receiver is composed without.
         """
-        event = received_event(parse_activity(body), receiver)
+        event = received_event(
+            parse_activity(body), receiving_actor_id=receiver
+        )
         return self.receive_event(receiver, event, without=without)
 
     def receive_event(
@@ -263,6 +273,43 @@ class LedgerNetwork:
             )
             semantic_types.append(entry["semanticType"])
         return semantic_types
+
+    def pxa_report(self, member: str, pxa: CS_pxa) -> Any:
+        """*member*'s own ``Add(ParticipantStatus)`` reporting the case at *pxa*.
+
+        A participant reports P, X or A only in the case status its
+        participant status embeds (RSH-04-001); every other dimension
+        restates the record the CASE_MANAGER holds, so only *pxa* is new.
+        """
+        case = self.case(MANAGER)
+        participant = cast(
+            CaseParticipant,
+            self.stores[MANAGER].read(case.actor_participant_index[member]),
+        )
+        current = participant.participant_status
+        assert current is not None
+        status = ParticipantStatus(
+            context=self.case_id,
+            attributed_to=member,
+            rm=current.rm,
+            vf=current.vf,
+            d=current.d,
+            cvd_role=current.cvd_role,
+            case_status=CaseStatus(
+                context=self.case_id,
+                attributed_to=member,
+                em=EmDimension(state=case.em_state),
+                pxa=PxaDimension(state=pxa),
+            ),
+        )
+        return add_status_to_participant_activity(
+            status,
+            target=as_CaseParticipant(
+                id_=participant.id_, context=self.case_id, attributed_to=member
+            ),
+            actor=member,
+            to=[MANAGER],
+        )
 
     def case(self, actor_id: str) -> VulnerabilityCase:
         return cast(

@@ -48,7 +48,7 @@ Use — forbidden:
   by its AS2 name.
 
 Core code that genuinely has to key an AS2-shaped mapping — the ledger payload
-snapshot is the real case (CLP-07-011, RSH-05-009) — asks
+snapshot is the real case (CLP-07-011) — asks
 :mod:`vultron.core.models.wire_keys` for the spelling, which reads it from the
 field's own alias or derives it with the same ``to_camel`` generator the models
 use.  That keeps the declaration the single source of truth.
@@ -235,7 +235,7 @@ def test_core_logic_use_is_flagged():
 def test_prose_is_not_flagged():
     """A spelling inside a sentence is prose; a bare literal is not.
 
-    The message string is how CLP-07 and RSH-05 diagnostics name the field they
+    The message string is how CLP-07 and RSH-09 diagnostics name the field they
     are complaining about, and rewriting them into snake_case would stop them
     matching the spec they cite.
     """

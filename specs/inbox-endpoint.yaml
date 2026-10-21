@@ -395,30 +395,80 @@ groups:
       The endpoint SHOULD detect a redelivered activity early, at ingress: when the
       receiving actor already holds the activity under a key it derives from the
       activity id (its `ReceivedActivityRecord`, or the `DeferredInboxActivity` that
-      holds it for replay), the redelivered body is not held again and is routed without
-      its received evidence (VM-08-002). While the first delivery is still deferred, the
-      held copy is routed in its place.
+      holds it for replay), and the delivery's sealed body is exactly the body held for
+      that id, the redelivered body is not held again, and the copy the receiver holds
+      is routed in its place without received evidence (VM-08-002): the deferred
+      record's while the first delivery is still deferred, else the body intake
+      archived. A delivery under a held id whose body differs is not a redelivery;
+      IE-10-002 refuses it.
     rationale: >-
       Ingress is the first point at which the receiver can consult durable evidence of
       a prior delivery, so the HTTP adapter realises the early filtering ID-05-002
       permits there. The evidence is keyed by the receiver: a row under the sender's
-      id reads as one of its own (DL-06-006). Intake's archive keeps a core summary,
-      not a routable body, so an archived activity's resend is rebuilt from its own
-      body and handler idempotency answers it (ID-04); body comparison is #3762.
+      id reads as one of its own (DL-06-006). Intake's archive is the received body
+      (ADR-0149), so an archived activity's resend is routed as that body's parse and
+      handler idempotency answers it (ID-04). Only a resend of the same body is a
+      redelivery: routing the held copy in place of a different body dropped that
+      body with nothing but a DEBUG line (#3762).
     verification: >-
-      `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_resend_under_a_held_id_routes_without_this_body_evidence`
-      asserts a second body under a deferred id routes the held copy and is not held
-      again,
-      `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_resend_of_an_archived_activity_routes_without_its_evidence`
-      that a resend of an archived activity is routed without its evidence, and
+      `test/adapters/driving/fastapi/test_ingress_received_evidence.py` asserts that a
+      resend of the held body under a deferred id routes the held copy and is not held
+      again, and that a resend of an archived activity's body is routed as the
+      archived copy, without evidence;
       `test/adapters/driving/fastapi/test_inbox_redelivery.py::test_second_delivery_leaves_store_and_outbox_unchanged`
-      that it adds nothing to the store. No duplicate check keyed on the actor record
-      exists in `vultron/adapters/driving/fastapi/routers/actors/`.
+      asserts that it adds nothing to the store. No duplicate check keyed on the actor
+      record exists in `vultron/adapters/driving/fastapi/routers/actors/`.
     relationships:
     - rel_type: depends_on
       spec_id: ID-05-002
     - rel_type: depends_on
       spec_id: DL-06-006
+  - id: IE-10-002
+    priority: MUST
+    kind: project
+    tracking_issue: '#5019'
+    statement: >-
+      The endpoint MUST refuse a delivery whose activity id the receiving actor
+      already holds (IE-10-001) when the delivery's sealed received body (VM-08-002)
+      is not exactly the body held for that id: the deferred record's while the first
+      delivery is still deferred, else the body intake archived. The refused delivery
+      MUST NOT be routed, the held copy MUST NOT be routed in its place, and the
+      endpoint MUST NOT write or change anything in the receiving actor's store for
+      it, so the first delivery's record stays as it was. The refusal MUST be logged
+      at WARNING with the activity id and the sending actor. This applies to every
+      activity type, including an `Announce(CaseLedgerEntry)` that ingress hydrates in
+      place (SYNC-13-004); a repeat of its held body is still answered by the
+      already-stored gate (SYNC-12-003).
+    rationale: >-
+      An activity id names one activity (ID-01-001): a second body under a held id is
+      a sender bug or a rewrite of what was said, and routing the held copy instead
+      hid it (#3762). Maintainer decisions (2026-10-21, #3762): refuse, do not
+      quarantine, so the WARNING is the refused body's only trace; compare the sealed
+      texts exactly (a SHA-256 digest of each). The inbox answers 202 (IE-07-002)
+      before processing, so the refusal is the inbox outcome.
+    note: >-
+      Known limitation: the sealed text is the body as the parser decoded and
+      re-serialized it, so two bodies that differ only in how they are written, such
+      as key order, are refused as a reused id. Normalising the bodies before the
+      comparison may become necessary; it is not done today (#3762). Whether the
+      sender is also told follows ASK-07-001 and ASK-07-002, as for any delivery the
+      inbox refuses.
+    verification: >-
+      `test/adapters/driving/fastapi/test_ingress_received_evidence.py` asserts that a
+      different body under a deferred id, and under an archived id, is refused with a
+      WARNING naming the activity id and the sender, that neither body is routed, and
+      that the deferred record and the archive are unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: IE-10-001
+    - rel_type: depends_on
+      spec_id: VM-08-002
+    - rel_type: depends_on
+      spec_id: ID-01-001
+    - rel_type: refines
+      spec_id: ID-02-001
+    - rel_type: depends_on
+      spec_id: SYNC-12-003
 - id: IE-11
   title: Activity Addressing
   specs:

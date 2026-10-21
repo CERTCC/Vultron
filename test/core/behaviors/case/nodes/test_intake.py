@@ -20,6 +20,7 @@ bridge; the handler-level test at the end posts an assertion a guard refuses
 and shows the archive survives the refusal (CLP-10-018).
 """
 
+import json
 from typing import cast
 
 import pytest
@@ -27,6 +28,11 @@ from py_trees.behaviours import Failure
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.received import (
+    hold_deferred,
+    received_event,
+    with_evidence,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
@@ -56,7 +62,12 @@ from vultron.core.use_cases.received.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
 )
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.factories import add_status_to_participant_activity
+from vultron.wire.as2.factories import (
+    add_note_to_case_activity,
+    add_status_to_participant_activity,
+)
+from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -80,12 +91,14 @@ def _note_event(note: VultronNote) -> AddNoteToCaseReceivedEvent:
         target=CASE_ID,
         to=[RECEIVER],
     )
-    return AddNoteToCaseReceivedEvent(
-        activity_id=activity.id_,
-        actor_id=SENDER,
-        object_=note,
-        activity=activity,
-        receiving_actor_id=RECEIVER,
+    return with_evidence(
+        AddNoteToCaseReceivedEvent(
+            activity_id=activity.id_,
+            actor_id=SENDER,
+            object_=note,
+            activity=activity,
+            receiving_actor_id=RECEIVER,
+        )
     )
 
 
@@ -104,13 +117,6 @@ def _archived(dl: SqliteDataLayer, activity_id: str) -> bool:
 
 def _archive_count(dl: SqliteDataLayer) -> int:
     return len(dl.by_type("ReceivedActivityRecord"))
-
-
-def _inline_id(obj: object) -> str | None:
-    """The id of an inline object as the archive returns it (a stored dict)."""
-    if isinstance(obj, dict):
-        return obj.get("id") or obj.get("id_")
-    return getattr(obj, "id_", None)
 
 
 @pytest.fixture
@@ -140,10 +146,44 @@ def test_intake_archives_the_received_activity(scenario):
     assert scenario.dl.by_type("Add") == {}
     record = scenario.dl.read(ReceivedActivityRecord.build_id(ACTIVITY_ID))
     assert isinstance(record, ReceivedActivityRecord)
-    assert record.activity.type_ == "Add"
-    assert record.activity.actor == SENDER
-    # The inline note is carried as the stored snapshot, not re-typed.
-    assert _inline_id(record.activity.object_) == NOTE_ID
+    # The archive is the body the event carries, verbatim, and nothing
+    # derived from it (ADR-0149).
+    assert record.received_body == event.received_evidence
+    body = json.loads(record.received_body)
+    assert body["type"] == "Add"
+    assert body["actor"] == SENDER
+    assert body["object"]["id"] == NOTE_ID
+
+
+@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("CLP-10-017")
+def test_the_archive_is_the_body_the_parser_sealed(scenario):
+    """The archive holds the decoded body re-serialized, as the parser
+    sealed it: the sender's keys, key order and values, not the request's
+    bytes (VM-08-002, ADR-0107)."""
+    request_bytes = (
+        '{ "type": "Add",  "published": "2026-01-01T00:00:00+00:00",'
+        ' "id": "https://example.org/activities/sealed-1",'
+        f' "actor": "{SENDER}", "target": "{CASE_ID}",'
+        ' "object": {"type": "Note", "id": "https://example.org/notes/s-1",'
+        ' "content": "caf\u00e9"}, "fooBar": [1, 2] }'
+    )
+    parsed = parse_activity(json.loads(request_bytes))
+    event = extract_event(parsed)
+
+    scenario.assert_success(
+        scenario.run(IntakeReceivedActivityNode(), activity=event)
+    )
+
+    record = scenario.dl.read(ReceivedActivityRecord.build_id(parsed.id_))
+    assert isinstance(record, ReceivedActivityRecord)
+    assert record.received_body == parsed.received_evidence_json
+    assert record.received_body != request_bytes
+    assert record.received_body == json.dumps(
+        json.loads(request_bytes), ensure_ascii=False
+    )
+    # Keys the vocabulary does not name survive in the archive.
+    assert json.loads(record.received_body)["fooBar"] == [1, 2]
 
 
 @pytest.mark.spec("CLP-10-017")
@@ -173,11 +213,13 @@ def test_inlined_case_does_not_become_a_replica(scenario):
         actor=SENDER,
         object_=case,
     )
-    event = AddNoteToCaseReceivedEvent(
-        activity_id=activity.id_,
-        actor_id=SENDER,
-        object_=case,
-        activity=activity,
+    event = with_evidence(
+        AddNoteToCaseReceivedEvent(
+            activity_id=activity.id_,
+            actor_id=SENDER,
+            object_=case,
+            activity=activity,
+        )
     )
 
     scenario.assert_success(
@@ -218,11 +260,13 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
     squatter = VultronActivity(
         id_=marker_id, type_="Add", actor=SENDER, object_=_rich_note()
     )
-    event = AddNoteToCaseReceivedEvent(
-        activity_id=squatter.id_,
-        actor_id=SENDER,
-        object_=_rich_note(),
-        activity=squatter,
+    event = with_evidence(
+        AddNoteToCaseReceivedEvent(
+            activity_id=squatter.id_,
+            actor_id=SENDER,
+            object_=_rich_note(),
+            activity=squatter,
+        )
     )
 
     scenario.assert_success(
@@ -237,21 +281,67 @@ def test_sender_chosen_id_cannot_squat_a_receiver_derived_record(scenario):
     assert _archived(scenario.dl, marker_id)
 
 
+@pytest.mark.spec("ARCH-15-001")
 @pytest.mark.spec("CLP-10-017")
-def test_intake_with_no_wire_activity_archives_nothing_and_succeeds(scenario):
-    """An event built with no wire activity has nothing to archive or fail on."""
+def test_an_event_with_no_body_and_nothing_held_is_a_wiring_fault(scenario):
+    """No received evidence and no archive: there is nothing to archive and
+    nothing held, so intake fails and writes nothing (ARCH-15-001)."""
     event = AddNoteToCaseReceivedEvent(
-        activity_id="urn:vultron:no-wire:1",
+        activity_id="urn:vultron:no-body:1",
         actor_id=SENDER,
         object_=_rich_note(),
     )
     node = IntakeReceivedActivityNode()
 
-    scenario.assert_success(scenario.run(node, activity=event))
+    result = scenario.run(node, activity=event)
 
+    assert result.status == Status.FAILURE
+    assert "no received body" in node.feedback_message
     assert node.stored_ids == []
-    assert node.found_ids == []
-    assert not node.stored_anything
+    assert _archive_count(scenario.dl) == 0
+
+
+@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("CLP-10-017")
+def test_a_resend_with_no_body_finds_the_archive_and_writes_nothing(
+    scenario,
+):
+    """A resend under an archived id carries no body (VM-08-002): intake
+    finds the first delivery's archive and leaves it as it was."""
+    first = _note_event(_rich_note())
+    scenario.assert_success(
+        scenario.run(IntakeReceivedActivityNode(), activity=first)
+    )
+    before = scenario.dl.by_type("ReceivedActivityRecord")
+    resend = first.model_copy(update={"received_evidence": None})
+    node = IntakeReceivedActivityNode()
+
+    scenario.assert_success(scenario.run(node, activity=resend))
+
+    assert node.found_ids == [ACTIVITY_ID]
+    assert node.stored_ids == []
+    assert scenario.dl.by_type("ReceivedActivityRecord") == before
+
+
+@pytest.mark.spec("VM-08-002")
+def test_a_resend_of_a_deferred_activity_writes_nothing(scenario):
+    """A resend while the first delivery is still deferred finds the record
+    holding it, whose replay archives it; intake writes nothing."""
+    add = add_note_to_case_activity(
+        as_Note(id_=NOTE_ID, content="deferred", context=CASE_ID),
+        target=CASE_ID,
+        context=CASE_ID,
+        actor=SENDER,
+        to=[RECEIVER],
+    )
+    hold_deferred(scenario.dl, add)
+    resend = received_event(add).model_copy(update={"received_evidence": None})
+    node = IntakeReceivedActivityNode()
+
+    scenario.assert_success(scenario.run(node, activity=resend))
+
+    assert node.found_ids == [add.id_]
+    assert _archive_count(scenario.dl) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -366,7 +456,7 @@ def test_refused_participant_status_leaves_the_archive_readable():
     )
     event = cast(
         AddParticipantStatusToParticipantReceivedEvent,
-        extract_event(activity),
+        received_event(activity),
     ).model_copy(update={"receiving_actor_id": receiver})
 
     result = AddParticipantStatusToParticipantReceivedUseCase(

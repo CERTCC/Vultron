@@ -209,8 +209,8 @@ entry carries a `subject_id` (the offered terms, the answered proposal, or the
 ended embargo) and a repeat inside the window queues nothing. The store stays a
 duplicate suppressor that never holds case state (CLP-06-002). An announced commit
 clears the entry (SYNC-11-003); a refused proposal is never committed, so only
-the CASE_MANAGER's received `Reject` of it closes the entry
-(`close_refused_embargo_proposal`, `received/_pending_refusal.py`).
+the CASE_MANAGER's received `Reject` of it closes the entry, as its ER does a
+refused `Accept` (`close_refused_embargo_ask`, `received/_pending_refusal.py`).
 
 **Asks are visible to the whole case.** An ask is an ordinary recorded entry and
 replicates normally (ASK-06-001), so a stalled decision is visible to participants.

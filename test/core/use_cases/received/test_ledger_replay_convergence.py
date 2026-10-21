@@ -258,26 +258,18 @@ def test_a_replica_follows_the_owners_rejection_of_a_proposal():
 
 
 def _report_pxa(net: LedgerNetwork, pxa: CS_pxa) -> None:
-    """The bystander reports CS at *pxa*; the CASE_MANAGER commits it.
+    """The case owner reports CS at *pxa*; the CASE_MANAGER adopts and commits it.
 
-    The default EmbargoTeardownAuthorizationGate waits for the case owner
-    (ADR-0076), so the embargo stays in force and the revision open.  Each
-    replica learns *pxa* from the committed entry, as it would in production.
+    The owner's report is adopted without a call-out (RSH-01-002), but the
+    default EmbargoTeardownAuthorizationGate waits for the case owner's
+    approval (ADR-0076), so the embargo stays in force and the revision open.
+    Each replica learns *pxa* from the committed entry, as it would in
+    production.
     """
     em = net.case(MANAGER).em_state
-    status = CaseStatus(
-        context=net.case_id,
-        attributed_to=BYSTANDER,
-        em=EmDimension(state=em),
-        pxa=PxaDimension(state=pxa),
-    )
-    _send(
-        net,
-        add_status_to_case_activity(
-            status, target=net.case_id, actor=BYSTANDER, to=[MANAGER]
-        ),
-    )
+    _send(net, net.pxa_report(OWNER, pxa))
     assert net.case(MANAGER).em_state == em
+    assert net.case(MANAGER).current_status.pxa.state == pxa
 
 
 def _propose_revision_everywhere(
@@ -352,10 +344,11 @@ def test_a_replica_follows_the_owners_rejection_of_a_revision_after_disclosure()
         ),
     )
 
-    # P first, with the CSB-18 note the CASE_MANAGER records while the
-    # embargo is still in force (#4829), then the reject entry, then the
-    # termination it forced (EMB-04-002).
-    assert _replay(net, BYSTANDER)[:4] == [
+    # The owner's report, its adopted P, with the CSB-18 note the
+    # CASE_MANAGER records while the embargo is still in force (#4829), then
+    # the reject entry, then the termination it forced (EMB-04-002).
+    assert _replay(net, BYSTANDER)[:5] == [
+        "add_participant_status_to_participant",
         "add_case_status_to_case",
         "add_note_to_case",
         "reject_embargo_proposal_on_case",
@@ -540,28 +533,21 @@ def test_a_replica_follows_the_owners_embargo_removal():
 
 
 @pytest.mark.spec("RSH-08-004")
-@pytest.mark.spec("RSH-05-019")
+@pytest.mark.spec("RSH-01-003")
 @pytest.mark.spec("TB-06-007")
-def test_a_replica_follows_a_participants_case_status():
-    """Add(CaseStatus) from the bystander reaches the owner's replica as P set."""
-    net = LedgerNetwork(
-        "https://example.org/cases/replay-case-status", em_state=EM.NONE
+def test_a_replica_follows_a_participants_adopted_case_status():
+    """The owner's P report, adopted by the CASE_MANAGER, reaches the
+    bystander's replica as P set (RSH-01-003, #4956)."""
+    net = _owned(
+        LedgerNetwork(
+            "https://example.org/cases/replay-case-status", em_state=EM.NONE
+        )
     )
-    status = CaseStatus(
-        context=net.case_id,
-        attributed_to=BYSTANDER,
-        em=EmDimension(state=EM.NONE),
-        pxa=PxaDimension(state=CS_pxa.Pxa),
-    )
-    _send(
-        net,
-        add_status_to_case_activity(
-            status, target=net.case_id, actor=BYSTANDER, to=[MANAGER]
-        ),
-    )
+    _send(net, net.pxa_report(OWNER, CS_pxa.Pxa))
 
-    assert "add_case_status_to_case" in _replay(net, OWNER)
-    manager, replica = net.case(MANAGER), net.case(OWNER)
+    assert "add_case_status_to_case" in _replay(net, BYSTANDER)
+    manager, replica = net.case(MANAGER), net.case(BYSTANDER)
+    assert manager.current_status.pxa.state == CS_pxa.Pxa
     assert replica.current_status.id_ == manager.current_status.id_
     assert replica.current_status.pxa.state == CS_pxa.Pxa
     assert replica.current_status.em.state == manager.current_status.em.state
@@ -905,10 +891,11 @@ def test_embargo_removal_writes_nothing_at_an_active_replica():
 
 
 @pytest.mark.spec("RSH-08-003")
-@pytest.mark.spec("RSH-05-019")
+@pytest.mark.spec("RSH-09-005")
 @pytest.mark.spec("TB-06-007")
 def test_case_status_writes_nothing_at_a_replica():
-    """Add(CaseStatus) delivered straight to a replica appends no status."""
+    """The CASE_MANAGER's Add(CaseStatus) delivered straight to a replica,
+    the one sender it admits one from (RSH-04-005), appends no status."""
     net = LedgerNetwork(
         "https://example.org/cases/writes-nothing-case-status",
         em_state=EM.NONE,
@@ -916,16 +903,17 @@ def test_case_status_writes_nothing_at_a_replica():
     before = [_as_id(s) for s in net.case(OWNER).case_statuses]
     status = CaseStatus(
         context=net.case_id,
-        attributed_to=BYSTANDER,
+        attributed_to=MANAGER,
         em=EmDimension(state=EM.NONE),
         pxa=PxaDimension(state=CS_pxa.Pxa),
     )
-    _deliver_direct(
-        net,
-        OWNER,
-        add_status_to_case_activity(
-            status, target=net.case_id, actor=BYSTANDER, to=[OWNER]
-        ),
+    activity = add_status_to_case_activity(
+        status, target=net.case_id, actor=MANAGER, to=[OWNER]
+    )
+    verdict = net.receive(OWNER, json.loads(dump_outbound_body(activity)))
+
+    assert verdict.disposition is not HandlerDisposition.REFUSED, (
+        verdict.reason
     )
 
     assert [_as_id(s) for s in net.case(OWNER).case_statuses] == before

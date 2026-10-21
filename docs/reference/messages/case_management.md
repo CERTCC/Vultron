@@ -95,10 +95,23 @@ This offer is distinct from `Offer(CaseParticipant)`, which forwards an actor re
 
 The dedicated object type is preferred over a `target`-field discriminator ([SE-08-003](../specs/protocol.md#se-08-003)), and the earlier wire format `Offer(VulnerabilityCase, target=CaseParticipant)` for offering a role has been removed.
 
+{% include-markdown "./_occasions/sections/propose-case-ownership-transfer.md" %}
+
+- **Routing:** the proposal is addressed to the CASE_MANAGER, never to the proposed new owner ([CM-21-005](../specs/protocol.md#cm-21-005)); see [Case Ownership Transfer](../../topics/case_lifecycle/ownership_transfer.md).
+  The CASE_MANAGER admits it only from the Case Owner, and only while no offer for the case is open ([CM-21-019](../specs/protocol.md#cm-21-019), [CM-21-014](../specs/protocol.md#cm-21-014)).
+  It refuses a proposal whose inner offer names another case, or no actor it can address, and ignores any `id`, `actor` or `to` inside the inner offer.
+- **Context:** the case the proposal is about; the inner offer's object must be that case.
+- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`, which returns the proposal ([TRIG-11-001](../specs/protocol.md#trig-11-001), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Effect:** the CASE_MANAGER records the proposal in the ledger and makes the offer below itself ([ADR-0148](../../adr/0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md)).
+- **Triggering transition:** none — ownership transfer is a roster operation.
+- **Example artifact:** [propose_case_ownership_transfer.json](../examples/propose_case_ownership_transfer.json).
+
 {% include-markdown "./_occasions/sections/offer-case-ownership-transfer.md" %}
 
-- **Routing:** the offer is routed through the CASE_MANAGER, which records it in the ledger ([§11.3 Case Ownership Transfer](../vultron-spec/interactions.md#113-case-ownership-transfer-n)); see [Case Ownership Transfer](../../topics/case_lifecycle/ownership_transfer.md).
-- **Target:** the recipient's URI.
+- **Routing:** the CASE_MANAGER makes the offer from the owner's proposal and records it in the ledger ([§11.3 Case Ownership Transfer](../vultron-spec/interactions.md#113-case-ownership-transfer-n), [CM-21-005](../specs/protocol.md#cm-21-005)).
+  It is the one offer of the transfer: its `id` is one the CASE_MANAGER derives from the proposal, and the proposed new owner answers it by that `id`.
+  A participant takes it only from the CASE_MANAGER ([CM-21-019](../specs/protocol.md#cm-21-019)).
+- **Target:** the proposed new owner, as a full actor object.
 - **Triggering transition:** none — ownership transfer is a roster operation.
 - **Example artifact:** [offer_case_ownership_transfer.json](../examples/offer_case_ownership_transfer.json).
 
@@ -119,11 +132,11 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 {% include-markdown "./_occasions/sections/withdraw-case-ownership-transfer.md" %}
 
 - **Routing:** the withdrawal is addressed to the CASE_MANAGER ([CM-21-015](../specs/protocol.md#cm-21-015)).
-  The CASE_MANAGER acts on it only when it comes from the Case Owner that made an open offer it recorded.
+  It is an `Undo` of the owner's own proposal: the CASE_MANAGER withdraws the offer it made from that proposal, and acts only when the withdrawal comes from the Case Owner that offer was made for, while the offer is open.
   It records the withdrawal in the ledger and sends the entry to every participant, which closes the offer: the proposed owner can no longer accept it, and the case may be offered again ([CM-21-014](../specs/protocol.md#cm-21-014)).
   A withdrawal from anyone else, or of an offer already answered or withdrawn, is refused with nothing recorded.
   The CASE_MANAGER answers a withdrawal of an offer already answered or withdrawn with the refusal notice, and a withdrawal from anyone else with nothing.
-- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer`, whose body names the `offer_id` it withdraws ([TRIG-11-006](../specs/protocol.md#trig-11-006), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer`, whose body names, as `offer_id`, the proposal it withdraws ([TRIG-11-006](../specs/protocol.md#trig-11-006), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [undo_case_ownership_transfer.json](../examples/undo_case_ownership_transfer.json).
 

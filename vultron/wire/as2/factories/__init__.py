@@ -23,6 +23,7 @@ See ``specs/activity-factories.yaml`` AF-01-001, AF-02-001 through
 AF-02-004.
 """
 
+from vultron.wire.as2.factories._held import embedded_as_received
 from vultron.wire.as2.factories.actor import (
     accept_actor_recommendation_activity,
     accept_case_participant_offer_activity,
@@ -44,6 +45,7 @@ from vultron.wire.as2.factories.case import (
     ledger_position_content,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
+    propose_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     reject_case_participant_role_activity,
     reject_case_proposal_activity,
@@ -125,6 +127,7 @@ __all__ = [
     "create_case_activity",
     "offer_case_participant_role_activity",
     "offer_case_ownership_transfer_activity",
+    "propose_case_ownership_transfer_activity",
     "reject_case_participant_role_activity",
     "reject_case_ownership_transfer_activity",
     "undo_case_ownership_transfer_activity",
@@ -162,6 +165,7 @@ __all__ = [
     "withdraw_from_embargo_activity",
     # report
     "parse_submit_report_offer",
+    "embedded_as_received",
     "rm_close_report_activity",
     "rm_create_report_activity",
     "rm_invalidate_report_activity",

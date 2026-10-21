@@ -9,6 +9,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
@@ -29,7 +30,6 @@ from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
 from vultron.errors import VultronError, VultronValidationError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -152,7 +152,7 @@ def _make_event(
         actor=PEER_ID,
         to=recipients,
     )
-    event = cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
     event.activity = VultronActivity(
         id_=event.activity_id,
@@ -686,7 +686,7 @@ def test_reject_from_stranger_halts_before_any_write(
     )
     event = cast(
         RejectLogEntryReceivedEvent,
-        extract_event(
+        received_event(
             reject_log_entry_activity(
                 entry=wire_entry,
                 context="",

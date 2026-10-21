@@ -24,6 +24,7 @@ import anyio
 import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from test.support.received import delivered, received_event
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
@@ -316,7 +317,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     try:
         handle_inbox_item(
             actor_id=peer_actor_id,
-            obj=out_of_chain_announce,
+            obj=delivered(out_of_chain_announce),
             dl=peer_dl,
             dispatcher=peer_iso.app.state.dispatcher,
         )
@@ -334,7 +335,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
 
         reject_for_case_actor = cast(
             RejectLogEntryReceivedEvent,
-            extract_event(
+            received_event(
                 reject_log_entry_activity(
                     entry=wire_entry2,
                     context=entry0.entry_hash,
@@ -480,7 +481,7 @@ def test_sync_duplicate_delivery_idempotency(
     for _ in range(2):
         handle_inbox_item(
             actor_id=peer_actor_id,
-            obj=announce,
+            obj=delivered(announce),
             dl=peer_dl,
             dispatcher=peer_iso.app.state.dispatcher,
         )

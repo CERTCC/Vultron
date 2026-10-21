@@ -81,8 +81,9 @@ def refusal_notice_activity(
     participant as the sole ``to`` recipient, and the derived ``id_``.
 
     Args:
-        refused: The refused activity in its AS2 JSON form, as it was
-            recorded when received.
+        refused: The refused activity's received body, as the receiver
+            archived it.  It is parsed, and embedded verbatim
+            (``as_Activity.inlined_as_received``).
         reason: Why the precondition guard refused it.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``, ``id_``, ``context``).
@@ -97,7 +98,8 @@ def refusal_notice_activity(
     try:
         activity = parse_activity(refused)
         return _RefusalNoticeActivity(
-            object_=activity,
+            # Embedded as the asserter sent it, every key included (DL-06-004).
+            object_=activity.inlined_as_received(),
             in_reply_to=activity.id_,
             summary=reason,
             **kwargs,

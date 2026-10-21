@@ -25,6 +25,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.ledger import ledger_entries
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -47,9 +48,11 @@ from vultron.core.models.case_participant import (
     ReporterParticipant,
     VendorParticipant,
 )
-from vultron.core.models.dimensions import PxaDimension
+from vultron.core.models.dimensions import PxaDimension, RmDimension
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
+    FixDeployedCause,
+    OtherCause,
     ThreatSignal,
     ThreatSignalTermination,
 )
@@ -92,7 +95,6 @@ from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronValidationError,
 )
-from vultron.semantic_registry import extract_event
 from vultron.trigger_registry import entries
 from vultron.wire.as2.factories import add_status_to_participant_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -169,8 +171,14 @@ class _World:
     def status_from(self, sender_id: str):
         """A received ``Add(ParticipantStatus)`` from *sender_id* to the
         CASE_MANAGER (PCR-08), handled by its real received use case."""
+        # Restate the finder's recorded RM: a status is accepted whole or
+        # refused whole, so a regression would refuse it outright (RSH-09-001).
+        current = self.finder_participant.participant_status
+        assert current is not None
         status = as_ParticipantStatus(
-            context=self.case_id, attributed_to=sender_id
+            context=self.case_id,
+            attributed_to=sender_id,
+            rm=RmDimension(state=current.rm.state),
         )
         self.dl.create(status)
         activity = add_status_to_participant_activity(
@@ -182,7 +190,7 @@ class _World:
         )
         event = cast(
             AddParticipantStatusToParticipantReceivedEvent,
-            extract_event(activity).model_copy(
+            received_event(activity).model_copy(
                 update={"receiving_actor_id": self.manager.id_}
             ),
         )
@@ -190,11 +198,16 @@ class _World:
             self.dl, event, **self.ports()
         ).execute()
 
-    def sentinel_request(self, reason=TerminationReason.END_TIME_REACHED):
+    def sentinel_request(
+        self, reason=TerminationReason.END_TIME_REACHED, cause=None
+    ):
         return SvcTerminateEmbargoUseCase(
             self.dl,
             TerminateEmbargoTriggerRequest(
-                actor_id=self.manager.id_, case_id=self.case_id, reason=reason
+                actor_id=self.manager.id_,
+                case_id=self.case_id,
+                reason=reason,
+                cause=cause,
             ),
             **self.ports(),
         ).execute()
@@ -380,6 +393,24 @@ def test_an_early_request_after_the_end_time_ends_it_at_its_end_time() -> None:
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-13-004")
+def test_an_early_request_naming_a_cause_after_the_end_time_records_none() -> (
+    None
+):
+    """Once the end time has passed the embargo ends END_TIME_REACHED, which
+    has no cause, so the requested cause is not recorded."""
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+
+    result = world.sentinel_request(
+        reason=TerminationReason.EARLY, cause=FixDeployedCause()
+    )
+
+    assert result.activity is not None
+    assert "terminationCause" not in result.activity
+    _assert_full_cascade(world, EmbargoTermination.end_time_reached())
+
+
+@pytest.mark.spec("EMB-13-003")
 @pytest.mark.spec("BT-15-001")
 def test_a_case_trigger_after_the_end_time_runs_the_lazy_check_first() -> None:
     """A threat status the manager triggers after the end time finds the
@@ -491,7 +522,11 @@ def test_an_early_termination_runs_the_full_cascade() -> None:
 
     world.sentinel_request(reason=TerminationReason.EARLY)
 
-    _assert_full_cascade(world, EmbargoTermination.early())
+    # An EARLY request naming no cause is recorded as OTHER (EMB-14-001).
+    _assert_full_cascade(
+        world,
+        EmbargoTermination(reason=TerminationReason.EARLY, cause=OtherCause()),
+    )
 
 
 @pytest.mark.spec("EP-08-004")
@@ -535,7 +570,6 @@ def test_a_threat_status_records_the_signals_it_carries() -> None:
         tree=ThreatTerminationBranchNode(
             status_obj=status,
             case_id=world.case_id,
-            sender_actor_id=world.finder.id_,
         ),
         actor_id=world.manager.id_,
     )

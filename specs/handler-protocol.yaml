@@ -612,10 +612,10 @@ groups:
       `test/core/models/test_case_participant.py::TestAddParticipantStatus` show the only
       history mutators (`add_case_status`, `add_participant_status`) accepting a core
       status object and raising on anything else;
-      `test/core/behaviors/status/test_add_case_status_bt.py::TestAppendCaseStatusToCaseNode::test_appends_status_to_case`
+      `test/core/behaviors/status/nodes/test_case_status.py::TestEmitCaseStatusUpdateNode::test_happy_path_appends_new_case_status`
       and
-      `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_case_status_to_case_appends_status`
-      drive the append through the handler's tree.
+      `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_to_participant_appends_status`
+      drive the appends through the handler's tree.
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-006
@@ -681,6 +681,36 @@ groups:
       id. `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_whose_case_is_not_the_target_is_refused`
       and `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_case_status_of_another_case_is_refused`
       assert each handler refuses such an `Add` with no entry and no attachment.
+  - id: HP-08-008
+    priority: MUST
+    kind: project
+    statement: >-
+      A received `Add(ParticipantStatus)` MUST act on the case named by the
+      `context` of the receiver's stored record of the target participant, never
+      on a case the status's `context` or the activity's `context` names. A
+      status whose `context` is not that case MUST be refused before the commit,
+      as HP-08-007 refuses an object of another case. When the receiver holds no
+      record of the target participant, or the record names no case, the `Add`
+      has no case and MUST be refused before the commit.
+    rationale: >-
+      The status is appended to the participant record the receiver holds, so the
+      case that owns that record is the one changed. Letting the sender's status
+      pick the case ran the sender guard, the commit and the case-status update
+      against one case while the status landed on another case's participant
+      (#4961).
+    relationships:
+    - rel_type: refines
+      spec_id: HP-08-007
+    - rel_type: depends_on
+      spec_id: IO-03-004
+    verification: >-
+      `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_through_ingress_naming_another_case_is_refused`
+      drives, through the inbox ingress, an `Add` whose status names case B and
+      whose target is case A's participant, sent by a participant of both, and
+      asserts it is refused with no entry and no appended status;
+      `::test_add_participant_status_to_an_unheld_participant_is_refused` asserts
+      an `Add` targeting a participant the receiver does not hold is refused with
+      no entry.
 - id: HP-09
   title: Offer Recipient Addressing
   specs:

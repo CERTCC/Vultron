@@ -23,6 +23,11 @@ inbox holds a deferred delivery (a ``DeferredInboxActivity`` keyed by the
 receiver, never a row under the activity's own id, DL-06-006) and appends its
 id to the actor's inbox queue.
 
+Like any delivery, it is held as the body delivered: the Announce dumped as a
+sender dumps an outbound activity, and parsed as the inbox parses a body
+(VM-08-002).  Its replay therefore carries that body as its received evidence,
+and intake archives it as it archives any delivery (CLP-10-017, ADR-0149).
+
 That queue is the inbox's existing scheduling path: the delivery that made the
 entry appliable is still running when the port is called, and once it ends
 ``run_inbox_pipeline`` pops the queued id and replays the held activity through
@@ -42,10 +47,12 @@ from collections.abc import Callable
 from vultron.adapters.driven.sync_activity_adapter import (
     ledger_entry_to_wire,
 )
+from vultron.adapters.outbox_sealed_body import OUTBOUND_DUMP_KWARGS
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
@@ -93,6 +100,19 @@ def hand_back_announce(
     )
 
 
+def delivered_announce(announce: as_Announce) -> as_Activity:
+    """*announce* as the inbox receives it: parsed from the body delivered.
+
+    The body is the Announce's outbound dump (``OUTBOUND_DUMP_KWARGS``), the
+    form any sender delivers, and the parse seals it as the received
+    evidence (VM-08-002).  The hand-back is a delivery of its own (ADR-0135),
+    so it has a body to archive like any other.
+    """
+    return parse_activity(
+        announce.model_dump(mode="json", **OUTBOUND_DUMP_KWARGS)
+    )
+
+
 class InboxHandBackAdapter:
     """Queue a buffered ledger entry as a delivery to this actor's own inbox.
 
@@ -121,12 +141,12 @@ class InboxHandBackAdapter:
         queued, the second keeps the held copy and queues nothing; once
         replayed, a later hand-back finds the entry stored and is a no-op.  A
         held copy that is not queued (the append after an earlier hold
-        failed) is queued now, so it is never stranded.  The Announce has no
-        received body, because no peer sent it, so it is held as its row and
-        replayed with no received evidence (VM-08-002).
+        failed) is queued now, so it is never stranded.  The Announce is held
+        as the body this delivery carries (:func:`delivered_announce`), so its
+        replay is archived by intake as any delivery is (ADR-0149).
         """
-        announce = hand_back_announce(
-            entry, case_manager_id, receiving_actor_id
+        announce = delivered_announce(
+            hand_back_announce(entry, case_manager_id, receiving_actor_id)
         )
         self._hold(self._dl, announce)
         if announce.id_ in self._dl.inbox_list():

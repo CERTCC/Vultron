@@ -38,7 +38,7 @@ from typing import Any
 
 import pytest
 
-from test.support.received import archive_received
+from test.support.received import archive_delivered, archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -94,7 +94,14 @@ _CASE_AS_STORED = frozenset(
 #: Port methods that build a domain *object*, not an outbound activity, or
 #: (``add_object_to_case_semantics``) classify one without persisting it.
 _NOT_AN_ACTIVITY = frozenset(
-    {"create_note", "requeue_embargo_refusal", "add_object_to_case_semantics"}
+    {
+        "create_note",
+        "requeue_embargo_refusal",
+        "add_object_to_case_semantics",
+        # The ReceivedActivityLoader half of the port loads; it builds no
+        # activity (ADR-0149).
+        "load_received_activity",
+    }
 )
 
 
@@ -186,7 +193,7 @@ class _World:
         return rec_id
 
     def cp_offer_id(self) -> str:
-        cp_id, _ = self.adapter.offer_actor_to_case(
+        cp_id, body = self.adapter.offer_actor_to_case(
             recommender_id=_PEER,
             recommended_id=_PEER,
             case_id=self.case_id,
@@ -194,8 +201,9 @@ class _World:
             origin=self.recommendation_id(),
             to=[_ACTOR],
         )
-        # The CASE_MANAGER answers the Offer it received (DL-06-006).
-        archive_received(self.dl, self.dl.read(cp_id))
+        # The CASE_MANAGER answers the Offer it received, as the body that
+        # was delivered (DL-06-006, ADR-0149).
+        archive_delivered(self.dl, body)
         return cp_id
 
     def proposal_id(self) -> str:
@@ -230,10 +238,22 @@ class _World:
         return proposal
 
     def ownership_offer_id(self) -> str:
+        """The CASE_MANAGER's Offer as the transferee holds it (archived)."""
         offer_id, _ = self.adapter.offer_case_ownership_transfer(
             case_id=self.case_id, transferee_id=_PEER, actor=_ACTOR, to=[_PEER]
         )
+        # The transferee answers the Offer it received (DL-06-006, ADR-0148).
+        archive_received(self.dl, self.dl.read(offer_id))
         return offer_id
+
+    def ownership_proposal_id(self) -> str:
+        proposal_id, _ = self.adapter.propose_case_ownership_transfer(
+            case_id=self.case_id,
+            transferee_id=_PEER,
+            actor=_ACTOR,
+            to=[_CASE_ACTOR],
+        )
+        return proposal_id
 
     def prepared_create_case(self) -> dict[str, Any]:
         # Mirrors ``WriteCreateCaseMarkerNode._build_case_object``: the
@@ -579,6 +599,14 @@ RECIPES: dict[str, Recipe] = {
             to=[_ACTOR],
         )
     ),
+    "propose_case_ownership_transfer": lambda w: (
+        w.adapter.propose_case_ownership_transfer(
+            case_id=w.case_id,
+            transferee_id=_PEER,
+            actor=_ACTOR,
+            to=[_CASE_ACTOR],
+        )
+    ),
     "offer_case_ownership_transfer": lambda w: (
         w.adapter.offer_case_ownership_transfer(
             case_id=w.case_id, transferee_id=_PEER, actor=_ACTOR, to=[_PEER]
@@ -596,7 +624,7 @@ RECIPES: dict[str, Recipe] = {
     ),
     "withdraw_case_ownership_transfer": lambda w: (
         w.adapter.withdraw_case_ownership_transfer(
-            offer_id=w.ownership_offer_id(), actor=_PEER, to=[_ACTOR]
+            offer_id=w.ownership_proposal_id(), actor=_ACTOR, to=[_CASE_ACTOR]
         )
     ),
     # faults

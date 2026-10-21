@@ -146,6 +146,11 @@ def trigger_accept_embargo(
         "case, Reject(EmbargoEvent, target=Case), which rejects the proposal "
         "(EM state PROPOSED → NONE or REVISE → ACTIVE, or unchanged while "
         "another proposal is open). "
+        "When the owner is also the CASE_MANAGER and rejects the last open "
+        "revision while CS is public, exploited, or attacked, the rejection "
+        "also terminates the embargo in the same act (EM → EXITED), committed "
+        "as the Reject entry followed by the owner's ET Remove(EmbargoEvent) "
+        "entry; a refused termination commits neither (MSM-07-009, EMB-04-002). "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
     operation_id="actors_trigger_reject_embargo",
@@ -226,9 +231,12 @@ def trigger_propose_embargo_revision(
     summary="Trigger embargo termination.",
     description=(
         "Triggers the terminate-embargo behavior for the given actor. "
-        "Announces the end of the active embargo by emitting an "
-        "AnnounceEmbargoActivity activity. Updates the case EM state to EXITED "
-        "and clears the active embargo. "
+        "Ends the active embargo with a Remove(EmbargoEvent) activity. "
+        "Updates the case EM state to EXITED and clears the active embargo. "
+        "An EARLY request may name its cause (FIX_READY with its vendors, "
+        "FIX_DEPLOYED or OTHER); one that names none is recorded as OTHER. "
+        "A THREAT_SIGNAL cause, or any cause on END_TIME_REACHED, is refused "
+        "with HTTP 422 (EMB-13-004, EMB-13-005). "
         "Returns HTTP 409 if no active embargo exists. "
         "Returns the resulting activity in the response body (TRIG-04-001)."
     ),
@@ -251,7 +259,10 @@ def trigger_terminate_embargo(
     """
     return run_trigger(
         TerminateEmbargoTriggerRequest(
-            actor_id=actor_id, case_id=body.case_id, reason=body.reason
+            actor_id=actor_id,
+            case_id=body.case_id,
+            reason=body.reason,
+            cause=body.cause,
         ),
         dispatcher=dispatcher,
         dl=actor_dl,

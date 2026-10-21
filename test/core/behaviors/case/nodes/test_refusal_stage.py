@@ -22,6 +22,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.diversion_stage import DiversionStage
 from vultron.core.behaviors.case.nodes.intake import (
     IntakeReceivedActivityNode,
 )
@@ -330,3 +331,90 @@ def test_a_repeat_on_the_failure_chain_skips_the_effects() -> None:
 
     assert stage.skipped_as_repeat
     assert effect.ticks == 0
+
+
+def _diverting_stage(
+    condition: _Counting, guard: _Counting
+) -> tuple[PreconditionGuardStage, DiversionStage, _Counting]:
+    """A stage whose guards are a diversion on *condition*, then *guard*."""
+    diversion = DiversionStage("Divert", condition, _Counting("Answer"))
+    guards = py_trees.composites.Sequence(
+        name="Guards", memory=False, children=[diversion, guard]
+    )
+    effect = _Counting("Effect")
+    return _stage_with(guards, effect), diversion, effect
+
+
+@pytest.mark.spec("CLP-10-026")
+@pytest.mark.spec("CLP-10-022")
+def test_a_diverted_delivery_runs_no_refusal_effect() -> None:
+    """The diversion already answered the delivery (CLP-10-026)."""
+    stage, diversion, effect = _diverting_stage(
+        _Counting("Condition"), _Counting("Guard")
+    )
+
+    stage.tick_once()
+
+    assert diversion.taken
+    assert stage.status == Status.FAILURE
+    assert stage.skipped_as_diversion
+    assert effect.ticks == 0
+    assert stage.refusal_reason == ""
+    assert "diverted to Divert" in BTBridge.get_failure_reason(stage)
+
+
+@pytest.mark.spec("CLP-10-026")
+@pytest.mark.spec("CLP-10-022")
+def test_a_guard_refusal_after_an_untaken_diversion_runs_the_effects() -> None:
+    stage, diversion, effect = _diverting_stage(
+        _Counting("Condition", Status.FAILURE),
+        _Counting("Guard", Status.FAILURE),
+    )
+
+    stage.tick_once()
+
+    assert not diversion.taken
+    assert not stage.skipped_as_diversion
+    assert effect.ticks == 1
+    assert stage.refusal_reason == "Guard said FAILURE"
+
+
+@pytest.mark.spec("CLP-10-026")
+def test_the_diversion_flag_is_reset_on_the_next_run() -> None:
+    condition, guard = _Counting("Condition"), _Counting("Guard")
+    stage, _, effect = _diverting_stage(condition, guard)
+    stage.tick_once()
+    assert stage.skipped_as_diversion
+
+    condition._status = Status.FAILURE
+    guard._status = Status.FAILURE
+    stage.tick_once()
+
+    assert not stage.skipped_as_diversion
+    assert effect.ticks == 1
+
+
+@pytest.mark.spec("CLP-10-026")
+@pytest.mark.spec("CLP-10-022")
+def test_a_refusal_ahead_of_a_diversion_taken_last_run_runs_the_effects() -> (
+    None
+):
+    """A diversion the next run never reaches has diverted nothing."""
+    before = _Counting("Before")
+    condition = _Counting("Condition")
+    diversion = DiversionStage("Divert", condition, _Counting("Answer"))
+    guards = py_trees.composites.Sequence(
+        name="Guards", memory=False, children=[before, diversion]
+    )
+    effect = _Counting("Effect")
+    stage = _stage_with(guards, effect)
+    stage.tick_once()
+    assert stage.skipped_as_diversion and diversion.taken
+
+    before._status = Status.FAILURE
+    stage.tick_once()
+
+    assert not diversion.taken
+    assert not stage.skipped_as_diversion
+    assert effect.ticks == 1
+    assert stage.refusal_reason == "Before said FAILURE"

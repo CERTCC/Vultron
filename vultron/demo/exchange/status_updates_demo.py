@@ -19,10 +19,13 @@ Demonstrates status updates and notes workflows via the Vultron API.
 This demo script showcases the following workflows:
 
 1. Notes workflow: vendor adds a note, carried inline, to a case
-2. Case status workflow: vendor adds a new CaseStatus, carried inline, to
-   the case
-3. Participant status workflow: vendor adds a new ParticipantStatus,
-   carried inline, to a participant
+2. Status workflow: vendor reports public awareness in a new
+   ParticipantStatus, carried inline, on its own participant record
+
+A participant reports P, X or A only in the CaseStatus its own
+``Add(ParticipantStatus)`` embeds; ``Add(CaseStatus)`` is the CASE_MANAGER's
+record of the status it adopted, and a receiver refuses it from anyone else
+(RSH-04-001, RSH-04-005).
 
 Each demo starts from an initialized case with a single REPORTER
 participant, seated through its stub Invite, so the status update workflows can be demonstrated in isolation.
@@ -34,7 +37,7 @@ When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
 3. Discover actors (reporter, vendor, coordinator) via the API
-4. Run all three demo workflows
+4. Run both demo workflows
 5. Verify side effects in the data layer
 """
 
@@ -42,15 +45,14 @@ import logging
 from collections.abc import Sequence
 
 from vultron.core.models.dimensions import (
-    EmDimension,
     PxaDimension,
-    RmDimension,
 )
 from vultron.core.states.cs import CS_pxa
-from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.verification import _fetch_participant
+from vultron.demo.helpers.verification import (
+    _fetch_participant,
+    verify_participant_status_appended,
+)
 from vultron.demo.helpers.workflow import setup_initialized_case
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -63,10 +65,8 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     setup_demo_logging,
     verify_object_stored,
 )
-from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
-    add_status_to_case_activity,
     add_status_to_participant_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -190,62 +190,78 @@ def demo_status_workflow(
 ) -> None:
     """
     Demonstrate the status updates workflow:
-    1. Add a new CaseStatus, carried inline, to the case
-    2. Add a new ParticipantStatus, carried inline, to the participant
-    3. Verify side effects
+    1. The vendor reports public awareness in a new ParticipantStatus,
+       carried inline, on its own participant record
+    2. Verify the status is on the vendor's record and the case status
+       adopted the public awareness
 
-    Each status travels inline on the ``Add`` that attaches it.  This
-    implementation does not support a separate ``Create(CaseStatus)`` or
-    ``Create(ParticipantStatus)`` ahead of the ``Add`` (#4598).
+    A participant sends only ``Add(ParticipantStatus)``, embedding its view
+    of the case status; it never sends ``Add(CaseStatus)``, which only the
+    CASE_MANAGER sends (RSH-04-001, RSH-04-005).  The status travels inline
+    on the ``Add`` that attaches it.  This implementation does not support a
+    separate ``Create(ParticipantStatus)`` ahead of the ``Add`` (#4598).
     """
     logger.info("=" * 80)
     logger.info("DEMO: Status Updates Workflow")
     logger.info("=" * 80)
 
-    case, participant = _setup_initialized_case(client, reporter, vendor)
+    case, _participant = _setup_initialized_case(client, reporter, vendor)
+    vendor_participant = _fetch_participant(client, case.id_, vendor.id_)
+    if vendor_participant is None:
+        raise ValueError(
+            f"Vendor participant not found in case {case.id_} after setup"
+        )
+    current = vendor_participant.participant_status
+    if current is None:
+        raise ValueError(
+            f"Vendor participant '{vendor_participant.id_}' has no status"
+        )
+    before = log_case_state(client, case.id_, "before the report")
+    if before is None:
+        raise ValueError(f"Could not retrieve case {case.id_} after setup")
 
     # Bound before the step so Step 2 can read it (#2308 ratchet).
-    case_status = None
-    with demo_step("Step 1: Vendor adds a new CaseStatus to case"):
-        case_status = as_CaseStatus(
-            context=case.id_,
-            em=EmDimension(state=EM.NONE),
-            pxa=PxaDimension(state=CS_pxa.pxa),
-        )
-        add_status_activity = add_status_to_case_activity(
-            case_status, actor=vendor.id_, target=case.id_
-        )
-        post_to_inbox_and_wait(client, vendor.id_, add_status_activity)
-        with demo_check("as_CaseStatus present in case"):
-            updated_case = log_case_state(
-                client, case.id_, "after AddStatusToCaseActivity"
-            )
-            if updated_case:
-                status_ids = [
-                    (ref_id(s) or str(s)) for s in updated_case.case_statuses
-                ]
-                if case_status.id_ not in status_ids:
-                    raise ValueError(
-                        f"as_CaseStatus '{case_status.id_}' not found in case "
-                        "after AddStatusToCaseActivity"
-                    )
-
+    participant_status = None
     with demo_step(
-        "Step 2: Vendor adds a new ParticipantStatus to participant"
+        "Step 1: Vendor reports public awareness in its own ParticipantStatus"
     ):
+        # A snapshot of every dimension the vendor holds, with the public
+        # awareness it reports in the embedded case status (RSH-04-001).
         participant_status = as_ParticipantStatus(
-            context=participant.id_,
-            rm=RmDimension(state=RM.RECEIVED),
-            attributed_to=reporter.id_,
-            cvd_role=[CVDRole.REPORTER],
-            case_status=case_status,
+            context=case.id_,
+            rm=current.rm,
+            vf=current.vf,
+            d=current.d,
+            attributed_to=vendor.id_,
+            cvd_role=current.cvd_role,
+            case_status=as_CaseStatus(
+                context=case.id_,
+                em=before.current_status.em,
+                pxa=PxaDimension(state=CS_pxa.Pxa),
+            ),
         )
         add_pstatus_activity = add_status_to_participant_activity(
-            participant_status, actor=vendor.id_, target=participant.id_
+            participant_status,
+            actor=vendor.id_,
+            target=vendor_participant.id_,
         )
         post_to_inbox_and_wait(client, vendor.id_, add_pstatus_activity)
-        with demo_check("Final case state"):
-            log_case_state(client, case.id_, "final state")
+
+    with demo_step("Step 2: Verify the status and the adopted case status"):
+        with demo_check("ParticipantStatus present on the vendor's record"):
+            verify_participant_status_appended(
+                client, case.id_, vendor.id_, participant_status.id_
+            )
+        with demo_check("Case status adopted public awareness"):
+            updated_case = log_case_state(client, case.id_, "final state")
+            if updated_case is None:
+                raise ValueError("Could not retrieve case after the report")
+            pxa = updated_case.current_status.pxa.state
+            if pxa != CS_pxa.Pxa:
+                raise ValueError(
+                    f"Case status pxaState is {pxa}, expected"
+                    f" {CS_pxa.Pxa} after the vendor's report"
+                )
 
     logger.info("✅ DEMO COMPLETE: Status updates workflow finished.")
 
@@ -256,7 +272,7 @@ _ALL_DEMOS = [
         demo_notes_workflow,
     ),
     (
-        "Demo: Status Updates — Case and Participant Status Workflow",
+        "Demo: Status Updates — Participant Status Workflow",
         demo_status_workflow,
     ),
 ]

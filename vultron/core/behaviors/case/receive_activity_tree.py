@@ -695,29 +695,18 @@ def _precondition_guards(
     name: str,
     guards: Sequence[py_trees.behaviour.Behaviour | Diversion],
     case_id: str | None,
-    *,
-    with_refusal_effects: bool,
 ) -> list[py_trees.behaviour.Behaviour]:
     """The tree's precondition guards, each :class:`Diversion` built in place.
 
-    Raises:
-        VultronWiringError: a diversion is passed with ``refusal_effects``:
-            a diverted delivery answers itself, so refusal effects would
-            answer it a second time (CLP-10-022, CLP-10-026).
+    A diverted delivery is answered by its diversion, so the refusal stage
+    that wraps these guards runs no refusal effect for it (CLP-10-026).
     """
-    built: list[py_trees.behaviour.Behaviour] = []
-    for guard in guards:
-        if not isinstance(guard, Diversion):
-            built.append(guard)
-            continue
-        if with_refusal_effects:
-            raise VultronWiringError(
-                f"create_receive_activity_tree({name}): diversion"
-                f" {guard.name} cannot share a tree with refusal_effects"
-                " (CLP-10-022, CLP-10-026)"
-            )
-        built.append(_diversion_stage(name, guard, case_id))
-    return built
+    return [
+        _diversion_stage(name, guard, case_id)
+        if isinstance(guard, Diversion)
+        else guard
+        for guard in guards
+    ]
 
 
 def _sender_guard_stage(
@@ -898,8 +887,9 @@ def create_receive_activity_tree(
     ``CASE_MANAGER`` diversion runs only at the case's CASE_MANAGER, inside
     the gate on ``case_id`` (else ``manager_case_id``), and may commit its own
     entry; a ``RECEIVER`` diversion writes no case state and its emits need a
-    registered exemption.  A tree with diversions takes no
-    ``refusal_effects``.
+    registered exemption.  A diverted delivery has already been answered,
+    so the refusal stage runs no refusal effect for it; the refusal notice
+    and any ``refusal_effects`` answer only the refusals the guards make.
 
     ``clock_decisions`` are decisions the CASE_MANAGER takes from its own
     clock or local policy before it judges the activity, such as an expiry
@@ -1106,8 +1096,7 @@ def create_receive_activity_tree(
             with no case, or a ``case_resolution`` without ``sender_rule``
             or holding a node that is not a read-only ``CaseResolving`` step
             (HP-01-008), or a
-            diversion is ill-formed or shares the tree with
-            ``refusal_effects`` (CLP-10-026), or ``clock_decisions`` name no
+            diversion is ill-formed (CLP-10-026), or ``clock_decisions`` name no
             case, come without a ``sender_rule`` or with a
             ``post_close_exemption``, or hold the received activity's commit
             (CLP-10-025).
@@ -1193,7 +1182,6 @@ def create_receive_activity_tree(
         name,
         precondition_guards,
         case_id or manager_case_id,
-        with_refusal_effects=bool(effects),
     )
     if effects:
         children.append(

@@ -55,7 +55,7 @@ rules for changing the code that implements it.
   invariants, not a protocol path.
 - **Cross-dimension combinations**: call `composite_state_violations()` (or,
   on the emit path, `participant_transition_violations()`), never the
-  individual predicates; ratchet tests enforce this (CSB-17-001, RSH-05-020).
+  individual predicates; ratchet tests enforce this (CSB-17-001, RSH-09-004).
   After ADR-0075 `*fD*` is representable, so the check is a runtime one.
 - **Transitions delegate to the dimension machines** (`VfDimension`,
   `DDimension`, `PxaDimension`); only the two ephemeral rules are compound-level
@@ -99,13 +99,15 @@ guard layer against the participant's authoritative `case_roles`:
 - **Trigger / emit path** (fail-closed): `ValidateTriggerTransitionsNode` and
   the role guards on the add-participant-status trigger tree (BTND-10-001,
   CSB-15-001/002).
-- **Receive path** (partial accept, offending dimension carried forward):
-  `vultron/core/behaviors/status/nodes/_adjudication.py` (RSH-05-001/002).
+- **Receive path** (the whole status refused):
+  `vultron/core/behaviors/status/nodes/participant_status_acceptance.py`
+  (RSH-09-003).
 
 Do not move the check into the model. The extractor builds a
 `ParticipantStatus` from the sender's untrusted self-reported role, so a
-construction-time raise would turn the receive path's partial accept into
-whole-object rejection (ADR-0075; `notes/domain-validation.md`).
+construction-time raise would judge the sender by the roles it claims rather
+than the roles the case records for it (ADR-0075;
+`notes/domain-validation.md`).
 
 ### `v→V` has two authorized drive paths
 

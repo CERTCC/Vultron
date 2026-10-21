@@ -42,6 +42,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from test.support import embargo_register
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -102,7 +103,6 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
     add_participant_to_case_activity,
@@ -929,7 +929,7 @@ def _entry_event(
     announce = announce_log_entry_activity(
         entry=wire_entry, actor=MANAGER, to=[to]
     )
-    event = cast(AnnounceLogEntryReceivedEvent, extract_event(announce))
+    event = cast(AnnounceLogEntryReceivedEvent, received_event(announce))
     event.activity = VultronActivity(
         id_=event.activity_id,
         type_="Announce",

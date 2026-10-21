@@ -27,6 +27,7 @@ from vultron.core.models.events.actor import (
     OfferCaseOwnershipTransferReceivedEvent,
     OfferCaseParticipantReceivedEvent,
     OfferCaseParticipantRoleReceivedEvent,
+    ProposeCaseOwnershipTransferReceivedEvent,
     RejectActorRecommendationReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectCaseParticipantRoleReceivedEvent,
@@ -130,6 +131,7 @@ AnyReceivedEvent = (
     | RejectCaseParticipantRoleReceivedEvent
     | AnnounceVulnerabilityCaseReceivedEvent
     | OfferCaseOwnershipTransferReceivedEvent
+    | ProposeCaseOwnershipTransferReceivedEvent
     | AcceptCaseOwnershipTransferReceivedEvent
     | RejectCaseOwnershipTransferReceivedEvent
     | UndoCaseOwnershipTransferReceivedEvent
@@ -216,6 +218,7 @@ __all__ = [
     "RejectCaseParticipantRoleReceivedEvent",
     "AnnounceVulnerabilityCaseReceivedEvent",
     "OfferCaseOwnershipTransferReceivedEvent",
+    "ProposeCaseOwnershipTransferReceivedEvent",
     "AcceptCaseOwnershipTransferReceivedEvent",
     "RejectCaseOwnershipTransferReceivedEvent",
     "UndoCaseOwnershipTransferReceivedEvent",

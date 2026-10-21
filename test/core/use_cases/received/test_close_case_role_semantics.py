@@ -42,6 +42,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.ledger import fail_commits
+from test.support.received import received_event, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -92,7 +93,6 @@ from vultron.core.use_cases.received.sync import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -208,13 +208,15 @@ def _make_close_case_event(
         to=[receiving_actor_id],
         object_=case_obj,
     )
-    return CloseCaseReceivedEvent(
-        semantic_type=MessageSemantics.CLOSE_CASE,
-        activity_id=activity.id_,
-        actor_id=sender_actor_id,
-        object_=case_obj,
-        activity=activity,
-        receiving_actor_id=receiving_actor_id,
+    return with_evidence(
+        CloseCaseReceivedEvent(
+            semantic_type=MessageSemantics.CLOSE_CASE,
+            activity_id=activity.id_,
+            actor_id=sender_actor_id,
+            object_=case_obj,
+            activity=activity,
+            receiving_actor_id=receiving_actor_id,
+        )
     )
 
 
@@ -1042,7 +1044,7 @@ def _add_note_event(note_id: str, sender_id: str = VENDOR_ID):
         actor=sender_id,
         to=[CASE_ACTOR_ID],
     )
-    event = extract_event(activity).model_copy(
+    event = received_event(activity).model_copy(
         update={"receiving_actor_id": CASE_ACTOR_ID}
     )
     assert isinstance(event, AddNoteToCaseReceivedEvent)
@@ -1271,7 +1273,7 @@ class TestPostCloseWriteBoundary:
             to=[CASE_ACTOR_ID],
             context=as_VulnerabilityCase(id_=CASE_ID),
         )
-        event = extract_event(activity).model_copy(
+        event = received_event(activity).model_copy(
             update={"receiving_actor_id": CASE_ACTOR_ID}
         )
         assert isinstance(
@@ -1370,7 +1372,7 @@ def _make_announce_event(
     activity = announce_log_entry_activity(
         entry=wire_entry, actor=sender_actor_id, to=[receiver_id]
     )
-    return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+    return cast(AnnounceLogEntryReceivedEvent, received_event(activity))
 
 
 def _replica_of(manager: SqliteDataLayer, actor_id: str = VENDOR_ID):
@@ -2011,14 +2013,14 @@ class TestReplicaAppliesTheClosureSteps:
             ), actor_id
 
     @pytest.mark.spec("CM-23-001")
-    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("RSH-09-006")
     def test_replica_refusing_a_step_writes_no_step_of_its_own(
         self, monkeypatch, caplog
     ):
         """A refused step entry is logged and the replica invents nothing.
 
         The replica's participant-status effect refuses the CLOSED entry (a
-        stand-in for an impossible composite state, RSH-05-021).  It logs a
+        stand-in for an impossible composite state, RSH-09-006).  It logs a
         WARNING, keeps the steps it did apply, and writes no CLOSED of its
         own: nothing else on the ledger moves the leaver (CM-23-001).
         """

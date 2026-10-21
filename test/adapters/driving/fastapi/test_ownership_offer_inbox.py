@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 """The CASE_MANAGER commits an ownership Offer naming a peer it holds no profile of.
 
-The transferee of an ``Offer(VulnerabilityCase)`` is a *peer*: the
-CASE_MANAGER's store need not hold its actor profile, and no handler writes
-one.  The ledger commit still needs the transferee inline in the snapshot
-(CLP-07-006), so the Offer must carry it inline and storage must keep it so
-(DL-08-003).  Before #4843 the sender named the transferee by a bare id and the
+The Case Owner proposes the transfer as ``Offer(Offer(VulnerabilityCase))``
+and the CASE_MANAGER makes and ledgers the ``Offer(VulnerabilityCase)``
+(ADR-0148).  The transferee is a *peer*: the CASE_MANAGER's store need not
+hold its actor profile, and no handler writes one.  Both ledger commits still
+need the transferee inline in the snapshot (CLP-07-006), so the proposal and
+the Offer must carry it inline and storage must keep it so (DL-08-003).
+Before #4843 the sender named the transferee by a bare id and the
 commit worked only when an earlier delivery had happened to leave the
 transferee's profile in the CASE_MANAGER's store.
 
@@ -61,6 +63,7 @@ _VENDOR_ID = "https://example.org/users/vendor-4843"
 _COORDINATOR_ID = "https://example.org/users/coordinator-4843"
 _CASE_ID = "https://example.org/cases/case-4843"
 _OWNERSHIP_EVENT = MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER.value
+_PROPOSAL_EVENT = MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER.value
 
 
 @pytest.fixture(autouse=True)
@@ -93,7 +96,7 @@ def case_actor_dl() -> Iterator[SqliteDataLayer]:
 
 @pytest.fixture
 def vendor_dl() -> Iterator[SqliteDataLayer]:
-    """The Case Owner's replica, from which the Offer is sent."""
+    """The Case Owner's replica, from which the proposal is sent."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_ID)
     dl.create(_case())
     yield dl
@@ -101,14 +104,14 @@ def vendor_dl() -> Iterator[SqliteDataLayer]:
 
 
 def _ownership_offer_body(vendor_dl: SqliteDataLayer) -> dict[str, Any]:
-    """The sealed body the vendor's outbox delivers for the ownership Offer.
+    """The sealed body the vendor's outbox delivers for the proposal.
 
     Built by the trigger adapter from a bare transferee id, as the
     ``offer-case-ownership-transfer`` trigger passes it (TRIG-11-001).
     """
     offer_id, _ = TriggerActivityAdapter(
         vendor_dl
-    ).offer_case_ownership_transfer(
+    ).propose_case_ownership_transfer(
         case_id=_CASE_ID,
         transferee_id=_COORDINATOR_ID,
         actor=_VENDOR_ID,
@@ -129,23 +132,29 @@ def _deliver(dl: SqliteDataLayer, body: dict[str, Any]):
     )
 
 
-def _ownership_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
+def _entries(dl: SqliteDataLayer, semantic_type: str) -> list[CaseLedgerEntry]:
     return [
         entry
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
-        and entry.semantic_type == _OWNERSHIP_EVENT
+        and entry.semantic_type == semantic_type
     ]
 
 
-def _assert_committed_with_inline_transferee(dl: SqliteDataLayer) -> None:
-    entries = _ownership_entries(dl)
-    assert len(entries) == 1, [e.semantic_type for e in entries]
-    target = entries[0].payload_snapshot.get("target")
+def _assert_inline_transferee(snapshot: dict[str, Any]) -> None:
+    target = snapshot.get("target")
     assert isinstance(target, dict), (
         f"transferee is not inline in the snapshot: {target!r}"
     )
     assert target.get("id") == _COORDINATOR_ID
+
+
+def _assert_committed_with_inline_transferee(dl: SqliteDataLayer) -> None:
+    (proposal,) = _entries(dl, _PROPOSAL_EVENT)
+    _assert_inline_transferee(proposal.payload_snapshot["object"])
+    entries = _entries(dl, _OWNERSHIP_EVENT)
+    assert len(entries) == 1, [e.semantic_type for e in entries]
+    _assert_inline_transferee(entries[0].payload_snapshot)
 
 
 @pytest.mark.spec("CLP-07-006")
@@ -165,13 +174,13 @@ def test_ownership_offer_commits_when_the_case_manager_holds_no_transferee_profi
 
 @pytest.mark.spec("CLP-07-006")
 @pytest.mark.spec("CM-21-005")
-def test_ownership_offer_after_a_recommendation_commits_and_is_forwarded(
+def test_ownership_offer_after_a_recommendation_is_made_and_committed(
     case_actor_dl, vendor_dl
 ):
     """The rvcv-handoff order: an ``Offer(Actor, Case)`` comes first (#4843).
 
-    The recommendation names the transferee, but the commit of the later
-    ownership Offer must not depend on anything that delivery stored.
+    The recommendation names the transferee, but the commits of the later
+    proposal and Offer must not depend on anything that delivery stored.
     """
     recommendation = recommend_actor_activity(
         recommended=_COORDINATOR_ID,
@@ -192,8 +201,8 @@ def test_ownership_offer_after_a_recommendation_commits_and_is_forwarded(
         outcome.failure_reason
     )
     _assert_committed_with_inline_transferee(case_actor_dl)
-    # CM-21-005: the CASE_MANAGER forwards the recorded Offer to the
-    # transferee, still naming the transferee inline.
+    # CM-21-005: the CASE_MANAGER sends the Offer it made to the
+    # transferee, naming the transferee inline.
     forwards = [
         cast(Any, case_actor_dl.read(activity_id))
         for activity_id in case_actor_dl.outbox_list()

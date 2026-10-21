@@ -281,10 +281,9 @@ class TestRoleDimensionInvariant:
     ``CVDRole.DEPLOYER``).  That raise was never implemented, and it must not
     be: the receive path builds a core ``ParticipantStatus`` at the wire→core
     boundary (``vultron/wire/as2/extractor/_builders.py``) from the sender's
-    *untrusted, self-reported* ``cvd_role``.  A hard raise there would turn the
-    receive path's per-dimension partial-accept (ADR-0061, RSH-05-001/002) into
-    whole-object rejection — the emit/receive Postel asymmetry documented in
-    ``notes/domain-validation.md`` that must not be "reconciled".
+    *untrusted, self-reported* ``cvd_role``.  A hard raise there would refuse
+    the activity at parse, judged by the sender's claimed roles rather than the
+    roles the receiver records for it.
 
     So the model does exactly one thing: it *auto-seeds* the applicable
     dimension for VENDOR/DEPLOYER roles (``_enforce_role_dimension_invariant``).
@@ -295,11 +294,11 @@ class TestRoleDimensionInvariant:
       ``CheckVendorRoleNode`` / ``CheckDeployerRoleNode`` /
       ``CheckNotSoleObserverVfdNode`` in the add-participant-status trigger tree
       (fail-closed; see ``test_vfd_role_guards.py``).
-    * receive path — ``_adjudicate_vf`` / ``_adjudicate_d`` in
-      ``_adjudication.py`` refuse the dimension using the participant's
-      authoritative ``case_roles`` (partial-accept; see
-      ``test_vf_write_refused_without_vendor_role`` in
-      ``test_partial_accept_participant_status.py``).
+    * receive path — ``participant_status_refusals`` in
+      ``participant_status_acceptance.py`` refuses the whole status using the
+      participant's authoritative ``case_roles`` (RSH-09-003; see
+      ``test_a_vf_value_needs_the_vendor_role`` in
+      ``test_participant_status_acceptance.py``).
     """
 
     def test_vendor_role_auto_seeds_vf_dimension(self):
@@ -335,8 +334,8 @@ class TestRoleDimensionInvariant:
         """A non-VENDOR status carrying vf constructs — the model does not raise.
 
         Enforcement is delegated to the trigger and receive guards (see class
-        docstring). This pins the #2860 decision: re-adding a construction-time
-        raise here would break receive-path partial-accept.
+        docstring). This pins the #2860 decision: a construction-time raise
+        here would judge the sender by its claimed roles, not its recorded ones.
         """
         status = ParticipantStatus(
             context=_CONTEXT,

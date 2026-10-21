@@ -187,7 +187,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         (f"{_NODES}/addressee.py", "_belongs_to_collection"),
         (
             f"{_NODES}/ownership_transfer.py",
-            "EmitOfferCaseOwnershipTransferNode._call_factory",
+            "EmitProposeCaseOwnershipTransferNode._call_factory",
         ),
         (
             f"{_NODES}/ownership_offer_reply_emit.py",

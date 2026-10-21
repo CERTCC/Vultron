@@ -77,14 +77,14 @@ def test_a_key_absent_before_is_removed_rather_than_set_to_none() -> None:
 
 def test_a_key_holding_none_is_restored_as_none_not_removed() -> None:
     """The converse: ``None`` was a real value and must come back as one."""
-    storage: dict[str, Any] = {"/ledger_payload_object_override": None}
-    saved = snapshot_keys(storage, ["ledger_payload_object_override"])
+    storage: dict[str, Any] = {"/rm_transition_anomaly": None}
+    saved = snapshot_keys(storage, ["rm_transition_anomaly"])
 
-    storage["/ledger_payload_object_override"] = {"object_id": "stale"}
+    storage["/rm_transition_anomaly"] = {"anomaly_type": "stale"}
     restore_keys(storage, saved)
 
-    assert "/ledger_payload_object_override" in storage
-    assert storage["/ledger_payload_object_override"] is None
+    assert "/rm_transition_anomaly" in storage
+    assert storage["/rm_transition_anomaly"] is None
 
 
 def test_a_duplicated_key_collapses_to_one_entry() -> None:

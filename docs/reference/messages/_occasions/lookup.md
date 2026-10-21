@@ -30,10 +30,11 @@
 | the Case Owner offers a CVD role on the case to another participant | `Offer(CaseParticipantRole)[context=VulnerabilityCase]` | the case manager | the case owner | — | [Offer case participant role](../case_management.md#offer-case-participant-role) |
 | a participant accepts a role offered to it on the case | `Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | the case manager | the addressee of the case participant role offer | — | [Accept case participant role](../case_management.md#accept-case-participant-role) |
 | a participant declines a role offered to it on the case | `Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | the case manager | the addressee of the case participant role offer | — | [Reject case participant role](../case_management.md#reject-case-participant-role) |
-| the Case Owner offers to transfer ownership of the case to another actor | `Offer(VulnerabilityCase)` | the case manager | the case owner | — | [Offer case ownership transfer](../case_management.md#offer-case-ownership-transfer) |
+| the Case Owner proposes to transfer ownership of the case to another actor | `Offer(Offer(VulnerabilityCase))` | the case manager | the case owner | — | [Propose case ownership transfer](../case_management.md#propose-case-ownership-transfer) |
+| the Case Manager offers the case to the actor the Case Owner proposed | `Offer(VulnerabilityCase)` | a participant | the case manager | — | [Offer case ownership transfer](../case_management.md#offer-case-ownership-transfer) |
 | an actor accepts an offer of case ownership | `Accept(Offer(VulnerabilityCase))` | the case manager | the addressee of the vulnerability case offer | — | [Accept case ownership transfer](../case_management.md#accept-case-ownership-transfer) |
 | an actor declines an offer of case ownership | `Reject(Offer(VulnerabilityCase))` | the case manager | the addressee of the vulnerability case offer | — | [Reject case ownership transfer](../case_management.md#reject-case-ownership-transfer) |
-| the Case Owner withdraws an open offer of case ownership | `Undo(Offer(VulnerabilityCase))` | the case manager | the case owner | — | [Withdraw case ownership transfer](../case_management.md#withdraw-case-ownership-transfer) |
+| the Case Owner withdraws its proposal while the offer of case ownership is open | `Undo(Offer(Offer(VulnerabilityCase)))` | the case manager | the case owner | — | [Withdraw case ownership transfer](../case_management.md#withdraw-case-ownership-transfer) |
 | the Case Manager invites an actor to join the case | `Invite(Actor)[target=VulnerabilityCaseStub]` | a participant | the case manager | — | [Invite actor to case](../case_management.md#invite-actor-to-case) |
 | an invited actor agrees to join the case | `Accept(Invite(Actor)[target=VulnerabilityCaseStub])` | the case manager | the invitee | — | [Accept invite to case](../case_management.md#accept-invite-to-case) |
 | an invited actor declines to join the case | `Reject(Invite(Actor)[target=VulnerabilityCaseStub])` | the case manager | the invitee | — | [Reject invite to case](../case_management.md#reject-invite-to-case) |
@@ -69,9 +70,9 @@
 
 | When… | Send | Send to | Sent by | Distinguished by | Details |
 |---|---|---|---|---|---|
-| a Participant learns that the public knows of the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | the case manager | a participant | `pxaState` = `Pxa` | [Public awareness in a case status](../cs.md#public-awareness) |
-| a Participant learns that an exploit for the vulnerability is public | `Add(CaseStatus)[target=VulnerabilityCase]` | the case manager | a participant | `pxaState` = `PXa` | [Exploit public in a case status](../cs.md#exploit-public) |
-| a Participant observes attacks that exploit the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | the case manager | a participant | `pxaState` = `pxA` | [Attacks observed in a case status](../cs.md#attacks-observed) |
+| the Case Manager records that the public knows of the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the case manager | `pxaState` = `Pxa` | [Public awareness in a case status](../cs.md#public-awareness) |
+| the Case Manager records that an exploit for the vulnerability is public | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the case manager | `pxaState` = `PXa` | [Exploit public in a case status](../cs.md#exploit-public) |
+| the Case Manager records that attackers are exploiting the vulnerability | `Add(CaseStatus)[target=VulnerabilityCase]` | a participant | the case manager | `pxaState` = `pxA` | [Attacks observed in a case status](../cs.md#attacks-observed) |
 | a Vendor becomes aware of the vulnerability | `Add(ParticipantStatus)[target=CaseParticipant]` | the case manager | a participant (usually: vendor) | `vfState` = `Vf` | [Vendor Awareness (CV)](../cs.md#vendor-awareness) |
 | a Vendor has a fix ready | `Add(ParticipantStatus)[target=CaseParticipant]` | the case manager | a participant (usually: vendor) | `vfState` = `VF` | [Fix Readiness (CF)](../cs.md#fix-readiness) |
 | a Deployer has deployed the fix | `Add(ParticipantStatus)[target=CaseParticipant]` | the case manager | a participant (usually: deployer) | `dState` = `D` | [Fix Deployed (CD)](../cs.md#fix-deployed) |

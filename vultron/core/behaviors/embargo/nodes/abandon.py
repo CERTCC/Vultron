@@ -95,7 +95,7 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
 )
-from vultron.core.services.received_activity import read_held_activity
+from vultron.core.services.received_activity import holds_activity
 from vultron.core.states.em import EM
 from vultron.errors import VultronNotFoundError, VultronWiringError
 
@@ -114,14 +114,10 @@ def _holds(datalayer: CasePersistence, invite_id: str) -> bool:
     """Whether this store holds the Invite *invite_id*, received or sent.
 
     The ER is built from the Invite as this store holds it
-    (:func:`read_held_activity`): a received Invite is read from its
-    receiver-keyed archive, never under the id its sender chose (DL-06-006).
+    (:func:`holds_activity`): a received Invite from its receiver-keyed
+    archive, never under the id its sender chose (DL-06-006).
     """
-    try:
-        read_held_activity(datalayer, invite_id, "Invite(EmbargoEvent)")
-    except VultronNotFoundError:
-        return False
-    return True
+    return holds_activity(datalayer, invite_id)
 
 
 def _read_proposals(node: DataLayerActionWithPorts) -> dict[str, str]:

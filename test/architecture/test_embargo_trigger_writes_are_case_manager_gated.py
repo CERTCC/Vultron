@@ -150,9 +150,7 @@ _FACTORIES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
         trigger_tree.reject_proposed_embargo_bt(case_id=_CASE, result_out={})
     ),
     "create_terminate_active_embargo_tree": lambda: (
-        create_terminate_active_embargo_tree(
-            case_id=_CASE, result_out={}, activity_builder=_builder
-        )
+        create_terminate_active_embargo_tree(case_id=_CASE, result_out={})
     ),
 }
 

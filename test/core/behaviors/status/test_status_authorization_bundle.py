@@ -187,11 +187,56 @@ def test_add_participant_status_tree_accepts_call_out_bundle():
 
 
 @pytest.mark.spec("RSH-02-001")
-def test_add_case_status_tree_accepts_call_out_bundle():
+def test_teardown_gate_sits_between_the_canonical_write_and_the_teardown(
+    make_payload,
+):
+    """The EmbargoTeardownAuthorizationGate follows the post-adoption
+    CaseStatus write and precedes ThreatTerminationBranchNode (RSH-02-001)."""
+    from vultron.core.behaviors.status.add_participant_status_tree import (
+        add_participant_status_tree,
+    )
+    from vultron.core.use_cases.received.status import (
+        AddParticipantStatusToParticipantReceivedUseCase,
+    )
+    from vultron.wire.as2.factories import add_status_to_participant_activity
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+    from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+
+    case_id = "https://example.org/cases/rsh-02-001"
+    actor_id = "https://example.org/actors/vendor"
+    activity = add_status_to_participant_activity(
+        status=as_ParticipantStatus(context=case_id),
+        target=as_CaseParticipant(
+            id_=f"{case_id}/participants/vendor",
+            context=case_id,
+            attributed_to=actor_id,
+        ),
+        actor=actor_id,
+    )
+    tree = add_participant_status_tree(
+        request=make_payload(activity),
+        case_id=case_id,
+        sender_rule=(
+            AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
+        ),
+    )
+
+    names = [node.name for node in tree.iterate()]
+    assert (
+        names.index("EmitCaseStatusUpdate")
+        < names.index("EmbargoTeardownAuthorizationGate")
+        < names.index("ThreatTerminationBranch")
+    )
+
+
+@pytest.mark.spec("RSH-04-005")
+def test_add_case_status_tree_takes_no_call_out_bundle():
+    """A received Add(CaseStatus) gates nothing, so its tree has no
+    authorization seam (RSH-04-005)."""
     from vultron.core.behaviors.status.add_case_status_tree import (
         add_case_status_tree,
     )
 
-    sig = inspect.signature(add_case_status_tree)
-    param = sig.parameters["call_out"]
-    assert param.default is STATUS_AUTHORIZATION_DETERMINISTIC
+    assert "call_out" not in inspect.signature(add_case_status_tree).parameters

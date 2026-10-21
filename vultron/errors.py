@@ -406,6 +406,17 @@ class VultronWiringError(VultronError):
     """
 
 
+class VultronReadOnlyViewError(VultronError, AttributeError):
+    """Raised on an attempt to change a read-only view of a received activity.
+
+    A received activity's view is parsed fresh from the archived body on
+    every load (ADR-0149), so a change to it could only ever reach that one
+    copy, and would read as a change to what arrived.  Core changes its own
+    records instead.  An ``AttributeError``, as assignment to any frozen
+    object raises.
+    """
+
+
 class VultronUnhostedActorError(VultronWiringError):
     """Raised when execution is scoped to an actor this container does not host.
 
@@ -440,6 +451,18 @@ class VultronBTInternalError(VultronError):
     for the same reason, so a server-side fault is never translated into the
     client's 422.
     """
+
+
+#: The ``VultronError`` subclasses that are our own fault, never a protocol
+#: outcome: a composition fault and an internal error carried across a
+#: nested bridge.  ``BTBridge`` flags both as ``internal_error``, so a node
+#: that turns a ``VultronError`` into a refusal re-raises these first: a
+#: refusal is answered to the sender (CLP-05-001), an internal failure never
+#: is (ADR-0095).
+INTERNAL_FAULTS: tuple[type[VultronError], ...] = (
+    VultronWiringError,
+    VultronBTInternalError,
+)
 
 
 class DemoScenarioRegistryError(VultronError):

@@ -346,6 +346,39 @@ def test_record_row_with_an_unknown_key_reads_absent_and_says_why(dl, caplog):
     assert "renamed_away" in messages[0]
 
 
+def test_row_of_a_deleted_type_reads_absent_naming_the_type(dl, caplog):
+    """A stored row whose type was deleted reads absent; the WARNING names it.
+
+    A deleted type needs no retirement marker: the vocabulary miss is the
+    logged cause of the ``None``.  ``VultronOwnershipTransferOfferRecord``
+    was deleted by ADR-0148 (#4940); old file-backed stores may still hold it.
+    """
+    offer_id = "https://example.org/activities/offer-pre-4940"
+    dl.create(
+        Record(
+            id_=offer_id,
+            type_="VultronOwnershipTransferOfferRecord",
+            data_={
+                "id": offer_id,
+                "type": "VultronOwnershipTransferOfferRecord",
+                "offerId": offer_id,
+                "caseId": "https://example.org/cases/c-4940",
+            },
+        )
+    )
+
+    with caplog.at_level("WARNING"):
+        assert dl.read(offer_id) is None
+
+    messages = [
+        r.getMessage() for r in caplog.records if r.levelname == "WARNING"
+    ]
+    assert len(messages) == 1
+    assert repr(offer_id) in messages[0]
+    assert "'VultronOwnershipTransferOfferRecord'" in messages[0]
+    assert "not found in vocabulary" in messages[0]
+
+
 @pytest.mark.spec("DL-05-006")
 def test_type_value_index_follows_a_replaced_class(isolated_core_registries):
     """Replacing a registered class keeps the registry size but updates the index."""

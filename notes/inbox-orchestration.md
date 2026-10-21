@@ -6,7 +6,8 @@ description: >
   Rules for the core BT-backed inbox orchestration module: orchestration
   belongs in core/, the narrow route-level guard exception, the two-adapter
   seam and verdict mapping, the path from receipt to permanent storage (ingress
-  writes nothing; a deferred activity is held whole), redelivery detection,
+  writes nothing; a deferred activity is held whole), redelivery detection and
+  the reused-id refusal,
   pending-queue port injection, and the test surface.
 related_specs:
   - specs/inbox-orchestration.yaml
@@ -103,34 +104,42 @@ the last one writes what it carries:
 2. **Routing reads through a staging store.** The routed activity is rebuilt by the
    store's read pipeline, which is what turns the parsed graph into the shape the
    patterns match, so the activity's row and its inline objects are staged in
-   `InlineObjectStaging` (`vultron/adapters/driving/fastapi/inbox_staging.py`): an
+   `InlineObjectStaging` (`vultron/adapters/inbox_staging.py`): an
    in-memory store read after the receiver's own store for every other id, and
    emptied around each use. Without the staged object the bare id mis-routes,
    because permissive patterns accept a string `object_`: `Create(id)` routes as a
    report.
 3. **The handler writes the core record, after its guards** (CLP-10-019). Intake
-   archives the activity as a `ReceivedActivityRecord` under the receiver's key, and
+   archives the received body as a `ReceivedActivityRecord` under the receiver's key, and
    an effect node writes any record from the copy the event carries (the add-note
    tree's `StoreReceivedObjectNode`, `SeedCaseReplicaNode`). A refusal writes nothing
    past the archive, so nothing is left to remove.
 
-A reader that needs a received activity later reads it through
-`read_received_activity`, never under the sender's id. An activity deferred until
-its case is known is held whole in one `DeferredInboxActivity` (IO-03-004): the
-sealed received body, its staged inline rows, and the event's core summary for core
-readers. Its replay parses the body again, so it carries the first delivery's
-evidence (VM-08-002); the replay, or the queue's expiry, deletes the record. A
-caller that queues an activity outside a delivery (the ledger hand-back, SYNC-14-009)
-holds it the same way, as its row, since no body arrived. **Hold before you queue**:
+A reader that needs a received activity later loads its body: core through
+`read_received_activity` (a read-only view), a reply through
+`vultron/adapters/received_archive.py`; never under the sender's id. An activity
+deferred until its case is known is held whole in one `DeferredInboxActivity`
+(IO-03-004): the sealed received body and its staged inline rows, nothing derived
+from them (ADR-0149). Its replay parses the body again, so it carries the first
+delivery's evidence (VM-08-002); the replay, or the queue's expiry, deletes the
+record. The ledger hand-back (SYNC-14-009) is a delivery of its own and is held the
+same way, as the body it delivers. **Hold before you queue**:
 the record is the activity's only copy, so an id queued with nothing held behind it
 is lost, and `hold_for_replay` raises rather than queue one (DL-06-006).
 
 **A redelivery is detected from the receiver's own key** (IE-10-001): a deferred
-record routes the held copy and keeps it for the replay; an intake archive only
-tells ingress the activity arrived, since it keeps the core summary rather than a
-routable body, so the redelivery is rebuilt from its own body. Either way it is
-routed without its received evidence and the handler's idempotency answers it
-(ID-02-003).
+record routes the held copy and keeps it for the replay; an intake archive routes
+the archived body's parse. Either way the held copy is routed without received
+evidence, and the handler's idempotency answers it (ID-02-003).
+
+**Compare the body before you route the held copy** (IE-10-002): only a resend
+whose sealed body exactly matches the held one is a redelivery. A different body
+under a held id is refused with a WARNING naming the activity id and sender, and
+neither body is routed nor anything written; routing the held copy in its place
+silently dropped the new body (#3762). The match is exact, with no normalisation,
+so a body re-serialized with a different key order is refused too. The rule covers
+every activity type: an `Announce(CaseLedgerEntry)` hydrated in place (SYNC-13-004)
+gets the same comparison, and only a same-body repeat reaches SYNC-12-003's gate.
 
 ---
 

@@ -32,6 +32,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.examples._base import (
     _example_stamp,
     case,
+    case_actor,
+    finder,
     vendor,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -53,20 +55,24 @@ def case_status(pxa: CS_pxa = CS_pxa.pxa, number: int = 1) -> as_CaseStatus:
 
 
 def add_status_to_case() -> as_Add:
-    _vendor = vendor()
-    _case = case()
-    _status = case_status()
-    activity = add_status_to_case_activity(
-        _status, actor=_vendor.id_, target=_case.id_
+    """The CASE_MANAGER's ``Add(CaseStatus)`` to a participant, the one
+    sender and addressee a receiver admits it from (RSH-04-005)."""
+    return add_status_to_case_activity(
+        case_status(),
+        actor=case_actor().id_,
+        target=case().id_,
+        to=[finder().id_],
     )
-    return activity
 
 
 def _add_case_status(pxa: CS_pxa, number: int) -> as_Add:
-    """``Add(CaseStatus)`` announcing *pxa* as the case's public state."""
-    _case = case()
+    """The CASE_MANAGER's ``Add(CaseStatus)`` recording *pxa* as the case's
+    adopted public state, sent to a participant (RSH-04-001, RSH-04-005)."""
     return add_status_to_case_activity(
-        case_status(pxa, number), actor=vendor().id_, target=_case.id_
+        case_status(pxa, number),
+        actor=case_actor().id_,
+        target=case().id_,
+        to=[finder().id_],
     )
 
 
@@ -92,7 +98,8 @@ def add_attacks_observed_to_case() -> as_Add:
 def participant_status() -> as_ParticipantStatus:
     status = as_ParticipantStatus(
         id_="https://vultron.example/cases/1/participants/vendor/status/1",
-        context="https://vultron.example/cases/1/participants/vendor",
+        # A status names its case, never the participant (HP-08-008).
+        context=case().id_,
         attributed_to="https://vultron.example/organizations/vendor",
         rm=RmDimension(state=RM.RECEIVED),
         vf=VfDimension(state=CS_vf.Vf),
@@ -121,7 +128,7 @@ def _add_participant_status(
     participant_id = f"https://vultron.example/cases/1/participants/{slug}"
     pstatus = as_ParticipantStatus(
         id_=f"{participant_id}/status/{number}",
-        context=participant_id,
+        context=case().id_,
         attributed_to=sender_id,
         rm=RmDimension(state=RM.ACCEPTED),
         vf=None if vf is None else VfDimension(state=vf),

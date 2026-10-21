@@ -56,7 +56,7 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     decide_termination,
 )
-from vultron.errors import VultronError
+from vultron.errors import INTERNAL_FAULTS, VultronError
 
 
 class DecideRejectedEmbargoProposalNode(
@@ -179,6 +179,8 @@ class OwnerRejectionAppliesNode(DataLayerConditionWithPorts):
             trial_apply(
                 read_embargo_case_file(self.datalayer, self.case_id), changes
             )
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
         except VultronError as exc:
             self.feedback_message = (
                 f"the owner's rejection of embargo '{self.embargo_id}'"

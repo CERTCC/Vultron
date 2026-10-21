@@ -37,7 +37,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.adapters.driving.fastapi.inbox_staging import hold_activity
+from vultron.adapters.inbox_staging import hold_activity
 from vultron.config.actor import ActorConfig
 from vultron.config.app import load_actor_config
 from vultron.core.behaviors.call_out.bundles.case_proposal import (
@@ -79,10 +79,11 @@ PortFactory = Callable[[DataLayer], dict[str, Any]]
 def _wire_render_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Create the ``WireRenderPort`` every received use case is given.
 
-    Every received tree ends in a guarded ledger commit, and the commit's
-    payload snapshot is the AS2 rendering of the received activity, so every
-    use case needs the port: core cannot produce that shape itself
-    (ARCH-20-001, CLP-07-009).  The adapter is stateless, so *dl* is unused.
+    A received entry records the received body itself (CLP-07-011), but a
+    received tree may also write and commit records the CASE_MANAGER authors,
+    whose snapshots are AS2 renderings core cannot produce itself
+    (ARCH-20-001, CLP-07-009, CLP-07-013).  So every use case is given the
+    port.  The adapter is stateless, so *dl* is unused.
     """
     return {"wire_render_port": As2WireRenderAdapter()}
 
@@ -268,8 +269,10 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
 )
 
 # Status-authorization call-out seam (ADR-0076, RSH-07-003):
-# ADD_CASE_STATUS_TO_CASE and ADD_PARTICIPANT_STATUS_TO_PARTICIPANT both
-# carry a StatusAuthorizationCallOutBundle injection point.  The adapter
+# ADD_PARTICIPANT_STATUS_TO_PARTICIPANT carries a
+# StatusAuthorizationCallOutBundle injection point.  ADD_CASE_STATUS_TO_CASE
+# carries none: it is admitted only at a participant replica, from the
+# CASE_MANAGER, and gates nothing (RSH-04-005).  The adapter
 # wires STATUS_AUTHORIZATION_PERMISSIVE (explicit trusted/demo configuration)
 # so the EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed
 # without a live Case Owner approval round-trip.  Production deployments that
@@ -277,10 +280,6 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
 # bundle here.
 _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
     {
-        # ADD_CASE_STATUS_TO_CASE also needs trigger_activity so that
-        # ThreatTerminationBranchNode can dispatch TerminateEmbargo when
-        # P/X/A is set (RSH-03-001, ADR-0046).
-        MessageSemantics.ADD_CASE_STATUS_TO_CASE,
         # ADD_PARTICIPANT_STATUS_TO_PARTICIPANT triggers the downstream
         # participant-status activity.
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
@@ -314,8 +313,7 @@ def _inbox_hand_back_port_factory(dl: DataLayer) -> dict[str, Any]:
 def _status_auth_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Inject trigger_activity + STATUS_AUTHORIZATION_PERMISSIVE.
 
-    Used for ``ADD_CASE_STATUS_TO_CASE`` and
-    ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``.  Wires the permissive
+    Used for ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``.  Wires the permissive
     authorization bundle (RSH-07-003, ADR-0076) so the
     EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed in this
     adapter's trusted/demo deployment context.

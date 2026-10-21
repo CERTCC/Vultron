@@ -49,8 +49,8 @@ from vultron.core.services.embargo_lifecycle.staged_persistence import (
     StagedCasePersistence,
 )
 from vultron.errors import (
+    INTERNAL_FAULTS,
     BtNodePreconditionError,
-    VultronBTInternalError,
     VultronEntryRefusedError,
     VultronError,
     VultronNotFoundError,
@@ -151,6 +151,8 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
         lifecycle = EmbargoLifecycle(persistence=self.datalayer)
         try:
             result = self._transition(lifecycle, self.actor_id)
+        except INTERNAL_FAULTS:
+            raise  # a composition fault is never a lifecycle refusal
         except VultronError as exc:
             self._result_out["error"] = exc
             self.feedback_message = str(exc)
@@ -177,8 +179,8 @@ class _EmbargoLifecycleNode(DataLayerActionWithPorts, StateWriteCapable):
                 self._register_step(),
                 self._answer(self.actor_id),
             )
-        except VultronBTInternalError:
-            raise
+        except INTERNAL_FAULTS:
+            raise  # a composition fault is never a lifecycle refusal
         except VultronError as exc:
             self._result_out["error"] = exc
             self.feedback_message = str(exc)

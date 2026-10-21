@@ -183,7 +183,6 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyInviteExpiryFromLedgerNode",
             "ApplyInviteExpiryNoopFromLedgerNode",
             "ApplyNoteFromLedgerNode",
-            "ApplyOfferOwnershipTransferFromLedgerNode",
             "ApplyOfferReportFromLedgerNode",
             "ApplyOwnershipTransferFromLedgerNode",
             "ApplyParticipantStatusFromLedgerNode",
@@ -593,17 +592,17 @@ def test_the_marker_covers_the_named_write_families() -> None:
     from vultron.core.behaviors.case.nodes.participant.status import (
         CreateParticipantStatusNode,
     )
+    from vultron.core.behaviors.case_status_snapshot import (
+        EmitCaseStatusUpdateNode,
+    )
     from vultron.core.behaviors.embargo.nodes.lifecycle import (
         _EmbargoLifecycleNode,
-    )
-    from vultron.core.behaviors.status.nodes.case_status import (
-        AppendCaseStatusToCaseNode,
     )
     from vultron.core.behaviors.sync.nodes._helpers import _LedgerEffectNode
 
     for cls in (
         ParticipantMoveEffectNode,
-        AppendCaseStatusToCaseNode,
+        EmitCaseStatusUpdateNode,
         CreateParticipantStatusNode,
         _EmbargoLifecycleNode,
         _LedgerEffectNode,

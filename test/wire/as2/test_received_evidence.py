@@ -28,6 +28,7 @@ from typing import Any
 import pytest
 
 from vultron.core.models.base import CoreObject
+from vultron.errors import VultronWiringError
 from vultron.wire.as2 import parser
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.parser import parse_activity
@@ -195,3 +196,79 @@ def test_an_activity_built_in_process_carries_no_evidence():
 
     assert activity.received_evidence is None
     assert activity.received_evidence_json is None
+
+
+@pytest.mark.spec("VM-08-002")
+def test_the_extracted_event_carries_the_evidence_text_unchanged():
+    """The event core dispatches on carries the sealed text, not a rendering."""
+    from vultron.semantic_registry import extract_event
+
+    activity = parse_activity(_offer_report())
+
+    event = extract_event(activity)
+
+    assert event.received_evidence == activity.received_evidence_json
+    assert event.received_body() == _offer_report()
+
+
+@pytest.mark.spec("VM-08-002")
+def test_an_event_from_an_activity_without_evidence_carries_none():
+    """No evidence is invented for an activity that was not received."""
+    from vultron.semantic_registry import extract_event
+    from vultron.wire.as2.factories import rm_submit_report_activity
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    activity = rm_submit_report_activity(
+        as_VulnerabilityReport(id_=REPORT_ID, name="r", content="c"),
+        to="https://example.org/actors/vendor",
+        actor=ACTOR,
+    )
+
+    event = extract_event(activity)
+
+    assert event.received_evidence is None
+    with pytest.raises(VultronWiringError, match="no received evidence"):
+        event.received_body()
+
+
+@pytest.mark.spec("VM-08-002")
+@pytest.mark.parametrize("evidence", ["not json", "[1, 2]", '"text"'])
+def test_an_event_refuses_evidence_that_is_not_a_json_object(evidence: str):
+    """Received evidence is the text of a body, which is always an object."""
+    from pydantic import ValidationError
+
+    from vultron.core.models.events.base import MessageSemantics, VultronEvent
+
+    with pytest.raises(ValidationError, match="received_evidence"):
+        VultronEvent(
+            semantic_type=MessageSemantics.UNKNOWN,
+            activity_id="https://example.org/activities/a1",
+            actor_id=ACTOR,
+            received_evidence=evidence,
+        )
+
+
+@pytest.mark.spec("DL-06-004")
+def test_an_inlined_copy_dumps_as_the_received_body_on_the_as2_path():
+    """``inlined_as_received`` makes the copy's AS2 form the sealed body,
+    keys the vocabulary does not name included; its storage dump, and the
+    original's AS2 dump, are unchanged (ADR-0149)."""
+    body = {**_offer_report(), "x-peerExtension": {"kept": True}}
+    parsed = parse_activity(copy.deepcopy(body))
+
+    inlined = parsed.inlined_as_received()
+
+    assert inlined.model_dump(by_alias=True, mode="json") == body
+    assert "x-peerExtension" not in parsed.model_dump(by_alias=True)
+    assert inlined.model_dump(mode="json") == parsed.model_dump(mode="json")
+
+
+def test_an_activity_with_no_evidence_cannot_be_inlined_as_received():
+    """An activity this process built has no received body to embed."""
+    built = parse_activity(_offer_report()).model_copy()
+    unsealed = type(built).model_validate(built.model_dump(by_alias=True))
+
+    with pytest.raises(ValueError, match="no received evidence"):
+        unsealed.inlined_as_received()

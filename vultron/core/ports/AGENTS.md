@@ -64,6 +64,16 @@ of wire imports.
 activities. The adapter implementation (`TriggerActivityAdapter`) is the
 sole translation point for trigger-side domain->wire construction.
 
+### `ReceivedActivityLoader`
+
+`ReceivedActivityLoader` (`received_activity_loader.py`) is how core reads a
+received activity's facts (DL-06-001, ADR-0149): the adapter parses the
+archived body through the inbox's own parse and extraction and returns a
+read-only `ReceivedActivityView`. `TriggerActivityPort` extends it, since the
+triggers that answer a received activity are its readers and the same adapter
+is the reply seam. Reason: core cannot parse wire bytes (ARCH-01-001), and a
+missing port is a `VultronWiringError`, never a fallback to a stored summary.
+
 ### `InboxHandBackPort`
 
 `InboxHandBackPort` (`inbox_hand_back.py`) hands a buffered ledger entry

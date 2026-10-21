@@ -18,7 +18,11 @@ from datetime import timedelta
 
 import pytest
 
-from test.support.received import archive_received
+from test.support.received import (
+    archive_delivered,
+    archive_received,
+    case_stub,
+)
 from vultron.core.models.actor import CoreActor, VultronOrganization
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.semantic_registry import extract_event
@@ -154,6 +158,42 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
         assert carried["id"] == offer.id_
         assert carried["object"]["id"] == report.id_
 
+    @pytest.mark.spec("CP-01-008")
+    @pytest.mark.spec("DL-06-004")
+    def test_the_carried_offer_is_the_body_the_reporter_sent(
+        self, adapter, dl
+    ):
+        """The inline Offer is the archived body verbatim, so a ``cc``, an
+        ``endTime`` and a key no vocabulary names reach the case-actor as
+        the Reporter sent them (ADR-0149)."""
+        report = _make_report(dl)
+        dl.save(_vendor_profile(timedelta(days=30)))
+        offer = rm_submit_report_activity(
+            report, to=_VENDOR, actor=self._FINDER
+        )
+        body = {
+            **offer.model_dump(
+                mode="json",
+                by_alias=True,
+                exclude_none=True,
+                serialize_as_any=True,
+            ),
+            "cc": ["https://example.org/actors/watcher"],
+            "endTime": "2031-01-01T00:00:00+00:00",
+            "x-reporterNote": "please hurry",
+        }
+        archive_delivered(dl, body)
+
+        _, blob = adapter.create_case_proposal(
+            actor=_VENDOR,
+            report_id=report.id_,
+            case_actor_id=_CASE_ACTOR,
+            offer_id=offer.id_,
+            offer_actor_id=self._FINDER,
+        )
+
+        assert json.loads(blob)["object"]["inReplyTo"] == body
+
     @pytest.mark.spec("CP-01-007")
     def test_a_held_activity_that_is_not_a_report_offer_is_not_carried(
         self, adapter, dl, caplog
@@ -165,7 +205,7 @@ class TestCreateCaseProposalCarriesTheHeldOffer:
         dl.save(_vendor_profile(timedelta(days=30)))
         other = rm_invite_to_case_activity(
             _VENDOR,
-            target="https://example.org/cases/other",
+            target=case_stub("https://example.org/cases/other"),
             actor=self._FINDER,
         )
         archive_received(dl, other)

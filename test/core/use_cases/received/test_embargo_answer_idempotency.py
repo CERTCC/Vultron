@@ -30,7 +30,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
-from test.support.received import received_record
+from test.support.received import received_activity
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.answer_trees import (
@@ -98,10 +98,8 @@ def _answer_body(
     receiver: str = MANAGER,
 ) -> dict[str, Any]:
     """*actor*'s answer to *invite_id* under a fresh id, addressed to *receiver*."""
-    # The actor holds the Invite as intake archived it (DL-06-006).
-    record = received_record(net.stores[actor], invite_id)
-    assert record is not None
-    proposal = cast(Any, record.activity)
+    # The actor holds the Invite as the body intake archived (DL-06-006).
+    proposal = received_activity(net.stores[actor], invite_id)
     build = (
         em_accept_embargo_activity if accept else em_reject_embargo_activity
     )
@@ -383,6 +381,10 @@ def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
     assert net.queued(MANAGER, to=BYSTANDER, type_="Invite") == invites
 
 
+# Integration tier, with the rest of the LedgerNetwork replay group
+# (#4917): about 9s idle plus a 2s teardown rebuild, so under the
+# full unit run's load it can pass the 30s ceiling.
+@pytest.mark.integration
 @pytest.mark.spec("CM-13-005")
 @pytest.mark.spec("EMB-17-003")
 def test_an_accept_after_a_reject_of_replaced_terms_is_invited_to_the_current():

@@ -26,7 +26,7 @@ from fastapi.testclient import TestClient
 
 import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
 from test.conftest import seed_case_actor_replica
-from test.support.received import archive_received
+from test.support.received import archive_received, case_stub
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import trigger_runner
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
@@ -187,7 +187,7 @@ def invite(other_actor_and_dl, actor, case_obj):
     other, other_dl = other_actor_and_dl
     invite_activity = rm_invite_to_case_activity(
         other,
-        target=case_obj.id_,
+        target=case_stub(case_obj.id_),
         actor=actor.id_,
     )
     archive_received(other_dl, invite_activity)
@@ -870,7 +870,9 @@ def test_offer_case_ownership_transfer_route_passes_end_time(
         },
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
-    end_time = resp.json()["activity"]["endTime"]
+    # The activity is the owner's proposal; the deadline is on the inner
+    # Offer it asks the CASE_MANAGER to make (ADR-0148).
+    end_time = resp.json()["activity"]["object"]["endTime"]
     assert datetime.fromisoformat(end_time) == deadline
 
 

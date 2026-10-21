@@ -52,7 +52,7 @@ relevant_packages:
   - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
   - vultron/core/models/pending_assertion.py
-  - vultron/core/use_cases/triggers/embargo.py
+  - vultron/core/use_cases/triggers/embargo/
   - vultron/core/use_cases/received/embargo/
 ---
 
@@ -107,8 +107,8 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   leaves the others open as revisions.
 - **`CaseStatus.em` is a frozen stamped copy.** Core reads `case.em_state`,
   never the copy. `append_case_status(em=...)` is refused, and a received
-  `Add(CaseStatus)` whose EM differs has its EM refused and the case's carried
-  forward (RSH-05-023, SDO-03-006).
+  `Add(CaseStatus)` whose EM differs is refused whole (RSH-09-005,
+  SDO-03-006).
 - **A termination records what and why (ADR-0122, EMB-13-004).** The what
   (`TerminationReason`: `END_TIME_REACHED` or `EARLY`) is the `Remove`'s
   `content`, parsed at the edge (`termination_reason_from_content()`); the why
@@ -119,7 +119,11 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   entry as one `EmbargoTermination`, required there and refused elsewhere. The
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
   triggering status, or, when unknown at build time, the case's PXA at the
-  write. The `Remove` carries the why as `terminationCause` (a field on the
+  write. A voluntary termination passes `ChosenTermination`, set by the
+  `ChooseTerminationCauseNode` after the reason call-out that succeeded and
+  read at the write, so the choice and the commit are one act (EMB-14-001);
+  the trigger records the request's cause, or `OTHER` when it names none.
+  The `Remove` carries the why as `terminationCause` (a field on the
   base `as_Remove`, marked a Vultron property so `context.jsonld` names it),
   checked at the parse edge (EMB-13-005), because a replica learns the why
   only from the ledger entry: it copies the cause, never works it out from its
@@ -453,21 +457,22 @@ arms built by `_by_role()` (BT-17-001). Ratchet:
   activity to the CASE_MANAGER and `SvcEmbargoTriggerBase` records it with
   `record_pending_assertion()` (SYNC-11-002), keyed by `subject_id`, so a repeat
   inside the window is suppressed. The announced commit clears it (SYNC-11-003);
-  a refused proposal is closed by the manager's `Reject`
-  (`close_refused_embargo_proposal`).
+  a refused proposal, or an `Accept` refused with ER, is closed by the
+  manager's `Reject` (`close_refused_embargo_ask`); a participant takes a
+  `Reject(Invite(EmbargoEvent))` from the CASE_MANAGER alone.
 
 The receive-side cascade (`ThreatTerminationBranchNode`) reaches the same
-`terminate_embargo_bt`, so a non-manager receiver asks too, and that ask is a
-pending assertion: `TeardownAskPendingNode` suppresses a repeat, and trigger and
-cascade suppress each other (#4147).
+`terminate_embargo_bt`. Run as a non-manager it would ask too, as a pending
+assertion: `TeardownAskPendingNode` suppresses a repeat, and trigger and cascade
+suppress each other (#4147). No received tree runs it off the CASE_MANAGER
+(next rule).
 
 **A replica never asks for a teardown the CASE_MANAGER declared** (RSH-03-004).
-The declaration can arrive before the teardown entries, so
-`_DeclaredByCaseManagerNode` skips the branch when the status's sender holds
-CASE_MANAGER and is not the executing actor. It decides *who* tears down, not
-*whether* — it is not a sender-role authorization gate (RSH-03-002). The
-CSB-18 diagnostic needs no such skip: `PxaEmInvariantDiagnosticNode` runs only
-at the CASE_MANAGER (#4829).
+The CASE_MANAGER only ledgers its own status, and the threat teardown runs only
+in `add_participant_status_tree` under the CASE_MANAGER gate, so a replica learns
+the teardown from the committed entries alone. It decides *who* tears down, not
+*whether* (RSH-03-002). The CSB-18 diagnostic runs only at the CASE_MANAGER too
+(#4829).
 
 **The P/X/A abandonment decides every open proposal (EMB-16-001).** The
 CASE_MANAGER commits one `Reject(Invite(EmbargoEvent))` per proposal under
@@ -491,7 +496,7 @@ embargo tree; a resolver that finds nobody fails.
 **Only the CASE_MANAGER records an answer, and only one it can apply.** Answer
 and owner-decision effects sit behind the CASE_MANAGER gate; anyone else reports
 `REFUSED` and writes nothing (HP-01-005). Refuse before the guarded commit, with
-read-only guards (`IsRejectableEmbargoNode`, `IsOpenEmbargoProposalNode`,
+read-only guards (`IsAnswerableEmbargoNode`, `IsOpenEmbargoProposalNode`,
 `OwnerMayActivateEmbargoNode`): once committed, a failing replica apply blocks
 its persist (SYNC-12-001) and stalls every later entry (SYNC-14-001).
 

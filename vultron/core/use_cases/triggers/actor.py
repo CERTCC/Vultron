@@ -21,6 +21,7 @@ No HTTP framework imports permitted here.
 
 import json
 import logging
+from collections.abc import Mapping
 from typing import Any, ClassVar, cast
 from urllib.parse import urlparse
 
@@ -52,6 +53,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.services.received_activity import (
+    holds_received_activity,
     read_held_activity,
     read_received_activity,
 )
@@ -79,6 +81,7 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
 )
+from vultron.primitives import same_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -382,11 +385,13 @@ class SvcAcceptCaseInviteUseCase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        # Held as intake archived it (CLP-10-017): a stub Invite precedes its
-        # case, so the inbox processes it on arrival (PCR-06-005).
-        read_received_activity(
-            self._dl, request.invite_id, "RmInviteToCaseActivity"
-        )
+        # Held as the body intake archived (CLP-10-017): a stub Invite
+        # precedes its case, so the inbox processes it on arrival
+        # (PCR-06-005).
+        if not holds_received_activity(self._dl, request.invite_id):
+            raise VultronNotFoundError(
+                "RmInviteToCaseActivity", request.invite_id
+            )
 
         self._invite_id = request.invite_id
 
@@ -416,11 +421,13 @@ class SvcRejectCaseInviteUseCase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        # Held as intake archived it (CLP-10-017): a stub Invite precedes its
-        # case, so the inbox processes it on arrival (PCR-06-005).
-        read_received_activity(
-            self._dl, request.invite_id, "RmInviteToCaseActivity"
-        )
+        # Held as the body intake archived (CLP-10-017): a stub Invite
+        # precedes its case, so the inbox processes it on arrival
+        # (PCR-06-005).
+        if not holds_received_activity(self._dl, request.invite_id):
+            raise VultronNotFoundError(
+                "RmInviteToCaseActivity", request.invite_id
+            )
 
         self._invite_id = request.invite_id
 
@@ -441,17 +448,17 @@ class SvcRejectCaseInviteUseCase(SvcActivityTriggerBase):
 class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
     """Offer case ownership to another actor (trigger-side path).
 
-    The Case Owner sends its own ``Offer(VulnerabilityCase)`` (ownership
-    transfer variant) to the case's CASE_MANAGER, from the owner's identity
-    and outbox (CM-21-005, TRIG-11-001).  It executes no tree as the
+    The Case Owner sends its proposal, ``Offer(Offer(VulnerabilityCase))``,
+    to the case's CASE_MANAGER, from the owner's identity and outbox
+    (CM-21-005, TRIG-11-001, ADR-0148).  It executes no tree as the
     CASE_MANAGER and never emits in its name (CM-24-004, ADR-0109): the
-    CASE_MANAGER's received tree records the Offer and performs the delegated
-    emit itself, forwarding it to the transferee with ``attributedTo`` naming
-    the owner (CM-24-005).
+    CASE_MANAGER's received tree makes the one ``Offer(VulnerabilityCase)``
+    the transferee answers, with ``attributedTo`` naming the owner
+    (CM-24-005).
 
-    The ``202`` this trigger earns therefore means the Offer was queued, not
-    that the transferee was told; the result's ``activity`` is the owner's
-    Offer.
+    The ``202`` this trigger earns therefore means the proposal was queued,
+    not that the transferee was told; the result's ``activity`` is the
+    owner's proposal, which the owner names to withdraw it (TRIG-11-006).
     """
 
     def __init__(
@@ -478,6 +485,28 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         offering_actor_id = actor.id_
         self._case = resolve_case(request.case_id, self._dl)
 
+        # The Offer goes to the CASE_MANAGER or nowhere (CM-21-005,
+        # PCR-08-011).  A case always has a CASE_MANAGER (CM-24-006), so none
+        # is a fault, not a direct send to the transferee.
+        case_manager_id = resolve_case_manager_id(self._case, self._dl)
+        if case_manager_id is None:
+            raise VultronNotFoundError(
+                "CASE_MANAGER", f"(for case '{self._case.id_}')"
+            )
+        # Fail closed on a proposal the CASE_MANAGER must refuse (CM-21-005):
+        # it sends itself no Offer (BT-17-008), and the owner already owns
+        # the case.  Checked before anything is written.
+        for refused, why in (
+            (case_manager_id, "the case's CASE_MANAGER"),
+            (offering_actor_id, "the offering Case Owner itself"),
+        ):
+            if same_actor_id(request.transferee_id, refused):
+                raise VultronValidationError(
+                    f"transferee_id '{request.transferee_id}' is {why};"
+                    " ownership can be offered only to another actor"
+                    " (CM-21-005)"
+                )
+
         # A transferee is a peer named by URI — the same reasoning as an invitee
         # or a recommended actor; see ``_record_named_peer``. Handing ownership
         # to an actor on another node is the normal case, and that node's record
@@ -492,14 +521,6 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         self._transferee_id = request.transferee_id
         self._content = request.content
         self._end_time = request.end_time
-
-        # The Offer goes to the CASE_MANAGER or nowhere (CM-21-005,
-        # PCR-08-011).  A case always has a CASE_MANAGER (CM-24-006), so none
-        # is a fault, not a direct send to the transferee.
-        if resolve_case_manager_id(self._case, self._dl) is None:
-            raise VultronNotFoundError(
-                "CASE_MANAGER", f"(for case '{self._case.id_}')"
-            )
         self._actor_id = offering_actor_id
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
@@ -524,9 +545,11 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
 class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
     """An actor replies to an ownership-transfer Offer it holds.
 
-    Shared by the transferee's accept and reject triggers and the offerer's
-    withdraw trigger: each reads the Offer by id from the actor's own store
-    and emits its reply to the case's CASE_MANAGER (CM-21-006, CM-21-010,
+    Shared by the transferee's accept and reject triggers and the owner's
+    withdraw trigger: each reads what it replies to by id from the actor's
+    own store — the CASE_MANAGER's Offer from the body intake archived, or
+    the owner's own proposal as it sent it — and
+    emits its reply to the case's CASE_MANAGER (CM-21-006, CM-21-010,
     CM-21-015).  Subclasses build the tree and name the verb they log.
     """
 
@@ -543,29 +566,30 @@ class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        # The transferee answers the forward it received, archived by intake
-        # under the receiver's key; the offerer withdraws the Offer it sent,
-        # held under its own id.  Neither is read under an id a sender chose
-        # (DL-06-006).  A replica whose only source for the Offer was the
-        # replicated ledger entry holds a VultronOwnershipTransferOfferRecord
-        # under the Offer's id instead.
-        offer = read_held_activity(
-            self._dl, request.offer_id, "Offer(VulnerabilityCase)"
-        )
-
         self._offer_id = request.offer_id
+        self._case_id = self._held_case_id(request.offer_id)
 
-        # Two shapes reach this point: the ledger record names the case in
-        # `case_id`, an Offer activity in `object_` (possibly rehydrated to
-        # a typed object, or inline in an archived one).  Accept either.
-        raw_case_id = _as_id(
-            getattr(offer, "case_id", None) or getattr(offer, "object_", None)
+    def _held_case_id(self, offer_id: str) -> str:
+        """The case the Offer this actor holds names.
+
+        The transferee answers the CASE_MANAGER's Offer it received,
+        archived by intake under the receiver's key, never read under an id
+        a sender chose (DL-06-006).  Nothing else stands in for it: an actor
+        that never received the Offer has nothing to answer (ADR-0148).
+
+        Raises:
+            VultronNotFoundError: This actor holds no such Offer, or it
+                names no case.
+        """
+        offer = read_received_activity(
+            self._received_activities, offer_id, "Offer(VulnerabilityCase)"
         )
+        raw_case_id = _as_id(getattr(offer, "object_", None))
         if not raw_case_id:
             raise VultronNotFoundError(
-                "VulnerabilityCase (in Offer case reference)", request.offer_id
+                "VulnerabilityCase (in Offer case reference)", offer_id
             )
-        self._case_id = raw_case_id
+        return raw_case_id
 
     def _handle_result(self) -> None:
         logger.info(
@@ -614,14 +638,54 @@ class SvcRejectCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
 class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
     """Withdraw an open case ownership transfer offer (trigger-side path).
 
-    Emits ``Undo(Offer(VulnerabilityCase))`` from the offering Case Owner to
-    the case's CASE_MANAGER (TRIG-11-006, CM-21-015), which admits it only
-    from the offerer of an Offer still open, ledgers it and broadcasts the
+    Emits ``Undo(Offer(Offer(VulnerabilityCase)))`` from the Case Owner to
+    the case's CASE_MANAGER (TRIG-11-006, CM-21-015): the request's
+    ``offer_id`` names the owner's own proposal, the one activity of the
+    transfer it holds, and the CASE_MANAGER withdraws the Offer it made from
+    it (ADR-0148).  The CASE_MANAGER admits it only from the owner that
+    Offer was made for while it is still open, ledgers it and broadcasts the
     withdrawal.  The trigger does not pre-judge that: the CASE_MANAGER's
     ledger is what says whether the Offer is open (CM-21-014).
     """
 
     _verb = "withdrew"
+
+    def _held_case_id(self, offer_id: str) -> str:
+        """The case the owner's own proposal names, its ``context``.
+
+        The proposal is an activity this actor sent, held under its own id.
+
+        Raises:
+            VultronNotFoundError: This actor holds no such proposal, or it
+                names no case.
+        """
+        proposal = read_held_activity(
+            self._received_activities,
+            self._dl,
+            offer_id,
+            "Offer(Offer(VulnerabilityCase))",
+        )
+        inner = getattr(proposal, "object_", None)
+        # A wire ``type_`` is a StrEnum and a core one a plain str; both
+        # compare equal to "Offer".  A mapping inner (a dict, or a received
+        # view's read-only mapping) may carry either key.
+        inner_type = (
+            inner.get("type") or inner.get("type_")
+            if isinstance(inner, Mapping)
+            else getattr(inner, "type_", None)
+        )
+        raw_case_id = _as_id(getattr(proposal, "context", None))
+        if inner_type != "Offer" or not raw_case_id:
+            # The owner withdraws its own proposal, never the CASE_MANAGER's
+            # Offer made from it (ADR-0148): an id naming anything else is a
+            # caller error, refused before any tree runs.
+            raise VultronNotFoundError(
+                "ownership-transfer proposal Offer(Offer(VulnerabilityCase))"
+                " naming its case (offer_id must name the proposal the offer"
+                " trigger returned)",
+                offer_id,
+            )
+        return raw_case_id
 
     def _prepare(self) -> None:
         super()._prepare()

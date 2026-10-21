@@ -15,13 +15,14 @@
 
 """Case ``context`` defaulting shared by the case-scoped factories.
 
-A canonical ledger entry requires ``payloadSnapshot.context`` to be the case
-URI (CLP-07-007), and the snapshot is the exact blob the factory produced
-(VM-08-003) — so the factory, not the emitting node, is where ``context`` has
-to be complete.  Every factory whose activity is *about* a case calls
-:func:`with_case_context` so that a caller who named the case but not the
-context gets the case URI filled in, while an explicit ``context`` is left
-alone.
+A case-scoped ``payloadSnapshot`` names the case URI in ``context``
+(CLP-07-007), and the snapshot is the exact blob the factory produced
+(VM-08-003): nothing writes a ``context`` in afterwards, and the commit
+boundary refuses one naming another case.  So the factory, not the emitting
+node, is where ``context`` has to be complete.  Every factory whose activity is
+*about* a case calls :func:`with_case_context` so that a caller who named the
+case but not the context gets the case URI filled in, while an explicit
+``context`` is left alone.
 """
 
 from typing import Any, TypeVar

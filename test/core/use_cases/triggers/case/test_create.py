@@ -30,6 +30,7 @@ from test.support.ledger import (
     fail_commits,
     ledger_entries,
 )
+from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -46,14 +47,29 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.events.status import (
+    AddParticipantStatusToParticipantReceivedEvent,
+)
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.status import (
+    AddParticipantStatusToParticipantReceivedUseCase,
+)
 from vultron.core.use_cases.triggers.case import SvcCreateCaseUseCase
-from vultron.core.use_cases.triggers.requests import CreateCaseTriggerRequest
+from vultron.core.use_cases.triggers.case.add_participant_status import (
+    SvcAddParticipantStatusUseCase,
+)
+from vultron.core.use_cases.triggers.requests import (
+    AddParticipantStatusTriggerRequest,
+    CreateCaseTriggerRequest,
+)
 from vultron.errors import (
     VultronBTInternalError,
     VultronNotFoundError,
     VultronValidationError,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -353,6 +369,63 @@ class TestSvcCreateCaseUseCase:
         assert CVDRole.CASE_MANAGER in all_roles, (
             "CASE_MANAGER must be registered (CM-02-014)"
         )
+
+    @pytest.mark.spec("HP-08-008")
+    def test_create_case_owner_status_add_is_applied(self):
+        """The creator's CASE_OWNER+CASE_MANAGER record names its case, so
+        its own Add(ParticipantStatus), received on its own store, acts on
+        that case and the status is appended (HP-08-008, #4961)."""
+        created = _use_case(
+            self.dl,
+            CreateCaseTriggerRequest(
+                actor_id=self.actor.id_,
+                name="Test Case Owner Status",
+                content="A test case for the owner's own status update",
+            ),
+        ).execute()
+        assert created.case_id is not None
+        case_obj = self.dl.read_case(created.case_id)
+        assert case_obj is not None
+        record = self.dl.read(case_obj.actor_participant_index[self.actor.id_])
+        assert isinstance(record, CaseParticipant)
+        assert _as_id(record.context) == case_obj.id_
+
+        sent = SvcAddParticipantStatusUseCase(
+            self.dl,
+            AddParticipantStatusTriggerRequest(
+                actor_id=self.actor.id_,
+                case_id=case_obj.id_,
+                rm_state=RM.RECEIVED,
+            ),
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(self.dl),
+        ).execute()
+        assert sent.activity_id is not None
+        sent_activity = self.dl.read(sent.activity_id)
+        assert isinstance(sent_activity, as_Activity)
+        event = received_event(sent_activity).model_copy(
+            update={"receiving_actor_id": self.actor.id_}
+        )
+        assert isinstance(
+            event, AddParticipantStatusToParticipantReceivedEvent
+        )
+
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            self.dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(self.dl),
+        ).execute()
+
+        assert result.disposition != HandlerDisposition.REFUSED, result.reason
+        stored = self.dl.read(record.id_)
+        assert isinstance(stored, CaseParticipant)
+        assert [s.rm.state for s in stored.participant_statuses if s.rm] == [
+            RM.START,
+            RM.RECEIVED,
+        ]
 
     def test_create_case_activity_queued_in_delivery_queue(self):
         """SvcCreateCaseUseCase queues activity in delivery queue for outbox_handler."""

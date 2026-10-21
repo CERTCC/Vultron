@@ -30,14 +30,14 @@ double-report: this guard fails first and the enclosing ``Sequence`` aborts
 before the write node ticks.
 
 This is the trigger-path counterpart of
-:class:`~vultron.core.behaviors.status.nodes.dimension_filter\
-.FilterParticipantStatusDimensionsNode` (received wire path).  The two differ
-in disposition: the received path uses per-dimension partial-accept (a refused
-dimension carries the current value forward so other dimensions still land);
-the trigger path is fail-closed (a self-reported invalid jump is rejected
-outright — the actor controls its own state machine and must request valid
-steps).  That asymmetry is Postel's maxim applied to the two sides of the wire,
-not an inconsistency to reconcile — see `notes/domain-validation.md`.
+:class:`~vultron.core.behaviors.status.nodes.participant_status_acceptance\
+.CheckParticipantStatusAcceptableNode` (received wire path).  Both refuse the
+whole status, but they differ in what they admit: the received path accepts a
+non-adjacent forward move, because a peer may have advanced several steps
+between messages (RSH-06-001, CSB-16-001); the trigger path admits only valid
+steps, because the actor controls its own state machine.  That asymmetry is
+Postel's maxim applied to the two sides of the wire, not an inconsistency to
+reconcile — see `notes/domain-validation.md`.
 
 Per specs/behavior-tree-node-design.yaml BTND-10-001, BTND-10-002,
 specs/status-dimension-objects.yaml SDO-02-004,

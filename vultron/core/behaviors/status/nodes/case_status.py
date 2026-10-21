@@ -15,36 +15,25 @@
 
 """Case status workflow nodes for AddCaseStatusToCase.
 
-Contains the idempotency guard and append node implementing the
-AddCaseStatusToCase BT sequence (issue #758).
+Contains the idempotency guard of the AddCaseStatusToCase BT sequence
+(issue #758).  The tree appends nothing: a participant replica takes the
+CASE_MANAGER's status from the ledger fan-out (RSH-04-005, RSH-08-003).
 
 :class:`~vultron.core.behaviors.case_status_snapshot.EmitCaseStatusUpdateNode`,
 which embargo and status trees both compose, lives in the shared
 :mod:`vultron.core.behaviors.case_status_snapshot` module (BTND-04-001).
 
-Per-dimension adjudication nodes (RSH-05, ADR-0061, ISSUE-2256) live in
-:mod:`cs_dimension_filter` to keep this module under the 500-line limit.
+The whole accept-or-reject guard (RSH-09-005) lives in
+:mod:`case_status_acceptance`.
 """
 
 import logging
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.case_status_snapshot import promote_pxa
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    DataLayerConditionWithPorts,
-    PortInformation,
-)
+from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
-from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
-    BB_CASE_STATUS_DIM_FILTER,
-)
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.dimensions import PxaDimension
-from vultron.core.models.protocols import PersistableModel
 
 logger = logging.getLogger(__name__)
 
@@ -107,131 +96,4 @@ class CheckCaseStatusIdempotencyNode(
                 self.case_id,
             )
 
-        return Status.SUCCESS
-
-
-class AppendCaseStatusToCaseNode(DataLayerActionWithPorts, StateWriteCapable):
-    """Append the resolved CaseStatus to ``case.case_statuses`` and persist.
-
-    When ``BB_CASE_STATUS_DIM_FILTER`` carries a filtered status for this
-    tick (written by :class:`FinalizeCsFilterNode`), that filtered object is
-    appended and saved to the DataLayer so the canonical record reflects the
-    accepted portion, not the raw assertion (RSH-05, ISSUE-2256).
-
-    Falls back to resolving from the DataLayer/fallback when no filter is
-    present (original behavior for unfiltered statuses).
-
-    Returns SUCCESS on successful append.
-    Returns FAILURE if the case or status cannot be resolved.
-
-    Per issue #758 AC-1.
-    """
-
-    def __init__(
-        self,
-        case_id: str | None,
-        status_id: str,
-        status_obj_fallback: PersistableModel | None,
-        name: str | None = None,
-    ):
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.status_id = status_id
-        self.status_obj_fallback = status_obj_fallback
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        BB_CASE_STATUS_DIM_FILTER: PortInformation(
-            data_type=object, required=False
-        ),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            BB_CASE_STATUS_DIM_FILTER: f"/{BB_CASE_STATUS_DIM_FILTER}",
-        }
-
-    def _resolve_filtered(self) -> CaseStatus | None:
-        """Return the filter-adjusted CaseStatus if one exists for this tick."""
-        payload = self._try_get_input(BB_CASE_STATUS_DIM_FILTER)
-        if not isinstance(payload, dict):
-            return None
-        if payload.get("status_id") != self.status_id:
-            return None
-        obj = payload.get("filtered_status")
-        return obj if isinstance(obj, CaseStatus) else None
-
-    def _resolve_status(self) -> "PersistableModel | None":
-        assert self.datalayer is not None
-        status_obj = self.datalayer.read(self.status_id)
-        if hasattr(status_obj, "id_"):
-            return status_obj
-        status_obj = self.status_obj_fallback
-        if status_obj is not None:
-            self.datalayer.save(status_obj)
-            status_obj = self.datalayer.read(self.status_id) or status_obj
-        return status_obj if hasattr(status_obj, "id_") else None
-
-    def update(self) -> Status:
-        if not self.case_id:
-            self.feedback_message = (
-                "case_id is absent — cannot append CaseStatus"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        # Use the per-dimension-filtered status when available; otherwise fall
-        # back to the raw asserted object (no filtering was needed or applied).
-        from_filter = False
-        status_obj: CaseStatus | PersistableModel | None = (
-            self._resolve_filtered()
-        )
-        if status_obj is not None:
-            from_filter = True
-        else:
-            status_obj = self._resolve_status()
-
-        if status_obj is None:
-            self.feedback_message = f"Status '{self.status_id}' not found"
-            self.logger.warning(
-                "AppendCaseStatusToCase: %s", self.feedback_message
-            )
-            return Status.FAILURE
-
-        if not isinstance(status_obj, CaseStatus):
-            self.feedback_message = (
-                f"Status '{self.status_id}' is not a CaseStatus"
-            )
-            self.logger.warning(
-                "AppendCaseStatusToCase: %s", self.feedback_message
-            )
-            return Status.FAILURE
-
-        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
-        if status_obj.pxa is not None:
-            promoted = promote_pxa(status_obj.pxa.state)
-            if promoted is not status_obj.pxa.state:
-                status_obj = status_obj.model_copy(
-                    update={"pxa": PxaDimension(state=promoted)}
-                )
-                from_filter = True
-
-        if from_filter:
-            self.datalayer.save(status_obj)
-
-        case.add_case_status(status_obj)
-        self.datalayer.save(case)
-        self.logger.info(
-            "AppendCaseStatusToCase: added status '%s' to case '%s'",
-            self.status_id,
-            self.case_id,
-        )
         return Status.SUCCESS

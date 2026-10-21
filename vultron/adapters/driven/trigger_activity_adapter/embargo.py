@@ -20,10 +20,10 @@ from datetime import datetime, timedelta
 from typing import Any, cast
 
 from vultron.adapters.outbox_sealed_body import requeue_if_sealed
+from vultron.adapters.received_archive import read_held_as_received
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.services.received_activity import read_held_activity
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.errors import (
     VultronActivityConstructionError,
@@ -117,13 +117,16 @@ class _EmbargoMixin:
     ) -> tuple[str, str]:
         """Create and persist an ``Accept(Invite)`` embargo-accept activity.
 
-        The Invite is read as this actor holds it (:func:`read_held_activity`):
-        archived by intake when received, never re-read under the id its
-        sender chose (DL-06-006).
+        The Invite is read as this actor holds it
+        (:func:`read_held_as_received`): parsed from the body intake archived
+        when it was received, never re-read under the id its sender chose
+        (DL-06-006), and embedded verbatim (DL-06-004).
         """
         proposal = cast(
             Any,
-            read_held_activity(self._dl, proposal_id, "Invite(EmbargoEvent)"),
+            read_held_as_received(
+                self._dl, proposal_id, "Invite(EmbargoEvent)"
+            ),
         )
         activity = em_accept_embargo_activity(
             proposal=proposal, context=case_id, actor=actor, to=to
@@ -147,7 +150,9 @@ class _EmbargoMixin:
         """
         proposal = cast(
             Any,
-            read_held_activity(self._dl, proposal_id, "Invite(EmbargoEvent)"),
+            read_held_as_received(
+                self._dl, proposal_id, "Invite(EmbargoEvent)"
+            ),
         )
         activity = em_reject_embargo_activity(
             proposal=proposal,

@@ -23,15 +23,19 @@ StatusAdoptionGate of the two-seam authorization model (ADR-0046, RSH-01-001 to 
 after ``AppendParticipantStatusNode`` records the raw peer update, a
 ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
 should adopt the status, then ``EmitCaseStatusUpdateNode`` writes the
-post-adoption CaseStatus directly to the case ledger without routing through
-the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
-``add_case_status_tree``; this tree does not execute them directly (RSH-01-004).
+post-adoption CaseStatus, adding every P, X or A latch the sender reported and
+clearing none, directly to the case ledger without routing through the inbox
+seam (RSH-01-003, RSH-04-004).  The embargo teardown and the CSB-18 diagnostic follow it
+(RSH-01-004).  This tree is the only received path by which a participant's
+P, X or A report reaches the case status: ``Add(CaseStatus)`` is the
+CASE_MANAGER's alone (RSH-04-001, RSH-04-005).
 
     AddParticipantStatusBT (Sequence)
     ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)
     ├─ SenderIsParticipantNode                # Sender guard from the declared rule (HP-01-008)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
-    │   ├─ FilterParticipantStatusDimensionsNode  # Guard: adjudicate rm/vfd/pxa separately (RSH-05)
+    │   ├─ CarriedObjectInTargetCaseNode      # Guard: status of this case (HP-08-007)
+    │   ├─ CheckParticipantStatusAcceptableNode  # Guard: accept whole or refuse whole (RSH-09)
     │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)
     ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
     │   ├─ Sequence("SkipIfNotCaseManager")
@@ -43,11 +47,12 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
             ├─ StatusAdoptionGate (Selector)    # StatusAdoptionGate authorization (RSH-01-002)
             │   ├─ CheckIsCaseOwnerNode        # Hard bypass: CASE_OWNER gospel (RSH-01-002)
             │   └─ CaseOwnerApprovesStatusUpdate  # Call-out: non-owners need approval
-            ├─ EmitCaseStatusUpdateNode        # Direct ledger write (RSH-04-004, RSH-01-003)
+            ├─ EmitCaseStatusUpdateNode        # Adopted P/X/A (RSH-01-003)
             ├─ TeardownEffectsOrSkip (FailureIsSuccess)
             │   └─ TeardownEffects (Sequence)
             │       ├─ EmbargoTeardownAuthorizationGate  # Call-out gate (RSH-02-001)
             │       └─ ThreatTerminationBranchNode       # Embargo teardown on P/X/A (RSH-03-001)
+            ├─ PxaEmInvariantDiagnosticNode    # CSB-18-002..004 post-cascade check (#4829)
             └─ EmitRMGapNoteNode               # Commit add_note_to_case on RM anomaly (RSH-06-004)
 
     A replica holding a copy of the ``Add(ParticipantStatus)`` writes nothing: the whole
@@ -55,18 +60,17 @@ the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
     from the committed ``add_participant_status_to_participant`` ledger entry
     (RSH-08-003, PCR-03-001).
 
-``FilterParticipantStatusDimensionsNode`` adjudicates ``rm``, ``vfd`` and
-``pxa`` independently before the commit, so an unacceptable value in one
-dimension no longer discards the accepted dimensions or aborts the Sequence
-before the StatusAdoptionGate emit (RSH-05, ISSUE-2235).  It replaced the
-former ``CheckParticipantRMNotClosedNode`` guard (now removed), subsuming the
-terminal-``RM.CLOSED`` check: a wholly refused assertion still returns FAILURE
-here, before any canonical ledger entry is committed.  When that refusal was
-an RM regression, the factory's refusal-effects stage posts the RSH-06-004
+``CheckParticipantStatusAcceptableNode`` judges the received status as a whole
+before the commit: it is accepted as sent, or refused whole, with every refused
+dimension and its reason reported to the sender in the refusal notice
+(RSH-09-001, RSH-09-002, CLP-05-001).  A refused status is never rewritten into
+one the sender did not send (ADR-0107), so a refusal returns FAILURE here,
+before any canonical ledger entry is committed.  When the refused status
+carried an RM anomaly, the factory's refusal-effects stage posts the RSH-06-004
 note before the tree fails (CLP-10-022).
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
-Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004, RSH-05.
+Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004, RSH-09.
 Per ADR-0050: canonical RM closure is routed through Leave(VulnerabilityCase)
 receive path in receive_close_case_tree, not here.
 """
@@ -78,6 +82,9 @@ import py_trees
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
+)
+from vultron.core.behaviors.case.nodes.carried_object_case import (
+    CarriedObjectInTargetCaseNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -94,8 +101,11 @@ from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
-    FilterParticipantStatusDimensionsNode,
+    CheckParticipantStatusAcceptableNode,
     rm_gap_note,
+)
+from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
+    PxaEmInvariantDiagnosticNode,
 )
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
@@ -120,19 +130,22 @@ def add_participant_status_tree(
     activity.  Implements the DEMOMA-07-003 workflow with StatusAdoptionGate
     authorization (ADR-0046, RSH-01-001 to RSH-01-004).
 
-    When ``case_id`` is provided (or derived from the inline status object),
-    a guarded-commit subtree is inserted after precondition guards so the
-    canonical ledger records receipt of the triggering activity before any
-    protocol effects run (CLP-10-006).  Running the tree with
-    ``actor_id=receiving_actor_id`` (ADR-0022 single-BT shape) means
-    ``CheckIsCaseManagerNode`` in that subtree correctly fires only when
-    the receiving actor holds ``CVDRole.CASE_MANAGER``.
+    When ``case_id`` is provided, a guarded-commit subtree is inserted
+    after precondition guards so the canonical ledger records receipt of the
+    triggering activity before any protocol effects run (CLP-10-006).
+    Running the tree with ``actor_id=receiving_actor_id`` (ADR-0022
+    single-BT shape) means ``CheckIsCaseManagerNode`` in that subtree
+    correctly fires only when the receiving actor holds
+    ``CVDRole.CASE_MANAGER``.
 
-    The *case_id* for the commit and all children is derived from the inline
-    ``request.status.context`` field when not supplied explicitly.  The use
-    case also resolves it from the stored status before building the tree;
-    with no case known, the sender guard refuses, because the declared rule
-    states no side for an activity outside any case (HP-01-008).
+    The *case_id* for the commit and all children is the target
+    participant's own case, which the use case reads from the receiver's
+    record of the participant (HP-08-008); the status's ``context`` never
+    chooses it.  ``CarriedObjectInTargetCaseNode`` refuses, before the
+    commit, a status whose ``context`` names another case or none
+    (HP-08-007).  With no case known, the sender guard refuses, because the
+    declared rule states no side for an activity outside any case
+    (HP-01-008).
 
     After ``AppendParticipantStatusNode`` records the raw peer update, a
     ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
@@ -143,25 +156,26 @@ def add_participant_status_tree(
       ``call_out.status_adoption_gate_factory``; default is ``AlwaysSucceed``
 
     When the gate passes, ``EmitCaseStatusUpdateNode`` writes the post-adoption
-    CaseStatus — carrying the report's P/X/A when it does not regress the
-    case's — directly to the case ledger and fans it out to participants
-    (RSH-01-003, RSH-04-004, RSH-05-019).  A ``FailureIsSuccess``-wrapped
+    CaseStatus, adding every P, X or A latch the report sets and clearing
+    none, directly to the case ledger and fans it out to participants
+    (RSH-01-003, RSH-04-004).  A ``FailureIsSuccess``-wrapped
     ``TeardownEffects`` Sequence then attempts embargo teardown: the
     ``EmbargoTeardownAuthorizationGate`` call-out gates execution, and
     ``ThreatTerminationBranchNode`` fires when the received CaseStatus has
     P=True, X=True, or A=True (RSH-03-001 to RSH-03-003).
     The ``FailureIsSuccess`` wrapper ensures the tree still returns SUCCESS when
     the gate blocks teardown, mirroring the tolerant semantics in the use case
-    layer.  This replaces the side-effect handling previously routed via the
-    ``add_case_status_tree`` inbox-loopback (RSH-04-004).
+    layer.  ``PxaEmInvariantDiagnosticNode`` then reads the post-teardown EM and
+    commits a CSB-18 note when an adopted P, X or A sits beside an embargo that
+    is still in force (CSB-18-002..004, #4829).
 
     Args:
         request: The parsed inbound domain event.
-        case_id: ID of the VulnerabilityCase.  When provided (or derivable
-            from the inline status object), a guarded-commit subtree is
+        case_id: ID of the target participant's VulnerabilityCase
+            (HP-08-008).  When provided, a guarded-commit subtree is
             inserted after precondition guards so the receiving CaseActor
-            writes a canonical ledger entry (CLP-10-005).  Pass ``None``
-            (with no derivable context) to skip the commit.
+            writes a canonical ledger entry (CLP-10-005).  ``None`` leaves
+            no case, and the sender guard refuses (HP-01-008).
         call_out: Call-out backend bundle for ``StatusAdoptionGate``.
             Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
             approves all non-CASE_OWNER updates (historical behavior).
@@ -176,12 +190,9 @@ def add_participant_status_tree(
     actor_id = request.actor_id
     status_obj = request.status
 
-    # Derive case_id from the inline status object when not supplied explicitly.
+    # The case is the target participant's own, resolved by the use case
+    # from the receiver's record (HP-08-008); the status never chooses it.
     tree_case_id: str | None = case_id
-    if tree_case_id is None and status_obj is not None:
-        context_field = getattr(status_obj, "context", None)
-        if context_field:
-            tree_case_id = str(context_field)
 
     # StatusAdoptionGate (RSH-01-002): CASE_OWNER gospel bypass first; all
     # others route through the CaseOwnerApprovesStatusUpdate call-out.
@@ -212,7 +223,19 @@ def add_participant_status_tree(
             case_manager_required=True,
         ),
         precondition_guards=[
-            FilterParticipantStatusDimensionsNode(
+            # HP-08-007: a status of another case never joins this one.
+            *(
+                [
+                    CarriedObjectInTargetCaseNode(
+                        object_id=status_id,
+                        carried=status_obj,
+                        case_id=tree_case_id,
+                    )
+                ]
+                if tree_case_id
+                else []
+            ),
+            CheckParticipantStatusAcceptableNode(
                 participant_id=participant_id,
                 status_id=status_id,
                 status_obj_fallback=status_obj,
@@ -235,10 +258,15 @@ def add_participant_status_tree(
                 validate_rm=False,
             ),
             status_adoption_gate,
+            # The canonical CaseStatus adds every P, X or A latch the sender
+            # reported in its embedded case status, clearing none
+            # (RSH-01-003, #4956).
             EmitCaseStatusUpdateNode(
                 case_id=tree_case_id,
                 name="EmitCaseStatusUpdate",
-                # The case adopts the report's P/X/A here (RSH-01-003).
+                # The case adopts the report's P/X/A here, read at tick after
+                # the append, so a status received by reference is adopted
+                # too (RSH-01-003).
                 reported_status_id=status_id or None,
             ),
             py_trees.decorators.FailureIsSuccess(
@@ -252,9 +280,11 @@ def add_participant_status_tree(
                         ),
                         ThreatTerminationBranchNode(
                             # Prefer the peer's embedded CaseStatus for the
-                            # PXA check; enable DataLayer fallback so that
-                            # when it is absent _threat_present reads the
-                            # case's current_status (written by
+                            # PXA check: it was accepted whole, so it is the
+                            # stored copy the emit adopted (RSH-09-001).
+                            # Enable DataLayer fallback so that when it is
+                            # absent _threat_present reads the case's
+                            # current_status (written by
                             # EmitCaseStatusUpdateNode just above).
                             status_obj=getattr(
                                 status_obj, "case_status", None
@@ -262,10 +292,17 @@ def add_participant_status_tree(
                             case_id=tree_case_id,
                             name="ThreatTerminationBranch",
                             use_datalayer_fallback=True,
-                            sender_actor_id=actor_id,
                         ),
                     ],
                 ),
+            ),
+            # The CSB-18 note is the CASE_MANAGER's own act, committed and
+            # replicated (#4829); it reads the post-teardown EM, so a gate
+            # that blocked the teardown is reported (CSB-18-002..004).
+            PxaEmInvariantDiagnosticNode(
+                status_obj=status_obj,
+                case_id=tree_case_id,
+                name="PxaEmInvariantDiagnostic",
             ),
             rm_gap_note(actor_id, tree_case_id),
         ]
@@ -275,7 +312,7 @@ def add_participant_status_tree(
         manager_gate_name=(
             "AdoptParticipantStatusIfCaseManager" if tree_case_id else None
         ),
-        # A wholly refused regression owes the sender the same note
+        # A refused regression owes the sender the same note
         # (RSH-06-004); the factory runs it only on the refusal, at the
         # CASE_MANAGER, once per received activity (CLP-10-022).
         refusal_effects=[rm_gap_note(actor_id, tree_case_id)],

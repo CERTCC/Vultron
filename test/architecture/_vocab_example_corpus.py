@@ -27,6 +27,7 @@ the corpus is.  Why the collector is as permissive as it is is recorded in
 import inspect
 from typing import Any
 
+from test.support.received import delivered_body
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.examples import (
     submit_report_tutorial,
@@ -108,13 +109,5 @@ def activity_examples() -> dict[str, as_Activity]:
 
 
 def wire_body(activity: as_Activity) -> dict[str, Any]:
-    """The JSON body a sender delivers for *activity*.
-
-    Dumped as ``outbox_delivery`` dumps it.  ``serialize_as_any`` matters: without
-    it a field typed as a parent class dumps only the parent's fields, so an inline
-    ``CaseProposal`` loses the ``object``/``target`` a receiver requires and the
-    body no longer parses.
-    """
-    return activity.model_dump(
-        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
-    )
+    """The JSON body a sender delivers for *activity* (see ``delivered_body``)."""
+    return delivered_body(activity)

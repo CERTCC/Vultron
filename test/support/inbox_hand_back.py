@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import cast
 
 from vultron.adapters.driven.inbox_hand_back_adapter import (
+    delivered_announce,
     hand_back_announce,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -74,11 +75,16 @@ class RecordingInboxHandBack:
 def handed_back_event(
     handed_back: HandedBack,
 ) -> AnnounceLogEntryReceivedEvent:
-    """The event the inbox routes for *handed_back*, as the adapter wraps it."""
-    activity = hand_back_announce(
-        handed_back.entry,
-        handed_back.case_manager_id,
-        handed_back.receiving_actor_id,
+    """The event the inbox routes for *handed_back*, as the adapter wraps it.
+
+    Delivered as the adapter holds it, with its body as received evidence.
+    """
+    activity = delivered_announce(
+        hand_back_announce(
+            handed_back.entry,
+            handed_back.case_manager_id,
+            handed_back.receiving_actor_id,
+        )
     )
     event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
     return event.model_copy(

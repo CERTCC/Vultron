@@ -163,7 +163,7 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         ),
         (
             f"{_C}/nodes/ownership_offer_guard.py",
-            "case_manager_admits_ownership_offer_guard",
+            "case_manager_admits_ownership_proposal_guard",
         ),
         (
             f"{_C}/nodes/ownership_offer_guard.py",
@@ -256,19 +256,15 @@ REPLICA_EMIT_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
             f"{_C}/case_proposal_received_tree.py",
             "create_case_proposal_received_tree",
         ),
-        (
-            "CASE_STATUS",
-            f"{_S}/add_case_status_tree.py",
-            "add_case_status_tree",
-        ),
         # The RM-declaration gap-note exemptions (engage, defer, the three
         # report verdicts) and RSH_STATUS were retired by #3814: once each
         # tree's state write moved under the CASE_MANAGER gate (RSH-08-003),
         # its whole ordered effect pipeline — gap note and, for
         # add_participant_status, the adoption emit and threat teardown —
         # moved with it, so those trees emit nothing outside the gate.
-        # add_case_status keeps CASE_STATUS: it gates only the append, leaving
-        # the CSB-18 diagnostic and the threat-ask ungated.
+        # CASE_STATUS was retired by #4851: add_case_status runs only at a
+        # participant replica, from the CASE_MANAGER (RSH-04-005), and has no
+        # effects to exempt.
         (
             "EMBARGO_INVITE_ANSWER",
             f"{_E}/announce_teardown_tree.py",
@@ -384,6 +380,25 @@ def _diversion_calls() -> Iterator[tuple[str, str, ast.Call]]:
                     yield rel, scope.name, call
 
 
+def _exemption_name(value: ast.expr) -> ast.Name | None:
+    """The named constant an exemption keyword passes, or ``None`` if inline.
+
+    ``CONST if cond else None`` counts as ``CONST``: a tree whose reduced
+    build has no ungated emitter must drop the exemption there, or the
+    factory refuses it as stale (BT-17-008, #4978).
+    """
+    if isinstance(value, ast.Name):
+        return value
+    if (
+        isinstance(value, ast.IfExp)
+        and isinstance(value.body, ast.Name)
+        and isinstance(value.orelse, ast.Constant)
+        and value.orelse.value is None
+    ):
+        return value.body
+    return None
+
+
 def _exemption_uses() -> frozenset[tuple[str, str, str]]:
     """Each named exemption a received tree, or a diversion of one, passes."""
     uses: set[tuple[str, str, str]] = set()
@@ -397,11 +412,12 @@ def _exemption_uses() -> frozenset[tuple[str, str, str]]:
     for rel, scope, call, keyword in sites:
         for kw in call.keywords:
             if kw.arg == keyword:
-                assert isinstance(kw.value, ast.Name), (
+                value = _exemption_name(kw.value)
+                assert value is not None, (
                     f"{rel}:{scope}: pass a named exemption constant from"
                     " replica_emit_exemptions, not an inline value"
                 )
-                uses.add((kw.value.id, rel, scope))
+                uses.add((value.id, rel, scope))
     return frozenset(uses)
 
 

@@ -28,9 +28,6 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.refusal_notice import (
-    EMBARGO_REFUSAL_ANSWERS,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -100,7 +97,6 @@ def withdraw_from_embargo_on_case_tree(
     """
     root = create_receive_activity_tree(
         name="WithdrawFromEmbargoOnCaseBT",
-        refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=SenderCheckContext(

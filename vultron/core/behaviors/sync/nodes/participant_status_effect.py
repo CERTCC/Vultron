@@ -18,7 +18,7 @@
 Provides :class:`ApplyParticipantStatusFromLedgerNode`, which copies the
 status an ``add_participant_status_to_participant`` ledger entry carries onto
 the local participant record (CM-23-016, ADR-0124), refusing one that
-describes an impossible composite state (RSH-05-021, ADR-0061).
+describes an impossible composite state (RSH-09-006).
 
 Provides :class:`EmitImpossibleStateFaultNode`, which emits
 ``Create(ProcessingFault)`` with failure class
@@ -28,7 +28,7 @@ to guarantee that either the status is applied successfully or a fault is emitte
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
 specs/sync-ledger-replication.yaml SYNC-02-002, and
-specs/received-status-handling.yaml RSH-05-021.
+specs/received-status-handling.yaml RSH-09-006.
 """
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ class ApplyParticipantStatusFromLedgerNode(
     DataLayer (this actor may have a partial view of the case), or the
     payload snapshot is incomplete, the node returns SUCCESS without error to
     avoid blocking the ``Announce`` processing flow.  An entry describing an
-    impossible composite state yields FAILURE (RSH-05-021).
+    impossible composite state yields FAILURE (RSH-09-006).
 
     Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
     specs/sync-ledger-replication.yaml SYNC-02-002.
@@ -189,7 +189,7 @@ class ApplyParticipantStatusFromLedgerNode(
             self.logger.warning(
                 "%s: ledger entry '%s' for participant '%s' describes an"
                 " impossible composite state (rm=%s, vf=%s, d=%s):"
-                " %s — refusing to apply (RSH-05-021)",
+                " %s — refusing to apply (RSH-09-006)",
                 self.name,
                 status_id,
                 participant_id,
@@ -220,11 +220,11 @@ class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
 
     This node is the fallback in the Selector that wraps
     :class:`ApplyParticipantStatusFromLedgerNode`.  The Apply node fails only
-    when the entry describes an impossible composite state (RSH-05-021), so
+    when the entry describes an impossible composite state (RSH-09-006), so
     this node emits ``StatusAssertionRefused/ImpossibleState``.
 
     After emitting it returns FAILURE, so the Selector's FAILURE propagates up
-    to block ``PersistReceivedLogEntry`` (SYNC-12-001, RSH-05-021).
+    to block ``PersistReceivedLogEntry`` (SYNC-12-001, RSH-09-006).
 
     The fault is omitted gracefully when no ``TriggerActivityPort`` is wired
     (integration tests, demo runners without a trigger factory), so the tree
@@ -260,7 +260,7 @@ class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
         if self.trigger_activity_factory is None:
             self.logger.warning(
                 "%s: no TriggerActivityPort — ProcessingFault not emitted"
-                " for failed activity '%s' (RSH-05-021)",
+                " for failed activity '%s' (RSH-09-006)",
                 self.name,
                 failed_id,
             )

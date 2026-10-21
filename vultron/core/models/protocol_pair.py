@@ -85,8 +85,9 @@ OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE: str = (
     "offer_case_ownership_transfer"
 )
 
-#: Ledger ``semantic_type`` of the offerer's withdrawal of an ownership-transfer
-#: Offer, ``Undo(Offer(VulnerabilityCase))`` (CM-21-015).
+#: Ledger ``semantic_type`` of the owner's withdrawal of its ownership-transfer
+#: proposal, ``Undo(Offer(Offer(VulnerabilityCase)))``, which closes the Offer
+#: the CASE_MANAGER made from it (CM-21-015, ADR-0148).
 UNDO_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE: str = (
     "undo_case_ownership_transfer"
 )

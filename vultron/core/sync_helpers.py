@@ -293,15 +293,22 @@ def recorded_entries_for_case(
 
 
 def is_ledgered_activity(
-    datalayer: CasePersistence, case_id: str, activity_id: str
+    datalayer: CasePersistence,
+    case_id: str,
+    activity_id: str,
+    *,
+    semantic_type: str | None = None,
 ) -> bool:
     """``True`` when *case_id*'s ledger already records *activity_id*.
 
     A received activity the ledger already records is a redelivery: its
     effect is in place, so a guard reports it as a repeat (HP-01-003).
+    With *semantic_type*, the entry must also record the activity as that
+    semantic, so an id reused for a different activity is not taken for it.
     """
     return any(
         entry.log_object_id == activity_id
+        and (semantic_type is None or entry.semantic_type == semantic_type)
         for entry in recorded_entries_for_case(case_id=case_id, dl=datalayer)
     )
 

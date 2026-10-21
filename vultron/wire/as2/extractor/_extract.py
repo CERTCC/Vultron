@@ -131,8 +131,7 @@ def extract_intent(
         extra_kwargs["rsvp_deadline"] = _effective_rsvp_deadline(
             activity, actor_id, obj, min_rsvp_window, default_rsvp_window
         )
-    if carries_deadline:
-        extra_kwargs["answer_deadline"] = _answer_deadline(activity)
+    extra_kwargs.update(_deadline_kwargs(activity, obj, event_class))
     if carries_terms:
         extra_kwargs["proposed_embargo"] = proposed_embargo
 
@@ -184,12 +183,15 @@ def extract_intent(
             inner_target=_to_domain_obj(inner_target),
             inner_context=_to_domain_obj(inner_context),
             in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
+            # Carried, never re-derived: core records it in the ledger as
+            # received (VM-08-002, CLP-07-011, ADR-0107).
+            received_evidence=activity.received_evidence_json,
             **extra_kwargs,
         ),
     )
 
 
-def _activity_end_time(activity: as_Activity) -> datetime | None:
+def _activity_end_time(activity: object) -> datetime | None:
     """The activity-level ``end_time`` as received, or ``None``.
 
     ``as_Object.validate_datetime`` already read a naive value as UTC, so
@@ -199,7 +201,7 @@ def _activity_end_time(activity: as_Activity) -> datetime | None:
     return raw_end_time if isinstance(raw_end_time, datetime) else None
 
 
-def _answer_deadline(activity: as_Activity) -> datetime | None:
+def _answer_deadline(activity: object) -> datetime | None:
     """The ownership-transfer Offer's deadline to answer, in UTC (CM-21-016).
 
     The activity-level ``end_time``, normalised to UTC here, at the edge
@@ -208,6 +210,23 @@ def _answer_deadline(activity: as_Activity) -> datetime | None:
     """
     end_time = _activity_end_time(activity)
     return end_time.astimezone(UTC) if end_time is not None else None
+
+
+def _deadline_kwargs(
+    activity: as_Activity, obj: object, event_class: type[VultronEvent]
+) -> dict[str, datetime | None]:
+    """The ownership-transfer answer deadlines the event carries, in UTC.
+
+    An Offer carries its own as ``answer_deadline``; the owner's proposal
+    carries it on the inner Offer it asks the CASE_MANAGER to make, as
+    ``proposed_answer_deadline`` (ADR-0148, CM-21-016).
+    """
+    kwargs: dict[str, datetime | None] = {}
+    if "answer_deadline" in event_class.model_fields:
+        kwargs["answer_deadline"] = _answer_deadline(activity)
+    if "proposed_answer_deadline" in event_class.model_fields:
+        kwargs["proposed_answer_deadline"] = _answer_deadline(obj)
+    return kwargs
 
 
 def _content_kwargs(

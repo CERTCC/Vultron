@@ -240,17 +240,31 @@ groups:
     - path: howto/activitypub/activities/role_delegation.md
       title: How to Delegate a Role to Another Participant
     example: reject_case_participant_role
-  - anchor: offer-case-ownership-transfer
-    heading: Offer case ownership transfer
-    when: the Case Owner offers to transfer ownership of the case to another actor
-    send: Offer(VulnerabilityCase)
+  - anchor: propose-case-ownership-transfer
+    heading: Propose case ownership transfer
+    when: the Case Owner proposes to transfer ownership of the case to another actor
+    send: Offer(Offer(VulnerabilityCase))
     send_to: the case manager
     sent_by: the case owner
+    semantics: propose_case_ownership_transfer
+    status: none
+    description: Asks the Case Manager to offer the case to another actor, for example from
+      a Reporter to a Coordinator. The inner Offer names the case, the new owner as its target
+      and, optionally, an `endTime` after which the Case Manager refuses an answer and records
+      the offer as expired. The Case Manager makes the offer itself.
+    seen_in: []
+    example: propose_case_ownership_transfer
+  - anchor: offer-case-ownership-transfer
+    heading: Offer case ownership transfer
+    when: the Case Manager offers the case to the actor the Case Owner proposed
+    send: Offer(VulnerabilityCase)
+    send_to: a participant
+    sent_by: the case manager
     semantics: offer_case_ownership_transfer
     status: none
-    description: Offers the case to the actor named by the target, for example from a Reporter
-      to a Coordinator, optionally with an `endTime` after which the CASE_MANAGER refuses
-      an answer and records the offer as expired.
+    description: 'Offers the case to the actor named by the target, on the Case Owner''s behalf:
+      `attributedTo` names the owner. This is the one offer of the transfer, the one the new
+      owner accepts or rejects. It carries the proposal''s `endTime`, if any.'
     seen_in: []
     example: offer_case_ownership_transfer
   - anchor: accept-case-ownership-transfer
@@ -277,14 +291,14 @@ groups:
     example: reject_case_ownership_transfer
   - anchor: withdraw-case-ownership-transfer
     heading: Withdraw case ownership transfer
-    when: the Case Owner withdraws an open offer of case ownership
-    send: Undo(Offer(VulnerabilityCase))
+    when: the Case Owner withdraws its proposal while the offer of case ownership is open
+    send: Undo(Offer(Offer(VulnerabilityCase)))
     send_to: the case manager
     sent_by: the case owner
     semantics: undo_case_ownership_transfer
     status: none
-    description: Withdraws the ownership transfer offer before it is answered. The current
-      Case Owner keeps the case.
+    description: Withdraws the proposal, and with it the Case Manager's offer, before the
+      offer is answered. The current Case Owner keeps the case.
     seen_in: []
     example: undo_case_ownership_transfer
   - anchor: invite-actor-to-case
@@ -680,48 +694,54 @@ groups:
   occasions:
   - anchor: public-awareness
     heading: Public awareness in a case status
-    when: a Participant learns that the public knows of the vulnerability
+    when: the Case Manager records that the public knows of the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
-    send_to: the case manager
-    sent_by: a participant
+    send_to: a participant
+    sent_by: the case manager
     distinguished_by: '`pxaState` = `Pxa`'
     semantics: add_case_status_to_case
     shorthand: CP
     status: collapse
-    description: Announces evidence that the vulnerability is known to the public.
-    seen_in:
-    - path: howto/activitypub/activities/status_updates.md
-      title: How to Post a Status Update or a Case Note
+    description: Tells a participant that the case status now records that the public knows
+      of the vulnerability.
+    notes: Only the Case Manager sends a case status, as its record of the `pxaState` it adopted,
+      and a receiver refuses one from any other sender. A participant reports public awareness,
+      a public exploit or observed attacks in its own participant status instead.
+    seen_in: []
     example: add_public_awareness_to_case
   - anchor: exploit-public
     heading: Exploit public in a case status
-    when: a Participant learns that an exploit for the vulnerability is public
+    when: the Case Manager records that an exploit for the vulnerability is public
     send: Add(CaseStatus)[target=VulnerabilityCase]
-    send_to: the case manager
-    sent_by: a participant
+    send_to: a participant
+    sent_by: the case manager
     distinguished_by: '`pxaState` = `PXa`'
     semantics: add_case_status_to_case
     shorthand: CX
     status: collapse
-    description: Announces evidence that an exploit is publicly available.
-    seen_in:
-    - path: howto/activitypub/activities/status_updates.md
-      title: How to Post a Status Update or a Case Note
+    description: Tells a participant that the case status now records that an exploit is publicly
+      available.
+    notes: Only the Case Manager sends a case status, as its record of the `pxaState` it adopted,
+      and a receiver refuses one from any other sender. A participant reports public awareness,
+      a public exploit or observed attacks in its own participant status instead.
+    seen_in: []
     example: add_exploit_public_to_case
   - anchor: attacks-observed
     heading: Attacks observed in a case status
-    when: a Participant observes attacks that exploit the vulnerability
+    when: the Case Manager records that attackers are exploiting the vulnerability
     send: Add(CaseStatus)[target=VulnerabilityCase]
-    send_to: the case manager
-    sent_by: a participant
+    send_to: a participant
+    sent_by: the case manager
     distinguished_by: '`pxaState` = `pxA`'
     semantics: add_case_status_to_case
     shorthand: CA
     status: collapse
-    description: Announces evidence that attackers are exploiting the vulnerability.
-    seen_in:
-    - path: howto/activitypub/activities/status_updates.md
-      title: How to Post a Status Update or a Case Note
+    description: Tells a participant that the case status now records that attackers are exploiting
+      the vulnerability.
+    notes: Only the Case Manager sends a case status, as its record of the `pxaState` it adopted,
+      and a receiver refuses one from any other sender. A participant reports public awareness,
+      a public exploit or observed attacks in its own participant status instead.
+    seen_in: []
     example: add_attacks_observed_to_case
   - anchor: vendor-awareness
     heading: Vendor Awareness (CV)

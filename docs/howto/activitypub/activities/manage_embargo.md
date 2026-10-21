@@ -128,6 +128,9 @@ Set its `kind` to one of these:
 - `OTHER`, with no detail; give the account in `summary`.
 
 The CASE_MANAGER records the cause as you give it.
+If you end the embargo with the `terminate-embargo` trigger, give the cause as `cause` in the request body, with the same `kind` and detail.
+An `EARLY` request with no `cause` is sent with an `OTHER` cause.
+The trigger refuses a `THREAT_SIGNAL` cause, and any cause with `END_TIME_REACHED`.
 Do not send `terminationCause` with `END_TIME_REACHED`.
 A receiver refuses a `Remove(Event)` with an unknown `kind`, a missing or malformed detail, or a cause on `END_TIME_REACHED`.
 

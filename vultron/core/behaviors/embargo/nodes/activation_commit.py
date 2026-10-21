@@ -80,6 +80,7 @@ from vultron.core.services.embargo_lifecycle import (
     ParticipantConsentChange,
 )
 from vultron.errors import (
+    INTERNAL_FAULTS,
     BtNodePreconditionError,
     VultronError,
     VultronWiringError,
@@ -299,6 +300,8 @@ class ActivationAppliesNode(DataLayerConditionWithPorts):
                 before, self._embargo_id
             )
             trial_apply(before, [decision.step, *decision.consent_rows])
+        except INTERNAL_FAULTS:
+            raise  # never a refusal, so never answered (ADR-0095)
         except VultronError as exc:
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)

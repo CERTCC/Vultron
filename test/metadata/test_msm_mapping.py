@@ -517,8 +517,13 @@ def _expected_sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
         assert isinstance(declared, SenderRule)
         side = getattr(declared, _SIDE_FIELD[occasion.addressee])
         assert side, f"{occasion.anchor}: no side for its addressee"
+        # The object is worded only for a kind whose wording names it, as
+        # the generator does: an Undo of a nested Offer has no one-word
+        # object (ADR-0148).
         words = [
             kind.sent_by.replace("{object}", answered_request(entry))
+            if "{object}" in kind.sent_by
+            else kind.sent_by
             for kind in SenderEntitlementKind
             if kind in side
         ]

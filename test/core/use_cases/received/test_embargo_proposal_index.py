@@ -38,6 +38,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -69,7 +70,6 @@ from vultron.core.use_cases.triggers.requests import (
     RejectEmbargoTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     reject_embargo_proposal_activity,
@@ -150,7 +150,7 @@ class TestInviteToEmbargoRecordsIndex:
             actor=actor_id,
             to=[actor_id],
         )
-        raw_event = extract_event(proposal)
+        raw_event = received_event(proposal)
         event = cast(
             InviteToEmbargoOnCaseReceivedEvent,
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),
@@ -202,7 +202,7 @@ class TestInviteToEmbargoRecordsIndex:
             actor=actor_id,
             to=[actor_id],
         )
-        raw_event = extract_event(proposal)
+        raw_event = received_event(proposal)
         event = cast(
             InviteToEmbargoOnCaseReceivedEvent,
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),
@@ -569,7 +569,7 @@ class TestReceivedRejectPrunesOpenProposals:
             )
             return cast(
                 RejectInviteToEmbargoOnCaseReceivedEvent,
-                extract_event(reject).model_copy(
+                received_event(reject).model_copy(
                     update={"receiving_actor_id": self._REPLICA}
                 ),
             )
@@ -592,7 +592,7 @@ class TestReceivedRejectPrunesOpenProposals:
         )
         event = cast(
             RejectEmbargoProposalOnCaseReceivedEvent,
-            extract_event(decision).model_copy(
+            received_event(decision).model_copy(
                 update={"receiving_actor_id": self._REPLICA}
             ),
         )
@@ -688,7 +688,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
             actor=actor_id,
         )
 
-        raw_event = extract_event(reject_activity)
+        raw_event = received_event(reject_activity)
         event = cast(RejectInviteToEmbargoOnCaseReceivedEvent, raw_event)
 
         assert event.case_id == case_id
@@ -733,7 +733,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
             context=case.id_,
             actor=actor_id,
         )
-        raw_event = extract_event(reject_activity)
+        raw_event = received_event(reject_activity)
         event = cast(
             RejectInviteToEmbargoOnCaseReceivedEvent,
             raw_event.model_copy(update={"receiving_actor_id": actor_id}),

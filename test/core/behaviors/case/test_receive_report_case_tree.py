@@ -38,6 +38,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.received import with_evidence
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
@@ -63,12 +64,16 @@ def _event(offer):
 
     actor_id = _as_id(offer.actor)
     assert actor_id is not None
-    return SubmitReportReceivedEvent(
-        semantic_type=MessageSemantics.SUBMIT_REPORT,
-        activity_id=offer.id_,
-        activity_type="Offer",
-        actor_id=actor_id,
-        activity=VultronActivity(id_=offer.id_, type_="Offer", actor=actor_id),
+    return with_evidence(
+        SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=offer.id_,
+            activity_type="Offer",
+            actor_id=actor_id,
+            activity=VultronActivity(
+                id_=offer.id_, type_="Offer", actor=actor_id
+            ),
+        )
     )
 
 

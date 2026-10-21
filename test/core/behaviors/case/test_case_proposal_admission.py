@@ -46,6 +46,7 @@ from test.support.ledger import (
     commit_case_fully_closed,
     committed_semantic_types,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -99,7 +100,6 @@ from vultron.core.use_cases.received.case_proposal import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
@@ -220,7 +220,7 @@ def _run_tree(
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
-    event = extract_event(activity).model_copy(
+    event = received_event(activity).model_copy(
         update={"receiving_actor_id": _CASE_ACTOR_URI}
     )
     tree = create_case_proposal_received_tree(
@@ -872,7 +872,7 @@ class TestTheGateIsKeyedOnTheProposalNotTheReport:
                 object_=proposal,
                 to=[_CASE_ACTOR_URI],
             )
-            event = extract_event(activity).model_copy(
+            event = received_event(activity).model_copy(
                 update={"receiving_actor_id": _CASE_ACTOR_URI}
             )
             ticks: list[str] = []

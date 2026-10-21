@@ -40,12 +40,16 @@ from vultron.core.behaviors.embargo.nodes.activation_effect import (
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
 )
+from vultron.core.behaviors.embargo.nodes.chosen_cause import (
+    ChooseTerminationCauseNode,
+    ChosenTermination,
+)
 from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
     IsActiveEmbargoNode,
+    IsAnswerableEmbargoNode,
     IsCloseBlockedByActiveEmbargoNode,
     IsProposedEmbargoNode,
-    IsRejectableEmbargoNode,
     LookupParticipantNode,
     ValidateCaseExistsNode,
 )
@@ -168,7 +172,7 @@ __all__ = [
     # Conditions
     "ValidateCaseExistsNode",
     "IsActiveEmbargoNode",
-    "IsRejectableEmbargoNode",
+    "IsAnswerableEmbargoNode",
     "EmbargoOutlivesDisclosureNode",
     "OwnerRejectionAppliesNode",
     "IsCloseBlockedByActiveEmbargoNode",
@@ -268,4 +272,7 @@ __all__ = [
     "RecordParticipantWithdrawalNode",
     "RejectIsNotWithdrawalNode",
     "WithdrawEmbargoLifecycleNode",
+    # The cause a voluntary termination chose (EMB-14-001)
+    "ChooseTerminationCauseNode",
+    "ChosenTermination",
 ]

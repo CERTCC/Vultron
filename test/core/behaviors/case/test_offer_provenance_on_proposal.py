@@ -39,6 +39,7 @@ from typing import Any
 import pytest
 from py_trees.common import Status
 
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -51,7 +52,6 @@ from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
@@ -227,7 +227,7 @@ def _run_received_bt(
         object_=proposal,
         to=[_CASE_ACTOR_URI],
     )
-    event = extract_event(activity).model_copy(
+    event = received_event(activity).model_copy(
         update={"receiving_actor_id": _CASE_ACTOR_URI}
     )
     # The registry types its return as the VultronEvent base; narrow it so the

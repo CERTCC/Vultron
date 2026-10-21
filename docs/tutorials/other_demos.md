@@ -190,8 +190,8 @@ vultron-demo transfer-ownership
 ```
 
 This demo shows case ownership transfer.
-The current owner (the vendor) offers the case to a coordinator, who either **accepts**, so the case's `attributedTo` moves to the coordinator, or **rejects**, so ownership stays with the vendor.
-A third path has the vendor **withdraw** the offer before the coordinator answers, so ownership again stays with the vendor.
+The current owner (the vendor) proposes the transfer to the Case Actor, which offers the case to a coordinator, who either **accepts**, so the case's `attributedTo` moves to the coordinator, or **rejects**, so ownership stays with the vendor.
+A third path has the vendor **withdraw** its proposal, and with it the offer, before the coordinator answers, so ownership again stays with the vendor.
 In the accept path the offer carries a deadline to answer, and the demo checks that the offer the coordinator receives names it; the coordinator answers in time.
 
 Every message goes through the Case Actor, which holds the CASE_MANAGER role, so that the ledger records the transfer or the coordinator's `Reject` and every participant learns of it.
@@ -205,8 +205,8 @@ sequenceDiagram
     participant CA as Case Actor
     participant C as Coordinator
 
-    V->>CA: Offer Case Ownership Transfer<br/>Offer(VulnerabilityCase)
-    CA->>C: Offer(VulnerabilityCase) (forwarded)
+    V->>CA: Propose Case Ownership Transfer<br/>Offer(Offer(VulnerabilityCase))
+    CA->>C: Offer Case Ownership Transfer<br/>Offer(VulnerabilityCase)
     alt Coordinator accepts
         C-->>CA: Accept Case Ownership Transfer<br/>Accept(Offer)
         Note over CA: CASE_OWNER moves to Coordinator
@@ -214,7 +214,7 @@ sequenceDiagram
         C-->>CA: Reject Case Ownership Transfer<br/>Reject(Offer)
         Note over CA: Ledgers the Reject, ownership unchanged
     else Vendor withdraws
-        V-->>CA: Withdraw Case Ownership Transfer<br/>Undo(Offer)
+        V-->>CA: Withdraw Case Ownership Transfer<br/>Undo(Offer(Offer))
         Note over CA: Ledgers the withdrawal, ownership unchanged
     end
 ```
@@ -388,9 +388,10 @@ See [Acknowledge a Report](../howto/activitypub/activities/acknowledge.md) for t
 This demo shows two workflows for updating a case record:
 
 1. **Notes** — the vendor creates a `Note`, adds it to the case with `Add(Note)`, and then removes it again with `Remove(Note)`.
-2. **Status** — the vendor creates a `CaseStatus` and adds it to the case, then creates a `ParticipantStatus` and adds it to its own participant record with `Add(ParticipantStatus)`.
+2. **Status** — the vendor reports public awareness in a new `ParticipantStatus`, added to its own participant record with `Add(ParticipantStatus)`, and the demo checks that the case status adopted it.
 
 A participant status update is how an actor reports its own Case State (CS) progress: Vendor Awareness (CV), Fix Readiness (CF), and Fix Deployed (CD) are all `Add(ParticipantStatus)` activities.
+So are Public Awareness (CP), Exploit Public (CX), and Attacks Observed (CA), carried in the case status the participant status embeds; only the Case Manager sends `Add(CaseStatus)`.
 
 See [How to Post a Status Update or a Case Note](../howto/activitypub/activities/status_updates.md) for details.
 

@@ -404,8 +404,9 @@ class OfferCaseOwnershipTransferTriggerRequest(
 ):
     """Trigger request to offer case ownership to another actor.
 
-    Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
-    requesting actor to ``transferee_id`` (TRIG-11-001).
+    Emits the requesting Case Owner's proposal,
+    ``Offer(Offer(VulnerabilityCase))``, to the case's CASE_MANAGER, which
+    offers the case to ``transferee_id`` (TRIG-11-001, ADR-0148).
     """
 
 
@@ -434,8 +435,9 @@ class WithdrawCaseOwnershipTransferTriggerRequest(
 ):
     """Trigger request to withdraw an open case ownership transfer offer.
 
-    Emits ``Undo(Offer(VulnerabilityCase))`` from the requesting actor,
-    addressed to the case's CASE_MANAGER (TRIG-11-006, CM-21-015).
+    Emits ``Undo(Offer(Offer(VulnerabilityCase)))`` of the requesting
+    actor's own proposal, addressed to the case's CASE_MANAGER (TRIG-11-006,
+    CM-21-015).
     """
 
 

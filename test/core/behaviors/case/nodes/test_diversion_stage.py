@@ -40,7 +40,10 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
 from vultron.core.behaviors.case.nodes.refusal_notice import (
-    EMBARGO_REFUSAL_ANSWERS,
+    EmitRefusalNoticeNode,
+)
+from vultron.core.behaviors.case.nodes.refusal_stage import (
+    PreconditionGuardStage,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
@@ -132,9 +135,6 @@ class TestDiversionStage:
 
 
 def _tree(*guards, **kwargs) -> py_trees.composites.Sequence:
-    # A diversion answers in place, so a tree with one names how its other
-    # refusals are answered; only the embargo trees divert (CLP-10-026).
-    kwargs.setdefault("refusal_notice_exemption", EMBARGO_REFUSAL_ANSWERS)
     return create_receive_activity_tree(
         name="Probe",
         case_id=_CASE,
@@ -244,12 +244,28 @@ class TestFactoryChecks:
             )
 
     @pytest.mark.spec("CLP-10-022")
-    def test_a_tree_with_diversions_takes_no_refusal_effects(self) -> None:
-        with pytest.raises(VultronWiringError, match="refusal_effects"):
-            _tree(
-                Diversion(name="D", condition=_Counted("C")),
-                refusal_effects=[_Emitter("Answer")],
-            )
+    @pytest.mark.spec("CLP-10-026")
+    def test_a_tree_with_diversions_takes_the_refusal_notice(self) -> None:
+        """The notice answers the guards' refusals; the stage skips it for a
+        diverted delivery, which its diversion answered."""
+        tree = _tree(
+            Diversion(name="D", condition=_Counted("C")),
+            refusal_effects=[_Emitter("Answer")],
+        )
+
+        (stage,) = [
+            n for n in tree.iterate() if isinstance(n, PreconditionGuardStage)
+        ]
+        assert [
+            type(n)
+            for n in stage.refusal.iterate()
+            if isinstance(n, (EmitRefusalNoticeNode, _Emitter))
+        ] == [EmitRefusalNoticeNode, _Emitter]
+        assert [
+            n.name
+            for n in stage.guards.iterate()
+            if isinstance(n, DiversionStage)
+        ] == ["D"]
 
 
 class TestCaseManagerDiversion:
@@ -268,7 +284,6 @@ class TestCaseManagerDiversion:
             precondition_guards=[
                 Diversion(name="D", condition=condition, effects=(effect,))
             ],
-            refusal_notice_exemption=EMBARGO_REFUSAL_ANSWERS,
         )
         (stage,) = [n for n in tree.iterate() if isinstance(n, DiversionStage)]
         BTBridge(datalayer=dl).execute_with_setup(

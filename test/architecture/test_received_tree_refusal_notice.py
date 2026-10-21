@@ -22,13 +22,11 @@ and has precondition guards; a tree goes without it only by passing a
 registered ``RefusalNoticeExemption`` (#4756).  These checks keep that the
 only way out, and keep the exception set closed and reasoned:
 
-1. **Pinned exemption set** ``REFUSAL_NOTICE_EXEMPTION_USES`` and **ratchet**
-   ``EMBARGO_REFUSAL_ANSWERS_BACKLOG``: which tree passes each exemption, held
-   to equality in both directions (ARCH-18-001, ARCH-18-002), and every
-   registered exemption is used by some tree.  The ratchet holds the embargo
-   trees, whose answers #4755 gives; it ends empty, a diverting embargo tree
-   moving to an exemption of its own, since the factory cannot give a tree
-   with a diversion the notice (CLP-10-026).
+1. **Pinned exemption set** ``REFUSAL_NOTICE_EXEMPTION_USES``: which tree
+   passes each exemption, held to equality in both directions (ARCH-18-001,
+   ARCH-18-002), and every registered exemption is used by some tree.  A tree
+   with a diversion takes the notice like any other: the refusal stage skips
+   it for a diverted delivery, which its diversion answered (CLP-10-026).
 2. The registry is the module's whole list: every ``RefusalNoticeExemption``
    constant in ``refusal_notice.py`` is registered, each with its own reason.
 3. Every received tree, built as it runs, that commits to a case and has a
@@ -96,50 +94,6 @@ REFUSAL_NOTICE_EXEMPTION_USES: frozenset[tuple[str, str, str]] = frozenset(
         ),
     }
 )
-
-# Each embargo tree's refusal answers are decided per message under MSM-07.
-# owner: #4755
-EMBARGO_REFUSAL_ANSWERS_BACKLOG: frozenset[tuple[str, str, str]] = frozenset(
-    {
-        (
-            "EMBARGO_REFUSAL_ANSWERS",
-            f"{_E}/announce_teardown_tree.py",
-            "invite_to_embargo_on_case_tree",
-        ),
-        (
-            "EMBARGO_REFUSAL_ANSWERS",
-            f"{_E}/announce_teardown_tree.py",
-            "remove_embargo_from_case_tree",
-        ),
-        (
-            "EMBARGO_REFUSAL_ANSWERS",
-            f"{_E}/answer_trees.py",
-            "accept_invite_to_embargo_tree",
-        ),
-        (
-            "EMBARGO_REFUSAL_ANSWERS",
-            f"{_E}/answer_trees.py",
-            "reject_invite_to_embargo_tree",
-        ),
-        (
-            "EMBARGO_REFUSAL_ANSWERS",
-            f"{_E}/owner_decision_tree.py",
-            "activate_embargo_on_case_tree",
-        ),
-        (
-            "EMBARGO_REFUSAL_ANSWERS",
-            f"{_E}/owner_decision_tree.py",
-            "reject_embargo_proposal_on_case_tree",
-        ),
-        (
-            "EMBARGO_REFUSAL_ANSWERS",
-            f"{_E}/withdrawal_tree.py",
-            "withdraw_from_embargo_on_case_tree",
-        ),
-    }
-)
-
-_ALL_USES = REFUSAL_NOTICE_EXEMPTION_USES | EMBARGO_REFUSAL_ANSWERS_BACKLOG
 
 #: The exemptions whose reason names a node that answers the refusal instead,
 #: and that node: the built tree must hold it.
@@ -327,7 +281,7 @@ def _notices(tree: ReceivedActivityTree) -> list[EmitRefusalNoticeNode]:
 @pytest.mark.spec("ARCH-18-001")
 def test_refusal_notice_exemption_uses_are_pinned() -> None:
     actual = _exemption_uses()
-    expected = _ALL_USES
+    expected = REFUSAL_NOTICE_EXEMPTION_USES
     assert actual == expected, (
         f"NEW: {sorted(actual - expected)}; a new exemption use is a"
         " decision — pin it here with its reason."
@@ -346,7 +300,7 @@ def test_the_exemption_set_is_closed_and_reasoned() -> None:
         assert REFUSAL_NOTICE_EXEMPTIONS[exemption.name] is exemption
     reasons = [c.reason for c in constants.values()]
     assert len(set(reasons)) == len(reasons), "each exemption has its reason"
-    used = {constant for constant, _, _ in _ALL_USES}
+    used = {constant for constant, _, _ in REFUSAL_NOTICE_EXEMPTION_USES}
     assert used == set(constants), (
         f"registered but unused: {sorted(set(constants) - used)};"
         f" used but not registered: {sorted(used - set(constants))}"

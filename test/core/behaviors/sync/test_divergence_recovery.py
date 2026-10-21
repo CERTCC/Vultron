@@ -23,6 +23,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models import fault_classes
 from vultron.core.models.events.actor import (
@@ -38,7 +39,6 @@ from vultron.core.use_cases.received.actor.announce import (
 from vultron.core.use_cases.received.fault import (
     CreateProcessingFaultReceivedUseCase,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     create_processing_fault_activity,
@@ -89,7 +89,7 @@ def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
     )
 
     CreateProcessingFaultReceivedUseCase(
-        dl, cast(CreateProcessingFaultReceivedEvent, extract_event(activity))
+        dl, cast(CreateProcessingFaultReceivedEvent, received_event(activity))
     ).execute()
 
     assert list(dl.list_objects("CaseLedgerEntry")) == []
@@ -113,7 +113,7 @@ def test_case_diverged_fault_from_a_non_participant_is_refused() -> None:
     )
 
     result = CreateProcessingFaultReceivedUseCase(
-        dl, cast(CreateProcessingFaultReceivedEvent, extract_event(activity))
+        dl, cast(CreateProcessingFaultReceivedEvent, received_event(activity))
     ).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
@@ -187,7 +187,7 @@ def test_case_copy_replaces_an_existing_replica() -> None:
 
     AnnounceVulnerabilityCaseReceivedUseCase(
         dl,
-        cast(AnnounceVulnerabilityCaseReceivedEvent, extract_event(activity)),
+        cast(AnnounceVulnerabilityCaseReceivedEvent, received_event(activity)),
     ).execute()
 
     assert cast(Any, dl.read(_CASE_ID)).name == "current copy"

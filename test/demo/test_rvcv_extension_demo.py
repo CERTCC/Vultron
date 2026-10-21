@@ -22,6 +22,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 """
 
 import importlib
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
@@ -200,7 +201,7 @@ def _archived(rows: dict[str, dict]) -> dict[str, dict]:
         f"received-activity/{activity_id}": {
             "type": "ReceivedActivityRecord",
             "id": f"received-activity/{activity_id}",
-            "activity": {"id": activity_id, **row},
+            "received_body": json.dumps({"id": activity_id, **row}),
         }
         for activity_id, row in rows.items()
     }

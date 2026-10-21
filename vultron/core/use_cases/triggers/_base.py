@@ -62,6 +62,7 @@ from vultron.core.models.pending_assertion import (
 )
 from vultron.core.models.use_case_result import ActivityResult, TriggerResult
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.received_activity_loader import ReceivedActivityLoader
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
@@ -72,6 +73,7 @@ from vultron.errors import (
     VultronBTInternalError,
     VultronNotFoundError,
     VultronValidationError,
+    VultronWiringError,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,7 +121,7 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         self._dl = dl
         self._request = request
         self._trigger_activity = trigger_activity
-        # Every tree that commits a ledger entry renders its payload snapshot
+        # A tree that captures a core object in a ledger snapshot renders it
         # through this port; core cannot produce the AS2 shape itself
         # (ARCH-20-001, CLP-07-009).
         self._wire_render_port = wire_render_port
@@ -127,6 +129,24 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         # (SYNC-02-002): the ``sync-log-entry`` verb's tree, and every
         # embargo trigger the CASE_MANAGER runs (EP-09-008, #4085).
         self._sync_port = sync_port
+
+    @property
+    def _received_activities(self) -> ReceivedActivityLoader:
+        """The port a trigger loads a received activity it answers through.
+
+        The trigger port is also the loader (ADR-0149), so a trigger that
+        reads what it received before its tree runs needs it in
+        :meth:`_prepare` too.
+
+        Raises:
+            VultronWiringError: When no trigger port was supplied.
+        """
+        if self._trigger_activity is None:
+            raise VultronWiringError(
+                f"{type(self).__name__} reads a received activity but has no"
+                " TriggerActivityPort to load it through (ADR-0149)"
+            )
+        return self._trigger_activity
 
     def execute(self) -> TriggerResultT:
         """Template method: prepare → gate → run BT → handle result."""

@@ -1391,7 +1391,7 @@ groups:
       The entry was received but could not be processed, which MSM-05-001 assigns to a
       processing fault. Without it the CASE_MANAGER sees only gap Rejects, and its
       replay resends the entry the replica refuses. An entry whose content is invalid
-      in itself, such as the impossible participant status of RSH-05-021, is not a
+      in itself, such as the impossible participant status of RSH-09-006, is not a
       divergence: a fresh copy cannot repair it, so it takes that requirement's fault
       instead of this one.
     relationships:
@@ -1422,7 +1422,7 @@ groups:
     - rel_type: refines
       spec_id: CLP-04-007
     - rel_type: constrains
-      spec_id: RSH-05-021
+      spec_id: RSH-09-006
     adr:
     - ADR-0142
     verification: >-

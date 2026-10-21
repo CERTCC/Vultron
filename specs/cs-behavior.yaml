@@ -2396,7 +2396,7 @@ groups:
     ValidateTriggerTransitionsNode and on the receive path via
     composite_state_violations() (composite_state_invariants.py).
     CSB-18-002 through CSB-18-004 (PXA↔EM) are enforced on the receive
-    path via ThreatTerminationBranchNode in add_case_status_tree;
+    path via ThreatTerminationBranchNode in add_participant_status_tree;
     violation_pxa_em_entailment() (composite_state_invariants.py) is the
     post-cascade diagnostic caller via PxaEmInvariantDiagnosticNode
     (CONCERN-3008, issue #3115).
@@ -2433,7 +2433,7 @@ groups:
       CS_vfd into independent CS_vf and CS_d. Enforced on both protocol paths:
       the emit path refuses the whole trigger
       (ValidateTriggerTransitionsNode._validate_entailments) and the receive path
-      refuses the disqualified dimension (RSH-05-020, ISSUE-2906).
+      refuses the whole received status (RSH-09-004, ISSUE-2906).
       Source: ISSUE-2372.
     testable: true
     preconditions:
@@ -2441,7 +2441,7 @@ groups:
     verification: >-
       Call composite_state_violations(rm, vf, d) for each participant; assert an
       empty list is returned for all valid combined states. Unit tests in
-      test/core/behaviors/status/test_partial_accept_participant_status.py
+      test/core/behaviors/status/test_participant_status_acceptance.py
       confirm both paths refuse an F or D bit set against a pre-acceptance RM,
       and that a batched advance through acceptance reported in one message is
       accepted whole. Tests in test/core/states/test_composite_state_invariants.py
@@ -2469,7 +2469,7 @@ groups:
       entailment, not a timing race — it is NOT enforced at emit time
       because the sequence of events is what makes it contradictory.
       Enforced on the receive path via ThreatTerminationBranchNode
-      (add_case_status_tree.py, RSH-03-001) when the authorization gate
+      (add_participant_status_tree.py, RSH-03-001) when the authorization gate
       permits teardown. Diagnostic check: violation_pxa_em_entailment()
       (composite_state_invariants.py); post-cascade caller:
       PxaEmInvariantDiagnosticNode (CONCERN-3008, issue #3115).

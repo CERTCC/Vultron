@@ -20,7 +20,7 @@ related_specs:
   - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
   - specs/code-style.yaml (CS-23-001)
   - specs/behavior-tree-node-design.yaml (BTND-10-001 through BTND-10-003)
-  - specs/received-status-handling.yaml (RSH-05-001, RSH-05-002, RSH-05-020)
+  - specs/received-status-handling.yaml (RSH-09-001 through RSH-09-004)
   - specs/message-validation.yaml (MV-11-001 through MV-11-005)
 related_notes:
   - notes/architecture-hexagonal.md
@@ -196,23 +196,21 @@ next. Fail-fast is right for a *write*, wrong for a *diagnostic* (ADR-0086).
 
 | | Trigger / emit path | Receive path |
 |---|---|---|
-| Entry point | `ValidateTriggerTransitionsNode` | `FilterParticipantStatusDimensionsNode` |
-| Disposition | Fail-closed: any violation refuses the write | Per-dimension partial accept: refused dimensions keep the current value |
-| Source | BTND-10-001, ADR-0086 | ADR-0061, RSH-05-001, RSH-05-002 |
+| Entry point | `ValidateTriggerTransitionsNode` | `CheckParticipantStatusAcceptableNode` |
+| Admits | Valid adjacent steps only | Any forward move, non-adjacent included; omitted dimensions |
+| Disposition | Any violation refuses the write | Any violation refuses the whole status |
+| Source | BTND-10-001, ADR-0086 | RSH-09-001, RSH-09-003, ADR-0107 |
 | Postel | Conservative in what you send | Liberal in what you accept |
 
-Do **not** "fix" one to match the other. The receive path stays liberal
-(CONCERN-3040):
-
-1. RM is self-declaratory (ADR-0121): the CASE_MANAGER cannot correct a
-   participant's report of its own state.
-2. P/X/A are external observations: refusing a message carrying a correct
-   `exploit=public` beside a stale RM value would keep an embargo running past
-   public exploit code.
-
-Impossible combinations (RM↔VF, RM↔D, VF↔D) are still refused outright by the
-entailment check (RSH-05-020). A wholly refused receive returns
-`HandlerResult.refused`, written as a `rejected` `InboxOutcome` (ADR-0095).
+Do **not** "fix" the admitted moves to match: the receive path stays liberal in
+what it admits, because RM is self-declaratory (ADR-0121) and a peer may advance
+several steps between messages (CSB-16-001). Both paths refuse whole, though:
+the receive path never records part of a status, because that records one
+nobody sent (RSH-09-001, decided under #4451). The cost is that a
+correct P/X/A observation sent beside a regressing RM is refused with it; the
+refusal notice names every reason, so the sender corrects and resends
+(RSH-09-002). A refused receive returns `HandlerResult.refused`, written as a
+`rejected` `InboxOutcome` (ADR-0095).
 
 On the emit side, `ParticipantStatus(previous_rm_state=...)` refuses a backward
 RM step at construction; `force_rm_state=True` is the bootstrap-only override

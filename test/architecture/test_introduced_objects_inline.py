@@ -249,7 +249,7 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "reject_case_participant_role_activity": _answers("offer"),
     "accept_case_ownership_transfer_activity": _answers("offer"),
     "reject_case_ownership_transfer_activity": _answers("offer"),
-    "undo_case_ownership_transfer_activity": _answers("offer"),
+    "undo_case_ownership_transfer_activity": _answers("proposal"),
     "accept_case_proposal_activity": _answers("proposal"),
     "reject_case_proposal_activity": _answers("proposal"),
     "reject_close_case_activity": _answers("leave"),
@@ -275,6 +275,8 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "rm_defer_case_activity": _held("case"),
     "rm_close_case_activity": _held("case"),
     "offer_case_ownership_transfer_activity": _held("case"),
+    # The inner Offer it nests names the held case (ADR-0148).
+    "propose_case_ownership_transfer_activity": _held("case"),
     "remove_participant_from_case_activity": _held("participant"),
     "remove_embargo_from_case_activity": _held("embargo"),
     "withdraw_from_embargo_activity": _held("embargo"),

@@ -16,9 +16,11 @@ from vultron.core.behaviors.status.add_participant_status_tree import (
 from vultron.core.behaviors.status.nodes import (
     CASE_STATUS_ALREADY_PRESENT,
 )
-from vultron.core.behaviors.status.nodes.dimension_filter import (
-    FilterParticipantStatusDimensionsNode,
+from vultron.core.behaviors.status.nodes.participant_status_acceptance import (
+    CheckParticipantStatusAcceptableNode,
 )
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
@@ -50,21 +52,21 @@ if TYPE_CHECKING:
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
+    any_of,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def _filter_node_wholly_refused(tree: py_trees.behaviour.Behaviour) -> bool:
-    """Return True if FilterParticipantStatusDimensionsNode returned FAILURE.
+def _status_refused(tree: py_trees.behaviour.Behaviour) -> bool:
+    """Return True if CheckParticipantStatusAcceptableNode refused the status.
 
-    Used by AddParticipantStatusToParticipantReceivedUseCase to distinguish a
-    wholly-refused dimension-filter from other BT failure causes (ISSUE-3199,
-    AC-2).  Only the filter's total-refusal path warrants a refusal;
-    sender-not-a-participant or authorization failures are
-    different failure modes that do not indicate the assertion was wholly refused.
+    Used by AddParticipantStatusToParticipantReceivedUseCase to tell a refused
+    status from other BT failure causes (RSH-09-008, ISSUE-3199): a
+    sender-not-a-participant or authorization failure does not say the status
+    itself was refused.
     """
-    return node_failed(tree, FilterParticipantStatusDimensionsNode)
+    return node_failed(tree, CheckParticipantStatusAcceptableNode)
 
 
 def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
@@ -76,22 +78,20 @@ def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
 class AddCaseStatusToCaseReceivedUseCase:
     """Process a received ``Add(CaseStatus, VulnerabilityCase)`` (CP, CX, CA).
 
-    A participant reports case-level evidence (public awareness, a public
-    exploit, observed attacks) to the CASE_MANAGER, which adjudicates each
-    dimension and adopts what it accepts (RSH-05-015).  At the CASE_MANAGER
-    the sender must hold a participant record on the case whose closure is
-    not recorded, as for ``Add(ParticipantStatus)``.  A participant replica
-    takes case state from the CASE_MANAGER alone (PCR-03-001), which alone
-    emits ``Add(CaseStatus)`` (RSH-04-001), and a participant sends its
-    case-scoped messages only to the CASE_MANAGER (PCR-08-001).  An
-    unentitled sender is ``REFUSED`` before anything is committed, written
-    or sent (HP-01-006).
+    ``Add(CaseStatus)`` is the CASE_MANAGER's record of the case status it
+    adopted, which it alone emits (RSH-04-001).  A receiver admits it only from
+    the case's CASE_MANAGER, sent to a participant (RSH-04-005, PCR-03-001);
+    a participant reports P, X or A in the ``CaseStatus`` its own
+    ``Add(ParticipantStatus)`` embeds, where the StatusAdoptionGate applies
+    (RSH-07-001).  An ``Add(CaseStatus)`` from any other sender, or sent to
+    the CASE_MANAGER, is ``REFUSED`` before anything is committed, written or
+    sent (HP-01-006).
     """
 
-    # A participant reports to the CASE_MANAGER; a replica takes the status
-    # from the CASE_MANAGER alone (RSH-05-015, RSH-04-001, PCR-03-001).
-    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
-        SenderEntitlementKind.PARTICIPANT
+    # Only the CASE_MANAGER sends it, and only to a participant; no sender is
+    # entitled at the CASE_MANAGER (RSH-04-005, RSH-04-001, PCR-03-001).
+    sender_entitlement: ClassVar[SenderRule] = SenderRule(
+        at_participant=any_of(SenderEntitlementKind.CASE_MANAGER)
     )
 
     def __init__(
@@ -99,7 +99,6 @@ class AddCaseStatusToCaseReceivedUseCase:
         dl: CasePersistence,
         request: AddCaseStatusToCaseReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
-        call_out: "StatusAuthorizationCallOutBundle | None" = None,
         sync_port: "SyncActivityPort | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
@@ -108,7 +107,6 @@ class AddCaseStatusToCaseReceivedUseCase:
         self._sync_port = sync_port
         self._request: AddCaseStatusToCaseReceivedEvent = request
         self._trigger_activity = trigger_activity
-        self._call_out = call_out
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -122,13 +120,9 @@ class AddCaseStatusToCaseReceivedUseCase:
                 "Add(CaseStatus) is missing its status id or case id"
             )
 
-        call_out_kwargs = (
-            {"call_out": self._call_out} if self._call_out is not None else {}
-        )
         tree = add_case_status_tree(
             request=request,
             sender_rule=self.sender_entitlement,
-            **call_out_kwargs,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -138,9 +132,9 @@ class AddCaseStatusToCaseReceivedUseCase:
         )
         result = bridge.execute_with_setup(
             tree=tree,
-            # The *receiving* actor, not the sender (BT-17-005): this applies an
-            # inbound CaseStatus to the receiver's own replica, so the tree must
-            # execute — and therefore read and write — in the receiver's store.
+            # The *receiving* actor, not the sender (BT-17-005): the guards
+            # check the inbound CaseStatus against the receiver's own replica,
+            # so the tree must execute in the receiver's store.
             actor_id=resolve_receiving_actor_id(
                 self._dl, request.receiving_actor_id
             ),
@@ -233,8 +227,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        # Resolve case_id for the guarded-commit subtree (pre-flight lookup).
-        case_id = self._resolve_case_id_for_log_cascade()
+        # The case is the target participant's own (HP-08-008); the tree
+        # refuses a status of any other case before the commit (HP-08-007).
+        case_id = self._target_participant_case_id()
 
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}
@@ -265,7 +260,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         ):
             # The raw claim is on the participant record; only its adoption as
             # canonical was withheld (RSH-01-001, RSH-01-002).  That is not a
-            # refusal of the assertion's content (RSH-05-022), so no fault.
+            # refusal of the assertion's content (RSH-09-008), so no fault.
             return HandlerResult.skipped(
                 f"ParticipantStatus '{request.status_id}' recorded but not"
                 " adopted: CASE_OWNER approval required (RSH-01-002)"
@@ -278,28 +273,25 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             )
             # The tree's refusal notice is the one answer (CLP-05-001); no
             # ProcessingFault is sent as well (#4756).
-            if _filter_node_wholly_refused(tree):
+            if _status_refused(tree):
                 return HandlerResult.refused(
-                    f"ParticipantStatus assertion wholly refused for activity"
+                    f"ParticipantStatus refused for activity"
                     f" '{request.activity_id}': {verdict.reason}"
                 )
         return verdict
 
-    def _resolve_case_id_for_log_cascade(self) -> str | None:
-        request = self._request
+    def _target_participant_case_id(self) -> str | None:
+        """The case the target participant's own record names (HP-08-008).
 
-        if request.status is not None:
-            context = getattr(request.status, "context", None)
-            if context:
-                return str(context)
-
-        if request.context_id is not None:
-            return request.context_id
-
-        if request.status_id:
-            stored_status = self._dl.read(request.status_id)
-            if stored_status is not None:
-                context = getattr(stored_status, "context", None)
-                if context:
-                    return str(context)
-        return None
+        The receiver's stored record of the participant decides the case,
+        never the status's ``context`` or the activity's: the sender chooses
+        those, while the status is appended to whichever case owns the
+        participant.  A participant the receiver does not hold, or whose
+        record names no case, leaves no case, and the sender guard refuses
+        (HP-01-008).
+        """
+        participant_id = self._request.participant_id
+        stored = self._dl.read(participant_id) if participant_id else None
+        if not isinstance(stored, CaseParticipant):
+            return None
+        return _as_id(stored.context)

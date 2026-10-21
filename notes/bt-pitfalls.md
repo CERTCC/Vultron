@@ -176,18 +176,16 @@ collection for a collection port), or the next execution reads a stale value
 ### BT Nodes Must Not Clear Blackboard Keys They Do Not Own
 
 Only the node that writes a key on its active path clears it on its no-op path.
-Clearing a shared key such as `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` from a
-non-producer destroys a value an earlier node in the same Sequence wrote
-(CONCERN-2711). The producer side of the rule is in
-[received-status-authorization.md](received-status-authorization.md)
-§ "Per-dimension partial accept".
+Clearing a shared key from a non-producer destroys a value an earlier node in
+the same Sequence wrote (CONCERN-2711). The producer writes `None` on every
+tick, before any early return (BT-17-003).
 
 ---
 
 ## Execution-Scoped Hand-off Keys Are Reset by the Bridge, Not by a Node
 
 A key written by one node and consumed by a *later* node in the same run (e.g.
-`BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`, written by `FinalizeCsFilterNode`) cannot be
+`BB_RM_ANOMALY`, written by `CheckParticipantStatusAcceptableNode`) cannot be
 cleaned by any node on every outcome, because a short-circuiting Sequence may skip
 the consumer. List it in `execute_with_setup`'s `managed_keys` so the bridge
 restores it in `finally` on every outcome (#3101). Ownership stays with the
@@ -336,7 +334,7 @@ unnecessary.
 When a guard must hand structured anomaly context to a later effect node, define a
 module-level key constant and have the guard write it on **every** tick — `None`
 on normal paths, a typed dict on anomaly paths including FAILURE. Reference:
-`BB_RM_ANOMALY` in `vultron/core/behaviors/status/nodes/dimension_filter.py`. An
+`BB_RM_ANOMALY` in `vultron/core/behaviors/status/nodes/rm_rule.py`. An
 emission node that needs `self.blackboard` uses `DataLayerAction`;
 `DataLayerActionWithPorts` has no `self.blackboard`.
 

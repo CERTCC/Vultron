@@ -71,6 +71,10 @@ def _abandon_as_manager(net: _Network) -> Status:
     )
 
 
+# Integration tier, with the rest of the LedgerNetwork replay group
+# (#4917): about 9s idle plus a 2s teardown rebuild, so under the
+# full unit run's load it can pass the 30s ceiling.
+@pytest.mark.integration
 @pytest.mark.spec("EMB-16-001")
 @pytest.mark.spec("EP-09-007")
 @pytest.mark.spec("EP-09-008")

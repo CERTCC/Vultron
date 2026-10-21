@@ -18,9 +18,9 @@
 ``ValidateRMTransitionNode`` adjudicates the ``rm`` dimension alone and is
 appropriate for standalone use of ``append_participant_status_tree``.  When
 called from ``add_participant_status_tree`` the rm dimension has already been
-adjudicated by ``FilterParticipantStatusDimensionsNode`` in
-``precondition_guards`` (CLP-10-009, RSH-05), so ``validate_rm=False`` is
-passed to skip this node and avoid a redundant post-commit check.
+judged by ``CheckParticipantStatusAcceptableNode`` in ``precondition_guards``
+(CLP-10-009, RSH-09-003), so ``validate_rm=False`` is passed to skip this node
+and avoid a redundant post-commit check.
 """
 
 import logging
@@ -32,7 +32,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
     read_rm_states,
 )
-from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
+from vultron.core.behaviors.status.nodes.rm_rule import BB_RM_ANOMALY
 from vultron.core.states.rm import (
     RM,
     is_monotonic_rm_forward,
@@ -49,15 +49,9 @@ class ValidateRMTransitionNode(DataLayerConditionWithPorts):
     - Accepts non-adjacent forward RM jumps (sender is authoritative)
     - Rejects backwards RM transitions
 
-    When
-    :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`
-    has already refused the ``rm`` dimension and carried the participant's
-    current value forward, this node accepts that value: the transition was
-    adjudicated upstream and re-rejecting it here would abort the Sequence and
-    discard the dimensions that *were* accepted (RSH-05, ISSUE-2235).  The
-    checks below still apply when the node is used standalone, without the
-    filter — which is how ``append_participant_status_tree`` is exercised
-    directly.
+    Used only when ``append_participant_status_tree`` runs standalone; the
+    received path judges ``rm`` in its precondition guard instead and skips
+    this node (``validate_rm=False``).
 
     Returns SUCCESS if the transition is valid or if participant has no current
     status (nothing to validate against).

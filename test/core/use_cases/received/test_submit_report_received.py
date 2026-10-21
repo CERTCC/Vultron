@@ -18,7 +18,7 @@ Instead it writes a pending VultronReportCaseLink and sends Create(as_CasePropos
 
 import pytest
 
-from test.support.received import assert_held_only_as_received
+from test.support.received import assert_held_only_as_received, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -78,13 +78,15 @@ class TestSubmitReportLogMessages:
             actor="https://example.org/users/finder",
             to=["https://example.org/actors/vendor"],
         )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id="https://example.org/activities/submit-log-1",
-            actor_id="https://example.org/users/finder",
-            object_=report,
-            activity=activity,
-            receiving_actor_id="https://example.org/actors/vendor",
+        event = with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id="https://example.org/activities/submit-log-1",
+                actor_id="https://example.org/users/finder",
+                object_=report,
+                activity=activity,
+                receiving_actor_id="https://example.org/actors/vendor",
+            )
         )
 
         dl = SqliteDataLayer(
@@ -138,13 +140,15 @@ class TestSubmitReportCreatesCase:
             actor=finder_id,
             to=[vendor_id],
         )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id=offer_id,
-            actor_id=finder_id,
-            object_=report,
-            activity=activity,
-            receiving_actor_id=vendor_id,
+        event = with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id=offer_id,
+                actor_id=finder_id,
+                object_=report,
+                activity=activity,
+                receiving_actor_id=vendor_id,
+            )
         )
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -252,13 +256,15 @@ class TestSubmitReportCreatesCase:
             actor=self.FINDER_ID,
             to=[self.VENDOR_ID],
         )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id="https://example.org/activities/offer-nostamp-1",
-            actor_id=self.FINDER_ID,
-            object_=report,
-            activity=activity,
-            receiving_actor_id=None,
+        event = with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id="https://example.org/activities/offer-nostamp-1",
+                actor_id=self.FINDER_ID,
+                object_=report,
+                activity=activity,
+                receiving_actor_id=None,
+            )
         )
         from vultron.core.models.actor import VultronService
 
@@ -296,13 +302,15 @@ class TestSubmitReportCreatesCase:
             type_="Offer",
             actor=self.FINDER_ID,
         )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id="https://example.org/activities/offer-no-to-1",
-            actor_id=self.FINDER_ID,
-            object_=report,
-            activity=activity,
-            receiving_actor_id=self.VENDOR_ID,
+        event = with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id="https://example.org/activities/offer-no-to-1",
+                actor_id=self.FINDER_ID,
+                object_=report,
+                activity=activity,
+                receiving_actor_id=self.VENDOR_ID,
+            )
         )
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -337,13 +345,15 @@ class TestSubmitReportAutoCreateCasePolicy:
             actor=self.FINDER_ID,
             to=[self.VENDOR_ID],
         )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id=self.OFFER_ID,
-            actor_id=self.FINDER_ID,
-            object_=report,
-            activity=activity,
-            receiving_actor_id=self.VENDOR_ID,
+        event = with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id=self.OFFER_ID,
+                actor_id=self.FINDER_ID,
+                object_=report,
+                activity=activity,
+                receiving_actor_id=self.VENDOR_ID,
+            )
         )
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -442,13 +452,15 @@ class TestOfferAddressingSemantics:
             to=to,
             target=target,
         )
-        return SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id=self.OFFER_ID,
-            actor_id=self.FINDER_ID,
-            object_=report,
-            activity=activity,
-            receiving_actor_id=receiving_actor_id,
+        return with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id=self.OFFER_ID,
+                actor_id=self.FINDER_ID,
+                object_=report,
+                activity=activity,
+                receiving_actor_id=receiving_actor_id,
+            )
         )
 
     def _make_dl(self) -> SqliteDataLayer:
@@ -524,7 +536,7 @@ class TestOfferAddressingSemantics:
         Goes through the extractor, the edge where ``cc`` is dropped
         (ADR-0109), so the handler sees exactly what a real delivery gives it.
         """
-        from vultron.semantic_registry import extract_event
+        from test.support.received import received_event
         from vultron.wire.as2.factories import rm_submit_report_activity
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             as_VulnerabilityReport,
@@ -538,7 +550,7 @@ class TestOfferAddressingSemantics:
             id_=self.OFFER_ID,
         )
         assert offer.cc == cc  # the wire model still parses it
-        event = extract_event(offer)
+        event = received_event(offer)
         assert isinstance(event, SubmitReportReceivedEvent)
         return event.model_copy(update={"receiving_actor_id": self.VENDOR_ID})
 
@@ -674,13 +686,15 @@ class TestSubmitReportStoresOfferRecord:
             actor=self.FINDER_ID,
             to=[self.VENDOR_ID],
         )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id=self.OFFER_ID,
-            actor_id=self.FINDER_ID,
-            object_=report,
-            activity=activity,
-            receiving_actor_id=self.VENDOR_ID,
+        event = with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id=self.OFFER_ID,
+                actor_id=self.FINDER_ID,
+                object_=report,
+                activity=activity,
+                receiving_actor_id=self.VENDOR_ID,
+            )
         )
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -753,13 +767,15 @@ class TestSubmitReportUnresolvableReceiver:
             actor=self.FINDER_ID,
             to=[self.VENDOR_ID],
         )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id=self.OFFER_ID,
-            actor_id=self.FINDER_ID,
-            object_=VulnerabilityReport(id_=self.REPORT_ID),
-            activity=activity,
-            receiving_actor_id=None,
+        event = with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id=self.OFFER_ID,
+                actor_id=self.FINDER_ID,
+                object_=VulnerabilityReport(id_=self.REPORT_ID),
+                activity=activity,
+                receiving_actor_id=None,
+            )
         )
         inner = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
 
@@ -794,13 +810,15 @@ class TestSubmitReportDisposition:
             actor=self.FINDER_ID,
             to=to,
         )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id=self.OFFER_ID,
-            actor_id=self.FINDER_ID,
-            object_=report_obj,
-            activity=activity,
-            receiving_actor_id=self.VENDOR_ID,
+        event = with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id=self.OFFER_ID,
+                actor_id=self.FINDER_ID,
+                object_=report_obj,
+                activity=activity,
+                receiving_actor_id=self.VENDOR_ID,
+            )
         )
         if dl is None:
             dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
@@ -973,15 +991,17 @@ class TestSubmitReportKeepsWhatArrived:
             actor=sender,
             to=to,
         )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id=self.OFFER_ID,
-            actor_id=sender,
-            object_=VulnerabilityReport(id_=self.REPORT_ID)
-            if report
-            else None,
-            activity=activity,
-            receiving_actor_id=self.VENDOR_ID,
+        event = with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id=self.OFFER_ID,
+                actor_id=sender,
+                object_=VulnerabilityReport(id_=self.REPORT_ID)
+                if report
+                else None,
+                activity=activity,
+                receiving_actor_id=self.VENDOR_ID,
+            )
         )
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=self.VENDOR_ID)
         dl.save(VultronService(id_=self.VENDOR_ID))
