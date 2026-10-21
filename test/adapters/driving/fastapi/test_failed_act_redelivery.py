@@ -32,6 +32,12 @@ from typing import Any, cast
 import pytest
 from fastapi.testclient import TestClient
 
+from test.adapters.driving.fastapi._redelivery import (
+    assert_routed_as_archived_redelivery,
+    faults,
+    post,
+    served_store,
+)
 from test.core.use_cases.received._ledger_network import (
     BYSTANDER,
     MANAGER,
@@ -42,13 +48,9 @@ from test.core.use_cases.received._ledger_network import (
 from test.support.emitter import RecordingEmitter
 from test.support.ledger import fail_commits, ledger_entries
 from test.support.ledger_rebuild import case_file_differences
-from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driving.fastapi.app import create_app
-from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import days_from_now_utc
-from vultron.core.models.actor import CoreActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
@@ -73,22 +75,10 @@ _AS2_OBJECT_ENVELOPE = {"@context", "id", "type", "published", "updated"}
 def served_manager():
     """The CASE_MANAGER's store served by a real app, plus its network."""
     net = LedgerNetwork("https://example.org/cases/failed-act-redelivery")
-    manager_dl = net.stores[MANAGER]
-    manager_dl.create(
-        object_to_record(
-            CoreActor(
-                id_=MANAGER,
-                name="Coordinator",
-                inbox=f"{MANAGER}/inbox",
-                outbox=f"{MANAGER}/outbox",
-            )
-        )
-    )
-    app = create_app(docs_url=None, openapi_url=None)
-    app.dependency_overrides[get_actor_dl] = lambda actor_id: manager_dl
-    emitter = RecordingEmitter()
-    with TestClient(app) as client:
-        app.state.emitter = emitter
+    with served_store(net.stores[MANAGER], MANAGER, "Coordinator") as (
+        client,
+        emitter,
+    ):
         yield client, net, emitter
 
 
@@ -123,34 +113,7 @@ def _held_rows(net: LedgerNetwork, actor_id: str, embargo_id: str) -> list:
 
 
 def _post(client: TestClient, body: dict[str, Any]) -> None:
-    response = client.post(_INBOX, json=body)
-    assert response.status_code == 202, response.text
-
-
-def _assert_routed_as_archived_redelivery(
-    caplog: pytest.LogCaptureFixture, activity_id: str
-) -> None:
-    """The ingress adapter found intake's archive and rebuilt the activity.
-
-    Without this the test could pass on a path that never meets the archive
-    (IE-10-001).
-    """
-    assert any(
-        activity_id in r.getMessage()
-        and "already held (archived)" in r.getMessage()
-        for r in caplog.records
-    ), "the post was not routed as a redelivery"
-
-
-def _faults(emitter: RecordingEmitter) -> list[dict[str, Any]]:
-    """Every delivered ``Create(ProcessingFault)``."""
-    return [
-        body
-        for body, _to in emitter.sent
-        if body["type"] == "Create"
-        and isinstance(body.get("object"), dict)
-        and body["object"].get("type") == "ProcessingFault"
-    ]
+    post(client, _INBOX, body)
 
 
 def _assert_answered_with_an_internal_error_fault(
@@ -158,7 +121,7 @@ def _assert_answered_with_an_internal_error_fault(
 ) -> dict[str, Any]:
     """The only delivery is the fault to the sender (ASK-07-010)."""
     assert [to for _body, to in emitter.sent] == [[PROPOSER]]
-    (fault,) = _faults(emitter)
+    (fault,) = faults(emitter)
     assert fault["actor"] == MANAGER
     # The class and the failed activity, and nothing else: no diagnostics
     # (ASK-07-006).
@@ -251,8 +214,8 @@ def test_a_failed_proposal_is_applied_when_posted_again(
     # sender deduplicates (ID-04-004, ID-04-005).
     _fail_the_relay(client, body)
     assert [to for _body, to in emitter.sent] == [[PROPOSER], [PROPOSER]]
-    assert all(f == fault for f in _faults(emitter)), "the same fault"
-    assert len(_faults(emitter)) == len(emitter.sent)
+    assert all(f == fault for f in faults(emitter)), "the same fault"
+    assert len(faults(emitter)) == len(emitter.sent)
     assert [
         e.id_ for e in ledger_entries(manager_dl, net.case_id)
     ] == entries_before
@@ -262,8 +225,8 @@ def test_a_failed_proposal_is_applied_when_posted_again(
     with caplog.at_level(logging.INFO):
         _post(client, body)
 
-    _assert_routed_as_archived_redelivery(caplog, body["id"])
-    assert _faults(emitter) == [], "the applied act is answered by no fault"
+    assert_routed_as_archived_redelivery(caplog, body["id"])
+    assert faults(emitter) == [], "the applied act is answered by no fault"
     # The redelivery ran as a first delivery: the proposal's entry and one
     # relayed Invite per other participant are committed.
     new_entries = [
@@ -319,7 +282,7 @@ def test_a_committed_proposal_posted_again_is_skipped(
 
     assert [e.id_ for e in ledger_entries(manager_dl, net.case_id)] == entries
     assert len(emitter.sent) == sent
-    _assert_routed_as_archived_redelivery(caplog, body["id"])
+    assert_routed_as_archived_redelivery(caplog, body["id"])
     assert any(
         body["id"] in r.getMessage()
         and f"disposition={HandlerDisposition.SKIPPED}" in r.getMessage()

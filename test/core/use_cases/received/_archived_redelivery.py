@@ -20,39 +20,45 @@ after a rollback commits" builds its redelivery here, so it cannot pass only
 because the resend carries its own evidence.
 """
 
-import inspect
-from typing import Any, TypeVar
+import json
+from typing import Any, TypeVar, cast
 
-from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
+from vultron.adapters.driving.fastapi.inbox_handler import (
+    make_dispatcher,
+    prepare_for_dispatch,
 )
-from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.adapters.inbox_staging import InlineObjectStaging
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    FastAPIIngressAdapter,
+)
 from vultron.core.models.events import AnyReceivedEvent
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.use_case_result import HandlerResult
-from vultron.semantic_registry import extract_event, use_case_map
+from vultron.core.ports.datalayer import DataLayer
 
 
 def archived_redelivery(
-    dl: Any, activity_id: str, **update: Any
+    dl: DataLayer, activity_id: str, **update: Any
 ) -> AnyReceivedEvent:
     """The event the inbox dispatches for a redelivery of *activity_id*.
 
-    The copy routed is the one intake archived in *dl*, rebuilt as the
-    ingress adapter rebuilds it (``InlineObjectStaging.rehydrate_archived``).
-    *update* overrides event fields, such as ``receiving_actor_id``.
+    The archived body is posted again through the ingress adapter
+    (``FastAPIIngressAdapter.parse`` and ``rehydrate``), which routes the copy
+    intake archived in *dl*, and is prepared as the inbox prepares it
+    (``prepare_for_dispatch``).  *update* overrides event fields, such as
+    ``receiving_actor_id``.
     """
     record = dl.read(ReceivedActivityRecord.build_id(activity_id))
     assert isinstance(record, ReceivedActivityRecord), (
         f"intake archived no {activity_id!r}"
     )
-    routed = InlineObjectStaging(dl).rehydrate_archived(activity_id)
-    assert routed is not None, f"{activity_id!r} could not be rebuilt"
-    event = extract_event(routed)
+    ingress = FastAPIIngressAdapter(dl)
+    parsed = ingress.parse(json.loads(record.received_body))
+    assert parsed is not None, f"{activity_id!r} could not be parsed"
+    event = cast(
+        AnyReceivedEvent, prepare_for_dispatch(ingress.rehydrate(parsed))
+    )
     assert event.received_evidence == record.received_body, (
         "the redelivery carries the archived body as its evidence"
     )
@@ -63,7 +69,7 @@ _E = TypeVar("_E")
 
 
 def archived_redelivery_as(
-    dl: Any, activity_id: str, event_type: type[_E], **update: Any
+    dl: DataLayer, activity_id: str, event_type: type[_E], **update: Any
 ) -> _E:
     """:func:`archived_redelivery`, checked to be an *event_type* event."""
     event = archived_redelivery(dl, activity_id, **update)
@@ -72,25 +78,10 @@ def archived_redelivery_as(
 
 
 def route_archived_redelivery(
-    dl: Any, activity_id: str, *, receiving_actor_id: str
+    dl: DataLayer, activity_id: str, *, receiving_actor_id: str
 ) -> HandlerResult:
-    """Route the redelivery of *activity_id* to its use case, as the inbox does.
-
-    The use case is looked up by the routed event's semantics; it gets the
-    real ports, built over *dl*, that it declares.
-    """
+    """Route the redelivery of *activity_id* through the inbox's dispatcher."""
     event = archived_redelivery(
         dl, activity_id, receiving_actor_id=receiving_actor_id
     )
-    use_case_class = use_case_map()[event.semantic_type]
-    ports: dict[str, Any] = {
-        "sync_port": SyncActivityAdapter(dl),
-        "trigger_activity": TriggerActivityAdapter(dl),
-        "wire_render_port": As2WireRenderAdapter(),
-    }
-    accepted = inspect.signature(use_case_class).parameters
-    result = use_case_class(
-        dl, event, **{k: v for k, v in ports.items() if k in accepted}
-    ).execute()
-    assert isinstance(result, HandlerResult)
-    return result
+    return make_dispatcher().dispatch(event, dl)

@@ -25,25 +25,27 @@ import logging
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
 
+from test.adapters.driving.fastapi._redelivery import (
+    assert_routed_as_archived_redelivery,
+    faults,
+    post,
+    served_store,
+)
 from test.core.use_cases.received.actor.test_role_offer_routing import (
     _CASE_MANAGER_ID,
     _OFFER_ID,
+    _OWNER_ID,
     _TARGET_ID,
     _offer,
     _semantic_types,
     _store,
 )
 from test.support.emitter import RecordingEmitter
-from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.adapters.driving.fastapi.app import create_app
-from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
-from vultron.core.models.actor import CoreActor
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -58,27 +60,11 @@ _ROLE_OFFER_ENTRY = "offer_case_participant_role"
 def served_manager():
     """The role-Offer CASE_MANAGER's store served by a real app."""
     dl = _store(_CASE_MANAGER_ID)
-    dl.create(
-        object_to_record(
-            CoreActor(
-                id_=_CASE_MANAGER_ID,
-                name="Case Actor",
-                inbox=f"{_CASE_MANAGER_ID}/inbox",
-                outbox=f"{_CASE_MANAGER_ID}/outbox",
-            )
-        )
-    )
-    app = create_app(docs_url=None, openapi_url=None)
-    app.dependency_overrides[get_actor_dl] = lambda actor_id: dl
-    emitter = RecordingEmitter()
-    with TestClient(app) as client:
-        app.state.emitter = emitter
+    with served_store(dl, _CASE_MANAGER_ID, "Case Actor") as (
+        client,
+        emitter,
+    ):
         yield client, dl, emitter
-
-
-def _post(client: TestClient, body: dict[str, Any]) -> None:
-    response = client.post(_INBOX, json=body)
-    assert response.status_code == 202, response.text
 
 
 def _forwards(emitter: RecordingEmitter) -> list[dict[str, Any]]:
@@ -93,6 +79,7 @@ def _forwards(emitter: RecordingEmitter) -> list[dict[str, Any]]:
 @pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("CM-24-007")
 @pytest.mark.spec("IE-10-001")
+@pytest.mark.spec("ASK-07-010")
 def test_a_failed_role_offer_forward_commits_when_posted_again(
     served_manager, caplog: pytest.LogCaptureFixture
 ):
@@ -111,7 +98,7 @@ def test_a_failed_role_offer_forward_commits_when_posted_again(
         mp.setattr(
             TriggerActivityAdapter, "offer_case_participant_role", _down
         )
-        _post(client, body)
+        post(client, _INBOX, body)
 
     assert calls == ["forward"], "the act failed at its forward"
     assert isinstance(
@@ -120,17 +107,19 @@ def test_a_failed_role_offer_forward_commits_when_posted_again(
     ), "intake's archive survives the rollback"
     assert _ROLE_OFFER_ENTRY not in _semantic_types(dl)
     assert _forwards(emitter) == []
+    # The failed act is answered with one internal-error fault to its sender
+    # (ASK-07-010).
+    (fault,) = faults(emitter)
+    assert emitter.to(_OWNER_ID) == [fault]
+    assert fault["object"]["inReplyTo"] == body["id"]
 
     caplog.clear()
     with caplog.at_level(logging.INFO):
-        _post(client, body)
+        post(client, _INBOX, body)
 
     # The post met the archive: it was routed as the archived copy, so it
     # cannot have passed on the resent body's own evidence.
-    assert any(
-        body["id"] in r.getMessage()
-        and "already held (archived)" in r.getMessage()
-        for r in caplog.records
-    ), "the post was not routed as a redelivery"
+    assert_routed_as_archived_redelivery(caplog, body["id"])
     assert _semantic_types(dl).count(_ROLE_OFFER_ENTRY) == 1
     assert len(_forwards(emitter)) == 1
+    assert faults(emitter) == [fault], "the applied act sends no fault"

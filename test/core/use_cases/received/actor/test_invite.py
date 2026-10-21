@@ -1451,10 +1451,18 @@ class TestInviteActorUseCases:
         )
         assert ordered.count("trigger.announce_vulnerability_case") == 1
 
-    def test_accept_invite_resumes_backfill_without_duplicate_entries(
+    def test_a_backfill_that_fails_part_way_keeps_no_backfill_state(
         self, make_payload
     ):
+        """A join backfill commits with its Accept or not at all (CLP-07-015).
+
+        The joined invitee is seated with no backfill on record, so the
+        commit fan-out reaches it first.  The backfill then fails after its
+        first entry: the act keeps no replication state, so no store ever
+        holds a part-way backfill for a redelivery to resume.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
         from vultron.core.models.replication_state import (
             VultronReplicationState,
         )
@@ -1528,17 +1536,6 @@ class TestInviteActorUseCases:
             payload_snapshot={"index": 1},
         )
 
-        # Simulate interrupted run: participant already joined and first entry
-        # already replayed, but join-time backfill not complete.
-        state = VultronReplicationState(
-            case_id=case.id_,
-            peer_id=invitee_id,
-            join_backfill_target_index=1,
-            join_backfill_last_sent_index=0,
-            join_backfill_complete=False,
-        )
-        dl.save(state)
-
         participant_case = cast(Any, dl.read(case.id_))
         participant_case.actor_participant_index[invitee_id] = (
             f"{case.id_}/participants/late-joiner-retry"
@@ -1569,37 +1566,37 @@ class TestInviteActorUseCases:
             TriggerActivityAdapter(dl).invite_actor_to_full_case
         )
         sync_port = MagicMock()
+        # Calls: the Accept entry's fan-out (2), then the backfill (0, 1).
+        sync_port.send_announce_log_entry.side_effect = [
+            None,
+            None,
+            RuntimeError("delivery refused"),
+        ]
 
         accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
-        AcceptInviteActorToCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=sync_port,
-            trigger_activity=trigger_activity,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
+        with pytest.raises(VultronBTInternalError):
+            AcceptInviteActorToCaseReceivedUseCase(
+                dl,
+                event,
+                sync_port=sync_port,
+                trigger_activity=trigger_activity,
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
 
-        announced_entries = [
-            kwargs["entry"]
-            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
-        ]
-        # Commit-first ordering: CommitCaseLedgerEntryNode fans out the new
-        # accept_invite entry (2) first (invitee already registered), then
-        # backfill resumes from the pre-commit target index and sends entry 1;
-        # the full-case Invite's entry (3) follows it.
-        assert [entry.log_index for entry in announced_entries] == [2, 1, 3]
-        assert announced_entries[1].entry_hash == second.entry_hash
-        assert all(
-            entry.entry_hash != first.entry_hash for entry in announced_entries
-        )
-
+        assert sync_port.send_announce_log_entry.call_count == 3
         state_id = VultronReplicationState(
             case_id=case.id_, peer_id=invitee_id
         ).id_
-        updated_state = cast(Any, dl.read(state_id))
-        assert updated_state.join_backfill_last_sent_index == 1
-        assert updated_state.join_backfill_complete is True
+        assert dl.read(state_id) is None
+        ledger = [
+            e.entry_hash
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry) and e.case_id == case.id_
+        ]
+        assert ledger == [first.entry_hash, second.entry_hash], (
+            "the Accept's own entry is rolled back with the backfill"
+        )
 
     def test_accept_invite_resumes_when_participant_exists_without_marker(
         self, make_payload

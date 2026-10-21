@@ -32,6 +32,9 @@ import pytest
 from pydantic import ValidationError
 
 from test.conftest import seed_case_owner_participant
+from test.core.use_cases.received._archived_redelivery import (
+    route_archived_redelivery,
+)
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -860,10 +863,6 @@ class TestInviteRetrySendsOnce:
 
         # The inbox routes the retry as the copy intake archived
         # (IE-10-001), not as the resent body.
-        from test.core.use_cases.received._archived_redelivery import (
-            route_archived_redelivery,
-        )
-
         retry = route_archived_redelivery(
             harness.manager_dl,
             offer["id"],
