@@ -36,8 +36,6 @@ LEDGER_RECORD_METHODS: tuple[str, ...] = (
     "record_case_status_added",
     "record_case_participant_created",
     "record_case_announced",
-    "record_case_fully_closed",
-    "ignore_late_embargo_accept",
     # The CASE_MANAGER's own note, committed as ``add_note_to_case`` (#4829).
     "create_note",
     "add_note_to_case",

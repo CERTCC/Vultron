@@ -17,7 +17,7 @@
 
 from collections.abc import Callable
 from types import ModuleType
-from typing import Any
+from typing import Any, cast
 
 import py_trees
 import pytest
@@ -31,11 +31,15 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.core.states.rm import RM
 
 
 def committed_semantic_types(dl: DataLayer, case_id: str) -> list[str]:
@@ -92,22 +96,39 @@ def consent_row_updates(
     ]
 
 
-def commit_case_fully_closed(
-    dl: DataLayer, case_id: str, actor_id: str
-) -> None:
-    """Append the ``case_fully_closed`` entry at the tail of *case_id*'s ledger.
+def commit_case_manager_closure(dl: DataLayer, case_id: str) -> None:
+    """Append the CASE_MANAGER's own ``RM.CLOSED`` status entry to *case_id*.
 
-    Chained to the current tail, so the case's ledger stays a valid chain.
+    That entry is the owner-close write boundary (CM-23-002 step 2,
+    CM-23-013): once the ledger holds it the case is fully closed.  The
+    CASE_MANAGER is the one *dl*'s case names.  Only the entry is written:
+    every closure check reads the ledger, never the CASE_MANAGER's
+    participant record.  Chained to the current tail, so the case's ledger
+    stays a valid chain.
     """
+    case = dl.read(case_id)
+    assert isinstance(case, VulnerabilityCase), f"no case '{case_id}' held"
+    manager_id = resolve_case_manager_id(case, cast(CasePersistence, dl))
+    assert manager_id is not None, f"case '{case_id}' names no CASE_MANAGER"
     entries = ledger_entries(dl, case_id)
     dl.create(
         _to_persistable_entry(
             HashChainLedgerRecord(
                 case_id=case_id,
                 log_index=entries[-1].log_index + 1 if entries else 0,
-                object_id=f"{case_id}/activities/owner-leave",
-                semantic_type="case_fully_closed",
-                payload_snapshot={"actor": actor_id},
+                object_id=f"{case_id}/activities/case-manager-closed",
+                semantic_type=(
+                    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value
+                ),
+                payload_snapshot={
+                    "type": "Add",
+                    "actor": manager_id,
+                    "object": {
+                        "type": "ParticipantStatus",
+                        "attributedTo": manager_id,
+                        "rmState": RM.CLOSED.value,
+                    },
+                },
                 prev_log_hash=entries[-1].entry_hash if entries else "0" * 64,
             )
         )

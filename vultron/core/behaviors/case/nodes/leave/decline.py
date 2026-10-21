@@ -41,8 +41,8 @@ class EmitRejectCloseCaseNode(_EmitSingleActivityBase):
     back to the owner (``close_sender_id``) and threaded to the received Leave
     via ``in_reply_to``.
 
-    The same reply answers a ``Leave`` that arrives after
-    ``case_fully_closed`` when the CASE_MANAGER's ``post_close_reply`` policy
+    The same reply answers a ``Leave`` that arrives after the case is fully
+    closed when the CASE_MANAGER's ``post_close_reply`` policy
     is ``REJECT`` (CM-23-013, ADR-0131); ``decline_reason`` names which
     decline it is in the log.
 

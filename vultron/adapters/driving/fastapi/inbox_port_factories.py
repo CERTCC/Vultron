@@ -123,9 +123,9 @@ def with_received_baseline_ports(factory: PortFactory) -> PortFactory:
       natively and fans them out (``CommitNativeLedgerEntriesNode``, ADR-0041
       AC-4); the port is that fan-out's only channel (ARCH-04-004), and its
       outbox order relative to ``Create(VulnerabilityCase)`` is CP-09-009's.
-    - ``CLOSE_CASE`` fans out ``case_fully_closed`` (CM-23-002) and renders
-      each RM closure status, the leaver's and the CASE_MANAGER's own, into
-      the snapshots CM-23-001/005 require (``CommitRMClosureEntriesNode``).
+    - ``CLOSE_CASE`` renders each RM closure status, the leaver's and the
+      CASE_MANAGER's own, into the snapshots CM-23-001/005 require, and fans
+      each entry out (``CommitRMClosureEntriesNode``, CM-23-002).
     """
 
     def _factory(dl: DataLayer) -> dict[str, Any]:
@@ -167,7 +167,7 @@ def _trigger_activity_with_actor_config_port_factory(
       re-invite, with an RSVP deadline measured against its configured
       ``min_rsvp_window`` and ``default_rsvp_window`` (CM-28-012, EP-07-002).
     - ``CLOSE_CASE``, whose CASE_MANAGER answers a Leave that arrives after
-      ``case_fully_closed`` per ``post_close_reply`` (CM-23-013, ADR-0131).
+      the case is fully closed per ``post_close_reply`` (CM-23-013, ADR-0131).
 
     Falls back to ``actor_config=None`` when ``SeedConfig`` is unavailable:
     report submission keeps the always-create default and the embargo use
@@ -227,7 +227,7 @@ _SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})
 
 # CLOSE_CASE emits the as:Reject that declines an owner close during a live
 # embargo (CM-23-011), and reads ActorConfig.post_close_reply, the one policy
-# point that decides whether a Leave after case_fully_closed is answered with
+# point that decides whether a Leave after full closure is answered with
 # Reject(Leave(VulnerabilityCase)) or dropped (CM-23-017, ADR-0131).  See
 # _trigger_activity_with_actor_config_port_factory.
 _CLOSE_CASE_SEMANTICS = frozenset({MessageSemantics.CLOSE_CASE})

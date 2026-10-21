@@ -2241,24 +2241,36 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the case has no current embargo (EM state is EXITED or NONE), the CASE_MANAGER MUST
-      acknowledge the late Accept as a no-op on embargo state, leaving the participant's consent
-      rows unchanged: nothing is recorded after a termination (EM EXITED), and a TIMED_OUT row stays
-      TIMED_OUT when no embargo has started (EM NONE) (ADR-0118).
+      When the case has no current embargo (EM state is EXITED or NONE), the late Accept
+      changes nothing, and the CASE_MANAGER MUST treat it as a no-op: it MUST NOT commit
+      any
+      ledger entry for it, MUST NOT send any activity in reply, and MUST leave the
+      participant's consent rows unchanged: nothing is recorded after a termination (EM
+      EXITED), and a TIMED_OUT row stays TIMED_OUT when no embargo has started (EM NONE)
+      (ADR-0118). A redelivery of the same Accept gets the same result. It is a correct
+      no-op, reported `SKIPPED` (HP-01-003).
     note: >-
       EMB-13-002 independently forbids seeking or accepting new embargoes for a
       case whose CS state is public, exploit-public, or attacks-observed. This
       entry closes the remaining gap: an Accept arriving after EM has EXITED
       while CS is not yet P/X/A previously had no specified behaviour.
     rationale: >-
-      Follows the EMB-07-003 precedent for post-terminal messages: acknowledge
-      without transitioning. There is nothing to invite the actor to, so a fresh
-      invitation would manufacture a negotiation nobody requested — but the
-      actor's case participation is independent of embargo consent and MUST
-      survive. See ADR-0065.
+      Follows the EMB-07-003 precedent for post-terminal messages: no transition.
+      There is nothing to invite the actor to, so a fresh invitation would
+      manufacture a negotiation nobody requested — but the actor's case
+      participation is independent of embargo consent and MUST survive. An entry
+      or reply acknowledging the Accept would change nothing at any receiver, and
+      anything that holds the case and its ledger can see the Accept named an
+      embargo the case no longer holds, so the no-op is not ledgered (ADR-0152,
+      CLP-02-013). See ADR-0065.
     verification: >-
-      Tests confirm that a late Accept arriving when EM is EXITED or NONE is acknowledged without
-      applying any PEC transition, leaving every consent row unchanged.
+      Tests in `test/core/use_cases/received/test_embargo_answer_routing.py` and
+      `test/core/use_cases/received/test_embargo_invite_lapse.py` confirm that a late Accept
+      arriving when EM is EXITED or NONE is reported `SKIPPED`, commits no ledger entry,
+      queues
+      nothing and leaves every consent row unchanged, and that a redelivery, with or
+      without
+      its received body, gets the same result.
     testable: true
     preconditions:
     - em_state:
@@ -2268,10 +2280,10 @@ groups:
     steps:
     - order: 1
       actor: system
-      action: Acknowledge the Accept without applying a PEC transition
+      action: Treat the Accept as a no-op, committing and sending nothing
       expected: >-
         Participant consent rows are unchanged; participant remains in the
-        case; no fresh invitation is emitted
+        case; no ledger entry is committed and nothing is sent
     postconditions:
     - description: >-
         No embargo state change; accepting actor remains a case participant
@@ -2285,6 +2297,7 @@ groups:
         after EM EXITED when CS is not yet P/X/A
     adr:
     - ADR-0065
+    - ADR-0152
     stories:
     - story_2022_013
     - story_2022_088
@@ -2359,48 +2372,6 @@ groups:
     stories:
     - story_2022_013
     - story_2022_014
-  - id: EMB-17-010
-    priority: MUST
-    kind: protocol
-    statement: >-
-      When the CASE_MANAGER acknowledges a no-op late Accept (EMB-17-004), it
-      MUST commit a distinct ledger entry of semantic type
-      `invite_to_embargo_on_case_expired_noop` so that replicas can record the
-      acknowledgement without applying any PEC transition (RSH-08-004). Its
-      payloadSnapshot MUST be the CASE_MANAGER's own factory-built
-      `Ignore(Accept(Invite(EmbargoEvent)))` carrying the late Accept inline,
-      in the AS2 shape a received activity is recorded in (CLP-07-009,
-      CLP-07-013, VM-08-003).
-    rationale: >-
-      Without a committed entry the replica has no record that the late Accept
-      was received and acknowledged; its chain position would be missing,
-      silently blocking replay of all subsequent entries (SYNC-12-001,
-      ADR-0118).
-      Carrying the late Accept inline is a protocol rule, not this prototype's
-      inline-object shortcut: it is ledger snapshot content, which the hash
-      chain covers only when carried in full (CLP-07-006).
-    verification: >-
-      `test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica`
-      drives the full path across per-actor stores: the late Accept reaches the
-      CASE_MANAGER with EM EXITED, the noop entry is committed and broadcast,
-      the replica's participant PEC is unchanged, and the replica's ledger
-      contains the noop entry (EMB-17-004, RSH-08-004).
-    testable: true
-    postconditions:
-    - description: >-
-        A ledger entry with semantic type `invite_to_embargo_on_case_expired_noop`
-        is committed in the CASE_MANAGER's store and replayed in every
-        replica's store; no PEC transition is applied on any store
-    relationships:
-    - rel_type: refines
-      spec_id: EMB-17-004
-    - rel_type: depends_on
-      spec_id: RSH-08-004
-    adr:
-    - ADR-0118
-    stories:
-    - story_2022_013
-    - story_2022_088
   - id: EMB-17-011
     priority: MUST
     kind: protocol

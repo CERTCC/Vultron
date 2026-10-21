@@ -25,16 +25,15 @@ import logging
 from collections.abc import Mapping, Sequence
 from typing import cast
 
-from vultron.core.predicates.case_closure import (
-    CASE_FULLY_CLOSED_SEMANTIC_TYPE,
-)
+from vultron.core.predicates.case_closure import closure_boundary_indices
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
+    PARTICIPANT_JOIN_TIMEOUT,
+    _poll_until,
     find_case_actor_participant_id,
     wait_for_all_participants_rm_closed,
-    wait_for_case_actor_ledger_event,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_participant_pxa_state,
@@ -404,7 +403,7 @@ def verify_case_closed(
     RM ``CLOSED`` is sent nothing after the entries that record its own
     closure, so an earlier leaver's replica never learns of a later
     closure, and the Case Owner's replica never receives the CASE_MANAGER's
-    closure steps or ``case_fully_closed``.  Each departing participant's
+    closure steps.  Each departing participant's
     replica is checked for its own closure only
     (:func:`~vultron.demo.helpers.closure.close_case_owner_last`).
 
@@ -463,9 +462,9 @@ def verify_case_closed(
     )
 
 
-#: The CASE_MANAGER's owner-close write boundary (ADR-0085, CM-23-002); the
-#: same constant the core post-close guard reads (CM-23-013).
-CASE_FULLY_CLOSED = CASE_FULLY_CLOSED_SEMANTIC_TYPE
+#: How the CASE_MANAGER's owner-close write boundary is named in a message:
+#: its own status entry reaching RM.CLOSED (ADR-0085, CM-23-002, CM-23-013).
+_BOUNDARY = "the CASE_MANAGER's own RM.CLOSED status entry"
 
 #: The receipt entry of a ``Leave(VulnerabilityCase)`` (ADR-0050, CM-23-001).
 _CLOSE_CASE = "close_case"
@@ -514,13 +513,17 @@ def case_closure_violations(
     shape: ``log_index``, ``semantic_type``, ``payload_snapshot``).  The ledger
     records a closure when all of these hold:
 
-    - It has exactly one ``case_fully_closed`` entry (CM-23-002).
+    - It has exactly one status entry recording the CASE_MANAGER's own
+      ``RM.CLOSED``, the owner-close write boundary
+      (:func:`~vultron.core.predicates.case_closure.closure_boundary_indices`,
+      the predicate the core post-close guard applies; CM-23-002,
+      CM-23-013).
     - Every actor in *departed_actor_ids* has a ``close_case`` entry before
-      ``case_fully_closed``, and the last RM state a status entry records for
-      it before that boundary is ``RM.CLOSED`` (CM-23-001, CM-23-015).  The
+      the boundary, and the last RM state a status entry records for it
+      before that boundary is ``RM.CLOSED`` (CM-23-001, CM-23-015).  The
       ``close_case`` entry itself records no RM state.
-    - ``case_fully_closed`` is the last entry that records a participant's
-      act: every later entry records the CASE_MANAGER's own act, its
+    - The boundary is the last entry that records a participant's act: every
+      later entry records the CASE_MANAGER's own act, its
       ``payloadSnapshot.actor`` being *case_manager_id* (CM-23-013).
 
     Every violation is reported, not only the first (EH-07-001).
@@ -530,7 +533,8 @@ def case_closure_violations(
         departed_actor_ids: Every participant that left the case before it
             closed, the Case Owner included.
         case_manager_id: The CASE_MANAGER's actor id, or ``None`` when it
-            could not be found, which is itself a violation.
+            could not be found, which is itself a violation: the boundary is
+            its own entry.
 
     Returns:
         One message per violation; empty when the closure is recorded.
@@ -543,16 +547,14 @@ def case_closure_violations(
         ),
         key=lambda pair: pair[0],
     )
-    boundaries = [
-        index
-        for index, entry in indexed
-        if entry.get("semantic_type") == CASE_FULLY_CLOSED
-    ]
-    if len(boundaries) != 1:
+    if case_manager_id is None:
         return [
-            f"expected exactly one {CASE_FULLY_CLOSED!r} entry, found"
-            f" {len(boundaries)}"
+            "no CASE_MANAGER in the case's participant index; cannot find"
+            f" {_BOUNDARY} or tell its own entries from a participant's"
         ]
+    boundaries = closure_boundary_indices(entries, case_manager_id)
+    if len(boundaries) != 1:
+        return [f"expected exactly one {_BOUNDARY}, found {len(boundaries)}"]
     (boundary,) = boundaries
     return _departure_violations(
         [entry for index, entry in indexed if index < boundary],
@@ -572,7 +574,7 @@ def _departure_violations(
 ) -> list[str]:
     """Each departed actor that the ledger before *boundary* leaves open.
 
-    *before* is the ledger before ``case_fully_closed``, in ledger order.
+    *before* is the ledger before the boundary, in ledger order.
     """
     rm_states: dict[str, str] = {}
     left: set[str] = set()
@@ -594,12 +596,12 @@ def _departure_violations(
         if actor_id not in left:
             violations.append(
                 f"no {_CLOSE_CASE!r} entry for {actor_id!r} before"
-                f" {CASE_FULLY_CLOSED!r} (logIndex={boundary})"
+                f" {_BOUNDARY} (logIndex={boundary})"
             )
         elif rm_states.get(actor_id) != RM.CLOSED:
             violations.append(
                 f"{actor_id!r} is at RM {rm_states.get(actor_id)!r} on the"
-                f" ledger before {CASE_FULLY_CLOSED!r}, expected"
+                f" ledger before {_BOUNDARY}, expected"
                 f" {RM.CLOSED.value!r}"
             )
     return violations
@@ -607,15 +609,10 @@ def _departure_violations(
 
 def _post_boundary_violations(
     after: Sequence[tuple[int, Mapping[str, object]]],
-    case_manager_id: str | None,
+    case_manager_id: str,
     boundary: int,
 ) -> list[str]:
     """Each entry after *boundary* that records a participant's act."""
-    if case_manager_id is None:
-        return [
-            "no CASE_MANAGER in the case's participant index; cannot tell its"
-            " own entries from a participant's"
-        ]
     violations: list[str] = []
     for index, entry in after:
         snapshot = entry.get("payload_snapshot")
@@ -627,7 +624,7 @@ def _post_boundary_violations(
         if actor_id != case_manager_id:
             violations.append(
                 f"logIndex={index} {entry.get('semantic_type')!r} records"
-                f" {actor_id!r}'s act after {CASE_FULLY_CLOSED!r}"
+                f" {actor_id!r}'s act after {_BOUNDARY}"
                 f" (logIndex={boundary})"
             )
     return violations
@@ -697,11 +694,12 @@ def verify_case_closure_recorded(
     """Verify the CASE_MANAGER's ledger records the case's closure in order.
 
     The ledger half of the closure milestone; :func:`verify_case_closed` is
-    the participant-record half, read in the same store.  Waits for
-    ``case_fully_closed`` in the CASE_MANAGER's own store, then checks the
+    the participant-record half, read in the same store.  Waits for the
+    CASE_MANAGER's own ``RM.CLOSED`` status entry, the write boundary, in
+    its own store (:func:`wait_for_case_fully_closed`), then checks the
     ledger with :func:`case_closure_violations`: every participant in
-    *departed_actor_ids* is ``RM.CLOSED`` on the ledger before
-    ``case_fully_closed``, and no later entry records a participant's act.
+    *departed_actor_ids* is ``RM.CLOSED`` on the ledger before the boundary,
+    and no later entry records a participant's act.
 
     Args:
         client: Client bound to the CASE_MANAGER's own store (see
@@ -713,19 +711,17 @@ def verify_case_closure_recorded(
             records them.
 
     Raises:
-        AssertionError: If ``case_fully_closed`` does not appear in time, or
+        AssertionError: If the boundary entry does not appear in time, or
             the ledger fails any check; the message lists every violation.
 
     Spec: CM-23-015, CM-23-013, CM-23-002, DEMOMA-06-002.
     """
-    wait_for_case_actor_ledger_event(
-        client=client, case_id=case_id, semantic_type=CASE_FULLY_CLOSED
-    )
+    case_manager_id = find_case_actor_participant_id(client, case_id)
+    if case_manager_id is not None:
+        wait_for_case_fully_closed(client, case_id, case_manager_id)
     entries = case_manager_ledger(client, case_id)
     violations = case_closure_violations(
-        entries,
-        departed_actor_ids,
-        find_case_actor_participant_id(client, case_id),
+        entries, departed_actor_ids, case_manager_id
     )
     if violations:
         raise AssertionError(
@@ -735,5 +731,43 @@ def verify_case_closure_recorded(
         "✓ case closure recorded: %d departures before %s, no participant"
         " act after it",
         len(departed_actor_ids),
-        CASE_FULLY_CLOSED,
+        _BOUNDARY,
+    )
+
+
+def wait_for_case_fully_closed(
+    client: DataLayerClient,
+    case_id: str,
+    case_manager_id: str,
+    timeout_seconds: float = PARTICIPANT_JOIN_TIMEOUT,
+) -> None:
+    """Poll the CASE_MANAGER's own ledger until the case is fully closed.
+
+    The case is fully closed once the ledger holds the CASE_MANAGER's own
+    status entry reaching ``RM.CLOSED`` (CM-23-002 step 2, CM-23-013), read
+    with the predicate the core post-close guard applies
+    (:func:`~vultron.core.predicates.case_closure.closure_boundary_indices`).
+
+    Args:
+        client: Client bound to the CASE_MANAGER's own store (see
+            :func:`~vultron.demo.helpers.polling.case_manager_store`).
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        case_manager_id: The case's CASE_MANAGER.
+        timeout_seconds: Maximum time to wait before raising.
+
+    Raises:
+        AssertionError: If the entry does not appear within
+            *timeout_seconds*.
+    """
+    _poll_until(
+        lambda: bool(
+            closure_boundary_indices(
+                case_manager_ledger(client, case_id), case_manager_id
+            )
+        ),
+        timeout_seconds=timeout_seconds,
+        error_msg=(
+            f"case {case_id!r}: {_BOUNDARY} did not appear in the"
+            " CASE_MANAGER's ledger"
+        ),
     )

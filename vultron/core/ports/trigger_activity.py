@@ -520,24 +520,6 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """
         ...
 
-    def record_case_fully_closed(
-        self,
-        case_id: str,
-        actor: str,
-    ) -> tuple[str, str]:
-        """Build and seal the CASE_MANAGER's ``Update(VulnerabilityCase)`` closing the case.
-
-        The ``case_fully_closed`` entry's activity (CM-23-002 step 3): the
-        CASE_MANAGER's own act, carrying the closed case in full, committed
-        after the received ``Leave``'s ``close_case`` entry and the RM
-        closure entries it caused (CLP-07-013).  ``actor`` is the
-        CASE_MANAGER.  The ledger fan-out delivers it; it is not queued to
-        the outbox.  Its id is derived from the CASE_MANAGER and the case, so
-        a case closes once (ID-04-004).
-        Returns ``(activity_id, activity_blob)``.
-        """
-        ...
-
     # -----------------------------------------------------------------------
     # The CASE_MANAGER's own case-file changes, recorded in the case ledger
     #
@@ -666,24 +648,6 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         change is made (CLP-07-013).  *cause_id* names the act the change
         follows; the id is derived from it and the row, so one act's change
         to one row is one entry.
-        """
-        ...
-
-    def record_ownership_offer_expired(
-        self,
-        offer_id: str,
-        case_id: str,
-        actor: str,
-        published: datetime,
-    ) -> tuple[str, str]:
-        """``Undo(Offer(VulnerabilityCase))``: the CASE_MANAGER withdraws an expired Offer.
-
-        Recorded as ``offer_case_ownership_transfer_expired`` when the
-        ownership-transfer Offer *offer_id* passed its ``end_time``
-        unanswered (CM-21-017).  The Offer is carried inline, with the
-        deadline it passed; *published* is the CASE_MANAGER's clock reading.
-        The id is derived from *actor* and the Offer, so one expiry is one
-        entry.
         """
         ...
 
@@ -975,26 +939,6 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """Create and persist a ``Reject(Invite)`` embargo-reject activity.
 
         Returns ``(activity_id, activity_dict)``.
-        """
-        ...
-
-    def ignore_late_embargo_accept(
-        self,
-        case_id: str,
-        actor: str,
-        late_accept: dict[str, Any],
-    ) -> tuple[str, str]:
-        """Build and seal the CASE_MANAGER's ``Ignore`` of a late embargo ``Accept``.
-
-        The EMB-17-004 no-op acknowledgement: the Invite had expired and no
-        embargo remains for the Accept to bind, so the CASE_MANAGER records
-        that it received the answer and changes nothing.  ``actor`` is the
-        CASE_MANAGER; ``late_accept`` is the received ``Accept`` in its AS2
-        JSON form, carried inline.  The ledger fan-out delivers
-        it; it is not queued to the outbox.  Its id is derived from the
-        CASE_MANAGER and the Accept, so a redelivered Accept is acknowledged
-        once (ID-04-004).
-        Returns ``(activity_id, activity_blob)``.
         """
         ...
 

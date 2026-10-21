@@ -51,7 +51,8 @@ PROTOCOL_DEFAULT_EMBARGO_MAX = timedelta(days=5)
 class PostCloseReply(StrEnum):
     """What the CASE_MANAGER sends back for a late ``Leave(VulnerabilityCase)``.
 
-    After ``case_fully_closed`` is committed, the CASE_MANAGER records nothing
+    After the CASE_MANAGER commits its own status entry reaching ``RM.CLOSED``
+    (the case is fully closed), it records nothing
     for any inbound activity on the case and changes no case or participant
     state (CM-23-013, ADR-0085).  This setting decides only the courtesy reply
     to a late **Leave**:
@@ -162,8 +163,8 @@ class ActorConfig(BaseModel):
     post_close_reply: PostCloseReply = Field(
         default=DEFAULT_POST_CLOSE_REPLY,
         description=(
-            "Reply to a Leave(VulnerabilityCase) that arrives after "
-            "case_fully_closed: 'drop' (default) sends nothing, 'reject' "
+            "Reply to a Leave(VulnerabilityCase) that arrives after the "
+            "case is fully closed: 'drop' (default) sends nothing, 'reject' "
             "sends Reject(Leave(VulnerabilityCase)). Every other late "
             "activity is dropped under both settings (CM-23-017)."
         ),

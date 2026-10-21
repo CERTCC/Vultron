@@ -14,7 +14,8 @@
 """The closure phase every scenario shares: the Case Owner leaves last.
 
 The Case Owner's ``Leave(VulnerabilityCase)`` closes the case for everyone
-(CM-23-002), and a departure sent after ``case_fully_closed`` is not recorded
+(CM-23-002), and a departure sent after the case is fully closed, once the
+CASE_MANAGER has recorded its own ``RM.CLOSED``, is not recorded
 (CM-23-013).  So the owner leaves after every other participant has left
 (CM-23-015), and only once the CASE_MANAGER has recorded each of those
 departures: a trigger returns 202 and the ``Leave`` commits later on another
@@ -114,16 +115,17 @@ def close_case_owner_last(
     Once the owner has left, the closure milestone runs, each part in its
     own ``demo_check``:
 
-    1. the CASE_MANAGER's ledger records every departure before
-       ``case_fully_closed`` and no participant act after it
+    1. the CASE_MANAGER's ledger records every departure before its own
+       ``RM.CLOSED`` status entry, the write boundary, and no participant
+       act after it
        (:func:`~vultron.demo.helpers.milestones.verify_case_closure_recorded`);
     2. every participant is ``RM.CLOSED`` in the CASE_MANAGER's store
        (:func:`~vultron.demo.helpers.milestones.verify_case_closed`);
     3. each departing participant's own replica holds the ledger through the
        last entry recording its own closure and nothing after it, and reads
        itself ``RM.CLOSED`` (CM-23-004).  This is the leaver waiting for its
-       own closure entry before it exits; it is never sent a later closure
-       or ``case_fully_closed``, so no replica is checked for those.
+       own closure entry before it exits; it is never sent a later closure,
+       the CASE_MANAGER's included, so no replica is checked for those.
 
     They are skipped with the owner's ``Leave`` when the gate fails, so the
     one failure names the cause.
@@ -261,8 +263,8 @@ def _verify_closure(
     """Run the closure milestone's checks once the owner has left."""
     prefix = f"{milestone}: " if milestone else ""
     with demo_check(
-        f"{prefix}every departure recorded before case_fully_closed"
-        " (CM-23-015)"
+        f"{prefix}every departure recorded before the CASE_MANAGER's own"
+        " RM.CLOSED (CM-23-015)"
     ):
         verify_case_closure_recorded(
             client=manager,

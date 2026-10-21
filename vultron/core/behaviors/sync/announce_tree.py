@@ -20,7 +20,6 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoRejectionFromLedgerNode,
     ApplyEmbargoTeardownNode,
     ApplyEmbargoWithdrawalFromLedgerNode,
-    ApplyInviteExpiryNoopFromLedgerNode,
     IsActivateEmbargoEventNode,
     IsRejectEmbargoProposalEventNode,
 )
@@ -54,7 +53,6 @@ from vultron.core.behaviors.sync.nodes import (
     IsEmbargoProposalEventNode,
     IsEmbargoReinviteEventNode,
     IsInviteAcceptEventNode,
-    IsInviteExpiryNoopEventNode,
     IsInviteRejectEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
@@ -154,11 +152,6 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
             "EmbargoWithdrawal",
             IsWithdrawFromEmbargoEventNode,
             ApplyEmbargoWithdrawalFromLedgerNode,
-        ),
-        _event_effect_slot(
-            "InviteExpiryNoop",
-            IsInviteExpiryNoopEventNode,
-            ApplyInviteExpiryNoopFromLedgerNode,
         ),
         _event_effect_slot(
             "EmbargoAbandonment",

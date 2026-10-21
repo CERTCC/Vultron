@@ -387,12 +387,13 @@ Other participants leave too, but only the Case Owner's departure closes the cas
 The CASE_MANAGER runs one fixed sequence when it receives the Case Owner's `Leave(VulnerabilityCase)` ([CM-23-002](../../reference/specs/protocol.md#cm-23-002)).
 
 1. It records the departure in the ledger.
-2. It moves the Case Owner to RM `CLOSED`, recording each step.
-3. It moves its own participant record to RM `CLOSED`, recording each step.
-4. It expires every embargo invitation still waiting for an answer ([CM-23-014](../../reference/specs/protocol.md#cm-23-014)).
-5. It records a `case_fully_closed` entry, which marks the boundary.
-   The entry is the CASE_MANAGER's own `Update(VulnerabilityCase)` carrying the closed case, not a record of the Case Owner's act.
-6. It sends that entry to every active participant that has not already left.
+2. It expires every embargo invitation still waiting for an answer ([CM-23-014](../../reference/specs/protocol.md#cm-23-014)).
+3. It moves the Case Owner to RM `CLOSED`, recording each step.
+4. It moves its own participant record to RM `CLOSED`, recording each step.
+   Its own status entry that reaches RM `CLOSED` is the last entry of the close, and it marks the boundary.
+
+It sends each of these entries to every active participant that has not already left.
+No separate entry marks the closure, because every node that holds the case and its ledger can already see it ([ADR-0152](../../adr/0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md)).
 
 The CASE_MANAGER declines the close with a `Reject` while an embargo is still active ([CM-23-011](../../reference/specs/protocol.md#cm-23-011)).
 It records nothing for the declined close.
@@ -405,7 +406,7 @@ A participant's RM state is its own report about itself, and closing the case ar
 
 ### After the boundary, nothing is recorded
 
-After `case_fully_closed`, the CASE_MANAGER treats the case as if its process had exited ([CM-23-013](../../reference/specs/protocol.md#cm-23-013), [ADR-0085](../../adr/0085-case-lifecycle-boundaries.md)).
+Once its own RM `CLOSED` status entry is in the ledger, the CASE_MANAGER treats the case as if its process had exited ([CM-23-013](../../reference/specs/protocol.md#cm-23-013), [ADR-0085](../../adr/0085-case-lifecycle-boundaries.md)).
 For any inbound message about the case, it records no ledger entry and changes no state.
 That applies to every kind of message: notes, status updates, embargo messages, and departures alike.
 It is a kill switch, not a filter.
@@ -433,7 +434,7 @@ The CASE_MANAGER may still answer a participant's request for missing ledger ent
 A replica that missed entries before the close can still catch up.
 How that catch-up works is the subject of [Case Ledger Synchronization](case_ledger_sync.md).
 
-The `case_fully_closed` entry marks the write boundary, not the end of the ledger.
+The CASE_MANAGER's own RM `CLOSED` status entry marks the write boundary, not the end of the ledger.
 A node must not treat it as proof that it holds the complete history ([CM-23-002](../../reference/specs/protocol.md#cm-23-002)).
 
 ### The Case Owner leaves last
@@ -480,7 +481,7 @@ When that case is to be closed, it closes through the same close path as any oth
 | Two checks | The receiver must hold the role, and the sender must be entitled to the assertion. Neither check implies the other |
 | Trust from a prior relationship | A participant trusts a CASE_MANAGER only when a trust anchor it wrote itself names that actor |
 | No replica without trust | A case announcement seeds a replica only after a bootstrap or an invitation exchange |
-| Hard close | After `case_fully_closed`, the CASE_MANAGER records nothing. Replay of existing entries still works |
+| Hard close | After its own RM `CLOSED` status entry, the CASE_MANAGER records nothing. Replay of existing entries still works |
 | Closed is final | RM `CLOSED` is terminal. A participant that may return defers instead |
 
 ---

@@ -287,11 +287,10 @@ def _commit_node_types() -> tuple[type, ...]:
     ``CreateLogEntryNode`` mints in-tree; ``CommitCaseLedgerEntryNode`` is the
     received activity's commit.  The others commit a CASE_MANAGER-authored
     activity they build themselves in a nested tree only they can see, so
-    they are named here to be checked: ``ExpireOverdueOwnershipOfferNode``
-    (the Offer expiry, which Offer is known only when it runs),
-    ``CommitAndApplyInviteExpiryNode`` (the invitation expiry and its
-    ``TIMED_OUT`` row, decided first so the row is written only once both
-    commit, ADR-0124), ``CommitAndApplyHonourLateAcceptNode`` (the late-Accept
+    they are named here to be checked: ``CommitAndApplyInviteExpiryNode``
+    (the invitation expiry and its ``TIMED_OUT`` row, decided first so the
+    row is written only once both commit, ADR-0124),
+    ``CommitAndApplyHonourLateAcceptNode`` (the late-Accept
     honour and its ``AGREED`` row, a CASE_MANAGER diversion's commit,
     CLP-10-026), ``ExpireInvitationsNode`` (the overdue-invitation
     sweep and the owner-close settle step, each running that expiry per row
@@ -303,9 +302,6 @@ def _commit_node_types() -> tuple[type, ...]:
     """
     from vultron.core.behaviors.case.nodes.lifecycle import (
         CommitCaseLedgerEntryNode,
-    )
-    from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
-        ExpireOverdueOwnershipOfferNode,
     )
     from vultron.core.behaviors.case.nodes.stub_reissue import (
         ReissueStubInvitesNode,
@@ -331,7 +327,6 @@ def _commit_node_types() -> tuple[type, ...]:
         ExpireInvitationsNode,
         CommitCaseLedgerEntryNode,
         CreateLogEntryNode,
-        ExpireOverdueOwnershipOfferNode,
         _CommitCaseManagerActivityBase,
         EmitCaseStatusUpdateNode,
         ReissueStubInvitesNode,
@@ -472,7 +467,6 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
     assert {
         "CommitAndApplyInviteExpiryNode",
         "ExpireOverdueInvitesNode",
-        "ExpireOverdueOwnershipOfferNode",
         "CommitAndApplyEmbargoTerminationNode",
         "EmitCaseStatusUpdateNode",
         "ReissueStubInvitesNode",

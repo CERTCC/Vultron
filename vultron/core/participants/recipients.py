@@ -293,9 +293,9 @@ def ledger_entry_recipients(
     (:func:`entry_records_own_closure`): a leaving participant receives the
     ``close_case`` entry and every status entry the CASE_MANAGER commits
     for its closure, the one that reaches ``CLOSED`` included, and nothing
-    after them, ``case_fully_closed`` included.  The exception never widens
-    entitlement: an inert or removed participant is not sent these entries
-    either (CM-10-004).  Roster order is kept, minus *excluding*.
+    after them, the CASE_MANAGER's own closure included.  The exception
+    never widens entitlement: an inert or removed participant is not sent
+    these entries either (CM-10-004).  Roster order is kept, minus *excluding*.
     """
     return [
         actor_id

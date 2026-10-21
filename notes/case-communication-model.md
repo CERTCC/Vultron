@@ -272,7 +272,6 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 | `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed, an invitation expiry (`TIMED_OUT`, CM-28-014) and an honoured late Accept (`AGREED`, EMB-17-009) included; a no-op when the seed is past it, else refuses it and holds its Announce |
 | `activate_embargo_on_case` (owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | copies the `ACTIVATE` step (B `ACTIVE`, A `SUPERSEDED`) and the owner's `AGREED` row; each `CARRY_OVER` row follows as its own `update_embargo_consent` |
 | `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | copies the `REJECT` step: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent. After disclosure the CASE_MANAGER's teardown entry follows in the same act and terminates A (EMB-04-002, MSM-07-009); the replica copies both and decides nothing |
-| `invite_to_embargo_on_case_expired_noop` | `InviteExpiryNoop` | no PEC change (EMB-17-004) |
 | `invite_to_embargo_on_case_reinvite` (no `attributedTo`) | `EmbargoReinvite` | stores B; the invitee's `INVITED` row and deadline follow; no EM change (EMB-17-003) |
 | `remove_embargo_event_from_case` | `EmbargoTeardown` | copies the `TERMINATE` step for the embargo the entry names, with the `CANCEL` of every open proposal (EP-08-004); writes no row (MSM-07-006); an entry naming an embargo not in force here changes nothing |
 

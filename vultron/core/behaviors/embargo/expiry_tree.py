@@ -41,8 +41,8 @@ CASE_MANAGER too (BT-17-001, HP-01-005).
 A replica copies the row from the ``Update`` entry (CM-23-016).
 
 A late Accept is then answered by one of three CASE_MANAGER diversions of the
-Accept tree (:func:`late_accept_diversions`, EMB-17, CLP-10-026), each
-following commit → effect::
+Accept tree (:func:`late_accept_diversions`, EMB-17, CLP-10-026); the two that
+change the case follow commit → effect, and the third changes nothing::
 
     HonourLateAccept (DiversionStage)
     ├─ LateAcceptHonour: Inverter(InviteNotExpired), LateAcceptRouteIs(HONOUR)
@@ -50,10 +50,9 @@ following commit → effect::
     ReinviteLateAccepter (DiversionStage)
     ├─ LateAcceptReinvite: …, LateAcceptRouteIs(REINVITE)
     └─ ReinviteLateAccepterNode  # stamp → build → outbox → commit → PEC INVITE
-    AcknowledgeLateAccept (DiversionStage)
-    ├─ LateAcceptAcknowledge: …, LateAcceptRouteIs(ACKNOWLEDGE),
-    │    LateAcceptAcknowledgeable
-    └─ CommitLateAcceptAcknowledgementNode   # the CASE_MANAGER's Ignore
+    LateAcceptBindsNothing (DiversionStage)
+    ├─ LateAcceptUnbound: …, LateAcceptRouteIs(UNBOUND)
+    └─ LateAcceptChangesNothingNode   # nothing recorded, nothing sent
 
 Replicas replay the re-invite through
 :class:`~vultron.core.behaviors.embargo.nodes.relay_effect.ApplyEmbargoReinviteFromLedgerNode`.
@@ -83,8 +82,7 @@ from vultron.core.behaviors.embargo.nodes.expiry_commit import (
     CommitAndApplyInviteExpiryNode,
 )
 from vultron.core.behaviors.embargo.nodes.late_accept import (
-    CommitLateAcceptAcknowledgementNode,
-    LateAcceptAcknowledgeableNode,
+    LateAcceptChangesNothingNode,
     LateAcceptRoute,
     LateAcceptRouteIsNode,
 )
@@ -248,7 +246,7 @@ LATE_ACCEPT_DIVERSIONS: Mapping[LateAcceptRoute, str] = MappingProxyType(
     {
         LateAcceptRoute.HONOUR: "HonourLateAccept",
         LateAcceptRoute.REINVITE: "ReinviteLateAccepter",
-        LateAcceptRoute.ACKNOWLEDGE: "AcknowledgeLateAccept",
+        LateAcceptRoute.UNBOUND: "LateAcceptBindsNothing",
     }
 )
 
@@ -261,13 +259,7 @@ def _late_accept_condition(
     route: LateAcceptRoute,
     result_out: dict[str, Any],
 ) -> py_trees.behaviour.Behaviour:
-    """The Invite expired, and its late Accept takes the *route* arm.
-
-    The acknowledgement arm also needs a delivery it can answer
-    (:class:`LateAcceptAcknowledgeableNode`): a resend with no received body
-    and no acknowledgement recorded falls through to the late-Accept guard,
-    which refuses it (CLP-10-026).
-    """
+    """The Invite expired, and its late Accept takes the *route* arm."""
     children: list[py_trees.behaviour.Behaviour] = [
         py_trees.decorators.Inverter(
             name="InviteExpired",
@@ -284,8 +276,6 @@ def _late_accept_condition(
             route=route,
         ),
     ]
-    if route is LateAcceptRoute.ACKNOWLEDGE:
-        children.append(LateAcceptAcknowledgeableNode(case_id=case_id))
     return py_trees.composites.Sequence(
         name=f"LateAccept{route.value.title()}",
         memory=False,
@@ -324,8 +314,9 @@ def late_accept_diversions(
       embargo in force; the node stamps a fresh deadline, queues the Invite,
       commits it once queued and applies PEC ``INVITE`` (ADR-0119,
       CM-28-013).
-    - **Acknowledge** (EMB-17-004, EMB-17-010): commit the CASE_MANAGER's
-      ``Ignore`` of the late Accept and change no consent row.
+    - **Bind nothing** (EMB-17-004): the case holds no embargo for the Accept
+      to bind, so it changes nothing: no entry, nothing sent, no consent row
+      moved (ADR-0152).
 
     Args:
         case_id: The case the Invite was for.
@@ -381,11 +372,13 @@ def late_accept_diversions(
         ),
     )
     acknowledge = Diversion(
-        name=LATE_ACCEPT_DIVERSIONS[LateAcceptRoute.ACKNOWLEDGE],
-        condition=condition(LateAcceptRoute.ACKNOWLEDGE),
+        name=LATE_ACCEPT_DIVERSIONS[LateAcceptRoute.UNBOUND],
+        condition=condition(LateAcceptRoute.UNBOUND),
         effects=(
-            CommitLateAcceptAcknowledgementNode(
-                case_id=case_id, name="CommitLateAcceptAcknowledgement"
+            LateAcceptChangesNothingNode(
+                case_id=case_id,
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
             ),
         ),
     )

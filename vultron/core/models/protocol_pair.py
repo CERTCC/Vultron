@@ -92,27 +92,17 @@ UNDO_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE: str = (
     "undo_case_ownership_transfer"
 )
 
-#: Ledger ``semantic_type`` of the CASE_MANAGER's record that an
-#: ownership-transfer Offer passed its ``end_time`` unanswered (CM-21-017).
-#: Distinct from the transferee's Reject (CM-21-012): nobody declined, the
-#: deadline passed.  Only the CASE_MANAGER commits it; a replica learns the
-#: expiry from the entry and never computes one.
-OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE: str = (
-    "offer_case_ownership_transfer_expired"
-)
-
 #: Semantic types that close an ownership-transfer ``Offer(VulnerabilityCase)``
 #: protocol pair once the CASE_MANAGER ledgers them (CM-21-014): the
-#: transferee's answer (CM-21-007, CM-21-012), the offerer's withdrawal
-#: (CM-21-015) and the CASE_MANAGER's expiry record (CM-21-017).  Every reader
-#: of "is this Offer open?" goes through this set, so a new closing entry needs
-#: no other change to close the Offer.
+#: transferee's answer (CM-21-007, CM-21-012) and the offerer's withdrawal
+#: (CM-21-015).  Every reader of "is this Offer open?" goes through this set,
+#: so a new closing entry needs no other change to close the Offer.  An Offer
+#: past its ``end_time`` is closed with no entry (CM-21-017, ADR-0152).
 OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES: frozenset[str] = frozenset(
     {
         "accept_case_ownership_transfer",
         "reject_case_ownership_transfer",
         UNDO_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE,
-        OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
     }
 )
 
@@ -246,7 +236,6 @@ __all__ = [
     "INVITE_ACTOR_TO_CASE_REPLY_TYPES",
     "INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES",
     "OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE",
-    "OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE",
     "OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRY",
     "OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES",
     "REJECT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE",

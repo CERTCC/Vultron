@@ -362,15 +362,16 @@ The owner's departure closes the case, and the Case Actor records nothing a part
    A trigger returns before its effect commits, so the demo does not let the Vendor's `Leave` overtake the Reporter's.
 3. The Vendor sends `Leave(VulnerabilityCase)`.
    The Vendor is the `CASE_OWNER`, so this is an owner closure (CM-23-002).
-   The Case Actor commits `close_case` for the Vendor and then the Vendor's status entries.
-   It advances its own participant record to `RM.CLOSED` and commits those status entries too (CM-23-005).
+   The Case Actor commits `close_case` for the Vendor.
    It expires every embargo invitation still waiting for an answer, with one entry each (CM-23-014); the `rv` run has none.
-   Last, it commits `case_fully_closed`.
+   It then commits the Vendor's status entries.
+   Last, it advances its own participant record to `RM.CLOSED` and commits those status entries too (CM-23-005).
+   Its own status entry that reaches `RM.CLOSED` is the write boundary: the case is now fully closed (CM-23-013).
 4. Each entry is fanned out as `Announce(CaseLedgerEntry)` to every participant that has not closed, and each replica applies what it receives.
    A closed participant receives its own closure entries and nothing after them (CM-23-004).
    The leaving participant's replica receives its `close_case` entry and every status entry for its departure, the one that reaches `RM.CLOSED` included.
    The Reporter therefore receives none of the Vendor's closure entries.
-   The Vendor receives its own `close_case` and status entries, but not the Case Actor's own status entry or `case_fully_closed`.
+   The Vendor receives its own `close_case` and status entries, but not the Case Actor's own status entry.
    A replica moves a departing participant only by applying those status entries: the `close_case` entry itself changes no RM state, and a replica never works out the steps from its own stored state (CM-23-016).
    A participant does not write its own `RM.CLOSED`; it waits for the Case Actor's entries.
 
@@ -394,7 +395,7 @@ The owner's departure closes the case, and the Case Actor records nothing a part
 
 | Check | Where |
 |:------|:------|
-| Every departure recorded before `case_fully_closed`, and no participant act after it | Case Actor's ledger |
+| Every departure recorded before the Case Actor's own `RM.CLOSED` status entry, and no participant act after it | Case Actor's ledger |
 | Every participant `RM.CLOSED`, including the `CASE_MANAGER` | Case Actor's store |
 | Ledger contiguous through the Reporter's own last closure entry, and nothing after it; the Reporter is `RM.CLOSED` | Reporter replica |
 | Ledger contiguous through the Vendor's own last closure entry, and nothing after it; the Vendor is `RM.CLOSED` | Vendor replica |
@@ -430,14 +431,14 @@ Each act that moves a participant's RM state is followed by the status the Case 
 | 25 | `add_participant_status_to_participant` | Case Actor (the Reporter's `ACCEPTED → CLOSED`) | 6 |
 | 26 | `close_case` | Vendor | 6 |
 | 27 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
-| 28 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`) | 6 |
-| 29 | `case_fully_closed` | Case Actor (its own `Update(VulnerabilityCase)` closing the case on the Vendor's departure) | 6 |
+| 28 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`, the write boundary) | 6 |
 
-The ledger ends at `case_fully_closed`: the Reporter left first, so no participant act follows the owner closure.
+The ledger ends at the Case Actor's own `RM.CLOSED` status entry: the Reporter left first, so no participant act follows the owner closure.
+No separate entry marks the closure ([ADR-0152](../adr/0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md)).
 
 Each participant's replica holds the same sequence, entry for entry, up to the last entry recording its own closure, and nothing after it (CM-23-004).
-The Reporter's replica ends at index 23, its own closure step.
-The Vendor's replica ends at index 25, its own closure step, so it does not hold the Case Actor's own status entry or `case_fully_closed`.
+The Reporter's replica ends at index 25, its own closure step.
+The Vendor's replica ends at index 27, its own closure step, so it does not hold the Case Actor's own status entry.
 The demo runner exports all three ledgers as JSONL under `devlogs/rv/` at the end of a run, and the invariant harness in `test/ci/invariants/` checks them against the causal edges the [`rv` scenario narrative](../topics/scenarios/rv.md) declares.
 
 ---

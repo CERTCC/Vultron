@@ -26,7 +26,6 @@ Covers CM-23-002 (owner Leave) and CM-23-003 (non-owner Leave) across:
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import cast
 from unittest.mock import MagicMock
@@ -52,7 +51,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.config.actor import ActorConfig, PostCloseReply
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
@@ -80,6 +78,10 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.predicates.case_closure import (
+    entry_closes_case_manager,
+    ledger_records_full_closure,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import EmbargoRegisterStatus
 from vultron.core.states.participant_embargo_consent import (
@@ -322,6 +324,19 @@ def _case_ledger(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
     )
 
 
+def _is_boundary(entry: CaseLedgerEntry) -> bool:
+    """*entry* is the CASE_MANAGER's own RM.CLOSED entry (CM-23-013)."""
+    return entry_closes_case_manager(
+        entry.semantic_type, entry.payload_snapshot, CASE_ACTOR_ID
+    )
+
+
+def _boundary_is_last(dl: SqliteDataLayer) -> bool:
+    """The owner close ended at its boundary: no entry follows it."""
+    ledger = _case_ledger(dl)
+    return bool(ledger) and _is_boundary(ledger[-1])
+
+
 class TestOwnerLeaveReceivePath:
     """CM-23-002: Owner Leave advances leaving participant + CaseActor to RM.CLOSED."""
 
@@ -385,10 +400,10 @@ class TestOwnerLeaveReceivePath:
         )
 
     @pytest.mark.spec("CM-23-002")
-    def test_owner_leave_creates_case_fully_closed_ledger_entry(self):
-        """Owner Leave: a case_fully_closed CaseLedgerEntry is written (CM-23-002 step 3)."""
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
+    @pytest.mark.spec("CM-23-013")
+    def test_owner_leave_ends_at_the_case_managers_closure(self):
+        """Owner Leave: the CASE_MANAGER's own RM.CLOSED entry is last, and
+        no closure marker or ``Update(VulnerabilityCase)`` is committed."""
         dl = _make_full_dl()
         CloseCaseReceivedUseCase(
             dl=dl,
@@ -398,17 +413,17 @@ class TestOwnerLeaveReceivePath:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        entries = [
-            obj
-            for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, CaseLedgerEntry)
-            and getattr(obj, "case_id", None) == CASE_ID
+        ledger = _case_ledger(dl)
+        assert _boundary_is_last(dl), [e.semantic_type for e in ledger]
+        assert [e for e in ledger if _is_boundary(e)] == [ledger[-1]]
+        assert "case_fully_closed" not in {e.semantic_type for e in ledger}
+        assert not [
+            e
+            for e in ledger
+            if e.payload_snapshot.get("type") == "Update"
+            and (e.payload_snapshot.get("object") or {}).get("type")
+            == "VulnerabilityCase"
         ]
-        semantic_types = [getattr(e, "semantic_type", None) for e in entries]
-        assert "case_fully_closed" in semantic_types, (
-            f"Owner Leave must create a case_fully_closed ledger entry (CM-23-002 step 3);"
-            f" found semantic_types={semantic_types}"
-        )
 
     @pytest.mark.spec("CM-23-005")
     def test_owner_leave_records_case_actor_rm_closed_as_ledger_entry(self):
@@ -417,11 +432,10 @@ class TestOwnerLeaveReceivePath:
         Regression test for ISSUE-2505. ``AdvanceCaseActorToRMClosedNode`` wrote
         the transition to the CaseActor's own store only. Nothing recorded it,
         and nothing could derive it: ``close_case`` names the *departing* actor
-        and the CaseActor never sends itself a Leave, while
-        ``case_fully_closed`` is attributed to the owner and has no effect node.
-        So every replica read the CASE_MANAGER as permanently ``RM.ACCEPTED``,
-        which is what CM-23-005 forbids by requiring each CASE_MANAGER RM
-        transition to be recorded as a ``CaseLedgerEntry``.
+        and the CaseActor never sends itself a Leave.  So every replica read
+        the CASE_MANAGER as permanently ``RM.ACCEPTED``, which is what
+        CM-23-005 forbids by requiring each CASE_MANAGER RM transition to be
+        recorded as a ``CaseLedgerEntry``.
 
         Asserts the entry exists *and* is about the CaseActor — an
         ``add_participant_status_to_participant`` entry alone proves nothing,
@@ -463,12 +477,12 @@ class TestOwnerLeaveReceivePath:
         )
 
     @pytest.mark.spec("CM-23-002")
-    def test_case_actor_rm_closed_entry_precedes_case_fully_closed(self):
-        """The CaseActor's RM.CLOSED entry is committed before case_fully_closed.
+    def test_case_actor_rm_closed_entry_follows_the_owners_closure(self):
+        """The CaseActor's RM.CLOSED entry follows every owner closure entry.
 
-        CM-23-002 orders the sequence: advancing the CASE_MANAGER is step 2 and
-        ``case_fully_closed`` is the write boundary that must follow it
-        (CM-23-013), which is precisely why this is
+        CM-23-002 orders the sequence: the owner's closure is step 1 and the
+        CASE_MANAGER's own, whose RM.CLOSED entry is the write boundary
+        (CM-23-013), is step 2, which is precisely why this is
         committed synchronously in the receive tree rather than emitted as a
         self-addressed ``Add(ParticipantStatus)`` through the CLP-10-001
         loopback — that is an outbox background task and could not honour the
@@ -485,42 +499,32 @@ class TestOwnerLeaveReceivePath:
         ).execute()
 
         by_index = _case_ledger(dl)
-        case_actor_idx = [
+        case_actor_idx = [i for i, e in enumerate(by_index) if _is_boundary(e)]
+        owner_idx = [
             i
             for i, e in enumerate(by_index)
-            if getattr(e, "semantic_type", None)
-            == "add_participant_status_to_participant"
-            and (e.payload_snapshot or {})
-            .get("object", {})
-            .get("attributedTo")
-            == CASE_ACTOR_ID
-            and str(
-                (e.payload_snapshot or {}).get("object", {}).get("rmState", "")
-            ).endswith("CLOSED")
-        ]
-        fully_closed_idx = [
-            i
-            for i, e in enumerate(by_index)
-            if getattr(e, "semantic_type", None) == "case_fully_closed"
+            if e.semantic_type == "add_participant_status_to_participant"
+            and (e.payload_snapshot.get("object") or {}).get("attributedTo")
+            == OWNER_ID
         ]
         assert case_actor_idx, "no CASE_MANAGER RM.CLOSED entry was committed"
-        assert fully_closed_idx, "no case_fully_closed entry was committed"
-        assert max(case_actor_idx) < min(fully_closed_idx), (
-            "the CASE_MANAGER's RM.CLOSED entry must precede"
-            " case_fully_closed (CM-23-002 steps 2 then 3); got"
-            f" case-actor at {case_actor_idx}, case_fully_closed at"
-            f" {fully_closed_idx}"
+        assert owner_idx, "no owner closure entry was committed"
+        assert max(owner_idx) < min(case_actor_idx), (
+            "the owner's closure must precede the CASE_MANAGER's RM.CLOSED"
+            f" entry (CM-23-002 steps 1 then 2); got owner at {owner_idx},"
+            f" case-actor at {case_actor_idx}"
         )
 
     @pytest.mark.spec("CM-23-002", "CM-23-004")
-    def test_owner_leave_case_fully_closed_fanout_skips_closed_participants(
+    def test_owner_leave_boundary_fanout_skips_closed_participants(
         self,
     ):
-        """Owner Leave: case_fully_closed reaches only participants not CLOSED.
+        """Owner Leave: the boundary entry reaches only participants not CLOSED.
 
         The Case Owner is at ``RM.CLOSED`` once its own status entries are
-        committed, so it is not sent ``case_fully_closed`` (CM-23-004).  The
-        Vendor, still open, is; the sending CaseActor never is.
+        committed, so it is not sent the CASE_MANAGER's RM.CLOSED entry
+        (CM-23-004).  The Vendor, still open, is; the sending CaseActor
+        never is.
         """
         dl = _make_full_dl()
         sync_mock = MagicMock(spec=SyncActivityPort)
@@ -533,12 +537,10 @@ class TestOwnerLeaveReceivePath:
         ).execute()
 
         recipients = [
-            to
-            for entry, to in _announced(sync_mock)
-            if entry.semantic_type == "case_fully_closed"
+            to for entry, to in _announced(sync_mock) if _is_boundary(entry)
         ]
         assert recipients == [[VENDOR_ID]], (
-            "case_fully_closed must reach exactly the open Vendor"
+            "the boundary entry must reach exactly the open Vendor"
             f" (CM-23-004); sends: {recipients}"
         )
 
@@ -546,9 +548,9 @@ class TestOwnerLeaveReceivePath:
     def test_closed_owner_receives_its_own_closure_and_nothing_after(self):
         """The owner gets close_case and its own steps, then nothing.
 
-        Ledger order: close_case(owner) → owner steps → CASE_MANAGER steps →
-        case_fully_closed (CM-23-002).  The owner's replica stops at its own
-        steps.
+        Ledger order: close_case(owner) → owner steps → CASE_MANAGER steps,
+        the RM.CLOSED one last (CM-23-002).  The owner's replica stops at
+        its own steps.
         """
         dl = _make_full_dl()
         sync_mock = MagicMock(spec=SyncActivityPort)
@@ -576,10 +578,9 @@ class TestOwnerLeaveReceivePath:
         ), [(e.semantic_type, e.log_object_id) for e in own_steps]
         last_own = max(e.log_index for e in to_owner)
         later = [entry for entry, _ in sent if entry.log_index > last_own]
-        assert {e.semantic_type for e in later} >= {
-            "add_participant_status_to_participant",
-            "case_fully_closed",
-        }, "CASE_MANAGER steps and case_fully_closed follow the owner's"
+        assert later and _is_boundary(later[-1]), (
+            "the CASE_MANAGER's steps, its RM.CLOSED last, follow the owner's"
+        )
 
 
 class TestNonOwnerLeaveReceivePath:
@@ -639,6 +640,23 @@ class TestNonOwnerLeaveReceivePath:
             f"CaseActor must NOT be at RM.CLOSED after non-owner Leave;"
             f" rm_states={rm_states}"
         )
+
+    @pytest.mark.spec("CM-23-010")
+    def test_a_case_manager_that_is_not_the_owner_cannot_leave(self):
+        """The CASE_MANAGER's RM.CLOSED is the write boundary, so its own
+        Leave, when it is not the Case Owner, is refused before the receipt
+        commit: nothing is committed and the case is not fully closed."""
+        dl = _make_full_dl()
+
+        result = _close(
+            dl, CASE_ACTOR_ID, "https://example.org/activities/cm-leave"
+        )
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None and "CM-23-010" in result.reason
+        assert _case_ledger(dl) == []
+        assert RM.CLOSED not in _participant_rm_states(dl, CASE_ACTOR_ID)
+        assert not _case_is_fully_closed(dl)
 
 
 def _close(
@@ -722,24 +740,24 @@ def _expiry_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
 
 
 class TestPostCloseBoundary:
-    """CM-23-013/014: nothing a participant does lands after case_fully_closed."""
+    """CM-23-013/014: nothing a participant does lands after the boundary."""
 
     @pytest.mark.spec("CM-23-013")
     def test_bystander_leave_after_owner_close_is_refused(self):
         """A bystander Leave after owner close commits nothing and closes no one.
 
         Regression for CONCERN-3400: every demo closed the owner first, so a
-        bystander's ``close_case`` landed after ``case_fully_closed``, an
-        external append past the ADR-0085 write boundary.  The CASE_MANAGER
+        bystander's ``close_case`` landed after the closure, an external
+        append past the ADR-0085 write boundary.  The CASE_MANAGER
         MAY decline with one ``as:Reject`` or MAY drop the Leave with no
         reply (CM-23-013); either is accepted, but nothing is recorded.
         """
         dl = _make_full_dl()
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
         ledger = _case_ledger(dl)
-        assert ledger and ledger[-1].semantic_type == "case_fully_closed", (
-            "precondition: the owner close must have committed"
-            f" case_fully_closed; tail={[e.semantic_type for e in ledger]}"
+        assert _boundary_is_last(dl), (
+            "precondition: the owner close must have ended at its boundary;"
+            f" tail={[e.semantic_type for e in ledger]}"
         )
         entries_at_close = len(ledger)
         rm_before = _participant_rm_states(dl, VENDOR_ID)
@@ -799,19 +817,56 @@ class TestPostCloseBoundary:
             for i, e in enumerate(ledger)
             if is_consent_row_update(e, EmbargoConsentState.TIMED_OUT)
         ]
-        assert types[-1] == "case_fully_closed", types
+        assert _is_boundary(ledger[-1]), types
         assert rm_closed_idx and lapse_idx, (
             "owner close must commit the CASE_MANAGER's RM.CLOSED entry and"
             f" a TIMED_OUT consent Update (CM-23-014); got {types}"
         )
-        assert max(rm_closed_idx) < min(lapse_idx), (
-            "the TIMED_OUT consent Update must follow the CASE_MANAGER's"
-            f" RM.CLOSED entry (CM-23-014); got {types}"
+        assert max(lapse_idx) < min(rm_closed_idx), (
+            "the TIMED_OUT consent Update must precede the CASE_MANAGER's"
+            f" RM.CLOSED entry, the boundary (CM-23-014); got {types}"
         )
 
 
 class TestOwnerCloseSettlesPendingInvites:
-    """CM-23-014: the settle step between RM.CLOSED and case_fully_closed."""
+    """CM-23-014: the settle step before the CASE_MANAGER's own closure."""
+
+    @pytest.mark.spec("CM-23-014")
+    @pytest.mark.spec("CM-23-013")
+    def test_a_case_owner_holding_case_manager_settles_before_its_closure(
+        self,
+    ):
+        """When the Case Owner is the CASE_MANAGER, its own closure is the
+        boundary, so the pending Invite's expiry must come before it."""
+        dl = _make_full_dl()
+        case = dl.read_case(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        manager = dl.read(case.actor_participant_index[CASE_ACTOR_ID])
+        assert isinstance(manager, CaseParticipant)
+        manager.case_roles = [CVDRole.CASE_MANAGER, CVDRole.CASE_OWNER]
+        dl.save(manager)
+        owner = dl.read(case.actor_participant_index[OWNER_ID])
+        assert isinstance(owner, CaseParticipant)
+        owner.case_roles = [CVDRole.REPORTER]
+        dl.save(owner)
+        _seed_pending_invite(dl)
+
+        result = _close(
+            dl, CASE_ACTOR_ID, "https://example.org/activities/leave-self"
+        )
+
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
+        ledger = _case_ledger(dl)
+        types = [e.semantic_type for e in ledger]
+        boundaries = [i for i, e in enumerate(ledger) if _is_boundary(e)]
+        lapses = [
+            i
+            for i, e in enumerate(ledger)
+            if is_consent_row_update(e, EmbargoConsentState.TIMED_OUT)
+        ]
+        assert len(boundaries) == 1, types
+        assert boundaries == [len(ledger) - 1], types
+        assert lapses and max(lapses) < boundaries[0], types
 
     @pytest.mark.spec("CM-23-014")
     def test_close_without_pending_invite_commits_no_expiry_entry(self):
@@ -820,7 +875,7 @@ class TestOwnerCloseSettlesPendingInvites:
 
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
-        assert _case_ledger(dl)[-1].semantic_type == "case_fully_closed"
+        assert _boundary_is_last(dl)
         assert _expiry_entries(dl) == []
 
     @pytest.mark.spec("CM-23-014")
@@ -846,7 +901,7 @@ class TestOwnerCloseSettlesPendingInvites:
         assert _consent(dl, VENDOR_ID, first) == EmbargoConsentState.TIMED_OUT
         assert _consent(dl, VENDOR_ID, second) == EmbargoConsentState.TIMED_OUT
         ledger = _case_ledger(dl)
-        assert ledger[-1].semantic_type == "case_fully_closed"
+        assert _is_boundary(ledger[-1])
         assert all(e.log_index < ledger[-1].log_index for e in expired)
 
     @pytest.mark.spec("CM-23-014")
@@ -861,7 +916,7 @@ class TestOwnerCloseSettlesPendingInvites:
 
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
-        assert _case_ledger(dl)[-1].semantic_type == "case_fully_closed"
+        assert _boundary_is_last(dl)
         assert _expiry_entries(dl) == []
         assert (
             _consent(dl, VENDOR_ID, embargo_id) == EmbargoConsentState.INVITED
@@ -903,7 +958,7 @@ class TestOwnerCloseSettlesPendingInvites:
 
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
-        assert _case_ledger(dl)[-1].semantic_type == "case_fully_closed"
+        assert _boundary_is_last(dl)
         assert _expiry_entries(dl) == []
         assert (
             _consent(dl, VENDOR_ID, embargo.id_) == EmbargoConsentState.INVITED
@@ -929,7 +984,7 @@ class TestOwnerCloseSettlesPendingInvites:
         assert (
             _consent(dl, VENDOR_ID, embargo_id) == EmbargoConsentState.INVITED
         )
-        assert _case_ledger(dl)[-1].semantic_type == "case_fully_closed"
+        assert _boundary_is_last(dl)
         assert any(
             "could not expire the Invite" in r.getMessage()
             for r in caplog.records
@@ -1052,7 +1107,7 @@ def _closed_dl() -> SqliteDataLayer:
     """The CaseActor's store after the Case Owner has closed the case."""
     dl = _make_full_dl()
     _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
-    assert _case_ledger(dl)[-1].semantic_type == "case_fully_closed"
+    assert _boundary_is_last(dl)
     return dl
 
 
@@ -1090,7 +1145,7 @@ def _add_note(dl: SqliteDataLayer, note_id: str, sync_port=None):
 
 
 class TestPostCloseWriteBoundary:
-    """CM-23-013 / ADR-0085: after case_fully_closed, nothing is recorded."""
+    """CM-23-013 / ADR-0085: after the boundary, nothing is recorded."""
 
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.parametrize(
@@ -1138,7 +1193,7 @@ class TestPostCloseWriteBoundary:
     @pytest.mark.spec("CM-23-013")
     @pytest.mark.spec("CM-23-018")
     def test_a_repeat_owner_leave_after_full_close_is_refused(self):
-        """After case_fully_closed, a repeat owner Leave with a new id is
+        """After full closure, a repeat owner Leave with a new id is
         REFUSED and changes nothing (CM-23-018 owner exception ends here)."""
         dl = _closed_dl()
         entries_at_close = len(_case_ledger(dl))
@@ -1223,7 +1278,7 @@ class TestPostCloseWriteBoundary:
     @pytest.mark.spec("CM-23-002")
     @pytest.mark.spec("CM-23-013")
     def test_closure_announce_is_emitted_before_external_writes_cease(self):
-        """#3060 AC-4: case_fully_closed is announced, then nothing more is."""
+        """#3060 AC-4: the boundary is announced, then nothing more is."""
         dl = _make_full_dl()
         sync = MagicMock(wraps=SyncActivityAdapter(dl))
         CloseCaseReceivedUseCase(
@@ -1234,10 +1289,10 @@ class TestPostCloseWriteBoundary:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
         announced = [
-            (c.kwargs.get("entry") or c.args[0]).semantic_type
+            c.kwargs.get("entry") or c.args[0]
             for c in sync.send_announce_log_entry.call_args_list
         ]
-        assert "case_fully_closed" in announced, announced
+        assert any(_is_boundary(e) for e in announced), announced
         calls_at_close = sync.send_announce_log_entry.call_count
 
         result = _add_note(
@@ -1524,7 +1579,7 @@ class TestLeaveCommitsEachClosureStep:
     @pytest.mark.spec("CM-23-005")
     @pytest.mark.spec("CM-23-014")
     def test_owner_leave_orders_every_entry_before_the_boundary(self):
-        """Owner Leave: close_case, owner steps, CASE_MANAGER steps, settle, boundary.
+        """Owner Leave: close_case, settle, owner steps, CASE_MANAGER's steps.
 
         The owner leaves from Valid (V → D → C) with an embargo Invite still
         pending, so every kind of entry the owner-close sequence commits
@@ -1538,18 +1593,20 @@ class TestLeaveCommitsEachClosureStep:
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
         shape = _ledger_shape(dl)
-        assert shape[:4] == [
-            ("close_case", OWNER_ID, None),
-            (_STATUS, OWNER_ID, RM.DEFERRED.value),
-            (_STATUS, OWNER_ID, RM.CLOSED.value),
-            (_STATUS, CASE_ACTOR_ID, RM.CLOSED.value),
-        ]
-        # The expiry is the CASE_MANAGER's own TIMED_OUT row (ADR-0124).
-        assert shape[4][:2] == (
+        assert shape[0] == ("close_case", OWNER_ID, None)
+        # The expiry is the CASE_MANAGER's own TIMED_OUT row (ADR-0124),
+        # settled before any closure entry (CM-23-014).
+        assert shape[1][:2] == (
             UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
             CASE_ACTOR_ID,
         )
-        assert shape[5:] == [("case_fully_closed", CASE_ACTOR_ID, None)]
+        assert shape[2:4] == [
+            (_STATUS, OWNER_ID, RM.DEFERRED.value),
+            (_STATUS, OWNER_ID, RM.CLOSED.value),
+        ]
+        # The CASE_MANAGER's own RM.CLOSED is last: the write boundary.
+        assert shape[4:] == [(_STATUS, CASE_ACTOR_ID, RM.CLOSED.value)]
+        assert _boundary_is_last(dl)
 
     @pytest.mark.spec("CM-23-004")
     @pytest.mark.parametrize(
@@ -1767,81 +1824,61 @@ class TestLeaveCommitsEachClosureStep:
         assert all(dl.read(status_id) is None for status_id in built)
 
 
-class TestCaseFullyClosedIsTheCaseManagersOwnAct:
-    """CM-23-002 step 3: closure is the CASE_MANAGER's own activity (#3743).
+class TestTheBoundaryIsTheCaseManagersOwnClosure:
+    """CM-23-002 step 2: the closure's last entry is the CASE_MANAGER's own.
 
-    The ``Leave`` is recorded as received (``close_case``); the closure that
-    follows is the CASE_MANAGER's factory-built ``Update(VulnerabilityCase)``
-    carrying the closed case, recorded from its sealed blob (CLP-07-013,
-    VM-08-003).  No entry poses as an act the Case Owner did not send.
+    The ``Leave`` is recorded as received (``close_case``); the CASE_MANAGER's
+    own status entry reaching ``RM.CLOSED`` follows as its own act, and it is
+    the owner-close write boundary (CM-23-013).  No entry marks the closure
+    itself (ADR-0152), and none poses as an act the Case Owner did not send.
     """
 
     @staticmethod
-    def _closure(dl: SqliteDataLayer) -> CaseLedgerEntry:
-        (entry,) = [
-            e
-            for e in _case_ledger(dl)
-            if e.semantic_type == "case_fully_closed"
-        ]
+    def _boundary(dl: SqliteDataLayer) -> CaseLedgerEntry:
+        (entry,) = [e for e in _case_ledger(dl) if _is_boundary(e)]
         return entry
 
     @pytest.mark.spec("CLP-07-013")
-    @pytest.mark.spec("CM-23-002")
-    def test_the_closure_is_the_case_managers_update_of_the_case(self):
+    @pytest.mark.spec("CM-23-005")
+    def test_the_boundary_is_the_case_managers_own_status(self):
         dl = _make_full_dl()
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
-        snapshot = self._closure(dl).payload_snapshot
-        assert snapshot["type"] == "Update"
+        entry = self._boundary(dl)
+        snapshot = entry.payload_snapshot
+        assert entry.semantic_type == _STATUS
+        assert snapshot["type"] == "Add"
         assert snapshot["actor"] == CASE_ACTOR_ID
-        assert snapshot["context"] == CASE_ID
-        case = snapshot["object"]
-        assert case["type"] == "VulnerabilityCase"
-        assert case["id"] == CASE_ID
-        # Carried in full: the participants are objects, not ids (CLP-07-006).
-        assert case["caseParticipants"]
-        assert all(isinstance(p, dict) for p in case["caseParticipants"])
-
-    @pytest.mark.spec("VM-08-003")
-    def test_the_entry_is_the_sealed_blob(self):
-        dl = _make_full_dl()
-        _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
-
-        entry = self._closure(dl)
-        sealed = read_sealed_body(dl, entry.log_object_id)
-        assert sealed is not None, "the closure activity was not sealed"
-        assert entry.payload_snapshot == json.loads(sealed.body)
+        assert snapshot["object"]["attributedTo"] == CASE_ACTOR_ID
+        assert snapshot["object"]["rmState"] == RM.CLOSED.value
 
     @pytest.mark.spec("CLP-07-013")
-    def test_the_closure_follows_the_leaves_own_entry(self):
+    def test_the_boundary_follows_the_leaves_own_entry(self):
         dl = _make_full_dl()
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
-        types = [e.semantic_type for e in _case_ledger(dl)]
-        assert types.index("close_case") < types.index("case_fully_closed")
-        assert types[-1] == "case_fully_closed"
+        ledger = _case_ledger(dl)
+        types = [e.semantic_type for e in ledger]
+        assert types.index("close_case") < ledger.index(self._boundary(dl))
+        assert _boundary_is_last(dl)
 
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("RSH-08-004")
-    def test_a_replica_stores_the_closure_and_changes_nothing(self):
-        """The replica stores the entry; the case it carries is already held.
-
-        Every RM step arrived as its own entry before it, so applying the
-        closure writes nothing (CM-23-016): the replica's case is the same
-        before and after it.
-        """
+    def test_a_replica_closes_the_case_manager_from_the_boundary(self):
+        """A replica copies the CASE_MANAGER's closure from the boundary
+        entry, as it copies any status entry (CM-23-016)."""
         manager = _make_full_dl()
         replica = _replica_of(manager)
         _close(manager, OWNER_ID, "https://example.org/activities/leave-owner")
-        *before, closure = _case_ledger(manager)
-        assert closure.semantic_type == "case_fully_closed"
+        *before, boundary = _case_ledger(manager)
+        assert _is_boundary(boundary)
         _deliver(replica, before)
-        case_before = replica.read_case(CASE_ID)
+        assert _latest_rm(replica, CASE_ACTOR_ID) != RM.CLOSED
 
-        _deliver(replica, [closure])
+        _deliver(replica, [boundary])
 
-        assert replica.read(closure.id_) is not None
-        assert replica.read_case(CASE_ID) == case_before
+        assert replica.read(boundary.id_) is not None
+        assert _latest_rm(replica, CASE_ACTOR_ID) == RM.CLOSED
 
     @pytest.mark.spec("CM-23-002")
     def test_a_close_with_no_factory_raises_rather_than_half_closing(self):
@@ -1858,7 +1895,7 @@ class TestCaseFullyClosedIsTheCaseManagersOwnAct:
                 sync_port=SyncActivityAdapter(dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
-        assert not _case_fully_closed_present(dl)
+        assert not _case_is_fully_closed(dl)
 
 
 class TestReplicaAppliesTheClosureSteps:
@@ -1898,8 +1935,8 @@ class TestReplicaAppliesTheClosureSteps:
         It writes no ``CLOSED`` of its own when it leaves (the sender side
         does not, AC-4 of #4212), so it is still open until the entries the
         CASE_MANAGER sends it arrive.  Those are its ``close_case`` entry and
-        its own closure steps; nothing after them, ``case_fully_closed``
-        included, is sent to it (CM-23-004).
+        its own closure steps; nothing after them, the CASE_MANAGER's own
+        closure included, is sent to it (CM-23-004).
         """
         manager = _make_full_dl()
         _seed_rm(manager, leaver_id, RM.VALID)
@@ -1929,7 +1966,7 @@ class TestReplicaAppliesTheClosureSteps:
         assert _case_ledger(manager)[-1].log_index >= last_sent
         if leaver_id == OWNER_ID:
             # The CASE_MANAGER's steps and the boundary follow, unsent.
-            assert "case_fully_closed" not in {e.semantic_type for e in sent}
+            assert not any(_is_boundary(e) for e in sent)
             assert _case_ledger(manager)[-1].log_index > last_sent
 
     @pytest.mark.spec("CM-23-004")
@@ -1951,9 +1988,9 @@ class TestReplicaAppliesTheClosureSteps:
         ).execute()
 
         sent = _announced(sync_port)
-        assert _case_ledger(manager)[-1].semantic_type == "case_fully_closed"
+        assert _boundary_is_last(manager)
         # Every participant is closed by then, so the boundary goes to nobody.
-        assert "case_fully_closed" not in {e.semantic_type for e, _ in sent}
+        assert not any(_is_boundary(e) for e, _ in sent)
         assert all(VENDOR_ID not in to for _, to in sent), [
             (e.semantic_type, to) for e, to in sent
         ]
@@ -2232,7 +2269,7 @@ class TestClosureRMBoundary:
         CM-23-005 requires every CASE_MANAGER RM transition to be a
         ``CaseLedgerEntry``.  A CASE_MANAGER at VALID closes ``V → D → C``
         (RMB-14-005), so both the DEFERRED and the CLOSED status are
-        committed, in that order, and both before ``case_fully_closed``.
+        committed, in that order, the CLOSED one the write boundary.
         """
         dl = _make_full_dl()
         _seed_rm(dl, CASE_ACTOR_ID, source)
@@ -2351,15 +2388,9 @@ def _terminate_embargo(dl: SqliteDataLayer) -> None:
     dl.save(case)
 
 
-def _case_fully_closed_present(dl: SqliteDataLayer) -> bool:
-    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
-    return any(
-        isinstance(obj, CaseLedgerEntry)
-        and getattr(obj, "case_id", None) == CASE_ID
-        and getattr(obj, "semantic_type", None) == "case_fully_closed"
-        for obj in dl.list_objects("CaseLedgerEntry")
-    )
+def _case_is_fully_closed(dl: SqliteDataLayer) -> bool:
+    """The case's ledger holds the CASE_MANAGER's own RM.CLOSED entry."""
+    return ledger_records_full_closure(_case_ledger(dl), CASE_ACTOR_ID)
 
 
 class TestOwnerLeaveDuringActiveEmbargo:
@@ -2369,7 +2400,7 @@ class TestOwnerLeaveDuringActiveEmbargo:
     @pytest.mark.parametrize("em_state", [EM.ACTIVE, EM.REVISE])
     def test_owner_leave_during_embargo_runs_no_closure(self, em_state):
         """Owner Leave under an active/revise embargo advances no one to
-        RM.CLOSED and writes no case_fully_closed entry (AC-1)."""
+        RM.CLOSED, so the case is not fully closed (AC-1)."""
         dl = _make_full_dl()
         _seed_active_embargo(dl, em_state=em_state)
 
@@ -2393,9 +2424,8 @@ class TestOwnerLeaveDuringActiveEmbargo:
             "CaseActor must NOT reach RM.CLOSED while an embargo is live"
             " (CM-23-011)"
         )
-        assert not _case_fully_closed_present(dl), (
-            "No case_fully_closed entry may be written while embargoed"
-            " (CM-23-011)"
+        assert not _case_is_fully_closed(dl), (
+            "The case must not close while embargoed (CM-23-011)"
         )
 
     @pytest.mark.spec("CM-23-011")
@@ -2451,7 +2481,7 @@ class TestOwnerLeaveDuringActiveEmbargo:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
         assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID)
-        assert not _case_fully_closed_present(dl)
+        assert not _case_is_fully_closed(dl)
 
         # Terminate the embargo, then re-issue the same close.
         _terminate_embargo(dl)
@@ -2471,8 +2501,8 @@ class TestOwnerLeaveDuringActiveEmbargo:
         assert RM.CLOSED in _participant_rm_states(dl, CASE_ACTOR_ID), (
             "After embargo termination the CaseActor must reach RM.CLOSED"
         )
-        assert _case_fully_closed_present(dl), (
-            "After embargo termination a case_fully_closed entry must be written"
+        assert _case_is_fully_closed(dl), (
+            "After embargo termination the case must close"
         )
 
     @pytest.mark.spec("CM-23-011")
@@ -2505,8 +2535,8 @@ class TestOwnerLeaveDuringActiveEmbargo:
         assert RM.CLOSED not in _participant_rm_states(dl, CASE_ACTOR_ID), (
             "CaseActor must NOT reach RM.CLOSED when the decline emit fails"
         )
-        assert not _case_fully_closed_present(dl), (
-            "No case_fully_closed entry may be written when the decline emit fails"
+        assert not _case_is_fully_closed(dl), (
+            "The case must not close when the decline emit fails"
         )
 
 
@@ -2558,7 +2588,7 @@ class TestDeclineArmIsCaseManagerGated:
     @pytest.mark.spec("BT-17-001")
     @pytest.mark.spec("CM-23-011")
     def test_non_manager_replica_closes_nothing_during_embargo(self):
-        """The replica also writes no closure state and no case_fully_closed.
+        """The replica also writes no closure state and no closure entry.
 
         The whole close/decline decision is CASE_MANAGER business; a replica
         archives the Leave and takes any resulting closure from the ledger
@@ -2578,7 +2608,7 @@ class TestDeclineArmIsCaseManagerGated:
         ).execute()
 
         assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID)
-        assert not _case_fully_closed_present(dl)
+        assert not _case_is_fully_closed(dl)
 
     @pytest.mark.spec("HP-01-005")
     def test_non_manager_replica_refuses_a_leave_from_the_case_manager(self):
@@ -2668,13 +2698,13 @@ def test_close_without_case_id_is_refused():
 class TestCaseActorRMClosedRecordingFailsClosed:
     """The CaseActor's own RM.CLOSED is not written unless it is recorded.
 
-    ``CommitRMClosureEntriesNode`` sits between CM-23-002 step 2 (advance the
-    CASE_MANAGER) and step 3 (``case_fully_closed``).  A step whose entry does
-    not commit fails the node and the act, which keeps none of the closure,
-    so the CASE_MANAGER's store never holds a closure its ledger lacks
-    (CLP-07-013, CLP-07-015).  The owner arm stops before
-    ``case_fully_closed``, and the non-owner arm's own role check keeps the
-    enclosing Selector from closing the owner as an ordinary leaver.
+    ``CommitRMClosureEntriesNode`` records CM-23-002 step 2 (advance the
+    CASE_MANAGER), whose RM.CLOSED entry is the write boundary.  A step whose
+    entry does not commit fails the node and the act, which keeps none of
+    the closure, so the CASE_MANAGER's store never holds a closure its
+    ledger lacks (CLP-07-013, CLP-07-015).  The case is then not fully
+    closed, and the non-owner arm's own role check keeps the enclosing
+    Selector from closing the owner as an ordinary leaver.
     """
 
     @staticmethod
@@ -2734,8 +2764,8 @@ class TestCaseActorRMClosedRecordingFailsClosed:
         assert _case_file(dl, CASE_ACTOR_ID) == before
         assert RM.CLOSED not in _participant_rm_states(dl, CASE_ACTOR_ID)
         assert not _case_actor_rm_closed_entries(dl)
-        assert not _case_fully_closed_present(dl), (
-            "the owner arm stops before case_fully_closed (CM-23-002)"
+        assert not _case_is_fully_closed(dl), (
+            "the owner arm stops before the CASE_MANAGER closes (CM-23-002)"
         )
 
     @pytest.mark.spec("CM-23-005")
@@ -2767,7 +2797,36 @@ class TestCaseActorRMClosedRecordingFailsClosed:
 
         assert result.disposition == HandlerDisposition.APPLIED
         assert _case_actor_rm_closed_entries(dl)
-        assert _case_fully_closed_present(dl)
+        assert _case_is_fully_closed(dl)
+
+    @pytest.mark.spec("CM-23-014")
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_failed_closure_keeps_no_invite_expiry(self, monkeypatch):
+        """Settling runs before the closure steps, but it is part of the same
+        act: a closure step that does not commit keeps none of the expiries,
+        and the redelivered Leave expires each Invite exactly once."""
+        dl = _make_full_dl()
+        embargo_id = _seed_pending_invite(dl)
+        with monkeypatch.context() as patch:
+            self._fail_case_actor_commits(patch, dl)
+            _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+
+        assert (
+            _consent(dl, VENDOR_ID, embargo_id) == EmbargoConsentState.INVITED
+        )
+        assert not _expiry_entries(dl)
+
+        result = _redeliver_close(
+            dl, "https://example.org/activities/leave-owner"
+        )
+
+        assert result.disposition == HandlerDisposition.APPLIED
+        assert (
+            _consent(dl, VENDOR_ID, embargo_id)
+            == EmbargoConsentState.TIMED_OUT
+        )
+        assert len(_expiry_entries(dl)) == 1
+        assert _boundary_is_last(dl)
 
     @pytest.mark.spec("CM-23-002")
     @pytest.mark.spec("CM-23-018")
@@ -2787,7 +2846,7 @@ class TestCaseActorRMClosedRecordingFailsClosed:
             "the owner already holds RM.CLOSED, so no step of its is owed"
         )
         assert _case_actor_rm_closed_entries(dl)
-        assert _case_fully_closed_present(dl)
+        assert _case_is_fully_closed(dl)
 
     @pytest.mark.spec("CM-23-005")
     @pytest.mark.spec("ARCH-15-001")
@@ -2802,7 +2861,7 @@ class TestCaseActorRMClosedRecordingFailsClosed:
             _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
         assert _case_file(dl, OWNER_ID) == before
-        assert not _case_fully_closed_present(dl)
+        assert not _case_is_fully_closed(dl)
 
 
 class TestCaseActorRMClosedRecordingIsRoleGated:

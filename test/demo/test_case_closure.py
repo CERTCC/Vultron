@@ -234,7 +234,8 @@ class TestCloseCaseOwnerLast:
         (failure,) = demo_utils._demo_failures
         assert not failure.startswith("GATE FAILED")
         assert (
-            "M7: every departure recorded before case_fully_closed" in failure
+            "M7: every departure recorded before the CASE_MANAGER's own"
+            " RM.CLOSED" in failure
         )
 
     @pytest.mark.spec("TRIG-13-003")
@@ -294,7 +295,8 @@ def _owner_last_ledger() -> list[dict]:
     """The rv closure tail: Reporter leaves, then the owner closes the case.
 
     Each ``close_case`` is followed by the status entry the CASE_MANAGER
-    commits for the leaver's closure step (CM-23-001).
+    commits for the leaver's closure step (CM-23-001).  The CASE_MANAGER's
+    own ``RM.CLOSED`` status entry is the write boundary (CM-23-013).
     """
     return [
         _status(0, _REPORTER, "ACCEPTED"),
@@ -303,8 +305,8 @@ def _owner_last_ledger() -> list[dict]:
         _status(3, _REPORTER, "CLOSED"),
         _entry(4, "close_case", _OWNER),
         _status(5, _OWNER, "CLOSED"),
-        _status(6, _MANAGER, "CLOSED"),
-        _entry(7, "case_fully_closed", _OWNER),
+        _status(6, _MANAGER, "DEFERRED"),
+        _status(7, _MANAGER, "CLOSED"),
     ]
 
 
@@ -329,26 +331,28 @@ class TestCaseClosureViolations:
         )
 
     @pytest.mark.spec("CM-23-013")
-    def test_departure_after_case_fully_closed_is_reported(self):
+    def test_departure_after_the_boundary_is_reported(self):
         """The owner-first order every demo used to run (#4163)."""
         ledger = [
             _status(0, _REPORTER, "ACCEPTED"),
             _entry(1, "close_case", _OWNER),
             _status(2, _OWNER, "CLOSED"),
             _status(3, _MANAGER, "CLOSED"),
-            _entry(4, "case_fully_closed", _OWNER),
-            _entry(5, "close_case", _REPORTER),
+            _entry(4, "close_case", _REPORTER),
         ]
         violations = case_closure_violations(
             ledger, [_REPORTER, _OWNER], _MANAGER
         )
         assert len(violations) == 2
         assert f"no 'close_case' entry for {_REPORTER!r}" in violations[0]
-        assert "logIndex=5 'close_case'" in violations[1]
+        assert "logIndex=4 'close_case'" in violations[1]
 
     def test_manager_housekeeping_after_boundary_is_allowed(self):
-        """case_fully_closed is a write boundary, not the last entry (CM-23-002)."""
-        ledger = [*_owner_last_ledger(), _status(8, _MANAGER, "CLOSED")]
+        """The boundary need not be the last entry (CM-23-002)."""
+        ledger = [
+            *_owner_last_ledger(),
+            _entry(8, "update_embargo_consent", _MANAGER),
+        ]
         assert (
             case_closure_violations(ledger, [_REPORTER, _OWNER], _MANAGER)
             == []
@@ -366,7 +370,7 @@ class TestCaseClosureViolations:
             _entry(1, "close_case", _REPORTER),
             _entry(2, "close_case", _OWNER),
             _status(3, _OWNER, "CLOSED"),
-            _entry(4, "case_fully_closed", _OWNER),
+            _status(4, _MANAGER, "CLOSED"),
         ]
         (violation,) = case_closure_violations(
             ledger, [_REPORTER, _OWNER], _MANAGER
@@ -378,7 +382,7 @@ class TestCaseClosureViolations:
             _entry(0, "close_case", _REPORTER),
             _status(1, _REPORTER, "ACCEPTED"),
             _entry(2, "close_case", _OWNER),
-            _entry(3, "case_fully_closed", _OWNER),
+            _status(3, _MANAGER, "CLOSED"),
         ]
         (violation,) = case_closure_violations(ledger, [_REPORTER], _MANAGER)
         assert "RM 'ACCEPTED'" in violation
@@ -386,11 +390,31 @@ class TestCaseClosureViolations:
     @pytest.mark.parametrize("count", [0, 2])
     def test_boundary_must_appear_exactly_once(self, count):
         ledger = [e for e in _owner_last_ledger() if e["log_index"] < 7]
-        ledger += [
-            _entry(7 + i, "case_fully_closed", _OWNER) for i in range(count)
-        ]
+        ledger += [_status(7 + i, _MANAGER, "CLOSED") for i in range(count)]
         assert case_closure_violations(ledger, [_REPORTER], _MANAGER) == [
-            f"expected exactly one 'case_fully_closed' entry, found {count}"
+            "expected exactly one the CASE_MANAGER's own RM.CLOSED status"
+            f" entry, found {count}"
+        ]
+
+    @pytest.mark.spec("CM-23-013")
+    def test_the_owners_closure_status_is_not_the_boundary(self):
+        """The owner's RM.CLOSED, written by the CASE_MANAGER, is not it."""
+        ledger = [e for e in _owner_last_ledger() if e["log_index"] < 7]
+        assert case_closure_violations(ledger, [_REPORTER], _MANAGER) == [
+            "expected exactly one the CASE_MANAGER's own RM.CLOSED status"
+            " entry, found 0"
+        ]
+
+    @pytest.mark.spec("CM-23-013")
+    def test_a_status_the_case_manager_did_not_send_is_not_the_boundary(self):
+        ledger = [e for e in _owner_last_ledger() if e["log_index"] < 7]
+        forged = _status(7, _MANAGER, "CLOSED")
+        forged["payload_snapshot"]["actor"] = _OWNER
+        assert case_closure_violations(
+            [*ledger, forged], [_REPORTER], _MANAGER
+        ) == [
+            "expected exactly one the CASE_MANAGER's own RM.CLOSED status"
+            " entry, found 0"
         ]
 
     def test_unknown_case_manager_is_reported(self):
@@ -398,8 +422,9 @@ class TestCaseClosureViolations:
             _owner_last_ledger(), [_REPORTER, _OWNER], None
         )
         assert violations == [
-            "no CASE_MANAGER in the case's participant index; cannot tell its"
-            " own entries from a participant's"
+            "no CASE_MANAGER in the case's participant index; cannot find"
+            " the CASE_MANAGER's own RM.CLOSED status entry or tell its own"
+            " entries from a participant's"
         ]
 
     def test_actor_reference_object_is_read_by_id(self):
@@ -421,7 +446,7 @@ class TestVerifyCaseClosureRecorded:
 
     def _patches(self):
         return (
-            patch.object(milestones, "wait_for_case_actor_ledger_event"),
+            patch.object(milestones, "wait_for_case_fully_closed"),
             patch.object(
                 milestones,
                 "find_case_actor_participant_id",
@@ -435,9 +460,7 @@ class TestVerifyCaseClosureRecorded:
         waited, found = self._patches()
         with waited as wait, found:
             verify_case_closure_recorded(client, _CASE, [_REPORTER, _OWNER])
-        wait.assert_called_once_with(
-            client=client, case_id=_CASE, semantic_type="case_fully_closed"
-        )
+        wait.assert_called_once_with(client, _CASE, _MANAGER)
         # The client is already bound to the CASE_MANAGER's store: read as
         # given, with no second store lookup.
         client.dl_path.assert_called_once_with("CaseLedgerEntrys/")
@@ -468,8 +491,8 @@ class TestOwnClosureTailIndex:
     def test_tail_is_the_leavers_last_closure_step(self):
         ledger = _owner_last_ledger()
         assert own_closure_tail_index(ledger, _REPORTER) == 3
-        # The owner stops at its own step; the CASE_MANAGER's step and
-        # case_fully_closed come after it.
+        # The owner stops at its own step; the CASE_MANAGER's closure
+        # steps come after it.
         assert own_closure_tail_index(ledger, _OWNER) == 5
 
     def test_status_entries_before_the_leave_do_not_count(self):

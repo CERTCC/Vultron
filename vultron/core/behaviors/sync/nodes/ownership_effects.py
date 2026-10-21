@@ -57,7 +57,7 @@ class ApplyOwnershipTransferFromLedgerNode(_LedgerEffectNode):
     transfer changes: the rest of the carried case is what a replica at that
     ledger position already holds, each part from an entry of its own (the
     participant records from the ``update_case_participant`` entries before
-    this one), as for ``case_fully_closed``.  Copying the whole carried case
+    this one).  Copying the whole carried case
     is the one-apply-function end state of ADR-0124 (#4532).
 
     Lenient on a replica that holds no copy of the case (Regime 2, ADR-0087),
