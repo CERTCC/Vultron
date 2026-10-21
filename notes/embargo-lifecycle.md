@@ -220,7 +220,9 @@ catch-up fetch or deferral, refuse instead.
   embargo whose `context` is not the carrying case is refused unstored, because
   a first write wins and a sender must not plant another case's embargo. The
   record already held under the id is checked too, inline or bare id, since the
-  case names the held record (EMB-18-004, `hold_embargo_for_case()`).
+  case names the held record (EMB-18-004, `hold_embargo_for_case()`). A
+  `context` naming one of the case's reports counts as the case's: the Reporter
+  holds its own proposal about the report it submitted (EP-04-009).
 - **Ledger replay.** Each embargo apply node stores the `EmbargoEvent` its entry
   carries before calling `EmbargoLifecycle`, and fails (blocking the persist,
   SYNC-12-001) when the entry names it by id only and the replica lacks it.

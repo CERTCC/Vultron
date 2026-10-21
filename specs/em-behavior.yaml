@@ -2544,15 +2544,20 @@ groups:
       carries it, and MUST refuse it before writing anything: the event is not stored and
       no embargo state of either case changes. The same refusal applies to the record the
       receiver already holds under the embargo's id, whether the case or ledger entry
-      carries the embargo inline or names it by bare id.
+      carries the embargo inline or names it by bare id. An embargo, carried or held, whose
+      `context` is a report the case holds counts as the case's (EP-04-009); any other
+      `context` is refused. For a ledger entry, the case's reports are those of the
+      replica's stored case.
     rationale: >-
       An embargo belongs to the case named by its `context`. The inbox stores a carried
       embargo ahead of the handler's trust checks, and a first write wins, so an unchecked
       event would let a sender plant another case's embargo under an id that case will later
       name. The case would then name the held record, not the carried copy, so checking
       only the copy, or a bare id only for resolving, leaves the case pointing at another
-      case's embargo (#4962). Giving the refusal a requirement lets ratchets and docs cite
-      it instead of a code comment.
+      case's embargo (#4962). A Reporter's proposal names its report until the case exists
+      and keeps its id once it is about the case (EP-04-004), so the Reporter holds it about
+      the report; refusing that would refuse the Reporter its own case. Giving the refusal
+      a requirement lets ratchets and docs cite it instead of a code comment.
     verification: >-
       A receiver is given a case that carries an inline `EmbargoEvent` whose `context`
       names a different case. The receiver refuses it, holds no record of the event
@@ -2561,7 +2566,10 @@ groups:
       naming, inline or by bare id, an embargo the receiver holds for another case is
       refused with nothing written, exercised by
       `test_a_case_naming_a_held_embargo_of_another_case_is_refused_unwritten` and the
-      entry tests beside it in `test/core/services/test_carried_embargo.py`.
+      entry tests beside it in `test/core/services/test_carried_embargo.py`. A held
+      proposal about the case's own report is accepted on the case and entry paths, and
+      one about another case's report is refused
+      (`test_a_held_proposal_about_the_cases_own_report_is_accepted` and its neighbours).
     stories:
     - story_2022_014
     testable: true
