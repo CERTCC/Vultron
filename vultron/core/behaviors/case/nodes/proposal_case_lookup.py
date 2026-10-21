@@ -93,23 +93,6 @@ def activity_names_proposal(activity: Any, proposal_id: str) -> bool:
     return isinstance(obj, dict) and obj.get("id") == proposal_id
 
 
-def accept_scan_can_match(
-    datalayer: CasePersistence, report_id: str | None
-) -> bool:
-    """Whether a scan of the stored ``Accept`` activities can find a match.
-
-    A negative prefilter only.  The scan rehydrates every ``Accept`` row, and
-    no case for the report means no proposal for it was accepted, so the scan
-    is skipped.  A case that *does* exist proves nothing on its own: it may
-    belong to another proposal that names the same report, so a positive
-    answer still comes from the proposal-keyed scan.  With no *report_id*
-    nothing can be ruled out.  Store errors propagate.
-    """
-    if report_id is None:
-        return True
-    return datalayer.find_case_by_report_id(report_id) is not None
-
-
 def find_activity_for_proposal(
     datalayer: CasePersistence, proposal_id: str, activity_type: str
 ) -> Any | None:
@@ -177,10 +160,11 @@ def proposal_case_ids(
 
     The generator is lazy, so the ``Accept`` scan runs only when a caller asks
     for the next candidate.  The scan rehydrates every stored ``Accept``, so
-    it also runs only when it can find something: when the store holds a case
-    for the report (:func:`accept_scan_can_match`), or when the proposal's
-    ``CaseProposalAdmissionRecord`` shows that an earlier delivery began the
-    accept path.  A node that runs after this delivery wrote the record
+    it also runs only when it can find something: when the proposal's
+    ``CaseProposalAdmissionRecord`` shows that an earlier delivery accepted
+    it.  The record is stored in the same ``ActTransaction`` as the
+    ``Accept`` (ADR-0146), so without it no ``Accept`` for the proposal is
+    stored.  A node that runs after this delivery wrote the record
     itself cannot tell that from the record, so it passes
     ``admission_record_is_prior`` as ``RecordProposalAdmissionNode`` reported
     it (``admission_record_was_prior``): ``False`` when this delivery wrote
@@ -200,7 +184,7 @@ def proposal_case_ids(
     ):
         return
     if _may_have_been_accepted(
-        datalayer, proposal_id, report_id, admission_record_is_prior
+        datalayer, proposal_id, admission_record_is_prior
     ):
         accepted = accepted_case_id(datalayer, proposal_id)
         if accepted is not None and accepted != own_id:
@@ -224,19 +208,17 @@ def _admitted_for(
 def _may_have_been_accepted(
     datalayer: CasePersistence,
     proposal_id: str,
-    report_id: str | None,
     admission_record_is_prior: bool,
 ) -> bool:
-    """Whether the ``Accept`` scan can find anything for this proposal."""
-    if admission_record_is_prior:
-        admission_id = CaseProposalAdmissionRecord.build_id(proposal_id)
-        if datalayer.read(admission_id) is not None:
-            return True
-    return accept_scan_can_match(datalayer, report_id)
+    """Whether an earlier delivery accepted *proposal_id*, so the ``Accept``
+    scan can find something."""
+    if not admission_record_is_prior:
+        return False
+    admission_id = CaseProposalAdmissionRecord.build_id(proposal_id)
+    return datalayer.read(admission_id) is not None
 
 
 __all__ = [
-    "accept_scan_can_match",
     "accepted_case_id",
     "activity_names_proposal",
     "find_activity_for_proposal",

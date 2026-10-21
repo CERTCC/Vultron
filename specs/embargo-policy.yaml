@@ -641,8 +641,8 @@ groups:
       `PendingCreationTimeRevisionRelay` record, committed together with the revision
       and deleted once the relay is discharged, survives a failed relay — including one
       whose committed Invite never reached the outbox — so a redelivered
-      proposal or the startup retry runner completes it (the CP-05-005 retry-marker
-      pattern). A retry outside the case tree sends nothing until the case's genesis
+      proposal or the startup retry runner completes it. A retry outside the case
+      tree sends nothing until the case's genesis
       ledger entry is committed (CM-14-007, CM-14-011).
     verification: >-
       A marker test of `InitializeDefaultEmbargoNode` asserts that a contested
@@ -696,7 +696,7 @@ groups:
       step it has no transition for — an orphan write and an unanswerable proposal (#3986).
       The EM state is the evidence: the machine never returns to `NONE` once it has left it,
       so "has left `NONE`" is exactly "initialization has run", and `NONE` still admits the
-      half-built case a redelivery must be allowed to finish.
+      case the delivery is creating.
     note: >-
       The reuse path is a lost-reply recovery (CP-05-006): "duplicate" here means an exact
       redelivery of the same proposal, not a second report describing the same
@@ -715,8 +715,9 @@ groups:
       `InitializeDefaultEmbargoNode` once, terminates the embargo through
       `EmbargoLifecycle`, runs the subtree again and asserts SUCCESS, EM still `EXITED`, no
       `active_embargo`, and no additional `EmbargoEvent` stored; the same module covers
-      the guard's SUCCESS for every state but `NONE`, the half-built case (`EM.NONE`, no
-      embargo) still completing, an `ACTIVE` or `REVISE` rerun storing no event and
+      the guard's SUCCESS for every state but `NONE`, a case not yet initialized
+      (`EM.NONE`, no embargo) still completing, an `ACTIVE` or `REVISE` rerun
+      storing no event and
       registering no revision, and an unreadable EM state raising. A tree-level test in
       `test/core/behaviors/case/test_case_proposal_received_tree.py` redelivers the same
       `Create(CaseProposal)` after exit and asserts it is answered with the case's embargo

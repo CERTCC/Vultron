@@ -6,10 +6,6 @@ two outbound activities in sequence:
   1. ``Accept(as_CaseProposal)`` — acknowledgement to the report receiver
   2. ``Create(VulnerabilityCase)`` — case announcement to the report receiver
 
-A durable ``PendingCreateCaseActivity`` marker is written to the DataLayer
-after step 1 and cleared on successful completion of step 2 so that a retry
-runner (#1139) can recover the obligation if delivery of step 2 fails.
-
 The normal-path Sequence performs CaseActor-native initialization per
 ADR-0041, emits the outbound activities, and commits the canonical ledger
 entries last (CP-09-009):
@@ -22,20 +18,19 @@ entries last (CP-09-009):
      (AC-3, CM-14-003); record any pending revision as owed (EP-04-011)
   5. Seed reporter as an embargo signatory (CM-14-005)
   6. Emit ``Accept(as_CaseProposal)``
-  7. Write durable retry marker (CP-05-005)
-  8. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
-  9. Clear retry marker on success
-  10. Commit canonical ledger entries (AC-4) — after the emits, so every
-      participant holds the case before its first ``Announce(CaseLedgerEntry)``
-      (CM-14-011, CP-09-009)
-  11. Relay a contested creation's pending revision to the party whose terms
-      won (EP-04-011) — after initialization is complete (CM-14-007)
+  7. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
+  8. Commit canonical ledger entries (AC-4) — after the emits, so every
+     participant holds the case before its first ``Announce(CaseLedgerEntry)``
+     (CM-14-011, CP-09-009)
+  9. Relay a contested creation's pending revision to the party whose terms
+     won (EP-04-011) — after initialization is complete (CM-14-007)
 
-Steps 1-10, with the admission record ahead of them, are one act: they run
+Steps 1-8, with the admission record ahead of them, are one act: they run
 in one ``ActTransaction`` (ADR-0146), so a failed step rolls back the case,
-its records, the queued ``Accept`` and ``Create``, the retry marker and every
-creation entry already committed (CLP-07-013, #4442).  Step 11 keeps its own
-retry marker (#4121) and runs after the act commits.
+its records, the queued ``Accept`` and ``Create`` and every creation entry
+already committed (CLP-07-013, #4442).  Once the act commits, the durable
+outbox holds the ``Create`` and retries its delivery (OX-13, CP-05-005).
+Step 9 keeps its own retry marker (#4121) and runs after the act commits.
 
 Admission (CP-05-002) and idempotency (CP-05-006):
 
@@ -44,12 +39,7 @@ the use case's ``AUTHOR`` declaration: the proposal id is chosen by the sender,
 so one this store recorded for another proposer is refused before any branch
 reads or writes a proposal-keyed record (CP-05-010, HP-01-008, #4719).
 
-The top-level tree is a Selector with five branches, tried in order:
-
-* **Accept in flight** — ``CheckMarkerExistsNode``: if a
-  ``PendingCreateCaseActivity`` marker already exists for this proposal_id,
-  Accept was already sent and Create delivery is still pending; the retry
-  runner owns recovery, so return SUCCESS immediately (no re-send).
+The top-level tree is a Selector with four branches, tried in order:
 
 * **Already declined** — ``AlreadyDeclinedArm``: a ``CaseProposalDeclineRecord``
   exists, so the decision stands and is not re-made.  The arm still ensures the
@@ -139,6 +129,9 @@ from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckProposalCaseFullyClosedNode,
     CheckRejectAlreadyAnsweredNode,
 )
+from vultron.core.behaviors.case.nodes.proposal_announcement import (
+    CheckCaseAlreadyAnnouncedNode,
+)
 from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
     CreateCaseFromProposalNode,
     LoadExistingCaseNode,
@@ -160,12 +153,6 @@ from vultron.core.behaviors.case.nodes.proposal_participants import (
 )
 from vultron.core.behaviors.case.nodes.proposal_reporter import (
     AddReporterParticipantNode,
-)
-from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
-    CheckCaseAlreadyAnnouncedNode,
-    CheckMarkerExistsNode,
-    ClearCreateCaseMarkerNode,
-    WriteCreateCaseMarkerNode,
 )
 from vultron.core.behaviors.case.offer_provenance import (
     offer_provenance_from_proposal,
@@ -216,18 +203,11 @@ def create_case_proposal_received_tree(
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
     The tree is a Sequence of intake (CLP-10-017), the sender guard the
-    factory composes from *sender_rule*, and a five-branch Selector:
-    the CP-05-005 in-flight guard, the
-    CP-05-006 already-declined answer, the closed-case decline, the CP-05-002
-    admission decision, and the accept flow.
+    factory composes from *sender_rule*, and a four-branch Selector:
+    the CP-05-006 already-declined answer, the closed-case decline, the
+    CP-05-002 admission decision, and the accept flow.
 
-    **Branch 1 — AC-3 guard** (``CheckMarkerExistsNode``):
-      If a ``PendingCreateCaseActivity`` marker already exists for this
-      proposal_id, ``Accept(CaseProposal)`` was already sent and
-      ``Create(VulnerabilityCase)`` delivery is still pending.  Return SUCCESS
-      immediately — the retry runner owns recovery; do not re-send Accept.
-
-    **Branch 2 — already declined** (``AlreadyDeclinedArm``):
+    **Branch 1 — already declined** (``AlreadyDeclinedArm``):
       A ``CaseProposalDeclineRecord`` exists, so the decision stands and the
       call-out point is not consulted again — a retrying proposer is not sent a
       fresh ``Reject`` per delivery, and a stateful or stochastic backend cannot
@@ -238,7 +218,7 @@ def create_case_proposal_received_tree(
       ``Reject`` on delivery, so an outbox-keyed answer would re-emit forever
       after the refusal was successfully delivered.
 
-    **Branch 3 — closed case** (``DeclineClosedCaseProposalArm``, CP-05-006,
+    **Branch 2 — closed case** (``DeclineClosedCaseProposalArm``, CP-05-006,
     CP-05-008, CM-23-013):
       ``CheckProposalCaseFullyClosedNode`` finds that the proposal resolves to
       a fully closed case: the proposer's own case for *report_id* (a new
@@ -255,31 +235,30 @@ def create_case_proposal_received_tree(
       that reuses the closed case.  The admission call-out point is not
       consulted.
 
-    **Branch 4 — decline** (``DeclineProposalArm``, CP-05-002, CP-05-004):
+    **Branch 3 — decline** (``DeclineProposalArm``, CP-05-002, CP-05-004):
       Runs the ``EvaluateCaseProposal`` admission call-out point and, when it
       refuses, records the decline and emits ``Reject(as_CaseProposal)``.  Four
       properties are load-bearing:
 
       * It sits **before** ``ResolveCaseIdSelector``, so a refusal happens ahead
         of every write.  A Reject emitted after the accept flow's effects would
-        report "declined" while this store held a half-built case with committed
-        ledger entries (CLP-10-009).  ``CheckProposalAlreadyAnsweredNode``
-        extends that to *later* deliveries via the proposal-keyed
-        ``CaseProposalAdmissionRecord`` that ``main_flow`` writes first —
-        ``main_flow`` creates the case before it emits, so neither an Accept-only
-        guard nor the case itself can identify a half-built one as *this*
-        proposal's.
+        report "declined" while this store held the case with committed ledger
+        entries (CLP-10-009).  ``CheckProposalAlreadyAnsweredNode`` extends that
+        to *later* deliveries via the proposal-keyed
+        ``CaseProposalAdmissionRecord``, which the creation act stores with the
+        case and the ``Accept`` (ADR-0146): once ``Accept`` is sent the answer
+        is irrevocable (CP-05-005), so a later delivery is not re-adjudicated.
       * Its guards are keyed on the **proposal**, never the report.  ``report_id``
         comes from the report the sender embedded, so a report-keyed guard is one
         a sender can satisfy on purpose and thereby skip the gate entirely.
-      * The decline record is written **before** the emit, so branch 5's guard
+      * The decline record is written **before** the emit, so branch 4's guard
         can stop a failed emit from becoming an accept.
       * Everything in this arm ahead of the record **raises** instead of
         returning FAILURE when it cannot do its job.  A Selector falls through
         on FAILURE, so for a node in a refusal arm "I could not tell" and "no"
         both mean *admit*; only ``BTBridge`` failing the whole tree is safe.
 
-    **Branch 5 — accept** (``AcceptProposalArm``): ``CheckNoDeclineRecordNode``
+    **Branch 4 — accept** (``AcceptProposalArm``): ``CheckNoDeclineRecordNode``
     followed by the normal / duplicate flow (Sequence):
       First ``RecordProposalAdmissionNode`` stamps the proposal-keyed admission
       record, before any case exists.  Then a sub-Selector resolves which
@@ -290,8 +269,8 @@ def create_case_proposal_received_tree(
         names a case (a redelivery, CP-05-006, also from a former owner after
         an ownership transfer, #4650), write its ID to the blackboard and
         succeed; another proposer's case for the report is not reused.  It
-        resolves the case with ``proposal_case_ids``, as branch 3 does, and a
-        fully closed case never reaches it: branch 3 declines it.
+        resolves the case with ``proposal_case_ids``, as branch 2 does, and a
+        fully closed case never reaches it: branch 2 declines it.
       * ``CreateCaseFromProposalNode`` (normal path): create a new case,
         attributed to *proposer_uri*, which becomes the CASE_OWNER
         (CP-09-001).
@@ -317,34 +296,30 @@ def create_case_proposal_received_tree(
       Then the outbound messaging steps:
 
       8. ``EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
-      9. ``WriteCreateCaseMarkerNode`` — writes durable retry marker with
-         inline case object (CP-05-005, ADR-0041 AC-5)
-      10. ``EmitCreateVulnerabilityCaseNode`` — emits
-         Create(VulnerabilityCase) with inline participants
-      11. ``ClearCreateCaseMarkerNode`` — removes marker on success
-         (CP-05-005)
+      9. ``EmitCreateVulnerabilityCaseNode`` — emits
+         Create(VulnerabilityCase) with the inline case object (ADR-0041
+         AC-5), unless ``CheckCaseAlreadyAnnouncedNode`` finds the case
+         already announced (CP-05-008)
 
       Then, last of all:
 
-      12. ``CommitNativeLedgerEntriesNode`` — canonical ledger entries
+      10. ``CommitNativeLedgerEntriesNode`` — canonical ledger entries
          committed (ADR-0041 AC-4).  Each commit fans out through the FIFO
          outbox, so it runs after the Create: every recipient must hold the
          case object before its first ``Announce(CaseLedgerEntry)`` arrives
          (CM-14-011, CP-09-009), or it enters the SYNC-15 pre-genesis
          reject/replay path on the normal case-creation route (#3033, #2898).
-      13. ``RelayCreationTimeRevisionNode`` — relays the revision step 6
+      11. ``RelayCreationTimeRevisionNode`` — relays the revision step 6
          recorded, if any, as ``Invite(EmbargoEvent)`` to the party
          whose terms won (EP-04-011), then indexes the sent Invite
          (EP-08-002) and deletes the marker, which a failure keeps for a
-         retry (#4121); no modification precedes step 12 (CM-14-007).
+         retry (#4121); no modification precedes step 10 (CM-14-007).
 
-    Nodes from the admission record through node 12 run in one
+    Nodes from the admission record through node 10 run in one
     ``ActTransaction`` (ADR-0146): if any of them fails, nothing they wrote is
-    kept, the ``Accept`` and the marker of node 9 included, and delivery is
-    told of neither activity (DL-02-004).  The marker of node 9 is written
-    and cleared inside the act, so it never outlives it; once the act
-    commits, the durable outbox holds the ``Create`` and retries its delivery
-    (OX-13, CP-05-005).
+    kept, the ``Accept`` included, and delivery is told of neither activity
+    (DL-02-004).  Once the act commits, the durable outbox holds the
+    ``Create`` and retries its delivery (OX-13, CP-05-005).
 
     Spec: CP-05-001 through CP-05-006, CP-05-008.
     Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``.
@@ -431,7 +406,7 @@ def create_case_proposal_received_tree(
     )
 
     # Main flow: record admission → resolve case → native init → emit Accept →
-    # write marker → emit Create → clear marker
+    # emit Create → commit ledger entries
     # The creation is one act (ADR-0146): everything from the admission
     # record to the last creation entry is written in one ActTransaction, so
     # a creation entry that fails, or an emit that fails, rolls back the case,
@@ -443,10 +418,11 @@ def create_case_proposal_received_tree(
     creation_act = ActTransaction(
         name="CreateCaseFromProposalAct",
         children=[
-            # Ahead of case_resolution deliberately.  This is the proposal-keyed
-            # evidence that the accept path began; without it the only marker of
-            # an in-progress accept is the case itself, which is keyed on a
-            # report the *sender* chose.  See RecordProposalAdmissionNode.
+            # Ahead of case_resolution deliberately: LoadExistingCaseNode reads
+            # whether the record was already stored.  The record is the
+            # proposal-keyed evidence that this proposal was accepted; the case
+            # itself is keyed on a report the *sender* chose.  See
+            # RecordProposalAdmissionNode.
             RecordProposalAdmissionNode(
                 proposal_id=proposal_id,
                 proposer_uri=proposer_uri,
@@ -500,19 +476,9 @@ def create_case_proposal_received_tree(
                 memory=False,
                 children=[
                     CheckCaseAlreadyAnnouncedNode(),
-                    py_trees.composites.Sequence(
-                        name="AnnounceCase",
-                        memory=False,
-                        children=[
-                            WriteCreateCaseMarkerNode(
-                                proposal_id=proposal_id,
-                                owner_uri=proposer_uri,
-                            ),
-                            EmitCreateVulnerabilityCaseNode(
-                                proposal_id=proposal_id,
-                            ),
-                            ClearCreateCaseMarkerNode(proposal_id=proposal_id),
-                        ],
+                    EmitCreateVulnerabilityCaseNode(
+                        proposal_id=proposal_id,
+                        owner_uri=proposer_uri,
                     ),
                 ],
             ),
@@ -553,7 +519,7 @@ def create_case_proposal_received_tree(
     # A proposal already declined is not re-adjudicated.  The arm still ensures
     # the Reject went out, because the decline record is written *before* the
     # emit, so "declined with nothing queued" is a reachable and recoverable
-    # state (the same ordering CP-05-005 uses for the accept side's Create).
+    # state.
     resend_decline_arm = py_trees.composites.Sequence(
         name="AlreadyDeclinedArm",
         memory=False,
@@ -629,7 +595,7 @@ def create_case_proposal_received_tree(
             py_trees.decorators.Inverter(
                 name="ProposalNotYetAnswered",
                 child=CheckProposalAlreadyAnsweredNode(
-                    proposal_id=proposal_id, report_id=report_id
+                    proposal_id=proposal_id
                 ),
             ),
             py_trees.decorators.Inverter(
@@ -663,7 +629,7 @@ def create_case_proposal_received_tree(
     )
 
     # Intake runs ahead of the whole Selector, so every arm — including a
-    # decline and the in-flight guard — leaves the archived Create(CaseProposal)
+    # decline — leaves the archived Create(CaseProposal)
     # (CLP-10-017, CLP-10-018).  No commit stage (``case_id=None``): the case
     # does not exist yet, and the accept arm's CommitNativeLedgerEntriesNode
     # ledgers the facts it creates (ADR-0041 AC-4).
@@ -682,7 +648,6 @@ def create_case_proposal_received_tree(
                 name="CreateCaseProposalIdempotencySelector",
                 memory=False,
                 children=[
-                    CheckMarkerExistsNode(proposal_id=proposal_id),
                     resend_decline_arm,
                     closed_case_arm,
                     decline_arm,

@@ -73,9 +73,8 @@ Delivery learns of the queued messages only once that transaction commits, so a 
 The two emissions are separate steps for a reason worth understanding.
 The `Accept` is irrevocable once sent: the service has committed to managing the case.
 The replica delivery can still fail after both are queued.
-So a durable marker is written between them, and a retry runner completes only the `Create` — never resending the `Accept` (CP-05-005).
-The marker is deleted once the `Create` is queued, so it cannot tell a redelivered proposal that the case was already announced.
-The `Create` therefore takes an id derived from the proposal: a redelivery that finds that activity already stored announces nothing again, and one that finds a `Create` for a different case under it fails rather than leave the new case unannounced.
+Once the transaction commits, the outbox holds the `Create` and retries its delivery on its own, so only the `Create` is retried and the `Accept` is never resent (CP-05-005).
+The `Create` takes an id derived from the proposal: a redelivery that finds that activity already stored announces nothing again, and one that finds a `Create` for a different case under it fails rather than leave the new case unannounced.
 Sending a second `Accept` would tell the proposer it had been accepted twice, and there is no such thing.
 
 ---
@@ -95,7 +94,7 @@ All of that lives here or nowhere.
 
 The decision is placed ahead of every one of the eleven steps above, and that placement is the interesting part.
 A refusal has to happen before the case exists.
-A service that created the case, committed ledger entries, and *then* declined would be telling the proposer "no" while holding a half-built case that no Participant will ever converge on — the canonical-versus-replica divergence CLP-10-009 exists to prevent.
+A service that created the case, committed ledger entries, and *then* declined would be telling the proposer "no" while holding a case that no Participant will ever converge on — the canonical-versus-replica divergence CLP-10-009 exists to prevent.
 
 When the service declines, it sends `Reject(as_CaseProposal)` with the proposal inline, and creates nothing (CP-05-004).
 The proposing actor records the refusal (CP-06-003, CP-06-004).

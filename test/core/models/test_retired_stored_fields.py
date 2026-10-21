@@ -32,9 +32,6 @@ from vultron.core.models.case_proposal_admission import (
     CaseProposalAdmissionRecord,
 )
 from vultron.core.models.case_proposal_decline import CaseProposalDeclineRecord
-from vultron.core.models.pending_create_case_activity import (
-    PendingCreateCaseActivity,
-)
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
     RetiredStoredField,
@@ -46,15 +43,12 @@ CASE_ACTOR_ID = "https://example.org/actors/vendor/case-actor"
 OWNER_ID = "https://example.org/actors/vendor"
 
 _RenamedRecord = (
-    type[CaseProposalAdmissionRecord]
-    | type[CaseProposalDeclineRecord]
-    | type[PendingCreateCaseActivity]
+    type[CaseProposalAdmissionRecord] | type[CaseProposalDeclineRecord]
 )
 
 _RENAMED: list[tuple[_RenamedRecord, str]] = [
     (CaseProposalAdmissionRecord, "proposer_uri"),
     (CaseProposalDeclineRecord, "proposer_uri"),
-    (PendingCreateCaseActivity, "owner_uri"),
 ]
 _IDS = [cls.__name__ for cls, _ in _RENAMED]
 

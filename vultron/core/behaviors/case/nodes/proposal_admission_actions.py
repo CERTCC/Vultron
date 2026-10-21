@@ -53,24 +53,23 @@ logger = logging.getLogger(__name__)
 
 
 class RecordProposalAdmissionNode(DataLayerActionWithPorts):
-    """Stamp "this proposal began the accept path" before anything is created.
+    """Stamp "this proposal was accepted", ahead of case resolution.
 
-    The first step of the accept flow, and deliberately ahead of case creation.
-    The accept path creates the case and commits its ledger entries *before* it
-    emits the ``Accept``, so a delivery that fails in that window leaves a case
-    with no stored ``Accept`` and nothing proposal-keyed to show the proposal was
-    ever adjudicated. The only evidence left would be report-keyed, and a
-    report-keyed answer is not trustworthy here: ``report_id`` comes from the
-    report the *sender* embedded, so two proposals can name one report and a
-    report-keyed guard would report "already answered" for a proposal the service
-    never saw.
+    The first step of the accept flow.  It runs in the same ``ActTransaction``
+    as the case, the queued ``Accept`` and ``Create`` and every creation entry
+    (ADR-0146), so the record is stored exactly when the accept committed: a
+    failed delivery rolls it back with the rest.  It is the proposal-keyed
+    evidence that this proposal was answered.  The only other evidence would be
+    report-keyed, and a report-keyed answer is not trustworthy here:
+    ``report_id`` comes from the report the *sender* embedded, so two proposals
+    can name one report and a report-keyed guard would report "already
+    answered" for a proposal the service never saw.
 
-    Writing this record first closes that window, and it is what lets
-    :class:`CheckProposalAlreadyAnsweredNode` answer from an indexed single-row
-    read instead of scanning every stored ``Accept``.
+    It is what lets :class:`CheckProposalAlreadyAnsweredNode` answer from an
+    indexed single-row read instead of scanning every stored ``Accept``.
 
-    Idempotent: a record that already exists is left alone, so a redelivery that
-    resumes a half-built case does not disturb it.
+    Idempotent: a record that already exists is left alone, so a redelivery of
+    an accepted proposal does not disturb it.
 
     Writes ``admission_record_was_prior`` to the blackboard: ``True`` when the
     record was already stored, that is, an earlier delivery of this proposal
@@ -244,9 +243,9 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
 
     The node writes no case state and creates no participants.  It is reachable
     only from the decline arm, which runs ahead of ``ResolveCaseIdSelector`` and
-    is guarded so it cannot be entered once case creation has begun — a Reject
-    emitted after the accept flow's effects would tell the receiver "declined"
-    while this store held a half-built case with committed ledger entries, the
+    is guarded so it cannot be entered once the proposal was accepted — a
+    Reject emitted for an accepted proposal would tell the receiver "declined"
+    while this store held its case with committed ledger entries, the
     canonical/replica divergence CLP-10-009 exists to prevent.
 
     Unlike its sibling ``EmitAcceptCaseProposalNode``, this node routes through

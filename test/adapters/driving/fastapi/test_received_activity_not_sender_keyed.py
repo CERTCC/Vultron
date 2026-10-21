@@ -36,17 +36,15 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
-from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+from vultron.core.behaviors.case.nodes.proposal_announcement import (
     announced_case_id,
     case_is_announced,
+    create_case_activity_id,
 )
 from vultron.core.behaviors.case.stub_invite_lifetime import (
     recorded_stub_invites,
 )
 from vultron.core.behaviors.inbox import InboxOutcome, process_payload
-from vultron.core.models.pending_create_case_activity import (
-    PendingCreateCaseActivity,
-)
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -171,7 +169,7 @@ def test_a_received_create_under_the_proposal_derived_id_is_not_one_sent(
     proposal would otherwise read as the receiver's own announcement, or as
     a squatter that refuses the real one.
     """
-    create_id = PendingCreateCaseActivity.create_activity_id(_PROPOSAL_ID)
+    create_id = create_case_activity_id(_PROPOSAL_ID)
     activity = _create_case(_SENDER_URI, id_=create_id)
 
     _deliver(receiver_dl, activity)
