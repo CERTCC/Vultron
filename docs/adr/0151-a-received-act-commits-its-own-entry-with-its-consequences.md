@@ -83,6 +83,8 @@ Chosen option: **A, one transaction for the act's own entry and its consequences
    It sends the fault after the act's transaction has rolled back, so the rollback does not remove it, and the fault carries no diagnostics (ASK-07-006).
    The fault is a notice, not a recovery: it changes nothing of the act, and the sender decides whether to send the activity again.
    Its id is derived from the failed activity and the failure class, so a second failure of the same activity builds no second fault.
+   A processing fault whose own handling fails is not answered with another, so two receivers that fail alike never answer each other without end.
+   The fault goes to the actor the activity names; the prototype inbox does not yet authenticate that sender (#509).
    The fault is not ledgered, as no fault the inbox sends is; whether a case-attributable fault belongs in the ledger is open (ASK-07-008, #4800).
    The inbox logs the failed act once at ERROR, with the activity id and the sender's actor id, and keeps the outcome as rejected, which it logs at WARNING with the receiving actor's id.
    The bridge that ran the tree keeps its own ERROR record of the node that raised, as it does for every internal error, so that record names the failing node and the inbox's names the failed act.

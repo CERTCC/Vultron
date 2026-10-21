@@ -47,9 +47,10 @@ Its failure class is `https://certcc.github.io/Vultron/ns/errors/InternalProcess
 The receiver sends it after the act is rolled back, so the rollback does not remove it.
 The fault is a notice, not a recovery: the sender decides whether to send the activity again, and a later delivery runs the act again with the body the receiver kept from the first delivery ([IE-10-001](../specs/project.md#ie-10-001)).
 Its id is derived from the failed activity and the failure class, so a second failure of the same activity sends no second fault.
-The receiver sends no fault for a message it could not parse, or one that names no sender ([ASK-07-002](../specs/protocol.md#ask-07-002)).
+This internal-error fault answers only a use case that failed: a body the inbox could not parse into an activity that names its sender never reaches one, and a processing fault that fails is not answered with another, so two receivers never answer each other's faults.
+The prototype inbox does not yet authenticate a sender, so it answers the actor the activity names; a fault to an unauthenticated sender is not allowed ([ASK-07-002](../specs/protocol.md#ask-07-002)).
 An activity the receiver will try again later is answered only when it stops trying, so a later success never follows a fault.
-The fault is not ledgered.
+This implementation does not ledger the fault, as it ledgers no processing fault; whether a case-attributable fault belongs in the ledger is not yet decided ([ASK-07-008](../specs/protocol.md#ask-07-008)).
 
 The formal fault shorthands have no dedicated wire counterpart ([MSM-05-001](../specs/protocol.md#msm-05-001)).
 

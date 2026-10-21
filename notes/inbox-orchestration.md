@@ -156,7 +156,11 @@ once at ERROR with the activity and sender ids and queues one internal-error
 `Create(ProcessingFault)` to the sender through `DispatchAdapter`. The pipeline never
 retries a raised dispatch, so that attempt is the last. The bounded-retry loop in
 `inbox_handler.py` answers only on dead-letter, never on a re-queue, or a later
-success would follow a false fault (ASK-07-007). The fault is not ledgered (#4800).
+success would follow a false fault (ASK-07-007), and never for a raise after the
+dispatch returned (the post-bootstrap replay). Never answer a raised
+`Create(ProcessingFault)` with a fault (`answers_with_internal_error_fault`), or two
+peers failing alike answer each other forever. The fault goes to the claimed `actor`:
+the inbox does not authenticate senders yet (#509). It is not ledgered (#4800).
 
 ---
 

@@ -282,10 +282,11 @@ def test_an_unrecorded_event_without_evidence_is_refused_not_recorded(bridge):
 def test_a_recorded_resend_without_evidence_reuses_its_first_entry(
     bridge, datalayer
 ):
-    """A resend of an archived activity is routed with no received evidence.
+    """An activity routed with no received evidence that is recorded.
 
-    Its first delivery's entry is its record, so the node commits nothing
-    and succeeds rather than reporting a wiring fault.
+    As a still-deferred activity's held copy is routed.  Its first
+    delivery's entry is its record, so the node commits nothing and succeeds
+    rather than reporting a wiring fault.
     """
     datalayer.create(
         CaseLedgerEntry(
@@ -313,6 +314,38 @@ def test_a_recorded_resend_without_evidence_reuses_its_first_entry(
     mock_factory.assert_not_called()
 
 
+@pytest.mark.spec("ID-04-004")
+@pytest.mark.spec("IE-10-001")
+def test_a_recorded_activity_with_its_body_commits_no_second_entry(
+    bridge, datalayer
+):
+    """The archived copy of a resend carries the first delivery's body.
+
+    A tree with no repeat guard of its own (RM engage) reaches the commit
+    with a body to record; the ledger's entry for the activity is its
+    record, so the node commits nothing (IE-10-001, VM-08-002).
+    """
+    datalayer.create(
+        CaseLedgerEntry(
+            case_id=CASE_ID,
+            log_object_id=ACTIVITY_ID,
+            semantic_type=MessageSemantics.CREATE_CASE.value,
+            payload_snapshot=_CREATE_BODY,
+            entry_hash="hash-1",
+            prev_log_hash="hash-0",
+            log_index=0,
+        )
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH) as mock_factory:
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=_received()
+        )
+
+    assert result.status == Status.SUCCESS
+    mock_factory.assert_not_called()
+
+
 @pytest.mark.spec("CLP-07-013")
 @pytest.mark.spec("IE-10-001")
 def test_a_resend_whose_id_is_recorded_as_another_activity_is_refused(
@@ -320,8 +353,8 @@ def test_a_resend_whose_id_is_recorded_as_another_activity_is_refused(
 ):
     """An id the ledger records for one activity is not another's record.
 
-    An archived redelivery is rebuilt from the body that arrived, so a resend
-    reusing the id with a different activity type routes to another handler.
+    A copy routed with no body (as a still-deferred activity's is) that
+    reuses the id with a different activity type routes to another handler.
     Taking the first entry as its record would let that handler's effects run
     with no entry; the node refuses it instead, committing nothing.
     """

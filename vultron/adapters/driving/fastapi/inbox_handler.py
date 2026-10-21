@@ -30,11 +30,12 @@ are provided by the focused submodules:
 import logging
 from typing import Any, cast
 
-# Re-export port factories and semantics sets so existing callers that
-# import them from this module continue to work (backward compat).
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+
+# Re-export port factories and semantics sets so existing callers that
+# import them from this module continue to work (backward compat).
 from vultron.adapters.driving.fastapi import inbox_port_factories
 
 # Re-export pending-queue helpers so existing callers and tests that
@@ -64,6 +65,9 @@ from vultron.adapters.inbox_staging import (
 )
 from vultron.adapters.outbox_dead_letter import RetryStore
 from vultron.config import get_config
+from vultron.core.behaviors.inbox.nodes.dispatch import (
+    answers_with_internal_error_fault,
+)
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import (
@@ -398,8 +402,11 @@ def _answer_dead_lettered_item(
 
     Only a dead-lettered item is answered: a re-queued one may still
     succeed, and a fault sent before that success would be false
-    (ASK-07-010, ASK-07-007).  The sender is the one extraction names; an
-    item that does not extract names no sender to answer (ASK-07-002).  A
+    (ASK-07-010, ASK-07-007).  The sender is the ``actor`` extraction names;
+    an item that does not extract names none and is not answered.  The
+    inbox does not yet authenticate that sender (#509), so the fault goes to
+    the actor the activity claims.  A fault is never answered with a fault,
+    or two peers failing alike would answer each other without end.  A
     fault that cannot be queued is logged, never raised: the item is
     already in the dead-letter store.
     """
@@ -412,6 +419,13 @@ def _answer_dead_lettered_item(
             item.id_,
             receiver_id,
             exc_info=True,
+        )
+        return
+    if not answers_with_internal_error_fault(event):
+        logger.info(
+            "Dead-lettered inbox item '%s' is a ProcessingFault; it is not"
+            " answered with another (ASK-07-010).",
+            event.activity_id,
         )
         return
     try:
@@ -588,6 +602,10 @@ def _process_inbox_item(
     """
     _log_rehydrated_item(item)
 
+    # Set once the dispatch returned: a raise after it (the post-bootstrap
+    # replay) is no failure of this item's act, so it is never answered with
+    # a fault, even when the item is dead-lettered (ASK-07-010).
+    dispatched = False
     try:
         event = _dispatch_or_defer_inbox_item(
             actor_id=canonical_actor_id,
@@ -597,6 +615,7 @@ def _process_inbox_item(
             dispatcher=dispatcher,
             staging=staging,
         )
+        dispatched = True
         if event is not None:
             case_id = _activity_context_id(item, event)
             if is_case_bootstrap(event) and case_id is not None:
@@ -625,15 +644,18 @@ def _process_inbox_item(
             item.model_dump_json(indent=2, exclude_none=True),
         )
         if retry is not None:
-            if _inbox_retry_or_dead_letter(
-                item_id,
-                actor_id,
-                "processing_error",
-                str(e),
-                queue_dl,
-                retry,
-                max_attempts,
-                staging,
+            if (
+                _inbox_retry_or_dead_letter(
+                    item_id,
+                    actor_id,
+                    "processing_error",
+                    str(e),
+                    queue_dl,
+                    retry,
+                    max_attempts,
+                    staging,
+                )
+                and not dispatched
             ):
                 _answer_dead_lettered_item(item, canonical_actor_id, dl)
         else:

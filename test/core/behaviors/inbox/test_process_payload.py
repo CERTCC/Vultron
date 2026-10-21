@@ -685,6 +685,34 @@ class TestARaisedDispatchIsAnsweredWithAFault:
 
         assert dispatch.faults == []
 
+    @pytest.mark.spec("ASK-07-010")
+    def test_a_raised_fault_is_not_answered_with_a_fault(self):
+        """Two peers failing alike must not answer each other's faults."""
+        from vultron.wire.as2.factories.fault import (
+            create_processing_fault_activity,
+        )
+        from vultron.wire.as2.vocab.objects.processing_fault import (
+            as_ProcessingFault,
+        )
+
+        fault = create_processing_fault_activity(
+            actor=SENDER_ID,
+            fault=as_ProcessingFault(
+                failure_class=VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+                in_reply_to="https://example.org/activities/failed",
+            ),
+            to=[RECEIVER_ID],
+        )
+        dispatch = _StubDispatchAdapter(should_fail=True)
+
+        outcome = process_payload(
+            {}, _StubIngressAdapter(activity=fault), dispatch
+        )
+
+        assert outcome.status is InboxOutcomeStatus.REJECTED
+        assert "Dispatch raised" in (outcome.failure_reason or "")
+        assert dispatch.faults == []
+
     @pytest.mark.spec("ASK-07-002")
     def test_a_parse_failure_is_not_answered(self):
         dispatch = _StubDispatchAdapter(should_fail=True)
