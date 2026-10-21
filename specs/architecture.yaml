@@ -1358,7 +1358,7 @@ groups:
       A serialize-then-validate round trip on a core object MUST reproduce that
       object.  Serialization MAY emit computed fields
       (`VulnerabilityCase.activeParticipants`, on the AS2 `by_alias` path only
-      because CM-31-003 forbids storing it; ADR-0056's `embargo_adherence` was
+      because CM-31-014 forbids storing it; ADR-0056's `embargo_adherence` was
       retired by ADR-0122); validation MUST
       discard a supplied computed-field value that equals the value derived from
       the object's own state, and MUST refuse one that contradicts it rather

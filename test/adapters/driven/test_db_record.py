@@ -1095,7 +1095,7 @@ def test_is_generic_object_ref_sees_through_the_non_empty_string_branch():
     assert not _is_generic_object_ref(as_ActorRef)
 
 
-@pytest.mark.spec("CM-31-003")
+@pytest.mark.spec("CM-31-003", "CM-31-014")
 def test_computed_active_participants_is_not_in_the_stored_row() -> None:
     """The persistence record carries the facts, not the derived view."""
     from vultron.core.models.case import VulnerabilityCase
