@@ -95,7 +95,8 @@ That is Attacks Observed (CA).
 
 Your report is your view of the case status, not a change to it.
 The CASE_MANAGER records the status on your participant record and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization (RSH-07-001).
-If it adopts the change, the CASE_MANAGER commits it as an `Add(CaseStatus)` entry to the case ledger, and while an embargo is active or proposed, ends or abandons the embargo (RSH-03-001).
+If it adopts the change, the CASE_MANAGER commits it as an `Add(CaseStatus)` entry to the case ledger.
+While an embargo is active or proposed, it then ends or abandons the embargo (RSH-03-001).
 The Reporter + Vendor (`rv`) demo and the `status-updates` demo report public awareness this way.
 
 ---
