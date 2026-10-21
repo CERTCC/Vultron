@@ -368,10 +368,10 @@ groups:
     verification: >-
       `test/test_behavior_dispatcher.py::test_dispatch_refuses_a_semantics_with_no_registered_use_case`
       shows `DispatcherBase._handle()` resolving the handler from `event.semantic_type`
-      before any `execute()` runs and raising `VultronApiHandlerNotFoundError` when the
-      semantics has no entry;
-      `test/test_semantic_registry.py::test_use_case_map_keys_match_semantics` pins the
-      routing table to the `MessageSemantics` enum.
+      before any `execute()` runs and returning a `REFUSED` "no use case found" verdict
+      when the semantics has no entry (SE-05-002);
+      `test/test_semantic_registry.py::test_use_case_map_holds_exactly_the_handled_entries`
+      pins the routing table to the registry entries that name a use case.
     relationships:
     - rel_type: depends_on
       spec_id: DR-01-003
@@ -397,8 +397,9 @@ groups:
     statement: All handlers MUST be discoverable via a handler registry mechanism
     verification: >-
       `test/test_semantic_registry.py::test_registry_covers_all_semantics` and
-      `::test_non_unknown_entries_have_use_case_class` fail when a `MessageSemantics` value
-      has no `SEMANTIC_REGISTRY` entry or an entry names no handler class.
+      `::test_use_case_map_holds_exactly_the_handled_entries` fail when a
+      `MessageSemantics` value has no `SEMANTIC_REGISTRY` entry or the routing table
+      omits an entry that names a handler class.
     relationships:
     - rel_type: derives_from
       spec_id: DR-02-001
@@ -407,8 +408,8 @@ groups:
     kind: architecture
     statement: Registry keys MUST match handler semantic verification types
     verification: >-
-      `test/test_semantic_registry.py::test_use_case_map_keys_match_semantics` asserts the
-      keys of `use_case_map()` equal the `MessageSemantics` enum, and
+      `test/test_semantic_registry.py::test_use_case_map_holds_exactly_the_handled_entries`
+      asserts each key of `use_case_map()` routes to its own entry's handler, and
       `::test_each_use_case_accepts_the_event_class_its_semantics_route` asserts each key's
       handler accepts the event class registered under that same key.
     relationships:
@@ -460,9 +461,8 @@ groups:
     statement: Handlers MUST raise exceptions for unrecoverable errors
     verification: >-
       `test/test_behavior_dispatcher.py::test_dispatch_rejects_a_use_case_that_returns_no_handler_result`
-      and `::test_dispatch_refuses_a_semantics_with_no_registered_use_case` show contract
-      breaches raising (`TypeError`, `VultronApiHandlerNotFoundError`) rather than
-      returning; `test/architecture/test_no_broad_except_outside_bt_update.py` (CS-23-001)
+      shows a contract breach raising `TypeError` rather than returning;
+      `test/architecture/test_no_broad_except_outside_bt_update.py` (CS-23-001)
       fails on any `except Exception` outside a BT node's `update()` under
       `vultron/core/behaviors/`, so a handler's tree cannot swallow an unexpected error.
   - id: HP-05-002

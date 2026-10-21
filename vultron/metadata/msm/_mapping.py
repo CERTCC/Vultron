@@ -157,6 +157,10 @@ NOT_YET_CHECKED = "not yet checked"
 #: permanent exemption, ``no_sender_check``).
 NO_SENDER_CHECK = "any actor (no sender check applies)"
 
+#: The "Sent by" wording for an entry no received use case handles: with no
+#: use case there is no sender rule to word (ADR-0140 item 5, SE-05-002).
+NOT_HANDLED = "not handled"
+
 
 def _words(type_name: str) -> str:
     """``"CaseProposal"`` → ``"case proposal"``."""
@@ -237,35 +241,50 @@ def rule_wording(
     )
 
 
+def _entitlement_wording(
+    use_case: type, entry: SemanticEntry, addressee: AddresseeSide
+) -> str:
+    """Word the sender entitlement *use_case* declares for *addressee*.
+
+    Raises:
+        ValueError: When the use case declares no sender entitlement.
+    """
+    declared: object = getattr(use_case, "sender_entitlement", None)
+    match declared:
+        case SenderExemption(permanent=True):
+            return NO_SENDER_CHECK
+        case SenderExemption():
+            return NOT_YET_CHECKED
+        case SenderRule():
+            return rule_wording(declared, entry, addressee)
+        case _:
+            raise ValueError(
+                f"{use_case.__name__} declares no sender_entitlement"
+                " (HP-01-007)"
+            )
+
+
 def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     """Derive the "Sent by" value of *occasion* on *entry* (MSM-08-005).
 
     The value is the wording of the side of the sender rule the entry's
     received use case declares that matches the occasion's addressee
     (:func:`rule_wording`), :data:`NOT_YET_CHECKED` for an exemption that
-    names the issue owning its rule, or :data:`NO_SENDER_CHECK` for a
-    permanent one.
+    names the issue owning its rule, :data:`NO_SENDER_CHECK` for a
+    permanent one, or :data:`NOT_HANDLED` for an entry no received use case
+    handles.
     The occasion's usual sender roles, when it has any, follow in
     parentheses: "an active participant (usually: vendor)".
 
     Raises:
         ValueError: When the use case declares no sender entitlement.
     """
-    declared: object = getattr(
-        entry.use_case_class, "sender_entitlement", None
+    use_case = entry.use_case_class
+    wording = (
+        NOT_HANDLED
+        if use_case is None
+        else _entitlement_wording(use_case, entry, occasion.addressee)
     )
-    match declared:
-        case SenderExemption(permanent=True):
-            wording = NO_SENDER_CHECK
-        case SenderExemption():
-            wording = NOT_YET_CHECKED
-        case SenderRule():
-            wording = rule_wording(declared, entry, occasion.addressee)
-        case _:
-            raise ValueError(
-                f"{entry.use_case_class.__name__} declares no"
-                " sender_entitlement (HP-01-007)"
-            )
     if not occasion.usual_senders:
         return wording
     usual = ", ".join(

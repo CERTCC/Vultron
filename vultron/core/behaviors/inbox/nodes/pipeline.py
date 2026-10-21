@@ -21,6 +21,7 @@ Intermediate keys (written by pipeline nodes during execution):
 Output keys (written by pipeline nodes on completion or failure):
     inbox_outcome_status   — an ``InboxOutcomeStatus`` member
     inbox_failure_reason   — human-readable reason when not processed
+    inbox_unhandled        — ``True`` when no use case handles the semantics
 
 Steps 5 and 6 (dispatch and the processed outcome) live in
 :mod:`~vultron.core.behaviors.inbox.nodes.dispatch`, which also owns the
@@ -70,6 +71,7 @@ KEY_EVENT = "inbox_event"
 KEY_CONTEXT_ID = "inbox_context_id"
 KEY_OUTCOME_STATUS = "inbox_outcome_status"
 KEY_FAILURE_REASON = "inbox_failure_reason"
+KEY_UNHANDLED = "inbox_unhandled"
 
 # All keys managed by the inbox pipeline (for setup and cleanup).
 ALL_INBOX_KEYS = (
@@ -82,6 +84,7 @@ ALL_INBOX_KEYS = (
     KEY_CONTEXT_ID,
     KEY_OUTCOME_STATUS,
     KEY_FAILURE_REASON,
+    KEY_UNHANDLED,
 )
 
 
@@ -132,8 +135,9 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
         """Write a non-processed outcome via typed output ports; return FAILURE.
 
         Logged at INFO, not WARNING: the driving adapter logs every rejected
-        ``InboxOutcome`` at WARNING with the actor and activity ids
-        (UCORG-05-013), so a node-level warning would report it twice.
+        ``InboxOutcome`` with the actor and activity ids, at WARNING, or at
+        INFO for an unhandled one (UCORG-05-013, IO-01-005), so a node-level
+        warning would report it twice.
         """
         self.feedback_message = reason
         self._set_output(KEY_OUTCOME_STATUS, status)
