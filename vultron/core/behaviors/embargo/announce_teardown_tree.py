@@ -351,10 +351,6 @@ def remove_embargo_from_case_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="TeardownAndAnnounceIfCaseManager",
-        # The received act's own entry, the teardown, the ending notices, the
-        # backfill and the stub re-issue are one act (CLP-07-015, ADR-0146,
-        # ADR-0151).
-        as_one_act=True,
     )
     logger.info(
         "Created RemoveEmbargoFromCaseBT for case=%s embargo=%s",
@@ -636,9 +632,6 @@ def invite_to_embargo_on_case_tree(
         ],
         manager_case_id=case_id,
         manager_gate_name="AdjudicateEmbargoProposal",
-        # The proposal's own entry, its rows, its relay and the manager's own
-        # consent are one act (CLP-07-015, ADR-0146, ADR-0151).
-        as_one_act=True,
     )
     logger.info(
         "Created InviteToEmbargoOnCaseBT for case=%s invitee=%s invite=%s"

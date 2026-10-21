@@ -2139,7 +2139,9 @@ class TestAdoptedPxaReachesTheCaseStatus:
             ),
         )
 
-        assert result.status == Status.FAILURE
+        # A withheld adoption is not a failure of the act: it keeps its
+        # entry and the append (RSH-09-008, CLP-07-015).
+        assert result.status == Status.SUCCESS, result.feedback_message
         assert _case_pxa(populated_dl) == CS_pxa.pxa
         assert _case_status_entries(populated_dl) == []
 

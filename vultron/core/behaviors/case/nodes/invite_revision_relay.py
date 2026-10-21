@@ -58,12 +58,12 @@ from vultron.core.sync_helpers import recorded_entries_for_case
 class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
     """Invite a new joiner to each embargo proposal open when it joins.
 
-    Skips a proposal the joiner's row for has already left ``UNINVITED``.
-    Each relay applies PEC ``INVITE`` to the joiner's row, so a re-run of the
-    effects (a resumed accept) does not invite the joiner twice.  *answers*
-    is the stub Invite the joiner accepted: a re-run after an Invite was
-    queued but not committed, its row still ``UNINVITED``, rebuilds that
-    Invite under the same id rather than sending a second (OX-06-002).  Everything that
+    Skips a proposal the joiner's row for has already left ``UNINVITED``
+    (EP-09-011): each relay applies PEC ``INVITE`` to the joiner's row, so a
+    re-run does not invite the joiner twice.  *answers* is the stub Invite
+    the joiner accepted, from which each relayed Invite's id is derived
+    (OX-06-002).  The relay runs in the join's ``ActTransaction``, so a
+    failure here keeps nothing of the join (CLP-07-015).  Everything that
     goes wrong here is the manager's own store failing, never a refusal of
     the joiner's Accept, so it raises (Regime 1, ADR-0087).
     """

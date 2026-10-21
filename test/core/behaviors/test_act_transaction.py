@@ -302,7 +302,6 @@ def test_a_received_act_block_at_a_replica_keeps_no_replica_write(
             _save(dl, "persisted"),
             _save(dl, "answer", status=Status.FAILURE),
         ],
-        as_one_act=True,
     )
     act = tree.children[-1]
     assert isinstance(act, ActTransaction)
@@ -330,7 +329,6 @@ def test_a_received_act_block_at_a_replica_keeps_its_replica_writes(
         precondition_guards=[],
         case_may_be_absent=True,
         replica_effects=[_save(dl, "persisted"), _save(dl, "answer")],
-        as_one_act=True,
     )
     act = tree.children[-1]
     assert isinstance(act, ActTransaction)

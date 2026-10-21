@@ -206,10 +206,10 @@ class EmitInviteActorToFullCaseNode(_EmitSingleActivityBase):
     (ADR-0119).
 
     The participant is asked once per case, so the Invite's id is derived
-    from the CASE_MANAGER, the case and the invitee.  A resumed join whose
-    Invite is already in the ledger sends nothing; one whose earlier attempt
-    queued the Invite but did not commit it rebuilds the same Invite, which
-    the outbox does not queue twice (OX-06-002), and commits it.
+    from the CASE_MANAGER, the case and the invitee, and a join whose Invite
+    is already in the ledger sends nothing.  The Invite, its commit and the
+    join are one act (CLP-07-015): an attempt whose commit failed keeps
+    neither the queued Invite nor the join, so its redelivery runs afresh.
     """
 
     def __init__(
@@ -236,10 +236,8 @@ class EmitInviteActorToFullCaseNode(_EmitSingleActivityBase):
     def _already_invited(self) -> bool:
         """Whether the ledger records this CASE_MANAGER's Invite to *invitee_id*.
 
-        A resumed join re-runs the accept tree; the participant is asked once.
-        The ledger, not the store, answers: an Invite the store holds but the
-        ledger does not was queued by an attempt whose commit failed, and is
-        sent and recorded now (ADR-0119).
+        The participant is asked once.  The ledger, not the store, answers:
+        an Invite is sent once it is recorded (ADR-0119).
         """
         assert self.datalayer is not None
         invite_id = self._invite_id()

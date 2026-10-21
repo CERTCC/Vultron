@@ -400,7 +400,7 @@ def _early_commits(root: py_trees.behaviour.Behaviour) -> list[str]:
         _CommitCaseManagerNoteBase,
     )
 
-    # An act block (as_one_act) holds the guarded commit; read its stages.
+    # The act block holds the guarded commit; read its stages.
     stages = received_stages(root)
     names = [child.name for child in stages]
     if GUARDED_COMMIT_NAME not in names:

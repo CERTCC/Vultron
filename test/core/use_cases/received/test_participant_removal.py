@@ -264,7 +264,8 @@ class _NoticeFailsAdapter(TriggerActivityAdapter):
 def test_notice_failure_after_commit_is_an_internal_error(
     removal: _RemovalCase,
 ) -> None:
-    """The entry is committed, so a failed notice is never a refusal."""
+    """A failed notice is our fault, never a refusal; it fails the act,
+    which keeps no entry of the removal (CLP-07-015)."""
     with pytest.raises(VultronBTInternalError):
         route_received(
             removal.dl,
@@ -274,9 +275,7 @@ def test_notice_failure_after_commit_is_an_internal_error(
             trigger_activity=_NoticeFailsAdapter(removal.dl),
         )
 
-    assert [entry.log_object_id for entry in removal.ledger()] == [
-        _REMOVE_ACTIVITY_ID
-    ]
+    assert removal.ledger() == []
 
 
 @pytest.mark.spec("CM-31-001")
@@ -293,7 +292,8 @@ def test_failed_fact_write_after_commit_is_an_internal_error(
     with pytest.raises(VultronBTInternalError):
         removal.route(_owner_removes_vendor(removal))
 
-    assert len(removal.ledger()) == 1
+    # The fact and the removal's own entry are one act (CLP-07-015).
+    assert removal.ledger() == []
 
 
 @pytest.mark.spec("CM-24-006")

@@ -92,11 +92,10 @@ def create_offer_case_participant_role_received_tree(
     the gated :class:`ForwardRoleOfferToTargetNode` sends it on to the target.
     The commit records the received Offer, so it precedes the forward
     (CLP-10-006); the forward is not ledgered on its own, so SYNC-09-002's
-    send-then-commit order binds nothing here.  A redelivery of a recorded
-    Offer whose forward is not stored reuses its entry and builds the
-    forward, so a forward that failed after the commit is sent then; once
-    the forward is stored, a redelivery sends nothing (HP-01-003,
-    OX-06-002).  At a
+    send-then-commit order binds nothing here.  The commit and the forward
+    are one act (CLP-07-015): a forward that fails keeps no entry, so its
+    redelivery is a new Offer, and a redelivery of a recorded Offer sends
+    nothing (HP-01-003).  At a
     participant replica only the target answers (CM-33-004, BT-17-008).
 
     Args:

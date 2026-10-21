@@ -24,6 +24,10 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from vultron.core.behaviors.act_transaction import (
+    ActTransaction,
+    OneActExemption,
+)
 from vultron.core.behaviors.case.nodes.delegation import (
     EmitRejectCaseParticipantRoleNode,
 )
@@ -43,6 +47,7 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
+    received_stages,
     ungated_emitters,
     ungated_nodes,
 )
@@ -118,7 +123,8 @@ def _role_reject_emit() -> EmitRejectCaseParticipantRoleNode:
 
 
 def _names(tree: py_trees.behaviour.Behaviour) -> list[str]:
-    return [child.name for child in tree.children]
+    """The tree's stage names, its act block opened in place."""
+    return [stage.name for stage in received_stages(tree)]
 
 
 class TestStageOrder:
@@ -145,7 +151,7 @@ class TestStageOrder:
             "Replica",
             "SampleBTIfCaseManager",
         ]
-        gate = tree.children[-1]
+        gate = received_stages(tree)[-1]
         assert isinstance(gate, CaseManagerGate)
         assert gate.gated_branch is manager
 
@@ -160,7 +166,7 @@ class TestStageOrder:
             manager_gate_name="EmitIfCaseManager",
         )
 
-        gate = tree.children[-1]
+        gate = received_stages(tree)[-1]
         assert isinstance(gate, CaseManagerGate)
         assert gate.name == "EmitIfCaseManager"
         assert list(gate.gated_branch.children) == [first, second]
@@ -177,19 +183,14 @@ class TestStageOrder:
             manager_body_name="EmitEffects",
         )
 
-        gate = tree.children[-1]
+        gate = received_stages(tree)[-1]
         assert isinstance(gate, CaseManagerGate)
         assert gate.gated_branch.name == "EmitEffects"
 
     @pytest.mark.spec("CLP-07-015")
-    def test_the_commit_and_every_effect_can_run_as_one_act(self) -> None:
-        """The act's own commit, the replica effects and the gated manager
-        effects sit in one ``ActTransaction`` (ADR-0151)."""
-        from vultron.core.behaviors.act_transaction import ActTransaction
-        from vultron.core.behaviors.case.receive_activity_tree import (
-            received_stages,
-        )
-
+    def test_the_commit_and_every_effect_run_as_one_act(self) -> None:
+        """By default the act's own commit, the replica effects and the
+        gated manager effects sit in one ``ActTransaction`` (ADR-0151)."""
         replica = _effect("ReplicaEffect")
         first, second = _Emitter("First"), _Emitter("Second")
         tree = create_receive_activity_tree(
@@ -200,7 +201,6 @@ class TestStageOrder:
             manager_effects=[first, second],
             manager_case_id=CASE_ID,
             manager_gate_name="EmitIfCaseManager",
-            as_one_act=True,
         )
 
         act = tree.children[-1]
@@ -215,30 +215,75 @@ class TestStageOrder:
         assert not any(
             isinstance(n, ActTransaction) for n in gate.iterate()
         ), "the act block is the one transaction"
-        # The stage order reads the same with or without the block.
+        # The stage order opens the block in place.
         assert received_stages(tree)[-3:] == [commit, effect, gate]
-        assert [s.name for s in received_stages(tree)] == [
-            c.name
-            for c in create_receive_activity_tree(
+
+    def test_a_tree_without_a_commit_has_no_act_block(self) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=None,
+            precondition_guards=[],
+            manager_effects=[_Emitter()],
+            manager_case_id=CASE_ID,
+        )
+
+        assert not any(isinstance(n, ActTransaction) for n in tree.iterate())
+
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_registered_one_act_exemption_runs_the_commit_outside_one(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from vultron.core.behaviors.case import receive_activity_tree
+
+        exemption = OneActExemption(name="test-exemption", reason="a test")
+        monkeypatch.setattr(
+            receive_activity_tree,
+            "ONE_ACT_EXEMPTIONS",
+            {exemption.name: exemption},
+        )
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=CASE_ID,
+            precondition_guards=[],
+            replica_effects=[_effect("ReplicaEffect")],
+            one_act_exemption=exemption,
+        )
+
+        assert not any(isinstance(n, ActTransaction) for n in tree.iterate())
+        assert _names(tree)[-2:] == [COMMIT, "ReplicaEffect"]
+
+    @pytest.mark.spec("CLP-07-015")
+    def test_an_unregistered_one_act_exemption_is_refused(self) -> None:
+        with pytest.raises(VultronWiringError, match="ONE_ACT_EXEMPTIONS"):
+            create_receive_activity_tree(
                 name="SampleBT",
                 case_id=CASE_ID,
                 precondition_guards=[],
-                replica_effects=[_effect("ReplicaEffect")],
-                manager_effects=[_Emitter("First"), _Emitter("Second")],
-                manager_case_id=CASE_ID,
-                manager_gate_name="EmitIfCaseManager",
-            ).children
-        ]
+                one_act_exemption=OneActExemption(
+                    name="unregistered", reason="no decision records it"
+                ),
+            )
 
-    def test_one_act_without_a_commit_is_a_wiring_error(self) -> None:
-        with pytest.raises(VultronWiringError, match="as_one_act"):
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_one_act_exemption_without_a_commit_is_a_wiring_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from vultron.core.behaviors.case import receive_activity_tree
+
+        exemption = OneActExemption(name="test-exemption", reason="a test")
+        monkeypatch.setattr(
+            receive_activity_tree,
+            "ONE_ACT_EXEMPTIONS",
+            {exemption.name: exemption},
+        )
+        with pytest.raises(VultronWiringError, match="commits to no case"):
             create_receive_activity_tree(
                 name="SampleBT",
                 case_id=None,
                 precondition_guards=[],
                 manager_effects=[_Emitter()],
                 manager_case_id=CASE_ID,
-                as_one_act=True,
+                one_act_exemption=exemption,
             )
 
     def test_the_gate_takes_its_own_case_id_when_the_commit_is_omitted(
@@ -257,7 +302,7 @@ class TestStageOrder:
         )
 
         assert COMMIT not in _names(tree)
-        gate = tree.children[-1]
+        gate = received_stages(tree)[-1]
         assert isinstance(gate, CaseManagerGate)
         checks = [
             n for n in gate.iterate() if isinstance(n, CheckIsCaseManagerNode)
@@ -347,7 +392,7 @@ class TestReplicaEmitRefusal:
             replica_effects=[gated],
         )
 
-        assert tree.children[-1] is gated
+        assert received_stages(tree)[-1] is gated
 
     def test_a_non_emitting_replica_effect_needs_no_exemption(self) -> None:
         tree = create_receive_activity_tree(
@@ -374,7 +419,7 @@ class TestNamedExemption:
             replica_emit_exemption=OFFER_ROLE,
         )
 
-        assert tree.children[-1] is emit
+        assert received_stages(tree)[-1] is emit
 
     def test_an_exemption_does_not_admit_an_emitter_it_does_not_cover(
         self,

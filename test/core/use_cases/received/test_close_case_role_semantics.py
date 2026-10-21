@@ -1560,14 +1560,13 @@ class TestLeaveCommitsEachClosureStep:
         )
 
     @pytest.mark.spec("CM-23-001")
+    @pytest.mark.spec("CLP-07-015")
     @pytest.mark.spec("RMB-14-005")
-    def test_a_step_written_before_a_refused_one_is_still_recorded(
-        self, monkeypatch
-    ):
-        """V → D written, D → C refused: the D step is on the ledger anyway.
+    def test_a_refused_step_keeps_none_of_the_closure(self, monkeypatch):
+        """V → D written, D → C refused: the act keeps nothing (CLP-07-015).
 
-        The CASE_MANAGER commits an entry for every transition it writes, so
-        a closure that stops part-way leaves no unrecorded step in its store.
+        The Leave's own entry and every closure step are one act, so a step
+        that will not write takes back the D step and the close_case entry.
         """
         from vultron.core.behaviors.case.nodes.participant.status import (
             CreateParticipantStatusNode,
@@ -1585,25 +1584,28 @@ class TestLeaveCommitsEachClosureStep:
         )
         dl = _make_full_dl()
         _seed_rm(dl, VENDOR_ID, RM.VALID)
+        before = _case_file(dl, VENDOR_ID)
 
-        _close(dl, VENDOR_ID, "https://example.org/activities/leave-vendor")
+        result = _close(
+            dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+        )
 
-        assert _latest_rm(dl, VENDOR_ID) == RM.DEFERRED
-        assert _ledger_shape(dl) == [
-            ("close_case", VENDOR_ID, None),
-            (_STATUS, VENDOR_ID, RM.DEFERRED.value),
-        ]
+        assert result.disposition != HandlerDisposition.APPLIED
+        assert _latest_rm(dl, VENDOR_ID) == RM.VALID
+        assert _case_file(dl, VENDOR_ID) == before
+        assert _ledger_shape(dl) == []
 
     @pytest.mark.spec("CM-23-001")
     @pytest.mark.spec("CLP-07-013")
     def test_failed_step_commit_leaves_the_case_file_unchanged(
-        self, monkeypatch, caplog
+        self, monkeypatch
     ):
-        """A step entry that cannot be committed takes its step back (AC-3).
+        """A step entry that cannot be committed takes the act back (AC-3).
 
         The leaver's participant record and the store's statuses are exactly
-        what they were before the Leave, and the Leave is not applied: a
-        change with no committed entry is not made (CLP-07-013).
+        what they were before the Leave, the Leave is not applied, and not
+        even its close_case entry is kept: a change with no committed entry
+        is not made (CLP-07-013, CLP-07-015).
         """
         dl = _make_full_dl()
         _seed_rm(dl, VENDOR_ID, RM.VALID)
@@ -1614,27 +1616,21 @@ class TestLeaveCommitsEachClosureStep:
             lambda *a, **kw: py_trees.behaviours.Failure(name="ForcedFailure"),
         )
 
-        with caplog.at_level(
-            logging.WARNING,
-            logger="vultron.core.behaviors.case.nodes.participant.status_entries",
-        ):
-            result = _close(
-                dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
-            )
+        result = _close(
+            dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+        )
 
         assert result.disposition != HandlerDisposition.APPLIED
         assert _case_file(dl, VENDOR_ID) == before
         assert _latest_rm(dl, VENDOR_ID) == RM.VALID
-        assert [e.semantic_type for e in _case_ledger(dl)] == ["close_case"]
-        assert any(
-            VENDOR_ID in r.getMessage() and "withdrew 2" in r.getMessage()
-            for r in caplog.records
-        ), [r.getMessage() for r in caplog.records]
+        assert _case_ledger(dl) == []
 
     @pytest.mark.spec("CM-23-001")
-    @pytest.mark.spec("CLP-07-013")
-    def test_a_committed_step_stays_when_a_later_one_fails(self, monkeypatch):
-        """V → D commits, D → C does not: only the C step is taken back."""
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_later_step_failing_takes_back_the_committed_one(
+        self, monkeypatch
+    ):
+        """V → D commits, D → C does not: the act keeps neither step."""
         from vultron.core.behaviors.case.nodes.participant import (
             status_entries,
         )
@@ -1642,18 +1638,13 @@ class TestLeaveCommitsEachClosureStep:
         calls = fail_commits(monkeypatch, status_entries, allowed=1)
         dl = _make_full_dl()
         _seed_rm(dl, VENDOR_ID, RM.VALID)
+        before = _participant_rm_states(dl, VENDOR_ID)
 
         _close(dl, VENDOR_ID, "https://example.org/activities/leave-vendor")
 
-        assert _participant_rm_states(dl, VENDOR_ID)[-2:] == [
-            RM.VALID,
-            RM.DEFERRED,
-        ]
-        assert _ledger_shape(dl) == [
-            ("close_case", VENDOR_ID, None),
-            (_STATUS, VENDOR_ID, RM.DEFERRED.value),
-        ]
-        assert dl.read(calls[1]) is None, "the withdrawn status is deleted"
+        assert _participant_rm_states(dl, VENDOR_ID) == before
+        assert _ledger_shape(dl) == []
+        assert all(dl.read(status_id) is None for status_id in calls)
 
     @pytest.mark.spec("CM-23-001")
     def test_a_redelivered_leave_completes_the_withdrawn_closure(
@@ -1716,11 +1707,11 @@ class TestLeaveCommitsEachClosureStep:
     def test_a_raise_while_building_a_step_entry_takes_the_steps_back(
         self, monkeypatch
     ):
-        """Any raise part-way through the commits withdraws the steps left.
+        """Any raise part-way through the commits takes the act back.
 
         The V -> D entry commits; building the D -> C activity then raises.
-        The committed step stays, the uncommitted one is taken back, and the
-        fault propagates rather than leave a step the ledger lacks.
+        The fault propagates, and the act keeps neither step nor any entry
+        (CLP-07-015), rather than leave a step the ledger lacks.
         """
         original = TriggerActivityAdapter.record_participant_status_added
         built: list[str] = []
@@ -1738,21 +1729,16 @@ class TestLeaveCommitsEachClosureStep:
         )
         dl = _make_full_dl()
         _seed_rm(dl, VENDOR_ID, RM.VALID)
+        before = _participant_rm_states(dl, VENDOR_ID)
 
         with pytest.raises(Exception, match="simulated factory fault"):
             _close(
                 dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
             )
 
-        assert _participant_rm_states(dl, VENDOR_ID)[-2:] == [
-            RM.VALID,
-            RM.DEFERRED,
-        ]
-        assert _ledger_shape(dl) == [
-            ("close_case", VENDOR_ID, None),
-            (_STATUS, VENDOR_ID, RM.DEFERRED.value),
-        ]
-        assert dl.read(built[1]) is None, "the withdrawn status is deleted"
+        assert _participant_rm_states(dl, VENDOR_ID) == before
+        assert _ledger_shape(dl) == []
+        assert all(dl.read(status_id) is None for status_id in built)
 
 
 class TestCaseFullyClosedIsTheCaseManagersOwnAct:
@@ -2624,10 +2610,11 @@ class TestCaseActorRMClosedRecordingFailsClosed:
 
     ``CommitRMClosureEntriesNode`` sits between CM-23-002 step 2 (advance the
     CASE_MANAGER) and step 3 (``case_fully_closed``).  A step whose entry does
-    not commit is withdrawn and the node fails, so the CASE_MANAGER's store
-    never holds a closure its ledger lacks (CLP-07-013).  The owner arm then
-    stops before ``case_fully_closed``, and the non-owner arm's own role check
-    keeps the enclosing Selector from closing the owner as an ordinary leaver.
+    not commit fails the node and the act, which keeps none of the closure,
+    so the CASE_MANAGER's store never holds a closure its ledger lacks
+    (CLP-07-013, CLP-07-015).  The owner arm stops before
+    ``case_fully_closed``, and the non-owner arm's own role check keeps the
+    enclosing Selector from closing the owner as an ordinary leaver.
     """
 
     @staticmethod
@@ -2692,15 +2679,17 @@ class TestCaseActorRMClosedRecordingFailsClosed:
         )
 
     @pytest.mark.spec("CM-23-005")
-    def test_failed_commit_keeps_the_owners_committed_steps(self, monkeypatch):
-        """The owner's own steps committed, so they stay; only the CaseActor's go."""
+    @pytest.mark.spec("CLP-07-015")
+    def test_failed_commit_keeps_none_of_the_owners_steps(self, monkeypatch):
+        """The owner's steps and the CaseActor's are one act: none stays."""
         dl = _make_full_dl()
         self._fail_case_actor_commits(monkeypatch, dl)
 
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
-        assert _latest_rm(dl, OWNER_ID) == RM.CLOSED
-        assert _ledger_rm_steps(dl, OWNER_ID)
+        assert _latest_rm(dl, OWNER_ID) != RM.CLOSED
+        assert not _ledger_rm_steps(dl, OWNER_ID)
+        assert _case_ledger(dl) == []
 
     @pytest.mark.spec("CM-23-002")
     def test_a_redelivered_owner_leave_completes_the_closure(
@@ -2722,36 +2711,23 @@ class TestCaseActorRMClosedRecordingFailsClosed:
 
     @pytest.mark.spec("CM-23-002")
     @pytest.mark.spec("CM-23-018")
-    def test_a_repeat_owner_leave_with_a_new_id_completes_the_closure(
-        self, monkeypatch
-    ):
-        """A repeat owner Leave with a new activity id finishes a broken-off
-        closure, and records each closure step once (CM-23-018 exception)."""
+    def test_a_closed_owners_leave_closes_the_open_case(self):
+        """A Case Owner whose own closure is recorded on a case that is not
+        fully closed is not repeating its Leave: the Leave closes the case
+        (CM-23-018 exception), committing only the steps still owed."""
         dl = _make_full_dl()
-        with monkeypatch.context() as patch:
-            self._fail_case_actor_commits(patch, dl)
-            _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
+        _seed_rm(dl, OWNER_ID, RM.CLOSED)
 
         result = _close(
-            dl, OWNER_ID, "https://example.org/activities/leave-owner-again"
+            dl, OWNER_ID, "https://example.org/activities/leave-owner"
         )
 
         assert result.disposition == HandlerDisposition.APPLIED
+        assert not _ledger_rm_steps(dl, OWNER_ID), (
+            "the owner already holds RM.CLOSED, so no step of its is owed"
+        )
         assert _case_actor_rm_closed_entries(dl)
         assert _case_fully_closed_present(dl)
-        # Each closure step (CM-23-002 steps 1-3) is committed once; only
-        # step 0, the close_case entry, is per received Leave (CM-23-001).
-        steps = [s for s in _ledger_shape(dl) if s[0] != "close_case"]
-        repeated = [s for s in set(steps) if steps.count(s) > 1]
-        assert not repeated, f"closure steps recorded twice: {repeated}"
-        assert sorted(
-            e.log_object_id
-            for e in _case_ledger(dl)
-            if e.semantic_type == "close_case"
-        ) == [
-            "https://example.org/activities/leave-owner",
-            "https://example.org/activities/leave-owner-again",
-        ]
 
     @pytest.mark.spec("CM-23-005")
     @pytest.mark.spec("ARCH-15-001")
@@ -2767,28 +2743,6 @@ class TestCaseActorRMClosedRecordingFailsClosed:
 
         assert _case_file(dl, OWNER_ID) == before
         assert not _case_fully_closed_present(dl)
-
-    @pytest.mark.spec("CM-23-005")
-    def test_withdrawal_is_logged_to_the_stdlib_logger(
-        self, monkeypatch, caplog
-    ):
-        """A withdrawn step is announced where deployment logs can see it.
-
-        ``py_trees.behaviour.Behaviour.logger`` writes to the console and
-        never reaches the stdlib ``logging`` tree (ISSUE-2505).
-        """
-        dl = _make_full_dl()
-        self._fail_case_actor_commits(monkeypatch, dl)
-        with caplog.at_level(
-            logging.WARNING,
-            logger="vultron.core.behaviors.case.nodes.participant.status_entries",
-        ):
-            _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
-
-        assert any(
-            CASE_ACTOR_ID in r.getMessage() and "withdrew" in r.getMessage()
-            for r in caplog.records
-        ), [r.getMessage() for r in caplog.records]
 
 
 class TestCaseActorRMClosedRecordingIsRoleGated:

@@ -82,19 +82,16 @@ class CommitRMClosureEntriesNode(CommitParticipantStatusEntriesNode):
     already exists for the same object (the status id), and the node no-ops
     when the advance wrote nothing (the actor was already ``RM.CLOSED``).
 
-    **A step with no committed entry is taken back** (CLP-07-013, CM-23-001).
+    **A step with no committed entry is not kept** (CLP-07-013, CM-23-001).
     The advance writes each step before this node commits it, the order
-    CLP-07-013 gives a consequence, so a commit that fails leaves a step the
-    ledger lacks.  On every such path the node withdraws each step not yet
-    committed (:func:`~vultron.core.behaviors.case.nodes.participant
-    .rm_closure.withdraw_closure_steps`) and fails: a refused commit returns
-    FAILURE, a missing trigger-activity port raises
+    CLP-07-013 gives a consequence, and both run in the Leave's
+    ``ActTransaction``: a commit that fails fails the act, which keeps no
+    step, no entry and not the ``close_case`` entry either (CLP-07-015).  A
+    refused commit returns FAILURE, a missing trigger-activity port raises
     :class:`~vultron.errors.VultronWiringError`, and a nested commit that
     reports ``internal_error`` raises
-    :class:`~vultron.errors.VultronBTInternalError`.  Steps already committed
-    stay, because the ledger records them.  The Leave is then not applied:
-    the owner arm stops before ``case_fully_closed``, and a redelivered Leave
-    walks the closure again from the state the ledger records.
+    :class:`~vultron.errors.VultronBTInternalError`.  The Leave is then not
+    applied, and a redelivered Leave walks the closure afresh.
 
     The commits skip ``CheckLedgerFreshnessNode``, as the ``case_fully_closed``
     commit does: a gapped local prefix fails that check by design

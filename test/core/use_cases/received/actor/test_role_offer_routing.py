@@ -333,12 +333,14 @@ def test_an_offer_reusing_a_recorded_id_for_another_offer_is_refused(
 
 
 @pytest.mark.spec("CM-24-007")
-@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("CLP-10-006")
-def test_a_forward_that_fails_after_the_commit_is_sent_on_redelivery(
+def test_a_forward_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     make_payload,
 ):
-    """The fault is ours, not a refusal; the redelivery finishes the forward."""
+    """The fault is ours, not a refusal.  The Offer's entry and its forward
+    are one act, so the fault keeps neither, and the redelivery is a new
+    Offer that is recorded and forwarded once (CLP-07-015)."""
     dl = _store(_CASE_MANAGER_ID)
     offer = _offer()
     broken = MagicMock(wraps=TriggerActivityAdapter(dl))
@@ -350,12 +352,12 @@ def test_a_forward_that_fails_after_the_commit_is_sent_on_redelivery(
             make_payload(offer, receiving_actor_id=dl.actor_id),
             **{**_ports(dl), "trigger_activity": broken},
         ).execute()
-    assert _semantic_types(dl) == ["offer_case_participant_role"]
+    assert _semantic_types(dl) == []
     assert _forwards(dl) == []
 
     result = _deliver_offer(dl, make_payload, offer)
 
-    assert result.disposition is HandlerDisposition.SKIPPED
+    assert result.disposition is HandlerDisposition.APPLIED
     assert _semantic_types(dl) == ["offer_case_participant_role"]
     assert len(_forwards(dl)) == 1
 
@@ -1009,12 +1011,14 @@ def test_open_offer_guard_flags_a_vanished_offer_as_internal(make_payload):
     )
 
 
-@pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("CLP-07-015")
 @pytest.mark.spec("CM-02-016")
-def test_a_grant_that_fails_after_the_commit_is_applied_on_redelivery(
+def test_a_grant_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     make_payload, monkeypatch
 ):
-    """The fault is ours; the redelivered Accept finishes the grant."""
+    """The fault is ours.  The Accept's entry and its grant are one act, so
+    the fault keeps neither, and the redelivered Accept is a new answer
+    (CLP-07-015)."""
     from vultron.core.behaviors.case.nodes import delegation
 
     dl = _store(_CASE_MANAGER_ID)
@@ -1037,9 +1041,8 @@ def test_a_grant_that_fails_after_the_commit_is_applied_on_redelivery(
         )
     monkeypatch.undo()
     entries = _semantic_types(dl)
-    assert entries.count("accept_case_participant_role") == 1
+    assert "accept_case_participant_role" not in entries
     assert not _target_holds(dl, CVDRole.VENDOR)
-    queued = dl.outbox_list()
 
     result = _deliver_answer(
         dl,
@@ -1050,52 +1053,9 @@ def test_a_grant_that_fails_after_the_commit_is_applied_on_redelivery(
         answer_id=answer_id,
     )
 
-    assert result.disposition is HandlerDisposition.SKIPPED
-    assert _semantic_types(dl) == entries
+    assert result.disposition is HandlerDisposition.APPLIED
+    assert _semantic_types(dl) == [*entries, "accept_case_participant_role"]
     assert _target_holds(dl, CVDRole.VENDOR)
-    # The recorded entry is reused, and its Announce is not queued again.
-    assert dl.outbox_list() == queued
-
-
-@pytest.mark.spec("CM-33-005")
-@pytest.mark.spec("HP-01-003")
-def test_a_forged_redelivery_does_not_resume_the_grant(
-    make_payload, monkeypatch
-):
-    """Only a redelivery carrying the recorded role and target resumes it."""
-    from vultron.core.behaviors.case.nodes import delegation
-
-    dl = _store(_CASE_MANAGER_ID)
-    _deliver_offer(dl, make_payload, _offer())
-    answer_id = "https://example.org/activities/role-offer/accept"
-    monkeypatch.setattr(
-        delegation,
-        "grant_role_to_target",
-        MagicMock(side_effect=RuntimeError("down")),
-    )
-    with pytest.raises(VultronBTInternalError):
-        _deliver_answer(
-            dl,
-            make_payload,
-            _offer(),
-            accept=True,
-            sender=_TARGET_ID,
-            answer_id=answer_id,
-        )
-    monkeypatch.undo()
-
-    result = _deliver_answer(
-        dl,
-        make_payload,
-        _offer(role=CVDRole.COORDINATOR),
-        accept=True,
-        sender=_TARGET_ID,
-        answer_id=answer_id,
-    )
-
-    assert result.disposition is HandlerDisposition.SKIPPED
-    assert not _target_holds(dl, CVDRole.COORDINATOR)
-    assert not _target_holds(dl, CVDRole.VENDOR)
 
 
 @pytest.mark.spec("OID-01-006")

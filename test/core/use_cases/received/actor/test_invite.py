@@ -1343,27 +1343,34 @@ class TestInviteActorUseCases:
         assert consequence < queued < recorded
 
     @pytest.mark.spec("CM-11-010")
-    @pytest.mark.spec("OX-06-002")
-    def test_a_full_case_invite_whose_commit_failed_is_sent_once_on_retry(
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_full_case_invite_whose_commit_failed_keeps_nothing_of_the_join(
         self, make_payload
     ):
-        """The full-case Invite's id is one per case and invitee (ADR-0119).
+        """The join and its full-case Invite are one act (CLP-07-015).
 
-        The first run queues the Invite and its commit fails.  Running the
-        emit again rebuilds the Invite under the same id: the outbox does not
-        queue it twice (OX-06-002), and the commit records it once.
+        The first run queues the Invite and its commit fails: the act keeps
+        nothing, so no Invite is left queued and no entry of the join is
+        recorded.  A redelivery of the Accept runs the join afresh and sends
+        and records the Invite once.
         """
         from test.support.ledger import fail_commits
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.nodes.full_case_invite import (
-            EmitInviteActorToFullCaseNode,
-        )
         from vultron.core.behaviors.sync import commit_tree
 
         lj = _seed_late_joiner_case()
         dl, invitee_id, invite = lj["dl"], lj["invitee_id"], lj["invite"]
-        case_id = lj["case"].id_
+        ledger_before = {e.id_ for e in dl.list_objects("CaseLedgerEntry")}
         accept = _accept_invite(invite, actor=invitee_id)
+
+        def _accept() -> None:
+            AcceptInviteActorToCaseReceivedUseCase(
+                dl,
+                make_payload(accept),
+                sync_port=MagicMock(),
+                trigger_activity=lj["trigger_activity"],
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
+
         with pytest.MonkeyPatch.context() as mp:
             failed = fail_commits(
                 mp,
@@ -1375,28 +1382,15 @@ class TestInviteActorUseCases:
             # The Invite is queued, so the failed commit escapes rather than
             # failing the tree (BT-14-001).
             with pytest.raises(VultronBTInternalError, match="commit failed"):
-                AcceptInviteActorToCaseReceivedUseCase(
-                    dl,
-                    make_payload(accept),
-                    sync_port=MagicMock(),
-                    trigger_activity=lj["trigger_activity"],
-                    wire_render_port=As2WireRenderAdapter(),
-                ).execute()
+                _accept()
         (invite_id,) = failed
-        assert dl.outbox_list().count(invite_id) == 1
+        assert invite_id not in dl.outbox_list()
+        assert {
+            e.id_ for e in dl.list_objects("CaseLedgerEntry")
+        } == ledger_before
 
-        result = BTBridge(
-            datalayer=dl,
-            trigger_activity=lj["trigger_activity"],
-            sync_port=MagicMock(),
-        ).execute_with_setup(
-            tree=EmitInviteActorToFullCaseNode(
-                case_id=case_id, invitee_id=invitee_id
-            ),
-            actor_id=lj["case_actor_id"],
-        )
+        _accept()
 
-        assert result.status.name == "SUCCESS", result
         assert dl.outbox_list().count(invite_id) == 1
         recorded = [
             e.log_object_id
@@ -1564,6 +1558,11 @@ class TestInviteActorUseCases:
         trigger_activity.announce_vulnerability_case.return_value = (
             f"{case.id_}/announce/1"
         )
+        # The full-case Invite is part of the same act, so it must be built
+        # for the act to keep its backfill (CLP-07-015).
+        trigger_activity.invite_actor_to_full_case.side_effect = (
+            TriggerActivityAdapter(dl).invite_actor_to_full_case
+        )
         sync_port = MagicMock()
 
         accept = _accept_invite(invite, actor=invitee_id)
@@ -1582,8 +1581,9 @@ class TestInviteActorUseCases:
         ]
         # Commit-first ordering: CommitCaseLedgerEntryNode fans out the new
         # accept_invite entry (2) first (invitee already registered), then
-        # backfill resumes from the pre-commit target index and sends entry 1.
-        assert [entry.log_index for entry in announced_entries] == [2, 1]
+        # backfill resumes from the pre-commit target index and sends entry 1;
+        # the full-case Invite's entry (3) follows it.
+        assert [entry.log_index for entry in announced_entries] == [2, 1, 3]
         assert announced_entries[1].entry_hash == second.entry_hash
         assert all(
             entry.entry_hash != first.entry_hash for entry in announced_entries
@@ -1800,6 +1800,11 @@ class TestInviteActorUseCases:
         trigger_activity.announce_vulnerability_case.side_effect = (
             RuntimeError("announce unavailable")
         )
+        # The full-case Invite is part of the same act, so it must be built
+        # for the act to keep its backfill (CLP-07-015).
+        trigger_activity.invite_actor_to_full_case.side_effect = (
+            TriggerActivityAdapter(dl).invite_actor_to_full_case
+        )
         accept = _accept_invite(invite, actor=invitee_id)
         event = make_payload(accept)
         AcceptInviteActorToCaseReceivedUseCase(
@@ -1816,13 +1821,14 @@ class TestInviteActorUseCases:
         ]
         # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
         # the new accept_invite entry (2) to all participants via sync_port,
-        # then the vendor's VF status (3) follows.
-        # This holds even when the Announce could not be sent.
+        # then the vendor's VF status (3) and the full-case Invite (4)
+        # follow.  This holds even when the Announce could not be sent.
         assert [entry.log_index for entry in announced_entries] == [
             0,
             1,
             2,
             3,
+            4,
         ]
 
         state_id = VultronReplicationState(

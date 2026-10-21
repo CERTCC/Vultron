@@ -841,7 +841,8 @@ class TestInviteRetrySendsOnce:
         offer = harness.trigger(roles=[CVDRole.VENDOR])
 
         # The first attempt builds, seals and queues the Invite, but its
-        # commit fails: the Invite is sent and not yet recorded (ADR-0119).
+        # commit fails.  The Invite is one act with the received Offer's own
+        # entry, so the act keeps neither (CLP-07-015).
         with pytest.MonkeyPatch.context() as mp:
             failed = fail_commits(
                 mp,
@@ -855,7 +856,7 @@ class TestInviteRetrySendsOnce:
         assert len(failed) == 1, "the first attempt never built the Invite"
         invite_id = failed[0]
         assert self._invite_entries(harness) == []
-        assert self._queued_invites(harness) == [invite_id]
+        assert self._queued_invites(harness) == []
 
         retry = harness.deliver_to_manager(offer["id"], make_payload)
 

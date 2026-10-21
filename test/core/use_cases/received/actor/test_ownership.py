@@ -1163,9 +1163,10 @@ def test_a_new_owner_reusing_an_old_proposal_id_makes_a_new_offer(
 def test_an_offer_that_fails_after_the_proposal_entry_is_made_on_redelivery(
     make_payload,
 ):
-    """The fault is the CASE_MANAGER's, not a refusal; a redelivery of the
-    proposal makes the Offer, under the same derived id, with the proposal's
-    entry reused (OX-06-002)."""
+    """The fault is the CASE_MANAGER's, not a refusal.  The proposal's entry
+    and the Offer are one act, so the fault keeps neither, and a redelivery
+    of the proposal commits it and makes the Offer, under the same derived
+    id (CLP-07-015, OX-06-002)."""
     case_id = "https://example.org/cases/case_ot_offer_fails"
     dl, _, trigger_activity = _ownership_offer_harness(make_payload, case_id)
     factory = trigger_activity.offer_case_ownership_transfer
@@ -1178,7 +1179,7 @@ def test_an_offer_that_fails_after_the_proposal_entry_is_made_on_redelivery(
 
     with pytest.raises(VultronBTInternalError):
         _propose(dl, make_payload, proposal, trigger_activity)
-    assert _semantic_types(dl) == ["propose_case_ownership_transfer"]
+    assert _semantic_types(dl) == []
 
     factory.side_effect = None  # the real adapter again
     again = _propose(dl, make_payload, proposal, trigger_activity)

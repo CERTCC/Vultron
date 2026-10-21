@@ -148,10 +148,10 @@ nothing. The trial, every commit and the case-file save run in one
 acts that must land together go through one call, as one entry list. A later
 node that commits a consequence of the act (`ReissueStubInvitesNode`, a
 `RelayEmbargoInviteToEachNode`) must run with the act's commit node in one
-`ActTransaction` (`core/behaviors/act_transaction.py`): pass `as_one_act=True`
-to `create_case_manager_gated_tree` (every `_by_role` arm does) or
-`as_one_act=True` to `create_receive_activity_tree`, which adds the
-received act's own commit (ADR-0151).
+`ActTransaction` (`core/behaviors/act_transaction.py`): a trigger arm passes
+`as_one_act=True` to `create_case_manager_gated_tree`; every received tree that
+commits to a case gets one by default, holding its own commit too (ADR-0151),
+and only a registered `OneActExemption` opts it out.
 Call it from a node's `update()`, never from `execute()`. The replica slot
 for the same entry subclasses `ApplyEmbargoChangeFromLedgerNode`
 (`sync/nodes/embargo_copy_effect.py`) and only names the change (`_change()`).

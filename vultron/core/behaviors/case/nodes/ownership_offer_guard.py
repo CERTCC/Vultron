@@ -150,9 +150,9 @@ class NoOpenOwnershipOfferNode(
     (SYNC-09-002), so it was sent, and it may since have been answered.  The
     guard sets :attr:`is_redelivery` and fails, so nothing downstream runs,
     and the handler reports the run as ``SKIPPED``.  A proposal whose Offer
-    the ledger does not hold is judged as new, so a redelivery after a fault
-    between the proposal's entry and the Offer's send makes the Offer then,
-    under the same derived id.
+    the ledger does not hold is judged as new: a fault making the Offer keeps
+    neither it nor the proposal's entry (CLP-07-015), so a redelivery runs the
+    act afresh.
 
     Read-only, so it runs in ``precondition_guards`` behind the CASE_MANAGER
     gate (:func:`case_manager_admits_ownership_proposal_guard`).

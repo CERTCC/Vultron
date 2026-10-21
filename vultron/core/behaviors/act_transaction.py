@@ -24,19 +24,25 @@ raises or fails, nothing any of them wrote is kept.
 
 A received act's own entry is one of them: the received-tree factory runs
 the guarded commit of that entry inside the same ``ActTransaction`` as the
-effects that commit its consequences (``as_one_act=True``, ADR-0151), so a
-received act succeeds or fails as a whole, as a trigger act does.
+effects that commit its consequences (ADR-0151), so a received act succeeds
+or fails as a whole, as a trigger act does.  That is the factory's default
+for every received tree that commits to a case; a tree runs outside one only
+by naming a registered :class:`OneActExemption` that records why
+(:data:`ONE_ACT_EXEMPTIONS`).
 """
 
 import logging
-from collections.abc import Iterator
-from typing import Any, cast
+from collections.abc import Iterator, Mapping
+from types import MappingProxyType
+from typing import Any, Final, cast
 
 import py_trees
 from py_trees.common import Status
+from pydantic import BaseModel, ConfigDict
 
 from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.primitives import NonEmptyString
 
 
 class ActTransactionError(RuntimeError):
@@ -140,7 +146,33 @@ class ActTransaction(py_trees.composites.Sequence):
             raise _RolledBack
 
 
+class OneActExemption(BaseModel):
+    """One recorded decision that a received tree commits outside one act.
+
+    ``create_receive_activity_tree`` runs the guarded commit of a received
+    act's own entry and every effect after it in one :class:`ActTransaction`
+    (CLP-07-015, ADR-0146).  A tree that must not do so names one of these,
+    registered in :data:`ONE_ACT_EXEMPTIONS`; a bare opt-out does not exist.
+
+    Attributes:
+        name: Short stable name of the decision.
+        reason: Why the tree is correct with its commits outside one act.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: NonEmptyString
+    reason: NonEmptyString
+
+
+#: Every registered exemption, by name.  The factory refuses any other.
+#: Empty: every received tree that commits to a case runs as one act.
+ONE_ACT_EXEMPTIONS: Final[Mapping[str, OneActExemption]] = MappingProxyType({})
+
+
 __all__ = [
+    "ONE_ACT_EXEMPTIONS",
     "ActTransaction",
     "ActTransactionError",
+    "OneActExemption",
 ]

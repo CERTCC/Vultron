@@ -191,14 +191,18 @@ trial-applies, commits every entry and saves the case file inside one
 `CasePersistence.transaction()`, and any failure writes nothing. Never add a
 stored plan, a finishing node or a per-act repair pass; put the act's writes
 inside the transaction instead (CLP-07-015, ADR-0146). A later node that commits
-a consequence of the act (the stub re-issue, a proposal's relay) runs in the
-same transaction: compose the act's commit node and it into one `ActTransaction`
-(`vultron/core/behaviors/act_transaction.py`), through
-`create_case_manager_gated_tree(as_one_act=True)` or
-`create_receive_activity_tree(as_one_act=True)` (#4949). In a received tree the
-act block also holds the guarded commit of the act's own entry, so a failed
-received act keeps no entry, and a later delivery is not stopped as a repeat
-(ADR-0151).
+a consequence of the act (the stub re-issue, a relay, a status entry, a close
+step, a notice) runs in the same transaction, in one `ActTransaction`
+(`vultron/core/behaviors/act_transaction.py`). For every received tree that
+commits to a case this is the default: `create_receive_activity_tree` runs the
+guarded commit of the act's own entry and every effect after it in one
+`{name}Act` block, so a failed received act keeps no entry and a later delivery
+is not stopped as a repeat (ADR-0151). A tree runs outside one only by naming a
+registered `OneActExemption` (none is registered); a trigger arm passes
+`create_case_manager_gated_tree(as_one_act=True)` (#4949). So a received act
+never needs "resume" logic for a redelivery: a guard that admits a recorded act
+to finish a missing consequence is dead code, because no recorded act lacks
+one (#4983).
 
 ### Two Meanings of "Reject"
 

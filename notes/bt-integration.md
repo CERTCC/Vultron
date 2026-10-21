@@ -371,11 +371,14 @@ guards, commit, effects.
    cascades. `replica_effects` run on every replica; `manager_effects` run only
    at the CASE_MANAGER, inside the gate the factory adds (BT-17-008; see
    `notes/bt-pitfalls.md` § "A Received Tree Gets Its CASE_MANAGER Gate From
-   the Factory"). A tree whose effects commit consequences of the act passes
-   `as_one_act=True`: the factory runs the commit and both effect lists in one
-   `ActTransaction`, so the act's entry becomes durable only when the act
-   commits, and a failure keeps nothing (CLP-07-015, ADR-0151). Read the
-   stages through `received_stages()`, which opens that block in place.
+   the Factory"). In a tree that commits to a case the factory runs the commit
+   and both effect lists in one `ActTransaction` by default, so the act's
+   entry becomes durable only when the act commits, and a failure keeps
+   nothing (CLP-07-015, ADR-0151); only a registered `OneActExemption` opts a
+   tree out. So an effect that fails as a normal outcome (a withheld status
+   adoption) must not return FAILURE, or the act loses its entry: make it the
+   success arm of a Selector. Read the stages through `received_stages()`,
+   which opens that block in place.
 
 **Intake is the only path that stores the received activity** (CLP-10-019). Do
 not add a per-tree store node or handler-local store helper. A receive tree

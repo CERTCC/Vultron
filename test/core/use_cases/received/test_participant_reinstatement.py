@@ -71,6 +71,7 @@ from vultron.core.behaviors.case.nodes.refusal_stage import (
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     SuggestedActorIsNotRemovedNode,
 )
+from vultron.core.behaviors.case.receive_activity_tree import received_stages
 from vultron.core.behaviors.case.suggest_actor_tree import (
     create_accept_actor_recommendation_received_tree,
     create_recommend_actor_to_case_received_tree,
@@ -345,7 +346,10 @@ def test_notice_failure_after_commit_is_an_internal_error(
             trigger_activity=_NoticeFailsAdapter(case.dl),
         )
 
-    assert case.ledger()[-1].log_object_id == _ADD_ACTIVITY_ID
+    # The notice is part of the act, so its failure keeps no entry of the
+    # reinstatement and leaves the participant removed (CLP-07-015).
+    assert _ADD_ACTIVITY_ID not in {e.log_object_id for e in case.ledger()}
+    assert case.participant(VENDOR).removed
 
 
 @pytest.mark.spec("CM-31-011")
@@ -597,6 +601,51 @@ def test_reinstated_non_signatory_is_backfilled_once_it_consents(
     assert [e.log_index for e in sent] == [
         e.log_index for e in ledger if e.log_index > removal_entry.log_index
     ]
+
+
+@pytest.mark.spec("CLP-07-015")
+@pytest.mark.spec("CM-31-013")
+def test_a_failed_reinstatement_invite_keeps_nothing_and_redelivery_runs_afresh(
+    case: _RemovalCase, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reinstatement and its embargo Invite are one act (CLP-07-015).
+
+    The Invite fails after the reinstatement's entry, the reinstatement and
+    its notice are written: the act keeps none of them, so the participant
+    is still removed, its consent row is unchanged, the outbox and the
+    ledger are as before, and a redelivery reinstates it afresh.
+    """
+    _make_other_a_non_signatory(case)
+    case.remove(OTHER)
+    case.remove(VENDOR)
+    record_before = case.participant(OTHER).model_dump()
+    ledger_before = {entry.id_ for entry in case.ledger()}
+    outbox_before = case.dl.outbox_list()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            InviteReinstatedParticipantToEmbargoNode,
+            "update",
+            lambda self: Status.FAILURE,
+        )
+        # A failure after the commit is the CASE_MANAGER's own (BT-14-001).
+        with pytest.raises(VultronBTInternalError):
+            case.route(_owner_reinstates(case, OTHER))
+
+    assert case.participant(OTHER).model_dump() == record_before
+    assert {entry.id_ for entry in case.ledger()} == ledger_before
+    assert case.dl.outbox_list() == outbox_before
+
+    result = case.route(_owner_reinstates(case, OTHER))
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert not case.participant(OTHER).removed
+    assert [
+        invite
+        for invite in case.activities_to("Invite", OTHER)
+        if _as_id(getattr(invite, "object_", None)) == EMBARGO_ID
+    ], "the redelivery sends the embargo Invite"
+    assert _ADD_ACTIVITY_ID in {e.log_object_id for e in case.ledger()}
 
 
 @pytest.mark.spec("CM-31-013")
@@ -915,7 +964,7 @@ def test_suggest_actor_trees_guard_a_removed_actor_before_the_commit(
     # The guards sit in the refusal-notice stage, ahead of the commit.
     names = [
         guard.name
-        for node in factory(**kwargs).children
+        for node in received_stages(factory(**kwargs))
         for guard in (
             node.guards.children
             if isinstance(node, PreconditionGuardStage)
