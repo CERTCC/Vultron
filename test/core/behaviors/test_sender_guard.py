@@ -806,7 +806,7 @@ def test_each_active_participant_guard_refuses_a_sender_that_may_not_act(
     assert result.status == Status.FAILURE
 
 
-@pytest.mark.spec("CM-23-018", "CM-23-020")
+@pytest.mark.spec("CM-23-018")
 @pytest.mark.parametrize(
     ("standing", "admitted"),
     [(None, True), (_leave, False), (_uninvite, True), (_remove, True)],
@@ -828,7 +828,7 @@ def test_participant_kind_refuses_only_a_closed_sender(
     assert (result.status == Status.SUCCESS) is admitted
 
 
-@pytest.mark.spec("CM-23-018", "CM-23-020")
+@pytest.mark.spec("CM-23-018")
 def test_participant_kind_reads_closure_from_the_record_it_found() -> None:
     """A closed sender is refused even when the index does not list it.
 
