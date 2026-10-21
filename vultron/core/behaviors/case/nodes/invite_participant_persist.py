@@ -38,16 +38,23 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.participants.stub_reply import mark_joined, reply_published
+from vultron.core.participants.stub_reply import (
+    reply_published,
+    settle_stub_accept,
+)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 
 class ActivateInviteeParticipantNode(
     DataLayerActionWithPorts, StateWriteCapable
 ):
-    """Set ``joined=True`` on the invitee's existing participant record.
+    """Save the invitee's participant record as its Accept left it.
 
-    A record that is already joined (the backfill-resume path) is left as it
+    Sets ``joined=True`` and keeps the consent row the Accept signed
+    (:func:`~vultron.core.participants.stub_reply.settle_stub_accept`).  A
+    record that is already joined (a participant seated without a join)
+    keeps a signed row too, so it is active before the case announce and the
+    backfill run (CM-10-004); a record the Accept did not move is left as it
     is.  RM stays at ``RECEIVED``: accepting the stub is joining, not judging
     the case (CM-11-001).
     """
@@ -103,13 +110,24 @@ class ActivateInviteeParticipantNode(
             return Status.FAILURE
         # The same write a replica makes from the Accept's own entry; the
         # record's time is the Accept's ``published``, never the local clock.
-        if mark_joined(participant, published):
-            self.datalayer.save(participant)
-            self.logger.info(
-                "%s: promoted inert participant '%s' to joined=True"
-                " (ADR-0114, CM-11-006)",
+        stored = self.datalayer.read(participant.id_)
+        if not isinstance(stored, CaseParticipant):
+            self.logger.error(
+                "%s: no stored participant record '%s' for '%s'",
                 self.name,
                 participant.id_,
+                self.invitee_id,
+            )
+            return Status.FAILURE
+        was_joined = participant.joined
+        if settle_stub_accept(stored, participant, published):
+            self.datalayer.save(participant)
+            self.logger.info(
+                "%s: saved participant '%s' as the Accept left it"
+                " (joined=True%s; ADR-0114, CM-11-006)",
+                self.name,
+                participant.id_,
+                ", was already joined" if was_joined else "",
             )
         return Status.SUCCESS
 
@@ -123,7 +141,7 @@ class CommitInviteeAcceptEntriesNode(DataLayerActionWithPorts):
     id and times, so it has its own ``add_participant_status_to_participant``
     entry.  It is committed here, after the case announce and the backfill of
     the prior ledger, so it reaches the invitee in chain order and not before
-    its case seed (#2898).  A resumed Accept that appended no status commits
+    its case seed (#2898).  An Accept that appended no status commits
     nothing.
     """
 

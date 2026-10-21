@@ -4718,17 +4718,20 @@ groups:
       cannot answer (#4814). With the record and the forward in one act, no
       recorded request lacks its forward, so no redelivery has a forward to
       finish (#4983). One id makes a resend safe: the outbox holds one pending
-      entry per id (OX-06-002), and the addressee takes a repeat it holds as a
-      no-op.
+      entry per id (OX-06-002), and the addressee, which commits nothing,
+      rebuilds its answer under the same id.
     verification: >-
       A test marked `CM-24-007` for each forward fails the forward after the
       record and asserts the handler raises an internal error, not `REFUSED`,
       and that no entry and no forward is kept; a redelivery then records the
-      activity once and sends one forward under the derived id; a redelivery
-      after the role Offer was recorded sends nothing. The ownership-transfer
-      Offer is not a forward: the CASE_MANAGER makes it from the owner's
-      proposal and ledgers it once queued (CM-21-005, ADR-0148), so it is out
-      of scope here.
+      activity once and sends one forward under the derived id. A second test
+      stores the forward but fails to queue it, and asserts the stored copy is
+      not kept, so a redelivery queues the forward: a stored copy is not proof
+      it was sent. A redelivery after the role Offer was recorded sends
+      nothing, and adds no second outbox entry while the forward is pending.
+      The ownership-transfer Offer is not a forward: the CASE_MANAGER makes it
+      from the owner's proposal and ledgers it once queued (CM-21-005,
+      ADR-0148), so it is out of scope here.
     relationships:
     - rel_type: refines
       spec_id: CM-24-004

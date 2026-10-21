@@ -4,11 +4,15 @@ status: active
 kind: guidance
 description: >
   Rules for the dispatcher's exception boundary and the adapter-layer
-  `InboxPipeline` / `build_test_pipeline()` test seam: where unroutable errors
-  are caught, how re-queues are bounded, and layer/import rules.
+  `InboxPipeline` / `build_test_pipeline()` test seam: where a new raise is
+  caught, how re-queues are bounded, why a queue replay attempt commits as
+  one transaction, and layer/import rules.
 related_specs:
   - specs/inbox-pipeline.yaml
+  - specs/dispatch-routing.yaml (DR-03-002)
   - specs/inbox-endpoint.yaml
+  - specs/datalayer.yaml
+  - specs/protocol-asks.yaml
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/architecture-adapters.md
@@ -25,19 +29,17 @@ The production inbox runs the core BT (`notes/inbox-orchestration.md`). This not
 covers the dispatcher's exception boundary and the adapter-layer `InboxPipeline` test
 seam.
 
-## `UnroutableActivityError` Must Be Caught Inside `_handle`, Not Above It
+## A New `raise` Must Be Caught Below Any Retry Loop
 
-A gate helper called before the `try/except` in `DispatcherBase._handle`
-(`vultron/core/dispatcher.py`) escapes `_handle`. The inbox queue replay in
-`run_inbox_pipeline` retries every exception except `VultronProtocolViolationError`,
-so an escaping `UnroutableActivityError` is retried as if transient, to the retry
-budget, and then dead-lettered (IE-06-004).
-Wrap the gate call (`_enforce_join_backfill_gate`) in its own `try` inside `_handle`.
+When a silent failure (return `None`/`False`) becomes a `raise`, trace every handler
+above the raise site. The inbox queue replay in `run_inbox_pipeline` retries every
+exception except `VultronProtocolViolationError`, to the retry budget, and then
+dead-letters it (IE-06-004). So a raise that escapes to it is retried as if transient.
+Catch the new exception below the retry loop, or refuse instead of raising (ISSUE-1377).
 
-**General rule**: when a silent failure (return `None`/`False`) becomes a `raise`, trace
-every handler above the raise site. If one has retry or re-queue semantics, catch the
-new exception below it; letting it propagate turns the silent failure into an infinite
-retry (ISSUE-1377).
+The dispatcher turns no raise into a verdict (DR-03-002). It routes by semantics
+alone, so an activity that names no case reaches its handler, and the handler refuses
+it (HP-05-002). A raise from a handler goes to the adapter boundary.
 
 ---
 
@@ -55,6 +57,24 @@ then logs at ERROR and drops it; a protocol violation is dropped at once.
 - **Per instance, not persisted.** This test seam keeps its own count; production runs
   `run_inbox_pipeline`, whose queue replay persists its count in the `RetryStore` the
   outbox uses and dead-letters an exhausted item (IE-06-004).
+
+---
+
+## A Queue Replay Attempt Commits Whole, or the Item Is Lost
+
+Run each `drain_inbox_queue` attempt inside one `actor_dl.transaction()`: the
+`inbox_pop`, the rebuild's delete of the `DeferredInboxActivity`, `process_payload`
+and the settlement (`hold_again`, the attempt count, `inbox_append`, the dead letter
+and the held fault) (IE-06-005).
+
+- **Why.** The held record is the only copy the replay can rebuild the activity
+  from (DL-06-006). Committed one by one, a stop after the pop or the delete leaves
+  nothing queued or nothing held, and no sender is answered (ASK-07-010).
+- **Nesting is the point.** The act's `ActTransaction` becomes a savepoint inside the
+  attempt's block, so a failed act still keeps nothing (ADR-0151) while the
+  settlement that follows it commits with the pop.
+- **Surviving is not recovering.** A surviving item waits for the next delivery to
+  that actor unless the startup drain replays it (IE-06-006).
 
 ---
 

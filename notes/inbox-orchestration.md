@@ -8,8 +8,9 @@ description: >
   seam and verdict mapping, the path from receipt to permanent storage (ingress
   writes nothing; a deferred activity is held whole), redelivery detection and
   the reused-id refusal, the internal-error fault for a raised dispatch,
-  the queue replay's bounded retry and held fault, pending-queue port
-  injection, and the test surface.
+  the queue replay's bounded retry and held fault, the planned staged-record
+  and path-stage replacement of intake-first (ADR-0153, ADR-0154),
+  pending-queue port injection, and the test surface.
 related_specs:
   - specs/inbox-orchestration.yaml
   - specs/case-ledger-processing.yaml
@@ -76,10 +77,10 @@ the steps out of order.
 `DispatchNode` is the only place a verdict becomes an outcome (HP-01-004):
 `APPLIED`/`SKIPPED` → `processed`, `DEFERRED` → `deferred`, `REFUSED` → `rejected` with
 the handler's reason. A dispatch that returns no `HandlerResult` is rejected ("did not
-raise" is not a verdict), and an unroutable activity gets a synthesized `REFUSED`
-(UCORG-05-012). `run_inbox_pipeline` logs every `rejected` outcome at WARNING with actor
-and activity ids (UCORG-05-013); the BT nodes log their own outcome writes at INFO, so
-a refusal is not reported twice.
+raise" is not a verdict), and semantics with no use case raise in the dispatcher, so
+they are rejected too (UCORG-05-012). `run_inbox_pipeline` logs every `rejected`
+outcome at WARNING with actor and activity ids (UCORG-05-013); the BT nodes log their
+own outcome writes at INFO, so a refusal is not reported twice.
 
 Every deferral gate asks `is_deferral_exempt()` (`core/models/events/case_context.py`),
 never `is_case_bootstrap()`: a stub Invite is exempt because it precedes its case by
@@ -178,6 +179,14 @@ releases the held record, so a rejection after the rebuild and before dispatch (
 that caught its own raise, such as extraction) is retried like a raise, or the item is
 lost; a handler's verdict is final. A dead-lettered item stays held for the operator, so
 a resend of it routes the held copy as a redelivery (IE-10-001) and does not release it.
+
+**The intake-first order above is being replaced; don't build on it.** Two proposed
+records reorder a received message's questions so an early answer ends the run before
+anything is stored: one role check per message picks the received path (ADR-0153),
+and each message becomes one staged record, archived only when applied, with a refused
+one leaving a receipt stub (ADR-0154). Until #5041–#5047 land, the steps above still
+describe the code, but new work should not add another receiver-role gate or another
+reader of intake's archive of a refused message: both are what the migration removes.
 
 ---
 

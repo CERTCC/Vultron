@@ -415,7 +415,7 @@ class AdvanceInviteeVFToVendorAwareNode(
             )
             return Status.SUCCESS
 
-        # A vendor already aware (a resumed Accept) is left as it is: a second
+        # A vendor already aware (a repeated Accept) is left as it is: a second
         # Vf status would be a second state change to ledger.
         latest = (
             participant.participant_statuses[-1]

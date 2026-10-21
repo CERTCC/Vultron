@@ -32,8 +32,9 @@ groups:
       producers — the pre-dispatch defer check (case not yet known) and a handler returning DEFERRED — and both keep working.
       The mapping lives only in the pipeline''s dispatch node, so handlers never name this vocabulary (HP-01-004). A dispatch
       where no handler ran is never processed (UCORG-05-012).'
-    verification: test/adapters/driving/fastapi/test_inbox_outcome_chain.py drives each disposition, an unroutable activity,
-      and unhandled semantics through the real dispatch adapters and process_payload, asserting the resulting status.
+    verification: test/adapters/driving/fastapi/test_inbox_outcome_chain.py drives
+      each disposition and unhandled semantics through the real dispatch adapters and
+      process_payload, asserting the resulting status.
     tags:
     - messaging
     relationships:
