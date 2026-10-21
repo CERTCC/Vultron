@@ -170,7 +170,7 @@ def create_accept_invite_actor_to_case_tree(
         ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
         ├── InviteeHasParticipantRecordNode        — refuse an Accept with no record (CM-11-021)
         ├── StubInviteAnswerableNode               — not superseded
-            ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
+        ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
         └── AcceptInviteIfCaseManager              — BT-17-001 gate (#3752)
             └── AcceptInviteEffects (memory=False)
                 ├── MaybeSignEmbargoConsentNode          — sign when an embargo is in force

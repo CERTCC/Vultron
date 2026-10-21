@@ -1264,12 +1264,12 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        # Entry 2 (accept_invite): committed before invitee is registered —
-        #   fan-out does NOT include the invitee.  It is the invitee's own
-        #   Accept message, which is the entry for its consent and `joined`.
+        # Entry 2 (accept_invite): committed while the invitee is inert, so
+        #   its fan-out does NOT include the invitee.  It is the invitee's
+        #   own Accept message, the entry for its consent and `joined`.
         # Backfill: runs BEFORE any further commit (CM-17-004 step 3 precedes
-        #   any further fan-out to the invitee), so its target is the receipt
-        #   entry (2) and it sends entries 0, 1, 2 in log order.
+        #   any further fan-out to the invitee) and sends the ledger as it
+        #   stands, entries 0, 1, 2, in log order.
         # Then the vendor's VF status (3), the CASE_MANAGER's own
         #   add_participant_status_to_participant entry, committed after the
         #   backfill so the invitee receives it in chain order, not ahead of
@@ -1493,6 +1493,26 @@ class TestInviteActorUseCases:
         assert isinstance(record, CaseParticipant)
         assert record.joined is False
 
+        # A redelivery of the same Accept joins from the start.
+        sync_port.reset_mock(side_effect=True)
+        result = AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            make_payload(accept),
+            sync_port=sync_port,
+            trigger_activity=lj["trigger_activity"],
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.APPLIED, result
+        sent = [
+            call.kwargs["entry"].log_index
+            for call in sync_port.send_announce_log_entry.call_args_list
+        ]
+        assert sent[:3] == [0, 1, 2]
+        record = dl.read(case.actor_participant_index[invitee_id])
+        assert isinstance(record, CaseParticipant)
+        assert record.joined is True
+
     def test_accept_invite_backfill_runs_when_the_announce_cannot_be_sent(
         self, make_payload
     ):
@@ -1596,10 +1616,10 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
-        # the new accept_invite entry (2) to all participants via sync_port,
-        # then the vendor's VF status (3) and the full-case Invite (4)
-        # follow.  This holds even when the Announce could not be sent.
+        # The Accept's own entry (2) fans out while the invitee is inert, so
+        # it skips the invitee; the backfill then sends 0, 1 and 2, and the
+        # vendor's VF status (3) and the full-case Invite (4) follow by
+        # fan-out.  This holds even when the Announce could not be sent.
         assert [entry.log_index for entry in announced_entries] == [
             0,
             1,
@@ -1649,8 +1669,10 @@ class TestJoinedOrRemovedStubAcceptIsADuplicate:
     replication state the CASE_MANAGER holds for the participant.
     """
 
-    def _accept_over(self, make_payload, *, removed: bool):
-        """Run the Accept over the late-joiner case with a joined record."""
+    def _accept_over(
+        self, make_payload, *, removed: bool, joined: bool = True
+    ):
+        """Run the Accept over the late-joiner case's invitee record."""
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
         from vultron.core.models.case_participant import CaseParticipant
 
@@ -1659,7 +1681,7 @@ class TestJoinedOrRemovedStubAcceptIsADuplicate:
         record = dl.read(case.actor_participant_index[invitee_id])
         assert isinstance(record, CaseParticipant)
         # Seated at case initialization, or it already accepted: joined.
-        record.joined = True
+        record.joined = joined
         if removed:
             record.record_removal(f"{case.id_}/removals/1")
         dl.save(record)
@@ -1702,6 +1724,14 @@ class TestJoinedOrRemovedStubAcceptIsADuplicate:
     def test_a_removed_participant(self, make_payload):
         """A removed participant is sent nothing until reinstated (CM-31-013)."""
         self._accept_over(make_payload, removed=True)
+
+    def test_a_participant_removed_before_it_joined(self, make_payload):
+        """Removal alone makes the Accept a duplicate, joined or not.
+
+        Before #5074 an inert record that was removed could still join
+        through its Accept; CM-17-012 names a removed record a duplicate.
+        """
+        self._accept_over(make_payload, removed=True, joined=False)
 
     @pytest.mark.spec("CM-10-005")
     def test_a_joined_participant_with_an_embargo_pause_state(

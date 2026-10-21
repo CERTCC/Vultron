@@ -20,6 +20,7 @@ AC-2: Guard nodes inherit SilentIdempotencyGuardMixin.
 AC-3: CLP-13-001 and CLP-13-002 satisfied.
 """
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -163,6 +164,54 @@ class TestCheckInviteeNotAlreadyParticipantNode:
         """No record is not a duplicate: CM-11-021 refuses it next."""
         _seed_fresh_case(bt_scenario)
         assert _run_guard(bt_scenario) == Status.SUCCESS
+
+    @pytest.mark.spec("BT-17-003")
+    @pytest.mark.parametrize(
+        ("joined", "expected_status"),
+        [(False, Status.SUCCESS), (True, Status.FAILURE)],
+        ids=["inert-writes-the-case", "duplicate-clears-it"],
+    )
+    def test_invitee_case_is_the_case_or_cleared(
+        self,
+        bt_scenario: BTTestScenario,
+        joined: bool,
+        expected_status: Status,
+    ) -> None:
+        """SUCCESS hands the consent nodes the case; a duplicate clears it."""
+        case = _seed_case_with_participant(bt_scenario, joined=joined)
+        captured: list[object] = []
+
+        class _Probe(py_trees.behaviour.Behaviour):
+            def update(self) -> Status:
+                captured.append(
+                    py_trees.blackboard.Blackboard.storage.get("/invitee_case")
+                )
+                return Status.SUCCESS
+
+        guard = CheckInviteeNotAlreadyParticipantNode(
+            case_id=_CASE_ID, invitee_id=_INVITEE_ID
+        )
+        tree = py_trees.composites.Selector(
+            name="GuardOrProbe",
+            memory=False,
+            children=[
+                py_trees.composites.Sequence(
+                    name="GuardThenProbe",
+                    memory=False,
+                    children=[guard, _Probe(name="AfterSuccess")],
+                ),
+                _Probe(name="AfterFailure"),
+            ],
+        )
+
+        # A stale case from an earlier run must not survive a duplicate.
+        bt_scenario.run(tree, actor_id=_ACTOR_ID, invitee_case="stale")
+
+        assert guard.status == expected_status
+        if expected_status == Status.SUCCESS:
+            assert captured == [case]
+        else:
+            assert captured == [None]
 
     def test_returns_failure_when_case_not_found(
         self, bt_scenario: BTTestScenario
