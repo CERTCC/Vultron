@@ -523,10 +523,10 @@ class InlineObjectStaging:
 def hold_activity(dl: DataLayer, activity: as_Activity) -> bool:
     """Hold *activity* in *dl* for a replay through the inbox queue.
 
-    For a caller that queues an activity by id outside a delivery (the
-    ledger-entry hand-back, SYNC-14-009): the activity is held as a deferred
-    record would hold it, never under its own id (DL-06-006), as its received
-    body when it carries one, and the inbox replay rebuilds it from there.
+    For a caller that queues an activity by id outside a delivery: the
+    activity is held as a deferred record would hold it, never under its own
+    id (DL-06-006), as its received body when it carries one, and the inbox
+    replay rebuilds it from there.
 
     Returns whether this call held it; ``False`` when a record for the same
     id is already held, and so already waiting on the inbox queue.

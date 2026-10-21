@@ -6,7 +6,7 @@ description: >
   Rules for replicating the canonical case ledger to participants: single-writer
   log, hash-chain sync, canonical serialization, commit and replica invariants,
   the sync-port wiring rule, fan-out recipients and the embargo pause, ingress
-  never writing the ledger, the gap and pre-genesis buffers, divergence recovery,
+  never writing the ledger, the held out-of-order Announce, divergence recovery,
   replay rate limiting, and SYNC test patterns.
 related_specs:
   - specs/sync-ledger-replication.yaml
@@ -220,39 +220,44 @@ For tests: a participant must hold the case replica (with its genesis hash)
 before it can validate a replicated entry (CLP-08-005). Seed the case on the
 peer; never rely on a pre-stored entry.
 
-## Out-of-Order Delivery and the Ledger Gap Buffer (SYNC-10-004)
+## Out-of-Order Delivery and the Held Ledger Announce (SYNC-10-004)
 
 The transport promises no order, and other implementations may share the wire,
 so a replica can get an entry before its predecessor. One drain per actor with
 per-recipient lanes (ADR-0112, OX-01-004/005/006) makes this rare, and a replay
 does not re-queue an `Announce` the outbox already holds for that peer
-(SYNC-15-012). The buffer below is the backstop for loss, not the steady state.
+(SYNC-15-012). The hold below is the backstop for loss, not the steady state.
 
-- `LedgerGapBuffer` (`vultron/core/models/ledger_gap_buffer.py`) is actor-local,
-  per-case and in-memory, **not** a DataLayer entity (SYNC-13-003). It is lost on
-  restart; dropped entries come back through diverge/reject/replay (SYNC-14-002).
-- **Keyed on `prev_log_hash`**, so the successor of a new tail is an O(1) lookup
-  and a run of *k* entries drains in O(k).
-- **On mismatch**, a genuine forward gap (`log_index > tail_index + 1`) is
-  buffered, and a `Reject(CaseLedgerEntry)` is **still always sent** as the loss
-  backstop. At-or-behind-tail entries go straight to the reject.
-- **On commit**, `HandBackBufferedSuccessorNode` (`sync/nodes/hand_back.py`, last
-  in the participant arm) hands the one successor of the new tail back to the
-  actor's own inbox through `InboxHandBackPort`, wrapped as an
-  `Announce(CaseLedgerEntry)` from the CASE_MANAGER (SYNC-14-009). That delivery's
-  tree hands back the next, so the cascade needs no loop and runs the in-order
-  path by construction (SYNC-14-008). Reason: running the successor inline made
-  one delivery run several trees (CLP-10-005, ADR-0135).
-- **The adapter queues, it never processes.** `InboxHandBackAdapter` saves the
-  Announce and calls `inbox_append`; the inbox loop that ran the delivery pops it
-  afterwards and runs `process_payload` under the same actor lock. A missing port
-  is a `VultronWiringError`, never an inline apply, and an unresolvable
-  CASE_MANAGER leaves the entry held; the drain never guesses a sender.
-- **Hand back only after success.** The node runs after the entry is stored (or
-  found stored), never on a refusal: an entry refused into the buffer is keyed on
-  the current tail, so handing back on failure would loop it into itself.
-- **Bounded**: a full buffer evicts the entry farthest ahead with a WARNING; the
-  Reject already sent recovers it.
+- **Hold the Announce, never the entry alone** (SYNC-14-001). The body intake
+  archived is held in a `DeferredInboxActivity`, the inbox's replay record
+  (IO-03-004); a `HeldLedgerAnnounce` row indexes it. Reason: an entry held alone
+  can only reach the inbox again inside an Announce the replica makes up and
+  attributes to the CASE_MANAGER (ISSUE-5012). Both live in the receiver's store,
+  never as a `CaseLedgerEntry` (SYNC-14-005), so a restart keeps them.
+- **Keyed on `prev_log_hash`**, so the successor of a new tail is one read
+  (`HeldLedgerAnnounce.build_id(case_id, tail_hash)`). The operations live in
+  `vultron/core/services/held_ledger_announces.py`.
+- **On mismatch**, a genuine forward gap (`log_index > tail_index + 1`) is held,
+  and a `Reject(CaseLedgerEntry)` is **still always sent** as the loss backstop.
+  At-or-behind-tail entries go straight to the reject.
+- **On commit**, `ReplayHeldSuccessorNode` (`sync/nodes/replay_held.py`, last in
+  the participant arm, and after the seed in the case-Announce tree) asks
+  `InboxReplayPort` to replay the one held Announce that extends the new tail,
+  by its own id (SYNC-14-009). That delivery's tree replays the next, so the
+  cascade needs no loop and runs the in-order path by construction
+  (SYNC-14-008). Reason: running the successor inline made one delivery run
+  several trees (CLP-10-005, ADR-0135).
+- **The adapter queues, it never processes.** `InboxReplayAdapter` checks the
+  body is held and calls `inbox_append`; the inbox loop pops it afterwards and
+  replays it through `process_payload` under the same actor lock, parsed again
+  from the held body, so it carries the first delivery's evidence and intake
+  archives nothing new. A missing port is a `VultronWiringError`, never an inline
+  apply.
+- **Replay only after success.** The node runs after the entry is stored (or
+  found stored), never on a refusal: an entry refused and held is keyed on the
+  current tail, so replaying on failure would loop it into itself.
+- **Bounded** (SYNC-14-006): a full holding area drops the Announce farthest
+  ahead, body and all, with a WARNING; the Reject already sent recovers it.
 
 Enqueuing for another actor means opening that actor's store explicitly
 (`store_for_actor`, DL-07-005) and calling `outbox_append` on it.
@@ -296,16 +301,15 @@ case seed first (CP-09-009, CM-17-009), so this is recovery, not the steady stat
 ### Pre-Genesis Buffering and Drain on Case Seed (SYNC-15-004/005)
 
 The forward-gap test never fires with no chain, so pre-genesis entries need their
-own buffer (ADR-0059):
+own hold, in the same holding area (ADR-0059):
 
 - `BufferPreGenesisEntryNode` (`sync/nodes/receive.py`) is the first child of the
   `ReconstructOrRejectOnMissingCase` fallback, under `FailureIsSuccess` so the
   genesis Reject still fires. It applies no forward-gap check.
 - Seeding the case is enough to anchor the chain, because the genesis hash comes
   from the case object alone (CLP-08). The `Announce(VulnerabilityCase)` tree ends
-  in the same `HandBackBufferedSuccessorNode` the announce path uses, which finds
-  the entry keyed on the genesis hash and hands it back (SYNC-15-005,
-  SYNC-14-009).
+  in the same `ReplayHeldSuccessorNode` the announce path uses, which finds the
+  Announce keyed on the genesis hash and replays it (SYNC-15-005, SYNC-14-009).
 
 ## Reject/Replay Amplification (SYNC-15-003)
 

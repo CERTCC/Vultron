@@ -24,6 +24,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.inbox_replay import held_depth
 from test.support.ledger import committed_semantic_types, fail_commits
 from test.support.received import received_event
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -38,7 +39,6 @@ from vultron.core.behaviors.embargo.copy_commit import (
     consent_row_entry,
 )
 from vultron.core.behaviors.sync import commit_tree
-from vultron.core.models import ledger_gap_buffer
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_apply import (
     ConsentRowChange,
@@ -48,7 +48,6 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
-from vultron.core.models.ledger_gap_buffer import get_ledger_gap_buffer
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -60,12 +59,6 @@ from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
 _S = EmbargoConsentState
 _CAUSE = "https://example.org/activities/the-act"
-
-
-@pytest.fixture(autouse=True)
-def _own_gap_buffers(monkeypatch):
-    """Each test gets its own per-actor gap buffers (process-global)."""
-    monkeypatch.setattr(ledger_gap_buffer, "_BUFFERS", {})
 
 
 def _net(name: str) -> LedgerNetwork:
@@ -319,7 +312,7 @@ class TestReplicaCopies:
 
     @pytest.mark.spec("CM-23-016")
     def test_an_entry_that_does_not_apply_is_held_for_gap_handling(self):
-        """AC-4: refused into ``LedgerGapBuffer``, never patched over.
+        """AC-4: its received Announce is held, never patched over.
 
         The replica's record has diverged from the CASE_MANAGER's (it lost
         its row), so the entry updating that row does not start where this
@@ -340,20 +333,20 @@ class TestReplicaCopies:
         verdict = net.receive(BYSTANDER, body)
 
         assert verdict.disposition is HandlerDisposition.DEFERRED
-        assert "gap buffer" in verdict.reason
+        assert "its Announce is held" in verdict.reason
         assert replica.read(entry_id) is None, "a refused entry is not stored"
-        assert get_ledger_gap_buffer(BYSTANDER).depth(net.case_id) == 1
+        assert held_depth(replica, net.case_id) == 1
         assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(diverged)
 
     @pytest.mark.spec("CM-23-016")
     def test_a_held_entry_applies_once_the_case_reaches_its_start(self):
-        """The gap buffer retries a refused entry; it is never dropped.
+        """A refused entry's held Announce is retried; it is never dropped.
 
         Once this replica's case is where the entry starts (here the
         diverged row is put back), the CASE_MANAGER's fresh
         ``Announce(VulnerabilityCase)`` (SYNC-16) seeds nothing new, but its
-        tree hands the held entry back to the inbox, and that delivery applies
-        and stores it (SYNC-14-009, SYNC-16-007).
+        tree replays the held Announce through the inbox, and that delivery
+        applies and stores it (SYNC-14-009, SYNC-16-007).
         """
         net = _net("cc-gap-retry")
         replica = net.stores[BYSTANDER]
@@ -390,7 +383,7 @@ class TestReplicaCopies:
         assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(
             _record(net, MANAGER, BYSTANDER)
         )
-        assert get_ledger_gap_buffer(BYSTANDER).depth(net.case_id) == 0
+        assert held_depth(replica, net.case_id) == 0
 
     @pytest.mark.spec("CM-23-016")
     def test_an_entry_already_in_place_is_an_idempotent_no_op(self):
@@ -416,7 +409,7 @@ class TestReplicaCopies:
             verdict.reason
         )
         assert replica.read(body["object"]["id"]) is not None
-        assert get_ledger_gap_buffer(BYSTANDER).depth(net.case_id) == 0
+        assert held_depth(replica, net.case_id) == 0
         assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(
             _record(net, MANAGER, BYSTANDER)
         )

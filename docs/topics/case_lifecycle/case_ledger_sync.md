@@ -1,7 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
-introduces: [LedgerGapBuffer]
+introduces: [HeldLedgerAnnounce]
 description: >
   How replicas order ledger entries and catch up on the ones they missed.
 ---
@@ -292,9 +292,10 @@ single lookup: the held entry whose `prevLogHash` equals the hash of the entry
 just committed.
 
 The drain then repeats until no held entry extends the chain ([SYNC-14-003](../../reference/specs/protocol.md#sync-14-003)).
-Each step is a delivery of its own: the replica hands the successor back to its own inbox, wrapped in an `Announce(CaseLedgerEntry)` from the case's CASE_MANAGER ([SYNC-14-009](../../reference/specs/project.md#sync-14-009)).
+Each step is a delivery of its own: the replica replays the `Announce(CaseLedgerEntry)` that carried the successor, the one it received and held as it arrived, through its own inbox ([SYNC-14-009](../../reference/specs/project.md#sync-14-009)).
+The replica never builds an `Announce` of its own for a held entry, so nothing is attributed to a sender that did not send it.
 The replica does not process the successor inside the delivery that committed its predecessor.
-When that delivery commits the successor, it hands back *its* successor in turn.
+When that delivery commits the successor, it replays *its* successor in turn.
 A run of ten entries that arrived in reverse order clicks into place in one cascade, in `log_index` order.
 
 Three properties make the drain safe:

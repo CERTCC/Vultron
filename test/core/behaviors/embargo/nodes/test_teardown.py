@@ -808,14 +808,29 @@ class TestApplyEmbargoTeardownNode:
 
     @pytest.mark.spec("CM-23-016")
     def test_a_step_the_apply_function_refuses_is_held_for_gap_handling(self):
-        """Refused into the gap buffer, never patched over (ADR-0124)."""
-        from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
+        """Its received Announce is held, never patched over (ADR-0124)."""
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+        from vultron.core.services.held_ledger_announces import (
+            held_ledger_announces,
+        )
         from vultron.errors import VultronEntryRefusedError
 
         dl, case = self._store("atn-gap", EM.ACTIVE)
-        node = _copy_node(dl, _remove_entry(case.id_, _e1(case)))
-        gap_buffer = LedgerGapBuffer()
-        node._gap_buffer = gap_buffer
+        entry = _remove_entry(case.id_, _e1(case))
+        node = _copy_node(dl, entry)
+        announce_id = "https://example.org/activities/announce-atn-gap"
+        node.activity = type(
+            "Carrier", (), {"log_entry": entry, "activity_id": announce_id}
+        )()
+        # Intake archived the Announce that carried the entry (CLP-10-017).
+        dl.save(
+            ReceivedActivityRecord(
+                activity_id=announce_id,
+                received_body=f'{{"id": "{announce_id}", "type": "Announce"}}',
+            )
+        )
 
         with patch(
             "vultron.core.behaviors.sync.nodes.embargo_copy_effect"
@@ -826,7 +841,9 @@ class TestApplyEmbargoTeardownNode:
 
         assert status == py_trees.common.Status.FAILURE
         assert node.refused_into_gap
-        assert gap_buffer.depth(case.id_) == 1
+        assert [
+            h.activity_id for h in held_ledger_announces(dl, case.id_)
+        ] == [announce_id]
         assert cast(VulnerabilityCase, dl.read(case.id_)).em_state is (
             EM.ACTIVE
         )

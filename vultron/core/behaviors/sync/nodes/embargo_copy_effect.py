@@ -24,12 +24,13 @@ a subclass names the change its entry carries (:meth:`_change`), and the
 frame reads the case file, applies the change, and saves what changed.
 
 An entry whose starting state does not match this replica's case is refused,
-never patched over: the frame holds it in the actor-local gap buffer
-(``LedgerGapBuffer``, keyed on its predecessor hash) and fails, so the entry
-is not persisted (SYNC-12-001), and the receive path reports it deferred.
-The entry extends the stored chain, so the gap drain that follows every
-received announce for the case takes it again and retries it; it stays held
-until this replica's case reaches the entry's start.  An entry this replica
+never patched over: the frame holds the received ``Announce`` that carried
+it, keyed on its predecessor hash (``hold_ledger_announce``, SYNC-14-001), and
+fails, so the entry is not persisted (SYNC-12-001), and the receive path
+reports it deferred.  The entry extends the stored chain, so the drain that
+follows every received announce for the case replays that ``Announce`` and
+retries it; it stays held until this replica's case reaches the entry's
+start.  An entry this replica
 had already applied, but not stored, is in place and passes as a no-op
 (:func:`~vultron.core.models.embargo_apply.change_is_in_place`), and so does
 an entry a refused apply shows the case is already past: a replica seeded
@@ -51,16 +52,16 @@ itself: each row it declines is a consent entry this module's slot copies
 
 from __future__ import annotations
 
-from typing import cast
-
 from py_trees.common import Status
-from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.embargo_case_file import (
     read_embargo_case_file,
     save_case_file,
 )
-from vultron.core.behaviors.sync.nodes._helpers import _LedgerEffectNode
+from vultron.core.behaviors.sync.nodes._helpers import (
+    _LedgerEffectNode,
+    hold_received_announce,
+)
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _SemanticTypeSetNode,
 )
@@ -78,7 +79,6 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
     CONSENT_ROW_VERBS,
 )
-from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.errors import VultronEntryRefusedError
 
 
@@ -88,34 +88,18 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
     Subclasses implement :meth:`_change`.  SUCCESS when the change is applied
     and saved, when it is already in place (a re-applied entry), or when this
     replica holds no copy of the case (Regime 2, ADR-0087).  FAILURE when the entry is malformed, or when the apply
-    function refuses it; a refused entry is held in the gap buffer and
+    function refuses it; the refused entry's ``Announce`` is held and
     :attr:`refused_into_gap` is set.
     """
 
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **_LedgerEffectNode.INPUT_PORTS,
-        "gap_buffer": PortInformation(data_type=object, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity", "gap_buffer": "/gap_buffer"}
-
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._gap_buffer: LedgerGapBuffer | None = None
         #: True after a run whose entry the apply function refused.
         self.refused_into_gap = False
 
     def initialise(self) -> None:
         super().initialise()
         self.refused_into_gap = False
-        try:
-            self._gap_buffer = cast(
-                LedgerGapBuffer, self.get_input("gap_buffer")
-            )
-        except (NoDataAvailable, NotImplementedError):
-            self._gap_buffer = None
 
     def _change(self, entry: CaseLedgerEntry) -> EmbargoChange:
         """The change *entry* carries.
@@ -195,18 +179,19 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
     def _refuse(
         self, entry: CaseLedgerEntry, exc: VultronEntryRefusedError
     ) -> Status:
-        """Hold a refused entry for gap handling; never patch it over."""
-        buffered = self._gap_buffer is not None and self._gap_buffer.buffer(
-            entry
+        """Hold a refused entry's ``Announce``; never patch it over."""
+        assert self.datalayer is not None
+        buffered = hold_received_announce(
+            self.name, self.datalayer, self.activity
         )
         self.refused_into_gap = buffered
         self.feedback_message = (
             f"{self.name}: entry '{entry.id_}' (log_index={entry.log_index})"
             f" does not apply to case '{entry.case_id}': {exc};"
             + (
-                " held in the gap buffer (ADR-0124)"
+                " its Announce is held for replay (ADR-0124)"
                 if buffered
-                else " no gap buffer holds it"
+                else " the holding area bound dropped its Announce"
             )
         )
         self.logger.warning("%s", self.feedback_message)

@@ -302,17 +302,11 @@ the same unordered transport.
 
 ### 6.2 Receiver-Side Gap Buffer
 
-When a participant receives a valid `Announce(CaseLedgerEntry)` whose
-`prev_log_hash` does not match its current chain tail, but whose `log_index`
-is strictly greater than `tail_index + 1` (a forward gap), the participant
-MUST NOT permanently discard the entry. It MUST retain the entry in a
-non-ledger holding area, keyed by `prev_log_hash`, pending arrival of its
-predecessor. (SYNC-14-001)
+When a participant receives a valid `Announce(CaseLedgerEntry)` whose `prev_log_hash` does not match its current chain tail, but whose `log_index` is strictly greater than `tail_index + 1` (a forward gap), the participant MUST NOT permanently discard the entry.
+It MUST retain the `Announce(CaseLedgerEntry)` that carried it, as the body that arrived, in a non-ledger holding area, keyed by the entry's `prev_log_hash`, pending arrival of its predecessor.
+It MUST NOT retain the entry apart from that `Announce`. (SYNC-14-001)
 
-A forward-gap entry that is buffered MUST still trigger resynchronisation:
-the participant MUST send `Reject(CaseLedgerEntry)` carrying its last accepted
-hash, so the CASE_MANAGER can replay entries that are genuinely lost (not merely
-reordered). (SYNC-14-002)
+A forward-gap entry whose `Announce` is held MUST still trigger resynchronisation: the participant MUST send `Reject(CaseLedgerEntry)` carrying its last accepted hash, so the CASE_MANAGER can replay entries that are genuinely lost (not merely reordered). (SYNC-14-002)
 
 ### 6.3 Drain on Predecessor Commit
 
@@ -324,9 +318,10 @@ delivery, and repeat, cascading until no buffered entry extends the current
 tail. (SYNC-14-003, SYNC-14-008)
 
 [I] In this implementation, each drained entry is its own inbox delivery.
-When a commit makes a buffered entry appliable, the participant hands that one entry back to its own inbox, wrapped in an `Announce(CaseLedgerEntry)` attributed to the case's CASE_MANAGER.
+When a commit makes a held entry appliable, the participant replays the `Announce(CaseLedgerEntry)` it received for that entry through its own inbox, parsed again from the body held for it.
+It never builds an `Announce` of its own, so nothing is attributed to a sender that did not send it.
 The participant does not apply the entry inside the delivery that made it appliable.
-That delivery's commit hands back the next entry, so the cascade follows from in-order delivery itself. (SYNC-14-009)
+That delivery's commit replays the next `Announce`, so the cascade follows from in-order delivery itself. (SYNC-14-009)
 
 Draining a buffered entry MUST apply domain effects before persisting it.
 (SYNC-14-004)
@@ -342,10 +337,9 @@ is drained (i.e. until its predecessor is present), so that presence of a
 `CaseLedgerEntry` in the DataLayer continues to mean "committed and effects
 applied." (SYNC-14-005, SYNC-13-001)
 
-The holding area SHOULD be bounded in size per case. When full it SHOULD
-evict the entry farthest ahead of the current gap (highest `log_index`) and
-log a warning. Eviction is recoverable because the Reject required by
-§6.2 was already sent. (SYNC-14-006)
+The holding area SHOULD be bounded in size per case.
+When full it SHOULD evict the held `Announce` whose entry is farthest ahead of the current gap (highest `log_index`) and log a warning.
+Eviction is recoverable because the Reject required by §6.2 was already sent. (SYNC-14-006)
 
 ### 6.5 Monotonic Visibility
 

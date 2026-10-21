@@ -304,8 +304,9 @@ class StoredActivityIngressAdapter:
     """Ingress adapter for the replay of a held activity.
 
     Used when the payload is an activity-ID string popped from the inbox
-    queue: an activity deferred pending its case, or a ledger entry handed
-    back to the inbox (SYNC-14-009).  Either is held whole in a
+    queue: an activity deferred pending its case, or a held
+    ``Announce(CaseLedgerEntry)`` replayed once its entry applies
+    (SYNC-14-009).  Either is held whole, as received, in a
     :class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`,
     never under its own id (DL-06-006).
 

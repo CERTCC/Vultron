@@ -148,9 +148,9 @@ async def stream_case_ledger(
 
     Replays every stored entry above *after_index* (all of them when it is
     ``None``), then re-reads the store every *poll_seconds* and yields each
-    entry above the last one sent.  The gap buffer commits replicated entries
-    in ``log_index`` order (SYNC-14), so "above the last one sent" misses
-    nothing.
+    entry above the last one sent.  A replica commits replicated entries in
+    ``log_index`` order, holding an out-of-order one until its predecessor
+    lands (SYNC-14), so "above the last one sent" misses nothing.
 
     Ends when the client disconnects, or yields :func:`format_close_event`
     and ends once *shutdown* is set.  *actor_id* names the actor whose store

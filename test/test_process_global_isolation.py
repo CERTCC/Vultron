@@ -42,9 +42,6 @@ from py_trees.common import Status
 from test.conftest import TEST_ACTOR_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.ledger_gap_buffer import get_ledger_gap_buffer
 from vultron.logging_setup import (
     restore_third_party_log_levels,
     suppress_third_party_info_noise,
@@ -56,12 +53,9 @@ pytestmark = pytest.mark.xdist_group("process_global_isolation")
 #: the bridge does not restore it when the execution ends.
 _LEAKED_KEY = "participant"
 
-_CASE_ID = "https://example.org/cases/isolation"
-
 #: Set by the first test of each pair; read by the second.
 _RAN: dict[str, bool] = {
     "blackboard": False,
-    "gap_buffer": False,
     "log_levels": False,
 }
 
@@ -106,32 +100,6 @@ class TestBlackboardIsClearedBetweenTests:
     def test_2_next_test_starts_without_the_stale_key(self):
         _require_writer("blackboard")
         assert f"/{_LEAKED_KEY}" not in py_trees.blackboard.Blackboard.storage
-
-
-def _gap_entry() -> CaseLedgerEntry:
-    """An entry far enough ahead of an empty chain to be buffered as a gap."""
-    chain = HashChainLedgerRecord(
-        case_id=_CASE_ID,
-        log_index=3,
-        object_id=f"{_CASE_ID}/activities/act-3",
-        semantic_type="test_event",
-        payload_snapshot={"log_index": 3},
-        prev_log_hash="a" * 64,
-    )
-    return chain.to_ledger_entry()
-
-
-class TestLedgerGapBufferIsResetBetweenTests:
-    def test_1_received_sync_buffers_an_out_of_order_entry(self):
-        buffer = get_ledger_gap_buffer(TEST_ACTOR_ID)
-
-        assert buffer.buffer(_gap_entry()) is True
-        assert buffer.depth(_CASE_ID) == 1
-        _RAN["gap_buffer"] = True
-
-    def test_2_next_test_starts_with_an_empty_buffer(self):
-        _require_writer("gap_buffer")
-        assert get_ledger_gap_buffer(TEST_ACTOR_ID).depth(_CASE_ID) == 0
 
 
 class TestThirdPartyLogSuppressionIsUndoneBetweenTests:

@@ -28,9 +28,9 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.sync.nodes._helpers import hold_received_announce
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case_ledger import ledger_entry_hash_intact
-from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.errors import VultronError, VultronWiringError
 
@@ -156,46 +156,40 @@ class CheckHashMatchesNode(DataLayerConditionWithPorts):
 
 
 class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
-    """Hold a forward-gap ledger entry so it is not permanently dropped.
+    """Hold the ``Announce`` of a forward-gap entry so it is not dropped.
 
     When a received entry's ``prev_log_hash`` does not match the local tail
     *and* the entry sits ahead of the tail (``log_index > tail_index + 1``),
     it is a genuine forward gap: a predecessor has not yet been delivered.
     Because delivery is not ordered (and Vultron may not be the only
     implementation on the wire), dropping such an entry can lose it
-    permanently.  This node parks the entry in the actor-local
-    :class:`~vultron.core.models.ledger_gap_buffer.LedgerGapBuffer` keyed by its
-    ``prev_log_hash`` so the receive path can drain it once its predecessor
-    arrives (issue #1556, SYNC-10-004).
+    permanently.  This node holds the received ``Announce(CaseLedgerEntry)``
+    as it arrived, keyed on its entry's ``prev_log_hash``, so the drain
+    replays it once its predecessor commits (SYNC-14-001, SYNC-14-009).
 
-    Returns SUCCESS when the entry was buffered, FAILURE otherwise (buffering
-    disabled, no gap buffer injected, a stale/duplicate entry at-or-behind the
-    tail, or the size bound dropped it).  Its status only structures the
-    enclosing tree — a ``Reject(CaseLedgerEntry)`` is sent on **every** mismatch
-    regardless of whether buffering succeeded, so the CaseActor's replay remains
-    the backstop against a predecessor that is genuinely lost (never delivered)
-    rather than merely reordered.  The entry is deliberately NOT persisted here;
-    the drain applies effects before persisting, honouring SYNC-12-001.
+    Returns SUCCESS when the ``Announce`` is held, FAILURE otherwise (a
+    stale/duplicate entry at-or-behind the tail, no tail, or the size bound
+    dropped it).  Its status only structures the enclosing tree — a
+    ``Reject(CaseLedgerEntry)`` is sent on **every** mismatch regardless of
+    whether holding succeeded, so the CaseActor's replay remains the backstop
+    against a predecessor that is genuinely lost (never delivered) rather
+    than merely reordered (SYNC-14-002).  The entry is deliberately NOT
+    persisted here; its replay applies effects before persisting
+    (SYNC-12-001).
     """
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._gap_buffer: LedgerGapBuffer | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "activity": PortInformation(data_type=object, required=True),
         "tail_index": PortInformation(data_type=int, required=False),
-        "gap_buffer": PortInformation(data_type=object, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "activity": "/activity",
-            "tail_index": "/tail_index",
-            "gap_buffer": "/gap_buffer",
-        }
+        return {"activity": "/activity", "tail_index": "/tail_index"}
 
     def initialise(self) -> None:
         super().initialise()
@@ -204,36 +198,33 @@ class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
             self.tail_index: int | None = self.get_input("tail_index")
         except (NoDataAvailable, NotImplementedError):
             self.tail_index = None
-        try:
-            self._gap_buffer = cast(
-                LedgerGapBuffer, self.get_input("gap_buffer")
-            )
-        except (NoDataAvailable, NotImplementedError):
-            self._gap_buffer = None
 
     def update(self) -> Status:
-        if self._gap_buffer is None or self.tail_index is None:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        if self.tail_index is None:
             return Status.FAILURE
 
         entry = _require_log_entry(self.activity, self.name)
 
-        # Only buffer genuine *forward* gaps.  An entry at or behind the tail
+        # Only hold genuine *forward* gaps.  An entry at or behind the tail
         # index is stale, a duplicate, or a fork — not a reorder we can heal by
         # waiting, so let it fall through to the rejection path.
         if entry.log_index <= self.tail_index + 1:
             self.logger.debug(
                 "%s: entry index=%d is not a forward gap (tail_index=%d) — "
-                "not buffering",
+                "not holding",
                 self.name,
                 entry.log_index,
                 self.tail_index,
             )
             return Status.FAILURE
 
-        if self._gap_buffer.buffer(entry):
+        if hold_received_announce(self.name, self.datalayer, self.activity):
             self.logger.info(
-                "%s: buffered out-of-order entry '%s' (index=%d) pending "
-                "predecessor",
+                "%s: holding the Announce of out-of-order entry '%s'"
+                " (index=%d) pending predecessor",
                 self.name,
                 entry.id_,
                 entry.log_index,
@@ -243,7 +234,7 @@ class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
 
 
 class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
-    """Hold a ledger entry that arrived before its ``VulnerabilityCase`` seed.
+    """Hold the ``Announce`` of an entry that arrived before its case seed.
 
     This is the *pre-genesis* companion to :class:`BufferOutOfOrderEntryNode`.
     When ``ReconstructChainTail`` cannot derive the per-case genesis hash
@@ -254,58 +245,49 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
 
     Because delivery is unordered, an ``Announce(CaseLedgerEntry)`` can precede
     the ``Create``/``Announce(VulnerabilityCase)`` that seeds the case.  This
-    node parks the entry in the actor-local
-    :class:`~vultron.core.models.ledger_gap_buffer.LedgerGapBuffer` keyed by its
-    ``prev_log_hash`` so the case-seed path can drain it once the genesis anchor
-    is known (issue #2186, SYNC-15-004).
+    node holds the received ``Announce`` as it arrived, keyed on its entry's
+    ``prev_log_hash``, so the case-seed path replays it once the genesis
+    anchor is known (SYNC-15-004, SYNC-15-005).
 
     Unlike :class:`BufferOutOfOrderEntryNode`, it does **not** apply a
     forward-gap check: there is no reconstructed tail in the pre-genesis window,
     so *every* entry for the missing case is held — including the genesis entry
     (``log_index == 0``), whose ``prev_log_hash`` equals the per-case genesis
-    hash and therefore drains first once the case is seeded.
+    hash and therefore replays first once the case is seeded.
 
-    Returns SUCCESS when the entry was buffered, FAILURE otherwise (buffering
-    disabled, no gap buffer injected, or the size bound dropped it).  Its status
-    only structures the enclosing tree — a ``Reject(CaseLedgerEntry)`` is sent
-    on every pre-genesis entry regardless, so the CaseActor's replay remains the
-    backstop (SYNC-15-001).  The entry is deliberately NOT persisted here; the
-    drain applies effects before persisting, honouring SYNC-12-001 / SYNC-14-005.
+    Returns SUCCESS when the ``Announce`` is held, FAILURE when the size bound
+    dropped it.  Its status only structures the enclosing tree — a
+    ``Reject(CaseLedgerEntry)`` is sent on every pre-genesis entry regardless,
+    so the CaseActor's replay remains the backstop (SYNC-15-001).  The entry
+    is deliberately NOT persisted here; its replay applies effects before
+    persisting, honouring SYNC-12-001 / SYNC-14-005.
     """
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self._gap_buffer: LedgerGapBuffer | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "activity": PortInformation(data_type=object, required=True),
-        "gap_buffer": PortInformation(data_type=object, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity", "gap_buffer": "/gap_buffer"}
+        return {"activity": "/activity"}
 
     def initialise(self) -> None:
         super().initialise()
         self.activity = self.get_input("activity")
-        try:
-            self._gap_buffer = cast(
-                LedgerGapBuffer, self.get_input("gap_buffer")
-            )
-        except (NoDataAvailable, NotImplementedError):
-            self._gap_buffer = None
 
     def update(self) -> Status:
-        if self._gap_buffer is None:
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         entry = _require_log_entry(self.activity, self.name)
-        if self._gap_buffer.buffer(entry):
+        if hold_received_announce(self.name, self.datalayer, self.activity):
             self.logger.info(
-                "%s: buffered pre-genesis entry '%s' (index=%d) for case '%s' "
-                "pending VulnerabilityCase seed",
+                "%s: holding the Announce of pre-genesis entry '%s'"
+                " (index=%d) for case '%s' pending VulnerabilityCase seed",
                 self.name,
                 entry.id_,
                 entry.log_index,
