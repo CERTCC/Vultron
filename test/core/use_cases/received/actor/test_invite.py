@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for actor invitation received use cases."""
 
+import json
 from typing import Any, cast
 from unittest.mock import MagicMock
 
@@ -23,6 +24,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.embargo_register import activate
 from test.support.ledger_records import with_ledger_records
+from test.support.received import case_stub
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -272,7 +274,8 @@ class TestInviteActorUseCases:
         assert result.disposition is HandlerDisposition.APPLIED
         record = dl.read(ReceivedActivityRecord.build_id(invite.id_))
         assert isinstance(record, ReceivedActivityRecord)
-        assert record.activity.id_ == invite.id_
+        assert record.activity_id == invite.id_
+        assert json.loads(record.received_body)["id"] == invite.id_
         assert dl.get(invite.type_.value, invite.id_) is None
 
     def test_invite_receipt_logged_in_narrative_form(
@@ -437,14 +440,14 @@ class TestInviteActorUseCases:
         invite1 = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
             to=[invitee_id],
-            target=case_id,
+            target=case_stub(case_id),
             actor=first_sender,
             id_=f"{case_id}/invitations/a",
         )
         invite2 = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
             to=[invitee_id],
-            target=case_id,
+            target=case_stub(case_id),
             actor=second_sender,
             id_=f"{case_id}/invitations/b",
         )

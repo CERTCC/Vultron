@@ -52,12 +52,17 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.ports.received_activity_loader import ReceivedActivityLoader
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.enums.roles import CVDRole
 
 
-class TriggerActivityPort(Protocol):
+class TriggerActivityPort(ReceivedActivityLoader, Protocol):
     """Driven port for trigger-related outbound wire activity construction.
+
+    It is also the trigger side's :class:`ReceivedActivityLoader`: a trigger
+    that answers a received activity loads it here, from the body the reply
+    built through this port will embed (ADR-0149).
 
     Core trigger use cases and BT nodes call these methods with domain-level
     parameters (string IDs, primitive types) and receive activity IDs and

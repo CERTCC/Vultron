@@ -395,22 +395,25 @@ groups:
       The endpoint SHOULD detect a redelivered activity early, at ingress: when the
       receiving actor already holds the activity under a key it derives from the
       activity id (its `ReceivedActivityRecord`, or the `DeferredInboxActivity` that
-      holds it for replay), the redelivered body is not held again and is routed without
-      its received evidence (VM-08-002). While the first delivery is still deferred, the
-      held copy is routed in its place.
+      holds it for replay), the redelivered body is not held again, and the copy the
+      receiver holds is routed in its place without received evidence (VM-08-002): the
+      deferred record's while the first delivery is still deferred, else the body
+      intake archived.
     rationale: >-
       Ingress is the first point at which the receiver can consult durable evidence of
       a prior delivery, so the HTTP adapter realises the early filtering ID-05-002
       permits there. The evidence is keyed by the receiver: a row under the sender's
-      id reads as one of its own (DL-06-006). Intake's archive keeps a core summary,
-      not a routable body, so an archived activity's resend is rebuilt from its own
-      body and handler idempotency answers it (ID-04); body comparison is #3762.
+      id reads as one of its own (DL-06-006). Intake's archive is the received body
+      (ADR-0149), so an archived activity's resend is routed as that body's parse and
+      handler idempotency answers it (ID-04). The redelivered body is left at ingress
+      for the comparison with the held one (#3762).
     verification: >-
       `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_resend_under_a_held_id_routes_without_this_body_evidence`
       asserts a second body under a deferred id routes the held copy and is not held
       again,
-      `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_resend_of_an_archived_activity_routes_without_its_evidence`
-      that a resend of an archived activity is routed without its evidence, and
+      `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_resend_of_an_archived_activity_routes_the_archived_copy`
+      that a resend of an archived activity is routed as the archived copy, without
+      evidence, and
       `test/adapters/driving/fastapi/test_inbox_redelivery.py::test_second_delivery_leaves_store_and_outbox_unchanged`
       that it adds nothing to the store. No duplicate check keyed on the actor record
       exists in `vultron/adapters/driving/fastapi/routers/actors/`.

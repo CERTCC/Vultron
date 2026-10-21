@@ -67,7 +67,11 @@ class SvcAcceptEmbargoUseCase(SvcEmbargoTriggerBase):
         # An open proposal, or — when named — the actor's received Invite
         # for the embargo in force (EP-09-012).
         self._proposal_id, self._embargo_id = _resolve_embargo_proposal(
-            self._case, request.proposal_id, self._actor_id, dl
+            self._case,
+            request.proposal_id,
+            self._actor_id,
+            dl,
+            self._received_activities,
         )
 
         embargo = dl.read(self._embargo_id)

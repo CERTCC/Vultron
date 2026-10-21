@@ -29,7 +29,7 @@ from typing import cast
 
 import pytest
 
-from test.support.received import hold_deferred
+from test.support.received import archive_received, hold_deferred
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -38,14 +38,10 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.received_activity_record import (
-    ReceivedActivityRecord,
-)
 from vultron.core.models.use_case_result import ActivityResult
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -61,6 +57,7 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import em_propose_embargo_activity
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -142,7 +139,7 @@ def _store_received_invite(
 ) -> str:
     """Store a relayed ``Invite(EmbargoEvent)`` as the invitee received it.
 
-    Intake archives it as a ``ReceivedActivityRecord``, and nothing holds it
+    Intake archives its body as a ``ReceivedActivityRecord``, and nothing holds it
     under the id its sender chose (DL-06-006).  With *deferred*, it is held
     instead as the inbox holds an Invite it defers until the case is known
     (``DeferredInboxActivity``), with no archive yet.  *to* overrides the
@@ -157,10 +154,7 @@ def _store_received_invite(
     if deferred:
         hold_deferred(dl, invite)
     else:
-        received = VultronActivity.model_validate(
-            invite.model_dump(by_alias=True, exclude_none=True)
-        )
-        dl.create(ReceivedActivityRecord.for_activity(received))
+        archive_received(dl, invite)
     return invite.id_
 
 
@@ -394,10 +388,12 @@ def test_a_held_activity_that_is_not_an_invite_is_not_found(
         actor=in_force.manager_id,
         to=[in_force.finder_id],
     )
-    data = invite.model_dump(by_alias=True, exclude_none=True)
+    data = invite.model_dump(
+        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
+    )
     data["type"] = "Offer"
-    offer = VultronActivity.model_validate(data)
-    in_force.dl.create(ReceivedActivityRecord.for_activity(offer))
+    offer = parse_activity(data)
+    archive_received(in_force.dl, offer)
 
     with pytest.raises(VultronNotFoundError, match=offer.id_):
         answer(in_force.dl, in_force.finder_id, in_force.case.id_, offer.id_)
@@ -414,8 +410,8 @@ def test_an_invite_the_inbox_still_defers_is_answered(
 ) -> None:
     """An Invite held only by the inbox, waiting on its case, still answers.
 
-    The inbox holds it in a ``DeferredInboxActivity`` with the core summary
-    intake would archive, never under the Invite's own id (DL-06-006).
+    The inbox holds its received body in a ``DeferredInboxActivity``, never
+    under the Invite's own id (DL-06-006), and the answer loads that body.
     """
     embargo_id = in_force.case.active_embargo_id
     assert embargo_id is not None

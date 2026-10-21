@@ -24,6 +24,10 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001, AF-02-001, AF-03-001.
 
 from pydantic import ValidationError
 
+from vultron.wire.as2.factories._held import (
+    embedded_as_received,
+    validated_as,
+)
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.report import (
     _RmCloseReportActivity,
@@ -119,6 +123,24 @@ def rm_submit_report_activity(
         ) from exc
 
 
+def _as_submit_offer(offer: as_Offer) -> _RmSubmitReportActivity:
+    """*offer* as the submit-report class a report reply embeds.
+
+    A plain ``as_Offer`` is coerced from its AS2 dump.  An Offer the receiver
+    parsed from its archived body is embedded as the Reporter sent it, every
+    field included (:func:`embedded_as_received`, DL-06-004).
+
+    Raises:
+        pydantic.ValidationError: When *offer* is not a submit-report Offer.
+    """
+    coerced = (
+        offer
+        if isinstance(offer, _RmSubmitReportActivity)
+        else validated_as(_RmSubmitReportActivity, offer)
+    )
+    return embedded_as_received(coerced, offer)
+
+
 def rm_read_report_activity(
     offer: as_Offer,
     **kwargs,
@@ -144,10 +166,7 @@ def rm_read_report_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        if not isinstance(offer, _RmSubmitReportActivity):
-            offer = _RmSubmitReportActivity.model_validate(
-                offer.model_dump(by_alias=True)
-            )
+        offer = _as_submit_offer(offer)
         return _RmReadReportActivity(object_=offer, **kwargs)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
@@ -180,10 +199,7 @@ def rm_validate_report_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        if not isinstance(offer, _RmSubmitReportActivity):
-            offer = _RmSubmitReportActivity.model_validate(
-                offer.model_dump(by_alias=True)
-            )
+        offer = _as_submit_offer(offer)
         return _RmValidateReportActivity(object_=offer, **kwargs)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
@@ -216,10 +232,7 @@ def rm_invalidate_report_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        if not isinstance(offer, _RmSubmitReportActivity):
-            offer = _RmSubmitReportActivity.model_validate(
-                offer.model_dump(by_alias=True)
-            )
+        offer = _as_submit_offer(offer)
         return _RmInvalidateReportActivity(object_=offer, **kwargs)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
@@ -254,10 +267,7 @@ def rm_close_report_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        if not isinstance(offer, _RmSubmitReportActivity):
-            offer = _RmSubmitReportActivity.model_validate(
-                offer.model_dump(by_alias=True)
-            )
+        offer = _as_submit_offer(offer)
         return _RmCloseReportActivity(object_=offer, **kwargs)
     except ValidationError as exc:
         raise VultronActivityConstructionError(

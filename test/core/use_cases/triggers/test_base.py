@@ -11,6 +11,7 @@ from vultron.core.use_cases.triggers._base import (
     SvcBTTriggerBase,
     SvcEmbargoTriggerBase,
 )
+from vultron.errors import VultronWiringError
 
 _ACTOR_ID = "https://example.org/actor"
 _CASE_ID = "https://example.org/cases/c1"
@@ -93,6 +94,25 @@ def test_missing_trigger_activity_calls_prepare_first():
     with pytest.raises(RuntimeError):
         uc.execute()
     assert uc.prepare_called, "_prepare() must run before the port guard"
+
+
+@pytest.mark.spec("DL-06-001")
+def test_a_received_read_without_a_trigger_port_is_a_wiring_fault():
+    """The trigger port is the loader a trigger reads what it received
+    through (ADR-0149); without one the read fails loudly, never empty."""
+    uc = _MinimalTrigger(
+        dl=MagicMock(), request=object(), trigger_activity=None
+    )
+    with pytest.raises(VultronWiringError, match="ADR-0149"):
+        uc._received_activities  # noqa: B018 - the property raises
+
+
+def test_the_trigger_port_is_the_received_activity_loader():
+    port = MagicMock()
+    uc = _MinimalTrigger(
+        dl=MagicMock(), request=object(), trigger_activity=port
+    )
+    assert uc._received_activities is port
 
 
 # ---------------------------------------------------------------------------

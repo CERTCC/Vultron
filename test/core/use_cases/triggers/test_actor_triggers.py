@@ -38,7 +38,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
-from test.support.received import archive_received
+from test.support.received import archive_received, case_stub
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -1112,7 +1112,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=case.id_,
+            target=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -1177,7 +1177,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=case.id_,
+            target=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -1213,7 +1213,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=case.id_,
+            target=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -1251,7 +1251,7 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=case.id_,
+            target=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -1307,7 +1307,7 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=case.id_,
+            target=case_stub(case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -1986,18 +1986,17 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
             ).execute()
         assert dl.outbox_list() == []
 
-    def test_accept_raises_when_offer_has_no_case_reference(self):
+    def test_accept_raises_when_offer_has_no_case_reference(self, monkeypatch):
         """VultronNotFoundError raised when the received Offer names no case.
 
-        ``_prepare`` reads the case from the archived Offer's ``object_`` and
-        raises when it yields no id.  The archive is a spec'd mock so the
-        reader takes it as the intake record; its activity's ``object_`` is
-        cleared, since a bare ``MagicMock`` would auto-create a truthy one.
+        ``_prepare`` reads the case from the loaded Offer's ``object_`` and
+        raises when it yields no id.
         """
-
-        from vultron.core.models.received_activity_record import (
-            ReceivedActivityRecord,
+        from vultron.core.models.activity import VultronActivity
+        from vultron.core.models.received_activity_view import (
+            ReceivedActivityView,
         )
+        from vultron.core.use_cases.triggers import actor as actor_triggers
         from vultron.core.use_cases.triggers.actor import (
             SvcAcceptCaseOwnershipTransferUseCase,
         )
@@ -2011,14 +2010,17 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         actor_mock = MagicMock()
         actor_mock.id_ = actor_id
 
-        archived = MagicMock(spec=ReceivedActivityRecord)
-        archived.activity = MagicMock(object_=None)
-        held = {
-            actor_id: actor_mock,
-            ReceivedActivityRecord.build_id(offer_id): archived,
-        }
         mock_dl = MagicMock()
-        mock_dl.read.side_effect = held.get
+        mock_dl.read.side_effect = {actor_id: actor_mock}.get
+        # The parse of an archived Offer requires an object, so the loaded
+        # view is stood in for to reach the guard.
+        monkeypatch.setattr(
+            actor_triggers,
+            "read_received_activity",
+            lambda *_args: ReceivedActivityView(
+                VultronActivity(type_="Offer", actor=actor_id, object_=None)
+            ),
+        )
 
         request = AcceptCaseOwnershipTransferTriggerRequest(
             actor_id=actor_id,

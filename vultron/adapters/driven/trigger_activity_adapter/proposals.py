@@ -23,22 +23,25 @@ Split from ``cases.py`` at the CS-18-001 module-size cap.
 
 import logging
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 from pydantic import ValidationError
 
+from vultron.adapters.received_archive import read_held_as_received
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.services.received_activity import read_held_activity
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronActivityConstructionError,
     VultronAlreadyExistsError,
     VultronNotFoundError,
 )
-from vultron.wire.as2.factories import parse_submit_report_offer
+from vultron.wire.as2.factories import (
+    embedded_as_received,
+    parse_submit_report_offer,
+)
 from vultron.wire.as2.factories.case import (
     accept_case_proposal_activity,
     create_case_proposal_activity,
@@ -149,19 +152,20 @@ class _ProposalsMixin:
     ) -> as_Offer | None:
         """The ``Offer(VulnerabilityReport)`` *offer_id* as this actor holds it.
 
-        A received Offer is read from its intake archive, never under the id
-        its sender chose (DL-06-006); an Offer this actor sent is held under
-        its own id (:func:`read_held_activity`).  ``None``, with a warning,
-        when the store holds no such Offer: the proposal then carries the
-        bare provenance only (CP-01-007).
+        A received Offer is parsed from the body its intake archived, never
+        read under the id its sender chose (DL-06-006); an Offer this actor
+        sent is held under its own id (:func:`read_held_as_received`).  A
+        received Offer is carried as the Reporter sent it, every field
+        included, so the case-actor reads the Reporter's own terms (CP-01-008,
+        DL-06-004).  ``None``, with a warning, when the store holds no such
+        Offer: the proposal then carries the bare provenance only (CP-01-007).
         """
         try:
-            held = read_held_activity(
+            held = read_held_as_received(
                 self._dl, offer_id, "Offer(VulnerabilityReport)"
             )
-            _, offer = parse_submit_report_offer(
-                held.model_dump(by_alias=True)
-            )
+            _, offer = parse_submit_report_offer(cast(as_Offer, held))
+            offer = embedded_as_received(offer, held)
         except (VultronNotFoundError, VultronActivityConstructionError) as exc:
             logger.warning(
                 "create_case_proposal: offer '%s' for report '%s' is not"

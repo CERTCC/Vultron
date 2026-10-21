@@ -18,6 +18,7 @@ and negative cases (timeout → AssertionError).
 """
 
 import inspect
+import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -598,8 +599,9 @@ def test_shared_budget_hands_out_what_is_left_and_never_goes_negative(
 
 # ---------------------------------------------------------------------------
 # find_case_invite_for_actor (#3821): the invitee holds the CASE_MANAGER's
-# Invite as intake's ReceivedActivityRecord (CLP-10-017, ADR-0111), archived on
-# arrival (PCR-06-005); a row under the sender's id is never read (DL-06-006).
+# Invite as intake's ReceivedActivityRecord of the body that arrived
+# (CLP-10-017, ADR-0149), archived on arrival (PCR-06-005); a row under the
+# sender's id is never read (DL-06-006).
 # ---------------------------------------------------------------------------
 
 _MANAGER = "http://example.com/actors/case-actor"
@@ -649,7 +651,7 @@ class TestFindCaseInviteForActor:
     def test_matches_the_case_the_stub_names_not_the_stub_id(self):
         """The stub's own ID is ``<case-id>/stub``; ``caseId`` names the case."""
         record_id, record = _archived_invite_entry()
-        target = record["activity"]["target"]
+        target = json.loads(record["received_body"])["target"]
         assert target["type"] == "VulnerabilityCaseStub"
         assert target["id"] != CASE_ID and target["caseId"] == CASE_ID
         client = _dl_client({record_id: record})
@@ -664,7 +666,7 @@ class TestFindCaseInviteForActor:
     def test_an_invite_held_only_under_the_senders_id_is_not_found(self):
         """A bare row is not a received activity, even a stub Invite (#4871)."""
         _, record = _archived_invite_entry()
-        client = _dl_client({_INVITE_ID: record["activity"]})
+        client = _dl_client({_INVITE_ID: json.loads(record["received_body"])})
 
         with pytest.raises(AssertionError, match="Timed out"):
             find_case_invite_for_actor(
@@ -757,7 +759,7 @@ class TestAssertReceivedFrom:
     @pytest.mark.spec("DL-06-006")
     def test_a_row_under_the_senders_id_is_not_a_received_activity(self):
         _, record = _archived_invite_entry()
-        client = _dl_client({_INVITE_ID: record["activity"]})
+        client = _dl_client({_INVITE_ID: json.loads(record["received_body"])})
 
         with pytest.raises(AssertionError, match="holds no received activity"):
             assert_received_from(client, _INVITE_ID, _MANAGER, "consequence")
@@ -825,7 +827,7 @@ class TestMalformedReceivedRecord:
     """A record the server returns malformed fails loudly, never matches."""
 
     def test_a_record_wrapping_no_activity_fails(self):
-        with pytest.raises(AssertionError, match="wraps no activity"):
+        with pytest.raises(AssertionError, match="holds no received body"):
             received_activity_in(
                 {"type": "ReceivedActivityRecord", "id": "urn:uuid:r"}
             )
@@ -836,13 +838,13 @@ class TestMalformedReceivedRecord:
                 "urn:uuid:r",
                 {
                     "type": "ReceivedActivityRecord",
-                    "activity": {"type": "Invite"},
+                    "received_body": json.dumps({"type": "Invite"}),
                 },
             )
 
     @pytest.mark.spec("DL-06-006")
     def test_a_bare_activity_is_not_a_received_one(self):
-        with pytest.raises(AssertionError, match="wraps no activity"):
+        with pytest.raises(AssertionError, match="holds no received body"):
             _received_activity_id("urn:uuid:a", {"type": "Invite"})
 
 

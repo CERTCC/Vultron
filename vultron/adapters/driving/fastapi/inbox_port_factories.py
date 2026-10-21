@@ -37,7 +37,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.adapters.driving.fastapi.inbox_staging import hold_activity
+from vultron.adapters.inbox_staging import hold_activity
 from vultron.config.actor import ActorConfig
 from vultron.config.app import load_actor_config
 from vultron.core.behaviors.call_out.bundles.case_proposal import (

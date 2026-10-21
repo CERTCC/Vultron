@@ -22,7 +22,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from test.support.received import archive_received
+from test.support.received import archive_received, case_stub
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -33,11 +33,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models.activity import VultronActivity
+from vultron.adapters.received_archive import read_received_as_received
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.core.models.received_activity_record import (
-    ReceivedActivityRecord,
-)
+from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.use_cases.triggers.full_case_invite import (
     SvcAcceptFullCaseInviteUseCase,
     SvcRejectFullCaseInviteUseCase,
@@ -52,7 +50,11 @@ from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronValidationError,
 )
-from vultron.wire.as2.factories import rm_invite_to_full_case_activity
+from vultron.semantic_registry import extract_received_activity
+from vultron.wire.as2.factories import (
+    rm_invite_to_case_activity,
+    rm_invite_to_full_case_activity,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -177,22 +179,12 @@ def test_reply_to_something_that_is_not_a_full_case_invite_is_refused(
     participant,
 ) -> None:
     actor, dl, case_id, _genesis = participant
-    stub_like = rm_invite_to_full_case_activity(
-        actor,
-        case_id,
-        LedgerPosition(log_index=-1, entry_hash="ab" * 32),
-        actor=_MANAGER,
+    # A stub Invite names the case through its stub and carries no ledger
+    # position, so it is no full-case Invite.
+    stub_like = rm_invite_to_case_activity(
+        actor, target=case_stub(case_id), actor=_MANAGER, to=[actor.id_]
     )
-    stub_like = stub_like.model_copy(update={"content": None})
-    # It would not extract, so it is archived from its own dump, as a record
-    # whose activity is not a full-case Invite.
-    dl.create(
-        ReceivedActivityRecord.for_activity(
-            VultronActivity.model_validate(
-                stub_like.model_dump(by_alias=True, exclude_none=True)
-            )
-        )
-    )
+    archive_received(dl, stub_like)
 
     with pytest.raises(VultronValidationError, match="full-case Invite"):
         _run(
@@ -247,12 +239,16 @@ def test_reply_names_the_case_by_uri_when_the_held_invite_carries_it_inline(
     actor, dl, case_id, genesis = participant
     floor = LedgerPosition(log_index=-1, entry_hash=genesis)
     invite_id = _hold_invite(dl, actor, case_id, floor)
-    real_read = module.read_received_activity
 
     def _inline(dl_, activity_id, label):
-        held = real_read(dl_, activity_id, label)
-        return held.model_copy(
-            update={"target": {"id": case_id, "type": "VulnerabilityCase"}}
+        # The archived Invite's view, with its case carried inline.
+        held = extract_received_activity(
+            read_received_as_received(dl, activity_id)
+        )
+        return ReceivedActivityView(
+            held.model_copy(
+                update={"target": {"id": case_id, "type": "VulnerabilityCase"}}
+            )
         )
 
     monkeypatch.setattr(module, "read_received_activity", _inline)

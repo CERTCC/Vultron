@@ -36,6 +36,7 @@ from vultron.core.models.rsvp_deadline import (
     resolve_rsvp_deadline,
 )
 from vultron.core.states.embargo_register import TerminationReason
+from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     with_case_context,
@@ -43,6 +44,7 @@ from vultron.wire.as2.factories._context import (
 from vultron.wire.as2.factories._held import as_answered
 from vultron.wire.as2.factories._inline import require_inline
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
     _AnnounceEmbargoActivity,
@@ -197,9 +199,9 @@ def em_accept_embargo_activity(
     Per ActivityStreams convention the actor accepts the proposal
     activity itself, not the ``as_EmbargoEvent`` being proposed.
     The ``proposal`` MUST be the value returned by
-    :func:`em_propose_embargo_activity`, or the Invite as a receiver
-    archived it (its core form); a plain ``as_Invite`` will fail
-    validation.
+    :func:`em_propose_embargo_activity`, or the Invite a receiver parsed
+    from its archived body, which the answer embeds verbatim
+    (:func:`as_answered`); a plain ``as_Invite`` will fail validation.
 
     Args:
         proposal: The ``_EmProposeEmbargoActivity`` being accepted.
@@ -239,9 +241,9 @@ def em_reject_embargo_activity(
     Per ActivityStreams convention the actor rejects the proposal
     activity itself, not the ``as_EmbargoEvent`` being proposed.
     The ``proposal`` MUST be the value returned by
-    :func:`em_propose_embargo_activity`, or the Invite as a receiver
-    archived it (its core form); a plain ``as_Invite`` will fail
-    validation.
+    :func:`em_propose_embargo_activity`, or the Invite a receiver parsed
+    from its archived body, which the answer embeds verbatim
+    (:func:`as_answered`); a plain ``as_Invite`` will fail validation.
 
     Args:
         proposal: The ``_EmProposeEmbargoActivity`` being rejected.
@@ -280,7 +282,8 @@ def ignore_late_embargo_accept_activity(
     The no-op acknowledgement of a late embargo ``Accept``: the Invite had
     expired and no embargo remains for the Accept to bind, so the
     CASE_MANAGER records the answer and changes nothing.  *late_accept* is
-    the received ``Accept`` in its AS2 JSON form, carried inline;
+    the received ``Accept``'s body, as the receiver archived it, carried
+    inline as it arrived (:func:`as_answered`);
     the ``Ignore`` is the CASE_MANAGER's own act (pass it as ``actor``).
     ``context`` defaults to the case the Accept names.
 
@@ -298,11 +301,15 @@ def ignore_late_embargo_accept_activity(
             Accept or Pydantic validation fails.
     """
     try:
-        accept = _EmAcceptEmbargoActivity.model_validate(late_accept)
+        # Parsed as the inbox parses a body, then embedded as it arrived
+        # (DL-06-004, ADR-0149).
+        accept = as_answered(
+            _EmAcceptEmbargoActivity, parse_activity(late_accept)
+        )
         return _IgnoreLateEmbargoAcceptActivity(
             object_=accept, **with_case_context(kwargs, accept.context)
         )
-    except ValidationError as exc:
+    except (ValidationError, VultronParseError) as exc:
         logger.warning(
             "ignore_late_embargo_accept_activity: invalid arguments: %s", exc
         )

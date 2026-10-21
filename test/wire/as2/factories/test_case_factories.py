@@ -27,7 +27,7 @@ Spec coverage:
 
 import json
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -61,8 +61,8 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.factories.case import (
     _stub_embargo,
-    validate_held_case_invite,
 )
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -502,23 +502,6 @@ def test_undo_ownership_transfer_plain_offer_raises(sample_offer):
     assert exc_info.value.__cause__ is not None
 
 
-@pytest.mark.spec("DL-06-006")
-def test_undo_embeds_a_proposal_held_in_its_core_form(sample_proposal):
-    """The owner's proposal, as a store hands it back, validates into the
-    proposal class the Undo embeds."""
-    from vultron.semantic_registry import extract_event
-
-    held = extract_event(sample_proposal).activity
-    assert held is not None
-    assert not isinstance(held, as_Offer)
-
-    result = undo_case_ownership_transfer_activity(
-        proposal=cast(Any, held), actor=_ACTOR_URI
-    )
-
-    assert cast(Any, result.object_).id_ == sample_proposal.id_
-
-
 # ---------------------------------------------------------------------------
 # propose_case_ownership_transfer_activity
 # ---------------------------------------------------------------------------
@@ -712,26 +695,48 @@ def test_rm_accept_invite_to_case_plain_invite_raises(sample_actor):
     assert exc_info.value.__cause__ is not None
 
 
-@pytest.mark.spec("CLP-10-017")
+def _received(activity: Any, **extra: object) -> Any:
+    """*activity* as a receiver parses it from the body its sender sent.
+
+    *extra* adds keys to that body, as a sender that names more than this
+    receiver's vocabulary would.
+    """
+    body = activity.model_dump(
+        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
+    )
+    body.update(extra)
+    return parse_activity(body)
+
+
+def _embedded(reply: BaseModel) -> dict[str, Any]:
+    """The answered activity in *reply*'s outbound body."""
+    body: dict[str, Any] = json.loads(
+        reply.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )
+    embedded: dict[str, Any] = body["object"]
+    return embedded
+
+
+@pytest.mark.spec("DL-06-004")
 @pytest.mark.parametrize(
     "factory",
     [rm_accept_invite_to_case_activity, rm_reject_invite_to_case_activity],
 )
-def test_reply_embeds_an_invite_as_intake_archived_it(sample_actor, factory):
-    """A received Invite is held as the event carried it, not as the factory
-    class.  The adapter validates that record into ``as_Invite`` at its edge;
-    the reply factories validate it on into the case-Invite class."""
-    from vultron.semantic_registry import extract_event
-
+def test_reply_embeds_an_invite_as_its_sender_sent_it(sample_actor, factory):
+    """A received Invite is parsed from the body intake archived; the reply
+    validates it into the case-Invite class and embeds the body verbatim,
+    keys no vocabulary names included (ADR-0149)."""
     invite = rm_invite_to_case_activity(
         invitee=sample_actor,
         actor=_ACTOR_URI,
-        target="https://example.org/cases/c1",
+        target=as_VulnerabilityCaseStub(
+            case_id="https://example.org/cases/c1", summary="A case"
+        ),
         roles=["vendor"],
     )
-    archived = extract_event(invite).activity
-    assert not isinstance(archived, as_Invite)
-    held = _as_plain_invite(archived)
+    held = _received(invite, fooBar=[1])
     assert type(held) is as_Invite
 
     result = factory(invite=held, actor=_ACTOR_URI)
@@ -739,16 +744,16 @@ def test_reply_embeds_an_invite_as_intake_archived_it(sample_actor, factory):
     assert result.object_.id_ == invite.id_
     assert result.object_.roles == ["vendor"]
     assert result.in_reply_to == invite.id_
+    assert _embedded(result) == held.received_evidence
 
 
 @pytest.mark.parametrize(
     "factory",
     [rm_accept_invite_to_case_activity, rm_reject_invite_to_case_activity],
 )
-def test_reply_refuses_an_archived_activity_that_is_not_an_invite(
+def test_reply_refuses_a_received_activity_that_is_not_an_invite(
     sample_actor, factory
 ):
-    from vultron.semantic_registry import extract_event
     from vultron.wire.as2.factories import recommend_actor_activity
 
     offer = recommend_actor_activity(
@@ -758,22 +763,11 @@ def test_reply_refuses_an_archived_activity_that_is_not_an_invite(
         ),
         actor=_ACTOR_URI,
     )
-    held = _as_plain_invite(extract_event(offer).activity)
 
     with pytest.raises(
         VultronActivityConstructionError, match="not a case Invite"
     ):
-        factory(invite=held, actor=_ACTOR_URI)
-
-
-def _as_plain_invite(activity: BaseModel | None) -> as_Invite:
-    """Validate an archived activity into ``as_Invite``, as the adapter does."""
-    assert activity is not None, "intake archived no activity"
-    data = json.loads(
-        activity.model_dump_json(by_alias=True, serialize_as_any=True)
-    )
-    held = validate_held_case_invite(data)
-    return held
+        factory(invite=_received(offer), actor=_ACTOR_URI)
 
 
 # ---------------------------------------------------------------------------
@@ -1268,7 +1262,7 @@ def test_stub_invite_factory_docstrings_do_not_label_the_stub_replies_as_rm_repl
     assert "RV" in full.splitlines()[0]
 
 
-@pytest.mark.spec("DL-06-006")
+@pytest.mark.spec("DL-06-004")
 @pytest.mark.parametrize(
     "factory",
     [
@@ -1276,23 +1270,28 @@ def test_stub_invite_factory_docstrings_do_not_label_the_stub_replies_as_rm_repl
         reject_case_ownership_transfer_activity,
     ],
 )
-def test_ownership_reply_embeds_an_offer_as_intake_archived_it(factory):
-    """A received ownership Offer is held in its core form; the reply
-    factory validates it into the Offer class it embeds."""
-    from vultron.semantic_registry import extract_event
-
+def test_ownership_reply_embeds_the_offer_as_its_sender_sent_it(factory):
+    """A received ownership Offer, parsed from its archived body, is
+    validated into the Offer class the reply embeds, and embedded as the
+    body that arrived: its answer deadline and ``cc`` included (ADR-0149)."""
     case = as_VulnerabilityCase(id_="https://example.org/cases/c1", name="C")
     offer = offer_case_ownership_transfer_activity(
         case, target=_ACTOR_URI, actor=_ACTOR_URI, to=[_ACTOR_URI]
     )
-    archived = extract_event(offer).activity
-    assert archived is not None
-    assert not isinstance(archived, as_Offer)
+    received = _received(
+        offer,
+        endTime="2031-01-01T00:00:00+00:00",
+        cc=["https://example.org/actors/watcher"],
+    )
 
-    result = factory(offer=archived, actor=_ACTOR_URI)
+    result = factory(offer=received, actor=_ACTOR_URI)
 
     assert result.object_.id_ == offer.id_
     assert result.object_.object_.id_ == case.id_
+    embedded = _embedded(result)
+    assert embedded == received.received_evidence
+    assert embedded["endTime"] == "2031-01-01T00:00:00+00:00"
+    assert embedded["cc"] == ["https://example.org/actors/watcher"]
 
 
 @pytest.mark.spec("AF-04-001")
@@ -1303,22 +1302,19 @@ def test_ownership_reply_embeds_an_offer_as_intake_archived_it(factory):
         reject_case_ownership_transfer_activity,
     ],
 )
-def test_ownership_reply_refuses_an_archived_offer_of_another_kind(
+def test_ownership_reply_refuses_a_received_offer_of_another_kind(
     sample_report, factory
 ):
-    """An archived ``Offer(Report)`` is not an ownership-transfer Offer."""
-    from vultron.semantic_registry import extract_event
+    """A received ``Offer(Report)`` is not an ownership-transfer Offer."""
     from vultron.wire.as2.factories import rm_submit_report_activity
 
     offer = rm_submit_report_activity(
         sample_report, to=_ACTOR_URI, actor=_ACTOR_URI
     )
-    archived = extract_event(offer).activity
-    assert archived is not None
 
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        factory(offer=archived, actor=_ACTOR_URI)
+        factory(offer=_received(offer), actor=_ACTOR_URI)
     cause = exc_info.value.__cause__
-    # as_answered's validation of the core form refused it, not the reply's.
+    # as_answered's validation of the parsed Offer refused it.
     assert isinstance(cause, ValidationError)
     assert cause.title == "_OfferCaseOwnershipTransferActivity"

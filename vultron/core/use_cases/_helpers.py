@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 # The held-activity readers live in ``core/services`` so BT nodes may use them
 # too (BTND-04-003).  Re-exported here for every existing importer.
 from vultron.core.services.received_activity import (  # noqa: E402,F401
+    holds_activity,
+    holds_received_activity,
     read_held_activity,
     read_received_activity,
 )

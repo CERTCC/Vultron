@@ -21,6 +21,7 @@ from typing import cast
 import pytest
 
 from test.support.embargo_register import register
+from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -89,17 +90,19 @@ class TestAckReportNoStandaloneStatus:
             actor="https://example.org/actors/vendor",
             to=["https://test.example/api/v2/actors/test-actor"],
         )
-        event = AckReportReceivedEvent(
-            semantic_type=MessageSemantics.ACK_REPORT,
-            activity_id="https://example.org/activities/accept-ack-1",
-            actor_id="https://example.org/actors/vendor",
-            object_=VulnerabilityReport(
-                id_="https://example.org/activities/offer-ack-1"
-            ),
-            inner_object=VulnerabilityReport(
-                id_="https://example.org/reports/r-ack-1"
-            ),
-            activity=offer_activity,
+        event = with_evidence(
+            AckReportReceivedEvent(
+                semantic_type=MessageSemantics.ACK_REPORT,
+                activity_id="https://example.org/activities/accept-ack-1",
+                actor_id="https://example.org/actors/vendor",
+                object_=VulnerabilityReport(
+                    id_="https://example.org/activities/offer-ack-1"
+                ),
+                inner_object=VulnerabilityReport(
+                    id_="https://example.org/reports/r-ack-1"
+                ),
+                activity=offer_activity,
+            )
         )
 
         dl = SqliteDataLayer(
@@ -264,13 +267,15 @@ class TestFullReportFlow:
             to=[self.VENDOR_ID],
         )
         report = VulnerabilityReport(id_=self.REPORT_ID)
-        return SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id=self.OFFER_ID,
-            actor_id=self.FINDER_ID,
-            object_=report,
-            activity=activity,
-            receiving_actor_id=self.VENDOR_ID,
+        return with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id=self.OFFER_ID,
+                actor_id=self.FINDER_ID,
+                object_=report,
+                activity=activity,
+                receiving_actor_id=self.VENDOR_ID,
+            )
         )
 
     def _make_validate_event(self):
@@ -282,14 +287,16 @@ class TestFullReportFlow:
         )
         offer = CoreObject(id_=self.OFFER_ID, type_="Offer")
         report = VulnerabilityReport(id_=self.REPORT_ID)
-        return ValidateReportReceivedEvent(
-            semantic_type=MessageSemantics.VALIDATE_REPORT,
-            activity_id=self.ACCEPT_ID,
-            actor_id=self.VENDOR_ID,
-            object_=offer,
-            inner_object=report,
-            activity=activity,
-            receiving_actor_id=self.VENDOR_ID,
+        return with_evidence(
+            ValidateReportReceivedEvent(
+                semantic_type=MessageSemantics.VALIDATE_REPORT,
+                activity_id=self.ACCEPT_ID,
+                actor_id=self.VENDOR_ID,
+                object_=offer,
+                inner_object=report,
+                activity=activity,
+                receiving_actor_id=self.VENDOR_ID,
+            )
         )
 
     def test_full_flow_case_created_at_received(self):
@@ -524,14 +531,16 @@ class TestValidateReportReceivedGuardedCommit:
         )
         offer = CoreObject(id_=offer_id, type_="Offer")
         report = VulnerabilityReport(id_=report_id)
-        return ValidateReportReceivedEvent(
-            semantic_type=MessageSemantics.VALIDATE_REPORT,
-            activity_id=self.OFFER_ID,
-            actor_id=self.VENDOR_ID,
-            object_=offer,
-            inner_object=report,
-            activity=activity,
-            receiving_actor_id=receiving_actor_id,
+        return with_evidence(
+            ValidateReportReceivedEvent(
+                semantic_type=MessageSemantics.VALIDATE_REPORT,
+                activity_id=self.OFFER_ID,
+                actor_id=self.VENDOR_ID,
+                object_=offer,
+                inner_object=report,
+                activity=activity,
+                receiving_actor_id=receiving_actor_id,
+            )
         )
 
     def test_store_owner_fallback_when_no_receiving_actor(self):

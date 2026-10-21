@@ -44,8 +44,7 @@ Specs: `specs/datalayer.yaml`.
 
 `dl.read()` returns core objects, never wire objects (ADR-0034), and core
 reads a received activity's facts only from the read-only view its archive loads
-(ADR-0149; #4943 rewrites DL-06-001 and DL-06-002 to match; see "Activity
-Read-Back" below).
+(ADR-0149, DL-06-001; see "Activity Read-Back" below).
 
 ## DataLayer vs. CasePersistence
 
@@ -113,9 +112,9 @@ it conflates apart:
 
 | Need | Source of truth | Rule |
 |---|---|---|
-| **Semantic content** — what a message *means* | **Core state**, or the archive's read-only view | Core reads a received activity's facts only from the view its archive loads, never from a wire row (ADR-0149; #4943 rewrites DL-06-001 and DL-06-002 to match). |
+| **Semantic content** — what a message *means* | **Core state**, or the archive's read-only view | Core reads a received activity's facts only from the view its archive loads, never from a wire row (DL-06-001, DL-06-002, ADR-0149). |
 | **Correlation** — which prior message this answers | **Core-entity relationship** | Resolve through a domain relationship, not a wire re-read (DL-06-003). |
-| **Envelope reconstitution** — verbatim original in a reply's `object_` | **The archived sealed body** | Read only via a wire/adapter seam that parses the sealed body; never the core summary (DL-06-004, ADR-0149). |
+| **Envelope reconstitution** — verbatim original in a reply's `object_` | **The archived sealed body** | Read only via a wire/adapter seam that parses the sealed body and embeds it verbatim; never a re-dump of the view (DL-06-004, ADR-0149). |
 
 The extractor (the single interpretation site, ARCH-03-001) records each domain
 fact as core state at interpretation time — a transition on an existing core
@@ -129,9 +128,11 @@ vocabulary, capturing only what handlers use.
 `urn:uuid:` values, and the Actor Knowledge Model requires a reply to embed the
 *full inline original* activity, so a reply's `object_` cannot be re-projected
 from core state. The seam lives in the adapter
-(`vultron/adapters/driven/trigger_activity_adapter/`), which passes the stored
-payload to the factory without interpreting it. As a core site migrates, remove
-its Activity type from the DL-05-004 exemption set (DL-06-005).
+(`vultron/adapters/received_archive.py`, used by
+`vultron/adapters/driven/trigger_activity_adapter/`), which parses the stored body
+and hands it to the factory, whose `as_answered` embeds it as received. As a core
+site migrates, remove its Activity type from the DL-05-004 exemption set
+(DL-06-005).
 
 **A type table holds only what this actor authored (DL-06-006).** A scan over
 `list_objects("Create")` filtered on `actor == self` or on `context` answers "did

@@ -28,7 +28,6 @@ from pydantic import ValidationError
 import vultron.adapters.outbox_dead_letter
 import vultron.adapters.outbox_sealed_body  # noqa: F401
 from test.support.core_vocab import import_all_core_models
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject, CoreRecord, with_record_id
 from vultron.core.models.retired_stored_fields import RetiredFieldsRecord
 from vultron.subclasses import all_subclasses
@@ -80,9 +79,7 @@ _SAMPLES: dict[str, dict[str, Any]] = {
     "DeferredInboxActivity": {"activity_id": _URI, "received_body": "{}"},
     "ReceivedActivityRecord": {
         "activity_id": f"{_URI}/a-1",
-        "activity": VultronActivity(
-            id_=f"{_URI}/a-1", type_="Create", actor=_URI
-        ),
+        "received_body": "{}",
     },
     "SealedOutboundBody": {"activity_id": _URI, "body": "{}"},
     "VultronOfferRecord": {

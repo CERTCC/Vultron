@@ -50,7 +50,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.adapters.driving.fastapi.inbox_staging import (
+from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
     hold_activity,
 )

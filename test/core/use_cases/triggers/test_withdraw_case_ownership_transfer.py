@@ -25,7 +25,7 @@ with the received use case in
 """
 
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -212,6 +212,10 @@ def test_a_proposal_is_recognised_whatever_form_its_inner_offer_takes(inner):
         SvcWithdrawCaseOwnershipTransferUseCase
     )
     use_case._dl = dl
+    # The proposal is one the owner sent, so nothing loads it as received.
+    cast(Any, use_case)._trigger_activity = SimpleNamespace(
+        load_received_activity=lambda _activity_id: None
+    )
 
     assert use_case._held_case_id("https://example.org/p/1") == case_id
 

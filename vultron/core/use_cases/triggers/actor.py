@@ -21,6 +21,7 @@ No HTTP framework imports permitted here.
 
 import json
 import logging
+from collections.abc import Mapping
 from typing import Any, ClassVar, cast
 from urllib.parse import urlparse
 
@@ -52,6 +53,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.services.received_activity import (
+    holds_received_activity,
     read_held_activity,
     read_received_activity,
 )
@@ -383,11 +385,13 @@ class SvcAcceptCaseInviteUseCase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        # Held as intake archived it (CLP-10-017): a stub Invite precedes its
-        # case, so the inbox processes it on arrival (PCR-06-005).
-        read_received_activity(
-            self._dl, request.invite_id, "RmInviteToCaseActivity"
-        )
+        # Held as the body intake archived (CLP-10-017): a stub Invite
+        # precedes its case, so the inbox processes it on arrival
+        # (PCR-06-005).
+        if not holds_received_activity(self._dl, request.invite_id):
+            raise VultronNotFoundError(
+                "RmInviteToCaseActivity", request.invite_id
+            )
 
         self._invite_id = request.invite_id
 
@@ -417,11 +421,13 @@ class SvcRejectCaseInviteUseCase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        # Held as intake archived it (CLP-10-017): a stub Invite precedes its
-        # case, so the inbox processes it on arrival (PCR-06-005).
-        read_received_activity(
-            self._dl, request.invite_id, "RmInviteToCaseActivity"
-        )
+        # Held as the body intake archived (CLP-10-017): a stub Invite
+        # precedes its case, so the inbox processes it on arrival
+        # (PCR-06-005).
+        if not holds_received_activity(self._dl, request.invite_id):
+            raise VultronNotFoundError(
+                "RmInviteToCaseActivity", request.invite_id
+            )
 
         self._invite_id = request.invite_id
 
@@ -541,8 +547,8 @@ class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
 
     Shared by the transferee's accept and reject triggers and the owner's
     withdraw trigger: each reads what it replies to by id from the actor's
-    own store — the CASE_MANAGER's Offer as intake archived it, or the
-    owner's own proposal as it sent it — and
+    own store — the CASE_MANAGER's Offer from the body intake archived, or
+    the owner's own proposal as it sent it — and
     emits its reply to the case's CASE_MANAGER (CM-21-006, CM-21-010,
     CM-21-015).  Subclasses build the tree and name the verb they log.
     """
@@ -576,7 +582,7 @@ class _SvcOwnershipAnswerBase(SvcActivityTriggerBase):
                 names no case.
         """
         offer = read_received_activity(
-            self._dl, offer_id, "Offer(VulnerabilityCase)"
+            self._received_activities, offer_id, "Offer(VulnerabilityCase)"
         )
         raw_case_id = _as_id(getattr(offer, "object_", None))
         if not raw_case_id:
@@ -654,14 +660,18 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
                 names no case.
         """
         proposal = read_held_activity(
-            self._dl, offer_id, "Offer(Offer(VulnerabilityCase))"
+            self._received_activities,
+            self._dl,
+            offer_id,
+            "Offer(Offer(VulnerabilityCase))",
         )
         inner = getattr(proposal, "object_", None)
         # A wire ``type_`` is a StrEnum and a core one a plain str; both
-        # compare equal to "Offer".  A dict inner may carry either key.
+        # compare equal to "Offer".  A mapping inner (a dict, or a received
+        # view's read-only mapping) may carry either key.
         inner_type = (
             inner.get("type") or inner.get("type_")
-            if isinstance(inner, dict)
+            if isinstance(inner, Mapping)
             else getattr(inner, "type_", None)
         )
         raw_case_id = _as_id(getattr(proposal, "context", None))

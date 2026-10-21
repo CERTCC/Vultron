@@ -34,7 +34,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
     StoredActivityIngressAdapter,
 )
-from vultron.adapters.driving.fastapi.inbox_staging import (
+from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
 from vultron.core.models.events import MessageSemantics

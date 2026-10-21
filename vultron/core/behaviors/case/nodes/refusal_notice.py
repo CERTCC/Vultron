@@ -42,8 +42,8 @@ Blackboard contract (BTND-03-003):
 
 - ``activity`` (READ, ``/activity``): the received
   :class:`~vultron.core.models.events.base.VultronEvent`.  The refused
-  activity is its received body, verbatim, as a received entry records it
-  (CLP-07-011, ADR-0107); its sender is the asserter.
+  activity is the body intake archived for it, embedded verbatim
+  (CLP-10-017, ADR-0149); the event's sender is the asserter.
 """
 
 from collections.abc import Mapping, Sequence
@@ -55,9 +55,6 @@ from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
 from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
-from vultron.core.behaviors.case.nodes.ledger_payload import (
-    _extract_payload_snapshot,
-)
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     enclosing_refusal_reason,
 )
@@ -72,6 +69,7 @@ from vultron.core.models.pending_assertion import (
     PendingAssertion,
     get_pending_assertion_store,
 )
+from vultron.core.services.received_activity import archived_received_body
 from vultron.errors import VultronWiringError
 from vultron.primitives import NonEmptyString
 
@@ -205,7 +203,7 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
 
     def _call_factory(self) -> tuple[str, str]:
         event = self._event
-        if not isinstance(event, VultronEvent) or event.activity is None:
+        if not isinstance(event, VultronEvent):
             raise VultronWiringError(
                 f"{self.name}: no received activity on the blackboard to"
                 " refuse (ARCH-15-001)"
@@ -218,13 +216,18 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
             )
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
+        assert self.datalayer is not None
         self._asserter = event.actor_id
         self._refused_id = event.activity_id
         self._reason = reason
         return self.trigger_activity_factory.refusal_notice(
             case_id=self._case_id,
             actor=self.actor_id,
-            refused_activity=_extract_payload_snapshot(event),
+            # The body intake archived, embedded as the asserter sent it
+            # (CLP-05-001, DL-06-004, ADR-0149).
+            refused_activity=archived_received_body(
+                self.datalayer, event.activity_id
+            ),
             asserter=event.actor_id,
             reason=reason,
         )

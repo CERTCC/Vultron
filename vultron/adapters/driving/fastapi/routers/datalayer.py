@@ -16,6 +16,7 @@
 Provides a backend API router for basic Vultron data layer operations.
 """
 
+import json
 import logging
 from typing import Annotated, Any, cast
 
@@ -28,6 +29,7 @@ from vultron.adapters.driving.fastapi.deps import (
     get_hosted_actor_dls,
 )
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.adapters.received_archive import read_held_as_received
 from vultron.adapters.utils import full_object_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.protocols import PersistableModel
@@ -37,7 +39,6 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
-from vultron.core.use_cases._helpers import read_held_activity
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -79,17 +80,17 @@ def _read_offer(
 ) -> PersistableModel | None:
     """The Offer *offer_id* as this actor holds it, or ``None``.
 
-    Read as :func:`~vultron.core.use_cases._helpers.read_held_activity`
-    reads any activity this actor holds: a received Offer from its archive
-    record, kept under a key the receiver derives from the sender's id
-    (CLP-10-017, ADR-0111), since a receiver holds no received activity under
-    the sender's id (DL-06-006); otherwise the row under *offer_id*, where an
-    Offer the actor authored is stored.  *offer_id* may be a bare UUID, as
-    the store's own lookup allows.  Whatever is held under the id must be an
-    Offer: a received Invite is not served as one.
+    Read as :func:`~vultron.adapters.received_archive.read_held_as_received`
+    reads any activity this actor holds: a received Offer parsed from the
+    body its archive record keeps, under a key the receiver derives from the
+    sender's id (CLP-10-017, ADR-0149), since a receiver holds no received
+    activity under the sender's id (DL-06-006); otherwise the row under
+    *offer_id*, where an Offer the actor authored is stored.  *offer_id* may
+    be a bare UUID, as the store's own lookup allows.  Whatever is held under
+    the id must be an Offer: a received Invite is not served as one.
     """
     try:
-        held = read_held_activity(
+        held = read_held_as_received(
             cast(CasePersistence, datalayer),
             full_object_id(offer_id),
             _OFFER_TYPE,
@@ -100,14 +101,20 @@ def _read_offer(
 
 
 def _received_offers(datalayer: DataLayer) -> dict[str, dict[str, Any]]:
-    """Every Offer this actor received, keyed by the sender's id for it."""
-    return {
-        record.activity_id: record.activity.model_dump(
-            by_alias=True, serialize_as_any=True
-        )
+    """Every Offer this actor received, keyed by the sender's id for it.
+
+    Each is served as the body that arrived, as its archive record keeps it
+    (CLP-10-017, ADR-0149).
+    """
+    bodies = (
+        (record.activity_id, json.loads(record.received_body))
         for record in datalayer.list_objects(ReceivedActivityRecord.__name__)
         if isinstance(record, ReceivedActivityRecord)
-        and record.activity.type_ == _OFFER_TYPE
+    )
+    return {
+        activity_id: body
+        for activity_id, body in bodies
+        if body.get("type") == _OFFER_TYPE
     }
 
 

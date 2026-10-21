@@ -31,6 +31,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.received import with_evidence
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
@@ -114,8 +115,10 @@ def _accept_event() -> AcceptCaseOwnershipTransferReceivedEvent:
             "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
         },
     )
-    return AcceptCaseOwnershipTransferReceivedEvent(
-        activity_id=OFFER_ID, actor_id=TRANSFEREE_ID, activity=activity
+    return with_evidence(
+        AcceptCaseOwnershipTransferReceivedEvent(
+            activity_id=OFFER_ID, actor_id=TRANSFEREE_ID, activity=activity
+        )
     )
 
 
