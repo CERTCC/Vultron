@@ -27,7 +27,7 @@ from vultron.adapters.received_archive import (
     read_received_as_received,
 )
 from vultron.core.models.received_activity_view import ReceivedActivityView
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronNotFoundError, VultronWiringError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -132,3 +132,21 @@ def test_a_sent_activity_is_read_under_its_own_id(dl):
     assert held.id_ == sent.id_
     with pytest.raises(VultronNotFoundError):
         read_received_as_received(dl, sent.id_)
+
+
+@pytest.mark.spec("ARCH-15-001")
+def test_a_held_row_that_rebuilds_into_nothing_is_a_fault(dl, monkeypatch):
+    """A record just read that rebuilds into no activity is a fault, never
+    "not held" (a silent ``None`` reads as not-found)."""
+    from vultron.adapters.inbox_staging import InlineObjectStaging
+
+    add = _add()
+    assert hold_activity(dl, add)
+    monkeypatch.setattr(
+        InlineObjectStaging, "rehydrate_held", lambda *_args: None
+    )
+
+    with pytest.raises(VultronWiringError, match="rebuilds into no"):
+        load_received_view(dl, add.id_)
+    with pytest.raises(VultronWiringError, match="rebuilds into no"):
+        read_received_as_received(dl, add.id_)

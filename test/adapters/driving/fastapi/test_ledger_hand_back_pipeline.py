@@ -43,7 +43,6 @@ from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
-from vultron.adapters.received_archive import parse_received_body
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -61,6 +60,7 @@ from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     announce_vulnerability_case_activity,
 )
+from vultron.wire.as2.parser import parse_received_body
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 pytestmark = pytest.mark.integration

@@ -14,8 +14,10 @@
 """The read-only view of a received activity is read-only all the way down."""
 
 from types import MappingProxyType
+from typing import Any, cast
 
 import pytest
+from pydantic import BaseModel, ValidationError
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.note import VultronNote
@@ -26,6 +28,12 @@ from vultron.core.models.received_activity_view import (
 from vultron.errors import VultronReadOnlyViewError
 
 _ACTOR = "https://example.org/actors/sender"
+
+
+class _Holder(BaseModel):
+    """A model with a field typed as the activity a view wraps."""
+
+    activity: VultronActivity
 
 
 def _view() -> ReceivedActivityView:
@@ -47,10 +55,26 @@ def _view() -> ReceivedActivityView:
 def test_the_view_reads_like_the_activity_it_wraps():
     view = _view()
 
-    assert isinstance(view, VultronActivity)
     assert view.type_ == "Create"
     assert getattr(view.object_, "content", None) == "as received"
-    assert isinstance(view.object_, VultronNote)
+    assert isinstance(view.object_, ReceivedActivityView)
+
+
+@pytest.mark.spec("DL-06-001")
+@pytest.mark.spec("DL-06-004")
+def test_the_view_hands_out_no_model_and_passes_for_none():
+    """No attribute of the view reaches the wrapped model, and the view is
+    no model a Pydantic field or a reply would take (ADR-0149)."""
+    view = _view()
+
+    for leak in ("_model", "_wrapped"):
+        with pytest.raises(AttributeError):
+            getattr(view, leak)
+        with pytest.raises(AttributeError):
+            getattr(view.object_, leak)
+    assert not isinstance(view, BaseModel)
+    with pytest.raises(ValidationError):
+        _Holder(activity=cast(Any, view))
 
 
 @pytest.mark.spec("DL-06-001")
@@ -85,6 +109,8 @@ def test_read_only_leaves_an_immutable_value_as_it_is():
 
 
 def test_views_compare_by_the_model_they_wrap():
-    assert _view() == _view()
-    assert _view() != "not a view"
-    assert "ReceivedActivityView(" in repr(_view())
+    activity = VultronActivity(type_="Create", actor=_ACTOR)
+
+    assert ReceivedActivityView(activity) == ReceivedActivityView(activity)
+    assert ReceivedActivityView(activity) != "not a view"
+    assert "ReceivedActivityView(" in repr(ReceivedActivityView(activity))

@@ -13,6 +13,7 @@
 
 """Reading an activity as this actor holds it (CLP-10-017, DL-06-006, ADR-0149)."""
 
+import json
 from typing import Any
 
 import pytest
@@ -22,15 +23,19 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.services.received_activity import (
+    archived_received_body,
     holds_activity,
     holds_received_activity,
     read_held_activity,
     read_received_activity,
 )
-from vultron.errors import VultronNotFoundError, VultronReadOnlyViewError
+from vultron.errors import (
+    VultronNotFoundError,
+    VultronReadOnlyViewError,
+    VultronWiringError,
+)
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     rm_invite_to_case_activity,
@@ -80,7 +85,6 @@ def test_a_received_activity_is_loaded_from_its_archived_body(
     held = _read(reader, loader, dl, invite.id_)
 
     assert isinstance(held, ReceivedActivityView)
-    assert isinstance(held, VultronActivity)
     assert held.id_ == invite.id_
     assert held.type_ == "Invite"
     assert getattr(held.target, "case_id", None) == _CASE
@@ -192,3 +196,26 @@ def test_the_loaded_view_is_read_only_and_the_next_load_is_unchanged(
     assert again.type_ == "Invite"
     assert again.target.case_id == _CASE
     assert list(again.to) == [_ME]
+
+
+@pytest.mark.spec("CLP-10-017")
+@pytest.mark.spec("DL-06-004")
+def test_the_archived_body_is_handed_out_decoded(dl) -> None:
+    invite = _invite(_PEER, _ME)
+    record = archive_received(dl, invite)
+
+    assert archived_received_body(dl, invite.id_) == json.loads(
+        record.received_body
+    )
+
+
+@pytest.mark.spec("ARCH-15-001")
+def test_an_unarchived_body_is_a_wiring_fault(dl) -> None:
+    """The refusal notice and the late-Accept acknowledgement run after
+    intake, so a body they cannot find means the tree is miswired."""
+    deferred = _deferred_add(dl)
+
+    with pytest.raises(VultronWiringError, match="not archived"):
+        archived_received_body(dl, deferred.id_)
+    with pytest.raises(VultronWiringError, match="not archived"):
+        archived_received_body(dl, "urn:uuid:never-held")

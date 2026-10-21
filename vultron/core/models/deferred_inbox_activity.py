@@ -48,13 +48,14 @@ import urllib.parse
 from collections.abc import Mapping
 from typing import Any, ClassVar, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from vultron.core.models.base import (
     NonEmptyString,
     UriString,
     with_record_id,
 )
+from vultron.core.models.received_body import require_json_object_text
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
     RetiredStoredField,
@@ -117,6 +118,14 @@ class DeferredInboxActivity(RetiredFieldsRecord):
             if activity_id is not None:
                 data = with_record_id(data, cls.build_id(activity_id))
         return data
+
+    @field_validator("received_body")
+    @classmethod
+    def _body_is_a_json_object(cls, value: str | None) -> str | None:
+        """Refuse a held body that is not the text of one JSON object."""
+        if value is None:
+            return value
+        return require_json_object_text(value, "received_body")
 
     @model_validator(mode="after")
     def _holds_the_activity_once(self) -> DeferredInboxActivity:

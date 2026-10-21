@@ -36,7 +36,6 @@ from vultron.adapters.inbox_staging import (
 )
 from vultron.adapters.received_archive import (
     load_received_view,
-    parse_received_body,
     read_received_as_received,
 )
 from vultron.core.models.base import CoreObject
@@ -49,7 +48,7 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.semantic_registry import extract_event
-from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.parser import parse_activity, parse_received_body
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,

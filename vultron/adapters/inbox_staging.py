@@ -71,7 +71,7 @@ from vultron.errors import (
     VultronValidationError,
     VultronWiringError,
 )
-from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.parser import parse_received_body
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
@@ -278,14 +278,21 @@ class InlineObjectStaging:
         whether this delivery's evidence is the one to carry (VM-08-002).
         """
 
+        return self._rehydrate_with(
+            activity, received_body=activity.received_evidence_json
+        )
+
+    def _rehydrate_with(
+        self, activity: as_Activity, *, received_body: str | None
+    ) -> as_Activity | None:
+        """Rebuild *activity*, holding *received_body* as what arrived."""
+
         def _stage(store: DataLayer) -> None:
             store.create(object_to_record(activity))
             _stage_inline_object(store, activity)
 
         return self._rehydrate(
-            activity.id_,
-            _stage,
-            received_body=activity.received_evidence_json,
+            activity.id_, _stage, received_body=received_body
         )
 
     def can_hold(self, activity_id: str) -> bool:
@@ -338,8 +345,11 @@ class InlineObjectStaging:
         record = self._dl.read(ReceivedActivityRecord.build_id(activity_id))
         if not isinstance(record, ReceivedActivityRecord):
             return None
-        return self.rehydrate_parsed(
-            parse_activity(json.loads(record.received_body))
+        # Rebuilt from the archived body, but held, should this resend be
+        # deferred, as no delivery's body: its replay must not carry the
+        # first delivery's evidence (VM-08-002).
+        return self._rehydrate_with(
+            parse_received_body(record.received_body), received_body=None
         )
 
     def rehydrate_deferred(self, activity_id: str) -> as_Activity | None:
@@ -448,7 +458,7 @@ class InlineObjectStaging:
         inline_rows: list[dict[str, Any]] = json.loads(pending.rows_json)
         parsed: as_Activity | None = None
         if pending.received_body is not None:
-            parsed = parse_activity(json.loads(pending.received_body))
+            parsed = parse_received_body(pending.received_body)
             activity_record: StorableRecord | PersistableModel = (
                 object_to_record(parsed)
             )

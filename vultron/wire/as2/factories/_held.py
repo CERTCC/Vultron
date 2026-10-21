@@ -58,7 +58,7 @@ def as_answered(cls: type[_Answered], activity: object) -> _Answered:
         answered = (
             activity
             if isinstance(activity, cls)
-            else _validated(cls, activity)
+            else validated_as(cls, activity)
         )
         return embedded_as_received(answered, activity)
     return cast(_Answered, activity)
@@ -85,8 +85,17 @@ def embedded_as_received(answered: _Answered, received: object) -> _Answered:
     return cast(_Answered, answered.inlined_as_received())
 
 
-def _validated(cls: type[_Answered], activity: BaseModel) -> _Answered:
-    """*activity*'s declared fields, in their AS2 form, validated as *cls*."""
+def validated_as(cls: type[_Answered], activity: BaseModel) -> _Answered:
+    """*activity*'s declared fields, in their AS2 form, validated as *cls*.
+
+    The one way a reply factory coerces the activity it answers into the
+    class it embeds: the dump is of the parsed activity, whose keys the parse
+    edge already decided, so the validation never meets a key no vocabulary
+    names (MV-11-003).
+
+    Raises:
+        pydantic.ValidationError: When *activity* does not validate as *cls*.
+    """
     return cls.model_validate(
         json.loads(
             activity.model_dump_json(by_alias=True, serialize_as_any=True)

@@ -24,7 +24,10 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001, AF-02-001, AF-03-001.
 
 from pydantic import ValidationError
 
-from vultron.wire.as2.factories._held import embedded_as_received
+from vultron.wire.as2.factories._held import (
+    embedded_as_received,
+    validated_as,
+)
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.report import (
     _RmCloseReportActivity,
@@ -133,9 +136,7 @@ def _as_submit_offer(offer: as_Offer) -> _RmSubmitReportActivity:
     coerced = (
         offer
         if isinstance(offer, _RmSubmitReportActivity)
-        else _RmSubmitReportActivity.model_validate(
-            offer.model_dump(by_alias=True)
-        )
+        else validated_as(_RmSubmitReportActivity, offer)
     )
     return embedded_as_received(coerced, offer)
 

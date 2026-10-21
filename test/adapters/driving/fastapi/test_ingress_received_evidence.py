@@ -48,6 +48,7 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.report import VulnerabilityReport
+from vultron.errors import VultronWiringError
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -302,3 +303,72 @@ def test_in_place_hydration_carries_the_evidence(
     routed_entry.payload_snapshot["actor"] = "tampered"
 
     assert routed.received_evidence == received
+
+
+@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("IE-10-001")
+def test_a_resend_whose_held_copy_does_not_rebuild_carries_no_evidence(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+):
+    """Should the held copy fail to rebuild, the resend's own body is routed
+    in its place, still without evidence: it is not the delivery held."""
+    first = _offer_of_stored_report(dl)
+    archive_received(dl, parse_activity(copy.deepcopy(first)))
+    monkeypatch.setattr(
+        InlineObjectStaging, "rehydrate_archived", lambda *_args: None
+    )
+    adapter = FastAPIIngressAdapter(dl=dl)
+    artifact = adapter.parse(copy.deepcopy(first))
+    assert artifact is not None
+
+    routed = adapter.rehydrate(artifact)
+
+    assert routed.id_ == first["id"]
+    assert routed.received_evidence is None
+
+
+@pytest.mark.spec("VM-08-002")
+def test_a_resend_that_cannot_be_rebuilt_at_all_is_refused(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+):
+    """With neither copy rebuilt there is nothing to route without this
+    body's evidence, so ingress raises rather than route it sealed."""
+    first = _offer_of_stored_report(dl)
+    archive_received(dl, parse_activity(copy.deepcopy(first)))
+    monkeypatch.setattr(
+        InlineObjectStaging, "rehydrate_archived", lambda *_args: None
+    )
+    monkeypatch.setattr(
+        InlineObjectStaging, "rehydrate_parsed", lambda *_args: None
+    )
+    adapter = FastAPIIngressAdapter(dl=dl)
+    artifact = adapter.parse(copy.deepcopy(first))
+    assert artifact is not None
+
+    with pytest.raises(VultronWiringError, match="neither the held copy"):
+        adapter.rehydrate(artifact)
+
+
+@pytest.mark.spec("VM-08-002")
+def test_an_archived_resend_deferred_again_is_held_without_evidence(
+    dl: SqliteDataLayer,
+):
+    """A resend routed as the archived copy and then deferred is held as a
+    row, so its replay carries no delivery's evidence, the first's
+    included."""
+    first = _offer_of_stored_report(dl)
+    archive_received(dl, parse_activity(copy.deepcopy(first)))
+    staging = InlineObjectStaging(dl)
+    adapter = FastAPIIngressAdapter(dl=dl, staging=staging)
+    artifact = adapter.parse(copy.deepcopy(first))
+    assert artifact is not None
+    adapter.rehydrate(artifact)
+
+    assert staging.hold_for_replay(first["id"])
+
+    held = dl.read(DeferredInboxActivity.build_id(first["id"]))
+    assert isinstance(held, DeferredInboxActivity)
+    assert held.received_body is None
+    replayed = StoredActivityIngressAdapter(dl=dl).parse(first["id"])
+    assert replayed is not None
+    assert replayed.received_evidence is None

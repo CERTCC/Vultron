@@ -1,3 +1,18 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
 """Intake: the first stage of every received-side tree (ADR-0111).
 
 :class:`IntakeReceivedActivityNode` archives the mail.  It stores the received
@@ -55,11 +70,11 @@ from vultron.core.behaviors.helpers import (
     ACTIVITY_UNAVAILABLE,
     DataLayerActionWithPorts,
 )
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
+from vultron.core.services.received_activity import holds_received_activity
 from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
@@ -173,19 +188,14 @@ class IntakeReceivedActivityNode(DataLayerActionWithPorts):
         is a wiring fault (ARCH-15-001).
         """
         assert self.datalayer is not None
-        for record_id in (
-            ReceivedActivityRecord.build_id(activity_id),
-            DeferredInboxActivity.build_id(activity_id),
-        ):
-            if self.datalayer.read(record_id) is not None:
-                self.found_ids.append(activity_id)
-                self.logger.debug(
-                    "Intake: activity '%s' carries no received body and is"
-                    " already held (%s); nothing to archive",
-                    activity_id,
-                    record_id,
-                )
-                return Status.SUCCESS
+        if holds_received_activity(self.datalayer, activity_id):
+            self.found_ids.append(activity_id)
+            self.logger.debug(
+                "Intake: activity '%s' carries no received body and is"
+                " already held; nothing to archive",
+                activity_id,
+            )
+            return Status.SUCCESS
         self.feedback_message = (
             f"activity '{activity_id}' carries no received body to archive"
             " and this receiver holds none for it (VM-08-002, ARCH-15-001)"

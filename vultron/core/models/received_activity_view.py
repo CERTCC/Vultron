@@ -16,9 +16,9 @@
 """The read-only core view of a received activity (ADR-0149).
 
 A receiver archives the body it received, and nothing derived from it
-(CLP-10-017).  Core reads a received activity's facts by loading that body:
-the DataLayer adapter parses it and runs the inbox's own extraction on it
-(the ``ReceivedActivityLoader`` port), and core gets the extracted
+(CLP-10-017).  Core reads a received activity's facts by loading that body
+through the ``ReceivedActivityLoader`` port: the adapter behind it parses the
+body and runs the inbox's own extraction on it, and core gets the extracted
 ``VultronActivity`` wrapped in a :class:`ReceivedActivityView`.
 
 The view is read-only all the way down.  A class-level ``frozen`` setting
@@ -27,11 +27,13 @@ objects nested in the activity, nor the lists and mappings they hold.  So the
 view wraps the activity instead of copying it, and every attribute read
 returns its value wrapped the same way: a model as another view, a list or a
 tuple as a tuple of read-only values, a mapping as a read-only mapping.
-Assigning to any of them raises.  Each load parses the body afresh, so the
-next load is the body's again whatever a caller did with an earlier one.
+Assigning to any of them raises, and the wrapped model is reachable through
+no attribute of the view.  Each load parses the body afresh, so the next load
+is the body's again whatever a caller did with an earlier one.
 
-The view answers ``isinstance`` for the class it wraps, so a reader that asks
-"is this an Invite activity" still gets the answer it got from the activity.
+The view does not pass for the model it wraps: it is no ``BaseModel``, so a
+Pydantic field refuses it and a reply cannot embed it, nor a store save it,
+by mistake (DL-06-004).  A reader asks it for fields by name.
 """
 
 from collections.abc import Mapping
@@ -85,15 +87,12 @@ class ReceivedActivityView:
     def __init__(self, model: BaseModel) -> None:
         object.__setattr__(self, "_model", model)
 
-    def _wrapped(self) -> BaseModel:
-        return cast(BaseModel, object.__getattribute__(self, "_model"))
-
-    @property  # type: ignore[misc]
-    def __class__(self) -> type:
-        return type(self._wrapped())
-
-    def __getattr__(self, name: str) -> Any:
-        return read_only(getattr(self._wrapped(), name))
+    def __getattribute__(self, name: str) -> Any:
+        # Every name but a dunder is the wrapped model's, made read-only, so
+        # no attribute of the view (``_model`` included) hands out the model.
+        if name.startswith("__") and name.endswith("__"):
+            return object.__getattribute__(self, name)
+        return read_only(getattr(_model_of(self), name))
 
     def __setattr__(self, name: str, value: Any) -> None:
         raise VultronReadOnlyViewError(
@@ -109,10 +108,15 @@ class ReceivedActivityView:
 
     def __eq__(self, other: object) -> bool:
         if type(other) is ReceivedActivityView:
-            return self._wrapped() == other._wrapped()
+            return _model_of(self) == _model_of(other)
         return NotImplemented
 
     __hash__ = None  # type: ignore[assignment]
 
     def __repr__(self) -> str:
-        return f"ReceivedActivityView({self._wrapped()!r})"
+        return f"ReceivedActivityView({_model_of(self)!r})"
+
+
+def _model_of(view: ReceivedActivityView) -> BaseModel:
+    """The model *view* wraps, for the view's own use alone."""
+    return cast(BaseModel, object.__getattribute__(view, "_model"))

@@ -35,57 +35,26 @@ Nothing here writes: the staged rebuild happens in a throwaway store, as at
 delivery, and the archive is left as it was.
 """
 
-import json
 from typing import cast
 
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
-from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.models.received_activity_record import (
-    ReceivedActivityRecord,
-)
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
-from vultron.errors import VultronNotFoundError
+from vultron.core.services.received_activity import held_received_record
+from vultron.errors import VultronNotFoundError, VultronWiringError
 from vultron.semantic_registry import extract_received_activity
-from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.parser import parse_received_body
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 __all__ = [
     "load_received_view",
-    "parse_received_body",
     "read_held_as_received",
     "read_received_as_received",
 ]
-
-
-def parse_received_body(received_body: str) -> as_Activity:
-    """The activity *received_body* holds, parsed as the inbox parsed it.
-
-    The parse seals the body as the activity's received evidence, so the
-    result carries exactly the archived text (VM-08-002).
-    """
-    return parse_activity(json.loads(received_body))
-
-
-def _archive(
-    dl: CasePersistence, activity_id: str
-) -> ReceivedActivityRecord | DeferredInboxActivity | None:
-    """The receiver-keyed record holding the received *activity_id*, if any.
-
-    Intake's archive first, then the record that holds a deferred activity
-    for its replay; never a row under the id the sender chose (DL-06-006).
-    """
-    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
-    if isinstance(record, ReceivedActivityRecord):
-        return record
-    deferred = dl.read(DeferredInboxActivity.build_id(activity_id))
-    if isinstance(deferred, DeferredInboxActivity):
-        return deferred
-    return None
 
 
 def _parsed(dl: CasePersistence, activity_id: str) -> as_Activity | None:
@@ -94,12 +63,30 @@ def _parsed(dl: CasePersistence, activity_id: str) -> as_Activity | None:
     An activity deferred as a storage row has no body, so it is rebuilt from
     that row, carrying no received evidence (VM-08-002).
     """
-    record = _archive(dl, activity_id)
+    record = held_received_record(dl, activity_id)
     if record is None:
         return None
     if record.received_body is not None:
         return parse_received_body(record.received_body)
-    return InlineObjectStaging(cast(DataLayer, dl)).rehydrate_held(activity_id)
+    return _rebuilt_row(InlineObjectStaging(cast(DataLayer, dl)), activity_id)
+
+
+def _rebuilt_row(
+    staging: InlineObjectStaging, activity_id: str
+) -> as_Activity:
+    """The deferred *activity_id* rebuilt from the storage row it is held as.
+
+    Raises:
+        VultronWiringError: When the row rebuilds into no activity: the
+            record was just read, so the held row is corrupt, a fault, never
+            "not held".
+    """
+    rebuilt = staging.rehydrate_held(activity_id)
+    if rebuilt is None:
+        raise VultronWiringError(
+            f"the deferred record of '{activity_id}' rebuilds into no activity"
+        )
+    return rebuilt
 
 
 def load_received_view(
@@ -112,18 +99,16 @@ def load_received_view(
     did at delivery (ADR-0149).  The view is built fresh on every call, so
     nothing a reader does to one reaches the next.
     """
-    record = _archive(dl, activity_id)
+    record = held_received_record(dl, activity_id)
     if record is None:
         return None
     staging = InlineObjectStaging(cast(DataLayer, dl))
-    routed: as_Activity | None
+    routed: as_Activity
     if record.received_body is not None:
         parsed = parse_received_body(record.received_body)
         routed = staging.rehydrate_parsed(parsed) or parsed
     else:
-        routed = staging.rehydrate_held(activity_id)
-    if routed is None:  # pragma: no cover - the record was just read
-        return None
+        routed = _rebuilt_row(staging, activity_id)
     return ReceivedActivityView(extract_received_activity(routed))
 
 

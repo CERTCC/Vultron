@@ -56,6 +56,7 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.errors import VultronWiringError
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.parser import parse_activity as _parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -236,6 +237,24 @@ class FastAPIIngressAdapter:
                 return archived
 
         result = self._staging.rehydrate_parsed(activity)
+        if redelivery is not None:
+            # The held copy did not rebuild.  This delivery's own body is
+            # routed in its place, still without received evidence: the
+            # delivery routed is a resend, not the one held (VM-08-002).
+            if result is None:
+                raise VultronWiringError(
+                    f"redelivered activity '{activity.id_}' is held"
+                    f" ({redelivery}) but neither the held copy nor this body"
+                    " rebuilds"
+                )
+            logger.warning(
+                "FastAPIIngressAdapter.rehydrate: the %s copy of activity %s"
+                " did not rebuild; routing this delivery's body without its"
+                " received evidence (VM-08-002).",
+                redelivery,
+                activity.id_,
+            )
+            return result
         if result is None:
             return activity
         return _carry_received_evidence(activity, result)

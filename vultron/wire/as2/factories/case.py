@@ -46,6 +46,7 @@ from vultron.wire.as2.factories._context import (
 from vultron.wire.as2.factories._held import (
     as_answered,
     embedded_as_received,
+    validated_as,
 )
 from vultron.wire.as2.factories._inline import require_inline
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
@@ -917,19 +918,16 @@ def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
     """
     if isinstance(invite, _RmInviteToCaseActivity):
         return embedded_as_received(invite, invite)
-    data = json.loads(
-        invite.model_dump_json(by_alias=True, serialize_as_any=True)
-    )
-    if data.get("type") != as_TransitiveActivityType.INVITE.value:
+    if invite.type_ != as_TransitiveActivityType.INVITE.value:
         raise VultronActivityConstructionError(
-            f"activity '{data.get('id')}' is not a case Invite:"
-            f" its type is {data.get('type')!r}"
+            f"activity '{invite.id_}' is not a case Invite:"
+            f" its type is {invite.type_!r}"
         )
     try:
-        case_invite = _RmInviteToCaseActivity.model_validate(data)
+        case_invite = validated_as(_RmInviteToCaseActivity, invite)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
-            f"activity '{data.get('id')}' is not a case Invite"
+            f"activity '{invite.id_}' is not a case Invite"
         ) from exc
     # The reply embeds the Invite as its sender sent it (DL-06-004).
     return embedded_as_received(case_invite, invite)

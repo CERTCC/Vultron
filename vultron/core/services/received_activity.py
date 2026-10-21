@@ -29,6 +29,9 @@ These readers are importable from any core layer, BT nodes included
 (BTND-04-003), and are re-exported by ``vultron.core.use_cases._helpers``.
 """
 
+import json
+from typing import Any
+
 from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.received_activity_record import (
@@ -37,22 +40,57 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.received_activity_loader import ReceivedActivityLoader
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronNotFoundError, VultronWiringError
+
+
+def held_received_record(
+    dl: CasePersistence, activity_id: str
+) -> ReceivedActivityRecord | DeferredInboxActivity | None:
+    """The receiver-keyed record holding the received *activity_id*, if any.
+
+    Intake's archive first, then the record that holds a deferred activity
+    for its replay; never a row under the id the sender chose (DL-06-006).
+    Nothing is parsed.
+    """
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    if isinstance(record, ReceivedActivityRecord):
+        return record
+    deferred = dl.read(DeferredInboxActivity.build_id(activity_id))
+    if isinstance(deferred, DeferredInboxActivity):
+        return deferred
+    return None
 
 
 def holds_received_activity(dl: CasePersistence, activity_id: str) -> bool:
     """Whether this actor holds the received activity *activity_id*.
 
-    Read from the receiver's keys only (DL-06-006): intake's archive, or the
-    record holding a deferred activity for its replay.  Nothing is parsed.
+    Read from the receiver's keys only (:func:`held_received_record`).
     """
-    return any(
-        dl.read(record_id) is not None
-        for record_id in (
-            ReceivedActivityRecord.build_id(activity_id),
-            DeferredInboxActivity.build_id(activity_id),
+    return held_received_record(dl, activity_id) is not None
+
+
+def archived_received_body(
+    dl: CasePersistence, activity_id: str
+) -> dict[str, Any]:
+    """The body intake archived for the received *activity_id*, decoded.
+
+    For a node that hands the received activity to the reply seam unread, to
+    be embedded as it arrived (DL-06-004, ADR-0149): the refusal notice, the
+    late-Accept acknowledgement.
+
+    Raises:
+        VultronWiringError: When nothing is archived for *activity_id*.  The
+            callers run after intake, which archives every received activity
+            before any guard (CLP-10-017), so the tree is miswired.
+    """
+    record = dl.read(ReceivedActivityRecord.build_id(activity_id))
+    if not isinstance(record, ReceivedActivityRecord):
+        raise VultronWiringError(
+            f"activity '{activity_id}' is not archived, so there is no"
+            " received body to embed (CLP-10-017)"
         )
-    )
+    body: dict[str, Any] = json.loads(record.received_body)
+    return body
 
 
 def holds_activity(dl: CasePersistence, activity_id: str) -> bool:
@@ -138,6 +176,8 @@ def read_held_activity(
 
 
 __all__ = [
+    "archived_received_body",
+    "held_received_record",
     "holds_activity",
     "holds_received_activity",
     "read_held_activity",

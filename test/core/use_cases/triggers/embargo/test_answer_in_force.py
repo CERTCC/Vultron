@@ -410,8 +410,8 @@ def test_an_invite_the_inbox_still_defers_is_answered(
 ) -> None:
     """An Invite held only by the inbox, waiting on its case, still answers.
 
-    The inbox holds it in a ``DeferredInboxActivity`` with the core summary
-    intake would archive, never under the Invite's own id (DL-06-006).
+    The inbox holds its received body in a ``DeferredInboxActivity``, never
+    under the Invite's own id (DL-06-006), and the answer loads that body.
     """
     embargo_id = in_force.case.active_embargo_id
     assert embargo_id is not None

@@ -26,10 +26,17 @@ from typing import Any
 import pytest
 
 from test.support.received import received_record
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.use_cases.triggers.embargo import SvcAcceptEmbargoUseCase
+from vultron.core.use_cases.triggers.requests import (
+    AcceptEmbargoTriggerRequest,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from ._ledger_network import BYSTANDER, MANAGER, LedgerNetwork
 from .test_embargo_relay_replay import _propose
@@ -79,3 +86,32 @@ def test_the_participants_accept_embeds_the_invite_as_received():
     assert embedded["endTime"] == body["endTime"]
     assert embedded["cc"] == [_WATCHER]
     assert embedded["x-vendorExtension"] == _EXTRA
+
+
+@pytest.mark.spec("DL-06-004")
+@pytest.mark.spec("DL-06-001")
+def test_the_accept_trigger_embeds_the_invite_as_received():
+    """End to end: the Invite is delivered, the participant runs its accept
+    trigger, and the Accept its outbox delivers embeds the Invite verbatim."""
+    net = LedgerNetwork("https://example.org/cases/verbatim-trigger")
+    body = _relayed_invite_with_extras(net)
+    net.deliver(MANAGER, to=BYSTANDER, type_="Announce")
+    net.receive(BYSTANDER, body)
+    dl = net.stores[BYSTANDER]
+    # The trigger runs as the actor whose store this is (ADR-0073).
+    dl.save(as_Service(id_=BYSTANDER, name="Vendor B"))
+
+    result = SvcAcceptEmbargoUseCase(
+        dl,
+        AcceptEmbargoTriggerRequest(
+            actor_id=BYSTANDER, case_id=net.case_id, proposal_id=body["id"]
+        ),
+        trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+    assert result.activity is not None
+    sealed = read_sealed_body_dict(dl, result.activity["id"])
+    assert sealed is not None
+    assert sealed["object"] == body

@@ -30,7 +30,6 @@ from typing import Any, cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.ledger_payload import (
-    _extract_payload_snapshot,
     carries_no_received_body,
     unrecordable_resend_reason,
 )
@@ -47,6 +46,7 @@ from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.services.received_activity import archived_received_body
 from vultron.core.states.em import EM
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronWiringError
@@ -203,8 +203,9 @@ class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
     executing CASE_MANAGER, with the received Accept inline, and
     its sealed blob is the entry's ``payloadSnapshot`` (VM-08-003).
 
-    The received Accept is read from ``/activity`` and carried inline as it
-    arrived, the received body a received entry records (CLP-07-011).
+    The received Accept is the body intake archived for the event on
+    ``/activity``, carried inline as it arrived (DL-06-004, ADR-0149): the
+    received body a received entry records (CLP-07-011).
     Addressed to nobody: the ledger fan-out is its delivery, and a replica
     stores it and changes nothing (EMB-17-010).  The factory derives the
     ``Ignore``'s id from the CASE_MANAGER and the Accept, so a redelivered
@@ -264,14 +265,19 @@ class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
         return Status.SUCCESS
 
     def _late_accept(self) -> dict[str, Any]:
-        """The received Accept, as it arrived and as its entry records it."""
+        """The received Accept, as intake archived it (ADR-0149).
+
+        Handed to the reply seam unread, which embeds it as it arrived
+        (DL-06-004), as the refusal notice embeds what it refuses.
+        """
         event = self._event
-        if not isinstance(event, VultronEvent) or event.activity is None:
+        if not isinstance(event, VultronEvent):
             raise VultronWiringError(
                 f"{self.name}: no received Accept on the blackboard to"
                 " acknowledge (ARCH-15-001)"
             )
-        return _extract_payload_snapshot(event)
+        assert self.datalayer is not None
+        return archived_received_body(self.datalayer, event.activity_id)
 
     def _build(self, to: list[str] | None) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
