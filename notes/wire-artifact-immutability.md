@@ -14,6 +14,7 @@ related_specs:
   - specs/case-ledger-processing.yaml (CLP-07-006, CLP-07-011)
   - specs/case-management.yaml (CM-17-002)
   - specs/message-validation.yaml (MV-10-001)
+  - specs/inbox-endpoint.yaml (IE-10-001)
 related_notes:
   - notes/datalayer-design.md
   - notes/case-ledger-authority.md
@@ -70,9 +71,10 @@ the first time an example carries it. A test asserting
 `VultronEvent.received_evidence`, and the received entry records
 `received_body()` unchanged (CLP-07-011, CLP-07-006). Never rebuild the snapshot
 from `request.activity` or the store: that is the extractor's summary and the
-receiver's view, not what was sent. An event with no evidence (a resend under a
-held id, an activity built in process) has no received body to record, which is
-a wiring fault (`VultronWiringError`), never a fallback rendering.
+receiver's view, not what was sent. An event with no evidence has no received
+body to record: a resend the ledger already records keeps its first entry
+(IE-10-001), and anything else is a wiring fault (`VultronWiringError`), never a
+fallback rendering.
 
 ## Clearing a Field: `model_copy`, Not a Cast-Silenced Assignment
 

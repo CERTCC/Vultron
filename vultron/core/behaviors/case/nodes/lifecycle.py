@@ -35,11 +35,13 @@ from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.models.events.base import VultronEvent
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.addressing import (
     same_actor_id,
     snapshot_actor_id,
 )
+from vultron.core.sync_helpers import is_ledgered_activity
 from vultron.errors import (
     VultronBTInternalError,
     VultronCanonicalEntryError,
@@ -147,6 +149,17 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     def _resolve_activity(self) -> Any | None:
         return self._activity
 
+    def _is_recorded_resend(self, activity: Any, case_id: str) -> bool:
+        """True for an event with no received evidence the ledger records."""
+        assert self.datalayer is not None
+        return (
+            isinstance(activity, VultronEvent)
+            and activity.received_evidence is None
+            and is_ledgered_activity(
+                self.datalayer, case_id, activity.activity_id
+            )
+        )
+
     def _activity_metadata(
         self, activity: Any | None, case_id: str
     ) -> tuple[str, str, dict[str, Any]]:
@@ -186,6 +199,19 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
                 case_id,
             )
             return Status.FAILURE
+
+        if self._is_recorded_resend(activity, case_id):
+            # A resend of an archived activity is routed without received
+            # evidence (VM-08-002, IE-10-001), so it has no body to record;
+            # its first delivery's entry is the record of it.
+            self.logger.info(
+                "%s: activity '%s' is a redelivery already recorded for case"
+                " '%s'; its first delivery's entry stands",
+                self.name,
+                activity.activity_id,
+                case_id,
+            )
+            return Status.SUCCESS
 
         object_id, semantic_type, payload_snapshot = self._activity_metadata(
             activity, case_id

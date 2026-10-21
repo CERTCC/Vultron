@@ -27,6 +27,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
 from vultron.core.models.actor import VultronService
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
 _FACTORY_PATH = (
@@ -273,6 +274,42 @@ def test_event_without_received_evidence_is_a_wiring_fault(bridge):
     assert result.status == Status.FAILURE
     assert result.internal_error is True
     assert "carries no received evidence" in (result.feedback_message or "")
+    mock_factory.assert_not_called()
+
+
+@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("IE-10-001")
+def test_a_recorded_resend_without_evidence_reuses_its_first_entry(
+    bridge, datalayer
+):
+    """A resend of an archived activity is routed with no received evidence.
+
+    Its first delivery's entry is its record, so the node commits nothing
+    and succeeds rather than reporting a wiring fault.
+    """
+    datalayer.create(
+        CaseLedgerEntry(
+            case_id=CASE_ID,
+            log_object_id=ACTIVITY_ID,
+            semantic_type=MessageSemantics.CREATE_CASE.value,
+            payload_snapshot=_CREATE_BODY,
+            entry_hash="hash-1",
+            prev_log_hash="hash-0",
+            log_index=0,
+        )
+    )
+    resend = VultronEvent(
+        semantic_type=MessageSemantics.CREATE_CASE,
+        activity_id=ACTIVITY_ID,
+        actor_id=ACTOR_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH) as mock_factory:
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=resend
+        )
+
+    assert result.status == Status.SUCCESS
     mock_factory.assert_not_called()
 
 

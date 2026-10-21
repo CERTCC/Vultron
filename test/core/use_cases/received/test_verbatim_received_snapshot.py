@@ -35,7 +35,10 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.wire.as2.factories import add_note_to_case_activity
+from vultron.wire.as2.factories import (
+    add_note_to_case_activity,
+    rm_engage_case_activity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
@@ -199,3 +202,40 @@ def test_a_replica_records_the_received_artifact_not_the_routing_copy():
     assert not isinstance(routed.target, str), "precondition: B is hydrated"
     assert not hasattr(routed, "exampleExtension"), "precondition: set aside"
     assert cast(dict[str, Any], replica_snapshot)["target"] == CASE_ID
+
+
+@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("IE-10-001")
+def test_a_resend_of_an_archived_activity_adds_no_entry():
+    """The resend is routed without evidence; the first entry stands.
+
+    ``Join`` (RM engage) has no repeat guard of its own, so the resend reaches
+    the commit, which finds the activity already recorded.
+    """
+    net = LedgerNetwork(CASE_ID)
+    body = json.loads(
+        dump_outbound_body(
+            rm_engage_case_activity(
+                net.case(MANAGER), actor=OWNER, to=[MANAGER]
+            )
+        )
+    )
+    dl = net.stores[MANAGER]
+
+    _deliver(net, body)
+    before = [e.id_ for e in ledger_entries(dl, CASE_ID)]
+    ingress = FastAPIIngressAdapter(dl)
+    artifact = ingress.parse(copy.deepcopy(body))
+    assert artifact is not None
+    resend = prepare_for_dispatch(ingress.rehydrate(artifact)).model_copy(
+        update={"receiving_actor_id": MANAGER}
+    )
+    assert resend.received_evidence is None, "precondition: routed unsealed"
+
+    verdict = run_use_case(dl, resend)
+
+    assert verdict.disposition in {
+        HandlerDisposition.APPLIED,
+        HandlerDisposition.SKIPPED,
+    }, verdict.reason
+    assert [e.id_ for e in ledger_entries(dl, CASE_ID)] == before
