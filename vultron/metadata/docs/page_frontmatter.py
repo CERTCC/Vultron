@@ -1,7 +1,7 @@
 """Validate the ``stakeholder_type``, ``level`` and ``page_type`` of ``docs/`` pages.
 
 Requirements: specs/diataxis-requirements.yaml DF-11-001, DF-11-003,
-DF-11-010, DF-11-012, DF-11-018, DF-09-009; attribution per MS-17 via
+DF-11-010, DF-11-012, DF-11-013, DF-11-018, DF-09-009; attribution per MS-17 via
 :mod:`vultron.metadata.file_loading`. Schema:
 :mod:`vultron.metadata.docs.page_schema`.
 
@@ -20,6 +20,9 @@ Every ``docs/**/*.md`` file is one of three things:
   (DF-11-003).
 * a **reader-facing page** — everything else. It declares all three keys
   (DF-11-001, DF-11-018).
+
+A start page (``docs/start/*.md`` other than its ``index.md``) also declares
+its reading-path ``thread:``, and no other page may (DF-11-013).
 
 A file matched by ``exclude_docs`` that no page includes is none of the three:
 MkDocs never builds it, so it has no reader until a page pulls it in. The
@@ -62,8 +65,12 @@ from vultron.metadata.base import (
     repo_root as _find_repo_root,
 )
 from vultron.metadata.docs.page_schema import (
+    START_DIR,
+    THREAD_KEY,
     PageFrontmatter,
+    ThreadDeclaration,
     WorkingRecordFrontmatter,
+    is_start_page,
     is_working_record,
 )
 from vultron.metadata.file_loading import (
@@ -252,6 +259,88 @@ def _declarations(metadata: Mapping[str, object]) -> dict[str, object]:
     return {k: metadata[k] for k in DECLARATION_KEYS if k in metadata}
 
 
+def _check_declarations(
+    path: Path,
+    rel: str,
+    metadata: Mapping[str, object],
+    working: bool,
+    tree: DocsTree,
+    root: Path,
+) -> None:
+    """Validate the declarations a page makes (DF-11-001, DF-11-012).
+
+    Raises:
+        MetadataLoadError: If the page declares none of the keys, is included
+            whole by another page, or its declarations do not validate.
+    """
+    declared = _declarations(metadata)
+    if not declared:
+        wanted = (
+            "stakeholder_type: [project-contributor] (working record, "
+            "no level or page_type; DF-11-012, DF-11-018)"
+            if working
+            else "stakeholder_type, level (DF-11-001) and page_type "
+            "(DF-11-018)"
+        )
+        raise MetadataLoadError(
+            f"declares none of the keys; add {wanted}",
+            path=f"docs/{rel}",
+        )
+
+    key_lines = frontmatter_key_lines(path)
+    including = tree.whole_includes.get(rel)
+    if including:
+        key = next(iter(declared))
+        raise MetadataLoadError(
+            f"is included whole by {', '.join(including)}, which would "
+            f"render its {key} into that page (DF-11-004); include "
+            f"it between start=/end= markers instead",
+            path=f"docs/{rel}",
+            line=key_lines.get(key),
+        )
+    model = WorkingRecordFrontmatter if working else PageFrontmatter
+    validate(
+        model,
+        declared,
+        path=path,
+        root=root,
+        key_lines=key_lines,
+    )
+
+
+def _check_thread(
+    path: Path, rel: str, metadata: Mapping[str, object], root: Path
+) -> None:
+    """Validate the ``thread:`` a start page declares (DF-11-013).
+
+    Only a start page opens a thread, so the key anywhere else is a finding.
+    Whether each member is an existing reader-facing page is the separate
+    ``docs-threads`` check (DF-11-016).
+
+    Raises:
+        MetadataLoadError: If a page other than a start page declares a
+            thread, or a start page's thread does not validate.
+    """
+    if THREAD_KEY not in metadata:
+        return
+    key_lines = frontmatter_key_lines(path)
+    if not is_start_page(rel):
+        raise MetadataLoadError(
+            f"declares `{THREAD_KEY}:` but is not a start page; a thread is "
+            f"declared once, on the docs/{START_DIR}/ page that opens it "
+            "(DF-11-013)",
+            path=f"docs/{rel}",
+            line=key_lines.get(THREAD_KEY),
+        )
+    validate(
+        ThreadDeclaration,
+        {THREAD_KEY: metadata[THREAD_KEY]},
+        path=path,
+        root=root,
+        key_lines=key_lines,
+    )
+
+
 def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
     """Validate every page's declarations and every fragment's absence of them.
 
@@ -313,6 +402,7 @@ def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
                     f"from the routing page for its group (DF-11-003)",
                     path=shown(rel),
                 )
+        metadata: Mapping[str, object] | None = None
         with collector.attempt():
             path = docs_dir / rel
             if working:
@@ -320,41 +410,13 @@ def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
             else:
                 result.reader_pages += 1
 
-            declared = _declarations(
-                load_frontmatter(path, root=root).metadata
-            )
-            if not declared:
-                wanted = (
-                    "stakeholder_type: [project-contributor] (working record, "
-                    "no level or page_type; DF-11-012, DF-11-018)"
-                    if working
-                    else "stakeholder_type, level (DF-11-001) and page_type "
-                    "(DF-11-018)"
-                )
-                raise MetadataLoadError(
-                    f"declares none of the keys; add {wanted}",
-                    path=shown(rel),
-                )
-
-            key_lines = frontmatter_key_lines(path)
-            including = tree.whole_includes.get(rel)
-            if including:
-                key = next(iter(declared))
-                raise MetadataLoadError(
-                    f"is included whole by {', '.join(including)}, which would "
-                    f"render its {key} into that page (DF-11-004); include "
-                    f"it between start=/end= markers instead",
-                    path=shown(rel),
-                    line=key_lines.get(key),
-                )
-            model = WorkingRecordFrontmatter if working else PageFrontmatter
-            validate(
-                model,
-                declared,
-                path=path,
-                root=root,
-                key_lines=key_lines,
-            )
+            metadata = load_frontmatter(path, root=root).metadata
+            _check_declarations(path, rel, metadata, working, tree, root)
+        if metadata is not None:
+            # Its own attempt, so a page that is also mis-declared reports
+            # both; a page whose frontmatter did not parse was reported once.
+            with collector.attempt():
+                _check_thread(docs_dir / rel, rel, metadata, root)
 
     collector.raise_if_any(
         summary=(

@@ -231,6 +231,11 @@ confirm it.** The recipe:
    fails; a `routing` index must link every member of its section. Each
    index's decision is its own `contents:` value, and
    `test/metadata/docs/test_site_sync.py` pins the generated set.
+   A page that belongs on a reading path goes into the `thread:` frontmatter
+   of its start page under `docs/start/`, with a blurb written for that thread;
+   the start page's listing is generated from it (`docs-site --write`,
+   DF-11-014). Only a reader-facing page can be a member (`docs-threads`,
+   DF-11-016); any other link goes in the stage's `framing:`.
 2. **Group** — the page's `stakeholder_type` picks the group within the section:
    the group whose other pages address the same reader, or the routing page
    (`docs/start/*.md`, `docs/research/index.md`) that carries that type's path.

@@ -41,7 +41,7 @@ def _page(
     stakeholder_type: str | None = None,
     level: str | None = None,
     page_type: str | None = None,
-):
+) -> str:
     lines = ["title: T"]
     if stakeholder_type is not None:
         lines.append(f"stakeholder_type: {stakeholder_type}")
@@ -750,3 +750,35 @@ def test_the_committed_docs_tree_passes():
 
     assert result.reader_pages > 0
     assert result.working_record_pages > 0
+
+
+def _start(thread: str) -> str:
+    """A reader-facing start page declaring the YAML *thread*."""
+    return _READER.replace("---\n# T", f"thread:\n{thread}---\n# T", 1)
+
+
+_THREAD = "  - title: Go\n    kind: set\n    members:\n      - page: a.md\n        blurb: b.\n"
+
+
+@pytest.mark.spec("DF-11-013")
+class TestThreadKey:
+    def test_a_start_page_thread_passes(self, tmp_path):
+        root = _repo(
+            tmp_path, {"start/s.md": _start(_THREAD), "a.md": _READER}
+        )
+        assert check_docs_frontmatter(root).reader_pages == 2
+
+    def test_a_malformed_thread_is_a_finding_at_its_line(self, tmp_path):
+        bad = _THREAD.replace("        blurb: b.\n", "")
+        root = _repo(tmp_path, {"start/s.md": _start(bad), "a.md": _READER})
+        with pytest.raises(MetadataLoadErrors) as exc:
+            check_docs_frontmatter(root)
+        (failure,) = exc.value.failures
+        assert "blurb" in str(failure)
+        assert str(failure).startswith("docs/start/s.md:6 ")
+
+    @pytest.mark.parametrize("rel", ["start/index.md", "topics/x.md"])
+    def test_a_thread_off_a_start_page_is_a_finding(self, tmp_path, rel):
+        root = _repo(tmp_path, {rel: _start(_THREAD), "a.md": _READER})
+        with pytest.raises(MetadataLoadErrors, match="not a start page"):
+            check_docs_frontmatter(root)
