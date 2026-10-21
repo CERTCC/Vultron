@@ -4,9 +4,11 @@
 An item left queued by a previous run, for example by a process stop during
 its replay attempt (IE-06-005), is otherwise replayed only when the next
 delivery reaches the same actor, which may never happen.  The app lifespan
-calls :func:`replay_hosted_inbox_queues` once at startup.  It re-runs what is
-queued, with the bounded retry and dead letter of a replay after a delivery
-(IE-06-004); it repairs nothing.
+starts :func:`replay_hosted_inbox_queues` once at startup
+(:func:`start_startup_inbox_replay`), as a task beside
+the server, so a slow replay or outbox drain never holds back readiness.  It
+re-runs what is queued, with the bounded retry and dead letter of a replay
+after a delivery (IE-06-004); it repairs nothing.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -22,19 +24,22 @@ queued, with the bounded retry and dead letter of a replay after a delivery
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import asyncio
 import logging
-from typing import Any
 
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     replay_inbox_queue,
 )
+from vultron.core.ports.emitter import ActivityEmitter
 
 logger = logging.getLogger(__name__)
 
 
-async def replay_hosted_inbox_queues(emitter: Any = None) -> int:
+async def replay_hosted_inbox_queues(
+    emitter: ActivityEmitter | None = None,
+) -> int:
     """Replay the inbox queue of every actor this node hosts.
 
     Actors are found from the stores that exist, as the startup recovery
@@ -76,3 +81,28 @@ async def replay_hosted_inbox_queues(emitter: Any = None) -> int:
                 actor_id,
             )
     return replayed
+
+
+def start_startup_inbox_replay(
+    emitter: ActivityEmitter | None,
+) -> "asyncio.Task[int]":
+    """Start the startup replay as a task beside the server (IE-06-006).
+
+    A task, not an await before the lifespan yields: the replay runs every
+    retry and an outbox drain, and awaited it would hold back readiness for
+    as long as an unreachable peer takes to time out.  The per-actor inbox
+    lock orders it with any delivery that arrives meanwhile.
+    """
+    return asyncio.create_task(replay_hosted_inbox_queues(emitter=emitter))
+
+
+async def finish_startup_inbox_replay(
+    task: "asyncio.Task[int] | None",
+) -> None:
+    """Wait for the startup replay at shutdown, if one was started.
+
+    Waited for, not cancelled: a cancelled await would leave its worker
+    thread running an attempt with the actor's lock released.
+    """
+    if task is not None:
+        await task

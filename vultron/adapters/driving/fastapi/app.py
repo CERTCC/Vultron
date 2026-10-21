@@ -34,7 +34,8 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
     make_dispatcher,
 )
 from vultron.adapters.driving.fastapi.inbox_startup_replay import (
-    replay_hosted_inbox_queues,
+    finish_startup_inbox_replay,
+    start_startup_inbox_replay,
 )
 from vultron.adapters.driving.fastapi.ledger_stream import (
     SHUTDOWN_STATE_KEY,
@@ -226,16 +227,19 @@ def _make_lifespan(*, configure_globals: bool = True):
             # runs once per case, so nothing else would re-send it.
             retry_pending_creation_time_revision_relays()
 
-        if configure_globals:
-            # Replay what a previous run left in any hosted actor's inbox
-            # queue; nothing else would until that actor's next delivery
-            # (IE-06-006).
-            await replay_hosted_inbox_queues(emitter=application.state.emitter)
+        # Replay what a previous run left in any hosted actor's inbox queue;
+        # nothing else would until that actor's next delivery (IE-06-006).
+        startup_replay = (
+            start_startup_inbox_replay(application.state.emitter)
+            if configure_globals
+            else None
+        )
 
         yield {SHUTDOWN_STATE_KEY: ledger_stream_shutdown}
 
         ledger_stream_shutdown.set()
         undo_shutdown_hook()
+        await finish_startup_inbox_replay(startup_replay)
 
         if monitor is not None:
             monitor.stop()

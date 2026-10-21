@@ -719,3 +719,91 @@ def test_a_startup_replay_that_raises_does_not_stop_the_next_actor(
     assert replayed == [_RECEIVER, other_id]
     assert dl.inbox_list() == [item.id_]
     assert _logged(caplog, _RECEIVER, "stay queued")
+
+
+@pytest.mark.spec("IE-06-005", "ASK-07-010")
+@pytest.mark.usefixtures("outbox_drains")
+def test_a_held_fault_that_fails_part_way_keeps_none_of_its_writes(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch, caplog
+) -> None:
+    """The fault's record is written, then its queue append fails: the
+    fault's own block rolls the record back, and the dead letter still
+    commits."""
+    from vultron.core.models.activity_ids import derived_activity_id
+
+    _max_attempts(monkeypatch, 1)
+    item = _queued_item(dl)
+    fault_id = derived_activity_id(
+        "processing-fault",
+        _RECEIVER,
+        item.id_,
+        VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+    )
+
+    def _append_fails(_activity_id: str) -> None:
+        assert dl.read(fault_id) is not None, "the fault was written first"
+        raise RuntimeError("outbox append failed")
+
+    monkeypatch.setattr(dl, "outbox_append", _append_fails)
+
+    with caplog.at_level(logging.ERROR, logger=drain.__name__):
+        _run(dl, _dispatcher(_raises))
+
+    assert dl.read(fault_id) is None, "no part of the fault is kept"
+    assert read_sealed_body_dict(dl, fault_id) is None
+    assert [e.activity_id for e in dl.inbox_dead_letter_list()] == [item.id_]
+    assert any(
+        "ProcessingFault not queued" in r.getMessage() for r in caplog.records
+    )
+
+
+@pytest.mark.spec("IE-06-006", "IE-06-003")
+@pytest.mark.usefixtures("outbox_drains")
+def test_the_startup_replay_drains_under_the_actor_lock_off_the_loop(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+
+    seen: dict[str, Any] = {}
+
+    def _drain(*_args: Any) -> None:
+        seen["thread"] = threading.get_ident()
+        seen["locked"] = io._get_actor_lock(_RECEIVER).locked()
+
+    monkeypatch.setattr(io, "drain_inbox_queue", _drain)
+
+    async def _main() -> int:
+        await io.replay_inbox_queue(dl, _RECEIVER, None, None)
+        return threading.get_ident()
+
+    loop_thread = asyncio.run(_main())
+
+    assert seen["locked"] is True, "the per-actor inbox lock is held"
+    assert seen["thread"] != loop_thread, "the drain runs off the loop"
+
+
+@pytest.mark.spec("IE-06-006")
+def test_the_server_starts_before_the_startup_replay_ends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The replay runs beside the server, and shutdown waits for it."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from vultron.adapters.driving.fastapi import (
+        inbox_startup_replay as startup,
+    )
+    from vultron.adapters.driving.fastapi.app import _make_lifespan
+
+    finished: list[bool] = []
+
+    async def _slow_replay(**_kwargs: Any) -> int:
+        await asyncio.sleep(0.5)
+        finished.append(True)
+        return 0
+
+    monkeypatch.setattr(startup, "replay_hosted_inbox_queues", _slow_replay)
+
+    with TestClient(FastAPI(lifespan=_make_lifespan(configure_globals=True))):
+        assert finished == [], "startup did not wait for the replay"
+    assert finished == [True], "shutdown waited for the replay"

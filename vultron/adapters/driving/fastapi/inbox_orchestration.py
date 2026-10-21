@@ -66,6 +66,7 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.ports.emitter import ActivityEmitter
 from vultron.errors import VultronReusedActivityIdError, VultronWiringError
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.parser import parse_activity as _parse_activity
@@ -537,7 +538,7 @@ class _InboxRun:
 async def _run_serialised(
     actor_dl: DataLayer,
     actor_id: str,
-    emitter: Any,
+    emitter: ActivityEmitter | None,
     work: Callable[[], None],
 ) -> None:
     """Run *work* under the actor's inbox lock, off the loop, then drain.
@@ -573,7 +574,7 @@ async def run_inbox_pipeline(
     actor_dl: DataLayer,
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
-    emitter: Any,
+    emitter: ActivityEmitter | None,
 ) -> None:
     """Adapter-layer background task: construct adapters and run pipeline.
 
@@ -634,7 +635,7 @@ async def replay_inbox_queue(
     actor_dl: DataLayer,
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
-    emitter: Any,
+    emitter: ActivityEmitter | None,
 ) -> None:
     """Replay every item queued in *actor_id*'s inbox, with no delivery.
 
