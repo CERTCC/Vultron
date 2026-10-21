@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
+page_type: reference
 description: >
   A recap of the definition with summary diagrams of each process model.
 ---

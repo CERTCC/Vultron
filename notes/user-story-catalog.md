@@ -114,7 +114,8 @@ Rules:
 ## Story page shape
 
 Every story page is a working-record page (DF-11-003): frontmatter declares
-`stakeholder_type: [project-contributor]` and no `level` (DF-11-012). The
+`stakeholder_type: [project-contributor]` and no `level` (DF-11-012) or
+`page_type` (DF-11-018). The
 story text sits between the `<!-- story-start -->` and `<!-- story-end -->`
 markers so the generated table can quote it.
 

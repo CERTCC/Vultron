@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 description: >
   Wire activities for the General message types GI, GK, and GE.
 ---

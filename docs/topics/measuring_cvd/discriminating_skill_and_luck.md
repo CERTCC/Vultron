@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+page_type: explanation
 description: >
   The skill coefficient, which normalizes an observed frequency against the baseline.
 ---

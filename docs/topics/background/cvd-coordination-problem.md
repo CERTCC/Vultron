@@ -5,6 +5,7 @@ description: >
   CERT/CC's other work on the CVD process.
 stakeholder_type: [cvd-practitioner, process-researcher]
 level: 200
+page_type: explanation
 ---
 
 # CVD as a Coordination Problem

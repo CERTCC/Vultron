@@ -207,6 +207,13 @@ recommendation, never applied:
   value may appear in both vocabularies
   (`notes/site-information-architecture.md` § "Stakeholder type is not CVD
   role").
+- **Page type mismatch** (DF-11-018, DF-01-002; SG-40) — the declared
+  `page_type` is not what the page is: a step-by-step page declared
+  `explanation`, a lookup table declared `how-to`, or an index whose prose mostly
+  explains declared `routing`. The badge shows the declaration to every reader
+  (DF-11-019), so a wrong one misleads. Recommend the type the content is, never
+  the one its directory suggests. If the page genuinely mixes types, the finding
+  is DF-01-003 instead: recommend splitting it or separating the parts clearly.
 
 - **Concept order** (SG-10) — a section using a concept the page has not
   introduced. Name the forward reference and the section order that fixes it.

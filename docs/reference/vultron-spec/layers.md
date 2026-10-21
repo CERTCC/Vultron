@@ -4,6 +4,7 @@ description: >
   Sections 4 and 5 of the Vultron Protocol Specification: the semantic layer that gives each message its meaning and the syntactic layer that encodes it.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 ---
 
 # Protocol Layers

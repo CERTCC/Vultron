@@ -4,6 +4,7 @@ description: >
   starts a protocol behavior on an actor's behalf.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 ---
 
 # Trigger API Reference
