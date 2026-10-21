@@ -312,6 +312,59 @@ groups:
       spec_id: DR-03-002
     - rel_type: refines
       spec_id: IE-06-001
+  - id: IE-06-005
+    priority: MUST
+    kind: project
+    statement: >-
+      Each attempt to replay an item from the receiving actor's inbox queue MUST
+      commit as one DataLayer transaction: taking the item's id off the queue,
+      releasing the record that holds it for its replay, the attempt itself, and the
+      attempt's settlement (its attempt count, the record held again, the id queued
+      again, its dead letter, and any fault held for its sender). A process stop or a
+      raise at any point in the attempt MUST leave the item queued and held, with
+      the attempt count it had before the attempt began.
+    rationale: >-
+      The receiver keeps no other copy of a received activity (DL-06-006), and the
+      sender is not answered while the item is retried (ASK-07-010), so an item lost
+      between its dequeue and its settlement is never recovered. Writes that must
+      land together share one transaction, never a repair pass (ADR-0146). The act's
+      own transaction nests inside the attempt's, so a failed act still keeps
+      nothing (ADR-0151).
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py` interrupts a replay
+      attempt with an exception the drain does not catch, once during the act and
+      once during its settlement, and shows that the item's id is still queued, its
+      `DeferredInboxActivity` is still held, its attempt count is unchanged, and
+      nothing the act wrote is kept.
+    adr:
+    - ADR-0146
+    relationships:
+    - rel_type: refines
+      spec_id: IE-06-004
+    - rel_type: depends_on
+      spec_id: DL-06-006
+  - id: IE-06-006
+    priority: MUST
+    kind: project
+    statement: >-
+      When the serving process starts, it MUST replay every item queued in each
+      hosted actor's inbox queue, with the same bounded retry and dead letter as a
+      replay after a delivery (IE-06-004), under the same per-actor lock as that
+      actor's inbox background task and off the ASGI event loop (IE-06-003).
+    rationale: >-
+      Without it, an item that survived a stop (IE-06-005) is replayed only when the
+      next delivery reaches the same actor, which may never happen. The outbox has
+      the same safety net in its monitor (OX-09-002).
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py` stores a queued,
+      held item in an actor's store, starts the app's lifespan, and shows that the
+      item is replayed with no new delivery to that actor, and that an item whose
+      replay fails is re-queued with its count, as a replay after a delivery is.
+    relationships:
+    - rel_type: depends_on
+      spec_id: IE-06-005
+    - rel_type: depends_on
+      spec_id: IE-06-003
 - id: IE-07
   title: Error Responses
   specs:
