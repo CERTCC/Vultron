@@ -5,8 +5,9 @@ DOCBW-03-012 from ``specs/docs-build-workflow.yaml``. A workflow that builds
 ``site/`` MUST run ``docs-withheld`` (the publication axis), ``docs-links`` (the
 reference axis) and ``docs-legacy-urls`` (the continuity axis) against it,
 unconditionally, and in ``deploy_site.yml`` each MUST sit between the build and
-the Pages upload. On a pull request to ``publish`` only, ``docs-legacy-urls --require-recorded``
-also runs, whatever the pull request changes (DOCBW-03-012).
+the Pages upload. On a pull request to ``publish`` only,
+``docs-legacy-urls --require-recorded`` also runs, whatever the pull request
+changes (DOCBW-03-012).
 
 Ordering is the whole point, and it is why this is a test rather than a review
 habit. Both checks read the built tree, so a step placed before the build fails

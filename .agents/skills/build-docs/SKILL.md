@@ -96,9 +96,8 @@ PYTHONPATH='' uv run docs-legacy-urls
    a branch from `main`, and merge the updated baseline into `main` through its
    own pull request; the release pull request from `main` then carries it. A
    page only `publish` holds also needs `--snapshot origin/publish`. Pull
-   requests to `main`
-   do not run it, because a new page is not due in the baseline until it
-   publishes.
+   requests to `main` do not run it, because a new page is not due in the
+   baseline until it publishes.
 
 1. Check the reference axis against the same build:
 
