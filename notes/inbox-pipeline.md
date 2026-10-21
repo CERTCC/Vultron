@@ -27,10 +27,10 @@ seam.
 ## `UnroutableActivityError` Must Be Caught Inside `_handle`, Not Above It
 
 A gate helper called before the `try/except` in `DispatcherBase._handle`
-(`vultron/core/dispatcher.py`) escapes `_handle`. The inbox adapter's
-`_process_inbox_item` retries every exception except `VultronProtocolViolationError`,
-so an escaping `UnroutableActivityError` is retried as if transient — forever on the
-legacy unbounded path, and to the retry budget at best (IE-06-004).
+(`vultron/core/dispatcher.py`) escapes `_handle`. The inbox queue replay in
+`run_inbox_pipeline` retries every exception except `VultronProtocolViolationError`,
+so an escaping `UnroutableActivityError` is retried as if transient, to the retry
+budget, and then dead-lettered (IE-06-004).
 Wrap the gate call (`_enforce_join_backfill_gate`) in its own `try` inside `_handle`.
 
 **General rule**: when a silent failure (return `None`/`False`) becomes a `raise`, trace
@@ -51,9 +51,9 @@ then logs at ERROR and drops it; a protocol violation is dropped at once.
 - **Clear the count in a `finally` on every exit that does not re-queue**, not after
   `dispatch()`: post-dispatch work (the pending-case replay) can still raise, and
   clearing at dispatch resets the budget every cycle. A deferral also clears it.
-- **Per instance, not persisted.** Persisting it would be a DataLayer schema change a
-  test-only path does not justify; production runs `run_inbox_pipeline`, which rejects
-  failing activities instead of re-queuing them (ADR-0020).
+- **Per instance, not persisted.** This test seam keeps its own count; production runs
+  `run_inbox_pipeline`, whose queue replay persists its count in the `RetryStore` the
+  outbox uses and dead-letters an exhausted item (IE-06-004).
 
 ---
 

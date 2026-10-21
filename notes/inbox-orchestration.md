@@ -154,12 +154,13 @@ ingress (ADR-0151, `test_failed_act_redelivery.py`).
 
 **A raised dispatch is answered with a fault** (ASK-07-010): `DispatchNode` logs it
 once at ERROR with the activity and sender ids and queues one internal-error
-`Create(ProcessingFault)` to the sender through `DispatchAdapter`. The pipeline never
-retries a raised dispatch, so no inbox retry follows the fault; only the sender's own
-resend, which the fault invites, can later succeed. The bounded-retry loop in
-`inbox_handler.py` answers only on dead-letter, never on a re-queue, or a later
-success would follow a false fault (ASK-07-007), and never for a raise after the
-dispatch returned (the post-bootstrap replay). Never answer a raised
+`Create(ProcessingFault)` to the sender through `DispatchAdapter`. A live delivery is
+never retried, so only the sender's own resend, which the fault invites, can later
+succeed. A queued replay is retried (IE-06-004), so `run_inbox_pipeline` gives it a
+`ReplayDispatchAdapter` that holds the fault and sends it only when the item is
+dead-lettered or dropped, never on a re-queue, or a later success would follow a false
+fault (ASK-07-007). A raise after the dispatch returned (the post-bootstrap replay) is
+logged by `DispatchNode` and is neither retried nor answered. Never answer a raised
 `Create(ProcessingFault)` with a fault (`answers_with_internal_error_fault`), or two
 peers failing alike answer each other forever. The fault goes to the claimed `actor`:
 the inbox does not authenticate senders yet (#509). It is not ledgered (#4800).
