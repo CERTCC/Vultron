@@ -365,26 +365,30 @@ class RejectLedgerEntryReceivedUseCase:
 
     def execute(self) -> HandlerResult:
         request = self._request
-        rejected_entry = request.rejected_entry
-        if rejected_entry is None:
+        # The rejected entry's case, or, for the Reject that names no entry
+        # because the peer holds none, the case it names as its target; the
+        # parser admits that form only with an empty last-accepted hash, so
+        # it asks for a replay from genesis (SYNC-16-007).
+        case_id = request.rejected_case_id
+        if case_id is None:
             logger.warning(
                 "sync: received REJECT_CASE_LEDGER_ENTRY from '%s' "
-                "with no log entry object — refusing",
+                "naming neither a log entry nor a case — refusing",
                 request.actor_id,
             )
             return HandlerResult.refused(
-                "Reject(CaseLedgerEntry) carries no log entry"
+                "Reject(CaseLedgerEntry) names neither a log entry nor a case"
             )
 
         logger.info(
             "sync: received Reject(CaseLedgerEntry) from peer '%s' "
             "for case '%s', last_accepted_hash=%.16s…",
             request.actor_id,
-            rejected_entry.case_id,
+            case_id,
             request.last_accepted_hash,
         )
         tree = create_reject_log_entry_tree(
-            rejected_entry.case_id, sender_rule=self.sender_entitlement
+            case_id, sender_rule=self.sender_entitlement
         )
         result = BTBridge(
             datalayer=self._dl,
@@ -403,9 +407,7 @@ class RejectLedgerEntryReceivedUseCase:
         )
         # Only the CASE_MANAGER answers a rejection; a replica that
         # receives one was misaddressed (SYNC-03-005, HP-01-005).
-        verdict = case_manager_verdict(
-            tree, verdict, self._dl, rejected_entry.case_id
-        )
+        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "sync: could not act on Reject(CaseLedgerEntry) '%s': %s",

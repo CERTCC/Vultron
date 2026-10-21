@@ -173,12 +173,16 @@ class UpdateReplicationStateNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         activity = self.activity
-        entry = getattr(activity, "rejected_entry", None)
-        if entry is None:
-            entry = getattr(activity, "object_", None)
-        if not isinstance(entry, CaseLedgerEntry):
+        case_id = getattr(activity, "rejected_case_id", None)
+        rejected = getattr(activity, "rejected_entry", None)
+        if (not isinstance(case_id, str) or not case_id) and isinstance(
+            rejected, CaseLedgerEntry
+        ):
+            case_id = rejected.case_id
+        if not isinstance(case_id, str) or not case_id:
             raise VultronError(
-                f"{self.name}: activity did not carry a CaseLedgerEntry"
+                f"{self.name}: activity names no case to replay"
+                " (no rejected entry and no target)"
             )
 
         peer_id = activity.actor_id
@@ -188,7 +192,7 @@ class UpdateReplicationStateNode(DataLayerActionWithPorts):
             )
 
         state = VultronReplicationState(
-            case_id=entry.case_id,
+            case_id=case_id,
             peer_id=peer_id,
             last_acknowledged_hash=activity.last_accepted_hash,
         )

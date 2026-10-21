@@ -871,10 +871,17 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
             return f
         assert self.datalayer is not None
 
-        entry = getattr(self.activity, "rejected_entry", None)
-        if not isinstance(entry, CaseLedgerEntry):
+        # The rejected entry's case, or the case the objectless genesis
+        # Reject names as its target (SYNC-16-007).
+        case_id = getattr(self.activity, "rejected_case_id", None)
+        rejected = getattr(self.activity, "rejected_entry", None)
+        if (not isinstance(case_id, str) or not case_id) and isinstance(
+            rejected, CaseLedgerEntry
+        ):
+            case_id = rejected.case_id
+        if not isinstance(case_id, str) or not case_id:
             try:
-                entry = _log_entry_from(self.activity, self.name)
+                case_id = _log_entry_from(self.activity, self.name).case_id
             except VultronError as exc:
                 self.logger.warning("%s: %s", self.name, exc)
                 return Status.FAILURE
@@ -884,13 +891,13 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
             return Status.FAILURE
 
         # Regime 1: no case means no participant, so the sender is refused.
-        case, failure = self._require_case(entry.case_id)
+        case, failure = self._require_case(case_id)
         if failure is not None:
             return failure
         if not is_case_content_recipient(case, self.datalayer, sender_id):
             self.feedback_message = (
                 f"Sender '{sender_id}' is not an active participant in case"
-                f" '{entry.case_id}' — REFUSED (SYNC-03-005, CM-10-004)"
+                f" '{case_id}' — REFUSED (SYNC-03-005, CM-10-004)"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

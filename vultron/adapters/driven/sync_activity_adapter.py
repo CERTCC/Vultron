@@ -43,6 +43,7 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
+    genesis_replay_reject_activity,
     reject_log_entry_activity,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -138,6 +139,45 @@ class SyncActivityAdapter:
         logger.info(
             "sync adapter: queued Reject(CaseLedgerEntry) '%s' → %s",
             reject.id_,
+            to,
+        )
+
+    def send_genesis_replay_reject(
+        self,
+        case_id: str,
+        actor_id: str,
+        to: list[str],
+    ) -> None:
+        """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
+
+        The activity id is derived from the case and the recipients, so a
+        repeat builds no new activity and reuses the id (ID-04-004); a sealed
+        one no longer pending is queued once more (ID-04-005).
+
+        Spec: SYNC-16-007.
+        """
+        reject_id = derived_activity_id(
+            "genesis-replay-reject", actor_id, case_id, *sorted(to)
+        )
+        if requeue_if_sealed(self._dl, reject_id):
+            logger.info(
+                "sync adapter: genesis-replay Reject '%s' for case '%s' was"
+                " already built; not building it again",
+                reject_id,
+                case_id,
+            )
+            return
+        reject = genesis_replay_reject_activity(
+            case_id, actor=actor_id, to=to, id_=reject_id
+        )
+        self._dl.save(reject)
+        seal_outbound_body(self._dl, reject)
+        add_activity_to_outbox(actor_id, reject.id_, self._dl)
+        logger.info(
+            "sync adapter: queued genesis-replay Reject(CaseLedgerEntry)"
+            " '%s' for case '%s' → %s",
+            reject.id_,
+            case_id,
             to,
         )
 

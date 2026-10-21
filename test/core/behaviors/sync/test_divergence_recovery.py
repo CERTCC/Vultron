@@ -58,7 +58,9 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
+from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.replication_state import VultronReplicationState
@@ -83,9 +85,11 @@ from vultron.core.use_cases.received.fault import (
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
 from vultron.metadata.wire_context.sync import build_context_document
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     create_processing_fault_activity,
+    genesis_replay_reject_activity,
 )
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -410,29 +414,55 @@ def test_a_backfill_without_a_sync_port_is_a_wiring_fault() -> None:
 
 
 @pytest.mark.spec("SYNC-16-007")
-def test_a_replica_with_no_entry_records_the_copy_and_waits(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """With no stored entry there is nothing for a Reject to name: the
-    replica records the copy's tail, sends nothing, and says so; the next
-    entry fanned out arrives as a forward gap (SYNC-14-002)."""
+def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
+    """With no stored entry there is nothing for a Reject to name, so the
+    replica sends the Reject that names none: an empty last-accepted hash
+    and the case as its target, which parses back to the same request."""
     dl = _replica_holding("empty replica")
 
-    with caplog.at_level(logging.WARNING):
-        result = _announce(
-            _owned_case("copy ahead").with_ledger_tail(
-                LedgerPosition(log_index=3, entry_hash="ef" * 32)
-            ),
-            dl,
-        )
+    result = _announce(
+        _owned_case("copy ahead").with_ledger_tail(
+            LedgerPosition(log_index=3, entry_hash="ef" * 32)
+        ),
+        dl,
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert _case_name(dl) == "copy ahead"
     assert isinstance(
         dl.read(CaseCopyPosition.build_id(_CASE_ID)), CaseCopyPosition
     )
-    assert dl.outbox_list() == []
-    assert any("no entry" in r.getMessage() for r in caplog.records)
+    (reject_id,) = dl.outbox_list()
+    body = read_sealed_body_dict(dl, reject_id)
+    assert body is not None
+    assert body["type"] == "Reject"
+    assert "object" not in body
+    assert body.get("context", "") == ""
+    assert body["target"] == _CASE_ID
+    assert body["to"] == [_CASE_ACTOR_ID]
+    event = cast(
+        RejectLogEntryReceivedEvent, received_event(parse_activity(body))
+    )
+    assert event.semantic_type is MessageSemantics.REJECT_CASE_LEDGER_ENTRY
+    assert event.rejected_entry is None
+    assert event.rejected_case_id == _CASE_ID
+    assert event.last_accepted_hash == ""
+
+
+@pytest.mark.spec("SYNC-16-007")
+def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
+    """Only a request for a replay from genesis may name no entry."""
+    body = genesis_replay_reject_activity(
+        _CASE_ID, actor=_REPLICA_ID, to=[_CASE_ACTOR_ID]
+    ).model_dump(mode="json", by_alias=True, exclude_none=True)
+
+    with pytest.raises(VultronParseValidationError, match="names no object"):
+        parse_activity({**body, "context": "ab" * 32})
+    untargeted = {k: v for k, v in body.items() if k != "target"}
+    with pytest.raises(VultronParseValidationError, match="names no object"):
+        parse_activity(untargeted)
+    with pytest.raises(VultronParseValidationError, match="names no object"):
+        parse_activity({**body, "type": "TentativeReject"})
 
 
 @pytest.mark.spec("SYNC-16-006")

@@ -64,6 +64,19 @@ class RejectLogEntryReceivedEvent(VultronEvent):
         return cast(CaseLedgerEntry, self.object_)
 
     @property
+    def rejected_case_id(self) -> str | None:
+        """The case the rejection is about, or ``None``.
+
+        The rejected entry's case, or, for the Reject that names no entry
+        because the peer holds none and asks for a replay from genesis, the
+        case its ``target`` names (SYNC-16-007).
+        """
+        entry = self.rejected_entry
+        if entry is not None:
+            return entry.case_id
+        return self.target_id
+
+    @property
     def last_accepted_hash(self) -> str:
         """Return the last applied hash reported by the peer.
 

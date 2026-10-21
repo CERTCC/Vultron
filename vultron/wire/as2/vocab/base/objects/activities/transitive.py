@@ -400,6 +400,12 @@ class as_Reject(as_TransitiveActivity):
     """The actor rejects the object.
     The target and origin typically have no defined meaning.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-reject>
+
+    ``object`` may be absent in exactly one Vultron message: a replica that
+    holds no ledger entry asks the CASE_MANAGER to replay a case from
+    genesis with a ``Reject(CaseLedgerEntry)`` that names no entry, an empty
+    last-accepted hash, and the case as ``target`` (SYNC-16-007).  Any other
+    ``Reject`` without an object is refused when it is built or parsed.
     """
 
     type_: TA_type = Field(
@@ -407,6 +413,29 @@ class as_Reject(as_TransitiveActivity):
         validation_alias="type",
         serialization_alias="type",
     )
+    object_: as_ObjectRequiredRef | None = Field(  # type: ignore[assignment]
+        default=None, validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def _objectless_only_to_replay_from_genesis(self) -> "as_Reject":
+        """Refuse a ``Reject`` with no object unless it asks for genesis."""
+        if self.object_ is not None:
+            return self
+        context = self.context
+        hash_given = context not in (None, "")
+        if (
+            str(self.type_) != str(TA_type.REJECT)
+            or hash_given
+            or not self.target
+        ):
+            raise ValueError(
+                f"{self.type_} names no object.  Only a Reject(CaseLedgerEntry)"
+                " asking for a replay from genesis may: it carries an empty"
+                " last-accepted hash and names the case as its target"
+                " (SYNC-16-007)"
+            )
+        return self
 
 
 class as_TentativeReject(as_Reject):

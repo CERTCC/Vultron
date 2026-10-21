@@ -168,9 +168,10 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
     replaying from it (SYNC-03-002).
 
     The ``Reject`` names the last entry the chain stores.  A replica whose
-    chain stores none has no entry to name; it logs that at WARNING and
-    sends nothing, and the first entry the CASE_MANAGER fans out next arrives
-    as a forward gap whose own ``Reject`` asks for the rest (SYNC-14-002).
+    chain stores none has no entry to name, so it sends the ``Reject`` that
+    names no entry, with an empty last-accepted hash and the case as its
+    target: the CASE_MANAGER answers it by replaying from genesis, and each
+    entry up to the copy's tail is stored as a no-op (SYNC-16-007).
 
     Raises:
         VultronWiringError: A ``Reject`` is due and no ``sync_port`` was
@@ -227,21 +228,11 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
         chain_index = chain_tail.log_index if chain_tail else -1
         if tail.log_index <= chain_index:
             return Status.SUCCESS
-        if chain_tail is None:
-            self.logger.warning(
-                "%s: case '%s' was replaced by a copy at entry %d, but this"
-                " replica's chain stores no entry for a Reject to name; the"
-                " next entry fanned out asks for the rest (SYNC-14-002)",
-                self.name,
-                self.case_id,
-                tail.log_index,
-            )
-            return Status.SUCCESS
         self._send_reject(chain_tail, tail)
         return Status.SUCCESS
 
     def _send_reject(
-        self, chain_tail: CaseLedgerEntry, tail: LedgerPosition
+        self, chain_tail: CaseLedgerEntry | None, tail: LedgerPosition
     ) -> None:
         if self._sync_port is None:
             raise VultronWiringError(
@@ -249,6 +240,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
                 " entries a replacing case copy is ahead by (SYNC-16-007)"
             )
         assert self.actor_id is not None
+        to = [self._request.actor_id]
         self.logger.info(
             "%s: case '%s' replaced by a copy at entry %d, ahead of this"
             " replica's chain at %d; sending Reject(CaseLedgerEntry) to '%s'"
@@ -256,14 +248,20 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
             self.name,
             self.case_id,
             tail.log_index,
-            chain_tail.log_index,
+            chain_tail.log_index if chain_tail else -1,
             self._request.actor_id,
         )
+        if chain_tail is None:
+            # No entry to name: ask for a replay from genesis (SYNC-16-007).
+            self._sync_port.send_genesis_replay_reject(
+                case_id=self.case_id, actor_id=self.actor_id, to=to
+            )
+            return
         self._sync_port.send_reject_log_entry(
             entry=chain_tail,
             tail_hash=chain_tail.entry_hash,
             actor_id=self.actor_id,
-            to=[self._request.actor_id],
+            to=to,
         )
 
 

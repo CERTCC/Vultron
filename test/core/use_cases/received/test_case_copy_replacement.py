@@ -164,3 +164,37 @@ def test_a_late_copy_from_before_the_replicas_tail_changes_nothing() -> None:
 
     assert verdict.disposition is HandlerDisposition.SKIPPED, verdict.reason
     assert net.case(BYSTANDER).model_dump(mode="json") == before
+
+
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-15-002")
+def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
+    """A replica holding the case but no entry is replaced by a copy ahead
+    of it, asks for a replay from genesis with the Reject that names no
+    entry, and the CASE_MANAGER's genesis answer brings it to its tail."""
+    net = LedgerNetwork("https://example.org/cases/copy-genesis")
+    _send(net, net.pxa_report(OWNER, CS_pxa.pXa))
+    # The fan-out left the outbox and was lost in transit.
+    for activity in net.queued(MANAGER, to=BYSTANDER, type_="Announce"):
+        net.stores[MANAGER].outbox_withdraw(activity.id_)
+    assert ledger_entries(net.stores[BYSTANDER], net.case_id) == []
+
+    verdict = net.receive(BYSTANDER, _case_copy(net))
+
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
+    (reject,) = [
+        read_sealed_body_dict(net.stores[BYSTANDER], a.id_)
+        for a in net.queued(BYSTANDER, to=MANAGER, type_="Reject")
+    ]
+    assert reject is not None
+    assert "object" not in reject
+    assert reject["target"] == net.case_id
+
+    for _type, answered in net.deliver(BYSTANDER, to=MANAGER, type_="Reject"):
+        assert answered.disposition is HandlerDisposition.APPLIED, (
+            answered.reason
+        )
+    _deliver_entries(net, BYSTANDER)
+
+    assert _tail(net, BYSTANDER) == _tail(net, MANAGER)
+    assert _statuses(net, BYSTANDER) == _statuses(net, MANAGER)

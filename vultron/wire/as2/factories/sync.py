@@ -107,3 +107,25 @@ def reject_log_entry_activity(
         raise VultronActivityConstructionError(
             "reject_log_entry_activity: invalid arguments"
         ) from exc
+
+
+def genesis_replay_reject_activity(case_id: str, **kwargs) -> as_Reject:
+    """Build the Reject(CaseLedgerEntry) that names no entry (SYNC-16-007).
+
+    Sent by a replica whose case was replaced by a copy ahead of its chain
+    and whose chain stores no entry: there is nothing to name, so it asks
+    for a replay from genesis.  The last-accepted hash is empty and the case
+    is the ``target``.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _RejectLogEntryActivity(target=case_id, context="", **kwargs)
+    except ValidationError as exc:
+        logger.warning(
+            "genesis_replay_reject_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "genesis_replay_reject_activity: invalid arguments"
+        ) from exc

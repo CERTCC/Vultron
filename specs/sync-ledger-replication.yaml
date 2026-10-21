@@ -1523,17 +1523,18 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The wire form of a `VulnerabilityCase` MUST carry the sender's ledger tail for
-      that case: the `log_index` and `entry_hash` of the last entry the sender had
-      committed, or had stored as a replica, when the case was read; for an empty
-      ledger, index -1 and the per-case genesis hash. The tail MUST be computed from the
-      ledger each time the case is read or sent and MUST NOT be stored as a value of the
-      case file, so filling it in is not a change to the case file under CLP-07-013.
+      The full-case copy the CASE_MANAGER sends, `Announce(VulnerabilityCase)`, MUST
+      carry its ledger tail for that case: the `log_index` and `entry_hash` of the last
+      entry it had committed when it read the case; for an empty ledger, index -1 and
+      the per-case genesis hash. The tail MUST be computed from the ledger each time the
+      copy is sent and MUST NOT be stored as a value of the case file, so filling it in
+      is not a change to the case file under CLP-07-013.
     rationale: >-
       A case copy is the case as applying the ledger up to some entry leaves it
       (ADR-0124); the tail names that entry, so a receiver can tell a current copy from
       a stale one. Computing it from the ledger means it can never disagree with the
-      ledger it points into.
+      ledger it points into. Only the full copy needs one: a ledger entry already
+      states its own position by its index and prior hash.
     relationships:
     - rel_type: refines
       spec_id: PCR-02-001
@@ -1578,13 +1579,19 @@ groups:
       its chain, a participant MUST send `Reject(CaseLedgerEntry)` carrying its own
       tail, and MUST store each entry it applies at or before the copy's tail, whether
       replayed or drained from its holding area (SYNC-14-003), as an idempotent no-op, not
-      refuse it.
+      refuse it. When its chain stores no entry, the `Reject` MUST name no rejected
+      entry, MUST carry an empty last-accepted hash and MUST name the case as its
+      `target`, asking for a replay from genesis; a receiver MUST refuse a `Reject` that
+      names no entry yet carries a last-accepted hash, and the CASE_MANAGER MUST answer
+      the empty-hash form as it answers any replay from genesis (SYNC-15-002).
     rationale: >-
       Those entries are already reflected in the copy. The refused entry the replica
       held under SYNC-16-001 drains first, before any replay arrives, so a rule that
       covered only replayed entries would refuse it again. Storing them advances the chain
       to the copy's position, after which the entries that follow apply normally, so the
-      replica ends where seed-plus-replay leaves it (ADR-0114).
+      replica ends where seed-plus-replay leaves it (ADR-0114). A replica with no entry
+      has none for the `Reject` to name; waiting for the next fan-out would stall it on
+      a quiet case, so it names the case instead and asks for everything.
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-16-006
@@ -1595,7 +1602,10 @@ groups:
     verification: >-
       `test/core/behaviors/sync/test_divergence_recovery.py` replaces a short replica's
       case and asserts its chain reaches the CASE_MANAGER's tail with matching case
-      files.
+      files, that a replica with no entry sends the `Reject` that names none, and that
+      such a `Reject` carrying a hash is refused at parse;
+      `test/core/use_cases/received/test_case_copy_replacement.py` replays a replica
+      with no entry from genesis to the CASE_MANAGER's tail.
     stories:
     - story_2022_045
     - story_2022_088

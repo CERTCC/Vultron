@@ -71,6 +71,10 @@ A participant verifies the chain on receipt and holds the `Announce` of any entr
 - **Factory:** `reject_log_entry_activity` in `vultron/wire/as2/factories/sync.py`.
 - **Example artifact:** [reject_case_ledger_entry.json](../examples/reject_case_ledger_entry.json).
 
+A participant that holds no entry has none to reject.
+After its case is replaced by a copy ahead of its chain, it sends a `Reject` with no `object`, an empty `context` and the case as its `target`, which asks for a replay from genesis (SYNC-16-007).
+A `Reject` with no `object` and a non-empty `context` is refused when it is parsed.
+
 Buffering takes priority over rejection (ADR-0037).
 A `Reject` is sent only for an entry genuinely missing from the chain, never for one that is merely out of order, so an out-of-order delivery does not start a reject-and-replay cycle.
 
