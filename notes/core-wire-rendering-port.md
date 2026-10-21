@@ -17,7 +17,7 @@ related_specs:
     ARCH-25-002 through ARCH-25-005)
   - vocabulary-model.yaml (VM-10-001, VM-08-002, VM-08-003)
   - case-ledger-processing.yaml (CLP-07-006, CLP-07-009, CLP-07-010, CLP-07-011,
-    CLP-09-002)
+    CLP-07-013, CLP-09-002)
   - status-dimension-objects.yaml (SDO-03-003, SDO-03-005)
   - datalayer.yaml (DL-05-001)
   - sync-ledger-replication.yaml (SYNC-02-003)
@@ -42,13 +42,14 @@ themselves (ARCH-25-002).
 
 ## The legitimate need
 
-Core needs wire-shaped (AS2 camelCase) JSON in one situation: building
-`CaseLedgerEntry.payloadSnapshot` values. The ledger wraps things received or sent
-in managing the case, which are wire-shaped by definition: the snapshot MUST be
-the asserted AS2 activity or a deterministic canonical normalization of it
-(CLP-07-011), with nested objects inlined in full (CLP-07-006), so a receiver can
-reconstitute it. camelCase is correct there; the question is only *how* it is
-produced.
+Core needs wire-shaped (AS2 camelCase) JSON in one situation: building the
+`CaseLedgerEntry.payloadSnapshot` values the CASE_MANAGER authors. The ledger wraps
+things received or sent in managing the case, which are wire-shaped by definition:
+the snapshot MUST be the asserted AS2 activity verbatim (CLP-07-011), carrying the
+objects it records in full (CLP-07-006), so a receiver can reconstitute it.
+camelCase is correct there; the question is only *how* it is produced. A received
+entry needs no rendering at all: its snapshot is the received body, carried on the
+event (`VultronEvent.received_body()`).
 
 **When a core-side mechanism needs a per-field patch to reach the wire shape, the
 mechanism is in the wrong layer.** A hand-patched snapshot dict (writing
@@ -70,8 +71,8 @@ A driven port, per ARCH-01-004 and the `SyncActivityPort` precedent.
 - **Injection**: `BTBridge(wire_render_port=...)` publishes it to the blackboard,
   as `sync_port` is. A `DataLayerActionWithPorts` node calls
   `_require_wire_render_port()`, which raises `VultronWiringError` if absent.
-- **Reach**: every received use case gets the port, because every received tree
-  ends in a guarded ledger commit whose snapshot is an AS2 rendering. The inbox
+- **Reach**: every received use case gets the port, because a received tree may
+  write and commit records the CASE_MANAGER authors (CLP-07-013). The inbox
   dispatcher wraps each port factory with `with_received_baseline_ports()`
   (`inbox_port_factories.py`), which also supplies `SyncActivityPort`
   (SYNC-02-003). Triggers get it through `RegistryTriggerDispatcher` and
@@ -99,15 +100,14 @@ ledger-writing adapter", stop and re-read CLP-09.
 `vultron/core/` to an empty baseline (ARCH-20-001). Do not reopen it because a
 subject is "already wire-shaped": `request.activity` in a received handler is the
 extractor's core-branch `VultronActivity`, not the wire object that arrived. Where
-core holds an AS2 form, it gets it from the adapter that built it (the
-trigger-activity port returns `(activity_id, activity_blob)`, VM-08-003) or by
-rendering the core activity.
+core holds an AS2 form, it gets it from the adapter that built it: the
+trigger-activity port returns `(activity_id, activity_blob)` (VM-08-003), and the
+parse edge carries the received body on the event (VM-08-002).
 
-`build_activity_payload_snapshot` (`core/use_cases/_snapshot_helpers.py`)
-snapshots that rebuilt `VultronActivity`, a chosen subset of the inbound fields.
-It is the "canonical normalization" branch of CLP-07-011, not the received
-evidence VM-08-002 seals (see `notes/wire-artifact-immutability.md` § "Received
-Evidence"; #3742).
+**Never render `request.activity` as a received snapshot.** It is the
+extractor's summary, a chosen subset of the inbound fields, so its rendering is
+the receiver's reconstruction, not what was sent (see
+`notes/wire-artifact-immutability.md` § "Received Evidence").
 
 ## Dropped flat fields: `extra="forbid"` is the guard
 

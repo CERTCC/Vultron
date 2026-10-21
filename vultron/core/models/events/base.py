@@ -5,9 +5,11 @@ VultronEvent base class that all per-semantic inbound domain event types
 inherit from.
 """
 
+import json
 from enum import StrEnum, auto
+from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import (
@@ -15,6 +17,7 @@ from vultron.core.models.base import (
     NonEmptyString,
     ValidatedAssignmentMixin,
 )
+from vultron.errors import VultronWiringError
 from vultron.primitives import NormalisedActorId
 
 
@@ -153,6 +156,59 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
     # inspecting AS2 types.  None when dispatched outside the inbox path (CLI,
     # triggers, tests that don't set it).
     receiving_actor_id: NonEmptyString | None = None
+
+    # The received JSON exactly as the parser sealed it (VM-08-002), carried
+    # from the parsed wire activity at the parse edge so core records it in
+    # the ledger without reaching for a wire object (CLP-07-011, ADR-0107).
+    # A ``str``, so nothing can change it in place; read it through
+    # :meth:`received_body`.  ``None`` on an event whose activity carries no
+    # evidence of its own delivery: a resend under an id already held, an
+    # activity the receiver built itself, or one dispatched outside the inbox
+    # path.
+    received_evidence: NonEmptyString | None = None
+
+    @field_validator("received_evidence")
+    @classmethod
+    def _evidence_is_a_json_object(cls, value: str | None) -> str | None:
+        """Refuse evidence that is not the text of a JSON object (ARCH-10-001).
+
+        The parser seals the decoded body of an activity, which is always an
+        object, so anything else is not a received body.
+        """
+        if value is None:
+            return value
+        try:
+            decoded = json.loads(value)
+        except ValueError as exc:
+            raise ValueError(
+                "received_evidence is not JSON text (VM-08-002)"
+            ) from exc
+        if not isinstance(decoded, dict):
+            # Pydantic reports a ValueError as a ValidationError; a TypeError
+            # would escape validation instead.
+            raise ValueError(  # noqa: TRY004
+                "received_evidence is not the text of a JSON object (VM-08-002)"
+            )
+        return value
+
+    def received_body(self) -> dict[str, Any]:
+        """A fresh copy of the received JSON this event was extracted from.
+
+        Each call decodes a new ``dict``, so what a caller does to it reaches
+        neither the evidence nor another caller's copy.
+
+        Raises:
+            VultronWiringError: When the event carries no received evidence,
+                so there is no received body to record (VM-08-002).
+        """
+        if self.received_evidence is None:
+            raise VultronWiringError(
+                f"{type(self).__name__} {self.activity_id!r} carries no"
+                " received evidence, so there is no received body to record"
+                " (VM-08-002, ADR-0107)"
+            )
+        body: dict[str, Any] = json.loads(self.received_evidence)
+        return body
 
     @property
     def id_(self) -> str:

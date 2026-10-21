@@ -30,6 +30,8 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.ledger_payload import (
     _extract_payload_snapshot,
+    carries_no_received_body,
+    unrecordable_resend_reason,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
@@ -40,6 +42,7 @@ from vultron.core.predicates.addressing import (
     same_actor_id,
     snapshot_actor_id,
 )
+from vultron.core.sync_helpers import is_ledgered_activity
 from vultron.errors import (
     VultronBTInternalError,
     VultronCanonicalEntryError,
@@ -75,6 +78,14 @@ def _assert_actor_identity(
             f" {snapshot_actor!r} does not match activity.actor_id"
             f" {activity_actor_id!r}; identity substitution refused"
         )
+
+
+def _semantic_type_of(activity: Any) -> str:
+    """The semantic an entry records *activity* as."""
+    semantics = getattr(activity, "semantic_type", None)
+    if semantics is not None:
+        return cast(str, semantics.value)
+    return getattr(activity, "activity_type", "case_event") or "case_event"
 
 
 class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
@@ -147,6 +158,42 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     def _resolve_activity(self) -> Any | None:
         return self._activity
 
+    def _answer_resend(self, activity: Any, case_id: str) -> Status:
+        """Answer a resend routed without received evidence (IE-10-001).
+
+        It has no body to record.  When the ledger records its first delivery
+        as the same semantic, that entry stands.  Otherwise the resend is
+        refused, not recorded: its first delivery was never recorded, or the
+        id is recorded for a different activity, which a resend rebuilt from
+        a different body would otherwise pass for (CLP-07-013).
+        """
+        assert self.datalayer is not None
+        activity_id = activity.activity_id
+        semantic_type = _semantic_type_of(activity)
+        if is_ledgered_activity(
+            self.datalayer, case_id, activity_id, semantic_type=semantic_type
+        ):
+            self.logger.info(
+                "%s: activity '%s' is a redelivery already recorded for case"
+                " '%s'; its first delivery's entry stands",
+                self.name,
+                activity_id,
+                case_id,
+            )
+            return Status.SUCCESS
+        if is_ledgered_activity(self.datalayer, case_id, activity_id):
+            self.feedback_message = (
+                f"activity '{activity_id}' is recorded for case '{case_id}'"
+                f" as another activity than '{semantic_type}', and this"
+                " resend carries no received body to record (IE-10-001)"
+            )
+        else:
+            self.feedback_message = unrecordable_resend_reason(
+                activity_id, case_id
+            )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
     def _activity_metadata(
         self, activity: Any | None, case_id: str
     ) -> tuple[str, str, dict[str, Any]]:
@@ -154,16 +201,8 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             return case_id, "case_event", {}
 
         object_id = getattr(activity, "activity_id", case_id)
-        semantics = getattr(activity, "semantic_type", None)
-        semantic_type = (
-            semantics.value
-            if semantics is not None
-            else getattr(activity, "activity_type", "case_event")
-            or "case_event"
-        )
-        payload_snapshot = _extract_payload_snapshot(
-            activity, self.datalayer, self._require_wire_render_port()
-        )
+        semantic_type = _semantic_type_of(activity)
+        payload_snapshot = _extract_payload_snapshot(activity)
         return object_id, semantic_type, payload_snapshot
 
     def update(self) -> Status:
@@ -189,16 +228,18 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
+        if carries_no_received_body(activity):
+            return self._answer_resend(activity, case_id)
+
         object_id, semantic_type, payload_snapshot = self._activity_metadata(
             activity, case_id
         )
 
-        # Normalize context to case_id for activities that predate the case
-        # (e.g., Offer(VulnerabilityReport) submitted before the case existed).
-        if payload_snapshot and payload_snapshot.get("context") != case_id:
-            payload_snapshot = dict(payload_snapshot)
-            payload_snapshot["context"] = case_id
-
+        # The snapshot is the received body as it arrived, so its ``context``
+        # is the sender's: absent on an activity that predates the case, such
+        # as the Offer(VulnerabilityReport) that opened it.  The entry names
+        # its case on the envelope (``case_id``), which is what the commit
+        # boundary checks (CLP-07-011).
         _assert_actor_identity(semantic_type, payload_snapshot, activity)
 
         tree = create_commit_log_entry_tree(

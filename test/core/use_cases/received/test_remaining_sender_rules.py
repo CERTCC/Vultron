@@ -36,6 +36,7 @@ import pytest
 
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.ledger import ledger_entries
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -82,7 +83,6 @@ from vultron.core.use_cases.received.unknown import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     rm_close_case_activity,
@@ -169,7 +169,7 @@ class _World:
         }
 
     def _event(self, activity: Any) -> Any:
-        return extract_event(activity).model_copy(
+        return received_event(activity).model_copy(
             update={"receiving_actor_id": self.receiver_id}
         )
 

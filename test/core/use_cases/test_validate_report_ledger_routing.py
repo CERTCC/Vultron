@@ -44,6 +44,7 @@ from test.support.embargo_register import (
     register,
     write_consent_rows,
 )
+from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -452,14 +453,16 @@ class TestCaseActorReceivedWritesLedgerEntry:
             object_=offer_obj,
             context=self.CASE_ID,
         )
-        return ValidateReportReceivedEvent(
-            semantic_type=MessageSemantics.VALIDATE_REPORT,
-            activity_id=self.ACCEPT_ID,
-            actor_id=self.VENDOR_ID,
-            object_=offer_obj,
-            inner_object=report_obj,
-            activity=activity,
-            receiving_actor_id=receiving_actor_id,
+        return with_evidence(
+            ValidateReportReceivedEvent(
+                semantic_type=MessageSemantics.VALIDATE_REPORT,
+                activity_id=self.ACCEPT_ID,
+                actor_id=self.VENDOR_ID,
+                object_=offer_obj,
+                inner_object=report_obj,
+                activity=activity,
+                receiving_actor_id=receiving_actor_id,
+            )
         )
 
     def test_ledger_has_validate_report_entry(self):
@@ -693,14 +696,16 @@ class TestFullValidateReportLedgerChain:
             object_=offer_obj,
             context=ca_case.id_,
         )
-        event = ValidateReportReceivedEvent(
-            semantic_type=MessageSemantics.VALIDATE_REPORT,
-            activity_id=emitted_id,
-            actor_id=self.VENDOR_ID,
-            object_=offer_obj,
-            inner_object=report_obj,
-            activity=activity,
-            receiving_actor_id=case_actor_id,
+        event = with_evidence(
+            ValidateReportReceivedEvent(
+                semantic_type=MessageSemantics.VALIDATE_REPORT,
+                activity_id=emitted_id,
+                actor_id=self.VENDOR_ID,
+                object_=offer_obj,
+                inner_object=report_obj,
+                activity=activity,
+                receiving_actor_id=case_actor_id,
+            )
         )
 
         ValidateReportReceivedUseCase(

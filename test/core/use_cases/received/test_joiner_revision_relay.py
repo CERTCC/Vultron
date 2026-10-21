@@ -413,6 +413,7 @@ def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invit
     CASE_MANAGER.  After that reply every roster record still holds exactly
     one row per register entry, and the joiner's rows are unchanged.
     """
+    from test.support.received import received_event
     from vultron.core.models.events.actor import (
         AcceptInviteActorToFullCaseReceivedEvent,
     )
@@ -420,7 +421,6 @@ def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invit
     from vultron.core.use_cases.received.actor.full_case_invite import (
         AcceptInviteActorToFullCaseReceivedUseCase,
     )
-    from vultron.semantic_registry import extract_event
     from vultron.wire.as2.factories import rm_accept_full_case_invite_activity
 
     case_id = "https://example.org/cases/joiner-full-case-rows"
@@ -436,7 +436,7 @@ def test_one_row_per_register_entry_after_the_joiner_accepts_the_full_case_invit
         actor=JOINER,
         to=[MANAGER],
     )
-    event = extract_event(reply).model_copy(
+    event = received_event(reply).model_copy(
         update={"receiving_actor_id": MANAGER}
     )
     assert isinstance(event, AcceptInviteActorToFullCaseReceivedEvent)

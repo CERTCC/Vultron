@@ -45,8 +45,9 @@ Inlining is a prototype shortcut, not a Vultron rule (maintainer ruling
 2026-10-14, #4599; see `notes/spec-authoring-rules.md`). The project specs are
 AKM-02-004 (inline every object the recipient cannot hold), AKM-03-003 (inline
 every activity `object`) and AKM-02-005 (`target` reduces a case to its URI).
-Ledger snapshot content is the exception that stays inline under the protocol
-too, because the hash chain must cover it (CLP-07-006).
+A ledger snapshot inlines nothing of its own: it records the activity as sent,
+references included, so what a sender inlines is what the hash chain covers
+(CLP-07-006, CLP-07-011).
 
 - Pass the domain object, not its `.id_`, as `object_` and as `target` (e.g. the
   full `VulnerabilityCase` as the `target` of an `Add`); the factory reduces a

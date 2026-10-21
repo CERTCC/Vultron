@@ -64,7 +64,7 @@ This is the delegated-message contract that every message the CASE_MANAGER sends
 The CASE_MANAGER records the proposal and then the offer in the ledger, so every participant learns that a transfer is being offered.
 That offer is the one offer of the transfer: the one the proposed new owner answers, and the one the ledger closes.
 The offer carries the proposed new owner (`target`) as a full actor object, not as an `id` alone.
-The CASE_MANAGER need not already know that actor, and its ledger entry must contain every object the offer names in full ([CLP-07-006](../../reference/specs/protocol.md#clp-07-006)).
+The CASE_MANAGER need not already know that actor, so the offer carries it in full, and the ledger entry records the offer as sent ([CLP-07-006](../../reference/specs/protocol.md#clp-07-006)).
 The proposed new owner takes the offer only from the CASE_MANAGER.
 
 ## The answer

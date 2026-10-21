@@ -42,8 +42,8 @@ Blackboard contract (BTND-03-003):
 
 - ``activity`` (READ, ``/activity``): the received
   :class:`~vultron.core.models.events.base.VultronEvent`.  The refused
-  activity is its ``activity``, rendered as it is recorded when received
-  (CLP-07-009); its sender is the asserter.
+  activity is its received body, verbatim, as a received entry records it
+  (CLP-07-011, ADR-0107); its sender is the asserter.
 """
 
 from collections.abc import Mapping, Sequence
@@ -224,9 +224,7 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
         return self.trigger_activity_factory.refusal_notice(
             case_id=self._case_id,
             actor=self.actor_id,
-            refused_activity=_extract_payload_snapshot(
-                event, self.datalayer, self._require_wire_render_port()
-            ),
+            refused_activity=_extract_payload_snapshot(event),
             asserter=event.actor_id,
             reason=reason,
         )

@@ -40,6 +40,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
 from test.support.ledger import ledger_entries
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.inbox_hand_back_adapter import (
     InboxHandBackAdapter,
@@ -60,11 +61,10 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.events import AnyReceivedEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.semantic_registry import extract_event, use_case_map
+from vultron.semantic_registry import use_case_map
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -80,13 +80,6 @@ _CREATION_RECORDS: Mapping[str, tuple[str, type[CoreObject]]] = {
     "add_participant_status_to_participant": ("target", CaseParticipant),
     "add_case_status_to_case": ("object", CaseStatus),
 }
-
-
-def received_event(activity: as_Activity, receiver: str) -> AnyReceivedEvent:
-    """The event the inbox routes for *activity* delivered to *receiver*."""
-    return extract_event(activity).model_copy(
-        update={"receiving_actor_id": receiver}
-    )
 
 
 def run_use_case(
@@ -117,7 +110,7 @@ def run_use_case(
                 as_Activity,
                 InlineObjectStaging(dl).rehydrate_deferred(queued_id),
             ),
-            event.receiving_actor_id,
+            receiving_actor_id=event.receiving_actor_id,
         )
         run_use_case(dl, handed_back, without=without)
     return verdict
@@ -127,7 +120,9 @@ def receive_into(
     dl: SqliteDataLayer, body: dict[str, Any], receiver: str
 ) -> Any:
     """Route the sealed *body* into *receiver*'s store as the inbox routes it."""
-    return run_use_case(dl, received_event(parse_activity(body), receiver))
+    return run_use_case(
+        dl, received_event(parse_activity(body), receiving_actor_id=receiver)
+    )
 
 
 def creation_records(entries: Iterable[CaseLedgerEntry]) -> list[CoreObject]:

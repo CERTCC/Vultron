@@ -42,6 +42,7 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.embargo_register import activate, propose
 from test.support.note_wire import assert_case_manager_note_recorded
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -96,7 +97,6 @@ from vultron.core.use_cases.received.status import (
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     announce_log_entry_activity,
@@ -1436,7 +1436,7 @@ class TestThreatTerminationBranchNode:
             actor=CASE_MANAGER_ID,
             to=[ACTOR_ID],
         )
-        event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
         AnnounceLedgerEntryReceivedUseCase(
             dl,
             event.model_copy(update={"receiving_actor_id": ACTOR_ID}),
@@ -1595,7 +1595,7 @@ class TestAddCaseStatusTreeSeam2:
     """EmbargoTeardownAuthorizationGate call-out wiring tests (RSH-02-001, RSH-02-002)."""
 
     def _make_event(self, dl, pxa_state: CS_pxa = CS_pxa.pxa):
-        from vultron.semantic_registry import extract_event
+        from test.support.received import received_event
 
         case = as_VulnerabilityCase(id_=CASE_ID, name="Seam2 Case")
         status_obj = as_CaseStatus(
@@ -1607,7 +1607,7 @@ class TestAddCaseStatusTreeSeam2:
         activity = add_status_to_case_activity(
             status_obj, target=case, actor=ACTOR_ID
         )
-        return cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
+        return cast(AddCaseStatusToCaseReceivedEvent, received_event(activity))
 
     @pytest.mark.spec("RSH-02-001")
     def test_side_effects_guard_always_fail_blocks_threat_termination(self):
@@ -1616,11 +1616,11 @@ class TestAddCaseStatusTreeSeam2:
         Even with CS.P set and an active embargo, the Sequence fails at the
         guard node and the BT returns FAILURE without touching the EM state.
         """
+        from test.support.received import received_event
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.states.em import EM
         from vultron.enums.roles import CVDRole
-        from vultron.semantic_registry import extract_event
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -1664,7 +1664,9 @@ class TestAddCaseStatusTreeSeam2:
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
         )
-        event = cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
+        event = cast(
+            AddCaseStatusToCaseReceivedEvent, received_event(activity)
+        )
 
         def _always_fail(name: str):
             return AlwaysFail(name)
@@ -2124,7 +2126,7 @@ class TestPxaEmInvariantDiagnosticNode:
         return dl, status_obj
 
     def _make_event(self, dl, status_obj, receiver_id: str = DIAG_CM_ID):
-        from vultron.semantic_registry import extract_event
+        from test.support.received import received_event
 
         activity = add_status_to_case_activity(
             status_obj,
@@ -2132,7 +2134,7 @@ class TestPxaEmInvariantDiagnosticNode:
             actor=DIAG_ACTOR_ID,
             to=[receiver_id],
         )
-        return cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
+        return cast(AddCaseStatusToCaseReceivedEvent, received_event(activity))
 
     @pytest.mark.spec("CSB-18-002")
     @pytest.mark.spec("CSB-18-003")
@@ -2231,10 +2233,10 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
     def _run(
         self, sender: str, expected: Status = Status.SUCCESS
     ) -> SqliteDataLayer:
+        from test.support.received import received_event
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
         )
-        from vultron.semantic_registry import extract_event
 
         dl: SqliteDataLayer
         dl, status_obj = (
@@ -2258,7 +2260,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
 
         event = cast(
             AddCaseStatusToCaseReceivedEvent,
-            extract_event(
+            received_event(
                 add_status_to_case_activity(
                     status_obj,
                     target=as_VulnerabilityCase(id_=DIAG_CASE_ID),

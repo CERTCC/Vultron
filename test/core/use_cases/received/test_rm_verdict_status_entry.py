@@ -28,6 +28,7 @@ from typing import cast
 import pytest
 
 from test.support.ledger import fail_commits, ledger_entries
+from test.support.received import received_event
 from vultron.core.behaviors.case.nodes.participant import status_entries
 from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case_participant import CaseParticipant
@@ -39,7 +40,6 @@ from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import (
     InvalidateReportReceivedUseCase,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import rm_invalidate_report_activity
 
 from .test_receive_tree_ledger_commit import (
@@ -57,7 +57,7 @@ _STATUS_ENTRY = MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value
 def _invalidate(dl):
     event = cast(
         InvalidateReportReceivedEvent,
-        extract_event(
+        received_event(
             rm_invalidate_report_activity(
                 _offer(), actor=FINDER_ID, to=[MANAGER_ID]
             )
@@ -137,7 +137,7 @@ def test_a_redelivered_verdict_records_the_withdrawn_status(monkeypatch):
     dl = _store(MANAGER_ID)
     event = cast(
         InvalidateReportReceivedEvent,
-        extract_event(
+        received_event(
             rm_invalidate_report_activity(
                 _offer(), actor=FINDER_ID, to=[MANAGER_ID]
             )

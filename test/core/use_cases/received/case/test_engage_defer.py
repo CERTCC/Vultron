@@ -17,6 +17,7 @@ import logging
 import pytest
 
 from test.support.embargo_register import activate
+from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -90,27 +91,31 @@ class TestEngageDeferCaseBTFailureReason:
     def _engage_event(
         self, actor_id: str, case_id: str
     ) -> EngageCaseReceivedEvent:
-        return EngageCaseReceivedEvent(
-            activity_id="https://example.org/activities/engage-001",
-            actor_id=actor_id,
-            object_=CoreObject(id_=case_id),
-            semantic_type=MessageSemantics.ENGAGE_CASE,
-            activity=_addressed_activity(
-                "Join", actor_id, self._CASE_MANAGER_ID, case_id
-            ),
+        return with_evidence(
+            EngageCaseReceivedEvent(
+                activity_id="https://example.org/activities/engage-001",
+                actor_id=actor_id,
+                object_=CoreObject(id_=case_id),
+                semantic_type=MessageSemantics.ENGAGE_CASE,
+                activity=_addressed_activity(
+                    "Join", actor_id, self._CASE_MANAGER_ID, case_id
+                ),
+            )
         )
 
     def _defer_event(
         self, actor_id: str, case_id: str
     ) -> DeferCaseReceivedEvent:
-        return DeferCaseReceivedEvent(
-            activity_id="https://example.org/activities/defer-001",
-            actor_id=actor_id,
-            object_=CoreObject(id_=case_id),
-            semantic_type=MessageSemantics.DEFER_CASE,
-            activity=_addressed_activity(
-                "Ignore", actor_id, self._CASE_MANAGER_ID, case_id
-            ),
+        return with_evidence(
+            DeferCaseReceivedEvent(
+                activity_id="https://example.org/activities/defer-001",
+                actor_id=actor_id,
+                object_=CoreObject(id_=case_id),
+                semantic_type=MessageSemantics.DEFER_CASE,
+                activity=_addressed_activity(
+                    "Ignore", actor_id, self._CASE_MANAGER_ID, case_id
+                ),
+            )
         )
 
     @pytest.mark.parametrize(
@@ -264,14 +269,19 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
 
     @pytest.fixture
     def engage_event_with_inline_case(self, case_with_inline_participant):
-        return EngageCaseReceivedEvent(
-            activity_id="https://example.org/activities/engage-573",
-            actor_id=self._ACTOR_ID,
-            object_=case_with_inline_participant,
-            semantic_type=MessageSemantics.ENGAGE_CASE,
-            activity=_addressed_activity(
-                "Join", self._ACTOR_ID, self._CASE_MANAGER_ID, self._CASE_ID
-            ),
+        return with_evidence(
+            EngageCaseReceivedEvent(
+                activity_id="https://example.org/activities/engage-573",
+                actor_id=self._ACTOR_ID,
+                object_=case_with_inline_participant,
+                semantic_type=MessageSemantics.ENGAGE_CASE,
+                activity=_addressed_activity(
+                    "Join",
+                    self._ACTOR_ID,
+                    self._CASE_MANAGER_ID,
+                    self._CASE_ID,
+                ),
+            )
         )
 
     def _execute(self, dl, event):
@@ -316,14 +326,19 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
         object.__setattr__(
             case_str_participants, "case_participants", [self._PARTICIPANT_ID]
         )  # bare string
-        event = EngageCaseReceivedEvent(
-            activity_id="https://example.org/activities/engage-573-str",
-            actor_id=self._ACTOR_ID,
-            object_=case_str_participants,
-            semantic_type=MessageSemantics.ENGAGE_CASE,
-            activity=_addressed_activity(
-                "Join", self._ACTOR_ID, self._CASE_MANAGER_ID, self._CASE_ID
-            ),
+        event = with_evidence(
+            EngageCaseReceivedEvent(
+                activity_id="https://example.org/activities/engage-573-str",
+                actor_id=self._ACTOR_ID,
+                object_=case_str_participants,
+                semantic_type=MessageSemantics.ENGAGE_CASE,
+                activity=_addressed_activity(
+                    "Join",
+                    self._ACTOR_ID,
+                    self._CASE_MANAGER_ID,
+                    self._CASE_ID,
+                ),
+            )
         )
         self._execute(dl, event)
 
@@ -347,14 +362,19 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
             if isinstance(participant, CaseParticipant):
                 participant.write_uninvited_rows([unheld_id])
         activate(case_with_inline_participant, unheld_id)
-        event = EngageCaseReceivedEvent(
-            activity_id="https://example.org/activities/engage-4032",
-            actor_id=self._ACTOR_ID,
-            object_=case_with_inline_participant,
-            semantic_type=MessageSemantics.ENGAGE_CASE,
-            activity=_addressed_activity(
-                "Join", self._ACTOR_ID, self._CASE_MANAGER_ID, self._CASE_ID
-            ),
+        event = with_evidence(
+            EngageCaseReceivedEvent(
+                activity_id="https://example.org/activities/engage-4032",
+                actor_id=self._ACTOR_ID,
+                object_=case_with_inline_participant,
+                semantic_type=MessageSemantics.ENGAGE_CASE,
+                activity=_addressed_activity(
+                    "Join",
+                    self._ACTOR_ID,
+                    self._CASE_MANAGER_ID,
+                    self._CASE_ID,
+                ),
+            )
         )
 
         result = self._execute(dl, event)
@@ -449,19 +469,21 @@ class TestEngageCaseLedgerCommit:
         # object_ must be a VulnerabilityCase so the canonical-entry validator
         # sees type="VulnerabilityCase" and recognises the ("Join","VulnerabilityCase")
         # pair as canonical (CLP-canonical-pairs / _CANONICAL_PAIRS check).
-        return EngageCaseReceivedEvent(
-            activity_id=f"{self._CASE_ID}/activities/engage-2300",
-            actor_id=self._SENDER_ID,
-            receiving_actor_id=self._CASE_MANAGER_ID,
-            object_=CoreObject(id_=self._CASE_ID),
-            semantic_type=MessageSemantics.ENGAGE_CASE,
-            activity=VultronActivity(
-                type_="Join",
-                actor=self._SENDER_ID,
-                to=[self._CASE_MANAGER_ID],
-                object_=VulnerabilityCase(id_=self._CASE_ID),
-                context=self._CASE_ID,
-            ),
+        return with_evidence(
+            EngageCaseReceivedEvent(
+                activity_id=f"{self._CASE_ID}/activities/engage-2300",
+                actor_id=self._SENDER_ID,
+                receiving_actor_id=self._CASE_MANAGER_ID,
+                object_=CoreObject(id_=self._CASE_ID),
+                semantic_type=MessageSemantics.ENGAGE_CASE,
+                activity=VultronActivity(
+                    type_="Join",
+                    actor=self._SENDER_ID,
+                    to=[self._CASE_MANAGER_ID],
+                    object_=VulnerabilityCase(id_=self._CASE_ID),
+                    context=self._CASE_ID,
+                ),
+            )
         )
 
     def test_engage_case_commits_ledger_entry_when_receiving_actor_is_case_manager(
@@ -730,19 +752,21 @@ class TestDeferCaseLedgerCommit:
         return dl
 
     def _defer_event(self) -> DeferCaseReceivedEvent:
-        return DeferCaseReceivedEvent(
-            activity_id=f"{self._CASE_ID}/activities/defer-2300",
-            actor_id=self._SENDER_ID,
-            receiving_actor_id=self._CASE_MANAGER_ID,
-            object_=CoreObject(id_=self._CASE_ID),
-            semantic_type=MessageSemantics.DEFER_CASE,
-            activity=VultronActivity(
-                type_="Ignore",
-                actor=self._SENDER_ID,
-                to=[self._CASE_MANAGER_ID],
-                object_=VulnerabilityCase(id_=self._CASE_ID),
-                context=self._CASE_ID,
-            ),
+        return with_evidence(
+            DeferCaseReceivedEvent(
+                activity_id=f"{self._CASE_ID}/activities/defer-2300",
+                actor_id=self._SENDER_ID,
+                receiving_actor_id=self._CASE_MANAGER_ID,
+                object_=CoreObject(id_=self._CASE_ID),
+                semantic_type=MessageSemantics.DEFER_CASE,
+                activity=VultronActivity(
+                    type_="Ignore",
+                    actor=self._SENDER_ID,
+                    to=[self._CASE_MANAGER_ID],
+                    object_=VulnerabilityCase(id_=self._CASE_ID),
+                    context=self._CASE_ID,
+                ),
+            )
         )
 
     def test_defer_without_receiving_actor_executes_as_store_owner(
@@ -827,7 +851,7 @@ class TestRegistrySuppliesTheTriggeringActivity:
 
     The other tests in this file construct ``activity=VultronActivity(...)`` by
     hand, so they passed either way: they supplied exactly the thing the registry
-    was failing to supply. These go through ``extract_event`` instead, which is
+    was failing to supply. These go through ``received_event`` instead, which is
     the path production uses.
     """
 
@@ -851,13 +875,13 @@ class TestRegistrySuppliesTheTriggeringActivity:
     def test_extract_event_populates_activity(
         self, factory_name, expected_semantics
     ):
-        from vultron.semantic_registry import extract_event
+        from test.support.received import received_event
         from vultron.wire.as2 import factories
 
         activity = getattr(factories, factory_name)(
             self._wire_case(), actor=self._SENDER_ID
         )
-        event = extract_event(activity)
+        event = received_event(activity)
 
         assert event.semantic_type == expected_semantics
         assert event.activity is not None, (

@@ -24,6 +24,7 @@ participant-specific nature of the RM state machine.
 import pytest
 from py_trees.common import Status
 
+from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -98,36 +99,40 @@ def _make_participant_in_valid_state(
 def _make_engage_request(
     case: VulnerabilityCase, actor_id: str
 ) -> EngageCaseReceivedEvent:
-    return EngageCaseReceivedEvent(
-        activity_id=f"{case.id_}/activities/engage",
-        actor_id=actor_id,
-        object_=CoreObject(id_=case.id_),
-        semantic_type=MessageSemantics.ENGAGE_CASE,
-        activity=VultronActivity(
-            type_="Announce",
-            actor=actor_id,
-            object_=VulnerabilityCase(id_=case.id_),
-            context=case.id_,
-            to=[CASE_MANAGER_ID],
-        ),
+    return with_evidence(
+        EngageCaseReceivedEvent(
+            activity_id=f"{case.id_}/activities/engage",
+            actor_id=actor_id,
+            object_=CoreObject(id_=case.id_),
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=VultronActivity(
+                type_="Announce",
+                actor=actor_id,
+                object_=VulnerabilityCase(id_=case.id_),
+                context=case.id_,
+                to=[CASE_MANAGER_ID],
+            ),
+        )
     )
 
 
 def _make_defer_request(
     case: VulnerabilityCase, actor_id: str
 ) -> DeferCaseReceivedEvent:
-    return DeferCaseReceivedEvent(
-        activity_id=f"{case.id_}/activities/defer",
-        actor_id=actor_id,
-        object_=CoreObject(id_=case.id_),
-        semantic_type=MessageSemantics.DEFER_CASE,
-        activity=VultronActivity(
-            type_="Announce",
-            actor=actor_id,
-            object_=VulnerabilityCase(id_=case.id_),
-            context=case.id_,
-            to=[CASE_MANAGER_ID],
-        ),
+    return with_evidence(
+        DeferCaseReceivedEvent(
+            activity_id=f"{case.id_}/activities/defer",
+            actor_id=actor_id,
+            object_=CoreObject(id_=case.id_),
+            semantic_type=MessageSemantics.DEFER_CASE,
+            activity=VultronActivity(
+                type_="Announce",
+                actor=actor_id,
+                object_=VulnerabilityCase(id_=case.id_),
+                context=case.id_,
+                to=[CASE_MANAGER_ID],
+            ),
+        )
     )
 
 

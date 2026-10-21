@@ -119,7 +119,7 @@ class SvcBTTriggerBase[TriggerResultT: TriggerResult](ABC):
         self._dl = dl
         self._request = request
         self._trigger_activity = trigger_activity
-        # Every tree that commits a ledger entry renders its payload snapshot
+        # A tree that captures a core object in a ledger snapshot renders it
         # through this port; core cannot produce the AS2 shape itself
         # (ARCH-20-001, CLP-07-009).
         self._wire_render_port = wire_render_port
