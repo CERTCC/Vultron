@@ -2543,10 +2543,10 @@ groups:
       A receiver MUST refuse an inline `EmbargoEvent` whose `context` is neither the case
       that carries it nor a report that case holds (EP-04-009), and MUST refuse it before
       writing anything: the event is not stored and no embargo state of either case
-      changes. The same refusal applies to the record the receiver already holds under the
-      embargo's id, whether the case or ledger entry carries the embargo inline or names it
-      by bare id. For a ledger entry, the case's reports are those of the replica's stored
-      case.
+      changes. The same refusal applies to the record the receiver already holds under
+      the embargo's id, whether the case or ledger entry carries the embargo inline or
+      names it by bare id. For a ledger entry, the case's reports are those of the
+      replica's stored case.
     rationale: >-
       An embargo belongs to the case named by its `context`. The inbox stores a carried
       embargo ahead of the handler's trust checks, and a first write wins, so an unchecked
