@@ -426,6 +426,7 @@ groups:
   - id: IE-10-002
     priority: MUST
     kind: project
+    tracking_issue: '#5019'
     statement: >-
       The endpoint MUST refuse a delivery whose activity id the receiving actor
       already holds (IE-10-001) when the delivery's sealed received body (VM-08-002)
