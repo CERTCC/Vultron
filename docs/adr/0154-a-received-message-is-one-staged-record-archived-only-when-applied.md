@@ -6,7 +6,7 @@ updated: 2026-10-21
 revision: 1
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; ADR-0068, ADR-0111, ADR-0135, ADR-0149, ADR-0153;
+  Claude Opus 5.5; ADR-0068, ADR-0111, ADR-0135, ADR-0149, ADR-0151, ADR-0153;
   specs/case-ledger-processing.yaml CLP-10-010, CLP-10-017, CLP-10-018,
   CLP-10-019; specs/handler-protocol.yaml HP-01-003, HP-01-005, HP-10-001;
   specs/case-management.yaml CM-15-002; issues #5011, #3742, #4943, #5019
@@ -14,6 +14,7 @@ informed: []
 partially_supersedes:
   - 0111-intake-is-the-first-received-side-stage.md
   - 0135-compose-received-trees-never-chain-them.md
+  - 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -48,7 +49,8 @@ Where should a received message rest while it is judged, and what should the rec
 ## Considered Options
 
 1. **One staged record per message; archive on applied, receipt stub on refused.**
-2. **Keep intake first, and prune refused archives later.** Archive every arrival as today, and have a sweep reduce refused ones to a summary.
+2. **Keep intake first, and prune refused archives later.**
+   Archive every arrival as today, and have a sweep reduce refused ones to a summary.
 3. **Keep intake first, unchanged.** Accept the storage and keep the separate holding record.
 
 ## Decision Outcome
@@ -60,8 +62,9 @@ Chosen option: **"One staged record per message"**, because it is the only optio
 1. **The order of questions.** Each answer can end the run:
    1. Addressed to me? No → `REFUSED` (HP-01-005).
    2. Seen before? Yes → the outcome recorded for it (detail 5).
-   3. Which path, and does this message type declare a branch for it (ADR-0153)? No → `REFUSED`. No case yet → wait for the case, or take the no-case branch.
-   4. Is the case open to external writes, and is the sender entitled (CM-23-013, HP-01-006)?
+   3. Which path, and does this message type declare a branch for it (ADR-0153)? No → `REFUSED`.
+      No case yet → wait for the case, or take the no-case branch.
+   4. Is the case open to external writes, and is the sender entitled, a sender whose closure the ledger records included (CM-23-013, CM-23-018, HP-01-006)?
    5. The handling tree: clock decisions, precondition guards, commit, effects (CLP-10-010, CLP-10-025).
 
    This replaces the stage order of ADR-0135 detail 3, which began with intake.
@@ -70,13 +73,18 @@ Chosen option: **"One staged record per message"**, because it is the only optio
    The record moves `received → door-checked → [waiting] → handled → final outcome`.
    Each stage has one way in and two ways out: move on, or leave with an outcome.
    The record holds the sealed received body (ADR-0149) while it is in holding.
-   It rests only where time can pass: waiting for its case, which absorbs `DeferredInboxActivity`, or waiting for a local decision.
+   It rests only where time can pass: waiting for its case, waiting for a ledger gap to fill (a buffered `Announce(CaseLedgerEntry)`, ADR-0135's 2026-10-21 amendment), or waiting for a local decision.
+   Waiting for its case absorbs the `DeferredInboxActivity` body and the `VultronPendingCaseInbox` activity queue.
+   The stub Invite's trust anchor that `VultronPendingCaseInbox` also carries (`case_actor_id`, `invite_anchored`, `invite_accepted`) outlives that queue and is not part of the record.
 3. **A message leaves holding only on its final outcome.**
    - Applied → the long-term archive, the `ReceivedActivityRecord` that holds the sealed body (CLP-10-017, ADR-0149).
-   - Refused → a **receipt stub**: the sender, the message id, the time of receipt, the refusal reason and a hash of the received body. The body itself is not kept.
+   - Refused → a **receipt stub**: the sender, the message id, the time of receipt, the refusal reason and a hash of the received body.
+     The body itself is not kept.
    - Duplicate of an applied message → dropped, because the original is already archived.
+   - Internal error → the handling tree's act rolls back (ADR-0151) and the record stays in holding with its sealed body, so a later delivery, or a re-run, runs the act again from that body.
 
-   This replaces ADR-0111 details 3 and 4: intake no longer archives every arrival, and a refusal leaves a receipt stub, not the archive.
+   This replaces ADR-0111 details 1 to 4 as far as they put intake first and archive every arrival: intake no longer archives every arrival, and a refusal leaves a receipt stub, not the archive.
+   It replaces ADR-0151 details 3, 4 and 8 as far as they rest on intake's archive: what stands when an act rolls back is the holding record, not an archive, and a later delivery runs the failed act with the held body.
 4. **A crash leaves the message in holding.**
    Because the record leaves holding only on its final outcome, a crash mid-run leaves it to be run again.
    Every handling tree must tolerate that re-run.
@@ -85,6 +93,7 @@ Chosen option: **"One staged record per message"**, because it is the only optio
    A resend whose body hash matches a receipt stub is `REFUSED` again with the stub's reason, and nothing is re-run: a refusal is whole and final for that activity, and a sender that wants another outcome sends a new activity.
    A resend whose hash differs from what the receiver holds, archive or stub, is refused as a reused id (IE-10-002, #5019).
    A resend of an applied message is `SKIPPED`.
+   A resend of a message still in holding, waiting or mid-run, is `SKIPPED` with nothing re-run: the held record is answered when it reaches its own outcome.
    No refusal notice is sent again for a resend.
 6. **`Offer(Report)` takes the ordinary order.**
    An addressed `Offer(Report)` takes the no-case branch, which stores the report and the Offer and then asks whether to create a case.
@@ -109,7 +118,7 @@ Chosen option: **"One staged record per message"**, because it is the only optio
 - Good, because `Offer(Report)` no longer needs a registered exemption, and a `cc`-only copy gets the discard HP-10-001 asks for.
 - Bad, because the receiver no longer keeps the body of a refused message, so evidence of what a misbehaving sender sent is only in the process log.
 - Bad, because every handling tree must be shown to tolerate a re-run after a crash, which today nothing checks.
-- Bad, because it amends CLP-10-010, CLP-10-017, CLP-10-018 and CLP-10-019, the intake-first ratchets and the deferral queue's storage, which is a persistence change.
+- Bad, because it amends CLP-10-010, CLP-10-017, CLP-10-018, CLP-10-019, HP-01-012 (the addressee check placed after intake) and IE-10-002 (a reused id compared against the archived body, now a stub hash too), the intake-first ratchets and the deferral queue's storage, which is a persistence change.
 
 ### Confirmation
 
@@ -140,6 +149,7 @@ Chosen option: **"One staged record per message"**, because it is the only optio
 
 ## More Information
 
-- Source: #5011. It builds on ADR-0153, which adds the path door stage this record orders.
-- It partially supersedes ADR-0111 (details 3 and 4) and ADR-0135 (detail 3, the stage order).
+- Source: #5011.
+  It builds on ADR-0153, which adds the path door stage this record orders.
+- It partially supersedes ADR-0111 (details 1 to 4, intake first), ADR-0135 (detail 3, the stage order, and the 2026-10-21 amendment's reliance on intake's archive for a buffered `Announce`) and ADR-0151 (details 3, 4 and 8, the archive that stands after a rollback).
 - Related: ADR-0149 (the archive is the sealed received body), #3742 (persist evidence for deferred replay), #5019 (refuse a reused id with a different body), #5033 (what a `cc` on a report could mean).

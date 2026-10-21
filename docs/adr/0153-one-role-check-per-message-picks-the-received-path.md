@@ -12,6 +12,8 @@ consulted: >-
   specs/case-ledger-processing.yaml CLP-10-010;
   issues #5011, #5010, #4851, #4970
 informed: []
+partially_supersedes:
+  - 0088-consolidate-case-authority-determination.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -40,15 +42,20 @@ How should a received tree learn which role the receiver holds in the case, and 
 
 - HP-01-005: a message the receiver holds no role to act on is `REFUSED`, with a reason naming the role, never `APPLIED` or `SKIPPED`.
 - CM-02-011 and ADR-0088: authority is the CASE_MANAGER role in the case's roster, never a name, a URL or where the actor is hosted.
-- A role belongs to an (actor, case) pair. An actor can manage one case and be a plain participant in another, and roles change during a case, so the answer cannot be fixed at actor startup.
+- A role belongs to an (actor, case) pair.
+  An actor can manage one case and be a plain participant in another, and roles change during a case, so the answer cannot be fixed at actor startup.
 - HP-01-007 and ADR-0115: a general received-side check is declared once per use case and composed by the factory, never copied into each tree.
 - ADR-0135: one tree per delivery; alternatives are branches inside it, never Python control flow choosing between trees.
 
 ## Considered Options
 
-1. **One path stage, one shared predicate.** The factory asks the role question once per message, in the door stage, and the answer picks one path. Each message type declares the paths it handles.
-2. **Keep the gates and make the verdicts agree.** Keep every mechanism, and give each handler a shared helper that maps a gate failure to the right `REFUSED` reason.
-3. **Fix the path at actor startup.** Configure an actor as a manager or a participant and route accordingly.
+1. **One path stage, one shared predicate.**
+   The factory asks the role question once per message, in the door stage, and the answer picks one path.
+   Each message type declares the paths it handles.
+2. **Keep the gates and make the verdicts agree.**
+   Keep every mechanism, and give each handler a shared helper that maps a gate failure to the right `REFUSED` reason.
+3. **Fix the path at actor startup.**
+   Configure an actor as a manager or a participant and route accordingly.
 
 ## Decision Outcome
 
@@ -65,7 +72,7 @@ Chosen option: **"One path stage, one shared predicate"**, because it is the onl
    The Case Owner, like every participant, holds a replica and sends its changes through the CASE_MANAGER (PCR-08-001).
    Owner, vendor, deployer and every other role are permission rules inside a path, checked with the same predicate, so a new role adds permission rules and never a new path.
 3. **The path stage is a door stage.** It runs after the addressee check (HP-01-005) and before the sender guard (HP-01-006), so the sender guard reads the path the stage chose rather than asking again.
-   A sender rule's `at_case_manager` and `at_participant` arms are selected by that path.
+   A sender rule's `at_case_manager`, `at_participant` and `outside_case` sides (HP-01-008) are selected by that path: the manager, participant replica and no-case paths respectively.
 4. **Each message type declares the paths it handles.** The declaration is made once, to the factory.
    A message type that does real work on both the manager and the participant path declares a branch for each, and the factory forks once, after the door stages.
    Today that covers the embargo Invite and Remove, the role and ownership offers, `Add(CaseStatus)`, `Announce` and `Reject` of a `CaseLedgerEntry`, and the case invites.
@@ -73,7 +80,8 @@ Chosen option: **"One path stage, one shared predicate"**, because it is the onl
    No handler maps a gate failure to a verdict after the run, so `not_case_manager(tree)` retires.
 6. **No case yet either waits or proceeds.** A case-scoped message type waits for its case, as the defer check does today.
    A message type that starts a case, such as a report, a case proposal or the first `Create(VulnerabilityCase)`, declares a no-case branch and takes it.
-7. **The role-based alternatives become declared branches.** The `CaseManagerGate` around `manager_effects`, the participant-replica-gated factory, the `ReplicaEmitExemption` registry and the `DiversionGate.CASE_MANAGER` and `DiversionGate.RECEIVER` choices are each expressed as a path branch, and their separate mechanisms retire.
+7. **The role-based alternatives become declared branches.** The `CaseManagerGate` around `manager_effects`, the participant-replica-gated factory, the `ReplicaEmitExemption` registry and the `DiversionGate.CASE_MANAGER` choice are each expressed as a path branch, and their separate mechanisms retire.
+   `DiversionGate.RECEIVER` is not a role choice: it diverts at any receiver the door guards admitted, so it becomes a diversion declared on every path.
    `AddresseeExemption` is about addressing, not role, and is not changed by this record.
 8. **Intake is unchanged.** This record does not move intake or change what it stores; ADR-0154 does.
 
@@ -84,11 +92,13 @@ Chosen option: **"One path stage, one shared predicate"**, because it is the onl
 - Good, because a reader learns which paths a message type handles from one declaration instead of from the gates scattered through its tree.
 - Bad, because every received tree changes shape: about sixty factory call sites migrate, and the ratchets that pin the old gates and registries have to move with them.
 - Bad, because a message type that handled both paths implicitly, by leaving some effects ungated, must now declare both branches explicitly, and finding those cases is part of the migration.
-- Neutral, because BT-17-001 still holds: the manager path is still a role-guarded subtree composed at tree-composition time, and it is still acquired only through `create_receive_activity_tree` (BT-17-008).
+- Neutral, because the intent of BT-17-001 still holds: the manager path is still a role-guarded subtree composed at tree-composition time, acquired only through `create_receive_activity_tree`.
+- Bad, because the specs that name today's mechanisms must be amended as each part lands: BT-17-001 (the `CheckIsCaseManagerNode` guard), BT-17-008 (`manager_effects`, `replica_effects` and the named emit exemptions), CLP-10-022 (refusal effects run only at the CASE_MANAGER), CLP-10-010 and HP-01-012 (the stage order the path stage joins).
 
 ### Confirmation
 
-- An architecture test fails when received-side code under `vultron/core/behaviors/` or `vultron/core/use_cases/received/` asks the CASE_MANAGER question other than through `has_role` or the path stage.
+- An architecture test fails when received-side code under `vultron/core/behaviors/` or `vultron/core/use_cases/received/` asks whether the *receiver* holds the CASE_MANAGER role other than through `has_role` or the path stage, such as comparing `resolve_case_manager_id(...)` with the receiving actor's id, or placing `CheckIsCaseManagerNode` outside the path stage.
+  Resolving the manager's address for an emit, and checking the sender's role, are not that question and stay legal.
 - A test per path drives a message type with no branch for that path and asserts `REFUSED` with the shared reason.
 - The tests that pin the corrected dispositions of #5010 stay green through the migration.
 
@@ -114,5 +124,8 @@ Chosen option: **"One path stage, one shared predicate"**, because it is the onl
 
 ## More Information
 
-- Source: #5011. The storage half of that Idea is ADR-0154, which builds on this record.
+- Source: #5011.
+  The storage half of that Idea is ADR-0154, which builds on this record.
+- It partially supersedes ADR-0088: detail 4 kept `create_case_manager_gated_tree` for every other received tree and introduced no general router, and the record rejected option 4, a reusable authority/participant router across received trees.
+  The path stage is that router, so detail 4 and the rejection of option 4 are replaced; the rest of ADR-0088 stands, and `has_role` is the role-based predicate its detail 2 asks for.
 - Related: ADR-0088 (authority is the CASE_MANAGER role), ADR-0115 and ADR-0129 (declared sender entitlement), ADR-0135 (compose, never chain).

@@ -7,6 +7,8 @@ revision: 1
 deciders: Allen D. Householder
 consulted:
 informed:
+partially_superseded_by:
+  - 0153-one-role-check-per-message-picks-the-received-path.md
 stakeholder_type: [project-contributor]
 ---
 
