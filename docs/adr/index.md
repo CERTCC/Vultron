@@ -189,7 +189,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0085 Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported](0085-case-lifecycle-boundaries.md)
 - [ADR-0086 Report Every Violation, Reject the Batch — and the Emit/Receive Dispositions Are Postel's Maxim](0086-report-every-violation-reject-the-batch.md)
 - [ADR-0087 Case-Resolution Disposition for BT Nodes Is Chosen by Role, Not Re-Decided Per Call Site](0087-case-resolution-disposition-policy.md)
-- [ADR-0088 Authority Is the CASE_MANAGER Role; "Case Actor" Names the Prototype Actor That Enacts It, Not the Authority](0088-consolidate-case-authority-determination.md)
+- [ADR-0088 Authority Is the CASE_MANAGER Role; "Case Actor" Names the Prototype Actor That Enacts It, Not the Authority](0088-consolidate-case-authority-determination.md) — partially superseded by 0153-one-role-check-per-message-picks-the-received-path.md
 - [ADR-0089 One `ParticipantStatus` Writer, and Pre-Case RM State Belongs to `ReportCaseLink`](0089-one-participant-status-writer.md)
 - [ADR-0090 A Blank Required Field Is Absence, and a Recognised Inline Object That Fails Validation Is Refused](0090-blank-is-absent-and-inline-faults-are-refused.md)
 - [ADR-0091 Rename PEC `NO_EMBARGO` to `UNBOUND`; Drop `EM.NO_EMBARGO` Alias](0091-rename-pec-no-embargo-to-unbound.md) — partially superseded by docs/adr/0122-per-embargo-participant-consent.md
@@ -212,7 +212,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0108 One Move, One Mover: Case State Flows Through the Case Manager and the Ledger, Whatever Message Carried It](0108-one-move-one-mover-case-state-flows-through-the-case-manager-and-the-ledger.md)
 - [ADR-0109 A Container Emits Only as Actors It Hosts; a Participant Asks the CaseActor to Act](0109-a-container-emits-only-as-actors-it-hosts.md) — partially supersedes 0021-caseactor-inbox-routing-canonical-ledger.md, 0042-http-only-inter-actor-delivery.md, 0073-per-actor-storage-isolation.md
 - [ADR-0110 The Trigger Driving Port Is One `trigger()` Method over a Verb Registry, Returning a Typed Result Bound to the Request](0110-trigger-dispatcher-port-over-verb-registry.md)
-- [ADR-0111 Intake Is the First Stage of a Received-Side Tree: Record What Arrived Before Judging It](0111-intake-is-the-first-received-side-stage.md) — partially superseded by 0135-compose-received-trees-never-chain-them.md, 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
+- [ADR-0111 Intake Is the First Stage of a Received-Side Tree: Record What Arrived Before Judging It](0111-intake-is-the-first-received-side-stage.md) — partially superseded by 0135-compose-received-trees-never-chain-them.md, 0151-a-received-act-commits-its-own-entry-with-its-consequences.md, 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 - [ADR-0112 Per-Recipient Ordered Outbox Delivery: One Drain per Actor, One In-Flight Row per Recipient](0112-per-recipient-ordered-outbox-delivery.md)
 - [ADR-0113 Embargo Negotiation Relays Through the CASE_MANAGER; the Ledger Carries State but Never Asks](0113-embargo-revision-negotiation-relays-through-the-case-manager.md)
 - [ADR-0114 Joining a Case: The Invite Creates an Inert Participant, the Stub Is Its Own Type, and RM Closes from *Received*](0114-joining-a-case-stub-invite-inert-participant.md) *(revision 2)*
@@ -231,7 +231,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0132 The Report Receiver Introduces the CASE_MANAGER to the Reporter](0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md) *(provisional)* — partially supersedes 0041-caseactor-authoritative-case-initialization.md
 - [ADR-0133 The Report Receiver States Its Case Roles on the Case Proposal](0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md) *(provisional)*
 - [ADR-0134 Who Must Obey a Rule Decides Its Spec Kind](0134-who-must-obey-a-rule-decides-its-spec-kind.md) *(provisional)* — partially supersedes 0038-four-tier-specification-taxonomy.md
-- [ADR-0135 Compose Received Trees, Never Chain Them](0135-compose-received-trees-never-chain-them.md) *(revision 3)* *(provisional)* — partially supersedes 0111-intake-is-the-first-received-side-stage.md
+- [ADR-0135 Compose Received Trees, Never Chain Them](0135-compose-received-trees-never-chain-them.md) *(revision 3)* *(provisional)* — partially superseded by 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md; partially supersedes 0111-intake-is-the-first-received-side-stage.md
 - [ADR-0137 Case Records and Notes Are Attached by One Message, Never Created First](0137-case-records-are-attached-by-one-message-never-created-first.md) *(revision 2)* *(provisional)*
 - [ADR-0141 A Refused Assertion Is Answered With a Reject of the Refused Activity](0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md) *(provisional)*
 - [ADR-0142 A Diverged Replica Is Repaired by a Fresh Case Copy That Names Its Ledger Position](0142-a-diverged-replica-is-repaired-by-a-fresh-case-copy-that-names-its-ledger-position.md) *(provisional)*
@@ -255,8 +255,10 @@ General information about architectural decision records is available at <https:
 - [ADR-0147 The Protocol Specification Renders Its Normative Text from the YAML Requirements](0147-the-protocol-specification-renders-its-normative-text-from-the-yaml-requirements.md)
 - [ADR-0148 An Owner Proposes an Ownership-Transfer Offer and the CASE_MANAGER Makes It](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md) — partially supersedes 0053-ownership-transfer-routed-via-caseactor.md
 - [ADR-0150 A Reading-Path Thread Is Staged Data on Its Start Page, Rendered at Both Ends](0150-a-reading-path-thread-is-staged-data-on-its-start-page-rendered-at-both-ends.md)
-- [ADR-0151 A Received Act Commits Its Own Entry with Its Consequences](0151-a-received-act-commits-its-own-entry-with-its-consequences.md) *(revision 2)* — partially supersedes 0111-intake-is-the-first-received-side-stage.md
+- [ADR-0151 A Received Act Commits Its Own Entry with Its Consequences](0151-a-received-act-commits-its-own-entry-with-its-consequences.md) *(revision 2)* — partially superseded by 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md; partially supersedes 0111-intake-is-the-first-received-side-stage.md
 - [ADR-0152 A Case Manager's Act Shares the Participants' Semantic Type, and an Observation Is Not Ledgered](0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md) — partially supersedes 0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md
+- [ADR-0153 One Role Check per Message Picks the Received Path](0153-one-role-check-per-message-picks-the-received-path.md) — partially supersedes 0088-consolidate-case-authority-determination.md
+- [ADR-0154 A Received Message Is One Staged Record, Archived Only When Applied](0154-a-received-message-is-one-staged-record-archived-only-when-applied.md) — partially supersedes 0111-intake-is-the-first-received-side-stage.md, 0135-compose-received-trees-never-chain-them.md, 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
 
 ## Rejected ADRs
 

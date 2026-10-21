@@ -12,6 +12,8 @@ consulted: >-
   specs/vocabulary-model.yaml VM-08-002;
   issues #4933, #4981
 informed: []
+partially_superseded_by:
+  - 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 partially_supersedes:
   - 0111-intake-is-the-first-received-side-stage.md
 stakeholder_type: [project-contributor]
