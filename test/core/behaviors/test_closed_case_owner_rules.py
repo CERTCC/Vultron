@@ -40,6 +40,7 @@ from test.core.behaviors.test_widened_sender_rules import (
     _note,
     _plain,
     _store,
+    _vendor_record,
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender_entitlement import (
@@ -81,6 +82,9 @@ from vultron.core.use_cases.received.embargo import (
 )
 from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
+)
+from vultron.core.use_cases.received.status import (
+    AddParticipantStatusToParticipantReceivedUseCase,
 )
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -161,6 +165,12 @@ CASE_OWNER_USE_CASES: dict[str, tuple[type, ContextFor, bool]] = {
     "remove-embargo": (
         RemoveEmbargoEventFromCaseReceivedUseCase,
         _embargo,
+        True,
+    ),
+    # An on-behalf status onto another participant's record (RSH-08-007).
+    "add-participant-status": (
+        AddParticipantStatusToParticipantReceivedUseCase,
+        _vendor_record,
         True,
     ),
 }
