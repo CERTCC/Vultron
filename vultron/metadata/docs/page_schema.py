@@ -1,16 +1,17 @@
-"""Pydantic schema for the audience and level declared in ``docs/`` frontmatter.
+"""Pydantic schema for the audience, level and page type in ``docs/`` frontmatter.
 
 Schema requirements: specs/diataxis-requirements.yaml DF-11-001 (reader-facing
-pages), DF-11-012 (working-record pages), DF-11-003 (which pages are working
-record). Design rationale: ``notes/site-information-architecture.md``
-(ADR-0102).
+pages), DF-11-018 (page type), DF-11-012 (working-record pages), DF-11-003
+(which pages are working record). Design rationale:
+``notes/site-information-architecture.md`` (ADR-0102, ADR-0136).
 
-This module is the single machine source for the ``stakeholder_type`` members
-and the ``level`` ladder. Anything that needs either — the validator in
-:mod:`vultron.metadata.docs.page_frontmatter`, the generated
+This module is the single machine source for the ``stakeholder_type`` members,
+the ``level`` ladder and the ``page_type`` values. Anything that needs one —
+the validator in :mod:`vultron.metadata.docs.page_frontmatter`, the generated
 ``docs/includes/stakeholder_types.md`` fragment (DF-11-011), the coverage
-matrix (DF-11-008) — imports :class:`StakeholderType`, :data:`LEVELS` and
-:data:`AUDIENCE_DESCRIPTIONS` rather than restating them.
+matrix (DF-11-008), the page-type badge's tests — imports
+:class:`StakeholderType`, :data:`LEVELS`, :data:`AUDIENCE_DESCRIPTIONS`,
+:class:`PageType` and :data:`PAGE_TYPE_BADGES` rather than restating them.
 """
 
 from __future__ import annotations
@@ -123,6 +124,45 @@ Level = Literal[100, 200, 300, 400, 500]
 LEVELS: tuple[int, ...] = get_args(Level)
 
 
+class PageType(StrEnum):
+    """What kind of page a reader-facing ``docs/`` page is (DF-11-018).
+
+    The four Diátaxis content types, plus ``routing`` for a page that mainly
+    gives directions: the home page, the start pages, and indexes that only
+    route. A page's type is independent of its ``contents:`` shape: an index
+    whose links are a routing page's (DF-11-005) but whose prose mostly
+    explains is ``explanation``.
+    """
+
+    TUTORIAL = "tutorial"
+    HOW_TO = "how-to"
+    EXPLANATION = "explanation"
+    REFERENCE = "reference"
+    ROUTING = "routing"
+
+
+#: The label each page type's badge shows. ``routing`` renders no badge, so it
+#: has no entry. ``overrides/partials/page_type.html`` holds the same labels;
+#: a test renders that template for every member and compares, so the two
+#: cannot disagree.
+PAGE_TYPE_BADGES: Mapping[PageType, str] = MappingProxyType(
+    {
+        PageType.TUTORIAL: "Tutorial",
+        PageType.HOW_TO: "How-to guide",
+        PageType.EXPLANATION: "Explanation",
+        PageType.REFERENCE: "Reference",
+    }
+)
+
+
+def _check_page_type(value: object) -> object:
+    """Accept only a bare string naming a :class:`PageType` member."""
+    permitted = [member.value for member in PageType]
+    if value not in permitted:
+        raise ValueError(f"must be one of {', '.join(permitted)}")
+    return value
+
+
 def _check_level(value: object) -> object:
     """Accept only an integer on the ladder — not ``"100"``, ``100.0``, or a bool.
 
@@ -185,15 +225,25 @@ StakeholderTypes = Annotated[
 ]
 
 
-class PageFrontmatter(BaseModel):
-    """The declarations a reader-facing page makes (DF-11-001).
+class AudienceDeclaration(BaseModel):
+    """Who a reader-facing page is for, and at what level (DF-11-001).
 
-    Only the two declaration keys are validated; a page's other frontmatter
-    (``title``, ``status``, and so on) belongs to other schemas.
+    The part of :class:`PageFrontmatter` the coverage matrix (DF-11-008)
+    counts, which is why it stands alone.
     """
 
     stakeholder_type: StakeholderTypes
     level: Annotated[Level, BeforeValidator(_check_level)]
+
+
+class PageFrontmatter(AudienceDeclaration):
+    """The declarations a reader-facing page makes (DF-11-001, DF-11-018).
+
+    Only the three declaration keys are validated; a page's other frontmatter
+    (``title``, ``status``, and so on) belongs to other schemas.
+    """
+
+    page_type: Annotated[PageType, BeforeValidator(_check_page_type)]
 
 
 def _check_addressed_to_contributors(value: object) -> object:
@@ -219,12 +269,15 @@ class WorkingRecordFrontmatter(BaseModel):
     """The declarations a project working-record page makes (DF-11-012).
 
     The working record is addressed to ``project-contributor`` and has no
-    level. The absence is enforced rather than defaulted: a level on a
-    decision record is a category error, not a harmless extra.
+    level and no page type. Each absence is enforced rather than defaulted: a
+    level on a decision record is a category error, not a harmless extra, and
+    the working record's door (DF-11-003) already says what kind of page it
+    is (DF-11-018).
     """
 
     stakeholder_type: WorkingRecordStakeholderTypes
     level: None = None
+    page_type: None = None
 
     @field_validator("level", mode="before")
     @classmethod
@@ -232,6 +285,14 @@ class WorkingRecordFrontmatter(BaseModel):
         """Refuse any declared level, including ``null``."""
         raise ValueError(
             "a working-record page must not declare a level (DF-11-012)"
+        )
+
+    @field_validator("page_type", mode="before")
+    @classmethod
+    def no_page_type(cls, value: object) -> object:
+        """Refuse any declared page type, including ``null``."""
+        raise ValueError(
+            "a working-record page must not declare a page_type (DF-11-018)"
         )
 
 

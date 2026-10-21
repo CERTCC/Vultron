@@ -7,6 +7,7 @@ description: >
   what it excludes, and how the concepts relate to each other.
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
+page_type: reference
 ---
 
 # Vultron Concept Taxonomy

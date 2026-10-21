@@ -4,6 +4,7 @@ description: >
   vocabulary the prototype sends and receives.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 contents: generated
 ---
 

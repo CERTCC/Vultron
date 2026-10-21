@@ -6,6 +6,7 @@ description: >
   your embargo defaults, and decide which judgment calls stay yours.
 stakeholder_type: [cvd-practitioner]
 level: 300
+page_type: how-to
 ---
 
 # How to Adopt Vultron in Your CVD Program

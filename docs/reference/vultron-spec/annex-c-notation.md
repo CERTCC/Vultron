@@ -4,6 +4,7 @@ description: >
   Informative Annex C of the Vultron Protocol Specification: the mathematical and diagram notation of the formal treatment.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 ---
 
 # Annex C Notation Reference

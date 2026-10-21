@@ -1,0 +1,23 @@
+{#-
+  The page-type badge (DF-11-018, ADR-0136), read from the page's own
+  frontmatter, never written by hand. `routing` and an undeclared page render
+  nothing: docs-frontmatter refuses a reader-facing page without a page_type,
+  and the working record declares none.
+
+  The labels here must match PAGE_TYPE_BADGES in
+  vultron/metadata/docs/page_schema.py; test_page_type_badge.py renders this
+  template for every PageType member and compares. Each type's icon is the
+  `.page-type--<type>` rule in docs/stylesheets/page_type.css.
+-#}
+{%- set page_type_labels = {
+  "tutorial": "Tutorial",
+  "how-to": "How-to guide",
+  "explanation": "Explanation",
+  "reference": "Reference",
+} -%}
+{%- set page_type = page.meta.get("page_type") if page and page.meta else none -%}
+{%- if page_type is string and page_type in page_type_labels -%}
+<div class="page-type page-type--{{ page_type }}">
+  <span class="page-type__label">{{ page_type_labels[page_type] }}</span>
+</div>
+{%- endif -%}

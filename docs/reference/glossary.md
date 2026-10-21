@@ -5,6 +5,7 @@ description: >
   to avoid and the ambiguities to watch for.
 stakeholder_type: ALL
 level: 100
+page_type: reference
 ---
 
 # Glossary — Vultron
@@ -68,6 +69,7 @@ The normative role definitions are in [§2.2 Roles in the specification](vultron
 |------|-----------|-----------------|
 | **Stakeholder Type** | Why a reader is here reading about Vultron, declared as `stakeholder_type` in a `docs/` page's frontmatter and used to organize reader-facing documentation (ADR-0102). The permitted values are normative in DF-11-001 and are listed below. A stakeholder type is **not** a **CVDRole**, and the two vocabularies deliberately share no value: *a role is assumable, inhabitable, temporal; a type is ontological, identity-formed, and slow to change.* An organization's roles vary from case to case, while what brought its engineer to this documentation does not. No page shows its own type to readers (DF-11-009). | Role, audience track, reader level |
 | **Prerequisite Level** | How much a reader must already know before a `docs/` page makes sense, declared as `level` (100–500) in its frontmatter. One ladder that sorts site-wide, though each subject area judges its own 300 by its own criteria. A property of a **page**, never of a reader — there is no "300-level reader". A page's own level is never rendered and never navigated by (DF-11-004). | Difficulty, reader level, track |
+| **Page Type** | Which kind of page a reader-facing `docs/` page is, declared as `page_type` in its frontmatter (DF-11-018, ADR-0136): one of the four Diátaxis content types (`tutorial`, `how-to`, `explanation`, `reference`), or `routing` for a page that mainly gives directions. Unlike the stakeholder type and level, it is shown: the site renders it as a badge above the page title, and a routing page shows none (DF-11-019). A property of the page's content, not of the directory it sits in. | Content type, quadrant label |
 
 {% include-markdown "../includes/stakeholder_types.md" %}
 

@@ -62,6 +62,7 @@ causal_edges:
       call that precedes the case.
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
+page_type: reference
 ---
 
 # RCVV Embargo Scenario: Reporter + Coordinator + Vendor1 + Vendor2

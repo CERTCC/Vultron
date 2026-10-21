@@ -51,6 +51,7 @@ causal_edges:
       no ledger entry exists until validation occurs.
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
+page_type: reference
 ---
 
 # RVV Scenario: Reporter + Vendor1 + Vendor2

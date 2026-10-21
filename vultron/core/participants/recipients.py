@@ -59,7 +59,7 @@ builds its addressees from the actor, the report and the offer rather than
 the roster, and every one of them is seated at case initialization.
 
 The sender check reads the same records: :func:`may_act_on_case` is the one
-predicate behind the ``ACTIVE_PARTICIPANT`` sender standing (CM-23-018), so a
+predicate behind the ``ACTIVE_PARTICIPANT`` sender standing (CM-23-020), so a
 sender may act on a case exactly when it would be sent its content.
 
 This module is the one place in ``vultron/core/`` that lists roster actor

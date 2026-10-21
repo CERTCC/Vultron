@@ -4,6 +4,7 @@ description: >
   Informative Annex A of the Vultron Protocol Specification: a two-party case traced from first contact to closure.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: explanation
 ---
 
 # Annex A Worked Example: Single-Vendor CVD

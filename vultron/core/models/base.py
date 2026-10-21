@@ -293,7 +293,8 @@ class CoreObject(CoreRecord):
 
         A ``@computed_field`` (``VulnerabilityCase.active_participants``,
         CM-31-003) appears in the ``by_alias`` dump but is not settable; the
-        persistence dump omits it (:meth:`_serialize_with_jsonld_context`).
+        persistence dump omits it (CM-31-014,
+        :meth:`_serialize_with_jsonld_context`).
         A value that matches the derived value is stripped so a dump
         round-trips; a value that contradicts the object's own derived state
         raises ``VultronProtocolViolationError`` carrying every contradiction
@@ -326,7 +327,7 @@ class CoreObject(CoreRecord):
         obj = handler({k: v for k, v in data.items() if k not in spellings})
 
         # Each derived value's JSON form comes from its declared return type:
-        # the persistence dump omits computed fields (CM-31-003), and core
+        # the persistence dump omits computed fields (CM-31-014), and core
         # does not render the AS2 dump itself (ARCH-20-001).  A computed field
         # may not declare a field serializer, so the two forms agree
         # (:meth:`__pydantic_init_subclass__`).
@@ -517,7 +518,7 @@ class CoreObject(CoreRecord):
                                     camelCase **plus** ``@context``
         persistence                 ``model_dump(mode="json")`` — Python field
                                     names, no ``@context`` and no computed
-                                    fields (CM-31-003); the adapter-layer
+                                    fields (CM-31-014); the adapter-layer
                                     ``_rekey_wire_identity()`` then renames
                                     ``id_``/``type_`` → ``id``/``type``
                                     (ARCH-23-005, #3546)
@@ -541,7 +542,7 @@ class CoreObject(CoreRecord):
             return data
         if not info.by_alias:
             # A computed field is a derived view published on the AS2 path,
-            # never stored (CM-31-003): the persistence form carries only the
+            # never stored (CM-31-014): the persistence form carries only the
             # facts it is derived from.
             for name in type(self).model_computed_fields:
                 data.pop(name, None)
@@ -569,7 +570,7 @@ class CoreObject(CoreRecord):
 
         :meth:`_check_computed_field_inputs` derives a computed field's JSON
         form from its return type, because the persistence dump omits it
-        (CM-31-003) and core does not render the AS2 dump itself
+        (CM-31-014) and core does not render the AS2 dump itself
         (ARCH-20-001).  A field serializer would make the published form
         differ from that derivation, and the object would refuse its own
         dump (ARCH-23-005), so it is refused when the class is defined.

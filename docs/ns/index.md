@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 300
+page_type: reference
 ---
 
 # Vultron Vocabulary Namespace

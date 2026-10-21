@@ -4,6 +4,7 @@ description: >
   and where to go if you have a vulnerability to report.
 stakeholder_type: ALL
 level: 100
+page_type: routing
 contents: routing
 ---
 

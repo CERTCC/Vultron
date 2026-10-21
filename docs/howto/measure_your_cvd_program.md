@@ -4,6 +4,7 @@ description: >
   Measuring CVD research, and read the result as a skill indicator you can act on.
 stakeholder_type: [cvd-practitioner]
 level: 300
+page_type: how-to
 ---
 
 # How to Measure Your CVD Program

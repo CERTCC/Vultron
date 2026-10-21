@@ -3,6 +3,7 @@ description: >
   What a behavior tree is, why Vultron uses them, and how to read the diagrams.
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
+page_type: explanation
 ---
 
 # Behavior Tree Notation

@@ -114,7 +114,7 @@ class ExpireInvitationsNode(DataLayerActionWithPorts, StateWriteCapable, ABC):
     the node runs one commit → effect tree as a nested tree, the one the
     late-Accept path runs, so the transition logic is one copy.  A set with
     no invitation commits nothing.  Not gated: the caller places the node
-    behind the CASE_MANAGER role gate (CM-28-014, BT-17-001), and the nested
+    behind the CASE_MANAGER role gate (CM-28-016, BT-17-001), and the nested
     tree runs as the same actor.
 
     The CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the ``TIMED_OUT``

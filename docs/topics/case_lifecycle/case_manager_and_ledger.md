@@ -3,6 +3,7 @@ description: >
   Who writes a case's history, which entries it records, and how every participant receives them.
 stakeholder_type: [platform-developer]
 level: 300
+page_type: explanation
 introduces: [CASE_MANAGER, Case Ledger Entry, Ledger Admission, Participant Case Replica, Canonical Recorded Log, Single-Writer Regime, Ledger Fanout]
 ---
 

@@ -5,6 +5,7 @@ description: >
   layers and the state machines participants use to track a shared case.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: routing
 contents: routing
 ---
 

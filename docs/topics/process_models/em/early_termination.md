@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [cvd-practitioner]
 level: 300
+page_type: explanation
 description: >
   The events that end an embargo before its agreed time, how a termination
   records why it ended, and what happens when the end time passes.

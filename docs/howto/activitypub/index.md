@@ -4,6 +4,7 @@ description: >
   Vultron objects, and the fields a receiver reads to tell activities apart.
 stakeholder_type: [platform-developer]
 level: 300
+page_type: explanation
 contents: routing
 ---
 

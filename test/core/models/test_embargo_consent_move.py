@@ -142,7 +142,7 @@ class TestConsentRowMove:
             is None
         )
 
-    @pytest.mark.spec("CM-18-005")
+    @pytest.mark.spec("CM-18-005", "CM-18-017")
     def test_a_missing_row_for_a_register_entry_raises(self):
         """Every entry has a row on every participant (ADR-0122)."""
         case_file = _case_file()
@@ -222,7 +222,7 @@ class TestJoinerAgreement:
 
         assert joiner_agreement(case_file, JOINER) is None
 
-    @pytest.mark.spec("CM-18-005")
+    @pytest.mark.spec("CM-18-005", "CM-18-017")
     def test_a_missing_row_for_the_embargo_in_force_raises(self):
         """Every entry has a row on every participant (ADR-0122)."""
         case_file = _case_file()

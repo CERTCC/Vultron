@@ -204,7 +204,7 @@ identity spoofing (CM-24-004). Once gated, the executing actor *is* the CASE_MAN
 `dl` is its store, so the activity and its outbox entry land in one store (BT-05-006):
 **`dl` determines the queue**, and `add_activity_to_outbox`'s actor argument is only a
 log label. A case always has a CASE_MANAGER (CM-24-006): a resolver that finds none
-fails; there is no un-delegated fallback.
+fails; there is no un-delegated fallback (CM-24-008).
 
 ---
 
