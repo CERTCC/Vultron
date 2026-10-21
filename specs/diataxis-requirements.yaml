@@ -1002,9 +1002,10 @@ groups:
       for every rendered type, that the theme override includes the template in the
       content block every page renders, and that no reader-facing page replaces that
       template; and fails on any `docs/` Markdown file that writes the badge markup
-      by hand. With `test/metadata/docs/test_page_frontmatter.py::test_committed_tree_passes` (every reader-facing page declares a
-      valid `page_type`), a page that rendered the wrong badge or none would fail one
-      of these.
+      by hand. With
+      `test/metadata/docs/test_page_frontmatter.py::test_committed_tree_passes`
+      (every reader-facing page declares a valid `page_type`), a page that rendered
+      the wrong badge or none would fail one of these.
   - id: DF-11-020
     priority: MUST_NOT
     kind: process
