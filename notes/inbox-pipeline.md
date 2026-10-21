@@ -5,10 +5,13 @@ kind: guidance
 description: >
   Rules for the dispatcher's exception boundary and the adapter-layer
   `InboxPipeline` / `build_test_pipeline()` test seam: where unroutable errors
-  are caught, how re-queues are bounded, and layer/import rules.
+  are caught, how re-queues are bounded, why a queue replay attempt commits
+  as one transaction, and layer/import rules.
 related_specs:
   - specs/inbox-pipeline.yaml
   - specs/inbox-endpoint.yaml
+  - specs/datalayer.yaml
+  - specs/protocol-asks.yaml
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/architecture-adapters.md
@@ -55,6 +58,24 @@ then logs at ERROR and drops it; a protocol violation is dropped at once.
 - **Per instance, not persisted.** This test seam keeps its own count; production runs
   `run_inbox_pipeline`, whose queue replay persists its count in the `RetryStore` the
   outbox uses and dead-letters an exhausted item (IE-06-004).
+
+---
+
+## A Queue Replay Attempt Commits Whole, or the Item Is Lost
+
+Run each `drain_inbox_queue` attempt inside one `actor_dl.transaction()`: the
+`inbox_pop`, the rebuild's delete of the `DeferredInboxActivity`, `process_payload`
+and the settlement (`hold_again`, the attempt count, `inbox_append`, the dead letter
+and the held fault) (IE-06-005).
+
+- **Why.** The held record is the only copy the replay can rebuild the activity
+  from (DL-06-006). Committed one by one, a stop after the pop or the delete leaves
+  nothing queued or nothing held, and no sender is answered (ASK-07-010).
+- **Nesting is the point.** The act's `ActTransaction` becomes a savepoint inside the
+  attempt's block, so a failed act still keeps nothing (ADR-0151) while the
+  settlement that follows it commits with the pop.
+- **Surviving is not recovering.** A surviving item waits for the next delivery to
+  that actor unless the startup drain replays it (IE-06-006).
 
 ---
 
