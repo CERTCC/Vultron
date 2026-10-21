@@ -290,6 +290,7 @@ The CASE_MANAGER fills it in each time it sends the announcement, and no case re
 A replica that holds the case refuses a copy with no tail, because it cannot tell that copy from a stale one.
 A replica already past the tail that holds a different entry at the tail's index reports the conflict, not a stale copy, because the chains disagree.
 Until its chain reaches the tail of the copy that last replaced its case, the replica treats that tail as its own position, so an older copy is stale too.
+A replica stores an entry the copy reflects without applying it, but still stores each record the entry carries that the copy names by id only, such as a note, a case status or a proposed embargo.
 The `Reject(CaseLedgerEntry)` names the last entry the replica's chain stores.
 A replica whose chain stores no entry sends none, and the next entry the CASE_MANAGER fans out arrives as a forward gap whose own `Reject` asks for the rest. (SYNC-14-002)
 

@@ -24,10 +24,13 @@ behaviour test where the probe only pins a name.
 
 import logging
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 
 import pytest
+from pydantic import ValidationError
 
+from test.support.inbox_replay import ledger_announce_event
+from test.support.ledger_rebuild import run_use_case
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -49,16 +52,28 @@ from vultron.core.models.case_copy_position import CaseCopyPosition
 from vultron.core.models.case_ledger import CaseLedger
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
+from vultron.core.services.case_copy import (
+    entry_reflected_by_case_copy,
+    records_a_reflected_entry_adds,
+)
+from vultron.core.services.case_replica_seeding import (
+    store_embedded_participants,
+)
+from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
@@ -196,17 +211,26 @@ def _owned_case(name: str) -> as_VulnerabilityCase:
     )
 
 
-def _store_chain(dl: SqliteDataLayer, length: int) -> list[CaseLedgerEntry]:
-    """Store a chain of *length* entries for the case, as a replica holds it."""
+def _chain(
+    dl: SqliteDataLayer, snapshots: list[dict[str, Any]]
+) -> list[CaseLedgerEntry]:
+    """The case's chain of entries carrying *snapshots*, built, not stored."""
     case = cast(as_VulnerabilityCase, dl.read(_CASE_ID))
     ledger = CaseLedger(case_id=_CASE_ID, genesis_hash=case.genesis_hash)
-    for index in range(length):
+    for index, snapshot in enumerate(snapshots):
         ledger.append(
             object_id=f"{_CASE_ID}/notes/{index}",
             semantic_type="add_note_to_case",
-            payload_snapshot={"type": "Add", "index": index},
+            payload_snapshot=snapshot,
         )
-    entries = [record.to_ledger_entry() for record in ledger.entries]
+    return [record.to_ledger_entry() for record in ledger.entries]
+
+
+def _store_chain(dl: SqliteDataLayer, length: int) -> list[CaseLedgerEntry]:
+    """Store a chain of *length* entries for the case, as a replica holds it."""
+    entries = _chain(
+        dl, [{"type": "Add", "index": index} for index in range(length)]
+    )
     for entry in entries:
         dl.create(entry)
     return entries
@@ -480,3 +504,256 @@ def test_the_inbox_routes_the_copy_not_the_held_case() -> None:
     )
     assert current.status is InboxOutcomeStatus.PROCESSED, current
     assert _case_name(dl) == "current copy"
+
+
+@pytest.mark.spec("SYNC-16-006")
+def test_a_genesis_copy_naming_another_genesis_hash_is_refused() -> None:
+    """At index -1 the hash compared is the case's genesis hash."""
+    dl = _replica_holding("replica case")
+
+    result = _announce(
+        _owned_case("foreign copy").with_ledger_tail(
+            LedgerPosition(log_index=-1, entry_hash="cd" * 32)
+        ),
+        dl,
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert _case_name(dl) == "replica case"
+
+
+@pytest.mark.spec("SYNC-16-006")
+def test_a_genesis_copy_the_chain_is_past_is_skipped() -> None:
+    dl = _replica_holding("replica case")
+    _store_chain(dl, 1)
+    genesis = cast(as_VulnerabilityCase, dl.read(_CASE_ID)).genesis_hash
+
+    result = _announce(
+        _owned_case("genesis copy").with_ledger_tail(
+            LedgerPosition(log_index=-1, entry_hash=genesis)
+        ),
+        dl,
+    )
+
+    assert result.disposition is HandlerDisposition.SKIPPED, result.reason
+    assert _case_name(dl) == "replica case"
+
+
+@pytest.mark.spec("SYNC-16-006")
+def test_a_copy_conflicting_with_the_last_replacement_is_refused() -> None:
+    """While the chain is short of the last replacing copy, that copy's tail
+    is the entry held at its index, so a copy naming another hash there
+    conflicts."""
+    dl = _replica_holding("short replica")
+    _store_chain(dl, 1)
+    _announce(
+        _owned_case("first copy").with_ledger_tail(
+            LedgerPosition(log_index=4, entry_hash="ef" * 32)
+        ),
+        dl,
+    )
+
+    result = _announce(
+        _owned_case("rival copy").with_ledger_tail(
+            LedgerPosition(log_index=4, entry_hash="12" * 32)
+        ),
+        dl,
+    )
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert _case_name(dl) == "first copy"
+
+
+@pytest.mark.spec("SYNC-16-007")
+def test_only_the_entry_the_copy_named_at_its_tail_is_reflected() -> None:
+    dl = _replica_holding("short replica")
+    entries = _chain(dl, [{"type": "Add", "index": i} for i in range(3)])
+    dl.create(entries[0])
+    dl.save(
+        CaseCopyPosition(
+            case_id=_CASE_ID, log_index=2, entry_hash=entries[2].entry_hash
+        )
+    )
+    other = entries[2].model_copy(update={"entry_hash": "34" * 32})
+
+    assert entry_reflected_by_case_copy(entries[1], dl)
+    assert entry_reflected_by_case_copy(entries[2], dl)
+    assert not entry_reflected_by_case_copy(other, dl)
+
+
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("CM-23-016")
+def test_a_reflected_entry_stores_the_record_the_copy_names(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The copy names its note by id; the reflected entry that carries the
+    note is stored without effects, and the note itself is copied (#5052)."""
+    note_id = f"{_CASE_ID}/notes/n-1"
+    dl = _replica_holding("short replica")
+    entries = _chain(
+        dl,
+        [
+            {"type": "Add", "index": 0},
+            {
+                "type": "Add",
+                "object": {
+                    "id": note_id,
+                    "type": "Note",
+                    "content": "a note the copy names",
+                    "context": _CASE_ID,
+                },
+                "target": _CASE_ID,
+            },
+            {"type": "Add", "index": 2},
+        ],
+    )
+    dl.create(entries[0])
+    copy = _owned_case("copy ahead").model_copy(update={"notes": [note_id]})
+    assert (
+        _announce(
+            copy.with_ledger_tail(
+                LedgerPosition(log_index=2, entry_hash=entries[2].entry_hash)
+            ),
+            dl,
+        ).disposition
+        is HandlerDisposition.APPLIED
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = run_use_case(
+            dl,
+            ledger_announce_event(
+                entries[1], actor=_CASE_ACTOR_ID, to=_REPLICA_ID
+            ),
+        )
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert any("as a no-op" in r.getMessage() for r in caplog.records)
+    assert dl.read(entries[1].id_) is not None
+    note = dl.read(note_id)
+    assert note is not None
+    assert getattr(note, "content", None) == "a note the copy names"
+    assert cast(as_VulnerabilityCase, dl.read(_CASE_ID)).notes == [note_id]
+
+
+@pytest.mark.spec("SYNC-16-005")
+def test_a_carried_value_under_two_disagreeing_spellings_is_refused() -> None:
+    data = _owned_case("copy").model_dump(mode="json")
+    data["ledgerTail"] = {"logIndex": 1, "entryHash": "ab" * 32}
+    data["ledger_tail"] = {"log_index": 2, "entry_hash": "ab" * 32}
+
+    with pytest.raises(ValidationError, match="disagree"):
+        as_VulnerabilityCase.model_validate(data)
+
+
+@pytest.mark.spec("SYNC-16-005")
+def test_a_malformed_tail_is_refused_under_its_own_name() -> None:
+    data = _owned_case("copy").model_dump(mode="json")
+    data["ledgerTail"] = {"logIndex": -7, "entryHash": ""}
+
+    with pytest.raises(ValidationError, match="ledger_tail"):
+        as_VulnerabilityCase.model_validate(data)
+
+
+@pytest.mark.spec("SYNC-16-005")
+def test_only_a_declared_carried_value_can_be_attached() -> None:
+    case = _owned_case("copy")
+
+    with pytest.raises(ValueError, match="carries no"):
+        case.with_carried("other", LedgerPosition(log_index=0, entry_hash="a"))
+    with pytest.raises(ValueError, match="carries no"):
+        case.with_carried("ledger_tail", case)
+
+
+@pytest.mark.spec("PCR-02-004")
+def test_a_current_copy_replaces_a_participant_the_replica_holds_ahead() -> (
+    None
+):
+    """A copy judged current is authoritative: its participant replaces the
+    stored one even where the stored RM state is further along, which is
+    how a diverged replica is repaired (ADR-0142)."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_REPLICA_ID)
+    participant_id = f"{_CASE_ID}/participants/vendor"
+
+    def participant(rm: RM) -> CaseParticipant:
+        return CaseParticipant(
+            id_=participant_id,
+            attributed_to=_REPLICA_ID,
+            context=_CASE_ID,
+            participant_statuses=[
+                ParticipantStatus(
+                    context=_CASE_ID,
+                    attributed_to=_REPLICA_ID,
+                    rm=RmDimension(state=rm),
+                )
+            ],
+        )
+
+    dl.create(participant(RM.ACCEPTED))
+    copy = _owned_case("copy").model_copy(
+        update={"case_participants": [participant(RM.VALID)]}
+    )
+
+    store_embedded_participants(copy, dl, _CASE_ID)
+    kept = cast(CaseParticipant, dl.read(participant_id))
+    store_embedded_participants(copy, dl, _CASE_ID, authoritative=True)
+    replaced = cast(CaseParticipant, dl.read(participant_id))
+
+    assert kept.participant_status is not None
+    assert replaced.participant_status is not None
+    assert kept.participant_status.rm.state is RM.ACCEPTED
+    assert replaced.participant_status.rm.state is RM.VALID
+
+
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("CM-23-016")
+def test_a_reflected_entry_copies_each_record_the_case_names_and_no_other() -> (
+    None
+):
+    """An embargo proposal and a nested case status the copy names by id are
+    copied from the entry; a record the case does not name is not (#5052)."""
+    dl = _replica_holding("replaced replica")
+    proposal_id = f"{_CASE_ID}/embargo_events/proposal"
+    status_id = f"{_CASE_ID}/statuses/s-1"
+    stray_id = f"{_CASE_ID}/notes/removed"
+    case = cast(as_VulnerabilityCase, dl.read(_CASE_ID))
+    dl.save(
+        case.model_copy(
+            update={
+                "pending_embargo_proposal_index": {"proposer": proposal_id},
+                "case_statuses": [*case.case_statuses, status_id],
+            }
+        )
+    )
+    proposal = EmbargoEvent(
+        id_=proposal_id,
+        context=_CASE_ID,
+        end_time=datetime(2026, 12, 1, tzinfo=UTC),
+    )
+    status = CaseStatus(id_=status_id, context=_CASE_ID)
+    (entry,) = _chain(
+        dl,
+        [
+            {
+                "type": "Offer",
+                "object": proposal.model_dump(mode="json", by_alias=True),
+                "result": {
+                    "status": status.model_dump(mode="json", by_alias=True),
+                    "note": {
+                        "id": stray_id,
+                        "type": "Note",
+                        "content": "named by no one",
+                        "context": _CASE_ID,
+                    },
+                },
+            }
+        ],
+    )
+
+    records = records_a_reflected_entry_adds(entry, dl)
+
+    assert sorted(r.id_ for r in records) == sorted([proposal_id, status_id])
+    dl.create(proposal)
+    assert [r.id_ for r in records_a_reflected_entry_adds(entry, dl)] == [
+        status_id
+    ]

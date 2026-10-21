@@ -32,7 +32,7 @@ import pytest
 from py_trees.common import Status
 
 import vultron.core.behaviors as behaviors_pkg
-from vultron.core.behaviors.case.nodes.announce import CaseCopyNotStaleNode
+from vultron.core.behaviors.case.nodes.case_copy import CaseCopyNotStaleNode
 from vultron.core.behaviors.case.nodes.invite_participant import (
     CheckInviteeNotAlreadyParticipantNode,
 )

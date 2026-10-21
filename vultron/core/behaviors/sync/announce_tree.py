@@ -73,6 +73,9 @@ from vultron.core.behaviors.sync.nodes import (
     ReplayHeldSuccessorNode,
     SendRejectLogEntryNode,
 )
+from vultron.core.behaviors.sync.nodes.case_copy_effect import (
+    StoreRecordsReflectedEntryCarriesNode,
+)
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoConsentFromLedgerNode,
     IsEmbargoConsentEventNode,
@@ -397,15 +400,41 @@ def create_announce_log_entry_tree(
             # An entry the case copy that replaced this replica's case
             # already reflects is stored without its effects, an idempotent
             # no-op: applying it again over the copy could move the case
-            # backwards, or refuse an entry the copy is past (SYNC-16-007).
+            # backwards, or refuse an entry the copy is past.  Only the
+            # records it carries that the copy names by id are copied
+            # (SYNC-16-007, CM-23-016).
             py_trees.composites.Selector(
                 name="ApplyEffectsUnlessReflected",
                 memory=False,
                 children=[
-                    EntryReflectedByCaseCopyNode(
-                        name="EntryReflectedByCaseCopy"
+                    py_trees.composites.Sequence(
+                        name="StoreReflectedEntry",
+                        memory=False,
+                        children=[
+                            EntryReflectedByCaseCopyNode(
+                                name="EntryReflectedByCaseCopy"
+                            ),
+                            StoreRecordsReflectedEntryCarriesNode(
+                                name="StoreRecordsReflectedEntryCarries"
+                            ),
+                        ],
                     ),
-                    log_entry_event_effects,
+                    # A reflected entry whose records fail to store must not
+                    # fall through to its effects: the guard is repeated so
+                    # that branch admits only an entry the copy lacks.
+                    py_trees.composites.Sequence(
+                        name="ApplyUnreflectedEntry",
+                        memory=False,
+                        children=[
+                            py_trees.decorators.Inverter(
+                                name="EntryNotReflectedByCaseCopy",
+                                child=EntryReflectedByCaseCopyNode(
+                                    name="CheckEntryReflectedByCaseCopy"
+                                ),
+                            ),
+                            log_entry_event_effects,
+                        ],
+                    ),
                 ],
             ),
             PersistReceivedLogEntryNode(name="PersistReceivedLogEntry"),

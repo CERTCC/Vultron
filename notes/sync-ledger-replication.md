@@ -274,14 +274,26 @@ same entry forever (ADR-0142).
 - **Never ledger it.** A fault about applying an entry is replication signalling,
   like the gap Reject; the replica that sent it could not apply its entry
   (SYNC-16-002).
-- **A case copy is judged by its ledger tail.** The tail is computed from the
-  ledger whenever the case is read or sent, never stored, so it cannot disagree
-  with the ledger. A copy behind the replica's chain is stale and must not replace
-  the case, because an old copy can arrive late (SYNC-16-006).
-- **Every apply node is forward-only over a newer copy.** An entry a copy already
-  reflects is stored as a no-op, as `case_file_is_past()` does for the embargo
-  register, or a backfill after a re-seed refuses it again. That includes the held
-  refused entry, which the seed drains before any replay arrives (SYNC-16-007).
+- **A case copy is judged by its ledger tail.** The sender fills in the copy's
+  `ledgerTail` from its ledger each time it sends `Announce(VulnerabilityCase)`; it
+  is a carried property, never stored, so it cannot disagree with the ledger. A
+  copy behind the replica's position is stale and must not replace the case,
+  because an old copy can arrive late (SYNC-16-006). The position is the chain's
+  tail, or the last replacing copy's tail (`CaseCopyPosition`) while the chain is
+  short of it, so two copies arriving out of order cannot move the case back.
+- **Replace and record in one transaction.** `SeedAnnouncedCaseNode` writes the
+  participants, the case and the copy's tail together (ADR-0146); a split write
+  could leave a replaced case whose reflected entries are applied again.
+- **An entry the copy reflects is gated once, before every apply node.**
+  `EntryReflectedByCaseCopyNode` stores it without effects, so no apply node needs
+  its own "copy is past" test; `case_file_is_past()` stays for the embargo
+  register's own replays. That includes the held refused entry, which the seed
+  drains before any replay arrives (SYNC-16-007).
+- **A no-op still copies what the copy names by id.** A copy carries participants,
+  reports and the active embargo inline but names notes, statuses and other
+  embargoes by id; `StoreRecordsReflectedEntryCarriesNode` stores those records
+  from the reflected entry, or the replica ends short of seed-plus-replay
+  (CM-23-016, #5052).
 - **Divergence is a starting-state mismatch, not invalid content.** An entry that is
   wrong in itself, like an impossible participant status, takes RSH-09-006's fault:
   a fresh copy cannot repair it (SYNC-16-001).

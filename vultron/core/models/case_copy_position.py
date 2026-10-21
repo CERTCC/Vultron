@@ -11,6 +11,8 @@
 #  certain third party source code, object code, documentation and other files
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
 """The ledger position of the case copy a replica last replaced its case with.
 
 A replica that replaces its case file with a copy whose ledger tail is ahead

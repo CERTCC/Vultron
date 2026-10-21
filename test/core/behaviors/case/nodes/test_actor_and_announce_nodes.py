@@ -23,6 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.case_copy import copy_at_genesis
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -541,19 +542,24 @@ class TestSeedAnnouncedCaseNode:
         assert result.status == Status.SUCCESS
         assert dl.read(CASE_ID2) is not None
 
-    def test_idempotent_when_case_exists(
+    @pytest.mark.spec("PCR-02-004")
+    def test_replaces_a_case_already_present(
         self, bridge, dl, case, announce_event
     ) -> None:
-        """MV-10-004: SUCCESS without overwrite when case already present."""
-        dl.create(case)
+        """PCR-02-004: a copy the guard admitted replaces the held case."""
+        dl.create(case.model_copy(update={"name": "held case"}))
         tree = SeedAnnouncedCaseNode(
-            case_id=CASE_ID2, case_obj=case, request=announce_event
+            case_id=CASE_ID2,
+            case_obj=copy_at_genesis(case),
+            request=announce_event,
         )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=announce_event
         )
         assert result.status == Status.SUCCESS
-        assert dl.read(CASE_ID2) is not None
+        assert cast(as_VulnerabilityCase, dl.read(CASE_ID2)).name == (
+            "Seed Announce Test"
+        )
 
     def test_replacing_a_held_case_logs_at_info(
         self, bridge, dl, case, announce_event, caplog
@@ -567,7 +573,9 @@ class TestSeedAnnouncedCaseNode:
 
         dl.create(case)
         tree = SeedAnnouncedCaseNode(
-            case_id=CASE_ID2, case_obj=case, request=announce_event
+            case_id=CASE_ID2,
+            case_obj=copy_at_genesis(case),
+            request=announce_event,
         )
 
         with caplog.at_level(logging.DEBUG):

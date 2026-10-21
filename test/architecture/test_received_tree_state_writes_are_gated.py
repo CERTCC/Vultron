@@ -193,6 +193,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyReinstateCaseParticipantFromLedgerNode",
             "ApplyRemoveCaseParticipantFromLedgerNode",
             "ApplyRemoveNoteFromLedgerNode",
+            "StoreRecordsReflectedEntryCarriesNode",
         )
     },
     (
@@ -200,15 +201,6 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
         "create_announce_vulnerability_case_received_tree",
         "SeedAnnouncedCaseNode",
     ): _CASE_COPY,
-    (
-        f"{_C}/announce_case_received_tree.py",
-        "create_announce_vulnerability_case_received_tree",
-        "RequestCaseCopyBackfillNode",
-    ): (
-        "records the tail of the case copy that replaced this replica's case"
-        " and asks the CASE_MANAGER for the entries it is ahead by, replica"
-        " bookkeeping that is never a record of the case (SYNC-16-007)"
-    ),
     **{
         (
             f"{_C}/create_case_received_tree.py",

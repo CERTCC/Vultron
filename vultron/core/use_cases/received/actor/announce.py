@@ -7,7 +7,6 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.announce_case_received_tree import (
     create_announce_vulnerability_case_received_tree,
 )
-from vultron.core.behaviors.case.nodes.announce import CaseCopyNotStaleNode
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -26,7 +25,7 @@ from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    find_node,
+    stale_case_copy_verdict,
     verdict_from_bt,
 )
 
@@ -107,14 +106,15 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             activity=request,
             inbox_replay=self._inbox_replay,
         )
-        verdict = verdict_from_bt(
-            tree, result, label="AnnounceVulnerabilityCaseReceivedBT"
+        verdict = stale_case_copy_verdict(
+            tree,
+            verdict_from_bt(
+                tree, result, label="AnnounceVulnerabilityCaseReceivedBT"
+            ),
         )
-        guard = find_node(tree, CaseCopyNotStaleNode)
-        if guard is not None and guard.failed_as_repeat:
-            # A stale copy is a legitimate no-op, not a refusal (HP-01-003);
-            # the guard logged it.
-            return HandlerResult.skipped(guard.feedback_message)
+        if verdict.disposition is HandlerDisposition.SKIPPED:
+            # The guard logged the stale copy (SYNC-16-006).
+            return verdict
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning(
                 "%s (activity '%s')", verdict.reason, request.activity_id

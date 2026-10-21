@@ -10,6 +10,9 @@
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
 #  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
 """Judge a received case copy by the ledger tail it names (SYNC-16-006).
 
 A full-case announcement names the ledger position the copy reflects
@@ -34,17 +37,30 @@ as a no-op (:func:`entry_reflected_by_case_copy`).
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
+from pydantic import ValidationError
+
+from vultron.core.models._helpers import _as_id, project_wire_snapshot_to_core
+from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_copy_position import CaseCopyPosition
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
 )
+from vultron.core.models.note import VultronNote
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.sync_helpers import recorded_entries_for_case
+
+logger = logging.getLogger(__name__)
 
 
 class CaseCopyVerdict(StrEnum):
@@ -170,10 +186,95 @@ def entry_reflected_by_case_copy(
     )
 
 
+#: The record types a case copy names by id but does not carry, by wire
+#: ``type``: an entry that creates one is the only way a replica holds it.
+_NAMED_RECORD_TYPES: dict[str, type[CoreObject]] = {
+    "Note": VultronNote,
+    "CaseStatus": CaseStatus,
+    "EmbargoEvent": EmbargoEvent,
+}
+
+
+def _named_by(case: VulnerabilityCase) -> set[str]:
+    """The ids of the records *case* names but a copy of it does not carry."""
+    named = {str(n) for n in case.notes}
+    named |= {
+        str(i)
+        for ref in [*case.case_statuses, *case.vulnerability_reports]
+        if (i := _as_id(ref)) is not None
+    }
+    named |= {entry.embargo_id for entry in case.embargo_register}
+    named |= {str(v) for v in case.pending_embargo_proposal_index.values()}
+    return named
+
+
+def _snapshot_objects(value: Any) -> Iterator[dict[str, Any]]:
+    """Every object dict, with an id and a type, inside *value*."""
+    if isinstance(value, dict):
+        if isinstance(value.get("id"), str) and isinstance(
+            value.get("type"), str
+        ):
+            yield value
+        for child in value.values():
+            yield from _snapshot_objects(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _snapshot_objects(child)
+
+
+def records_a_reflected_entry_adds(
+    entry: CaseLedgerEntry, dl: CasePersistence
+) -> list[CoreObject]:
+    """The records *entry* carries that the replaced case names and *dl* lacks.
+
+    A case copy carries its participants, reports and active embargo
+    inline, but names its notes, statuses and other embargoes by id.  An
+    entry the copy reflects is stored as a no-op (SYNC-16-007), so the
+    records it carries would otherwise never reach the replica, and the
+    replica would end short of where seed-plus-replay leaves it (ADR-0142).
+    Copying each one, unchanged, is the copy model (CM-23-016): nothing is
+    minted, no clock is read and the case file is not touched.
+
+    An object the case no longer names, such as a note removed later, is
+    left out; one that does not validate as its type is left out with a
+    WARNING.
+    """
+    case = dl.read_case(entry.case_id)
+    if case is None:
+        return []
+    named = _named_by(case)
+    found: dict[str, CoreObject] = {}
+    for data in _snapshot_objects(entry.payload_snapshot):
+        record_id = data["id"]
+        cls = _NAMED_RECORD_TYPES.get(data["type"])
+        if (
+            cls is None
+            or record_id not in named
+            or record_id in found
+            or dl.read(record_id) is not None
+        ):
+            continue
+        try:
+            found[record_id] = cls.model_validate(
+                project_wire_snapshot_to_core(cls, data)
+            )
+        except ValidationError as exc:
+            logger.warning(
+                "entry '%s' carries %s '%s' that does not validate, so the"
+                " replica cannot store it: %s",
+                entry.id_,
+                data["type"],
+                record_id,
+                exc,
+            )
+    return list(found.values())
+
+
 __all__ = [
     "CaseCopyJudgement",
     "CaseCopyVerdict",
     "case_copy_position",
     "entry_reflected_by_case_copy",
     "judge_case_copy",
+    "records_a_reflected_entry_adds",
 ]

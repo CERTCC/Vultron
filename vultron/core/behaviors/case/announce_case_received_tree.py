@@ -39,10 +39,12 @@ from vultron.core.behaviors.case.intake_only_received_tree import (
     create_incomplete_activity_received_tree,
 )
 from vultron.core.behaviors.case.nodes.announce import (
-    CaseCopyNotStaleNode,
-    RequestCaseCopyBackfillNode,
     SeedAnnouncedCaseNode,
     announced_case_id,
+)
+from vultron.core.behaviors.case.nodes.case_copy import (
+    CaseCopyNotStaleNode,
+    RequestCaseCopyBackfillNode,
 )
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,

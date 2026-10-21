@@ -32,6 +32,7 @@ from pydantic import (
     SerializationInfo,
     SerializerFunctionWrapHandler,
     TypeAdapter,
+    ValidationError,
     ValidationInfo,
     field_serializer,
     field_validator,
@@ -184,6 +185,25 @@ def with_record_id(data: dict[str, Any], record_id: str) -> dict[str, Any]:
         out.pop("id_", None)
         out["id"] = record_id
     return out
+
+
+def _validate_carried(
+    name: str, model: type[BaseModel], value: Any
+) -> BaseModel:
+    """*value* as carried value *name*'s *model*.
+
+    Raises:
+        ValueError: *value* does not validate; the message names the carried
+            value, so the refusal points at it rather than at its model.
+    """
+    if isinstance(value, model):
+        return value
+    try:
+        return model.model_validate(value)
+    except ValidationError as exc:
+        raise ValueError(
+            f"carried value {name!r} is not valid: {exc}"
+        ) from exc
 
 
 class CoreObject(CoreRecord):
@@ -370,6 +390,10 @@ class CoreObject(CoreRecord):
     #: (``Record.from_obj``).  Inside another record it survives, as the copy
     #: a received ``Announce`` carried.  The parse edge declares its spellings
     #: (MV-11-001) and the JSON-LD context its term (VM-10-001).
+    #:
+    #: A carried value is part of the object's value: two copies that differ
+    #: only in it are not equal, and ``model_copy`` keeps it.  A dump's
+    #: ``include`` and ``exclude`` select it by its name, as a field.
     carried_properties: ClassVar[Mapping[str, type[BaseModel]]] = (
         MappingProxyType({})
     )
@@ -400,7 +424,7 @@ class CoreObject(CoreRecord):
                 if spelling in remaining
             ]
             parsed = [
-                item if isinstance(item, model) else model.model_validate(item)
+                _validate_carried(name, model, item)
                 for item in supplied
                 if item is not None
             ]
@@ -443,11 +467,14 @@ class CoreObject(CoreRecord):
         """Each carried value, keyed as the dump being made spells it."""
         private = self.__pydantic_private__ or {}
         mode = "json" if info.mode_is_json() else "python"
+        include, exclude = info.include, info.exclude
         return {
             (to_camel(name) if info.by_alias else name): value.model_dump(
                 mode=mode, by_alias=bool(info.by_alias)
             )
             for name, value in private.get("_carried", {}).items()
+            if (include is None or name in include)
+            and (exclude is None or name not in exclude)
         }
 
     @classmethod

@@ -201,7 +201,7 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
         # Its only send is the replica's Reject(CaseLedgerEntry), the same
         # replication message SendRejectLogEntryNode sends (SYNC-16-007).
         (
-            "vultron.core.behaviors.case.nodes.announce",
+            "vultron.core.behaviors.case.nodes.case_copy",
             "RequestCaseCopyBackfillNode",
         ),
         (
