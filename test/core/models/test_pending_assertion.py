@@ -29,6 +29,7 @@ from unittest.mock import patch
 
 import pytest
 
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.pending_assertion import (
     DEFAULT_PENDING_ASSERTION_TIMEOUT,
     PendingAssertion,
@@ -91,11 +92,11 @@ class TestPendingAssertionDataclass:
         assert entry.status == "pending"
 
     def test_emitted_at_is_recent_utc(self):
-        before = datetime.now(UTC)
+        before = now_utc()
         entry = PendingAssertion(
             case_id=CASE_ID, semantic_type=SEMANTIC_TYPE, object_id=OBJECT_ID
         )
-        after = datetime.now(UTC)
+        after = now_utc()
         assert before <= entry.emitted_at <= after
 
     def test_status_can_be_overridden(self):
@@ -202,9 +203,7 @@ class TestTimeout:
 
         # Simulate time passing beyond the 60-second window
         future = datetime.now(UTC) + timedelta(seconds=61)
-        with patch(
-            "vultron.core.models.pending_assertion.datetime"
-        ) as mock_dt:
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
             assert not store_short.is_suppressed(
                 CASE_ID, SEMANTIC_TYPE, OBJECT_ID
@@ -214,9 +213,7 @@ class TestTimeout:
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
         future = datetime.now(UTC) + timedelta(seconds=61)
-        with patch(
-            "vultron.core.models.pending_assertion.datetime"
-        ) as mock_dt:
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
             store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
@@ -236,9 +233,7 @@ class TestTimeout:
             logging.ERROR,
             logger="vultron.core.models.pending_assertion",
         ):
-            with patch(
-                "vultron.core.models.pending_assertion.datetime"
-            ) as mock_dt:
+            with patch("vultron.core.models._helpers.datetime") as mock_dt:
                 mock_dt.now.return_value = future
                 store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
@@ -247,18 +242,14 @@ class TestTimeout:
     def test_unexpired_entry_still_suppresses(self, store_short):
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         future = datetime.now(UTC) + timedelta(seconds=30)
-        with patch(
-            "vultron.core.models.pending_assertion.datetime"
-        ) as mock_dt:
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
             assert store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
 
     def test_timed_out_entry_allows_subsequent_add(self, store_short):
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         future = datetime.now(UTC) + timedelta(seconds=61)
-        with patch(
-            "vultron.core.models.pending_assertion.datetime"
-        ) as mock_dt:
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
             # expire the entry
             store_short.is_suppressed(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
@@ -300,9 +291,7 @@ class TestExpireTimedOut:
             "https://example.org/activities/act-002",
         )
         future = datetime.now(UTC) + timedelta(seconds=61)
-        with patch(
-            "vultron.core.models.pending_assertion.datetime"
-        ) as mock_dt:
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
             count = store_short.expire_timed_out()
         assert count == 2
@@ -311,9 +300,7 @@ class TestExpireTimedOut:
         store_short.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         store_short.clear(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         future = datetime.now(UTC) + timedelta(seconds=61)
-        with patch(
-            "vultron.core.models.pending_assertion.datetime"
-        ) as mock_dt:
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
             count = store_short.expire_timed_out()
         assert count == 0
@@ -395,9 +382,7 @@ class TestPendingForSubject:
             CASE_ID, SEMANTIC_TYPE, OBJECT_ID, subject_id=SUBJECT_ID
         )
         future = datetime.now(UTC) + timedelta(seconds=61)
-        with patch(
-            "vultron.core.models.pending_assertion.datetime"
-        ) as mock_dt:
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = future
             assert (
                 store_short.pending_for_subject(
@@ -489,9 +474,7 @@ class TestClearActivity:
         store.add(CASE_ID, SEMANTIC_TYPE, OBJECT_ID)
         later = datetime.now(UTC) + timedelta(seconds=11)
 
-        with patch(
-            "vultron.core.models.pending_assertion.datetime"
-        ) as mock_dt:
+        with patch("vultron.core.models._helpers.datetime") as mock_dt:
             mock_dt.now.return_value = later
             cleared = store.clear_activity(CASE_ID, OBJECT_ID)
 

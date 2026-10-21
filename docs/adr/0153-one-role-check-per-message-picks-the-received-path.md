@@ -75,7 +75,7 @@ Chosen option: **"One path stage, one shared predicate"**, because it is the onl
    A message type that starts a case, such as a report, a case proposal or the first `Create(VulnerabilityCase)`, declares a no-case branch and takes it.
 7. **The role-based alternatives become declared branches.** The `CaseManagerGate` around `manager_effects`, the participant-replica-gated factory, the `ReplicaEmitExemption` registry and the `DiversionGate.CASE_MANAGER` and `DiversionGate.RECEIVER` choices are each expressed as a path branch, and their separate mechanisms retire.
    `AddresseeExemption` is about addressing, not role, and is not changed by this record.
-8. **Intake is unchanged.** This record does not move intake or change what it stores; ADR-0153 does.
+8. **Intake is unchanged.** This record does not move intake or change what it stores; ADR-0154 does.
 
 ### Consequences
 
@@ -114,5 +114,5 @@ Chosen option: **"One path stage, one shared predicate"**, because it is the onl
 
 ## More Information
 
-- Source: #5011. The storage half of that Idea is ADR-0153, which builds on this record.
+- Source: #5011. The storage half of that Idea is ADR-0154, which builds on this record.
 - Related: ADR-0088 (authority is the CASE_MANAGER role), ADR-0115 and ADR-0129 (declared sender entitlement), ADR-0135 (compose, never chain).

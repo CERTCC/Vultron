@@ -6,7 +6,7 @@ updated: 2026-10-21
 revision: 1
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; ADR-0068, ADR-0111, ADR-0135, ADR-0149, ADR-0152;
+  Claude Opus 5.5; ADR-0068, ADR-0111, ADR-0135, ADR-0149, ADR-0153;
   specs/case-ledger-processing.yaml CLP-10-010, CLP-10-017, CLP-10-018,
   CLP-10-019; specs/handler-protocol.yaml HP-01-003, HP-01-005, HP-10-001;
   specs/case-management.yaml CM-15-002; issues #5011, #3742, #4943, #5019
@@ -31,7 +31,7 @@ The doors that would have ruled it out run after the write, so an early answer c
 A message waiting for its case is held in a separate record, `DeferredInboxActivity`, with its own lifecycle, and a duplicate is detected at ingress and then run through the whole tree again to be answered by each handler's idempotency.
 The handler's own in-memory intake state (`found_ids`, `stored_anything`) is what tells a later stage whether this delivery was new.
 
-ADR-0152 asks the role question once, as a door stage.
+ADR-0153 asks the role question once, as a door stage.
 With every door stage now a cheap read, the order of the questions can let an early answer end the run before anything is stored.
 
 Where should a received message rest while it is judged, and what should the receiver keep once it has been judged?
@@ -60,7 +60,7 @@ Chosen option: **"One staged record per message"**, because it is the only optio
 1. **The order of questions.** Each answer can end the run:
    1. Addressed to me? No → `REFUSED` (HP-01-005).
    2. Seen before? Yes → the outcome recorded for it (detail 5).
-   3. Which path, and does this message type declare a branch for it (ADR-0152)? No → `REFUSED`. No case yet → wait for the case, or take the no-case branch.
+   3. Which path, and does this message type declare a branch for it (ADR-0153)? No → `REFUSED`. No case yet → wait for the case, or take the no-case branch.
    4. Is the case open to external writes, and is the sender entitled (CM-23-013, HP-01-006)?
    5. The handling tree: clock decisions, precondition guards, commit, effects (CLP-10-010, CLP-10-025).
 
@@ -140,6 +140,6 @@ Chosen option: **"One staged record per message"**, because it is the only optio
 
 ## More Information
 
-- Source: #5011. It builds on ADR-0152, which adds the path door stage this record orders.
+- Source: #5011. It builds on ADR-0153, which adds the path door stage this record orders.
 - It partially supersedes ADR-0111 (details 3 and 4) and ADR-0135 (detail 3, the stage order).
 - Related: ADR-0149 (the archive is the sealed received body), #3742 (persist evidence for deferred replay), #5019 (refuse a reused id with a different body), #5033 (what a `cc` on a report could mean).

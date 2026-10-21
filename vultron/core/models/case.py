@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from typing import Any, ClassVar, Literal
 
 from pydantic import Field, ValidationInfo, computed_field, model_validator
@@ -30,6 +30,7 @@ from vultron.core.models._helpers import (
     _new_urn,
     most_recent_status,
     now_utc,
+    now_utc_after,
 )
 from vultron.core.models.actor_recommendation_record import (
     ActorRecommendationRecord,
@@ -470,8 +471,9 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         ``pxa=CS_pxa.Pxa`` (or a ``PxaDimension``) keeps every other
         dimension.  Each assignment is validated (ARCH-21-001).  The new
         entry gets a fresh ``id_`` and a ``name`` derived from its own states
-        unless one is passed.  Timestamps are bumped to ensure the new entry
-        sorts as ``current_status``.  EM is
+        unless one is passed.  Timestamps come from ``now_utc_after``, so the
+        new entry sorts strictly after the old one, as ``current_status``, at
+        second precision (CS-13-002, CS-13-003).  EM is
         not a status field to set: it is derived from the embargo register
         (ADR-0122), so ``em`` is refused.
 
@@ -493,9 +495,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             )
         current = self.current_status
         latest = current.updated or current.published
-        now = datetime.now(UTC)
-        if latest is not None and latest >= now:
-            now = latest + timedelta(microseconds=1)
+        now = now_utc_after(latest)
 
         # The new entry is its own status: a fresh ``id_``, and a ``name``
         # left unset so ``CaseStatus._set_name`` re-derives the label from

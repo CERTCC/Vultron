@@ -16,7 +16,7 @@ consulted: >-
   CLP-10; specs/sync-ledger-replication.yaml SYNC-14; issue #4585
 informed: []
 partially_superseded_by:
-  - 0153-a-received-message-is-one-staged-record-archived-only-when-applied.md
+  - 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0111-intake-is-the-first-received-side-stage.md

@@ -15,7 +15,7 @@ informed: CERT/CC Vultron protocol team
 partially_superseded_by:
   - 0135-compose-received-trees-never-chain-them.md
   - 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
-  - 0153-a-received-message-is-one-staged-record-archived-only-when-applied.md
+  - 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 stakeholder_type: [project-contributor]
 ---
 
