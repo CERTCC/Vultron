@@ -474,7 +474,9 @@ groups:
   - id: VP-04-001
     priority: MUST
     kind: protocol
-    statement: Every accepted embargo MUST specify an end time (`endTime`); an embargo without one MUST NOT be accepted.
+    statement: >-
+      Every accepted embargo MUST specify an end time (`endTime`); an embargo without one
+      MUST NOT be accepted.
     verification: >-
       Inspection of `vultron/core/models/embargo_event.py` confirms that
       `end_time` is a required `datetime` field with no `None` default, and a
