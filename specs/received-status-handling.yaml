@@ -72,8 +72,8 @@ groups:
       Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
       confirm that when `StatusAdoptionGate` passes `EmitCaseStatusUpdateNode`
       appends the post-adoption `CaseStatus` to the case, adding each P, X or A
-      the report newly sets and clearing none, whether the status arrived inline
-      or by reference, that a refused adoption leaves the case's PXA state
+      the report newly sets and clearing none, read from the stored status by
+      id at tick, that a refused adoption leaves the case's PXA state
       unchanged, and that no `EmitAddCaseStatusToSelf` node is present in the
       tree.
     adr:
