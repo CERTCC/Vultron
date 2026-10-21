@@ -41,7 +41,10 @@ logger = logging.getLogger(__name__)
 
 
 def hold_received_announce(
-    node_name: str, dl: CasePersistence, activity: object
+    node_name: str,
+    dl: CasePersistence,
+    activity: object,
+    actor_id: str | None = None,
 ) -> bool:
     """Hold the received ``Announce`` that carried *activity*'s ledger entry.
 
@@ -59,7 +62,7 @@ def hold_received_announce(
             f"{node_name}: the event carrying ledger entry '{entry.id_}'"
             " names no activity to hold"
         )
-    return hold_ledger_announce(dl, entry, activity_id)
+    return hold_ledger_announce(dl, entry, activity_id, actor_id=actor_id)
 
 
 def _extract_id_from_field(value: Any) -> str | None:

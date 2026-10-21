@@ -9,7 +9,7 @@ status_override: >-
 date: 2026-10-14
 created: 2026-10-14
 updated: 2026-10-21
-revision: 2
+revision: 3
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0022; ADR-0111; specs/case-ledger-processing.yaml

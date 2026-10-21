@@ -182,7 +182,7 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         """Hold a refused entry's ``Announce``; never patch it over."""
         assert self.datalayer is not None
         buffered = hold_received_announce(
-            self.name, self.datalayer, self.activity
+            self.name, self.datalayer, self.activity, self.actor_id
         )
         self.refused_into_gap = buffered
         self.feedback_message = (

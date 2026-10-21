@@ -54,8 +54,8 @@ covers:
   Participant Actors via `Announce(CaseLedgerEntry)` activities.
 - **Conflict handling and recovery** — the reject-and-replay protocol that
   re-synchronises a diverged replica.
-- **Gap detection and ordering guarantees** — the receiver-side buffer that
-  makes convergence independent of delivery order.
+- **Gap detection and ordering guarantees** — the receiver-side holding area
+  that makes convergence independent of delivery order.
 - **Commit discipline** — the invariant that external messages are emitted
   only after a ledger entry is committed.
 - **Normative replication architecture** — the single-hub / single-writer +
@@ -621,6 +621,6 @@ The reject/replay round-trip alone does not converge under adversarial
 reordering (ADR-0037). Replay re-announces entries individually over the same
 unordered transport; they can reorder again and be dropped. Receiver-side
 buffering keyed on `prev_log_hash` makes convergence independent of delivery
-order: a buffered entry is applied only when an entry whose `entry_hash`
-equals the buffered entry's `prev_log_hash` is committed, so a fork/rewrite
+order: a held entry is applied only when an entry whose `entry_hash`
+equals the held entry's `prev_log_hash` is committed, so a fork/rewrite
 cannot masquerade as the predecessor.

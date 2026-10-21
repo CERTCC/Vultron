@@ -17,7 +17,8 @@
 
 The use-case tests reach the node through the announce trees; these pin the
 branches those trees never reach: a held ``Announce`` for a case with no
-genesis anchor, and a successor with no replay port.
+genesis anchor, a successor with no replay port, a port that refuses the
+replay, and a release that fails after the replay was queued.
 """
 
 import pytest
@@ -35,8 +36,13 @@ from test.support.inbox_replay import (
     held_depth,
     hold_received,
 )
-from vultron.core.behaviors.sync.nodes import ReplayHeldSuccessorNode
+from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
+from vultron.core.behaviors.sync.nodes import (
+    ReplayHeldSuccessorNode,
+    replay_held as replay_held_mod,
+)
 from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
+from vultron.errors import VultronWiringError
 
 
 @pytest.fixture
@@ -153,3 +159,56 @@ def test_successor_with_no_held_body_is_dropped_not_wedged(
     assert replay.replayed == []
     assert held_depth(datalayer, CASE_ID) == 0
     assert "has no held body" in caplog.text
+
+
+class _RefusingInboxReplay:
+    """``InboxReplayPort`` double that refuses every replay."""
+
+    def replay_held(self, activity_id: str) -> None:
+        raise VultronWiringError(f"nothing holds activity '{activity_id}'")
+
+
+@pytest.mark.spec("SYNC-14-009")
+def test_a_port_that_refuses_the_replay_leaves_the_announce_held(
+    bridge, datalayer, case_obj
+):
+    """The index row is dropped only once the port has queued the replay:
+    a port that raises leaves the Announce held for a later drain."""
+    hold_received(
+        datalayer,
+        _make_event(
+            _make_entry(0, prev_hash=case_obj.genesis_hash), CASE_MANAGER_ID
+        ),
+    )
+
+    result = _run(bridge, _RefusingInboxReplay())
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert held_depth(datalayer, CASE_ID) == 1
+
+
+@pytest.mark.spec("SYNC-14-006")
+@pytest.mark.spec("SYNC-14-009")
+def test_a_failed_release_unqueues_the_replay(
+    bridge, datalayer, case_obj, monkeypatch
+):
+    """Queueing the replay and dropping the index row commit together: a
+    release that fails also un-queues the replay, so the Announce stays held
+    rather than leaving a row keyed on a tail the replay moved past."""
+    event = _make_event(
+        _make_entry(0, prev_hash=case_obj.genesis_hash), CASE_MANAGER_ID
+    )
+    hold_received(datalayer, event)
+
+    def _failing_release(dl, held):
+        dl.delete("HeldLedgerAnnounce", held.id_)
+        raise RuntimeError("release failed")
+
+    monkeypatch.setattr(replay_held_mod, "release_held", _failing_release)
+
+    result = _run(bridge, InboxReplayAdapter(datalayer))
+
+    assert result.status == Status.FAILURE
+    assert event.activity_id not in datalayer.inbox_list()
+    assert held_depth(datalayer, CASE_ID) == 1

@@ -121,7 +121,9 @@ def _received_body(dl: CasePersistence, activity_id: str) -> str:
 def _make_room(
     dl: CasePersistence,
     entry: CaseLedgerEntry,
+    activity_id: str,
     max_per_case: int,
+    actor_id: str | None,
 ) -> bool:
     """Free a slot for *entry* in a full holding area, if it may have one.
 
@@ -133,23 +135,28 @@ def _make_room(
         return True
     if not held or entry.log_index >= held[-1].log_index:
         logger.warning(
-            "held ledger announces: holding area full for case %s (max=%d);"
-            " not holding far-future entry index=%d",
+            "held ledger announces: holding area full for case %s (max=%d,"
+            " actor %s); not holding Announce '%s' of far-future entry"
+            " index=%d",
             entry.case_id,
             max_per_case,
+            actor_id,
+            activity_id,
             entry.log_index,
         )
         return False
     farthest = held[-1]
     discard_held(dl, farthest)
     logger.warning(
-        "held ledger announces: holding area full for case %s (max=%d);"
-        " dropped the Announce '%s' of farthest-ahead entry index=%d to hold"
-        " index=%d",
+        "held ledger announces: holding area full for case %s (max=%d,"
+        " actor %s); dropped the Announce '%s' of farthest-ahead entry"
+        " index=%d to hold Announce '%s' of index=%d",
         entry.case_id,
         max_per_case,
+        actor_id,
         farthest.activity_id,
         farthest.log_index,
+        activity_id,
         entry.log_index,
     )
     return True
@@ -160,6 +167,8 @@ def hold_ledger_announce(
     entry: CaseLedgerEntry,
     activity_id: str,
     max_per_case: int | None = None,
+    *,
+    actor_id: str | None = None,
 ) -> bool:
     """Hold the received ``Announce`` *activity_id* until *entry* applies.
 
@@ -172,6 +181,7 @@ def hold_ledger_announce(
     or evicted hold's removal included, commits in one transaction.  When the
     case's holding area is full, the bound applies (SYNC-14-006):
     *max_per_case*, by default :data:`DEFAULT_HELD_LEDGER_ANNOUNCES_MAX`.
+    *actor_id*, the receiving actor, names it in the log lines only.
 
     Returns:
         ``True`` when the entry's ``Announce`` is now held, ``False`` when
@@ -185,26 +195,30 @@ def hold_ledger_announce(
         if holds_held_body(dl, existing):
             logger.debug(
                 "held ledger announces: entry '%s' is already held in"
-                " Announce '%s'",
+                " Announce '%s' (actor %s); not holding Announce '%s'",
                 entry.id_,
                 existing.activity_id,
+                actor_id,
+                activity_id,
             )
             return True
         # The held row lost its body, so it could never replay; this
         # delivery's Announce of the same entry takes its place.
         logger.warning(
             "held ledger announces: held Announce '%s' of entry '%s' has no"
-            " held body; holding Announce '%s' in its place",
+            " held body (actor %s); holding Announce '%s' in its place",
             existing.activity_id,
             entry.id_,
+            actor_id,
             activity_id,
         )
     elif existing is not None:
         logger.warning(
             "held ledger announces: replacing forked held entry for case %s"
-            " prev_log_hash=%.16s… (old index=%d in '%s', new index=%d in"
-            " '%s')",
+            " (actor %s) prev_log_hash=%.16s… (old index=%d in '%s', new"
+            " index=%d in '%s')",
             entry.case_id,
+            actor_id,
             entry.prev_log_hash,
             existing.log_index,
             existing.activity_id,
@@ -223,7 +237,7 @@ def hold_ledger_announce(
     with dl.transaction():
         if existing is not None:
             discard_held(dl, existing)
-        elif not _make_room(dl, entry, bound):
+        elif not _make_room(dl, entry, activity_id, bound, actor_id):
             return False
         # A body already held for a replay is the same delivery's; keep it.
         if not isinstance(dl.read(body_id), DeferredInboxActivity):
@@ -244,10 +258,11 @@ def hold_ledger_announce(
         )
     logger.debug(
         "held ledger announces: holding Announce '%s' of entry '%s' for case"
-        " %s (index=%d, prev_log_hash=%.16s…)",
+        " %s (actor %s, index=%d, prev_log_hash=%.16s…)",
         activity_id,
         entry.id_,
         entry.case_id,
+        actor_id,
         entry.log_index,
         entry.prev_log_hash,
     )

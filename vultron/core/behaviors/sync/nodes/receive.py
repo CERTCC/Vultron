@@ -221,13 +221,17 @@ class BufferOutOfOrderEntryNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        if hold_received_announce(self.name, self.datalayer, self.activity):
+        if hold_received_announce(
+            self.name, self.datalayer, self.activity, self.actor_id
+        ):
             self.logger.info(
-                "%s: holding the Announce of out-of-order entry '%s'"
-                " (index=%d) pending predecessor",
+                "%s: holding the Announce '%s' of out-of-order entry '%s'"
+                " (index=%d) for actor '%s' pending predecessor",
                 self.name,
+                getattr(self.activity, "activity_id", None),
                 entry.id_,
                 entry.log_index,
+                self.actor_id,
             )
             return Status.SUCCESS
         return Status.FAILURE
@@ -284,14 +288,19 @@ class BufferPreGenesisEntryNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         entry = _require_log_entry(self.activity, self.name)
-        if hold_received_announce(self.name, self.datalayer, self.activity):
+        if hold_received_announce(
+            self.name, self.datalayer, self.activity, self.actor_id
+        ):
             self.logger.info(
-                "%s: holding the Announce of pre-genesis entry '%s'"
-                " (index=%d) for case '%s' pending VulnerabilityCase seed",
+                "%s: holding the Announce '%s' of pre-genesis entry '%s'"
+                " (index=%d) for case '%s', actor '%s', pending"
+                " VulnerabilityCase seed",
                 self.name,
+                getattr(self.activity, "activity_id", None),
                 entry.id_,
                 entry.log_index,
                 entry.case_id,
+                self.actor_id,
             )
             return Status.SUCCESS
         return Status.FAILURE

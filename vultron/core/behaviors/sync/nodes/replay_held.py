@@ -55,8 +55,8 @@ class ReplayHeldSuccessorNode(DataLayerActionWithPorts):
     cascade (SYNC-14-003, SYNC-15-005) needs no loop.
 
     The node looks before it takes: the index row is dropped only after the
-    port has queued the replay, so a wiring fault leaves the ``Announce``
-    held.
+    port has queued the replay, in the same transaction, so a wiring fault
+    or a failed release leaves the ``Announce`` held and unqueued.
 
     Outcomes:
 
@@ -126,13 +126,14 @@ class ReplayHeldSuccessorNode(DataLayerActionWithPorts):
             # Announce was held still recovers the entry (SYNC-14-002).
             release_held(self.datalayer, successor)
             self.logger.warning(
-                "%s: held Announce '%s' of ledger entry '%s' (case '%s') has"
-                " no held body; dropped its index row, the CASE_MANAGER's"
-                " replay recovers the entry (SYNC-14-002)",
+                "%s: held Announce '%s' of ledger entry '%s' (case '%s',"
+                " actor '%s') has no held body; dropped its index row, the"
+                " CASE_MANAGER's replay recovers the entry (SYNC-14-002)",
                 self.name,
                 successor.activity_id,
                 successor.entry_id,
                 case_id,
+                self.actor_id,
             )
             return Status.SUCCESS
         if self._replay is None:
@@ -141,8 +142,12 @@ class ReplayHeldSuccessorNode(DataLayerActionWithPorts):
                 f" the held Announce '{successor.activity_id}' of ledger"
                 f" entry '{successor.entry_id}' (SYNC-14-009)"
             )
-        self._replay.replay_held(successor.activity_id)
-        release_held(self.datalayer, successor)
+        # One transaction: a release that fails also un-queues the replay,
+        # so the Announce stays held rather than leaving an index row keyed
+        # on a tail the replay has already moved past (SYNC-14-006).
+        with self.datalayer.transaction():
+            self._replay.replay_held(successor.activity_id)
+            release_held(self.datalayer, successor)
         self.logger.info(
             "%s: replaying held Announce '%s' of ledger entry '%s'"
             " (log_index=%d) for case '%s' through actor '%s' inbox",
