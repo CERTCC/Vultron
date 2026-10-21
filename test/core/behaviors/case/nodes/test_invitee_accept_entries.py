@@ -187,7 +187,7 @@ def test_the_accept_commits_only_a_vendors_status_entry(roles, embargo):
 
 
 @pytest.mark.spec("CM-31-012")
-def test_a_resumed_accept_that_changes_nothing_emits_nothing():
+def test_a_repeated_accept_that_changes_nothing_emits_nothing():
     s = _scenario([CVDRole.VENDOR], embargo=True)
     assert _accept(s) == Status.SUCCESS
     before = len(_entries(s))

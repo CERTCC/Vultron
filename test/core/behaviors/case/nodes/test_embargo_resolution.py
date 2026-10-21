@@ -834,11 +834,11 @@ class TestCaseEmbargoAlreadyInitializedNode:
         assert _em_state(bt_scenario) == EM.NONE
         assert self._guard(bt_scenario) == Status.FAILURE
 
-    def test_a_half_built_case_at_none_completes_initialization(
+    def test_a_case_at_none_completes_initialization(
         self, bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
     ) -> None:
-        """A redelivery finishing a case whose first attempt died before the
-        embargo was set up must still initialize it (EP-04-012)."""
+        """A case not yet initialized (``EM.NONE``, no embargo) runs the
+        creation arm and is initialized (EP-04-012)."""
         assert _em_state(bt_scenario) == EM.NONE
         assert _active_embargo(bt_scenario) is None
 
@@ -850,7 +850,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
             _active_embargo(bt_scenario), PROTOCOL_DEFAULT, before, after
         )
 
-    def _half_build(
+    def _fail_first_run(
         self,
         bt_scenario: BTTestScenario,
         monkeypatch: pytest.MonkeyPatch,
@@ -879,7 +879,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
         [None, ACTOR_DEFAULT],
         ids=["protocol-default", "actor-default"],
     )
-    def test_a_rerun_on_a_half_built_case_stores_one_event(
+    def test_a_rerun_after_a_failed_run_stores_one_event(
         self,
         bt_scenario: BTTestScenario,
         case_obj: VulnerabilityCase,
@@ -888,7 +888,9 @@ class TestCaseEmbargoAlreadyInitializedNode:
     ) -> None:
         """The rerun EP-04-012 admits at ``NONE`` stores exactly one event:
         the first attempt wrote none (#4117, #4182)."""
-        self._half_build(bt_scenario, monkeypatch, owner_policy=owner_policy)
+        self._fail_first_run(
+            bt_scenario, monkeypatch, owner_policy=owner_policy
+        )
 
         status, before, after = _run(bt_scenario, owner_policy=owner_policy)
 
@@ -904,7 +906,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
         )
 
     @pytest.mark.spec("EP-04-004")
-    def test_a_rerun_on_a_half_built_case_keeps_the_senders_event(
+    def test_a_rerun_after_a_failed_run_keeps_the_senders_event(
         self,
         bt_scenario: BTTestScenario,
         case_obj: VulnerabilityCase,
@@ -919,7 +921,7 @@ class TestCaseEmbargoAlreadyInitializedNode:
             "sender_proposal": SENDER_PROPOSAL,
             "sender_proposed_embargo": sender_event,
         }
-        self._half_build(bt_scenario, monkeypatch, **run_args)
+        self._fail_first_run(bt_scenario, monkeypatch, **run_args)
 
         status, _, _ = _run(bt_scenario, **run_args)
 

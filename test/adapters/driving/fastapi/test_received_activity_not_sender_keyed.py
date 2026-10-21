@@ -169,13 +169,13 @@ def test_a_received_create_under_the_proposal_derived_id_is_not_one_sent(
     proposal would otherwise read as the receiver's own announcement, or as
     a squatter that refuses the real one.
     """
-    create_id = create_case_activity_id(_RECEIVER_URI, _PROPOSAL_ID)
+    create_id = create_case_activity_id(_PROPOSAL_ID)
     activity = _create_case(_SENDER_URI, id_=create_id)
 
     _deliver(receiver_dl, activity)
 
     _assert_not_under_its_id(receiver_dl, create_id)
-    assert announced_case_id(receiver_dl, _RECEIVER_URI, _PROPOSAL_ID) is None
+    assert announced_case_id(receiver_dl, _PROPOSAL_ID) is None
 
 
 @pytest.mark.spec("DL-06-006")

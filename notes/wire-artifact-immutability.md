@@ -143,12 +143,11 @@ So the blob has its own record: `SealedOutboundBody`
 (`vultron/adapters/outbox_sealed_body.py`), the factory object's
 `model_dump_json` text keyed by activity id. Every adapter that persists an
 outbound activity seals it at that moment (`TriggerActivityAdapter._seal`, the
-sync adapter, the outbox route, the pending-case queue, the pending-create
-retry), and the sealed text is the `activity_blob` returned to core. The outbox
-handler reads the sealed body, applies only the last-resort guards (`to:`
-present, inline `object`), and hands the text to the emitter unchanged; nothing
-on the delivery path reads the activity record (OX-07-001). Sealing is
-write-once per activity id.
+sync adapter, the outbox route, the pending-case queue), and the sealed text is
+the `activity_blob` returned to core. The outbox handler reads the sealed body,
+applies only the last-resort guards (`to:` present, inline `object`), and hands
+the text to the emitter unchanged; nothing on the delivery path reads the
+activity record (OX-07-001). Sealing is write-once per activity id.
 
 Consequences for core:
 

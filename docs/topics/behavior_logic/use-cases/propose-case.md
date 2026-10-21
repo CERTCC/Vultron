@@ -97,7 +97,7 @@ All of that lives here or nowhere.
 
 The decision is placed ahead of every step above, and that placement is the interesting part.
 A refusal has to happen before the case exists.
-A service that created the case, committed ledger entries, and *then* declined would be telling the proposer "no" while holding a half-built case that no Participant will ever converge on — the canonical-versus-replica divergence CLP-10-009 exists to prevent.
+A service that created the case, committed ledger entries, and *then* declined would be telling the proposer "no" while holding a case that no Participant will ever converge on — the canonical-versus-replica divergence CLP-10-009 exists to prevent.
 
 When the service declines, it sends `Reject(as_CaseProposal)` with the proposal inline, and creates nothing (CP-05-004).
 The proposing actor records the refusal (CP-06-003, CP-06-004).

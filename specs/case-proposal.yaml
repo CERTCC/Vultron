@@ -430,14 +430,16 @@ groups:
       failed `Create` needs no retry of its own. A second `Accept` reads as a second,
       independent decision.
     verification: >-
-      The `Accept`, the `Create` and the case are written in one DataLayer transaction
-      (ADR-0146, CLP-07-015, CP-09-009): a `Create` that cannot be queued rolls back the
-      `Accept` with it, so no `Accept` is ever sent without its `Create`.
-      `test/core/behaviors/case/test_case_proposal_received_tree.py::TestTheAcceptAndCreateAreQueuedTogether::test_a_failed_create_emit_rolls_back_the_accept`
-      pins that. The Create's id is derived from the proposal (OX-06-002), so a
-      redelivery queues no second `Create(VulnerabilityCase)`;
-      `TestARedeliveryAnnouncesTheCaseOnce` pins this after a late-tree failure and
-      after a full success (#4146).
+      The `Accept`, the `Create` and the case commit in one DataLayer transaction
+      (ADR-0146, CLP-07-015, CP-09-009). A `Create` that cannot be queued rolls back the
+      `Accept` with it, so no `Accept` is ever sent without its `Create`:
+      `test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTCreateWiring::test_a_failed_create_emit_rolls_back_the_accept`
+      pins that. After the commit, a `Create` whose first delivery attempt fails
+      is retried by the outbox and delivered, with no marker involved:
+      `TestCreateCaseProposalReceivedBTCreateWiring::test_a_failed_first_delivery_of_the_create_is_retried_by_the_outbox`.
+      The Create's id is derived from the proposal, so a redelivery queues no
+      second `Create(VulnerabilityCase)`; `TestARedeliveryAnnouncesTheCaseOnce`
+      pins this after a late-tree failure and after a full success (#4146).
     stories:
     - story_2022_012
   - id: CP-05-006
@@ -575,9 +577,9 @@ groups:
     verification: >-
       Tests marked `CP-05-010` admit, decline and close a proposal, deliver its
       identifier again from another actor, and assert `REFUSED`, no new case, no
-      new or changed proposal-keyed record, and an empty outbox. The same delivery
-      to a store that holds only the stored `Accept` (no admission record) is
-      refused the same way.
+      new or changed proposal-keyed record, and an empty outbox.
+      `test/core/behaviors/test_sender_guard.py::test_author_kind_admits_only_a_proposals_recorded_proposer`
+      covers a stored proposal read on its own: another sender is refused.
     stories:
     - story_2022_035
     relationships:

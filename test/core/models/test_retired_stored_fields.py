@@ -13,12 +13,10 @@
 
 """A renamed or moved stored field is refused under its old key (#4128).
 
-The CaseProposal admission, decline and pending-Create records named the
-proposer or case owner ``vendor_uri``; the field is now ``proposer_uri`` on
-the two decision records and ``owner_uri`` on the pending-Create marker
-(CS-12-001).  The case's recommender index moved off the case into an
-``ActorRecommendationRecord`` (#4448).  There is no read alias and no
-conversion.
+The CaseProposal admission and decline records named the proposer
+``vendor_uri``; the field is now ``proposer_uri`` (CS-12-001).  The case's
+recommender index moved off the case into an ``ActorRecommendationRecord``
+(#4448).  There is no read alias and no conversion.
 """
 
 from collections.abc import Mapping

@@ -188,16 +188,16 @@ one `ActTransaction` (`CreateCaseFromProposalAct`). Rules:
   everything queued, so no `Accept` is sent without its `Create` and the inbox's
   redelivery processes the proposal fresh. Do not add a stored marker or a startup
   runner to finish a creation later: the durable outbox retries delivery (OX-13).
-- **Derive the `Create` id** (`create_case_activity_id()`, from the CASE_MANAGER and
-  the proposal), never mint it, so a redelivery names the activity its first
-  delivery queued (OX-06-002). `announced_case_id()` checks the stored activity is a
-  `Create` for *this* case, because the proposal id is sender-chosen.
+- **Derive the `Create` id** from the proposal (`create_case_activity_id()` in
+  `proposal_announcement.py`), never mint it, so a redelivery names the activity its
+  first delivery queued (OX-06-002, #4146). `announced_case_id()` checks the stored
+  activity is a `Create` for *this* case, because the proposal id is sender-chosen.
 - **The relay reads what to relay from this act**, not from the store:
   `RelayCreationTimeRevisionNode` acts only when this execution's
   `InitializeCreationEmbargoNode` registered a revision, and reads that revision from
   the case. See [embargo-default-semantics](embargo-default-semantics.md).
 
-The two retired marker types are refused at load like any deleted stored type
+Rows of the retired marker types are refused at load like any deleted stored type
 ([datalayer-design](datalayer-design.md) § "Retiring a Stored Field").
 
 ---
@@ -222,8 +222,8 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   factory composes `SenderIsProposalAuthorNode` ahead of every arm. A proposal id
   whose admission record, decline record or stored proposal (`attributed_to`) names
   another proposer is `REFUSED` before any proposal-keyed record is read or written
-  (HP-01-008, #4719). The stored proposal covers a store written before the
-  admission record existed. Add any new proposal-keyed record that names the
+  (HP-01-008, #4719); CP-05-010 counts all three as recording the proposal. Add any
+  new proposal-keyed record that names the
   proposer to that node. `LoadExistingCaseNode`'s `accepted_for_proposer_only`
   (#4650) is not a second defense: it reads the admission record, which the accept
   arm writes for the current sender when none exists.

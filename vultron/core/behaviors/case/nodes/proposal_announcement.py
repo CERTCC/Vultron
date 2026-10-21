@@ -14,49 +14,48 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-"""Whether the case a proposal resolves to was already announced.
+"""Whether the case a proposal resolved to was already announced.
 
-The ``Create(VulnerabilityCase)`` answering a proposal takes an id derived
-from the CASE_MANAGER and the proposal (:func:`create_case_activity_id`,
-OX-06-002), so a redelivered proposal names the activity its first delivery
-queued, and the store answers whether the case was announced.  Composed by
-``create_case_proposal_received_tree`` (BTND-07-003).
+The ``Create(VulnerabilityCase)`` answering a proposal is stored under an id
+derived from the proposal (:func:`create_case_activity_id`), so a redelivered
+proposal names the activity its first delivery queued (CP-05-005, #4146).
+Composed by ``create_case_proposal_received_tree`` (BTND-07-003).
 """
 
 import logging
+import uuid
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.case_lookup import CaseIdInputPortMixin
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronProtocolViolationError
 
 logger = logging.getLogger(__name__)
 
 
-def create_case_activity_id(actor_id: str, proposal_id: str) -> str:
-    """The id of the ``Create(VulnerabilityCase)`` answering *proposal_id*.
+def create_case_activity_id(proposal_id: str) -> str:
+    """Return the id of the ``Create(VulnerabilityCase)`` answering
+    *proposal_id*.
 
-    Derived from the CASE_MANAGER *actor_id* and the proposal, never minted,
-    as the ``Accept`` answering the same proposal is: a redelivered proposal
-    rebuilds the Create under the id its first delivery used, so the outbox
-    queues it once (OX-06-002) and the store can tell the case was announced
-    (CP-05-006, #4146).
+    Derived from the proposal rather than minted, so a redelivered proposal
+    names the activity its first delivery queued, and the outbox does not
+    queue it twice (CP-05-005, OX-06-002, #4146).
     """
-    return derived_activity_id("create-case", actor_id, proposal_id)
+    name = f"{proposal_id}#create-case"
+    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, name)}"
 
 
 def announced_case_id(
-    datalayer: CasePersistence, actor_id: str, proposal_id: str
+    datalayer: CasePersistence, proposal_id: str
 ) -> str | None:
     """Return the case an earlier delivery of *proposal_id* announced.
 
-    Reads the ``Create(VulnerabilityCase)`` stored under
-    :func:`create_case_activity_id`.  Returns ``None`` when nothing is stored
-    under that id, i.e. the case was not announced yet.
+    Reads the ``Create(VulnerabilityCase)`` stored under the id derived from
+    the proposal (:func:`create_case_activity_id`).  Returns ``None`` when
+    nothing is stored under that id, i.e. the case was not announced yet.
 
     Raises:
         VultronProtocolViolationError: something other than a ``Create``
@@ -64,7 +63,7 @@ def announced_case_id(
             the sender's, so a sender that reused it for another proposal
             would otherwise have its new case silently never announced.
     """
-    create_id = create_case_activity_id(actor_id, proposal_id)
+    create_id = create_case_activity_id(proposal_id)
     stored = datalayer.read(create_id)
     if stored is None:
         return None
@@ -100,10 +99,11 @@ class CheckCaseAlreadyAnnouncedNode(
 
     Guards the ``Create(VulnerabilityCase)`` step of the accept flow: when a
     proposer re-proposes a report whose case it already owns and holds
-    (CP-05-008), or redelivers a proposal whose act committed (CP-05-006),
-    the tree answers with an ``Accept`` naming that case but does not
-    announce it a second time.  Returns FAILURE for a case nothing has
-    announced yet, so the accept flow announces it.
+    (CP-05-008), or a proposal is redelivered after its case was created
+    (CP-05-006), the tree answers with an ``Accept`` naming that case but does
+    not announce it a second time.  Returns FAILURE for a case nothing has
+    announced yet — the case this delivery is creating — so the flow
+    announces it.
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -120,7 +120,7 @@ class CheckCaseAlreadyAnnouncedNode(
         if case_is_announced(self.datalayer, case_id):
             logger.info(
                 "%s: case '%s' was already announced — not announcing it"
-                " again (CP-05-006, CP-05-008)",
+                " again (CP-05-008)",
                 self.name,
                 case_id,
             )

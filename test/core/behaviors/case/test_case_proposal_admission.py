@@ -24,7 +24,7 @@ when it declines. These tests pin five properties:
 - A declining backend emits a Reject addressed to the vendor with the proposal
   inline (CP-05-004, CP-05-009).
 - A decline writes **no** case state. The decline arm runs ahead of every effect,
-  so there is no half-built case paired with a "declined" response (CLP-10-009).
+  so no case is paired with a "declined" response (CLP-10-009).
 - **A refusal never becomes an accept.** A decline whose Reject cannot be
   emitted rolls back and fails the tree rather than falling through into the
   accept flow. This is the regression worth guarding: a Selector falls through
@@ -71,11 +71,7 @@ from vultron.core.behaviors.case.nodes import proposal_case_lookup
 from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckProposalCaseFullyClosedNode,
 )
-from vultron.core.behaviors.case.nodes.proposal_announcement import (
-    case_is_announced,
-)
 from vultron.core.behaviors.case.nodes.proposal_case_lookup import (
-    accept_scan_can_match,
     accepted_case_id,
     activity_names_proposal,
     find_proposer_case,
@@ -360,7 +356,7 @@ class TestDeclineEmitsReject:
 
 @pytest.mark.spec("CLP-10-009")
 class TestDeclineWritesNoCaseState:
-    """A refusal precedes every effect, so nothing half-built is left behind."""
+    """A refusal precedes every effect, so no case state is left behind."""
 
     def test_no_case_is_created(self, dl):
         _run_tree(dl, call_out=_declining_bundle([]))
@@ -374,7 +370,7 @@ class TestDeclineWritesNoCaseState:
         assert "Accept" not in _types_in_outbox(dl)
 
     def test_no_create_is_queued(self, dl):
-        """No case is announced for a declined proposal."""
+        """No case was created, so no Create(VulnerabilityCase) is sent."""
         _run_tree(dl, call_out=_declining_bundle([]))
 
         assert "Create" not in _types_in_outbox(dl)
@@ -535,11 +531,11 @@ class TestAnsweredProposalsAreNotReAdjudicated:
         assert "Reject" not in _types_in_outbox(dl)
 
     def test_guard_survives_a_missing_report_uri(self, dl):
-        """A stored ``Accept`` answers the guard even with no report URI.
+        """The admission record answers the guard even with no report URI.
 
-        The guard prefers an indexed case lookup, which needs ``report_id``; the
-        ``Accept`` scan is what covers ``report_id=None``. Without that half, a
-        redelivery could be Rejected after its Accept had gone out.
+        The guard is keyed on the proposal, so a redelivery that names no
+        report is still recognised; otherwise it could be Rejected after its
+        Accept had gone out.
         """
         _run_tree(dl)
         assert "Accept" in _types_in_outbox(dl)
@@ -742,13 +738,13 @@ class TestAQueueFaultRollsTheDeclineBack:
 
 
 @pytest.mark.spec("CLP-10-009")
-class TestAHalfBuiltCaseIsNotKept:
+class TestAFailedAcceptLeavesTheProposalUnanswered:
     """``main_flow`` creates the case before it emits the ``Accept``.
 
-    A delivery that fails in between used to leave a case with no stored
-    ``Accept``.  The creation is now one act (ADR-0146), so the fault rolls
-    the case back with everything else the delivery wrote: the proposal is
-    still unanswered, and a later delivery is adjudicated afresh.
+    The creation is one act (ADR-0146), so a fault before the ``Accept`` rolls
+    the case and the admission record back with everything else the delivery
+    wrote: the proposal is still unanswered, and a later delivery is
+    adjudicated afresh.
     """
 
     @pytest.mark.spec("CLP-07-013")
@@ -973,29 +969,6 @@ def test_new_proposal_id_from_the_owner_reuses_its_case(dl):
     assert new_types == ["Accept"], (
         "the new proposal is answered with its Accept and nothing else"
     )
-
-
-@pytest.mark.spec("CP-05-008")
-def test_an_unannounced_owner_case_is_completed_not_skipped(dl):
-    """A case no ``Create`` has announced yet still gets its ``Create``.
-
-    The reuse path skips the announcement only for a case already announced; a
-    half-built case left by a failed earlier delivery must still be finished.
-    """
-    assert _run_tree(dl) == Status.SUCCESS
-    (case,) = _cases(dl)
-    for create in list(dl.list_objects("Create")):
-        if str(getattr(create, "context", "")) == str(case.id_):
-            dl.delete("Create", create.id_)
-    assert not case_is_announced(dl, str(case.id_))
-
-    status = _run_tree(
-        dl, proposal_uri="https://vendor.example.org/proposals/p-002"
-    )
-
-    assert status == Status.SUCCESS
-    assert case_is_announced(dl, str(case.id_))
-    assert len(_cases(dl)) == 1
 
 
 @pytest.mark.spec("CP-05-008")
@@ -1327,31 +1300,6 @@ def test_another_proposer_for_a_closed_cases_report_gets_its_own_case(dl):
     )
 
 
-@pytest.mark.spec("CP-05-006")
-@pytest.mark.spec("CM-23-013")
-def test_a_legacy_redelivery_with_no_report_id_is_declined(dl):
-    """With no report id and no admission record, the Accept scan still runs.
-
-    A store written before the admission record existed holds only the
-    ``Accept``, and a redelivery that names no report gives the owner lookup
-    nothing to go on.  The ``Accept``'s ``result`` is then the only way to find
-    the closed case.
-    """
-    case = _accepted_then_closed(dl)
-    assert dl.delete(
-        "CaseProposalAdmissionRecord",
-        CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI),
-    )
-    ledger_before = _ledger_count(dl)
-
-    status = _run_tree(dl, report_id=None)
-
-    assert status == Status.SUCCESS
-    assert _types_in_outbox(dl) == ["Reject"]
-    assert [c.id_ for c in _cases(dl)] == [case.id_]
-    assert _ledger_count(dl) == ledger_before
-
-
 @pytest.mark.spec("CP-05-008")
 def test_the_accept_scan_is_skipped_when_the_owners_case_is_closed(
     dl, monkeypatch
@@ -1417,27 +1365,6 @@ def test_accepted_case_id_is_none_without_a_stored_accept():
     store = cast(CasePersistence, _AcceptStore(_CASE_ID))
 
     assert accepted_case_id(store, _SECOND_PROPOSAL_URI) is None
-
-
-@pytest.mark.parametrize(
-    ("report_id", "case_exists", "expected"),
-    [
-        (None, False, True),
-        (_REPORT_URI, False, False),
-        (_REPORT_URI, True, True),
-    ],
-    ids=["no-report-id", "no-case-for-report", "case-for-report"],
-)
-def test_accept_scan_can_match_is_a_negative_prefilter(
-    report_id, case_exists, expected
-):
-    found = SimpleNamespace(id_=_CASE_ID) if case_exists else None
-    store = cast(
-        CasePersistence,
-        SimpleNamespace(find_case_by_report_id=lambda _report_id: found),
-    )
-
-    assert accept_scan_can_match(store, report_id) is expected
 
 
 def _lookup_store(*cases: VulnerabilityCase) -> CasePersistence:
@@ -1803,58 +1730,6 @@ class TestAnotherSendersReuseOfADeclinedProposalId:
             == record_before
         )
         assert _cases(dl) == []
-
-
-def _drop_admission_record(dl) -> None:
-    """Leave the store as one written before the admission record existed:
-    the stored ``Accept`` and the proposal it carries, and no record."""
-    assert dl.delete(
-        "CaseProposalAdmissionRecord",
-        CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI),
-    )
-
-
-@pytest.mark.spec("CP-05-010")
-@pytest.mark.spec("HP-01-006")
-class TestAnotherSendersReuseOnAStoreWithNoAdmissionRecord:
-    """The stored proposal names its proposer when no record does.
-
-    A store written before the admission record existed holds only the
-    stored ``Accept`` and the proposal it carries.  The guard reads that
-    proposal's ``attributed_to``, so another sender is still refused.
-    """
-
-    def test_an_open_case_is_not_reached(self, dl):
-        assert _run_tree(dl) == Status.SUCCESS
-        (case,) = _cases(dl)
-        _drain_outbox(dl)
-        _drop_admission_record(dl)
-        ledger_before = _ledger_count(dl)
-        case_rows_before = _case_rows(dl, str(case.id_))
-
-        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
-
-        assert status == Status.FAILURE, "the sender guard refuses it"
-        assert _types_in_outbox(dl) == []
-        assert [c.id_ for c in _cases(dl)] == [case.id_]
-        assert _ledger_count(dl) == ledger_before
-        assert _case_rows(dl, str(case.id_)) == case_rows_before
-        assert (
-            dl.read(CaseProposalAdmissionRecord.build_id(_PROPOSAL_URI))
-            is None
-        ), "no admission record is written for the other sender"
-
-    def test_a_closed_case_is_not_declined_for_the_other_sender(self, dl):
-        _accepted_then_closed(dl)
-        _drop_admission_record(dl)
-
-        status = _run_tree(dl, proposer_uri=_OTHER_PROPOSER_URI)
-
-        assert status == Status.FAILURE
-        assert _types_in_outbox(dl) == []
-        assert (
-            dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI)) is None
-        )
 
 
 @pytest.mark.spec("CP-05-006")

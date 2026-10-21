@@ -353,7 +353,7 @@ _DELETED_TYPES: list[tuple[str, dict[str, Any]]] = [
         {"caseId": "https://example.org/cases/c-4940"},
     ),
     # The two case-creation markers, deleted when case creation became one
-    # act (CLP-07-015, #4984).
+    # act (CLP-07-015, #5013, #4984).
     (
         "PendingCreateCaseActivity",
         {

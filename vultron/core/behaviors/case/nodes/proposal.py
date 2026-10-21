@@ -35,9 +35,7 @@ from vultron.core.behaviors.case.case_actor_identity import (
     case_actor_identity,
 )
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
-from vultron.core.behaviors.helpers import (
-    _EmitSingleActivityBase,
-)
+from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 
 
 class ProposeReportCaseToActorNode(_EmitSingleActivityBase):

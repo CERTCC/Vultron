@@ -274,20 +274,16 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      When a dispatch is attempted but no handler runs, the dispatcher layer MUST
-      synthesize an explicit verdict rather than returning normally: an activity dropped
-      as unroutable and an unrecognized-semantics lookup failure MUST NOT yield
-      `InboxOutcome.status == "processed"`
+      When a dispatch is attempted but no handler runs, the dispatcher MUST raise
+      rather than return normally: an unrecognized-semantics lookup failure MUST NOT
+      yield `InboxOutcome.status == "processed"`
     rationale: >-
-      `DispatcherBase._handle()` catches `UnroutableActivityError`, logs, and returns
-      (`vultron/core/dispatcher.py`), so no exception escapes and no `HandlerResult` is
-      produced — today that path reports `processed` for an activity that was silently
-      dropped. `_get_use_case()` raising `VultronApiHandlerNotFoundError` is the companion
-      case. UCORG-05-011 covers only "a dispatch occurred and a handler returned a
-      verdict"; without this requirement the exact defect class #2255 describes survives
-      the migration on the no-handler paths. Because HP-01-004 reserves `InboxOutcome`'s
-      vocabulary to `DispatchNode`, this verdict is synthesized at the dispatcher layer,
-      not by a handler.
+      `_get_use_case()` raises `VultronApiHandlerNotFoundError` when no use case is
+      registered for the semantics, so the pipeline records the raise as rejected. The
+      dispatcher raises rather than naming an outcome, because HP-01-004 reserves
+      `InboxOutcome`'s vocabulary to `DispatchNode` (#2255). An activity that names no
+      case is not a no-handler path: routing is by semantics alone, and the handler
+      refuses it (HP-05-002).
     relationships:
     - rel_type: refines
       spec_id: UCORG-05-011

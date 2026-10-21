@@ -337,6 +337,15 @@ class TestCoreTypeMapFallback:
         cls = find_in_vocabulary("PendingCaseInbox", include_core=True)
         assert cls is VultronPendingCaseInbox
 
+    def test_the_retired_create_case_marker_is_not_a_core_type(self):
+        """The ``PendingCreateCaseActivity`` marker is retired (#5013).
+
+        The outbox retries the case-creation ``Create`` (OX-13), so no record
+        type is registered for the marker and a stored row of it is not loaded.
+        """
+        with pytest.raises(KeyError):
+            find_in_vocabulary("PendingCreateCaseActivity", include_core=True)
+
     def test_report_case_link_resolves_correctly(self):
         """find_in_vocabulary('ReportCaseLink') returns VultronReportCaseLink."""
         from vultron.core.models.report_case_link import (

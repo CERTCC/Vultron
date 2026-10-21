@@ -77,10 +77,10 @@ the steps out of order.
 `DispatchNode` is the only place a verdict becomes an outcome (HP-01-004):
 `APPLIED`/`SKIPPED` → `processed`, `DEFERRED` → `deferred`, `REFUSED` → `rejected` with
 the handler's reason. A dispatch that returns no `HandlerResult` is rejected ("did not
-raise" is not a verdict), and an unroutable activity gets a synthesized `REFUSED`
-(UCORG-05-012). `run_inbox_pipeline` logs every `rejected` outcome at WARNING with actor
-and activity ids (UCORG-05-013); the BT nodes log their own outcome writes at INFO, so
-a refusal is not reported twice.
+raise" is not a verdict), and semantics with no use case raise in the dispatcher, so
+they are rejected too (UCORG-05-012). `run_inbox_pipeline` logs every `rejected`
+outcome at WARNING with actor and activity ids (UCORG-05-013); the BT nodes log their
+own outcome writes at INFO, so a refusal is not reported twice.
 
 Every deferral gate asks `is_deferral_exempt()` (`core/models/events/case_context.py`),
 never `is_case_bootstrap()`: a stub Invite is exempt because it precedes its case by

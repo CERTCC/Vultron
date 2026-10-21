@@ -20,8 +20,18 @@ case, its participants and embargo, the ``Accept`` and the
 ``Create(VulnerabilityCase)``, the creation entries and a contested
 creation's relayed revision commit together, or nothing does and a
 redelivery processes the proposal fresh.
+
+The ``Create`` emit tests verify that
+  - ``EmitCreateVulnerabilityCaseNode`` queues ``Create(VulnerabilityCase)``
+    under an id derived from the proposal, carrying the inline case, the
+    case URI as ``context`` and the ``Accept`` URI as ``inReplyTo``.
+  - A ``Create`` that cannot be queued rolls back the ``Accept`` and the
+    case with it (ADR-0146).
+  - Once the creation act commits, the durable outbox retries a ``Create``
+    whose first delivery attempt fails (OX-13), with no marker involved.
 """
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -39,6 +49,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
@@ -59,7 +70,10 @@ from vultron.core.models.use_case_result import (
     HandlerResult,
 )
 from vultron.core.states.em import EM
-from vultron.errors import VultronBTInternalError
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronBTInternalError,
+)
 
 # imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
@@ -164,8 +178,7 @@ def _assert_entry_carries_rows_not_status_consent(
 
 
 _CASE_URI = "https://example.org/cases/c-001"
-_ACCEPT_URI = "https://example.org/activities/a-001"
-_CREATE_ID = create_case_activity_id(_CASE_ACTOR_URI, _PROPOSAL_URI)
+_CREATE_ID = create_case_activity_id(_PROPOSAL_URI)
 
 
 def _store_announced_create(
@@ -173,7 +186,6 @@ def _store_announced_create(
 ) -> None:
     """Store the Create a first delivery of ``_PROPOSAL_URI`` announced."""
     from vultron.core.models.activity import VultronCreateCaseActivity
-    from vultron.core.models.case import VulnerabilityCase
 
     port = As2WireRenderAdapter()
     case = VulnerabilityCase(id_=case_id, attributed_to=_VENDOR_URI)
@@ -186,20 +198,29 @@ def _store_announced_create(
     TriggerActivityAdapter(dl).emit_prepared_create_case(port.render(create))
 
 
-@pytest.mark.spec("CP-05-003")
+def _queued_create(dl: SqliteDataLayer) -> dict[str, Any]:
+    """The sealed body of the proposal's queued ``Create(VulnerabilityCase)``."""
+    assert _CREATE_ID in dl.outbox_list(), "the Create must be queued"
+    body = read_sealed_body_dict(dl, _CREATE_ID)
+    assert body is not None, "the queued Create must have a sealed body"
+    return body
+
+
+@pytest.mark.spec("CP-05-005")
 class TestEmitCreateVulnerabilityCaseNode:
     """Unit tests for EmitCreateVulnerabilityCaseNode."""
 
     def _seed_case(self, dl: SqliteDataLayer, case_id: str) -> None:
-        """Seed a minimal VulnerabilityCase so _build_case_object succeeds."""
+        """Seed a minimal VulnerabilityCase so the case object can be built."""
         dl.save(VulnerabilityCase(id_=case_id, attributed_to=_VENDOR_URI))
 
     def _run_node(
         self,
         dl: SqliteDataLayer,
         case_id: str | None = _CASE_URI,
-        accept_id: str | None = _ACCEPT_URI,
+        accept_id: str | None = "https://example.org/activities/a-001",
         seed: bool = True,
+        with_factory: bool = True,
     ) -> py_trees.common.Status:
         """Execute EmitCreateVulnerabilityCaseNode via BTBridge."""
         if seed and case_id is not None:
@@ -207,87 +228,81 @@ class TestEmitCreateVulnerabilityCaseNode:
         node = EmitCreateVulnerabilityCaseNode(
             proposal_id=_PROPOSAL_URI, owner_uri=_VENDOR_URI
         )
-        context: dict[str, Any] = {
-            key: value
-            for key, value in (
-                ("case_id", case_id),
-                ("accept_activity_id", accept_id),
+        tree = py_trees.composites.Sequence(
+            name="TestSeq", memory=False, children=[node]
+        )
+        # Pre-populate the blackboard keys the node reads.
+        client = py_trees.blackboard.Client(name="TestSetup")
+        if case_id is not None:
+            client.register_key(
+                key="case_id", access=py_trees.common.Access.WRITE
             )
-            if value is not None
-        }
-        py_trees.blackboard.Blackboard.storage.clear()
+            client.case_id = case_id
+        if accept_id is not None:
+            client.register_key(
+                key="accept_activity_id", access=py_trees.common.Access.WRITE
+            )
+            client.accept_activity_id = accept_id
+
         result = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
+            trigger_activity=(
+                TriggerActivityAdapter(dl) if with_factory else None
+            ),
             sync_port=SyncActivityAdapter(dl),
-        ).execute_with_setup(tree=node, actor_id=_CASE_ACTOR_URI, **context)
+        ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI)
         return result.status
 
-    @staticmethod
-    def _sealed_create(dl: SqliteDataLayer) -> dict[str, Any]:
-        """The body the outbox delivers for the queued Create."""
-        assert dl.outbox_list() == [_CREATE_ID]
-        body = read_sealed_body_dict(dl, _CREATE_ID)
-        assert body is not None, "the queued Create has a sealed body"
-        return body
+    def _dl(self) -> SqliteDataLayer:
+        return SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
 
-    def test_queues_the_create(self):
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
-
-        status = self._run_node(dl)
-
-        assert status == py_trees.common.Status.SUCCESS
-        body = self._sealed_create(dl)
+    def test_queues_the_create_from_the_case_manager(self):
+        """The Create is queued, sent by the CASE_MANAGER."""
+        dl = self._dl()
+        assert self._run_node(dl) == py_trees.common.Status.SUCCESS
+        body = _queued_create(dl)
         assert body["type"] == "Create"
         assert body["actor"] == _CASE_ACTOR_URI
 
-    @pytest.mark.spec("OX-06-002")
-    @pytest.mark.spec("CP-05-006")
     def test_the_create_is_named_for_the_proposal(self):
-        """The Create's id derives from the CASE_MANAGER and the proposal, so
-        a redelivery names the activity the first delivery announced."""
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
-
+        """The Create's id derives from the proposal, so a redelivery names
+        the activity the first delivery announced (#4146)."""
+        dl = self._dl()
         self._run_node(dl)
+        assert _queued_create(dl)["id"] == _CREATE_ID
 
-        assert self._sealed_create(dl)["id"] == _CREATE_ID
+    def test_an_already_stored_create_is_not_queued_again(self):
+        """A stored Create for this proposal means the case was announced:
+        the node succeeds and queues nothing (#4146)."""
+        dl = self._dl()
+        _store_announced_create(dl)
+        assert self._run_node(dl) == py_trees.common.Status.SUCCESS
+        assert dl.outbox_list() == []
 
-    @pytest.mark.spec("OX-06-002")
-    def test_an_already_queued_create_is_not_queued_twice(self):
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
-        self._run_node(dl)
-
-        status = self._run_node(dl, seed=False)
-
-        assert status == py_trees.common.Status.SUCCESS
-        assert dl.outbox_list() == [_CREATE_ID]
-
-    @pytest.mark.spec("CP-05-005")
     def test_a_create_announcing_another_case_fails_loudly(self, caplog):
         """A sender that reuses a proposal id for a new case finds the old
         case's Create under the derived id.  Reporting SUCCESS would leave the
         new case never announced, so the node fails and says why."""
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        dl = self._dl()
         _store_announced_create(dl, case_id="https://example.org/cases/c-old")
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.ERROR):
             status = self._run_node(dl)
         assert status == py_trees.common.Status.FAILURE
         assert dl.outbox_list() == []
         assert any(
             "https://example.org/cases/c-old" in r.getMessage()
-            and r.levelno == logging.WARNING
+            and r.levelno == logging.ERROR
             for r in caplog.records
         )
 
-    @pytest.mark.spec("CP-05-005")
     def test_a_non_create_under_the_derived_id_fails(self):
         """Something other than a Create under the derived id announces no
         case; the node fails rather than taking it as announced."""
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        dl = self._dl()
         dl.save(VulnerabilityCase(id_=_CREATE_ID, attributed_to=_VENDOR_URI))
-        status = self._run_node(dl)
-        assert status == py_trees.common.Status.FAILURE
+        assert self._run_node(dl) == py_trees.common.Status.FAILURE
+        assert dl.outbox_list() == []
 
     @pytest.mark.spec("EMB-18-003")
     def test_the_create_carries_the_active_embargo_inline(self):
@@ -295,7 +310,7 @@ class TestEmitCreateVulnerabilityCaseNode:
         from vultron.core.models._helpers import days_from_now_utc
         from vultron.core.models.embargo_event import EmbargoEvent
 
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        dl = self._dl()
         case_id = "https://example.org/cases/c-embargo"
         embargo = EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
@@ -314,8 +329,7 @@ class TestEmitCreateVulnerabilityCaseNode:
         status = self._run_node(dl, case_id=case_id, seed=False)
 
         assert status == py_trees.common.Status.SUCCESS
-        case_obj = self._sealed_create(dl)["object"]
-        (entry,) = case_obj["embargoRegister"]
+        (entry,) = _queued_create(dl)["object"]["embargoRegister"]
         carried = entry["embargo"]
         assert isinstance(carried, dict), carried
         assert carried["id"] == embargo.id_
@@ -324,7 +338,7 @@ class TestEmitCreateVulnerabilityCaseNode:
     @pytest.mark.spec("EMB-18-003")
     def test_unreadable_active_embargo_fails_and_queues_nothing(self, caplog):
         """A case naming an embargo this store lacks is never sent."""
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        dl = self._dl()
         case_id = "https://example.org/cases/c-unheld"
         dl.save(
             VulnerabilityCase(
@@ -336,39 +350,52 @@ class TestEmitCreateVulnerabilityCaseNode:
             )
         )
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.ERROR):
             status = self._run_node(dl, case_id=case_id, seed=False)
 
         assert status == py_trees.common.Status.FAILURE
         assert dl.outbox_list() == []
         assert any("EMB-18-003" in r.getMessage() for r in caplog.records)
 
-    def test_the_create_names_the_case_and_answers_the_accept(self):
-        """ADR-0045: context is the case URI, inReplyTo the Accept URI.
+    def test_the_create_uses_case_id_as_context(self):
+        """AC-1 (ADR-0045): Create(VulnerabilityCase) carries context=case_uri.
 
         CP-05-003 requires context = case URI for inbox deferral routing.  The
         old assignment (context = Accept URI) caused a bootstrap deadlock.
         """
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        dl = self._dl()
         case_id = "https://example.org/cases/c-field-test"
         accept_id = "https://example.org/activities/accept-field-test"
-
         self._run_node(dl, case_id=case_id, accept_id=accept_id)
-
-        body = self._sealed_create(dl)
-        assert body.get("context") == case_id
-        assert body.get("inReplyTo") == accept_id
+        body = _queued_create(dl)
+        assert body.get("context") == case_id, (
+            "context MUST be the case URI (CP-05-003, ADR-0045); "
+            f"got {body.get('context')!r}"
+        )
+        assert body.get("inReplyTo") == accept_id, (
+            "inReplyTo MUST be the Accept URI (CP-05-003, ADR-0045); "
+            f"got {body.get('inReplyTo')!r}"
+        )
 
     @pytest.mark.spec("ARCH-20-001")
     def test_the_create_is_the_ports_rendering(self):
-        """The delivered body is the port's AS2 rendering, not a core dump."""
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        """The queued body is the port's AS2 rendering, not a core dump.
 
-        self._run_node(dl)
+        ``@context`` comes only from a by-alias dump of a ``CoreObject``, and the
+        rendering is JSON-mode, so both mark the body as the port's.  It must
+        also revalidate to the activity that was queued.
+        """
+        from vultron.core.models.activity import VultronCreateCaseActivity
 
-        body = self._sealed_create(dl)
+        dl = self._dl()
+        case_id = "https://example.org/cases/c-render"
+        self._run_node(dl, case_id=case_id)
+        body = _queued_create(dl)
         assert "@context" in body
         assert isinstance(body.get("published"), str)
+        activity = VultronCreateCaseActivity.model_validate(body)
+        assert activity.context == case_id
+        assert activity.actor == _CASE_ACTOR_URI
 
     @pytest.mark.spec("CBT-01-010")
     @pytest.mark.spec("CM-22-001")
@@ -379,7 +406,7 @@ class TestEmitCreateVulnerabilityCaseNode:
         """
         from vultron.enums.roles import CVDRole
 
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        dl = self._dl()
         case_id = "https://example.org/cases/c-owner-only"
         case = VulnerabilityCase(id_=case_id, attributed_to=_CASE_ACTOR_URI)
         reporter = "https://example.org/actors/reporter-owner-only"
@@ -396,51 +423,95 @@ class TestEmitCreateVulnerabilityCaseNode:
         status = self._run_node(dl, case_id=case_id, seed=False)
 
         assert status == py_trees.common.Status.SUCCESS
-        assert self._sealed_create(dl)["to"] == [_VENDOR_URI]
+        assert _queued_create(dl)["to"] == [_VENDOR_URI]
 
     def test_fails_when_case_id_missing(self):
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
-        assert self._run_node(dl, case_id=None) == (
-            py_trees.common.Status.FAILURE
-        )
-        assert dl.outbox_list() == []
-
-    def test_fails_when_the_case_is_not_stored(self):
-        """Regime 1 (ADR-0087): the tree created the case, so an absent one
-        is an anomaly, never a skip."""
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
-        assert self._run_node(dl, seed=False) == (
-            py_trees.common.Status.FAILURE
-        )
+        """FAILURE returned when case_id is absent from blackboard."""
+        dl = self._dl()
+        status = self._run_node(dl, case_id=None)
+        assert status == py_trees.common.Status.FAILURE
         assert dl.outbox_list() == []
 
     def test_fails_when_accept_activity_id_missing(self):
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
-        assert self._run_node(dl, accept_id=None) == (
-            py_trees.common.Status.FAILURE
-        )
+        """FAILURE returned when accept_activity_id is absent from blackboard."""
+        dl = self._dl()
+        status = self._run_node(dl, accept_id=None)
+        assert status == py_trees.common.Status.FAILURE
+        assert dl.outbox_list() == []
+
+    def test_fails_when_the_create_cannot_be_built(self):
+        """FAILURE returned when the adapter refuses the prepared Create."""
+        dl = self._dl()
+        with patch.object(
+            TriggerActivityAdapter,
+            "emit_prepared_create_case",
+            side_effect=VultronActivityConstructionError("refused"),
+        ):
+            status = self._run_node(dl)
+        assert status == py_trees.common.Status.FAILURE
+        assert dl.outbox_list() == []
+
+    def test_fails_when_the_case_is_not_stored(self):
+        """The CaseActor created the case upstream, so a missing one fails
+        the node rather than being skipped (ADR-0087)."""
+        dl = self._dl()
+        assert self._run_node(dl, seed=False) == py_trees.common.Status.FAILURE
+        assert dl.outbox_list() == []
+
+    def test_fails_without_a_trigger_activity_port(self):
+        """With no port to build the Create through, nothing is queued."""
+        dl = self._dl()
+        status = self._run_node(dl, with_factory=False)
+        assert status == py_trees.common.Status.FAILURE
+        assert dl.outbox_list() == []
+
+    def test_fails_when_the_outbox_refuses_the_create(self):
+        """An enqueue failure fails the node, so the creation act rolls
+        back instead of committing an Accept with no Create (ADR-0146)."""
+        dl = self._dl()
+        with patch.object(
+            dl, "outbox_append", side_effect=RuntimeError("queue down")
+        ):
+            status = self._run_node(dl)
+        assert status == py_trees.common.Status.FAILURE
         assert dl.outbox_list() == []
 
 
-def _proposal_event(make_payload):
-    """A Create(CaseProposal) received by the CASE_MANAGER."""
-    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-        as_Create,
-    )
+class _FailFirstCreateEmitter:
+    """An emitter whose first attempt to deliver the Create fails."""
 
-    activity = as_Create(
-        actor=_vendor_profile(),
-        object_=_make_proposal(),
-        to=[_CASE_ACTOR_URI],
-    )
-    event = make_payload(activity)
-    return event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI})
+    def __init__(self) -> None:
+        self.create_attempts = 0
+        self.delivered: list[str] = []
+
+    async def emit(
+        self, activity_id: str, json_body: str, recipients: list[str]
+    ) -> None:
+        if activity_id == _CREATE_ID:
+            self.create_attempts += 1
+            if self.create_attempts == 1:
+                raise RuntimeError("recipient unreachable")
+        self.delivered.append(activity_id)
 
 
 @pytest.mark.spec("CP-05-005")
-@pytest.mark.spec("CP-09-009")
-class TestTheAcceptAndCreateAreQueuedTogether:
-    """The Accept and the Create are queued in one act, or neither is."""
+class TestCreateCaseProposalReceivedBTCreateWiring:
+    """End-to-end queueing and delivery of the Create via the full BT tree."""
+
+    def _make_event(self, make_payload):
+        """Build a CreateCaseProposalReceivedEvent for the full tree."""
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Create,
+        )
+
+        proposal = _make_proposal()
+        activity = as_Create(
+            actor=_vendor_profile(),
+            object_=proposal,
+            to=[_CASE_ACTOR_URI],
+        )
+        event = make_payload(activity)
+        return event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI})
 
     def _execute(self, dl: SqliteDataLayer, make_payload) -> HandlerResult:
         from vultron.core.use_cases.received.case_proposal import (
@@ -449,26 +520,52 @@ class TestTheAcceptAndCreateAreQueuedTogether:
 
         return CreateCaseProposalReceivedUseCase(
             dl,
-            _proposal_event(make_payload),
+            self._make_event(make_payload),
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-    def test_a_success_queues_the_create_under_its_derived_id(
-        self, make_payload
-    ):
+    def test_full_success_queues_the_create(self, make_payload):
+        """The committed act leaves the Create in the durable outbox."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
-
         self._execute(dl, make_payload)
-
-        assert _CREATE_ID in dl.outbox_list()
-        assert dl.outbox_list().index(_CREATE_ID) == 1, (
-            "the Create follows the Accept, ahead of every ledger fan-out"
+        assert _queued_create(dl)["context"] == _as_id(
+            dl.list_objects("VulnerabilityCase")[0]
         )
 
+    @pytest.mark.spec("OX-13-001")
+    def test_a_failed_first_delivery_of_the_create_is_retried_by_the_outbox(
+        self, make_payload, monkeypatch
+    ):
+        """AC-5 (#5013): after the commit the outbox, not a marker, retries.
+
+        The creation act commits with the Create queued.  The first attempt
+        to deliver it fails; the outbox keeps the row and retries it, and the
+        Create is delivered, with no other record involved.
+        """
+        from vultron.core.models.actor import VultronService
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        self._execute(dl, make_payload)
+        assert _CREATE_ID in dl.outbox_list()
+        # The drain resolves the actor whose outbox it is.
+        dl.save(VultronService(id_=_CASE_ACTOR_URI))
+
+        async def no_sleep(_seconds: float) -> None:
+            return None
+
+        monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+        emitter = _FailFirstCreateEmitter()
+
+        asyncio.run(oh.outbox_handler(_CASE_ACTOR_URI, dl, emitter=emitter))
+
+        assert emitter.create_attempts == 2
+        assert _CREATE_ID in emitter.delivered
+        assert _CREATE_ID not in dl.outbox_list()
+        assert dl.dead_letter_list() == []
+
     @pytest.mark.spec("CLP-07-013")
-    @pytest.mark.spec("CLP-07-015")
     def test_a_failed_create_emit_rolls_back_the_accept(self, make_payload):
         """A ``Create`` that cannot be queued leaves no ``Accept`` behind.
 
@@ -1908,26 +2005,35 @@ class TestCM18007InitLedgerEntries:
 class TestADR0041InlineParticipantsPayload:
     """ADR-0041 AC-5: Create(VulnerabilityCase) embeds inline participant objects."""
 
-    @staticmethod
-    def _announced_case(make_payload) -> dict[str, Any]:
-        """The case the delivered Create(VulnerabilityCase) carries inline."""
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+    def test_create_payload_has_inline_participants(self, make_payload):
+        """The queued Create must embed participants as objects, not IDs."""
+        from vultron.core.use_cases.received.case_proposal import (
+            CreateCaseProposalReceivedUseCase,
+        )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
         _seed_report(dl)
-        _run_full_bt(make_payload, dl)
-        body = read_sealed_body_dict(dl, _CREATE_ID)
-        assert body is not None, "the queued Create has a sealed body"
-        obj_field = body.get("object")
+        event = _make_full_event(make_payload)
+
+        CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        payload = _queued_create(dl)
+
+        obj_field = payload.get("object") or payload.get("object_")
         assert isinstance(obj_field, dict), (
-            "Create(VulnerabilityCase) object must be an inline dict,"
+            "Create(VulnerabilityCase) payload.object must be an inline dict,"
             f" not {type(obj_field).__name__!r}"
         )
-        return obj_field
-
-    def test_the_create_has_inline_participants(self, make_payload):
-        """The Create must embed participants as objects, not IDs."""
-        participants = self._announced_case(make_payload).get(
-            "caseParticipants", []
-        )
+        participants = obj_field.get("caseParticipants", [])
         assert participants, (
             "Inline case object must have at least one participant (AC-5)"
         )
@@ -1937,11 +2043,32 @@ class TestADR0041InlineParticipantsPayload:
                 f"caseParticipants entries must be inline dicts, got {type(p).__name__!r}"
             )
 
-    def test_vendor_participant_inline_in_the_create(self, make_payload):
-        """Vendor participant must appear as inline object in the Create."""
-        participants = self._announced_case(make_payload).get(
-            "caseParticipants", []
+    def test_vendor_participant_inline_in_payload(self, make_payload):
+        """Vendor participant must appear as inline object in Create payload."""
+        from vultron.core.use_cases.received.case_proposal import (
+            CreateCaseProposalReceivedUseCase,
         )
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
+        _seed_report(dl)
+        event = _make_full_event(make_payload)
+
+        CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        payload = _queued_create(dl)
+        obj_field = payload.get("object") or payload.get("object_")
+        assert isinstance(obj_field, dict)
+
+        participants = obj_field.get("caseParticipants", [])
         attributed_tos = {
             p.get("attributedTo") or p.get("attributed_to")
             for p in participants
@@ -1949,7 +2076,7 @@ class TestADR0041InlineParticipantsPayload:
         }
         assert _VENDOR_URI in attributed_tos, (
             f"Vendor '{_VENDOR_URI}' must appear as inline participant in"
-            " Create(VulnerabilityCase) (AC-5)"
+            " Create(VulnerabilityCase) payload (AC-5)"
         )
 
 
@@ -1958,9 +2085,9 @@ class TestADR0041Idempotency:
     """ADR-0041 / CP-05-006: re-processing a proposal is idempotent.
 
     The ADR explicitly warns that a prior attempt shifted ledger indices and
-    broke replication timing.  A duplicate ``Create(as_CaseProposal)`` must
-    reuse the existing case and must NOT create duplicate participants or
-    duplicate ledger entries.
+    broke replication timing.  A duplicate ``Create(as_CaseProposal)`` (after
+    the first delivery committed) must reuse the existing case and must NOT
+    create duplicate participants or duplicate ledger entries.
     """
 
     def test_duplicate_proposal_no_duplicate_participants_or_entries(
@@ -1989,7 +2116,7 @@ class TestADR0041Idempotency:
             if getattr(e, "case_id", None) == case_id
         ]
 
-        # Second delivery of the SAME proposal: LoadExistingCaseNode must
+        # Second delivery of the SAME proposal — LoadExistingCaseNode must
         # reuse the case.
         _run_full_bt(make_payload, dl)
 
@@ -2114,9 +2241,7 @@ class TestARedeliveryAnnouncesTheCaseOnce:
     """A redelivered proposal announces its case once (CP-05-005, #4146).
 
     The Create's id is derived from the proposal, and a redelivery that finds
-    the case announced queues nothing new.  A redelivery after a rolled-back
-    creation is the archived copy intake kept (IE-10-001), and processes the
-    proposal fresh.
+    that activity stored queues nothing new.
     """
 
     @pytest.mark.spec("CP-05-005")
@@ -2133,8 +2258,8 @@ class TestARedeliveryAnnouncesTheCaseOnce:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
         _seed_report(dl)
         with monkeypatch.context() as patch:
-            # The leaf after the Create emit fails, so the whole creation
-            # rolls back, its queued Create with it (ADR-0146).
+            # The leaf after EmitCreateVulnerabilityCaseNode fails, so the whole
+            # creation rolls back, its queued Create with it (ADR-0146).
             patch.setattr(
                 CommitNativeLedgerEntriesNode,
                 "update",
@@ -2298,8 +2423,8 @@ class TestADR0041GenesisCommitFailure:
         Each creation entry in turn is made to fail, genesis first.  The
         whole creation rolls back with it (ADR-0146): the case, its
         participant records and statuses, its case status, the embargo, the
-        queued ``Accept`` and ``Create`` and every entry committed before
-        the failed one.
+        queued ``Accept`` and ``Create`` and every entry
+        committed before the failed one.
         """
         from test.support.ledger import creation_entry_sequence
         from vultron.core.behaviors.case.nodes import proposal_ledger
@@ -3384,6 +3509,7 @@ class TestEP04SenderProposalAtCaseCreation:
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("CM-24-001")
     @pytest.mark.spec("CM-24-002")
+    @pytest.mark.spec("CM-14-007")
     def test_the_owners_losing_default_is_relayed_to_the_reporter(
         self, make_payload
     ):
@@ -3844,7 +3970,8 @@ def test_a_genesis_commit_failure_queues_neither_accept_nor_create(
 
     The commit runs after the emits (CP-09-009), so the fan-out queues behind
     the ``Create``, but all of them are one act (ADR-0146): the failure rolls
-    back the queued ``Accept`` and ``Create`` and the case, and the handler does not report APPLIED.  Delivery is told of neither
+    back the queued ``Accept`` and ``Create`` and the case,
+    and the handler does not report APPLIED.  Delivery is told of neither
     activity, since the outbox monitor learns of a queued item only once the
     block commits (DL-02-004); a redelivery that succeeds wakes it.
     """

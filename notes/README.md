@@ -252,8 +252,8 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
 - **`inbox-pipeline.md`** · `guidance`
   The dispatcher exception boundary, the `InboxPipeline` test seam, and the
   one-transaction queue replay attempt.
-  **Load when**: changing where unroutable errors are caught, re-queues bounded, or
-  the inbox queue drain.
+  **Load when**: adding a raise under the inbox retry loop, bounding re-queues, or
+  changing the inbox queue drain.
 - **`outbox.md`** · `guidance`
   Outbox addressing enforcement, `handle_outbox_item`, and required test coverage.
   **Load when**: changing outbox delivery or adding an outbound activity type.

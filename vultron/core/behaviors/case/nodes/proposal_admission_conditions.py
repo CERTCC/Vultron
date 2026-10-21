@@ -42,8 +42,6 @@ from vultron.core.behaviors.case.nodes.post_close import (
     case_is_fully_closed,
 )
 from vultron.core.behaviors.case.nodes.proposal_case_lookup import (
-    accept_scan_can_match,
-    find_activity_for_proposal,
     proposal_case_ids,
 )
 from vultron.core.behaviors.helpers import DataLayerAction
@@ -60,44 +58,27 @@ logger = logging.getLogger(__name__)
 
 
 class CheckProposalAlreadyAnsweredNode(DataLayerAction):
-    """Return SUCCESS if the accept path has already begun for this proposal.
+    """Return SUCCESS if this proposal was already accepted.
 
     Guards the admission decision against re-adjudicating a proposal the service
     already answered. Once ``Accept(as_CaseProposal)`` has been sent the answer
     is irrevocable (CP-05-005), so a later "decline" must never reach the wire.
 
-    "Answered" is deliberately wider than "an Accept was sent". ``main_flow``
-    creates the case *before* it emits the ``Accept`` (its ledger entries are
-    committed after it, CP-09-009), so a delivery that fails in between leaves
-    a case with no stored ``Accept``. An Accept-only guard cannot see that, and a later declining
-    delivery would then Reject a case this store had already half-built — and,
-    because the decline record blocks the accept arm from then on, that case
-    could never be completed.
+    The evidence is the ``CaseProposalAdmissionRecord`` for this proposal, an
+    indexed single-row read.  The accept flow stores it in the same
+    ``ActTransaction`` as the case and the queued ``Accept`` (ADR-0146), so the
+    record exists exactly when the ``Accept`` was committed: a failed delivery
+    rolls both back, and a later delivery is adjudicated afresh.
 
-    **Every probe here is keyed on the proposal, never on the report.** That
-    distinction is the whole correctness of this node. ``report_id`` is
-    ``request.inner_object_id`` — the id of the report the *sender* embedded in
-    its proposal — so it is chosen by whoever sent the proposal, and two
+    **The probe is keyed on the proposal, never on the report.** ``report_id``
+    is ``request.inner_object_id`` — the id of the report the *sender* embedded
+    in its proposal — so it is chosen by whoever sent the proposal, and two
     proposals may name one report. A report-keyed "has a case been created?"
-    probe therefore answers SUCCESS for a proposal this service never
-    adjudicated, which short-circuits this arm *before* the admission call-out
-    point is ticked and admits the proposal through ``LoadExistingCaseNode``'s
+    probe would answer SUCCESS for a proposal this service never adjudicated,
+    which short-circuits this arm *before* the admission call-out point is
+    ticked and admits the proposal through ``LoadExistingCaseNode``'s
     duplicate-reuse path. A gate that a sender can skip by naming a report it
-    has seen is not a gate. So two proposal-keyed things count as answered:
-
-    - a ``CaseProposalAdmissionRecord`` for this proposal, written as
-      ``main_flow``'s first step and therefore present from before the case
-      exists — this is what covers the half-built case above, and it is an
-      indexed single-row read; or
-    - a stored ``Accept`` whose object is this proposal, which is the fallback
-      for a store written before the admission record existed.
-
-    The ``Accept`` fallback rehydrates every ``Accept`` row, so it runs only
-    when it can matter: a report-keyed lookup is used purely as a cheap
-    *negative* prefilter, because no case for the report means nothing was
-    answered and no scan is needed. That keeps the common case — a first-time
-    proposal under the admitting default — off the scan entirely, while the
-    positive answer still comes only from proposal-keyed evidence.
+    has seen is not a gate.
 
     **Store errors are not caught here.** Returning FAILURE would let the
     enclosing Selector run the accept arm, and returning SUCCESS would do the
@@ -116,12 +97,10 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
     def __init__(
         self,
         proposal_id: str,
-        report_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
-        self._report_id = report_id
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -129,30 +108,14 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
         assert self.datalayer is not None
 
         admitted_id = CaseProposalAdmissionRecord.build_id(self._proposal_id)
-        if self.datalayer.read(admitted_id) is not None:
-            logger.info(
-                "%s: proposal '%s' already began the accept path — not"
-                " re-adjudicating",
-                self.name,
-                self._proposal_id,
-            )
-            return Status.SUCCESS
-
-        datalayer = cast(CasePersistence, self.datalayer)
-        if not accept_scan_can_match(datalayer, self._report_id):
+        if self.datalayer.read(admitted_id) is None:
             return Status.FAILURE
-
-        if (
-            find_activity_for_proposal(datalayer, self._proposal_id, "Accept")
-            is not None
-        ):
-            logger.info(
-                "%s: proposal '%s' was already accepted — not re-adjudicating",
-                self.name,
-                self._proposal_id,
-            )
-            return Status.SUCCESS
-        return Status.FAILURE
+        logger.info(
+            "%s: proposal '%s' was already accepted — not re-adjudicating",
+            self.name,
+            self._proposal_id,
+        )
+        return Status.SUCCESS
 
 
 class CheckProposalCaseFullyClosedNode(DataLayerAction):

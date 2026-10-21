@@ -62,7 +62,7 @@ The top-level tree is a Selector with four branches, tried in order:
 
 * **Accept** — ``CreateCaseFromProposalAct``: the accept flow above, which
   first writes the proposal-keyed ``CaseProposalAdmissionRecord`` (so a later
-  delivery can tell that *this* proposal began the accept path) and then
+  delivery can tell that *this* proposal was accepted) and then
   resolves the case via a Selector between ``LoadExistingCaseNode`` (AC-1/AC-2:
   finds and reuses the existing ``VulnerabilityCase`` the proposal resolves
   to — the proposer's own case for the report, or the case the proposal's
@@ -411,10 +411,11 @@ def create_case_proposal_received_tree(
     creation_act = ActTransaction(
         name="CreateCaseFromProposalAct",
         children=[
-            # Ahead of case_resolution deliberately.  This is the proposal-keyed
-            # evidence that the accept path began; without it the only marker of
-            # an in-progress accept is the case itself, which is keyed on a
-            # report the *sender* chose.  See RecordProposalAdmissionNode.
+            # Ahead of case_resolution deliberately: LoadExistingCaseNode reads
+            # whether the record was already stored.  The record is the
+            # proposal-keyed evidence that this proposal was accepted; the case
+            # itself is keyed on a report the *sender* chose.  See
+            # RecordProposalAdmissionNode.
             RecordProposalAdmissionNode(
                 proposal_id=proposal_id,
                 proposer_uri=proposer_uri,
@@ -553,7 +554,7 @@ def create_case_proposal_received_tree(
             py_trees.decorators.Inverter(
                 name="ProposalNotYetAnswered",
                 child=CheckProposalAlreadyAnsweredNode(
-                    proposal_id=proposal_id, report_id=report_id
+                    proposal_id=proposal_id
                 ),
             ),
             py_trees.decorators.Inverter(

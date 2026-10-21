@@ -91,9 +91,9 @@ Every link from `execute()` to `DispatchNode` returns the `HandlerResult`
 
 - **`DispatcherBase._handle()` is the link that calls `execute()`,** not
   `dispatch()`. Typing only the public methods loses the verdict at the first hop.
-- **`_handle()` can return without a handler running.** An unroutable activity
-  must still get a verdict: the dispatcher synthesizes `REFUSED("unroutable: …")`
-  (UCORG-05-012).
+- **`_handle()` can end without a handler running.** Semantics with no use case
+  raise `VultronApiHandlerNotFoundError`, never return, so the outcome is
+  `rejected` (UCORG-05-012).
 
 The verdict reaches `InboxOutcome` and the actor log (a `rejected` outcome logs at
 WARNING, UCORG-05-013). It never reaches the sender over HTTP: the inbox returns

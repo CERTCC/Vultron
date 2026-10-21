@@ -15,17 +15,16 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Dedicated unit tests for the 5 named silent-failure sites (CONCERN-1360).
+"""Dedicated unit tests for the named silent-failure sites (CONCERN-1360).
 
 Each test demonstrates that the site now fails fast instead of silently
 returning None or Status.SUCCESS when a required value is absent.
 
-Reference: specs/architecture.yaml ARCH-15-001 through ARCH-15-003,
+Reference: specs/architecture.yaml ARCH-15-001 and ARCH-15-002,
            notes/domain-validation.md, GitHub issue #1377.
 """
 
-import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from py_trees.common import Status
@@ -33,14 +32,7 @@ from py_trees.common import Status
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
-from vultron.core.dispatcher import DirectActivityDispatcher
 from vultron.core.models.actor import VultronService
-from vultron.core.models.events import (
-    AddNoteToCaseReceivedEvent,
-    MessageSemantics,
-)
-from vultron.core.models.use_case_result import HandlerDisposition
-from vultron.errors import UnroutableActivityError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -120,113 +112,6 @@ class TestCommitCaseLedgerEntryNodeFailFast:
             )
         assert result.status == Status.FAILURE
         mock_factory.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# AC-1c: _extract_case_id raises UnroutableActivityError instead of None
-# ---------------------------------------------------------------------------
-
-
-class TestExtractCaseIdRaisesUnroutableActivityError:
-    """ARCH-15-003: unroutable events are dropped, not silently swallowed."""
-
-    def test_unroutable_event_is_dropped_not_retried(self):
-        """Gated event with no case_id is dropped; use case is not invoked.
-
-        An ADD_NOTE_TO_CASE event whose target.id_ is empty has no extractable
-        case_id.  _extract_case_id raises UnroutableActivityError; _handle
-        catches it, logs at ERROR, and returns without calling the use case.
-        dispatch() completes normally (no exception propagates to the caller),
-        which prevents the inbox re-queue loop (ARCH-15-003). It returns a
-        ``REFUSED`` verdict, so the drop is not reported as processed
-        (UCORG-05-012).
-        """
-        mock_dl = MagicMock()
-        use_case_class = MagicMock()
-        dispatcher = DirectActivityDispatcher(
-            use_case_map={MessageSemantics.ADD_NOTE_TO_CASE: use_case_class}
-        )
-
-        # target.id_ = "" → target_id property = "" (falsy) → no extractable
-        # case_id in case_id / context_id / origin_id / target_id attributes.
-        event = AddNoteToCaseReceivedEvent(
-            activity_id=ACTIVITY_ID,
-            actor_id=ACTOR_ID,
-            target=as_VulnerabilityCase.model_construct(id_=""),
-        )
-
-        # dispatch() must not raise — unroutable events are dropped at _handle
-        result = dispatcher.dispatch(event, mock_dl)
-        use_case_class.assert_not_called()
-        # ...but no handler ran, so the verdict is not success (UCORG-05-012).
-        assert result.disposition is HandlerDisposition.REFUSED
-        assert result.reason is not None
-        assert "unroutable" in result.reason
-
-    @pytest.mark.spec("HP-06-003")
-    def test_unroutable_event_is_logged_at_error_with_context(self, caplog):
-        """The drop is one ERROR record carrying activity id, semantics, actor.
-
-        HP-06-003: an error a handler path reports is logged at ERROR with the
-        context needed to find the activity again.
-        """
-        use_case_class = MagicMock()
-        dispatcher = DirectActivityDispatcher(
-            use_case_map={MessageSemantics.ADD_NOTE_TO_CASE: use_case_class}
-        )
-        event = AddNoteToCaseReceivedEvent(
-            activity_id=ACTIVITY_ID,
-            actor_id=ACTOR_ID,
-            target=as_VulnerabilityCase.model_construct(id_=""),
-        )
-
-        with caplog.at_level(logging.ERROR, logger="vultron.core.dispatcher"):
-            dispatcher.dispatch(event, MagicMock())
-
-        errors = [r for r in caplog.records if r.levelno == logging.ERROR]
-        assert len(errors) == 1, caplog.text
-        message = errors[0].getMessage()
-        assert ACTIVITY_ID in message
-        assert ACTOR_ID in message
-        assert str(MessageSemantics.ADD_NOTE_TO_CASE) in message
-
-    def test_extract_case_id_raises_unroutable_directly(self):
-        """_extract_case_id raises UnroutableActivityError (not returns None).
-
-        Test the internal method directly so the raise behaviour is explicit
-        even if the caller (_handle) catches it.
-        """
-        dispatcher = DirectActivityDispatcher(use_case_map={})
-        event = AddNoteToCaseReceivedEvent(
-            activity_id=ACTIVITY_ID,
-            actor_id=ACTOR_ID,
-            target=as_VulnerabilityCase.model_construct(id_=""),
-        )
-
-        with pytest.raises(UnroutableActivityError) as exc_info:
-            dispatcher._extract_case_id(event)
-
-        exc = exc_info.value
-        assert exc.activity_id == ACTIVITY_ID
-        assert "No case_id" in exc.reason
-
-    def test_unroutable_error_has_activity_id_and_reason_fields(self):
-        """UnroutableActivityError carries activity_id and reason attributes."""
-        err = UnroutableActivityError(
-            activity_id="act-xyz",
-            reason="No case_id attribute found on event",
-        )
-        assert err.activity_id == "act-xyz"
-        assert err.reason == "No case_id attribute found on event"
-        assert "act-xyz" in str(err)
-        assert "No case_id" in str(err)
-
-    def test_unroutable_error_is_vultron_error_subclass(self):
-        """UnroutableActivityError is a VultronError subclass."""
-        from vultron.errors import VultronError
-
-        err = UnroutableActivityError(activity_id="x", reason="test")
-        assert isinstance(err, VultronError)
 
 
 # ---------------------------------------------------------------------------
