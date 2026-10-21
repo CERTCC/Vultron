@@ -24,7 +24,7 @@ from vultron.core.use_cases._helpers import (
 )
 from vultron.core.use_cases.received._bt_verdict import (
     add_note_redelivery_verdict,
-    not_case_manager_refusal,
+    case_manager_verdict,
     reference_edit_verdict,
     verdict_from_bt,
 )
@@ -125,12 +125,9 @@ class AddNoteToCaseReceivedUseCase:
             tree,
             verdict_from_bt(tree, result, label="GuardedAttachAndCommitBT"),
         )
-        if verdict.disposition is HandlerDisposition.APPLIED:
-            # Only the CASE_MANAGER attaches; others learn of the note through
-            # Announce(CaseLedgerEntry) fan-out (SYNC-02-002).
-            refusal = not_case_manager_refusal(tree, self._dl, case_id)
-            if refusal is not None:
-                verdict = refusal
+        # Only the CASE_MANAGER attaches; others learn of the note through
+        # Announce(CaseLedgerEntry) fan-out (SYNC-02-002).
+        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "add_note_to_case: note '%s' in case '%s' refused: %s",

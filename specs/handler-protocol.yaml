@@ -145,16 +145,21 @@ groups:
       addressed in a way that asked nothing of it — and `REFUSED` with a reason is the record
       that says so. Under the narrowed `SKIPPED`, an addressee's first receipt of a message
       that is now pending its own decision (the Case Owner and `Offer(CaseParticipant)`) is
-      `APPLIED`: it is neither a duplicate nor a refusal. See #3752.
+      `APPLIED`: it is neither a duplicate nor a refusal. So is a participant's first receipt
+      of the CASE_MANAGER's direct notice that it was removed or reinstated (CM-31-006,
+      CM-31-011): the participant is the notice's rightful addressee, stores it, and applies
+      the move from its ledger entry (CM-31-007). See #3752 and #5010.
     verification: >-
       The `HP-01-005`-marked tests under `test/core/use_cases/received/` drive each affected
       handler at a receiver that is not the CASE_MANAGER, or not an entitled addressee, and
-      assert `REFUSED` with no protocol effect: an empty outbox and no case-state write. The
-      one deliberate retention is `Offer(Report)`, whose handler stores the report and the
-      Offer before the addressing check so that a receiver with `auto_create_case` off keeps
-      the data for a later explicit decision (CM-15-002); the refused receipt still proposes
-      no case. A control test per handler shows the CASE_MANAGER or entitled addressee still
-      acts.
+      assert `REFUSED` with no protocol effect: an empty outbox and no case-state write.
+      There are two deliberate retentions. One is `Offer(Report)`, whose handler stores the
+      report and the Offer before the addressing check so that a receiver with
+      `auto_create_case` off keeps the data for a later explicit decision (CM-15-002); the
+      refused receipt still proposes no case. The other is a `Join(VulnerabilityCase)`
+      carrying a case snapshot, whose embargo is held before the CASE_MANAGER gate
+      (EMB-18-003); the refused receipt still records and sends nothing. A control test per
+      handler shows the CASE_MANAGER or entitled addressee still acts.
     adr:
     - ADR-0095
   - id: HP-01-006

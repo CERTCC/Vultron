@@ -188,7 +188,7 @@ Reject(Invite(stub)) instead of Accept → RM.CLOSED on the kept, inert record
   [inbox-orchestration](inbox-orchestration.md)).
 - The CASE_MANAGER processes the Accept (PCR-08-009). The same handler runs on any
   actor holding a copy, so its effects sit behind the role gate, and a receiver the gate
-  turns away reports `REFUSED` through `not_case_manager_refusal()`, never `SKIPPED`
+  turns away reports `REFUSED` through `case_manager_verdict()`, never `SKIPPED`
   (HP-01-005).
 - The handler runs the tree as the **receiving** actor (`resolve_receiving_actor_id()`),
   never as a CASE_MANAGER address looked up from the store (BT-17-006).
@@ -336,7 +336,7 @@ stub `Accept` moves no RM state (CM-11-001).
 
 ## Antipattern: Reading the CASE_MANAGER Gate as a Sender Check
 
-`create_case_manager_gated_tree` and `not_case_manager_refusal()` check that the
+`create_case_manager_gated_tree` and `case_manager_verdict()` check that the
 **receiving** actor holds `CVDRole.CASE_MANAGER` (BT-17-001, HP-01-005); they say
 nothing about the sender. A gated tree applies an assertion from *any* sender unless
 something else checks who sent it.
@@ -365,7 +365,7 @@ canonical ledger never gets the entry (ADR-0021). Run the tree as the receiving 
 (`resolve_receiving_actor_id()`) and pass the CASE_MANAGER effects as
 `create_receive_activity_tree(..., manager_effects=[...])`; the factory wraps them in
 the gate, and a received tree never calls the gate itself (BT-17-008). Then map a
-skipped gate to `REFUSED` with `not_case_manager_refusal()` (HP-01-005). See
+skipped gate to `REFUSED` with `case_manager_verdict()` (HP-01-005). See
 `vultron/core/behaviors/note/add_note_received_tree.py` for the shape.
 
 The gate is what makes identity correct: role holder, receiving actor and store owner

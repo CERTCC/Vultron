@@ -94,7 +94,10 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_SEMANTIC_TYPE
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.participants.recipients import invitation_recipients
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -473,6 +476,7 @@ def test_bystander_replica_applies_the_reinstatement_from_its_entry(
     assert record.is_signatory(EMBARGO_ID)
 
 
+@pytest.mark.spec("HP-01-005")
 @pytest.mark.spec("RSH-08-003")
 def test_replica_stores_the_managers_notice_and_writes_nothing(
     case: _RemovalCase,
@@ -492,10 +496,39 @@ def test_replica_stores_the_managers_notice_and_writes_nothing(
         sync_port=SyncActivityAdapter(replica),
     )
 
-    assert result.disposition is HandlerDisposition.SKIPPED
+    assert result.disposition is HandlerDisposition.APPLIED
     stored = replica.read(_participant_id(VENDOR))
     assert isinstance(stored, CaseParticipant)
     assert stored.removed, "the notice must not apply the reinstatement"
+
+
+@pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("ID-04-004")
+def test_replica_skips_a_redelivered_notice(case: _RemovalCase) -> None:
+    """Only the notice's first receipt is APPLIED; a repeat is a skip."""
+    case.remove(VENDOR)
+    case.route(_owner_reinstates(case))
+    (notice,) = case.activities_to("Add", VENDOR)
+    replica = _replica(case, VENDOR)
+    record = replica.read(_participant_id(VENDOR))
+    assert isinstance(record, CaseParticipant)
+    replica.save(record.model_copy(update={"removal_activity": "urn:x:rm"}))
+
+    def deliver() -> HandlerResult:
+        return route_received(
+            replica,
+            notice,
+            receiving_actor_id=VENDOR,
+            sync_port=SyncActivityAdapter(replica),
+        )
+
+    assert deliver().disposition is HandlerDisposition.APPLIED
+    result = deliver()
+
+    assert result.disposition is HandlerDisposition.SKIPPED
+    stored = replica.read(_participant_id(VENDOR))
+    assert isinstance(stored, CaseParticipant)
+    assert stored.removed, "the redelivery must not apply the reinstatement"
 
 
 @pytest.mark.spec("RSH-08-003")

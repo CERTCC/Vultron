@@ -171,12 +171,15 @@ def _offer():
 
 @pytest.mark.spec("CLP-10-013")
 class TestCloseAndInvalidateReportCommit:
+    @pytest.mark.spec("HP-01-005")
     @pytest.mark.parametrize(
         ("receiver", "commits"),
         [(MANAGER_ID, True), (VENDOR_ID, False)],
         ids=["case_manager", "other_receiver"],
     )
     def test_invalidate_commits_for_case_manager_only(self, receiver, commits):
+        """Only the CASE_MANAGER commits; any other receiver refuses the copy
+        it was not the CASE_MANAGER for (HP-01-005)."""
         dl = _store(receiver)
         event = cast(
             InvalidateReportReceivedEvent,
@@ -191,7 +194,11 @@ class TestCloseAndInvalidateReportCommit:
             dl, event, **_ports(dl)
         ).execute()
 
-        assert result.disposition is HandlerDisposition.APPLIED
+        assert result.disposition is (
+            HandlerDisposition.APPLIED
+            if commits
+            else HandlerDisposition.REFUSED
+        )
         assert _committed(dl).count(
             MessageSemantics.INVALIDATE_REPORT.value
         ) == (1 if commits else 0)

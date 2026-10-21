@@ -37,9 +37,9 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    case_manager_verdict,
     closed_sender_verdict,
     intake_verdict,
-    not_case_manager_refusal,
     rm_declaration_verdict,
     verdict_from_bt,
 )
@@ -203,10 +203,7 @@ class _FullCaseInviteReplyReceivedUseCase:
             verdict_from_bt(tree, result, label=self.tree_name),
             label=self.tree_name,
         )
-        if verdict.disposition is not HandlerDisposition.REFUSED:
-            refusal = not_case_manager_refusal(tree, self._dl, case_id)
-            if refusal is not None:
-                verdict = refusal
+        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "%s: reply '%s' from '%s' refused: %s",

@@ -42,6 +42,7 @@ from vultron.core.use_cases._helpers import (
 )
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
+    case_manager_verdict,
     door_refusal,
     failure_reason,
     find_node,
@@ -324,6 +325,9 @@ class ValidateReportReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="ValidateReportReceivedBT"
         )
+        if case_id is not None:
+            # Only the CASE_MANAGER records the move (HP-01-005).
+            verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "ValidateReportReceivedUseCase: refused for report '%s': %s",
@@ -372,9 +376,10 @@ class InvalidateReportReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
         # The case the sender guard and the RM adjudication read.
+        case_id = _case_id_for_report(self._dl, request.report_id)
         tree = create_invalidate_report_received_tree(
             request,
-            case_id=_case_id_for_report(self._dl, request.report_id),
+            case_id=case_id,
             sender_rule=self.sender_entitlement,
         )
         bridge = BTBridge(
@@ -388,16 +393,16 @@ class InvalidateReportReceivedUseCase:
             actor_id=receiving_actor_id,
             activity=request,
         )
-        return rm_declaration_verdict(
+        verdict = rm_declaration_verdict(
             tree,
-            _log_refusal(
-                verdict_from_bt(
-                    tree, result, label="InvalidateReportReceivedBT"
-                ),
-                request.activity_id,
-            ),
+            verdict_from_bt(tree, result, label="InvalidateReportReceivedBT"),
             label="InvalidateReportReceivedBT",
         )
+        if case_id is not None:
+            # Only the CASE_MANAGER records the move (HP-01-005).  With no
+            # case the sender guard has already refused.
+            verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
+        return _log_refusal(verdict, request.activity_id)
 
 
 class AckReportReceivedUseCase:

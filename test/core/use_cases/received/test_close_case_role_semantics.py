@@ -2518,12 +2518,15 @@ class TestDeclineArmIsCaseManagerGated:
         and as the VENDOR actor (``receiving_actor_id``), so the executing
         actor does not hold ``CVDRole.CASE_MANAGER``.  A copy of the Case
         Owner's Leave arrives while an embargo is live.  Before #3825 this
-        emitted a ``Reject(Leave)``; it must now emit nothing.
+        emitted a ``Reject(Leave)``; it must now emit nothing.  The replica's
+        sender guard admits only the CASE_MANAGER, so it refuses this copy
+        before the gate; the gate itself is pinned by
+        ``test_non_manager_replica_refuses_a_leave_from_the_case_manager``.
         """
         dl = _make_full_dl(store_owner_id=VENDOR_ID)
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
-        CloseCaseReceivedUseCase(
+        result = CloseCaseReceivedUseCase(
             dl=dl,
             request=_make_close_case_event(
                 sender_actor_id=OWNER_ID, receiving_actor_id=VENDOR_ID
@@ -2533,6 +2536,7 @@ class TestDeclineArmIsCaseManagerGated:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
+        assert result.disposition is HandlerDisposition.REFUSED
         assert dl.outbox_list() == [], (
             "a non-CASE_MANAGER replica must emit no as:Reject when it"
             " receives a copy of the owner's Leave during a live embargo"
@@ -2563,6 +2567,36 @@ class TestDeclineArmIsCaseManagerGated:
 
         assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID)
         assert not _case_fully_closed_present(dl)
+
+    @pytest.mark.spec("HP-01-005")
+    def test_non_manager_replica_refuses_a_leave_from_the_case_manager(self):
+        """A Leave the sender guard admits at a replica is still refused.
+
+        The Case Owner's Leave above never reaches the gate: the replica's
+        sender guard admits only the CASE_MANAGER.  A Leave from the
+        CASE_MANAGER passes that guard, and the gated close-or-decline step
+        then does nothing at a replica, so the replica reports the
+        misaddressed Leave as a refusal, never as applied (HP-01-005).
+        """
+        dl = _make_full_dl(store_owner_id=VENDOR_ID)
+        rm_before = _participant_rm_states(dl, CASE_ACTOR_ID)
+
+        result = CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(
+                sender_actor_id=CASE_ACTOR_ID, receiving_actor_id=VENDOR_ID
+            ),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "not the CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == []
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert _participant_rm_states(dl, CASE_ACTOR_ID) == rm_before
 
 
 def _case_actor_rm_entry_states(dl: SqliteDataLayer) -> list[RM]:
