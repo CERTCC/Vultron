@@ -2664,19 +2664,25 @@ groups:
       from an invitee whose participant record is already joined, or removed,
       it MUST treat the Accept as a duplicate: it commits no ledger entry,
       changes no participant record or consent row, and sends no case snapshot,
-      backfill or full-case Invite. The test is the participant record alone,
-      not any replication state the CASE_MANAGER holds for that participant.
+      backfill or full-case Invite. A participant is joined when the case
+      initialization sequence seated it or it has already accepted the stub
+      Invite (CM-10-004). The test is the participant record alone, not any
+      replication state the CASE_MANAGER holds for that participant.
     rationale: >-
       A joined participant's Accept of a stub Invite is a redundant signal (maintainer
       ruling, 2026-10-21, #5059). Case creation seeds the participants it seats as
-      signatories (CM-14-003, CM-14-005), so the Accept changes nothing. Other embargo
-      consent comes from that embargo's own answers. Replication state is no test:
-      the embargo pause and ledger sync write it too.
+      signatories (CM-14-003, CM-14-005), so the Accept changes nothing. A joined
+      participant's consent to a later embargo comes only from its answers to that
+      embargo's Invite. Replication state is no test: the embargo pause and ledger
+      sync write it too.
     verification: >-
-      A test marked `CM-17-012` gives a seated participant an embargo-pause replication
-      state, delivers its Accept of a stub Invite, and asserts the duplicate answer: no
-      ledger entry, no record change and nothing queued. A second test delivers an inert
-      invitee's first Accept and asserts it joins and is backfilled (CM-17-004).
+      Tests marked `CM-17-012` deliver a stub-Invite Accept from three joined or
+      removed participants and assert the duplicate answer for each: no ledger entry,
+      no record or consent change and nothing queued. The three are a joined
+      participant with no replication state, a joined participant with an
+      embargo-pause replication state, and a removed participant. A further test
+      delivers an inert invitee's first Accept and asserts it joins and is backfilled
+      (CM-17-004).
     relationships:
     - rel_type: refines
       spec_id: CM-17-004
