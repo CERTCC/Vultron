@@ -22,13 +22,14 @@ use_cases/.
 """
 
 import ast
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
 from test.support.clock import SteppingClock
 from vultron.core.models import _helpers
-from vultron.core.models._helpers import now_utc_after
+from vultron.core.models._helpers import now_utc_after, require_future_aware
 
 # --- Architecture ratchet ------------------------------------------------
 
@@ -429,3 +430,74 @@ def test_now_utc_after_bumps_to_the_next_whole_second(
     assert result == expected
     assert result > latest
     assert result.microsecond == 0
+
+
+def test_now_utc_after_returns_a_bump_in_utc_for_a_peer_offset(
+    _frozen_clock: None,
+) -> None:
+    plus_five = timezone(timedelta(hours=5))
+    latest = (_PINNED_SECOND + timedelta(seconds=2)).astimezone(plus_five)
+    result = now_utc_after(latest)
+    assert result == _PINNED_SECOND + timedelta(seconds=3)
+    assert result.utcoffset() == timedelta(0)
+
+
+def test_require_future_aware_compares_against_now_utc(
+    _frozen_clock: None,
+) -> None:
+    # The pinned clock is long past, so only a read through now_utc() lets a
+    # value one second after it count as the future.
+    future = _PINNED_SECOND + timedelta(seconds=1)
+    assert require_future_aware(future) == future
+    with pytest.raises(ValueError, match="must be in the future"):
+        require_future_aware(_PINNED_SECOND)
+
+
+# --- CS-13-002 ratchet: every application clock read goes through now_utc --
+
+_VULTRON = Path(__file__).resolve().parents[3] / "vultron"
+# Repo tooling (history, ADR and spec CLIs), not the CVD prototype CS-13 scopes.
+_CLOCK_EXEMPT = _VULTRON / "metadata"
+_CLOCK_CALLS = {"now", "utcnow", "today"}
+_CLOCK_TYPES = {"datetime", "date"}
+
+
+def _direct_clock_reads(path: Path) -> list[str]:
+    tree = ast.parse(path.read_text(), filename=str(path))
+    allowed: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "now_utc":
+            allowed.update(id(n) for n in ast.walk(node))
+    reads = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and id(node) not in allowed
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in _CLOCK_CALLS
+            and (
+                (
+                    isinstance(node.func.value, ast.Name)
+                    and node.func.value.id in _CLOCK_TYPES
+                )
+                or (
+                    isinstance(node.func.value, ast.Attribute)
+                    and node.func.value.attr in _CLOCK_TYPES
+                )
+            )
+        ):
+            reads.append(f"{path.relative_to(_VULTRON.parent)}:{node.lineno}")
+    return reads
+
+
+def test_application_code_reads_the_clock_only_through_now_utc() -> None:
+    """CS-13-002: no ``datetime.now()`` outside ``now_utc`` itself."""
+    reads = [
+        read
+        for path in sorted(_VULTRON.rglob("*.py"))
+        if not path.is_relative_to(_CLOCK_EXEMPT)
+        for read in _direct_clock_reads(path)
+    ]
+    assert reads == [], (
+        "read the clock through now_utc() (CS-13-002):\n" + "\n".join(reads)
+    )

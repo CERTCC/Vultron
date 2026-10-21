@@ -53,12 +53,13 @@ def now_utc_after(latest: datetime | None) -> datetime:
     keeps whole seconds (CS-13-002, CS-13-003): when the clock has not passed
     *latest* (two stamps in the same second, or a *latest* from a peer whose
     clock runs ahead), the result is *latest* truncated to the second plus one
-    second, so it stays both second-precise and strictly greater.
+    second, so it stays both second-precise and strictly greater.  The bump
+    is returned in UTC whatever offset *latest* carries (CS-13-001).
     """
     now = now_utc()
     if latest is None or latest < now:
         return now
-    return latest.replace(microsecond=0) + timedelta(seconds=1)
+    return latest.astimezone(UTC).replace(microsecond=0) + timedelta(seconds=1)
 
 
 def from_now_utc(delta: timedelta) -> datetime:
@@ -104,7 +105,7 @@ def require_future_aware(
         return None
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{field} must be timezone-aware")
-    if value <= datetime.now(tz=UTC):
+    if value <= now_utc():
         raise ValueError(f"{field} must be in the future")
     return value
 
