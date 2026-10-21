@@ -18,6 +18,7 @@
       "VulnerabilityCaseStub": "vultron:VulnerabilityCaseStub",
       "VulnerabilityRecord": "vultron:VulnerabilityRecord",
       "VulnerabilityReport": "vultron:VulnerabilityReport",
+      "ledgerTail": "vultron:ledgerTail",
       "terminationCause": "vultron:terminationCause"
     }
   ]

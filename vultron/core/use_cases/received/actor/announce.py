@@ -7,6 +7,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.announce_case_received_tree import (
     create_announce_vulnerability_case_received_tree,
 )
+from vultron.core.behaviors.case.nodes.announce import CaseCopyNotStaleNode
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
@@ -24,17 +25,27 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
+from vultron.core.use_cases.received._bt_verdict import (
+    find_node,
+    verdict_from_bt,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class AnnounceVulnerabilityCaseReceivedUseCase:
-    """Seed the local DataLayer with a full VulnerabilityCase from the case owner.
+    """Seed, or update, the local replica from a full VulnerabilityCase copy.
 
-    Per MV-10-003, the invitee creates the case if it does not already exist.
-    Per MV-10-004, if the case already exists locally, the announcement is
-    accepted without overwriting the existing record (idempotent).
+    Per MV-10-003 and PCR-02-003, the invitee creates the case if it does not
+    already exist.  Per PCR-02-004, a copy of a case the replica already
+    holds is an authoritative update, judged by the ledger tail the copy
+    names (SYNC-16-005, SYNC-16-006): a copy the replica's chain is already
+    past is ``SKIPPED``; one naming a different entry at an index the
+    replica holds is ``REFUSED`` and logged at ERROR; any other copy
+    replaces the case.  The case is unchanged in both of the first two.
+    After a replacement whose tail is ahead of the chain the replica asks
+    for the missing entries and stores each one the copy reflects as a
+    no-op (SYNC-16-007).
 
     Only the case's CASE_MANAGER sends it, and every receiver, a participant
     replica, takes it from the CASE_MANAGER alone (PCR-03-001): the one its
@@ -99,6 +110,11 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="AnnounceVulnerabilityCaseReceivedBT"
         )
+        guard = find_node(tree, CaseCopyNotStaleNode)
+        if guard is not None and guard.failed_as_repeat:
+            # A stale copy is a legitimate no-op, not a refusal (HP-01-003);
+            # the guard logged it.
+            return HandlerResult.skipped(guard.feedback_message)
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning(
                 "%s (activity '%s')", verdict.reason, request.activity_id

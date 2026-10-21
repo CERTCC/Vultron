@@ -702,14 +702,18 @@ def _managed_case() -> Any:
     )
 
 
-def _announce_from_case_manager() -> dict[str, Any]:
+def _announce_from_case_manager(dl: Any) -> dict[str, Any]:
+    """The CASE_MANAGER's copy, naming the tail *dl*'s replica is at."""
+    from test.support.case_copy import copy_from
     from vultron.wire.as2.factories import (
         announce_vulnerability_case_activity,
     )
 
     return _wire_body(
         announce_vulnerability_case_activity(
-            _managed_case(), actor=_CASE_MANAGER_ID, to=[_RECEIVER_ID]
+            copy_from(_managed_case(), dl),
+            actor=_CASE_MANAGER_ID,
+            to=[_RECEIVER_ID],
         )
     )
 
@@ -763,7 +767,9 @@ def test_reporter_after_bootstrap_accepts_case_manager_announce(dl):
         == _CASE_MANAGER_ID
     )
 
-    announced = _process(dl, _announce_from_case_manager(), _real_dispatcher())
+    announced = _process(
+        dl, _announce_from_case_manager(dl), _real_dispatcher()
+    )
 
     assert announced.status is InboxOutcomeStatus.PROCESSED, (
         announced.failure_reason
@@ -856,7 +862,9 @@ def test_late_joiner_after_accepted_invite_accepts_case_manager_announce(dl):
     assert accepted.activity["inReplyTo"] == invite.id_
     assert accepted.activity.get("to") == [_CASE_MANAGER_ID]
 
-    announced = _process(dl, _announce_from_case_manager(), _real_dispatcher())
+    announced = _process(
+        dl, _announce_from_case_manager(dl), _real_dispatcher()
+    )
 
     assert announced.status is InboxOutcomeStatus.PROCESSED, (
         announced.failure_reason

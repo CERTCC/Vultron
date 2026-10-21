@@ -39,6 +39,8 @@ from vultron.core.behaviors.case.intake_only_received_tree import (
     create_incomplete_activity_received_tree,
 )
 from vultron.core.behaviors.case.nodes.announce import (
+    CaseCopyNotStaleNode,
+    RequestCaseCopyBackfillNode,
     SeedAnnouncedCaseNode,
     announced_case_id,
 )
@@ -75,8 +77,16 @@ def create_announce_vulnerability_case_received_tree(
         ├── IntakeReceivedActivityNode        # intake
         ├── CaseOpenToExternalWrites          # post-close boundary
         ├── SenderIsCaseManagerNode           # sender guard (anchored)
-        ├── SeedAnnouncedCaseNode             # effect
+        ├── CaseCopyNotStaleNode              # guard (SYNC-16-006)
+        ├── SeedAnnouncedCaseNode             # effect (seed or replace)
+        ├── RequestCaseCopyBackfillNode       # effect (SYNC-16-007)
         └── ReplayHeldSuccessorNode           # effect (SYNC-14-009)
+
+    A replica that already holds the case replaces it only with a copy whose
+    ledger tail is current against its chain; a stale copy is skipped and a
+    conflicting one refused, with the case unchanged (SYNC-16-006).  A copy
+    ahead of the chain is backfilled: the replica records its tail and asks
+    for the missing entries (SYNC-16-007).
 
     An Announce that carries no ``VulnerabilityCase`` with an id is refused
     by the same tree's guard instead
@@ -116,9 +126,20 @@ def create_announce_vulnerability_case_received_tree(
             case_id=case_id,
             case_manager_anchored=True,
         ),
-        precondition_guards=[],
+        precondition_guards=[
+            CaseCopyNotStaleNode(
+                case_id=case_id,
+                case_obj=case_obj,
+                request=request,
+            ),
+        ],
         replica_effects=[
             SeedAnnouncedCaseNode(
+                case_id=case_id,
+                case_obj=case_obj,
+                request=request,
+            ),
+            RequestCaseCopyBackfillNode(
                 case_id=case_id,
                 case_obj=case_obj,
                 request=request,
@@ -126,7 +147,9 @@ def create_announce_vulnerability_case_received_tree(
             # Seeding anchors the genesis hash, so an Announce held in the
             # pre-genesis window may now extend the chain: replay it, as it
             # was received, through this actor's inbox as a delivery of its
-            # own (SYNC-15-005, SYNC-14-009).
+            # own (SYNC-15-005, SYNC-14-009).  After a replacement, an entry
+            # held because the old case refused it extends the chain too, and
+            # is stored as a no-op if the copy reflects it (SYNC-16-007).
             ReplayHeldSuccessorNode(
                 case_id=case_id, name="ReplayHeldPreGenesisEntry"
             ),

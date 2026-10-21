@@ -47,6 +47,7 @@ import pkgutil
 import sys
 from pathlib import Path
 
+from pydantic.alias_generators import to_camel
 from pydantic.fields import FieldInfo
 
 import vultron.wire.as2.vocab as vocab_pkg
@@ -194,8 +195,10 @@ def vultron_property_terms() -> dict[str, str]:
     :data:`~vultron.wire.as2.vocab.base.base.VULTRON_PROPERTY_KEY` in its
     ``json_schema_extra``, such as a termination ``Remove``'s
     ``terminationCause`` (EMB-13-005).  The term is the field's wire name:
-    its serialization alias, else its alias, else its name.  A property is
-    one term however many classes declare it.
+    its serialization alias, else its alias, else its name.  A value a core
+    class carries but never stores (``CoreObject.carried_properties``, such as
+    a case copy's ``ledgerTail``, SYNC-16-005) is a property too, under its
+    camelCase name.  A property is one term however many classes declare it.
     """
     terms: set[str] = set()
     for cls in _all_object_subclasses():
@@ -204,6 +207,11 @@ def vultron_property_terms() -> dict[str, str]:
             extra = info.json_schema_extra
             if isinstance(extra, dict) and extra.get(VULTRON_PROPERTY_KEY):
                 terms.add(_wire_name(name, info))
+    for core_cls in WIRE_TYPE_MAP.values():
+        if not core_cls.__module__.startswith(CORE_MODELS_PACKAGE):
+            continue
+        for name in getattr(core_cls, "carried_properties", {}):
+            terms.add(to_camel(name))
     return {term: f"vultron:{term}" for term in sorted(terms)}
 
 

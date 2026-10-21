@@ -80,7 +80,11 @@ def normalize_participant_refs(case_obj: Any) -> list[str]:
 
 
 def store_embedded_participants(
-    case_obj: VulnerabilityCase, dl: CasePersistence, case_id: str
+    case_obj: VulnerabilityCase,
+    dl: CasePersistence,
+    case_id: str,
+    *,
+    authoritative: bool = False,
 ) -> None:
     """Persist embedded participant objects from a case snapshot.
 
@@ -111,10 +115,17 @@ def store_embedded_participants(
     rejected as invalid by the RM state machine.  Participants whose stored
     RM state is already at or beyond the snapshot's are therefore left alone.
 
+    A copy judged current by the ledger tail it names (SYNC-16-006) is not
+    such a view: it is the CASE_MANAGER's case at a position this replica has
+    not passed, so with *authoritative* every participant it carries replaces
+    the stored one, a diverged one included (PCR-02-004, ADR-0142).
+
     Args:
         case_obj: The bootstrapped or announced case domain object.
         dl: DataLayer to persist participants into.
         case_id: ID of the case (for log context).
+        authoritative: The copy was judged current by its ledger tail, so
+            its participants replace the stored ones unconditionally.
     """
     participants = getattr(case_obj, "case_participants", []) or []
     for participant_ref in participants:
@@ -124,7 +135,9 @@ def store_embedded_participants(
         participant = _project_to_core_participant(participant_ref, pid)
         if participant is None:
             continue
-        if _would_regress_participant(participant, dl, pid, case_id):
+        if not authoritative and _would_regress_participant(
+            participant, dl, pid, case_id
+        ):
             continue
         dl.save(participant)
         logger.debug(

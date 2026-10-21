@@ -11,6 +11,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
@@ -256,11 +260,18 @@ def announce_case() -> as_Announce:
     """Build ``Announce(VulnerabilityCase)`` — sent by the case owner to a new participant.
 
     The full case object is delivered inline so the recipient can seed their
-    local DataLayer immediately after their invite is accepted.
+    local DataLayer immediately after their invite is accepted.  The copy
+    names the ledger position it reflects, here a ledger with no entry yet
+    (SYNC-16-005).
     """
     _case = populated_case()
     return announce_vulnerability_case_activity(
-        _case,
+        _case.with_ledger_tail(
+            LedgerPosition(
+                log_index=EMPTY_LEDGER_LOG_INDEX,
+                entry_hash=_case.genesis_hash,
+            )
+        ),
         actor=_VENDOR.id_,
     )
 

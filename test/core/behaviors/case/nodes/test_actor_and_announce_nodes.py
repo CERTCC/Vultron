@@ -555,10 +555,14 @@ class TestSeedAnnouncedCaseNode:
         assert result.status == Status.SUCCESS
         assert dl.read(CASE_ID2) is not None
 
-    def test_idempotent_skip_line_is_debug(
+    def test_replacing_a_held_case_logs_at_info(
         self, bridge, dl, case, announce_event, caplog
     ) -> None:
-        """The routine idempotency skip is DEBUG, not INFO (SL-04-007)."""
+        """Replacing a held case is a state change, so INFO (SL-04-007).
+
+        The guard ahead of the node has judged the copy current by its
+        ledger tail (SYNC-16-006); the node replaces the case (PCR-02-004).
+        """
         import logging
 
         dl.create(case)
@@ -571,13 +575,11 @@ class TestSeedAnnouncedCaseNode:
                 tree=tree, actor_id=ACTOR_ID, activity=announce_event
             )
 
-        skip_records = [
-            r
-            for r in caplog.records
-            if "already exists locally" in r.getMessage()
+        replace_records = [
+            r for r in caplog.records if "replacing case" in r.getMessage()
         ]
-        assert skip_records, "Expected the idempotent-skip log entry"
-        assert all(r.levelno == logging.DEBUG for r in skip_records)
+        assert replace_records, "Expected the replacement log entry"
+        assert all(r.levelno == logging.INFO for r in replace_records)
 
     def test_persisted_case_has_no_inline_participants(
         self, bridge, dl, announce_event

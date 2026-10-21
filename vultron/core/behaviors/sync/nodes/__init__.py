@@ -66,6 +66,7 @@ from vultron.core.behaviors.sync.nodes.chain import (
 from vultron.core.behaviors.sync.nodes.conditions import (
     CheckLedgerEntryAlreadyStoredNode,
     CheckLedgerFreshnessNode,
+    EntryReflectedByCaseCopyNode,
     _require_log_entry,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
@@ -163,6 +164,7 @@ __all__ = [
     # conditions
     "CheckLedgerEntryAlreadyStoredNode",
     "CheckLedgerFreshnessNode",
+    "EntryReflectedByCaseCopyNode",
     "IsRemoveEmbargoEventNode",
     "IsParticipantStatusEventNode",
     "IsAddNoteEventNode",

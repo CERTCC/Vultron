@@ -6,9 +6,9 @@ tags: [wire, core, boundary, vocabulary, pydantic, validation]
 description: >
   Rules for the wire/core boundary under one object model (ADR-0099): which
   direction may import which, wire-only type resolution, union-safe validators,
-  blank IRI branches, the extra="forbid" contract with its two invariants, and the
-  inbound unknown-key rule (MV-11), decided at the parse edge, not by class
-  ancestry.
+  blank IRI branches, the extra="forbid" contract with its two invariants,
+  carried properties that describe a copy, and the inbound unknown-key rule
+  (MV-11), decided at the parse edge, not by class ancestry.
 related_specs:
   - specs/architecture.yaml (ARCH-01-001, ARCH-12-003, ARCH-20-008, ARCH-21-002,
     ARCH-22-001, ARCH-22-003, ARCH-23-005, ARCH-23-006, ARCH-25-002 through
@@ -19,7 +19,8 @@ related_specs:
   - specs/status-dimension-objects.yaml (SDO-03-003)
   - specs/message-validation.yaml (MV-01-001, MV-02-002, MV-04-003, MV-11-001
     through MV-11-005)
-  - specs/vocabulary-model.yaml (VM-06-008)
+  - specs/vocabulary-model.yaml (VM-06-008, VM-10-001)
+  - specs/sync-ledger-replication.yaml (SYNC-16-005)
 related_notes:
   - notes/vocabulary-registry.md
   - notes/core-wire-rendering-port.md
@@ -156,6 +157,22 @@ Two invariants keep `forbid` self-consistent, both validators on `CoreObject`:
   field-name twin; alias wins.
 
 Ratchet: `test/architecture/test_core_extra_forbid.py` (no exemption list).
+
+### A Value That Describes a Copy Is a Carried Property, Never a Field
+
+A value a sender fills in on a copy, which is never a value of the object
+itself, is declared in the class's `carried_properties` (`CoreObject`), not as
+a field. Example: a case copy's `ledgerTail` (SYNC-16-005).
+
+Reason: a field is stored with the object, and the case's own record must
+never hold the tail. A carried value is taken from either spelling at
+validation, dumped on both paths, and dropped from the object's own record by
+`Record.from_obj`, so it survives only inside another record, such as the
+received `Announce`. The parse edge and the JSON-LD context both read the
+declaration (MV-11-001, VM-10-001), so one entry declares the property
+everywhere. An activity that carries such a copy keeps it inline
+(`inline_required_refs`), or the receiver's staged rebuild reads back its own
+stored object in its place (#4797).
 
 ### The `id_` Failures Are an Alias-Injection Bug, Not a Field-Name Bug
 

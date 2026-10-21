@@ -198,6 +198,12 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
 # permanent: ADR-0073 (ledger replication is gated by ledger authority)
 LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
     {
+        # Its only send is the replica's Reject(CaseLedgerEntry), the same
+        # replication message SendRejectLogEntryNode sends (SYNC-16-007).
+        (
+            "vultron.core.behaviors.case.nodes.announce",
+            "RequestCaseCopyBackfillNode",
+        ),
         (
             "vultron.core.behaviors.case.nodes.invite_ledger_backfill",
             "BackfillCanonicalLedgerToInviteeNode",

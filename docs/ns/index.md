@@ -43,6 +43,7 @@ The stub form of a case is its own type: it is transmitted as `"type": "Vulnerab
 
 | Property name | Description |
 |---------------|-------------|
+| `ledgerTail` | The ledger position a copy of a `VulnerabilityCase` reflects, filled in by its sender when it sends the copy: an object whose `logIndex` and `entryHash` name the last ledger entry the copy reflects, or `-1` and the case's genesis hash for an empty ledger |
 | `terminationCause` | Why an embargo ended early, on the `Remove` that terminates it: an object whose `kind` is `THREAT_SIGNAL`, `FIX_READY`, `FIX_DEPLOYED` or `OTHER` |
 
 This table must list exactly the properties `context.jsonld` declares.

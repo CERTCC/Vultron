@@ -514,9 +514,16 @@ class TestToWireObject:
         assert found == {}
 
 
+def _make_owned_case(dl) -> as_VulnerabilityCase:
+    """A case with an owner, so it has a genesis hash to anchor its ledger."""
+    case = as_VulnerabilityCase(name="CVE-2025-001", attributed_to=_ACTOR)
+    dl.create(case)
+    return case
+
+
 class TestAnnounceVulnerabilityCase:
     def test_returns_activity_id(self, adapter, dl):
-        case = _make_case(dl)
+        case = _make_owned_case(dl)
 
         activity_id = adapter.announce_vulnerability_case(
             case_id=case.id_,
@@ -528,7 +535,7 @@ class TestAnnounceVulnerabilityCase:
         assert activity_id
 
     def test_persists_announce_activity(self, adapter, dl):
-        case = _make_case(dl)
+        case = _make_owned_case(dl)
 
         activity_id = adapter.announce_vulnerability_case(
             case_id=case.id_,
@@ -538,6 +545,60 @@ class TestAnnounceVulnerabilityCase:
         )
 
         assert dl.read(activity_id) is not None
+
+    @pytest.mark.spec("SYNC-16-005")
+    def test_an_empty_ledger_copy_names_the_genesis_position(
+        self, adapter, dl
+    ):
+        """No entry yet: the tail is index -1 and the case's genesis hash."""
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        case = _make_owned_case(dl)
+
+        activity_id = adapter.announce_vulnerability_case(
+            case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+        )
+
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        assert body["object"]["ledgerTail"] == {
+            "logIndex": -1,
+            "entryHash": case.genesis_hash,
+        }
+
+    @pytest.mark.spec("SYNC-16-005")
+    def test_the_copy_names_the_last_committed_entry_and_stores_none(
+        self, adapter, dl
+    ):
+        """The tail is read from the ledger at send time, never stored."""
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+        from vultron.core.models.case_ledger import CaseLedger
+
+        case = _make_owned_case(dl)
+        ledger = CaseLedger(case_id=case.id_, genesis_hash=case.genesis_hash)
+        for index in range(2):
+            ledger.append(
+                object_id=f"{case.id_}/notes/{index}",
+                semantic_type="add_note_to_case",
+                payload_snapshot={"type": "Add", "index": index},
+            )
+        for entry in ledger.entries:
+            dl.create(entry.to_ledger_entry())
+        last = ledger.entries[-1]
+
+        activity_id = adapter.announce_vulnerability_case(
+            case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+        )
+
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        assert body["object"]["ledgerTail"] == {
+            "logIndex": last.log_index,
+            "entryHash": last.entry_hash,
+        }
+        stored = dl.read(case.id_)
+        assert isinstance(stored, as_VulnerabilityCase)
+        assert stored.ledger_tail is None
 
 
 class TestCaseOnTheWireCarriesItsParticipants:
@@ -742,7 +803,7 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
     would reach a recipient that cannot resolve it."""
 
     def _case_naming(self, dl, report_ids):
-        case = as_VulnerabilityCase(name="CVE-2025-020")
+        case = as_VulnerabilityCase(name="CVE-2025-020", attributed_to=_ACTOR)
         case.vulnerability_reports.extend(report_ids)
         dl.create(case)
         return case

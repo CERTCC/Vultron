@@ -396,6 +396,21 @@ def _retype_inline_object_refs(
         return obj
 
 
+def _own_record_data(obj: PersistableModel) -> dict[str, Any]:
+    """*obj*'s persistence dump, less any value it only carries.
+
+    A carried value describes a copy, never the object, so the object's own
+    record does not store it (``CoreObject.carried_properties``,
+    SYNC-16-005): a case saved from a received copy stores no ledger tail.
+    A copy kept inline in another record, such as the received ``Announce``,
+    keeps it.
+    """
+    data = obj.model_dump(mode="json", serialize_as_any=True)
+    for name in getattr(type(obj), "carried_properties", {}):
+        data.pop(name, None)
+    return data
+
+
 class Record(StorableRecord):
     """Record wrapper stored in TinyDB.
 
@@ -445,9 +460,7 @@ class Record(StorableRecord):
             # _rekey_wire_identity renames id_/type_ to id/type at every nesting
             # level so stored rows carry wire-facing keys (ARCH-23-005).
             data_=_rekey_wire_identity(
-                _dehydrate_data(
-                    obj.model_dump(mode="json", serialize_as_any=True), obj
-                )
+                _dehydrate_data(_own_record_data(obj), obj)
             ),
         )
         return record

@@ -23,6 +23,7 @@ from pydantic import ValidationError
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.sync_helpers import ledger_tail_position
 from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.errors import (
     VultronActivityConstructionError,
@@ -285,6 +286,14 @@ class _CasesMixin:
         and embedded as a full ``as_VulnerabilityReport`` object so that
         receiving handlers (``SeedAnnouncedCaseNode``) can store the objects
         by iterating the embedded collection.
+
+        Per SYNC-16-005 the copy carries this store's ledger tail for the
+        case, so a replica can tell a current copy from a stale one
+        (SYNC-16-006).
+
+        Raises:
+            VultronValidationError: The case's ledger is empty and it has no
+                genesis hash, so the copy cannot name its position.
         """
         case = _case_for_wire(self._dl, case_id)
         embedded_reports: list[Any] = []
@@ -302,6 +311,9 @@ class _CasesMixin:
                 _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
             )
         object.__setattr__(case, "vulnerability_reports", embedded_reports)
+        # The copy names the ledger position it reflects, read from this
+        # store's ledger now and never stored on the case (SYNC-16-005).
+        case = case.with_ledger_tail(ledger_tail_position(case_id, self._dl))
         activity = announce_vulnerability_case_activity(
             case=case,
             actor=actor,

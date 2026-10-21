@@ -44,6 +44,7 @@ from types import MappingProxyType
 from typing import Any, TypeAliasType, Union, get_args, get_origin
 
 from pydantic import AliasChoices, AliasPath, BaseModel
+from pydantic.alias_generators import to_camel
 
 from vultron.core.models._helpers import strip_annotated
 from vultron.wire.as2.errors import VultronParseValidationError
@@ -182,8 +183,9 @@ def _class_spellings(cls: type[BaseModel]) -> _Spellings:
     A declared spelling is a field name (both roots validate by name, CS-14-001
     and CS-14-002), the alias the class generates or declares for it, any
     explicit validation alias, a computed field's spellings (its value is
-    checked against the derived one rather than refused, ARCH-23-005), and
-    ``@context``.  A refusal names the alias ahead of the field name, because
+    checked against the derived one rather than refused, ARCH-23-005), each
+    carried value's spellings (``CoreObject.carried_properties``, SYNC-16-005),
+    and ``@context``.  A refusal names the alias ahead of the field name, because
     the alias is the AS2 spelling a sender reads.
     """
     by_name = bool(
@@ -211,6 +213,14 @@ def _class_spellings(cls: type[BaseModel]) -> _Spellings:
         for spelling in spellings:
             annotations.setdefault(spelling, ())
         preferred.append(spellings[0])
+    # A carried value (SYNC-16-005) is not a field, but the class takes it
+    # under its camelCase spelling or its name, validated as its model.
+    carried = getattr(cls, "carried_properties", {})
+    for name, model in carried.items():
+        for spelling in dict.fromkeys((to_camel(name), name)):
+            annotations.setdefault(spelling, (model,))
+        preferred.append(to_camel(name))
+        fallback.append(name)
     by_normalised: dict[str, str] = {}
     for spelling in [*preferred, *fallback, CONTEXT_KEY]:
         by_normalised.setdefault(normalise(spelling), spelling)

@@ -18,14 +18,17 @@
 import inspect
 import types as _types
 import typing as _typing
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from functools import cache
-from typing import Any
+from types import MappingProxyType
+from typing import Any, ClassVar, Self
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PrivateAttr,
     SerializationInfo,
     SerializerFunctionWrapHandler,
     TypeAdapter,
@@ -356,6 +359,97 @@ class CoreObject(CoreRecord):
             )
         return obj
 
+    #: The values this class carries on a copy but never stores (SYNC-16-005).
+    #:
+    #: Each name maps to the model its value validates as.  A carried value is
+    #: not a field: it describes the copy, not the object, so it is filled in
+    #: by whoever sends the copy and is never a value of the object's own
+    #: record.  It arrives under its field-name or camelCase spelling, is held
+    #: beside the object's fields (:meth:`carried`), is dumped with them on
+    #: both paths, and is left out of the object's own stored record
+    #: (``Record.from_obj``).  Inside another record it survives, as the copy
+    #: a received ``Announce`` carried.  The parse edge declares its spellings
+    #: (MV-11-001) and the JSON-LD context its term (VM-10-001).
+    carried_properties: ClassVar[Mapping[str, type[BaseModel]]] = (
+        MappingProxyType({})
+    )
+
+    _carried: dict[str, BaseModel] = PrivateAttr(default_factory=dict)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _take_carried_properties(
+        cls, data: Any, handler: ModelWrapValidatorHandler["CoreObject"]
+    ) -> "CoreObject":
+        """Hold each supplied carried value beside the fields it is not.
+
+        Pops every spelling of each :attr:`carried_properties` name, so
+        ``extra="forbid"`` never sees one, validates it as its model, and
+        attaches it to the validated object.  A value supplied under both
+        spellings must agree, or the object is refused.
+        """
+        carried = cls.carried_properties
+        if not carried or not isinstance(data, dict):
+            return handler(data)
+        remaining = dict(data)
+        values: dict[str, BaseModel] = {}
+        for name, model in carried.items():
+            supplied = [
+                remaining.pop(spelling)
+                for spelling in dict.fromkeys((to_camel(name), name))
+                if spelling in remaining
+            ]
+            parsed = [
+                item if isinstance(item, model) else model.model_validate(item)
+                for item in supplied
+                if item is not None
+            ]
+            if len(parsed) > 1 and parsed[0] != parsed[1]:
+                raise ValueError(
+                    f"carried value {name!r} supplied under two spellings"
+                    f" that disagree: {parsed[0]!r} and {parsed[1]!r}"
+                )
+            if parsed:
+                values[name] = parsed[0]
+        obj = handler(remaining)
+        if values:
+            obj._carried = {**obj._carried, **values}
+        return obj
+
+    def carried(self, name: str) -> BaseModel | None:
+        """The carried value *name* this copy holds, or ``None``."""
+        private = self.__pydantic_private__ or {}
+        carried: dict[str, BaseModel] = private.get("_carried", {})
+        return carried.get(name)
+
+    def with_carried(self, name: str, value: BaseModel) -> Self:
+        """A copy of this object carrying *value* as *name*.
+
+        Raises:
+            ValueError: *name* is not one of :attr:`carried_properties`, or
+                *value* is not its model.
+        """
+        model = type(self).carried_properties.get(name)
+        if model is None or not isinstance(value, model):
+            raise ValueError(
+                f"{type(self).__name__} carries no {name!r} of type"
+                f" {type(value).__name__}"
+            )
+        copy = self.model_copy()
+        copy._carried = {**self._carried, name: value}
+        return copy
+
+    def _carried_dump(self, info: SerializationInfo) -> dict[str, Any]:
+        """Each carried value, keyed as the dump being made spells it."""
+        private = self.__pydantic_private__ or {}
+        mode = "json" if info.mode_is_json() else "python"
+        return {
+            (to_camel(name) if info.by_alias else name): value.model_dump(
+                mode=mode, by_alias=bool(info.by_alias)
+            )
+            for name, value in private.get("_carried", {}).items()
+        }
+
     @classmethod
     def _computed_field_wire_key(cls, name: str) -> str:
         """The key computed field *name* is emitted under in the AS2 dump."""
@@ -545,10 +639,12 @@ class CoreObject(CoreRecord):
             # facts it is derived from.
             for name in type(self).model_computed_fields:
                 data.pop(name, None)
+            data.update(self._carried_dump(info))
             return data
         for name in self._as2_unpublished_fields():
             data.pop(name, None)
             data.pop(type(self)._computed_field_wire_key(name), None)
+        data.update(self._carried_dump(info))
         data["@context"] = self.context_ or VULTRON_CONTEXT_URI
         return data
 

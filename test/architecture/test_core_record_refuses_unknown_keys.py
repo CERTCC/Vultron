@@ -75,6 +75,11 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "report_id": f"{_URI}/report",
         "case_actor_id": f"{_URI}/manager",
     },
+    "CaseCopyPosition": {
+        "case_id": f"{_URI}/case",
+        "log_index": 2,
+        "entry_hash": "2" * 64,
+    },
     "DeferredInboxActivity": {"activity_id": _URI, "received_body": "{}"},
     "HeldLedgerAnnounce": {
         "case_id": f"{_URI}/case",

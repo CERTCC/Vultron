@@ -32,6 +32,7 @@ import pytest
 from py_trees.common import Status
 
 import vultron.core.behaviors as behaviors_pkg
+from vultron.core.behaviors.case.nodes.announce import CaseCopyNotStaleNode
 from vultron.core.behaviors.case.nodes.invite_participant import (
     CheckInviteeNotAlreadyParticipantNode,
 )
@@ -65,6 +66,7 @@ _FLAGGED = [
     (OwnershipOfferOpenNode, "is_redelivery"),
     (RoleOfferAdmissibleNode, "is_redelivery"),
     (CaseReferenceEditPendingNode, "is_duplicate"),
+    (CaseCopyNotStaleNode, "is_stale"),
 ]
 
 
@@ -114,7 +116,7 @@ def test_a_silent_idempotency_guard_reports_its_repeat():
 
 
 _REPEAT_FLAG_WRITE = re.compile(
-    r"self\.(is_repeat|is_redelivery|is_duplicate)\s*="
+    r"self\.(is_repeat|is_redelivery|is_duplicate|is_stale)\s*="
 )
 
 

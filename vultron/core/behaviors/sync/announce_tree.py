@@ -44,6 +44,7 @@ from vultron.core.behaviors.sync.nodes import (
     CheckEntryHashIntactNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
+    EntryReflectedByCaseCopyNode,
     IsAcceptCaseParticipantRoleEventNode,
     IsAcceptEmbargoInviteEventNode,
     IsAddCaseStatusEventNode,
@@ -393,7 +394,20 @@ def create_announce_log_entry_tree(
             CheckHashOrRejectOnMismatchNode(
                 name="CheckHashOrRejectOnMismatch"
             ),
-            log_entry_event_effects,
+            # An entry the case copy that replaced this replica's case
+            # already reflects is stored without its effects, an idempotent
+            # no-op: applying it again over the copy could move the case
+            # backwards, or refuse an entry the copy is past (SYNC-16-007).
+            py_trees.composites.Selector(
+                name="ApplyEffectsUnlessReflected",
+                memory=False,
+                children=[
+                    EntryReflectedByCaseCopyNode(
+                        name="EntryReflectedByCaseCopy"
+                    ),
+                    log_entry_event_effects,
+                ],
+            ),
             PersistReceivedLogEntryNode(name="PersistReceivedLogEntry"),
         ],
     )

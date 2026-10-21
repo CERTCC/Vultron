@@ -16,6 +16,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_copy import copy_at_genesis
 from test.support.inbox_replay import (
     RecordingInboxReplay,
     deliver_replayed,
@@ -685,7 +686,7 @@ class TestAnnounceStoresEmbeddedParticipants:
     def test_embedded_participants_stored_when_case_already_exists(
         self,
         dl,
-        announce_with_participants_event,
+        make_payload,
         case_with_participants,
     ):
         """Participants are stored even when the case already exists locally.
@@ -697,10 +698,17 @@ class TestAnnounceStoresEmbeddedParticipants:
         case, _, _ = case_with_participants
         # Pre-seed the case so the use-case hits the existing-case branch.
         dl.create(case)
+        # A copy of a held case names its ledger tail (SYNC-16-005).
+        announce = make_payload(
+            announce_vulnerability_case_activity(
+                copy_at_genesis(case),
+                actor=_CASE_ACTOR_ID,
+                to=[_RECEIVER_ID],
+                context=_CASE_ID,
+            )
+        )
 
-        AnnounceVulnerabilityCaseReceivedUseCase(
-            dl, announce_with_participants_event
-        ).execute()
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, announce).execute()
 
         stored_ca = dl.read(_CASE_ACTOR_PARTICIPANT_ID)
         stored_vendor = dl.read(_VENDOR_PARTICIPANT_ID)

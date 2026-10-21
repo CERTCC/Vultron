@@ -120,6 +120,10 @@
       "urn:uuid:db075242-963e-4523-8b66-14e6a0058aa2/participants/finndervul",
       "urn:uuid:db075242-963e-4523-8b66-14e6a0058aa2/participants/vendorco"
     ],
+    "ledgerTail": {
+      "logIndex": -1,
+      "entryHash": "feacbd9fd84cecfc99de38d41d518cdfcaddcedb7038c4088088f6e1bb8c6266"
+    },
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

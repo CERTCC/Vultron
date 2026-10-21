@@ -20,9 +20,16 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, ClassVar, Literal
+from types import MappingProxyType
+from typing import Any, ClassVar, Literal, cast
 
-from pydantic import Field, ValidationInfo, computed_field, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationInfo,
+    computed_field,
+    model_validator,
+)
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
@@ -49,6 +56,7 @@ from vultron.core.models.embargo_register import (
     replaces_violations,
 )
 from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
@@ -146,6 +154,13 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             "recommender_id", "#4448", ActorRecommendationRecord
         ),
     }
+    # SYNC-16-005: a copy of the case names the ledger position it reflects,
+    # the sender's tail when it read the case.  The sender fills it in from
+    # its ledger each time it sends a copy; it is never a value of the case
+    # file, so the case's own record never stores it (ADR-0142).
+    carried_properties: ClassVar[Mapping[str, type[BaseModel]]] = (
+        MappingProxyType({"ledger_tail": LedgerPosition})
+    )
     # Every reference slot below carries ``NonEmptyString`` for its IRI form:
     # a blank reference names nothing, so it is refused at construction rather
     # than stored and dereferenced later (CS-08-001, ARCH-10-001).
@@ -610,6 +625,19 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         statuses = self._em_stamped_statuses()
         if statuses is not None:
             object.__setattr__(self, "case_statuses", statuses)
+
+    @property
+    def ledger_tail(self) -> LedgerPosition | None:
+        """The ledger position this copy reflects, or ``None`` (SYNC-16-005).
+
+        Only a copy a sender filled in carries one; a case read from its own
+        record never does.
+        """
+        return cast(LedgerPosition | None, self.carried("ledger_tail"))
+
+    def with_ledger_tail(self, tail: LedgerPosition) -> VulnerabilityCase:
+        """A copy of this case that names *tail* as the position it reflects."""
+        return self.with_carried("ledger_tail", tail)
 
     @property
     def register_embargo_ids(self) -> list[str]:
