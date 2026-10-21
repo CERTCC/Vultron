@@ -53,7 +53,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoForOtherReason`
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`exit_embargo_for_other_reason_factory` param) — rare fallback condition guard in the ReasonSelector for extraordinary circumstances; the same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
-- **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the termination's cause to `OTHER`, which the `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry; the `Remove`'s `summary` gives the account (EMB-14-001, EMB-13-004)
+- **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the termination's cause to `OTHER`, which the `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry (EMB-14-001, EMB-13-004)
 
 ## `EmbargoTimerExpired`
 

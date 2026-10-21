@@ -466,6 +466,22 @@ class TestTheAskCarriesTheParticipantCause:
             == FixDeployedCause()
         )
 
+    @pytest.mark.spec("EMB-14-001")
+    def test_an_unchosen_cause_at_the_ask_is_a_wiring_fault(self) -> None:
+        """An ask that reads a :class:`ChosenTermination` no reason chose
+        is an internal error, never a FAILURE, and queues nothing."""
+        factory = _factory()
+        chosen = ChosenTermination()
+        ask = ask_case_manager_to_terminate_once(
+            CASE_ID, chosen.reason, chosen
+        )
+
+        _, result = _run(ask, _VENDOR_ID, factory)
+
+        assert result.internal_error is True
+        factory.terminate_embargo.assert_not_called()
+        assert _pending_ask(_VENDOR_ID) is None
+
 
 class TestParticipantCause:
     """``participant_cause`` drops only the CASE_MANAGER-only kinds."""
