@@ -4718,8 +4718,8 @@ groups:
       cannot answer (#4814). With the record and the forward in one act, no
       recorded request lacks its forward, so no redelivery has a forward to
       finish (#4983). One id makes a resend safe: the outbox holds one pending
-      entry per id (OX-06-002), and the addressee commits nothing for a
-      repeat, its answer rebuilt under the same id.
+      entry per id (OX-06-002), and the addressee, which commits nothing,
+      rebuilds its answer under the same id.
     verification: >-
       A test marked `CM-24-007` for each forward fails the forward after the
       record and asserts the handler raises an internal error, not `REFUSED`,

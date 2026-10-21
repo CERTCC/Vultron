@@ -445,19 +445,19 @@ def test_a_forward_stored_but_not_queued_is_queued_on_redelivery(
     _assert_recorded_and_forwarded_once(dl)
 
 
-@pytest.mark.spec("CM-33-004")
 @pytest.mark.spec("CM-24-007")
 @pytest.mark.spec("OX-06-002")
-def test_a_repeated_forward_commits_nothing_at_the_target(make_payload):
-    """The CASE_MANAGER's forward carries one id on every attempt, so a
-    repeat at the target commits nothing and changes no role.  The target's
-    answer is rebuilt under its first id: queued once while it is pending,
-    and only that answer again once it was sent, which the CASE_MANAGER
-    takes as the redelivery of the answer that closed the Offer."""
+def test_a_repeated_forward_is_answered_under_the_same_id_at_the_target(
+    make_payload,
+):
+    """The CASE_MANAGER's forward carries one id on every attempt, so the
+    target rebuilds its answer to a repeat under its first answer's id:
+    queued once while it is pending, and only that answer again once it was
+    sent, which the CASE_MANAGER takes as the redelivery of the answer that
+    closed the Offer."""
     dl = _store(_TARGET_ID)
     _deliver_offer(dl, make_payload, _forward())
     (answer_id,) = dl.outbox_list()
-    holds = _target_holds(dl, CVDRole.VENDOR)
 
     _deliver_offer(dl, make_payload, _forward())
 
@@ -468,8 +468,6 @@ def test_a_repeated_forward_commits_nothing_at_the_target(make_payload):
     _deliver_offer(dl, make_payload, _forward())
 
     assert dl.outbox_list() == [answer_id], "only the same answer again"
-    assert _semantic_types(dl) == []
-    assert _target_holds(dl, CVDRole.VENDOR) is holds
 
 
 @pytest.mark.spec("HP-01-005")

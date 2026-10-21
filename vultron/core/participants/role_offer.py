@@ -112,8 +112,8 @@ def role_offer_forward_id(
     Derived from the recorded Offer (ID-04-004, CM-24-007), so every attempt
     builds the same forward: a redelivery after a failed act rebuilds it
     under the first attempt's id, which the outbox does not queue twice
-    while it is pending (OX-06-002), and the target takes a repeat it holds
-    as the same Offer.
+    while it is pending (OX-06-002), and the target answers a repeat under
+    its first answer's id.
     """
     return derived_activity_id(
         "forward_case_participant_role", case_manager_id, case_id, offer_id
