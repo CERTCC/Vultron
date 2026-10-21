@@ -389,6 +389,18 @@ def _check_member_page(value: str) -> str:
     return value
 
 
+def _check_single_line(value: str) -> str:
+    """Refuse a line break: a heading or a link's text is one line."""
+    if "\n" in value or "\r" in value:
+        raise ValueError("must be a single line")
+    return value
+
+
+#: A stage title or member label: rendered as a heading or a link's text, so
+#: non-blank and on one line.
+SingleLine = Annotated[NonEmptyString, AfterValidator(_check_single_line)]
+
+
 class StageKind(StrEnum):
     """Whether a thread stage's pages are read in order (DF-11-013)."""
 
@@ -413,7 +425,7 @@ class ThreadMember(BaseModel):
 
     page: Annotated[str, AfterValidator(_check_member_page)]
     blurb: NonEmptyString
-    label: NonEmptyString | None = None
+    label: SingleLine | None = None
 
     @property
     def path(self) -> str:
@@ -435,7 +447,7 @@ class ThreadStage(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    title: NonEmptyString
+    title: SingleLine
     kind: StageKind
     stopping_point: StrictBool = False
     framing: NonEmptyString | None = None

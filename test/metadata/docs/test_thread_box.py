@@ -125,11 +125,19 @@ class TestFooter:
             ({}, [FOOTER]),
             ({"hide": [FOOTER]}, [FOOTER]),
             ({"hide": "toc"}, ["toc", FOOTER]),
+            ({"hide": None}, [FOOTER]),
         ],
     )
     def test_hide_footer(self, meta, expected):
         hide_footer(meta)
         assert meta["hide"] == expected
+
+    @pytest.mark.parametrize("hide", [{"toc": True}, 1])
+    def test_hide_of_another_shape_is_refused(self, hide):
+        meta: dict[str, object] = {"hide": hide}
+        with pytest.raises(ValueError, match="list of names"):
+            hide_footer(meta)
+        assert meta == {"hide": hide}
 
     def test_the_hook_is_registered(self):
         from vultron.metadata.base import mkdocs_config, repo_root

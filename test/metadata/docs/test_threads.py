@@ -510,3 +510,67 @@ def test_pre_commit_hook_runs_on_every_input(changed):
     assert hook["entry"] == "uv run docs-threads"
     assert hook["pass_filenames"] is False
     assert re.search(hook["files"], changed)
+
+
+@pytest.mark.spec("DF-11-013")
+class TestRenderingEdges:
+    @pytest.mark.parametrize("field", ["title", "label"])
+    def test_a_multi_line_title_or_label_is_a_finding(self, field):
+        stage_ = {"title": "T", "kind": "set", "members": [member("a.md")]}
+        target = stage_ if field == "title" else stage_["members"][0]
+        target[field] = "one\ntwo"
+        with pytest.raises(MetadataLoadError, match="single line"):
+            validate(ThreadDeclaration, {"thread": [stage_]})
+
+    def test_brackets_in_a_label_are_escaped(self):
+        thread = _thread(
+            ThreadStage(
+                title="S",
+                kind=StageKind.SET,
+                members=[ThreadMember(page="a.md", blurb="b", label="A [x]")],
+            )
+        )
+        assert r"[A \[x\]](../a.md)" in render_listing(thread, {"a.md": "A"})
+
+    def test_framing_keeps_line_breaks_and_indentation(self):
+        thread = _thread(
+            ThreadStage(
+                title="S",
+                kind=StageKind.SET,
+                framing="Intro:\n\n- one\n    - nested   \n",
+                members=[ThreadMember(page="a.md", blurb="b")],
+            )
+        )
+        listing = render_listing(thread, {"a.md": "A"})
+        assert "Intro:\n\n- one\n    - nested\n\n- [A]" in listing
+
+    def test_a_quote_in_the_start_page_title_is_escaped(self):
+        thread = StartThread(
+            path="start/s.md",
+            title='You say "hello"',
+            stages=(_chain("a.md", "b.md"),),
+        )
+        box = threads.render_box(thread, "a.md", {"a.md": "A", "b.md": "B"})
+        assert box is not None
+        assert box.startswith(
+            '!!! abstract "Reading path: You say &quot;hello&quot;"'
+        )
+
+    def test_every_missing_member_title_is_reported(self, tmp_path):
+        root = tree(
+            tmp_path,
+            {
+                "start/s.md": start_page(
+                    "S", [stage("S", "set", "x.md", "y.md", "a.md")]
+                ),
+                "a.md": page("A"),
+            },
+        )
+        with pytest.raises(MetadataLoadErrors) as exc:
+            page_titles(root, load_threads(root))
+        assert [
+            str(f).split(" lists ")[1].split()[0] for f in exc.value.failures
+        ] == [
+            "x.md",
+            "y.md",
+        ]

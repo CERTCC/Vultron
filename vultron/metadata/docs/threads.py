@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import posixpath
 import sys
+import textwrap
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,13 +40,12 @@ from vultron.metadata.base import repo_root as _find_repo_root
 from vultron.metadata.docs.landing_pages import WRITE_COMMAND, page_title
 from vultron.metadata.docs.page_frontmatter import (
     classify_docs_tree,
-    frontmatter_key_lines,
+    validate_thread,
 )
 from vultron.metadata.docs.page_schema import (
     START_DIR,
     THREAD_KEY,
     StageKind,
-    ThreadDeclaration,
     ThreadMember,
     ThreadStage,
     is_start_page,
@@ -56,7 +56,6 @@ from vultron.metadata.file_loading import (
     MetadataLoadError,
     MetadataLoadErrors,
     load_frontmatter,
-    validate,
 )
 from vultron.metadata.generated_block import splice_between
 
@@ -211,13 +210,7 @@ def load_threads(root: Path) -> tuple[StartThread, ...]:
                     "(DF-11-013, DF-11-014)",
                     path=f"docs/{rel}",
                 )
-            declared = validate(
-                ThreadDeclaration,
-                {THREAD_KEY: post.metadata[THREAD_KEY]},
-                path=path,
-                root=root,
-                key_lines=frontmatter_key_lines(path),
-            )
+            declared = validate_thread(path, post.metadata, root)
             thread = StartThread(
                 path=rel,
                 title=page_title(post, rel),
@@ -300,32 +293,46 @@ def page_titles(
     """Return ``{docs/-relative path: title}`` for every member of *threads*.
 
     Raises:
-        MetadataLoadError: If a member page does not exist.
+        MetadataLoadErrors: Naming every member page that does not exist, not
+            only the first (EH-07-001).
     """
     docs_dir = root / "docs"
     titles: dict[str, str] = {}
+    missing: list[MetadataLoadError] = []
     for thread in threads:
         for member in thread.members():
             if member.path in titles:
                 continue
             path = docs_dir / member.path
             if not path.is_file():
-                raise MetadataLoadError(
-                    f"lists {member.path} on its thread, which does not exist "
-                    "(DF-11-016)",
-                    path=f"docs/{thread.path}",
+                missing.append(
+                    MetadataLoadError(
+                        f"lists {member.path} on its thread, which does not "
+                        "exist (DF-11-016)",
+                        path=f"docs/{thread.path}",
+                    )
                 )
+                continue
             titles[member.path] = page_title(
                 load_frontmatter(path, root=root), member.path
             )
+    if missing:
+        raise MetadataLoadErrors(
+            missing, summary=f"{len(missing)} thread member(s) missing:"
+        )
     return titles
+
+
+def _link_text(text: str) -> str:
+    """Escape square brackets, which would end or nest a link's text."""
+    return text.replace("[", r"\[").replace("]", r"\]")
 
 
 def _link(member: ThreadMember, source: str, titles: Mapping[str, str]) -> str:
     """A markdown link to *member* from the page at *source*."""
     href = posixpath.relpath(member.path, posixpath.dirname(source))
     _path, hash_, fragment = member.page.partition("#")
-    label = member.label or titles[member.path]
+    label = _link_text(member.label or titles[member.path])
     return f"[{label}]({href}{hash_}{fragment})"
 
 
@@ -335,9 +342,12 @@ def render_listing(thread: StartThread, titles: Mapping[str, str]) -> str:
     for stage in thread.stages:
         block = [f"## {stage.title}"]
         if stage.framing:
-            # Line breaks are kept: docs prose is one sentence per line.
-            lines = stage.framing.strip().splitlines()
-            block.append("\n".join(line.strip() for line in lines))
+            # Line breaks and indentation are kept: docs prose is one
+            # sentence per line, and a nested list needs its indent.
+            framing = textwrap.dedent(stage.framing).strip("\n")
+            block.append(
+                "\n".join(line.rstrip() for line in framing.splitlines())
+            )
         items = []
         for number, member in enumerate(stage.members, start=1):
             bullet = f"{number}." if stage.kind is StageKind.CHAIN else "-"

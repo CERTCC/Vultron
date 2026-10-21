@@ -308,10 +308,33 @@ def _check_declarations(
     )
 
 
+def validate_thread(
+    path: Path, metadata: Mapping[str, object], root: Path
+) -> ThreadDeclaration:
+    """Validate the ``thread:`` in a start page's *metadata* (DF-11-013).
+
+    The one validation both ``docs-frontmatter`` and the thread loader
+    (:func:`~vultron.metadata.docs.threads.load_threads`) run, so the two
+    cannot read a thread two ways; each needs it, because neither can work
+    from a thread that does not validate.
+
+    Raises:
+        MetadataLoadError: If the thread does not validate, located at the
+            ``thread:`` key's line.
+    """
+    return validate(
+        ThreadDeclaration,
+        {THREAD_KEY: metadata.get(THREAD_KEY)},
+        path=path,
+        root=root,
+        key_lines=frontmatter_key_lines(path),
+    )
+
+
 def _check_thread(
     path: Path, rel: str, metadata: Mapping[str, object], root: Path
 ) -> None:
-    """Validate the ``thread:`` a start page declares (DF-11-013).
+    """Check the ``thread:`` key a page declares, if any (DF-11-013).
 
     Only a start page opens a thread, so the key anywhere else is a finding.
     Whether each member is an existing reader-facing page is the separate
@@ -323,22 +346,15 @@ def _check_thread(
     """
     if THREAD_KEY not in metadata:
         return
-    key_lines = frontmatter_key_lines(path)
     if not is_start_page(rel):
         raise MetadataLoadError(
             f"declares `{THREAD_KEY}:` but is not a start page; a thread is "
             f"declared once, on the docs/{START_DIR}/ page that opens it "
             "(DF-11-013)",
             path=f"docs/{rel}",
-            line=key_lines.get(THREAD_KEY),
+            line=frontmatter_key_lines(path).get(THREAD_KEY),
         )
-    validate(
-        ThreadDeclaration,
-        {THREAD_KEY: metadata[THREAD_KEY]},
-        path=path,
-        root=root,
-        key_lines=key_lines,
-    )
+    validate_thread(path, metadata, root)
 
 
 def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:

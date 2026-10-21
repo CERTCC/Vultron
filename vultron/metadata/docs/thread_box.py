@@ -83,12 +83,26 @@ def on_files(files: Files, *, config: MkDocsConfig) -> Files:
 
 
 def hide_footer(meta: MutableMapping[str, object]) -> None:
-    """Add :data:`FOOTER` to *meta*'s ``hide`` list, keeping what is there."""
+    """Add :data:`FOOTER` to *meta*'s ``hide`` list, keeping what is there.
+
+    An absent ``hide`` starts a list and a bare string becomes a one-entry
+    list.
+
+    Raises:
+        ValueError: If ``hide`` is any other shape: dropping it would silently
+            un-hide what the page hid, and keeping it would leave the footer.
+    """
     hidden = meta.get("hide")
-    if isinstance(hidden, list):
+    if hidden is None:
+        entries: list[object] = []
+    elif isinstance(hidden, str):
+        entries = [hidden]
+    elif isinstance(hidden, list):
         entries = list(hidden)
     else:
-        entries = [hidden] if isinstance(hidden, str) else []
+        raise ValueError(
+            f"a page's hide: must be a list of names, not {hidden!r}"
+        )
     if FOOTER not in entries:
         entries.append(FOOTER)
     meta["hide"] = entries

@@ -67,6 +67,7 @@ stakeholder_type: [project-contributor]
   - `docs-frontmatter` → `vultron.metadata.docs.page_frontmatter:main`.
     It validates the `stakeholder_type`, `level` (DF-11-001) and `page_type` (DF-11-018) every reader-facing `docs/` page declares, and refuses `level` and `page_type` on working-record pages and every key on include fragments.
     It also fails a working-record page that is in the nav or matched by no `not_in_nav` pattern (DF-11-003).
+    It validates the `thread:` each start page under `docs/start/` declares, and refuses the key on any other page (DF-11-013).
   - `docs-level-order` → `vultron.metadata.docs.level_order:main`.
     It fails when a `docs/` page uses a glossary term that a higher-level page declares in `introduces:`, unless the page links that introducing page at or before the first use or the use itself links to the glossary (DF-11-002).
     Working-record pages and pages with no level are skipped, and include fragments are checked at their lowest host's level.
@@ -74,7 +75,10 @@ stakeholder_type: [project-contributor]
   - `docs-site` → `vultron.metadata.docs.site_sync:main`.
     `--write` regenerates the contents listing of each section landing page whose `index.md` declares `contents: generated`, at any nav depth, from the `mkdocs.yml` nav and each listed page's `description:` frontmatter.
     It also checks that a `contents: routing` index links every member of its section, directly or through a fragment it includes uncut (DF-11-005), and regenerates `docs/includes/stakeholder_types.md` from the page schema (DF-11-011) and `notes/site-coverage-matrix.md` (DF-11-008).
+    It regenerates each start page's reading-path listing from the page's `thread:` frontmatter (DF-11-014).
     `--check` fails if any committed copy is stale.
+  - `docs-threads` → `vultron.metadata.docs.threads:main`.
+    It fails when a start page declares no thread, a thread lists a page twice or a page that is missing, working record, or not a page, or no thread resolves at all (DF-11-016).
   - `docs-withheld` → `vultron.metadata.docs.withheld:main` (a withheld artifact produces no `site/` files), `docs-links` → `vultron.metadata.docs.links:main` (every internal reference in the built `site/` resolves), `docs-legacy-urls` → `vultron.metadata.docs.legacy_urls:main` (a URL the site once published still answers)
   - `demo-scenarios` → `vultron.metadata.demo_scenarios.sync:main`.
     `--write` regenerates the artifacts derived from the demo scenario registry.
