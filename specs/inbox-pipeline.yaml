@@ -35,7 +35,7 @@ groups:
       the domain event, check case context, defer to the wait queue or dispatch via
       the activity dispatcher, and handle errors with requeue logic.
     rationale: >-
-      Wrapping the full `_process_inbox_item` path (not the simpler
+      Wrapping the full rehydrate-to-dispatch path (not the simpler
       `handle_inbox_item`) ensures that deferral and error-requeue behaviours
       are exercisable in unit tests.
     relationships:
@@ -124,8 +124,7 @@ groups:
     verification_debt: '#2575'
     statement: >-
       `inbox_pipeline.py` MUST NOT import from `inbox_handler.py`'s private
-      helpers (`_DISPATCHER_SLOT`, `_process_inbox_item`, `_dispatch_or_defer_inbox_item`)
-      by name as module-level globals.
+      helpers (such as `_DISPATCHER_SLOT`) by name as module-level globals.
     rationale: >-
       The pipeline MUST call the helpers as functions, not bind to their
       module-level identities, so that future refactoring of `inbox_handler.py`

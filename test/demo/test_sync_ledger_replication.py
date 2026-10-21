@@ -28,7 +28,6 @@ from test.support.received import delivered, received_event
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
-    inbox_handler,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import (
     configure_default_emitter,
@@ -362,14 +361,6 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
                 case_actor_dl,
                 emitter=getattr(case_actor_iso.app.state, "emitter", None),
             )
-        )
-        anyio.run(
-            inbox_handler,
-            peer_actor_id,
-            peer_dl,
-            peer_dl,
-            getattr(peer_iso.app.state, "emitter", None),
-            peer_iso.app.state.dispatcher,
         )
     finally:
         # Deliberately no `close()` here. These are the actors' *live* stores,
