@@ -32,8 +32,10 @@ IO-03-003).
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import asyncio
+import hashlib
 import logging
-from typing import Any, cast
+from dataclasses import dataclass
+from typing import Any, Literal, cast
 
 from vultron.adapters.driving.fastapi import inbox_port_factories
 from vultron.adapters.driving.fastapi.inbox_handler import (
@@ -63,7 +65,7 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
-from vultron.errors import VultronWiringError
+from vultron.errors import VultronReusedActivityIdError, VultronWiringError
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.parser import parse_activity as _parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -115,6 +117,62 @@ def _carry_received_evidence(
     if evidence is not None:
         routing_copy.seal_received_evidence(evidence)
     return routing_copy
+
+
+@dataclass(frozen=True)
+class _HeldBody:
+    """The sealed body the receiver holds for an activity id, and where."""
+
+    kind: Literal["deferred", "archived"]
+    body: str
+
+
+def _sender_id(activity: as_Activity) -> str | None:
+    """The id of the actor *activity* names as its sender, if any."""
+    actor = activity.actor
+    if actor is None:
+        return None
+    return str(getattr(actor, "id_", actor))
+
+
+def _body_digest(sealed_text: str) -> str:
+    """The SHA-256 digest of a sealed received text (IE-10-002)."""
+    return hashlib.sha256(sealed_text.encode("utf-8")).hexdigest()
+
+
+def _refuse_a_different_body(activity: as_Activity, held: _HeldBody) -> None:
+    """Refuse *activity* unless its sealed body is exactly *held*'s.
+
+    The match is exact, digest against digest, with no normalisation
+    (IE-10-002).  A same-body delivery returns, to be routed as a
+    redelivery (IE-10-001).
+
+    Raises:
+        VultronWiringError: When *activity* carries no sealed body.  Every
+            delivery the inbox parses is sealed (VM-08-002), so only an
+            activity handed to the inbox in process can lack one.
+        VultronReusedActivityIdError: When the bodies differ.  It is logged
+            here, at WARNING, with the activity id and the sender.
+    """
+    evidence = activity.received_evidence_json
+    if evidence is None:
+        raise VultronWiringError(
+            f"a delivery of held activity '{activity.id_}' carries no sealed"
+            " body, so it cannot be compared with the held one (VM-08-002,"
+            " IE-10-002)"
+        )
+    if _body_digest(evidence) == _body_digest(held.body):
+        return
+    sender = _sender_id(activity)
+    logger.warning(
+        "FastAPIIngressAdapter.rehydrate: refusing activity %s (actor %s):"
+        " its id is already held (%s) with a different body, so neither"
+        " body is routed and nothing is written (IE-10-002).",
+        activity.id_,
+        sender,
+        held.kind,
+    )
+    raise VultronReusedActivityIdError(activity.id_, sender)
 
 
 class FastAPIIngressAdapter:
@@ -185,23 +243,33 @@ class FastAPIIngressAdapter:
         (:class:`~.inbox_staging.InlineObjectStaging`).  Nothing staged
         reaches the receiver's store (DL-06-006, IO-03-004).
 
-        A redelivery is routed in place of this body, as the copy the
-        receiver already holds (VM-08-002, IE-10-001):
+        When the receiver already holds the activity id, under a key it
+        derives from it, this delivery's sealed body is compared with the
+        body held for it first, by the SHA-256 digest of each text, exactly
+        (IE-10-002, #3762):
 
-        - when the first delivery is still deferred, its held copy is routed
-          without received evidence, and the record holding it is kept for
-          the replay, which carries it;
-        - when intake already archived it, the archived body is parsed and
-          routed (ADR-0149) with that body as its received evidence: it is
-          the first delivery's sealed body.  The handlers' own idempotency
-          guards answer the repeat (ID-04): a committed act is ``SKIPPED``,
-          and an act that never committed, such as one that failed, runs as
-          a first delivery and commits with the archived body (ADR-0151).
+        - a different body is not a redelivery: it is refused with
+          :exc:`~vultron.errors.VultronReusedActivityIdError`, logged at
+          WARNING with the activity id and the sender.  Neither body is
+          routed and nothing is written, so the held record stays as it was.
+          No normalisation precedes the match, so a body re-serialized with
+          another key order is refused too (IE-10-002 ``note:``);
+        - the same body is a redelivery, routed in place of this one as the
+          copy the receiver already holds (VM-08-002, IE-10-001).  When the
+          first delivery is still deferred, its held copy is routed without
+          received evidence, and the record holding it is kept for the
+          replay, which carries it.  When intake already archived it, the
+          archived body is parsed and routed (ADR-0149) with that body as its
+          received evidence: it is the first delivery's sealed body.  The
+          handlers' own idempotency guards answer the repeat (ID-04): a
+          committed act is ``SKIPPED``, and an act that never committed, such
+          as one that failed, runs as a first delivery and commits with the
+          archived body (ADR-0151).
 
-        When either held copy rebuilds, this delivery's own body is
-        never routed, and is left untouched for whatever compares it with
-        the held one (#3762).  Only when the held copy does not rebuild is
-        this delivery's body routed in its place, without received evidence.
+        Production deliveries always carry a sealed body, and a held record
+        always holds one, so meeting either side without one is a wiring
+        fault (ARCH-15-001), as is a held copy that does not rebuild: it is
+        the same text as this delivery's.
 
         An ``Announce(CaseLedgerEntry)`` is the exception to the staged
         rebuild: per SYNC-13-002 the inline entry is deliberately NOT staged,
@@ -227,6 +295,10 @@ class FastAPIIngressAdapter:
         VulnerabilityCase, got as_VulnerabilityCase". Fix what the store keeps, not
         the read.
         """
+        held = self._held_body(activity.id_)
+        if held is not None:
+            _refuse_a_different_body(activity, held)
+
         if _is_inline_ledger_entry_announce(activity):
             # A repeat entry is the SYNC-12-003 already-stored gate's to
             # answer, not this adapter's (SYNC-13-004).  The inbox may still
@@ -236,53 +308,39 @@ class FastAPIIngressAdapter:
                 activity, self._hydrate_in_place(activity)
             )
 
-        redelivery = self._held_copy_kind(activity.id_)
-        if redelivery == "deferred":
-            held = self._staging.rehydrate_held(activity.id_)
-            if held is not None:
-                self._log_redelivery(activity, redelivery)
-                return held
-        if redelivery == "archived":
-            archived = self._staging.rehydrate_archived(activity.id_)
-            if archived is not None:
-                self._log_redelivery(activity, redelivery)
-                return archived
-
-        if redelivery is not None:
-            # The held copy did not rebuild.  This delivery's own body is
-            # routed in its place, still without received evidence, and
-            # staged as no delivery's body, so a deferral holds no evidence
-            # either: the delivery routed is a resend, not the one held
-            # (VM-08-002).
-            result = self._staging.rehydrate_resend(activity)
+        if held is None:
+            result = self._staging.rehydrate_parsed(activity)
             if result is None:
-                raise VultronWiringError(
-                    f"redelivered activity '{activity.id_}' is held"
-                    f" ({redelivery}) but neither the held copy nor this body"
-                    " rebuilds"
-                )
-            logger.warning(
-                "FastAPIIngressAdapter.rehydrate: the %s copy of activity %s"
-                " did not rebuild; routing this delivery's body without its"
-                " received evidence (VM-08-002).",
-                redelivery,
-                activity.id_,
-            )
-            return result
-        result = self._staging.rehydrate_parsed(activity)
-        if result is None:
-            return activity
-        return _carry_received_evidence(activity, result)
+                return activity
+            return _carry_received_evidence(activity, result)
 
-    def _held_copy_kind(self, activity_id: str) -> str | None:
-        """Which receiver-keyed copy of *activity_id* is held, if any."""
-        if self._staging.held(activity_id) is not None:
-            return "deferred"
-        if isinstance(
-            self._dl.read(ReceivedActivityRecord.build_id(activity_id)),
-            ReceivedActivityRecord,
-        ):
-            return "archived"
+        routed = (
+            self._staging.rehydrate_held(activity.id_)
+            if held.kind == "deferred"
+            else self._staging.rehydrate_archived(activity.id_)
+        )
+        if routed is None:
+            # The held copy is this delivery's own text, so this body would
+            # not rebuild either.
+            raise VultronWiringError(
+                f"redelivered activity '{activity.id_}' is held"
+                f" ({held.kind}) but its held copy does not rebuild"
+            )
+        self._log_redelivery(activity, held.kind)
+        return routed
+
+    def _held_body(self, activity_id: str) -> _HeldBody | None:
+        """The body held for *activity_id* under the receiver's key, if any.
+
+        The deferred record's while the first delivery is still deferred,
+        else the body intake archived (IE-10-001, IE-10-002).
+        """
+        pending = self._staging.held(activity_id)
+        if pending is not None:
+            return _HeldBody("deferred", pending.received_body)
+        record = self._dl.read(ReceivedActivityRecord.build_id(activity_id))
+        if isinstance(record, ReceivedActivityRecord):
+            return _HeldBody("archived", record.received_body)
         return None
 
     @staticmethod
@@ -297,7 +355,7 @@ class FastAPIIngressAdapter:
             " already held (%s); routing the held copy, %s"
             " (IE-10-001, VM-08-002).",
             activity.id_,
-            getattr(activity.actor, "id_", activity.actor),
+            _sender_id(activity),
             kind,
             evidence,
         )

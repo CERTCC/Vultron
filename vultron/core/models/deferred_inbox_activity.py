@@ -25,11 +25,10 @@ queue's expiry does.
 
 It holds two things, and nothing derived from them (ADR-0149):
 
-- the activity itself.  A delivery is held as the received body the parser
-  sealed (VM-08-002, ADR-0149), so its replay parses those bytes and carries
-  the same evidence as the first delivery.  An activity handed to the inbox
-  in process with no sealed body is held as its storage row instead, and its
-  replay carries no evidence (VM-08-002);
+- the activity itself, as the received body the parser sealed (VM-08-002,
+  ADR-0149), so its replay parses those bytes and carries the same evidence
+  as the first delivery.  Every delivery is sealed at its parse, so there is
+  always a body to hold;
 - the storage rows staged from its inline objects (IO-03-004), which the
   replay stages again for routing.  They are rows (``id_``, ``type_``,
   ``data_``), not domain objects, so no read by an object's own id ever
@@ -63,11 +62,7 @@ from vultron.core.models.retired_stored_fields import (
 
 
 class DeferredInboxActivity(RetiredFieldsRecord):
-    """One deferred inbox activity, held under the receiver's key.
-
-    Exactly one of :attr:`received_body` and :attr:`activity_row_json` is
-    set: the sealed body when the delivery carried one, else the row.
-    """
+    """One deferred inbox activity, held under the receiver's key."""
 
     type_: Literal["DeferredInboxActivity"] = Field(  # type: ignore[assignment]
         default="DeferredInboxActivity",
@@ -75,24 +70,20 @@ class DeferredInboxActivity(RetiredFieldsRecord):
         serialization_alias="type",
     )
     # The event's core summary of the activity, retired for the body itself
-    # (ADR-0149): nothing derived from what arrived is stored beside it.
+    # (ADR-0149): nothing derived from what arrived is stored beside it.  The
+    # row form of an activity with no sealed body is retired too: every
+    # delivery is sealed, so only the body is ever held (#5019).
     retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
         "activity": RetiredStoredField(None, "#4943"),
+        "activity_row_json": RetiredStoredField(None, "#5019"),
     }
     activity_id: UriString = Field(
         ..., description="The sender's id for the deferred activity"
     )
-    received_body: NonEmptyString | None = Field(
-        default=None,
+    received_body: NonEmptyString = Field(
+        ...,
         description=(
             "The received JSON body as the parser sealed it (VM-08-002)"
-        ),
-    )
-    activity_row_json: NonEmptyString | None = Field(
-        default=None,
-        description=(
-            "JSON storage row (id_, type_, data_) of an activity that arrived"
-            " with no sealed body"
         ),
     )
     rows_json: NonEmptyString = Field(
@@ -121,21 +112,9 @@ class DeferredInboxActivity(RetiredFieldsRecord):
 
     @field_validator("received_body")
     @classmethod
-    def _body_is_a_json_object(cls, value: str | None) -> str | None:
+    def _body_is_a_json_object(cls, value: str) -> str:
         """Refuse a held body that is not the text of one JSON object."""
-        if value is None:
-            return value
         return require_json_object_text(value, "received_body")
-
-    @model_validator(mode="after")
-    def _holds_the_activity_once(self) -> DeferredInboxActivity:
-        """Refuse a record that holds the activity twice, or not at all."""
-        if (self.received_body is None) == (self.activity_row_json is None):
-            raise ValueError(
-                "DeferredInboxActivity holds the activity as exactly one of"
-                " received_body and activity_row_json"
-            )
-        return self
 
 
 __all__ = ["DeferredInboxActivity"]
