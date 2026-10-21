@@ -94,7 +94,7 @@ def mark_joined(record: CaseParticipant, published: datetime) -> bool:
 
 
 def settle_stub_accept(
-    stored: CaseParticipant | None,
+    stored: CaseParticipant,
     record: CaseParticipant,
     published: datetime,
 ) -> bool:
@@ -184,11 +184,7 @@ def apply_stub_accept(
     """
     signed = stub_accept_consent(case, record)
     updated = signed if signed is not record else record.model_copy(deep=True)
-    joined = mark_joined(updated, published)
-    if signed is record and not joined:
-        return None
-    updated.updated = _later(updated.updated, published)
-    return updated
+    return updated if settle_stub_accept(record, updated, published) else None
 
 
 def apply_stub_reject(

@@ -111,12 +111,16 @@ class ActivateInviteeParticipantNode(
         # The same write a replica makes from the Accept's own entry; the
         # record's time is the Accept's ``published``, never the local clock.
         stored = self.datalayer.read(participant.id_)
+        if not isinstance(stored, CaseParticipant):
+            self.logger.error(
+                "%s: no stored participant record '%s' for '%s'",
+                self.name,
+                participant.id_,
+                self.invitee_id,
+            )
+            return Status.FAILURE
         was_joined = participant.joined
-        if settle_stub_accept(
-            stored if isinstance(stored, CaseParticipant) else None,
-            participant,
-            published,
-        ):
+        if settle_stub_accept(stored, participant, published):
             self.datalayer.save(participant)
             self.logger.info(
                 "%s: saved participant '%s' as the Accept left it"
