@@ -83,7 +83,8 @@ def run_offer_reply_tree(
         tree: The reply's received tree, as its factory composed it for
             the case the reply names (or names none).
         label: The tree's name, for the verdict and the logs.
-        case_id: The case the reply names, for the logs.
+        case_id: The case the reply names, for the logs and the
+            CASE_MANAGER refusal (HP-01-005).
         subject: The Offer, as a log names it, e.g. ``"role offer"``.
         refine: Reads what the tree's guards say beyond success or failure,
             such as a redelivery reported ``SKIPPED`` (HP-01-003).

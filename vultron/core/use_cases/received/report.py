@@ -325,6 +325,9 @@ class ValidateReportReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="ValidateReportReceivedBT"
         )
+        if case_id is not None:
+            # Only the CASE_MANAGER records the move (HP-01-005).
+            verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "ValidateReportReceivedUseCase: refused for report '%s': %s",
@@ -333,11 +336,6 @@ class ValidateReportReceivedUseCase:
             )
             return verdict
 
-        if case_id is not None:
-            # Only the CASE_MANAGER records the move (HP-01-005).
-            verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-            if verdict.disposition is HandlerDisposition.REFUSED:
-                return verdict
         if node_succeeded(tree, CheckRMStateValid):
             # The Selector's idempotency exit (ID-04-004): already VALID.
             return HandlerResult.skipped(

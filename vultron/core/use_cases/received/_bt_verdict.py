@@ -263,8 +263,10 @@ def case_manager_verdict(
     For a handler whose tree does nothing at an actor that is not the
     CASE_MANAGER: its run succeeds there with every gated step skipped, and
     that success is a misaddressed message, neither an applied one nor a
-    repeat (HP-01-005).  A redelivery stops at intake, before the gate, so it
-    keeps its ``SKIPPED``.  A ``REFUSED`` verdict is returned as it is.
+    repeat (HP-01-005).  A redelivery to such an actor is refused the same
+    way: it was never this actor's to act on.  A ``SKIPPED`` from a repeat
+    guard that ends the run before the gate keeps its ``SKIPPED``, because
+    the gate never ran.  A ``REFUSED`` verdict is returned as it is.
     """
     if verdict.disposition is HandlerDisposition.REFUSED:
         return verdict
