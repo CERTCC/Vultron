@@ -1623,10 +1623,8 @@ def test_a_failed_item_stays_held_whether_retried_or_dead_lettered(
 ) -> None:
     """The rebuild released the item's record; the failure path holds it
     again, so neither the retry nor the dead letter loses the activity."""
-    from vultron.adapters.inbox_staging import (
-        InlineObjectStaging,
-        hold_activity,
-    )
+    from test.support.inbox_replay import hold_activity
+    from vultron.adapters.inbox_staging import InlineObjectStaging
     from vultron.wire.as2.factories import add_note_to_case_activity
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 

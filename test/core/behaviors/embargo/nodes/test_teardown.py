@@ -848,6 +848,65 @@ class TestApplyEmbargoTeardownNode:
             EM.ACTIVE
         )
 
+    @pytest.mark.spec("SYNC-14-006")
+    def test_a_refused_step_the_bound_cannot_hold_is_not_marked_held(
+        self, monkeypatch
+    ):
+        """With the holding area full, the refusal is reported as not held."""
+        from vultron.core.models.received_activity_record import (
+            ReceivedActivityRecord,
+        )
+        from vultron.core.services import held_ledger_announces
+        from vultron.errors import VultronEntryRefusedError
+
+        monkeypatch.setattr(
+            held_ledger_announces, "DEFAULT_HELD_LEDGER_ANNOUNCES_MAX", 0
+        )
+        dl, case = self._store("atn-gap-full", EM.ACTIVE)
+        entry = _remove_entry(case.id_, _e1(case))
+        node = _copy_node(dl, entry)
+        announce_id = "https://example.org/activities/announce-atn-gap-full"
+        node.activity = type(
+            "Carrier", (), {"log_entry": entry, "activity_id": announce_id}
+        )()
+        dl.save(
+            ReceivedActivityRecord(
+                activity_id=announce_id,
+                received_body=f'{{"id": "{announce_id}", "type": "Announce"}}',
+            )
+        )
+
+        with patch(
+            "vultron.core.behaviors.sync.nodes.embargo_copy_effect"
+            ".apply_embargo_change",
+            side_effect=VultronEntryRefusedError("diverged"),
+        ):
+            status = node.update()
+
+        assert status == py_trees.common.Status.FAILURE
+        assert not node.refused_into_gap
+        assert "holding area bound dropped its Announce" in (
+            node.feedback_message
+        )
+
+    @pytest.mark.spec("SYNC-14-001")
+    def test_a_refused_step_with_no_activity_to_hold_is_a_wiring_error(self):
+        """An event that names no activity cannot be held: a wiring fault."""
+        from vultron.errors import VultronEntryRefusedError, VultronWiringError
+
+        dl, case = self._store("atn-gap-noid", EM.ACTIVE)
+        node = _copy_node(dl, _remove_entry(case.id_, _e1(case)))
+
+        with (
+            patch(
+                "vultron.core.behaviors.sync.nodes.embargo_copy_effect"
+                ".apply_embargo_change",
+                side_effect=VultronEntryRefusedError("diverged"),
+            ),
+            pytest.raises(VultronWiringError, match="names no activity"),
+        ):
+            node.update()
+
 
 # ---------------------------------------------------------------------------
 # SendAnnounceEmbargoEventNode

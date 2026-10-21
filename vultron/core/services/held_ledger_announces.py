@@ -166,11 +166,12 @@ def hold_ledger_announce(
     Holds the body intake archived, as the inbox holds a deferred activity
     (``DeferredInboxActivity``, IO-03-004), and indexes it under the entry's
     case and ``prev_log_hash``.  An ``Announce`` whose entry is already held
-    under the same predecessor is not held again, whatever its id; a
-    different entry under the same predecessor (a fork) replaces the held
-    one, with a warning.  When the case's holding area is full, the bound
-    applies (SYNC-14-006): *max_per_case*, by default
-    :data:`DEFAULT_HELD_LEDGER_ANNOUNCES_MAX`.
+    under the same predecessor is not held again, whatever its id, unless the
+    held one lost its body; a different entry under the same predecessor (a
+    fork) replaces the held one, with a warning.  Every write, the replaced
+    or evicted hold's removal included, commits in one transaction.  When the
+    case's holding area is full, the bound applies (SYNC-14-006):
+    *max_per_case*, by default :data:`DEFAULT_HELD_LEDGER_ANNOUNCES_MAX`.
 
     Returns:
         ``True`` when the entry's ``Announce`` is now held, ``False`` when
@@ -181,15 +182,24 @@ def hold_ledger_announce(
     """
     existing = held_successor(dl, entry.case_id, entry.prev_log_hash)
     if existing is not None and existing.entry_hash == entry.entry_hash:
-        logger.debug(
-            "held ledger announces: entry '%s' is already held in Announce"
-            " '%s'",
-            entry.id_,
+        if holds_held_body(dl, existing):
+            logger.debug(
+                "held ledger announces: entry '%s' is already held in"
+                " Announce '%s'",
+                entry.id_,
+                existing.activity_id,
+            )
+            return True
+        # The held row lost its body, so it could never replay; this
+        # delivery's Announce of the same entry takes its place.
+        logger.warning(
+            "held ledger announces: held Announce '%s' of entry '%s' has no"
+            " held body; holding Announce '%s' in its place",
             existing.activity_id,
+            entry.id_,
+            activity_id,
         )
-        return True
-    received_body = _received_body(dl, activity_id)
-    if existing is not None:
+    elif existing is not None:
         logger.warning(
             "held ledger announces: replacing forked held entry for case %s"
             " prev_log_hash=%.16s… (old index=%d in '%s', new index=%d in"
@@ -201,18 +211,20 @@ def hold_ledger_announce(
             entry.log_index,
             activity_id,
         )
-        discard_held(dl, existing)
-    elif not _make_room(
-        dl,
-        entry,
+    received_body = _received_body(dl, activity_id)
+    bound = (
         DEFAULT_HELD_LEDGER_ANNOUNCES_MAX
         if max_per_case is None
-        else max_per_case,
-    ):
-        return False
-
+        else max_per_case
+    )
     body_id = DeferredInboxActivity.build_id(activity_id)
+    # One transaction: a failure part-way leaves the old hold in place and
+    # the new one unwritten, never neither.
     with dl.transaction():
+        if existing is not None:
+            discard_held(dl, existing)
+        elif not _make_room(dl, entry, bound):
+            return False
         # A body already held for a replay is the same delivery's; keep it.
         if not isinstance(dl.read(body_id), DeferredInboxActivity):
             dl.create(

@@ -1067,14 +1067,18 @@ groups:
       from the ledger, and that a held entry is persisted as a `CaseLedgerEntry` only when
       its replayed Announce is applied.
     statement: >-
-      The out-of-order holding area MUST NOT be the canonical ledger/DataLayer store; a
-      held entry MUST NOT be persisted as a CaseLedgerEntry until it is drained (i.e.
-      until its predecessor is present), so that presence of a CaseLedgerEntry in the
-      DataLayer continues to mean "committed and effects applied" (SYNC-13-001).
+      The out-of-order holding area MUST NOT be the canonical ledger: it MAY keep
+      the held Announce in the receiver's DataLayer only as records of its own
+      kind, never as a CaseLedgerEntry, and a held entry MUST NOT be persisted as
+      a CaseLedgerEntry until it is drained (i.e. until its predecessor is
+      present), so that presence of a CaseLedgerEntry in the DataLayer continues
+      to mean "committed and effects applied" (SYNC-13-001).
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-13-001
-      note: Buffering in the DataLayer would break the presence-means-committed invariant
+      note: >-
+        Holding an entry as a CaseLedgerEntry would break the presence-means-committed
+        invariant
   - id: SYNC-14-006
     priority: SHOULD
     kind: protocol
@@ -1265,7 +1269,7 @@ groups:
       genesis entry (log_index 0) whose prev_log_hash equals the per-case genesis hash.
     rationale: >-
       The reject/replay backstop (SYNC-15-001) does not converge under adversarial reordering
-      for the same reason forward gaps are buffered (SYNC-14): replay re-announces entries
+      for the same reason forward gaps are held (SYNC-14): replay re-announces entries
       individually over the same unordered transport and each pre-genesis entry Rejects again,
       amplifying churn (issue #2169) and, for the rvcv-handoff demo, dropping the
       add_report_to_case entry so no VultronOfferRecord is ever created (issue #2180). Holding
@@ -1282,10 +1286,12 @@ groups:
         forward-gap hold
     - rel_type: depends_on
       spec_id: SYNC-14-005
-      note: A pre-genesis entry MUST NOT be persisted as a CaseLedgerEntry while buffered
+      note: A pre-genesis entry MUST NOT be persisted as a CaseLedgerEntry while held
     - rel_type: refines
       spec_id: SYNC-15-001
-      note: The Reject is retained as the loss backstop; buffering is the primary convergence path
+      note: >-
+        The Reject is retained as the loss backstop; holding is the primary
+        convergence path
     stories:
     - story_2022_045
     - story_2022_088
@@ -1295,10 +1301,11 @@ groups:
     statement: >-
       After a participant seeds the VulnerabilityCase (via Create or Announce(VulnerabilityCase)),
       which anchors the deterministic per-case genesis hash (CLP-08), it MUST drain the holding
-      area for that case: it MUST locate the buffered entry (if any) whose prev_log_hash equals
-      the per-case genesis hash, apply-then-persist it via the same path as in-order delivery
-      (SYNC-14-004), and cascade in hash-chain order (SYNC-14-003) until no buffered entry extends
-      the current tail.
+      area for that case: it MUST locate the held Announce (if any) whose entry's
+      prev_log_hash equals the per-case genesis hash, replay it (SYNC-14-009) so
+      its entry is applied-then-persisted via the same path as in-order delivery
+      (SYNC-14-004), and cascade in hash-chain order (SYNC-14-003) until no held
+      Announce extends the current tail.
     rationale: >-
       The genesis hash is derivable from the case object alone (deterministic from case_id,
       created_at, and the CASE_MANAGER id per CLP-08), so seeding the case is sufficient to anchor
@@ -1306,7 +1313,7 @@ groups:
       Draining on seed is what turns the pre-genesis hold (SYNC-15-004) into convergence.
     verification: >-
       Integration tests in `test/demo/` confirm that seeding the VulnerabilityCase triggers a
-      cascading drain of pre-genesis buffered entries in hash-chain order via the
+      cascading drain of pre-genesis held entries in hash-chain order via the
       apply-then-persist path.
     relationships:
     - rel_type: depends_on
@@ -1317,7 +1324,7 @@ groups:
       note: The drained entry MUST apply effects before persisting, on the same path as in-order delivery
     - rel_type: depends_on
       spec_id: SYNC-15-004
-      note: Drains exactly the entries that SYNC-15-004 buffered during the pre-genesis window
+      note: Drains exactly the entries that SYNC-15-004 held during the pre-genesis window
     stories:
     - story_2022_012
     - story_2022_045

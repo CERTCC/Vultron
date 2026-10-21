@@ -41,6 +41,7 @@ from vultron.core.services.held_ledger_announces import (
 )
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
 
@@ -140,3 +141,19 @@ def hold_received(dl: Any, event: AnnounceLogEntryReceivedEvent) -> None:
 def held_depth(dl: Any, case_id: str) -> int:
     """How many ``Announce``\\ s *dl* holds for *case_id*."""
     return len(held_ledger_announces(dl, case_id))
+
+
+def hold_activity(dl: Any, activity: as_Activity) -> bool:
+    """Hold *activity* in *dl* for a replay through the inbox queue.
+
+    For a test that queues an activity by id outside a delivery: the activity
+    is held as a deferred record would hold it, never under its own id
+    (DL-06-006), as its received body when it carries one, and the inbox
+    replay rebuilds it from there.
+
+    Returns whether this call held it; ``False`` when a record for the same
+    id is already held.
+    """
+    staging = InlineObjectStaging(dl)
+    staging.rehydrate_parsed(activity)
+    return staging.hold_for_replay(activity.id_)

@@ -339,6 +339,37 @@ class TestReplicaCopies:
         assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(diverged)
 
     @pytest.mark.spec("CM-23-016")
+    @pytest.mark.spec("SYNC-14-006")
+    def test_a_refused_entry_the_bound_cannot_hold_is_refused(
+        self, monkeypatch
+    ):
+        """With the holding area full, a refused entry's Announce is not
+        held: the entry is still never patched over or stored, and the
+        delivery reports a refusal, not a deferral."""
+        from vultron.core.services import held_ledger_announces
+
+        monkeypatch.setattr(
+            held_ledger_announces, "DEFAULT_HELD_LEDGER_ANNOUNCES_MAX", 0
+        )
+        net = _net("cc-gap-full")
+        replica = net.stores[BYSTANDER]
+        _drop_row(net, BYSTANDER, BYSTANDER)
+        diverged = _record(net, BYSTANDER, BYSTANDER)
+        commit_and_apply_embargo_entries(
+            net.stores[MANAGER],
+            net.case_id,
+            [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
+        )
+        (body,) = _announcements(net, BYSTANDER)
+
+        verdict = net.receive(BYSTANDER, body)
+
+        assert verdict.disposition is HandlerDisposition.REFUSED
+        assert replica.read(body["object"]["id"]) is None
+        assert held_depth(replica, net.case_id) == 0
+        assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(diverged)
+
+    @pytest.mark.spec("CM-23-016")
     def test_a_held_entry_applies_once_the_case_reaches_its_start(self):
         """A refused entry's held Announce is retried; it is never dropped.
 
