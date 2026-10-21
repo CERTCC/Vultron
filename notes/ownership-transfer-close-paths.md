@@ -84,13 +84,16 @@ an Offer can also close without an answer (#4490):
     the same `now`, read once per delivery from `now_utc()`.
 - **Expiry (CM-21-017) — implemented.** The CASE_MANAGER finds an expired Offer
   lazily, when it next processes an Accept, Reject or Undo of the Offer or a new
-  proposal for the case, and commits a distinct
-  `offer_case_ownership_transfer_expired` entry before acting
-  (`ExpireOverdueOwnershipOfferNode`, a clock decision). The
-  snapshot is the CASE_MANAGER's own `Expire(Offer)`, stamped with its clock; its
-  `semantic_type` is in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so it closes
-  the Offer. It is `NO_REPLICA_EFFECT`: replicas learn expiry from the entry and
-  never compute it, as for embargo Invite expiry (CM-28-014).
+  proposal for the case, and withdraws it before acting
+  (`ExpireOverdueOwnershipOfferNode`, a clock decision). The act is the
+  CASE_MANAGER's own factory-built `Undo(Offer)` of the Offer it made,
+  carrying the Offer inline with the `endTime` it passed and stamped with its
+  clock, committed from its sealed blob as a distinct
+  `offer_case_ownership_transfer_expired` entry (ADR-0140). The owner's own
+  withdrawal is an `Undo` of its proposal instead (CM-21-015). Its
+  `semantic_type` is in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so it
+  closes the Offer. It is `NO_REPLICA_EFFECT`: replicas learn expiry from the
+  entry and never compute it, as for embargo Invite expiry (CM-28-014).
   - **Why a clock decision.** The expiry is the CASE_MANAGER's own decision
     from its clock, committed as its own entry before the activity is judged
     (CLP-07-013), and ledgered even when that activity is then admitted (a new

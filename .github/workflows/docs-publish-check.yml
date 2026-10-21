@@ -1,0 +1,18 @@
+name: Docs Publish Check
+# DOCBW-03-012: every pull request to publish runs the docs workflow, including
+# its check that every page the merge result builds is recorded in the
+# legacy-URL baseline. No paths: filter, because a release that changes no
+# docs can still ship pages an earlier, unchecked publish left unrecorded.
+# docs-build-check.yml carries a paths: filter, and a workflow has only one
+# pull_request trigger, so this caller supplies the unfiltered one.
+on:
+  pull_request:
+    branches:
+      - publish
+
+permissions:
+  contents: read
+
+jobs:
+  docs-build-check:
+    uses: ./.github/workflows/docs-build-check.yml

@@ -28,30 +28,26 @@ CLP-10-025, CM-28-014, BT-17-001).  The tree follows the guard → commit → ef
 2. :class:`InviteExpiryNeedsApplyNode` gates whether a ledger entry must be
    committed (CM-28-009) — true only when the invitee is still ``INVITED``.
 3. :class:`~vultron.core.behaviors.embargo.nodes.expiry_commit.CommitAndApplyInviteExpiryNode`
-   commits the expired-invitation entry, then the CASE_MANAGER's
-   ``Update(EmbargoConsent)`` carrying the invitee's ``TIMED_OUT`` row, and
-   only then writes the row through the one apply function (ADR-0124).  A
-   failed commit therefore leaves the invitee unchanged (CLP-07-013,
-   CLP-10-006).
+   commits the CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the
+   invitee's ``TIMED_OUT`` row, and only then writes the row through the one
+   apply function (ADR-0124).  A failed commit therefore leaves the invitee
+   unchanged (CLP-07-013, CLP-10-006).
 
 :class:`InviteExpiryChangedConsentNode` is a backward-compatible alias for
 :class:`InviteExpiryNeedsApplyNode`.
 
 A participant replica never evaluates a deadline and runs no ``TIME_OUT``:
-it copies the ``Update(EmbargoConsent)`` entry through the consent slot, and
-:class:`ApplyInviteExpiryFromLedgerNode`, reached from
-``create_announce_log_entry_tree`` (RSH-08-004, CM-28-014), recognises the
-expiry entry itself.
+it copies the ``Update(EmbargoConsent)`` entry through the consent slot of
+``create_announce_log_entry_tree`` (RSH-08-004, CM-28-014).
 
 For the no-op late-Accept decision (EMB-17-004):
 :class:`ApplyInviteExpiryNoopFromLedgerNode` recognises the entry and
 returns SUCCESS without applying any PEC transition.
 
-For the honour late-Accept decision (EMB-17-001):
+For the honour late-Accept decision (EMB-17-002):
 :class:`~vultron.core.behaviors.embargo.nodes.expiry_commit.CommitAndApplyHonourLateAcceptNode`
-commits the honour entry and its ``AGREED`` row before writing it, and
-:class:`ApplyHonourLateAcceptFromLedgerNode` recognises the honour entry on
-replicas, which copy the row from its own entry.
+commits the CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the
+``AGREED`` row before writing it; replicas copy the row from that entry.
 """
 
 from datetime import datetime
@@ -63,7 +59,6 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.behaviors.sync.nodes._helpers import (
-    _extract_id_from_field,
     _LedgerEffectNode,
 )
 from vultron.core.predicates.addressing import snapshot_actor_id
@@ -83,14 +78,6 @@ applies ``INVITED → TIMED_OUT`` (CLP-10-006, ADR-0124).
 
 CONSENT_CHANGED_KEY = NEEDS_APPLY_KEY
 """Backward-compatible alias for :data:`NEEDS_APPLY_KEY`."""
-
-
-def _snapshot_embargo_id(snapshot: dict[str, object]) -> str | None:
-    """The embargo an expiry or honour entry's Invite names (``object.object``)."""
-    invite = snapshot.get("object")
-    if not isinstance(invite, dict):
-        return None
-    return _extract_id_from_field(invite.get("object"))
 
 
 class EvaluateInviteExpiryNode(DataLayerActionWithPorts):
@@ -225,60 +212,6 @@ class InviteNotExpiredNode(py_trees.behaviour.Behaviour):
 InviteExpiryChangedConsentNode = InviteExpiryNeedsApplyNode
 
 
-class _RecordedActFromLedgerNode(_LedgerEffectNode):
-    """Recognise an act entry whose consent change is its own entry.
-
-    The CASE_MANAGER commits the act, then an ``Update(EmbargoConsent)``
-    carrying the row it changes; the consent slot copies that row
-    (ADR-0124, CM-23-016).  This entry therefore changes nothing here: the
-    node returns SUCCESS so the entry is persisted in its chain position, and
-    computes nothing (no deadline, no PEC transition).  An entry that names
-    no actor or no embargo fails, so it is not persisted (SYNC-12-001).
-    Regime 2 (ADR-0087): a replica holding no copy of the case skips with
-    SUCCESS.
-    """
-
-    _label: str = "act"
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        entry = self._get_entry()
-        case = self._resolve_case_replica(entry.case_id)
-        if case is None:
-            return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
-        # Normalised: the snapshot keeps the sender's spelling (OID-01-006).
-        actor_id = snapshot_actor_id(entry.payload_snapshot.get("actor"))
-        embargo_id = _snapshot_embargo_id(entry.payload_snapshot)
-        if not actor_id or not embargo_id:
-            self.feedback_message = (
-                f"{self._label} entry on case '{case.id_}' is missing its"
-                f" actor ('{actor_id}') or embargo id ('{embargo_id}')"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        self.feedback_message = (
-            f"recorded the {self._label} of '{actor_id}' for embargo"
-            f" '{embargo_id}' on case '{case.id_}'; its consent row is its"
-            " own entry (ADR-0124)"
-        )
-        self.logger.debug("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-
-class ApplyInviteExpiryFromLedgerNode(_RecordedActFromLedgerNode):
-    """Recognise the CASE_MANAGER's expiry entry on a replica (CM-28-014).
-
-    The entry's ``actor`` is the timed-out invitee and its ``object`` the
-    Invite, naming the embargo.  The ``TIMED_OUT`` row follows as the
-    CASE_MANAGER's own ``Update(EmbargoConsent)`` entry, which the consent
-    slot copies, so a replica never evaluates a deadline nor runs
-    ``TIME_OUT`` itself (CM-23-016, ADR-0124).
-    """
-
-    _label = "invite expiry"
-
-
 class ApplyInviteExpiryNoopFromLedgerNode(_LedgerEffectNode):
     """Replay the CASE_MANAGER's no-op expiry entry on a replica (EMB-17-004).
 
@@ -316,24 +249,10 @@ class ApplyInviteExpiryNoopFromLedgerNode(_LedgerEffectNode):
         return Status.SUCCESS
 
 
-class ApplyHonourLateAcceptFromLedgerNode(_RecordedActFromLedgerNode):
-    """Recognise the CASE_MANAGER's honour decision on a replica (EMB-17-001).
-
-    The entry's ``actor`` is the accepted participant and its ``object``
-    the Invite and the embargo.  The ``AGREED`` row follows as the
-    CASE_MANAGER's own ``Update(EmbargoConsent)`` entry, which the consent
-    slot copies (CM-23-016, ADR-0124).
-    """
-
-    _label = "honoured late Accept"
-
-
 __all__ = [
     "CONSENT_CHANGED_KEY",
     "IS_EXPIRED_KEY",
     "NEEDS_APPLY_KEY",
-    "ApplyHonourLateAcceptFromLedgerNode",
-    "ApplyInviteExpiryFromLedgerNode",
     "ApplyInviteExpiryNoopFromLedgerNode",
     "EvaluateInviteExpiryNode",
     "InviteExpiryChangedConsentNode",

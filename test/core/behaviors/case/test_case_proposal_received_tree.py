@@ -36,7 +36,7 @@ import py_trees
 import pytest
 
 from test.support.embargo_register import register, terminate
-from test.support.ledger import committed_semantic_types, fail_commits
+from test.support.ledger import fail_commits
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -772,46 +772,17 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             "Marker must be cleared on full BT success (AC-3)"
         )
 
-    def test_marker_present_when_create_fails(self, make_payload):
-        """AC-2 / AC-4: Marker is written and persists when Create delivery fails."""
-        from vultron.core.behaviors.case.nodes import (
-            EmitCreateVulnerabilityCaseNode,
-        )
-        from vultron.core.use_cases.received.case_proposal import (
-            CreateCaseProposalReceivedUseCase,
-        )
+    @pytest.mark.spec("CP-05-005")
+    @pytest.mark.spec("CLP-07-013")
+    def test_a_failed_create_emit_rolls_back_the_accept_and_the_marker(
+        self, make_payload
+    ):
+        """A ``Create`` that cannot be queued leaves no ``Accept`` behind.
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=_CASE_ACTOR_URI,
-        )
-        event = self._make_event(make_payload)
-
-        # Patch the Create-emit node so it fails after Accept and marker write.
-        with patch.object(
-            EmitCreateVulnerabilityCaseNode,
-            "update",
-            return_value=py_trees.common.Status.FAILURE,
-        ):
-            CreateCaseProposalReceivedUseCase(
-                dl,
-                event,
-                wire_render_port=As2WireRenderAdapter(),
-                trigger_activity=TriggerActivityAdapter(dl),
-                sync_port=SyncActivityAdapter(dl),
-            ).execute()
-
-        marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
-        marker = dl.read(marker_id)
-        assert isinstance(marker, PendingCreateCaseActivity), (
-            "Marker must be present when Create delivery fails (AC-2)"
-        )
-        assert marker.proposal_id == _PROPOSAL_URI
-        assert marker.owner_uri == _VENDOR_URI
-        assert marker.case_actor_id == _CASE_ACTOR_URI
-
-    def test_marker_payload_stored_on_partial_failure(self, make_payload):
-        """AC-1 / AC-4: Marker payload is non-empty on partial failure."""
+        The creation is one act (ADR-0146): the ``Accept``, the retry marker
+        and the case roll back with the failed emit, so an ``Accept`` is
+        never sent without its ``Create`` and a redelivery starts afresh.
+        """
         from vultron.core.behaviors.case.nodes import (
             EmitCreateVulnerabilityCaseNode,
         )
@@ -838,12 +809,11 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
                 sync_port=SyncActivityAdapter(dl),
             ).execute()
 
-        marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
-        marker = dl.read(marker_id)
-        assert isinstance(marker, PendingCreateCaseActivity)
-        assert marker.create_activity_payload, (
-            "create_activity_payload must not be empty (AC-1)"
+        assert (
+            dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI)) is None
         )
+        assert dl.outbox_list() == []
+        assert dl.list_objects("VulnerabilityCase") == []
 
     def test_emit_node_uses_marker_activity_id(self, make_payload):
         """AC-4: The activity id_ enqueued by node 4 matches the marker payload id_.
@@ -950,6 +920,26 @@ def _make_full_event(
     )
     event = make_payload(activity)
     return event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI})
+
+
+def _assert_nothing_of_the_case_is_left(dl: SqliteDataLayer) -> None:
+    """The store keeps nothing a rolled-back creation wrote (CLP-07-013).
+
+    The report seeded before the run was not the creation's write.
+    """
+    for table in (
+        "VulnerabilityCase",
+        "CaseParticipant",
+        "ParticipantStatus",
+        "CaseStatus",
+        "EmbargoEvent",
+        "CaseLedgerEntry",
+        "PendingCreateCaseActivity",
+        "Create",
+    ):
+        assert dl.list_objects(table) == [], table
+    assert dl.outbox_list() == []
+    assert dl.read(_REPORT_URI) is not None
 
 
 def _seed_report(dl: SqliteDataLayer) -> None:
@@ -2578,7 +2568,7 @@ class TestARedeliveryAnnouncesTheCaseOnce:
 
     @pytest.mark.spec("CP-05-005")
     @pytest.mark.spec("CP-05-006")
-    def test_a_redelivery_after_a_late_failure_queues_no_second_create(
+    def test_a_redelivery_after_a_late_failure_announces_the_case_once(
         self, make_payload, monkeypatch
     ):
         from py_trees.common import Status
@@ -2590,22 +2580,21 @@ class TestARedeliveryAnnouncesTheCaseOnce:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
         _seed_report(dl)
         with monkeypatch.context() as patch:
-            # A leaf after ClearCreateCaseMarkerNode fails, so the sender
-            # redelivers a proposal whose case was already announced.
+            # The leaf after ClearCreateCaseMarkerNode fails, so the whole
+            # creation rolls back, its queued Create with it (ADR-0146).
             patch.setattr(
                 CommitNativeLedgerEntriesNode,
                 "update",
                 lambda self: Status.FAILURE,
             )
             _run_full_bt(make_payload, dl)
-        (first,) = _announced_case_creates(dl)
+        assert _announced_case_creates(dl) == []
 
         _run_full_bt(make_payload, dl)
 
-        assert _announced_case_creates(dl) == [first]
-        # The redelivery still finishes what the first delivery left undone.
+        assert len(_announced_case_creates(dl)) == 1
         assert dl.list_objects("CaseLedgerEntry"), (
-            "the redelivery must commit the ledger the first one failed to"
+            "the redelivery commits the creation the first one rolled back"
         )
 
     @pytest.mark.spec("CP-05-006")
@@ -2646,6 +2635,31 @@ class TestARedeliveryAnnouncesTheCaseOnce:
 class TestADR0041GenesisCommitFailure:
     """The genesis create_case commit failure must not be masked."""
 
+    @staticmethod
+    def _case_with_no_entries(make_payload, dl, monkeypatch):
+        """Run the tree with the creation commit skipped; return the case.
+
+        Every record is written and nothing is committed, so the commit node
+        can then be run alone against a real, uncommitted case.
+        """
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.nodes import (
+            CommitNativeLedgerEntriesNode,
+        )
+
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                CommitNativeLedgerEntriesNode,
+                "update",
+                lambda self: Status.SUCCESS,
+            )
+            _run_full_bt(make_payload, dl)
+        (case,) = dl.list_objects("VulnerabilityCase")
+        assert isinstance(case, VulnerabilityCase)
+        assert dl.list_objects("CaseLedgerEntry") == []
+        return case
+
     def test_genesis_create_case_failure_aborts(
         self, make_payload, monkeypatch
     ):
@@ -2653,9 +2667,7 @@ class TestADR0041GenesisCommitFailure:
 
         The genesis entry is the root of the CaseActor's hash chain; a
         best-effort SUCCESS would hide that the canonical ledger has no root.
-        Since CP-09-009 the node runs after the emits, so the FAILURE no
-        longer withholds Accept/Create — it makes the broken ledger visible
-        (see test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued).
+        In the tree the FAILURE rolls the whole creation back (ADR-0146).
         """
         from py_trees.common import Status
 
@@ -2669,11 +2681,8 @@ class TestADR0041GenesisCommitFailure:
             actor_id=_CASE_ACTOR_URI,
         )
         _seed_report(dl)
-        # Build a real case, committing nothing, so the node reaches the
-        # genesis commit with every commit still failing.
+        case = self._case_with_no_entries(make_payload, dl, monkeypatch)
         fail_commits(monkeypatch, proposal_ledger)
-        _run_full_bt(make_payload, dl)
-        case = next(iter(dl.list_objects("VulnerabilityCase")))
 
         node = CommitNativeLedgerEntriesNode(
             owner_uri=_VENDOR_URI, report_id=_REPORT_URI
@@ -2690,9 +2699,6 @@ class TestADR0041GenesisCommitFailure:
         assert "genesis create_case ledger commit failed" in (
             node.feedback_message
         )
-        assert dl.read_case(case.id_) is not None, (
-            "the proposal path queued its Create already, so it keeps the case"
-        )
 
     @pytest.mark.spec("CLP-07-013")
     def test_a_failed_later_entry_fails_and_stops_the_sequence(
@@ -2701,8 +2707,8 @@ class TestADR0041GenesisCommitFailure:
         """After genesis every entry is required too (#4442).
 
         The first entry that fails to commit stops the sequence, so no later
-        entry is committed out of order, and the handler does not report the
-        creation as applied.
+        entry is committed out of order, the handler does not report the
+        creation as applied, and the creation is rolled back.
         """
         from vultron.adapters.driven.sync_activity_adapter import (
             SyncActivityAdapter,
@@ -2726,21 +2732,61 @@ class TestADR0041GenesisCommitFailure:
 
         assert result.disposition is not HandlerDisposition.APPLIED
         assert "creation entries stop there" in (result.reason or "")
-        case = next(iter(dl.list_objects("VulnerabilityCase")))
-        assert committed_semantic_types(dl, case.id_) == ["create_case"]
         assert len(attempted) == 2, "nothing is tried after the failed entry"
+        _assert_nothing_of_the_case_is_left(dl)
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("CP-09-009")
+    def test_each_creation_entry_that_fails_leaves_nothing_of_the_case(
+        self, make_payload, monkeypatch
+    ):
+        """AC-1, AC-3: no record of the case outlives a failed entry (#4442).
+
+        Each creation entry in turn is made to fail, genesis first.  The
+        whole creation rolls back with it (ADR-0146): the case, its
+        participant records and statuses, its case status, the embargo, the
+        queued ``Accept`` and ``Create``, the retry marker and every entry
+        committed before the failed one.
+        """
+        from test.support.ledger import creation_entry_sequence
+        from vultron.core.behaviors.case.nodes import proposal_ledger
+
+        reference = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=_CASE_ACTOR_URI
+        )
+        _seed_report(reference)
+        _run_full_bt(make_payload, reference)
+        (case,) = reference.list_objects("VulnerabilityCase")
+        assert isinstance(case, VulnerabilityCase)
+        sequence = creation_entry_sequence(reference, case)
+        assert len(sequence) > 4, sequence
+        # In-memory stores for one actor share a database: start each run
+        # from an empty one.
+        reference.clear_all()
+
+        for allowed, (semantic_type, _object_id) in enumerate(sequence):
+            dl = SqliteDataLayer(
+                "sqlite:///:memory:", actor_id=_CASE_ACTOR_URI
+            )
+            _seed_report(dl)
+            with monkeypatch.context() as patch:
+                fail_commits(patch, proposal_ledger, allowed=allowed)
+                result = _run_full_bt(make_payload, dl)
+            assert result.disposition is not HandlerDisposition.APPLIED, (
+                semantic_type
+            )
+            assert semantic_type in (result.reason or ""), result.reason
+            _assert_nothing_of_the_case_is_left(dl)
+            dl.clear_all()
 
     @pytest.mark.spec("CLP-07-013")
     @pytest.mark.spec("CP-05-008")
-    def test_a_redelivery_after_a_failed_later_entry_commits_the_rest(
+    def test_a_redelivery_after_a_failed_later_entry_creates_the_case(
         self, make_payload, monkeypatch
     ):
-        """The remedy the proposal path relies on: redelivery completes it.
+        """A rolled-back creation leaves nothing to finish: redelivery redoes it.
 
-        After a later entry fails, the records it carries stay in the store
-        (the ``Create`` is already queued, CP-09-009).  A redelivered proposal
-        commits every entry the first delivery left out, so the ledger ends
-        with the sequence an uninterrupted creation commits.
+        The ledger then holds the sequence an uninterrupted creation commits.
         """
         from test.support.ledger import (
             creation_entry_sequence,
@@ -2754,13 +2800,13 @@ class TestADR0041GenesisCommitFailure:
             fail_commits(patch, proposal_ledger, allowed=1)
             first = _run_full_bt(make_payload, dl)
         assert first.disposition is not HandlerDisposition.APPLIED
-        (case,) = dl.list_objects("VulnerabilityCase")
-        assert isinstance(case, VulnerabilityCase)
-        assert committed_semantic_types(dl, case.id_) == ["create_case"]
+        _assert_nothing_of_the_case_is_left(dl)
 
         result = _run_full_bt(make_payload, dl)
 
         assert result.disposition == HandlerDisposition.APPLIED
+        (case,) = dl.list_objects("VulnerabilityCase")
+        assert isinstance(case, VulnerabilityCase)
         expected = creation_entry_sequence(dl, case)
         assert len(expected) > 1, expected
         entries = ledger_entries(dl, case.id_)
@@ -2787,11 +2833,7 @@ class TestADR0041GenesisCommitFailure:
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
         _seed_report(dl)
-        with monkeypatch.context() as patch:
-            fail_commits(patch, proposal_ledger)
-            _run_full_bt(make_payload, dl)
-        (case,) = dl.list_objects("VulnerabilityCase")
-        assert isinstance(case, VulnerabilityCase)
+        case = self._case_with_no_entries(make_payload, dl, monkeypatch)
         missing = str(_as_id(case.case_participants[0]))
         dl.delete("CaseParticipant", missing)
 
@@ -3565,7 +3607,7 @@ class TestEP04SenderProposalAtCaseCreation:
         """
         self._owner_policy = self._ACTOR_DEFAULT
 
-    def _run(
+    def _execute(
         self,
         make_payload,
         dl: SqliteDataLayer,
@@ -3573,6 +3615,7 @@ class TestEP04SenderProposalAtCaseCreation:
         sender_days: int,
         **terms_kwargs,
     ):
+        """Deliver the proposal with the sender's terms; return the terms."""
         from vultron.core.use_cases.received.case_proposal import (
             CreateCaseProposalReceivedUseCase,
         )
@@ -3587,6 +3630,19 @@ class TestEP04SenderProposalAtCaseCreation:
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        return terms
+
+    def _run(
+        self,
+        make_payload,
+        dl: SqliteDataLayer,
+        *,
+        sender_days: int,
+        **terms_kwargs,
+    ):
+        terms = self._execute(
+            make_payload, dl, sender_days=sender_days, **terms_kwargs
+        )
         (case,) = [
             c
             for c in dl.list_objects("VulnerabilityCase")
@@ -3908,7 +3964,8 @@ class TestEP04SenderProposalAtCaseCreation:
         """The tree fails after recording the obligation but before its
         ledger commit.  The startup runner must not send the Invite then: it
         would be the case's first ledger entry, announced to parties that
-        never received the case (#4121)."""
+        never received the case (#4121).  The obligation is rolled back with
+        the creation (ADR-0146), so there is nothing for it to relay."""
         dl = self._store()
         self._publish_owner_policy()
         monkeypatch.setattr(
@@ -3916,11 +3973,10 @@ class TestEP04SenderProposalAtCaseCreation:
             "update",
             lambda self: py_trees.common.Status.FAILURE,
         )
-        self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
+        self._execute(make_payload, dl, sender_days=self._SENDER_END_DAYS)
         monkeypatch.undo()
-        assert dl.list_objects("PendingCreationTimeRevisionRelay") != []
-        while dl.outbox_pop() is not None:
-            pass
+        assert dl.list_objects("PendingCreationTimeRevisionRelay") == []
+        assert dl.list_objects("VulnerabilityCase") == []
 
         relayed = retry_pending_creation_time_revision_relays(
             datalayers_factory=lambda: {_CASE_ACTOR_URI: dl}
@@ -3929,7 +3985,6 @@ class TestEP04SenderProposalAtCaseCreation:
         assert relayed == 0
         assert self._invites(dl) == []
         assert dl.list_objects("CaseLedgerEntry") == []
-        assert dl.list_objects("PendingCreationTimeRevisionRelay") != []
 
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("EP-04-012")
@@ -4055,17 +4110,15 @@ class TestEP04SenderProposalAtCaseCreation:
     @pytest.mark.spec("EP-04-002")
     @pytest.mark.spec("EP-04-012")
     @pytest.mark.spec("CP-05-006")
-    def test_a_redelivery_after_a_failed_activation_finishes_the_embargo(
+    def test_a_redelivery_after_a_failed_activation_creates_the_case(
         self, make_payload, monkeypatch
     ):
         """AC-2 of #4123 through the whole received tree.
 
-        The first delivery fails between PROPOSE and ACTIVATE, which leaves
-        the case at ``EM.NONE`` (EP-04-002).  Redelivering the same
-        ``Create(CaseProposal)`` reuses the case (CP-05-006) and reaches the
-        creation arm, because the guard reads only a state past ``NONE`` as
-        already initialized (EP-04-012): the case ends ``EM.ACTIVE`` with the
-        embargo attached.
+        The first delivery fails between PROPOSE and ACTIVATE.  The creation
+        is one act (ADR-0146), so it leaves no case at all.  Redelivering the
+        same ``Create(CaseProposal)`` creates the case afresh, and it ends
+        ``EM.ACTIVE`` with the sender's embargo attached (EP-04-002).
         """
         from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
         from vultron.core.states.embargo_register import RegisterTrigger
@@ -4082,11 +4135,11 @@ class TestEP04SenderProposalAtCaseCreation:
         monkeypatch.setattr(
             EmbargoLifecycle, "_apply_register_step", _refuse_activate
         )
-        first, terms = self._run(
+        terms = self._execute(
             make_payload, dl, sender_days=self._SENDER_END_DAYS
         )
-        assert first.current_status.em.state == EM.NONE
-        assert first.active_embargo_id is None
+        assert dl.list_objects("VulnerabilityCase") == []
+        assert dl.list_objects("CaseLedgerEntry") == []
 
         # The same activity again: the redelivery carries the same terms.
         monkeypatch.setattr(
@@ -4096,7 +4149,6 @@ class TestEP04SenderProposalAtCaseCreation:
             make_payload, dl, sender_days=self._SENDER_END_DAYS, terms=terms
         )
 
-        assert again.id_ == first.id_
         assert again.current_status.em.state == EM.ACTIVE
         assert again.active_embargo_id == terms.id_
 
@@ -4235,19 +4287,19 @@ def test_accept_and_create_are_queued_before_any_ledger_fanout(make_payload):
 
 
 @pytest.mark.spec("CP-09-009")
-def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
+@pytest.mark.spec("CP-05-005")
+@pytest.mark.spec("DL-02-004")
+def test_a_genesis_commit_failure_queues_neither_accept_nor_create(
     make_payload,
 ):
-    """A genesis-commit failure is surfaced, not prevented, once the commit runs last.
+    """A failed genesis commit withholds the ``Accept`` and the ``Create``.
 
-    Before CP-09-009 the ledger commit preceded the emits, so a failed genesis
-    ``create_case`` commit aborted the Sequence before ``Accept`` and
-    ``Create`` were queued.  Now the commit runs after them (so the fan-out
-    queues behind the ``Create``), and the trade-off is explicit: on genesis
-    failure the handler does not report APPLIED, but ``Accept`` and ``Create``
-    are already in the FIFO outbox, no ``Announce(CaseLedgerEntry)`` follows
-    them, and the retry marker has already been cleared.  This test pins that
-    shape so a future change to either half is a deliberate one.
+    The commit runs after the emits (CP-09-009), so the fan-out queues behind
+    the ``Create``, but all of them are one act (ADR-0146): the failure rolls
+    back the queued ``Accept`` and ``Create``, the retry marker and the case,
+    and the handler does not report APPLIED.  Delivery is told of neither
+    activity, since the outbox monitor learns of a queued item only once the
+    block commits (DL-02-004); a redelivery that succeeds wakes it.
     """
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
@@ -4259,10 +4311,12 @@ def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
     _seed_report(dl)
+    woken: list[str] = []
+    dl.set_enqueue_callback(woken.append)
     event = _make_full_event(make_payload)
-    with pytest.MonkeyPatch.context() as patch_ctx:
-        fail_commits(patch_ctx, proposal_ledger)
-        result = CreateCaseProposalReceivedUseCase(
+
+    def _execute():
+        return CreateCaseProposalReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
@@ -4270,16 +4324,19 @@ def test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued(
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
+    with pytest.MonkeyPatch.context() as patch_ctx:
+        fail_commits(patch_ctx, proposal_ledger)
+        result = _execute()
+
     assert result.disposition is not HandlerDisposition.APPLIED, (
         "a failed genesis commit must not read as a successful case creation"
     )
     assert "genesis create_case ledger commit failed" in (result.reason or "")
-    assert _outbox_labels(dl) == [
-        "Accept(CaseProposal)",
-        "Create(VulnerabilityCase)",
-    ], (
-        "Accept and Create are queued before the commit runs, and nothing follows"
-    )
-    assert list(dl.list_objects("PendingCreateCaseActivity")) == [], (
-        "the retry marker is cleared before the commit runs"
-    )
+    assert _outbox_labels(dl) == []
+    assert dl.list_objects("Accept") == []
+    assert woken == [], "delivery must not be told of a rolled-back Accept"
+    _assert_nothing_of_the_case_is_left(dl)
+
+    # Positive control: the same callback is woken once a creation commits.
+    assert _execute().disposition is HandlerDisposition.APPLIED
+    assert woken, "a committed creation wakes delivery"

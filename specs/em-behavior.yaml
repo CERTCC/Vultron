@@ -2322,12 +2322,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CASE_MANAGER honours a late Accept (EMB-17-002), it MUST commit
-      a distinct ledger entry of semantic type
-      `honour_late_accept_invite_to_embargo_on_case`, then the accepting
-      participant's AGREED row as its own `Update(EmbargoConsent)` entry, so
-      that replicas copy the row without re-evaluating the deadline
-      (RSH-08-004, ADR-0124, CLP-07-013).
+      When the CASE_MANAGER honours a late Accept (EMB-17-002), it MUST record
+      the honour as its own factory-built `Update(EmbargoConsent)` carrying the
+      accepting participant's AGREED row in full, committed from its sealed
+      blob, so that replicas copy the row without re-evaluating the deadline
+      (RSH-08-004, ADR-0124, CLP-07-013). It MUST NOT record the honour as an
+      activity attributed to the accepter, and the late Accept itself is not
+      committed (ADR-0140).
     rationale: >-
       Without committed entries the replica has no signal that the row moved
       to AGREED; the replica's participant record would silently stay
@@ -2335,19 +2336,19 @@ groups:
       ledger-driven convergence (ADR-0108, ADR-0118). The honour is the
       CASE_MANAGER's policy decision, so the row it changes is the
       CASE_MANAGER's own entry, which a replica copies rather than re-running
-      the transition (CM-23-016).
+      the transition (CM-23-016). See ADR-0140.
     verification: >-
       `test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica`
       drives the full path across per-actor stores: the late Accept reaches the
-      CASE_MANAGER, the honour entry and its row entry are committed and
-      broadcast, and the replica asserts the accepting participant's row reads
-      AGREED (EMB-17-001, RSH-08-004).
+      CASE_MANAGER, its `Update(EmbargoConsent)` carrying the AGREED row is
+      committed and broadcast, and the replica asserts the accepting
+      participant's row reads AGREED (EMB-17-001, RSH-08-004).
     testable: true
     postconditions:
     - description: >-
-        A ledger entry with semantic type
-        `honour_late_accept_invite_to_embargo_on_case` is committed in the
-        CASE_MANAGER's store and replayed in every replica's store
+        The CASE_MANAGER's `Update(EmbargoConsent)` carrying the accepter's
+        AGREED row is committed in the CASE_MANAGER's store and copied in
+        every replica's store
     relationships:
     - rel_type: refines
       spec_id: EMB-17-001

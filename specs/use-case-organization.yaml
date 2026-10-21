@@ -220,10 +220,11 @@ groups:
       A closed `StrEnum` follows the project idiom for fixed value sets (`CVDRole`,
       `VultronObjectType`) rather than an inline `Literal`. `DEFERRED` is a member because
       handler-side deferral is real: `BufferOutOfOrderEntryNode` and
-      `BufferPreGenesisEntryNode` return `SUCCESS` after parking a ledger entry in the
-      `LedgerGapBuffer` for replay once its predecessor arrives, which is neither a state
-      change nor a benign no-op nor a refusal. `DeferCheckNode` decides the *other* kind of
-      deferral — missing case context — before dispatch; the two are distinct and both map
+      `BufferPreGenesisEntryNode` return `SUCCESS` after holding the received
+      `Announce(CaseLedgerEntry)` for replay once its predecessor arrives, which is
+      neither a state change nor a benign no-op nor a refusal. `DeferCheckNode`
+      decides the *other* kind of deferral — missing case context — before
+      dispatch; the two are distinct and both map
       to `InboxOutcome.status == "deferred"`. See ADR-0095.
     adr:
     - ADR-0095

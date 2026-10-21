@@ -45,7 +45,6 @@ from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.rsvp_deadline import HONOUR_LATE_ACCEPT_SEMANTIC_TYPE
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -367,14 +366,11 @@ def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
     assert accepted.disposition is HandlerDisposition.APPLIED, accepted.reason
     assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.AGREED
     # Proposed: the Accept's own entry records the change.  Active: the
-    # CASE_MANAGER's honour decision, then the AGREED row it commits as its
-    # own Update(EmbargoConsent) entry (CLP-07-013, ADR-0124).
+    # CASE_MANAGER honours it, and its one act is the Update(EmbargoConsent)
+    # carrying the AGREED row (CLP-07-013, ADR-0124, ADR-0140).
     added = Counter(_entries(net)) - Counter(entries)
     assert added == Counter(
-        [
-            HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
-            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
-        ]
+        [UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE]
         if activated
         else [MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value]
     )
@@ -500,7 +496,6 @@ def test_the_accept_trees_own_repeat_guard_stops_a_repeat():
         invite_id=invite_id,
         sender_rule=AcceptInviteToEmbargoOnCaseReceivedUseCase.sender_entitlement,
         now=datetime.now(tz=UTC),
-        published=datetime.now(tz=UTC).isoformat(),
         expiry_out={},
     )
 

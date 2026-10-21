@@ -250,6 +250,7 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "accept_case_ownership_transfer_activity": _answers("offer"),
     "reject_case_ownership_transfer_activity": _answers("offer"),
     "undo_case_ownership_transfer_activity": _answers("proposal"),
+    "withdraw_expired_case_ownership_offer_activity": _answers("offer"),
     "accept_case_proposal_activity": _answers("proposal"),
     "reject_case_proposal_activity": _answers("proposal"),
     "reject_close_case_activity": _answers("leave"),

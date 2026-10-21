@@ -1859,11 +1859,13 @@ class TestAcceptAtAReplica:
         assert dl.outbox_list() == []
 
     @pytest.mark.spec("PCR-03-001")
-    def test_accept_from_the_case_manager_is_admitted_at_a_replica(
+    @pytest.mark.spec("HP-01-005")
+    def test_accept_from_the_case_manager_is_refused_at_a_replica(
         self, make_payload
     ):
-        """Admitted, but a replica still applies the change only from the
-        ledger fan-out (RSH-08-003), so ownership is unchanged here."""
+        """The sender guard admits it, but a replica is not the CASE_MANAGER
+        it was addressed to: it applies the change only from the ledger
+        fan-out (RSH-08-003), so it refuses the copy (HP-01-005)."""
         case_id = "https://example.org/cases/case_ot_replica_admitted"
         dl, offer = _vendor_replica(case_id)
 
@@ -1871,7 +1873,10 @@ class TestAcceptAtAReplica:
             dl, make_payload, offer, sender=_CASE_ACTOR_ID, to=_REPLICA_TO
         )
 
-        assert result.disposition is not HandlerDisposition.REFUSED
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "not the CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == []
         assert _owner(dl, case_id) == _VENDOR_ID
         assert _semantic_types(dl) == []
 
@@ -2103,10 +2108,12 @@ class TestRejectAtAReplica:
 
     @pytest.mark.spec("CM-21-012")
     @pytest.mark.spec("PCR-03-001")
-    def test_reject_from_the_case_manager_changes_nothing_at_a_replica(
+    @pytest.mark.spec("HP-01-005")
+    def test_reject_from_the_case_manager_is_refused_at_a_replica(
         self, make_payload
     ):
-        """Admitted, but a replica commits nothing and keeps the owner."""
+        """Admitted, but a replica is not the CASE_MANAGER: it refuses the
+        copy, commits nothing and keeps the owner (HP-01-005)."""
         case_id = "https://example.org/cases/case_ot_rj_replica_admitted"
         dl, offer = _vendor_replica(case_id)
         roles_before = _owner_roles(dl, case_id)
@@ -2115,8 +2122,11 @@ class TestRejectAtAReplica:
             dl, make_payload, offer, sender=_CASE_ACTOR_ID, to=_REPLICA_TO
         )
 
-        assert result.disposition is HandlerDisposition.APPLIED
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "not the CASE_MANAGER" in result.reason
         _assert_nothing_changed(dl, case_id, roles_before, [])
+        assert dl.outbox_list() == []
 
 
 @pytest.mark.spec("CM-21-005")
@@ -2181,6 +2191,7 @@ def _undo(dl, make_payload, offer, sender=_VENDOR_ID, undo=None, to=None):
         make_payload(undo, receiving_actor_id=dl.actor_id),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
     ).execute()
 
 
@@ -2446,7 +2457,19 @@ class TestWithdrawalOfOwnershipTransfer:
         )
         assert late.reason is not None and expected in late.reason
         assert _semantic_types(dl) == entries_before
-        assert dl.outbox_list() == outbox_before
+        # A refusal by a precondition guard (the Offer is already closed) is
+        # answered with one refusal notice to the offerer; a refusal by the
+        # sender guard (no CASE_OWNER standing) gets none (CLP-05-001,
+        # ADR-0141).  Nothing else is queued.
+        queued = [
+            dl.read(i) for i in dl.outbox_list() if i not in outbox_before
+        ]
+        assert len(queued) == (0 if answer == "accept" else 1), queued
+        assert all(
+            getattr(getattr(a, "type_", None), "value", None) == "Reject"
+            and getattr(a, "to", None) == [_VENDOR_ID]
+            for a in queued
+        )
 
     @pytest.mark.spec("CM-21-015")
     def test_second_withdrawal_of_a_withdrawn_offer_is_refused(
@@ -2580,10 +2603,12 @@ class TestWithdrawalAtAReplica:
 
     @pytest.mark.spec("CM-21-015")
     @pytest.mark.spec("PCR-03-001")
-    def test_withdrawal_from_the_case_manager_changes_nothing_at_a_replica(
+    @pytest.mark.spec("HP-01-005")
+    def test_withdrawal_from_the_case_manager_is_refused_at_a_replica(
         self, make_payload
     ):
-        """Admitted, but a replica commits nothing and keeps the owner."""
+        """Admitted, but a replica is not the CASE_MANAGER: it refuses the
+        copy, commits nothing and keeps the owner (HP-01-005)."""
         case_id = "https://example.org/cases/case_ot_undo_replica_admitted"
         dl, offer = _vendor_replica(case_id)
         roles_before = _owner_roles(dl, case_id)
@@ -2592,8 +2617,11 @@ class TestWithdrawalAtAReplica:
             dl, make_payload, offer, sender=_CASE_ACTOR_ID, to=_REPLICA_TO
         )
 
-        assert result.disposition is HandlerDisposition.APPLIED
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "not the CASE_MANAGER" in result.reason
         _assert_nothing_changed(dl, case_id, roles_before, [])
+        assert dl.outbox_list() == []
 
 
 _STRANGER_ID = "https://example.org/users/stranger"

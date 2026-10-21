@@ -13,11 +13,13 @@
 
 """Tests for the core VulnerabilityCase domain model (step 6 of issue #699)."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from test.support.clock import SteppingClock
 from test.support.embargo_register import activate, terminate
+from vultron.core.models import _helpers
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
@@ -26,6 +28,7 @@ from vultron.core.models.case_participant import (
 )
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.errors import VultronValidationError
 
@@ -476,3 +479,59 @@ def test_a_case_refuses_an_inline_participant_missing_a_row() -> None:
         case_participants=[rowless],
     )
     assert case.active_participants == []
+
+
+def _status_at(case: VulnerabilityCase, index: int) -> CaseStatus:
+    status = case.case_statuses[index]
+    assert isinstance(status, CaseStatus)
+    return status
+
+
+class TestVulnerabilityCaseAppendCaseStatusClock:
+    """append_case_status stamps via now_utc() and stays ordered (CS-13-002/003)."""
+
+    _PINNED = datetime(2026, 5, 4, 12, 0, 0, 123456, tzinfo=UTC)
+
+    @pytest.fixture
+    def frozen_clock(self, monkeypatch: pytest.MonkeyPatch) -> datetime:
+        monkeypatch.setattr(
+            _helpers,
+            "datetime",
+            SteppingClock(self._PINNED, step=timedelta(0)),
+        )
+        return self._PINNED.replace(microsecond=0)
+
+    def test_append_case_status_takes_its_time_from_now_utc(
+        self, frozen_clock: datetime
+    ) -> None:
+        case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
+        case.current_status.updated = frozen_clock - timedelta(hours=1)
+        case.append_case_status(pxa=CS_pxa.Pxa)
+        appended = _status_at(case, -1)
+        assert appended.updated == frozen_clock
+        assert appended.published == frozen_clock
+
+    def test_same_second_appends_stay_strictly_ordered_at_second_precision(
+        self, frozen_clock: datetime
+    ) -> None:
+        case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
+        case.append_case_status(pxa=CS_pxa.Pxa)
+        case.append_case_status(pxa=CS_pxa.PXa)
+        first, second = _status_at(case, -2), _status_at(case, -1)
+        assert first.updated is not None and second.updated is not None
+        assert first.updated < second.updated
+        for stamp in (first.updated, second.updated):
+            assert stamp.microsecond == 0
+        assert case.current_status is second
+
+    def test_bump_from_a_sub_second_latest_lands_on_a_whole_second(
+        self, frozen_clock: datetime
+    ) -> None:
+        case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
+        latest = frozen_clock + timedelta(microseconds=500)
+        case.current_status.updated = latest
+        case.append_case_status(pxa=CS_pxa.Pxa)
+        stamp = _status_at(case, -1).updated
+        assert stamp is not None
+        assert stamp > latest
+        assert stamp.microsecond == 0

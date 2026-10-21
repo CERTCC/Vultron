@@ -218,7 +218,9 @@ groups:
       delivery. For an activity the inbox defers, it MAY keep the activity itself, as
       the received body the parser sealed (VM-08-002), beside the staged rows in one
       opaque record keyed by the activity, deleted by the replay or by the queue's
-      expiry. A handler therefore sees the receiver's record of any id it holds, never
+      expiry. A held out-of-order `Announce(CaseLedgerEntry)` (SYNC-14-001) is kept in
+      the same record, deleted by its replay or by the holding area's bound
+      (SYNC-14-006). A handler therefore sees the receiver's record of any id it holds, never
       the carried copy, so a guard keys on the stored record (HP-08-006).
     rationale: >-
       A stored inline object is the receiver's own record of it: a stored case is the

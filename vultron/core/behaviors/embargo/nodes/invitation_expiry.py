@@ -28,12 +28,10 @@ Two acts expire every invitation of a set, one row at a time:
 Both share :class:`ExpireInvitationsNode`: for each invitation it runs the
 one expiry path,
 :func:`~vultron.core.behaviors.embargo.expiry_tree.create_commit_and_record_expiry_tree`,
-as a nested tree, so each expiry commits the ``invite_to_embargo_on_case_expired``
-entry (CM-28-009), then the CASE_MANAGER's ``Update(EmbargoConsent)`` carrying
-the ``TIMED_OUT`` row, and only then writes the row (CM-28-014, ADR-0124).
-Replicas copy the row from its ``Update`` entry
-(:class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyInviteExpiryFromLedgerNode`
-recognises the expiry entry, RSH-08-004).
+as a nested tree, so each expiry commits the CASE_MANAGER's
+``Update(EmbargoConsent)`` carrying the ``TIMED_OUT`` row (CM-28-009), and
+only then writes the row (CM-28-014, ADR-0124).  Replicas copy the row from
+that entry, as they copy every consent-row change (CM-23-016).
 """
 
 from abc import ABC, abstractmethod
@@ -46,16 +44,12 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.expiry_tree import (
     create_commit_and_record_expiry_tree,
 )
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    PortInformation,
-)
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
-from vultron.core.models._helpers import claimed_published_iso, now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_SEMANTIC_TYPE
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
@@ -123,9 +117,9 @@ class ExpireInvitationsNode(DataLayerActionWithPorts, StateWriteCapable, ABC):
     behind the CASE_MANAGER role gate (CM-28-014, BT-17-001), and the nested
     tree runs as the same actor.
 
-    The entry names the Invite the ledger last recorded for that invitee and
-    embargo.  The snapshot is attributed to the invitee (CM-28-009), but the
-    invitee sent nothing, so ``published`` is the CASE_MANAGER's own clock.
+    The CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the ``TIMED_OUT``
+    row derives its id from the Invite the ledger last recorded for that
+    invitee and embargo (CM-28-009).
 
     **An expiry is best-effort.**  Each nested tree commits before it writes
     the consent row, so a refused commit writes nothing and the case file
@@ -150,13 +144,6 @@ class ExpireInvitationsNode(DataLayerActionWithPorts, StateWriteCapable, ABC):
     @abstractmethod
     def _what(self) -> str:
         """What the selected invitations are, for the log ("pending", …)."""
-
-    def _published(self, invitee_id: str) -> str:
-        """The claimed time *invitee_id*'s expiry entry carries.
-
-        The CASE_MANAGER's clock: the invitee sent nothing.
-        """
-        return now_utc().isoformat()
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -228,7 +215,6 @@ class ExpireInvitationsNode(DataLayerActionWithPorts, StateWriteCapable, ABC):
             invitee_id=invitee_id,
             invite_id=invite_id,
             embargo_id=embargo_id,
-            published=self._published(invitee_id),
         )
         result = BTBridge(
             datalayer=cast(CaseOutboxPersistence, self.datalayer)
@@ -271,25 +257,11 @@ class ExpireOverdueInvitesNode(ExpireInvitationsNode):
 
     _SPEC: ClassVar[str] = "CM-28-015"
 
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "activity": PortInformation(data_type=object, required=False),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
-
     def __init__(
         self, case_id: str, now: datetime, name: str | None = None
     ) -> None:
         super().__init__(case_id=case_id, name=name)
         self._now = now
-        self._event: object | None = None
-
-    def initialise(self) -> None:
-        super().initialise()
-        self._event = self._try_get_input("activity")
 
     def _invitations(
         self, lifecycle: EmbargoLifecycle
@@ -298,22 +270,6 @@ class ExpireOverdueInvitesNode(ExpireInvitationsNode):
 
     def _what(self) -> str:
         return "overdue"
-
-    def _published(self, invitee_id: str) -> str:
-        """The received activity's claimed time for its sender's own row.
-
-        An expiry entry is attributed to the invitee (CM-28-009).  When the
-        invitee is the sender of the activity that prompted the sweep, its
-        entry carries that activity's claimed ``published`` as received, as
-        the late-Accept decision's does, so the sender's claimed stream does
-        not run backwards when its own entry follows (CLP-15-003,
-        CLP-10-025); the time decides nothing.  Every other row carries the
-        CASE_MANAGER's clock, *now*.
-        """
-        event = self._event
-        if isinstance(event, VultronEvent) and event.actor_id == invitee_id:
-            return claimed_published_iso(event.activity)
-        return self._now.isoformat()
 
 
 __all__ = [

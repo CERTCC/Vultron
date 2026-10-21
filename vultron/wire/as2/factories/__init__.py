@@ -62,6 +62,7 @@ from vultron.wire.as2.factories.case import (
     rm_tentative_reject_full_case_invite_activity,
     undo_case_ownership_transfer_activity,
     update_case_activity,
+    withdraw_expired_case_ownership_offer_activity,
 )
 from vultron.wire.as2.factories.case_participant import (
     add_participant_to_case_activity,
@@ -131,6 +132,7 @@ __all__ = [
     "reject_case_participant_role_activity",
     "reject_case_ownership_transfer_activity",
     "undo_case_ownership_transfer_activity",
+    "withdraw_expired_case_ownership_offer_activity",
     "reject_case_proposal_activity",
     "reject_close_case_activity",
     "ledger_position_content",

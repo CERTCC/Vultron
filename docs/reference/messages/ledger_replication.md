@@ -41,7 +41,7 @@ Each entry records one activity with its object.
 An embargo act's entry carries its whole step on the embargo register: a termination's entry also cancels every open proposal, and an activation's entry also supersedes the embargo it replaces.
 Each consent row the CASE_MANAGER changes as a consequence of an act is its own CASE_MANAGER `Create(EmbargoConsent)` or `Update(EmbargoConsent)` entry after the act's entry, and a replica copies that row rather than deciding the change itself (CLP-07-013, EP-09-007).
 The same holds for participants: an act that moves a participant's RM state, such as a report verdict, an engagement decision or a Leave, is followed by an `add_participant_status_to_participant` entry for each status the CASE_MANAGER wrote, and a record the CASE_MANAGER creates is its own `Create(CaseParticipant)` entry; a replica copies each, ids and times included (CLP-07-013, CM-23-016).
-An embargo or consent entry whose starting state does not match the replica's case is held in the `LedgerGapBuffer`, never patched over.
+An embargo or consent entry whose starting state does not match the replica's case is not patched over: the `Announce` that carried it is held as a `HeldLedgerAnnounce`.
 
 ## Occasions
 
@@ -58,7 +58,7 @@ An embargo or consent entry whose starting state does not match the replica's ca
 - **Example artifact:** [announce_case_ledger_entry.json](../examples/announce_case_ledger_entry.json).
 
 Each entry carries a content hash and the hash of its predecessor, forming a chain.
-A participant verifies the chain on receipt and holds any entry that arrives before its predecessor in the `LedgerGapBuffer`, applying it when the predecessor lands (ADR-0037).
+A participant verifies the chain on receipt and holds the `Announce` of any entry that arrives before its predecessor as a `HeldLedgerAnnounce`, replaying that `Announce` when the predecessor lands (ADR-0037, SYNC-14-009).
 
 ---
 
@@ -84,10 +84,8 @@ The check runs before any write, so a stranger cannot obtain case content by sen
 
 A participant whose replica is being initialized for the first time — after it
 accepts an `Invite`, or after a `Create(CaseProposal)` is accepted — receives
-`Announce(VulnerabilityCase)` rather than a ledger entry. Any
-`Announce(CaseLedgerEntry)` that arrives before the seed is held in the
-`LedgerGapBuffer`, keyed by `prev_log_hash`, and drained once the genesis hash can
-be computed from the seeded case (ADR-0059).
+`Announce(VulnerabilityCase)` rather than a ledger entry.
+Any `Announce(CaseLedgerEntry)` that arrives before the seed is held as a `HeldLedgerAnnounce`, keyed by `prev_log_hash`, and replayed once the genesis hash can be computed from the seeded case (ADR-0059).
 
 - **Pattern:** `AnnounceVulnerabilityCasePattern` in
   `vultron/wire/as2/extractor/_instances.py`.

@@ -42,7 +42,6 @@ from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
-from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.participant_semantic_types import (
     CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
     UPDATE_CASE_OWNER_SEMANTIC_TYPE,
@@ -52,11 +51,8 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
-from vultron.core.models.rsvp_deadline import (
-    INVITE_EXPIRED_SEMANTIC_TYPE,
-    INVITE_EXPIRED_SNAPSHOT_TYPE,
-)
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
@@ -455,7 +451,6 @@ def test_replica_does_not_buffer_forward_gap_entry_with_bad_hash(
     """A tampered entry ahead of the tail is refused, not held for later."""
     entry = _tampered(_make_entry(2))
     event = _make_event(entry, actor_id=case_actor.id_)
-    gap_buffer = LedgerGapBuffer()
 
     result = bridge.execute_with_setup(
         tree=create_announce_log_entry_tree(
@@ -464,11 +459,10 @@ def test_replica_does_not_buffer_forward_gap_entry_with_bad_hash(
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
         sync_port=MagicMock(spec=SyncActivityPort),
-        gap_buffer=gap_buffer,
     )
 
     assert result.status == Status.FAILURE
-    assert gap_buffer.depth(CASE_ID) == 0
+    assert held_ledger_announces(datalayer, CASE_ID) == []
     assert datalayer.read(entry.id_) is None
 
 
@@ -642,36 +636,6 @@ def _make_relayed_invite_entry(
     )
 
 
-def _make_invite_expired_entry(
-    log_index: int, prev_hash: str = _ZERO_HASH
-) -> CaseLedgerEntry:
-    """Entry the CASE_MANAGER commits when an invitation expires (CM-28-009)."""
-    invite_id = f"https://example.org/activities/invite-{log_index}"
-    return _to_persistable_entry(
-        HashChainLedgerRecord(
-            case_id=CASE_ID,
-            log_index=log_index,
-            object_id=invite_id,
-            semantic_type=INVITE_EXPIRED_SEMANTIC_TYPE,
-            payload_snapshot={
-                "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
-                "actor": PARTICIPANT_ACTOR_ID,
-                "context": CASE_ID,
-                "published": "2026-10-08T12:00:00+00:00",
-                "object": {
-                    "type": "Invite",
-                    "id": invite_id,
-                    "object": {
-                        "type": "EmbargoEvent",
-                        "id": f"{CASE_ID}/embargo_events/e1",
-                    },
-                },
-            },
-            prev_log_hash=prev_hash,
-        )
-    )
-
-
 _ENTRY_EMBARGO_ID = f"{CASE_ID}/embargo_events/e1"
 
 
@@ -779,11 +743,14 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
     def test_replica_reads_expired_from_expiry_entry(
         self, bridge, datalayer, case_actor, case_obj
     ):
-        """A replica learns an expiry from the entry and never computes one."""
+        """A replica learns an expiry from the entry and never computes one.
+
+        The expiry is the CASE_MANAGER's ``Update(EmbargoConsent)`` carrying
+        the ``TIMED_OUT`` row, the one entry that records it (ADR-0140).
+        """
         participant_id = _seed_invited_participant(
             datalayer, case_obj, EmbargoConsentState.INVITED
         )
-        entry = _make_invite_expired_entry(0, case_obj.genesis_hash)
 
         def _announce(announced: CaseLedgerEntry) -> None:
             result = bridge.execute_with_setup(
@@ -801,10 +768,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
             assert isinstance(updated, CaseParticipant)
             return updated.consent_for(_ENTRY_EMBARGO_ID)
 
-        # The expiry entry records the act and moves no row (ADR-0124) ...
-        _announce(entry)
         assert _state() is EmbargoConsentState.INVITED
-        # ... the CASE_MANAGER's Update(EmbargoConsent) carries the row.
         _, blob = TriggerActivityAdapter(
             datalayer
         ).record_embargo_consent_updated(
@@ -815,17 +779,17 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
             ),
             case_id=CASE_ID,
             actor=case_actor.id_,
-            cause_id=entry.log_object_id,
+            cause_id="invite-expired:https://example.org/activities/invite-0",
         )
         _announce(
             _to_persistable_entry(
                 HashChainLedgerRecord(
                     case_id=CASE_ID,
-                    log_index=1,
+                    log_index=0,
                     object_id=json.loads(blob)["id"],
                     semantic_type=UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
                     payload_snapshot=json.loads(blob),
-                    prev_log_hash=entry.entry_hash,
+                    prev_log_hash=case_obj.genesis_hash,
                 )
             )
         )

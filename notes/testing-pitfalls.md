@@ -279,8 +279,8 @@ per test does not clear it, and `BTBridge.execute_with_setup` restores only its
 `test/conftest.py` clears it before and after every test (TB-06-005). Do not add a
 per-directory copy: the gap between copies is where order-dependent failures live
 (#3996). The same root conftest resets the other process-global registries (the
-ledger gap buffer via `_reset_buffers()`, the pending-assertion and actor
-stores); a new registry gets its reset there too, with an ordered pair in
+pending-assertion and actor stores); a new registry gets its reset there too,
+with an ordered pair in
 `test/test_process_global_isolation.py`.
 
 ### `SUBFAILED` in `unittest.TestCase` Subtests Does Not Fail pytest

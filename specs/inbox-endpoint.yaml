@@ -281,28 +281,32 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The inbox background handler (`vultron/adapters/driving/fastapi/inbox_handler.py`)
-      MUST catch an exception raised while processing an inbox item and log it at ERROR
-      with the item's `activity_id` and `actor_id`. It MUST drop an item that raised
-      `VultronProtocolViolationError` as a permanent failure. It MUST re-queue an item
-      that raised any other exception at most a bounded, configurable number of
-      attempts, and MUST then move it to a dead-letter store, using the same persisted
-      retry and dead-letter mechanism as outbox delivery.
+      The inbox background task (`run_inbox_pipeline` in
+      `vultron/adapters/driving/fastapi/inbox_orchestration.py`) MUST catch an
+      exception raised while processing an item it replays from the receiving actor's
+      inbox queue and log it at ERROR with the item's `activity_id` and `actor_id`. It
+      MUST drop an item that raised `VultronProtocolViolationError` as a permanent
+      failure. It MUST re-queue an item that raised any other exception at most a
+      bounded, configurable number of attempts, and MUST then move it to a dead-letter
+      store, using the same persisted retry and dead-letter mechanism as outbox
+      delivery.
     rationale: >-
-      The dispatcher lets handler exceptions propagate (DR-03-002), so this boundary
-      gives a failure its meaning. A protocol violation fails the same way every time,
-      so it is dropped. Any other exception may be transient, but may equally be a
-      deterministic bug, and an unbounded re-queue loops on it forever. One persisted
-      mechanism shared with the outbox (OX-13) keeps attempt counts across restarts.
-      #4168 owns it.
+      Handler exceptions propagate to this boundary (DR-03-002). A protocol violation
+      fails the same way every time, so it is dropped. Any other exception may be
+      transient or a deterministic bug, so an unbounded re-queue could loop forever.
+      The outbox's persisted mechanism (OX-13) keeps counts across restarts. A failed
+      act keeps nothing (ADR-0151), so a retry re-runs the whole act. A live delivery
+      is not queued: its retry is the sender's resend (ASK-07-010).
     verification: >-
-      A test that an inbox item whose handler raises a non-protocol-violation
-      exception is re-queued until the configured attempt limit and then appears in
-      the dead-letter store with its last error, that the attempt count survives a
-      restart of the store, and that an item raising `VultronProtocolViolationError`
-      is dropped on the first attempt; each failure is logged at ERROR with
-      `activity_id` and `actor_id`. Not yet written; owned by #4168.
-    tracking_issue: '#4168'
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py` runs
+      `run_inbox_pipeline` with a queued item whose dispatch, rebuild or extraction
+      raises: it is re-queued until the configured attempt limit, counting attempts
+      an earlier run stored, and then appears in the dead-letter store with its last
+      error; each failure is logged at ERROR with `activity_id` and `actor_id`; a
+      retry that succeeds clears its count; and an item raising
+      `VultronProtocolViolationError` is dropped on the first attempt.
+      `test/adapters/driven/test_sqlite_outbox_dead_letter.py` shows that the attempt
+      count and the dead letter survive a restart of the store.
     relationships:
     - rel_type: depends_on
       spec_id: DR-03-002
@@ -397,24 +401,30 @@ groups:
       activity id (its `ReceivedActivityRecord`, or the `DeferredInboxActivity` that
       holds it for replay), and the delivery's sealed body is exactly the body held for
       that id, the redelivered body is not held again, and the copy the receiver holds
-      is routed in its place without received evidence (VM-08-002): the deferred
-      record's while the first delivery is still deferred, else the body intake
-      archived. A delivery under a held id whose body differs is not a redelivery;
-      IE-10-002 refuses it.
+      is routed in its place (VM-08-002): the deferred record's, without received
+      evidence, while the first delivery is still deferred, else the body intake
+      archived, carrying that body as its received evidence. A delivery under a held
+      id whose body differs is not a redelivery; IE-10-002 refuses it.
     rationale: >-
       Ingress is the first point at which the receiver can consult durable evidence of
       a prior delivery, so the HTTP adapter realises the early filtering ID-05-002
       permits there. The evidence is keyed by the receiver: a row under the sender's
       id reads as one of its own (DL-06-006). Intake's archive is the received body
-      (ADR-0149), so an archived activity's resend is routed as that body's parse and
-      handler idempotency answers it (ID-04). Only a resend of the same body is a
+      (ADR-0149), so an archived activity's resend is routed as that body's parse,
+      with that body as its evidence, and handler idempotency answers it (ID-04): a
+      committed act is a repeat, and an act that never committed, such as one whose
+      consequence failed, runs as a first delivery and records the archived body
+      (CLP-07-015, ADR-0151). The archive records receipt, not the act, so "already
+      archived" is not "already applied". Only a resend of the same body is a
       redelivery: routing the held copy in place of a different body dropped that
       body with nothing but a DEBUG line (#3762).
     verification: >-
       `test/adapters/driving/fastapi/test_ingress_received_evidence.py` asserts that a
       resend of the held body under a deferred id routes the held copy and is not held
       again, and that a resend of an archived activity's body is routed as the
-      archived copy, without evidence;
+      archived copy, with the archived body as its evidence;
+      `test/adapters/driving/fastapi/test_failed_act_redelivery.py::test_a_failed_proposal_is_applied_when_posted_again`
+      that the resend of a failed act is applied through the FastAPI inbox;
       `test/adapters/driving/fastapi/test_inbox_redelivery.py::test_second_delivery_leaves_store_and_outbox_unchanged`
       asserts that it adds nothing to the store. No duplicate check keyed on the actor
       record exists in `vultron/adapters/driving/fastapi/routers/actors/`.

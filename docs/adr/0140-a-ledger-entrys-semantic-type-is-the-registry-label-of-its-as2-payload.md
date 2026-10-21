@@ -2,13 +2,15 @@
 status: proposed
 date: 2026-10-15
 created: 2026-10-15
-updated: 2026-10-15
-revision: 1
+updated: 2026-10-21
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0083, ADR-0104, ADR-0128, ADR-0137; specs/semantic-extraction.yaml SE;
-  specs/case-ledger-processing.yaml CLP-02, CLP-07; issues #4723, #4724, #4725
+  specs/case-ledger-processing.yaml CLP-02, CLP-07; issues #3743, #4723, #4724, #4725
 informed: []
+partially_superseded_by:
+  - 0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -56,7 +58,15 @@ Chosen option: "The payload is valid AS2, and `eventType` is stored but must equ
 3. **An entry's `eventType` is the semantic type the registry assigns to its `payloadSnapshot`.**
    It is written at commit time and kept so that replay can route on it, but it is never chosen independently of the payload.
    Where two meanings share one shape, the distinguishing fact goes into the payload, so a pattern can see it, or the two meanings are one semantic type.
-4. **Recognizing a semantic type does not imply a handler for it.**
+4. **A CASE_MANAGER decision is an occasion, and its record is a real activity.**
+   When the clock or the CASE_MANAGER's policy decides something (an invitation's deadline passes, a late answer is honoured, an offer's deadline passes), that decision is the occasion for an act the CASE_MANAGER performs.
+   The act is an activity the CASE_MANAGER builds with a factory, commits from its sealed blob and delivers like any of its acts; it is never a ledger entry shaped to look like an activity, and never an activity attributed to a participant that sent nothing.
+   - An expired embargo invitation is the CASE_MANAGER's `Update(EmbargoConsent)` carrying the invitee's `TIMED_OUT` row.
+   - An honoured late `Accept` of an embargo invitation is the CASE_MANAGER's `Update(EmbargoConsent)` carrying the accepter's `AGREED` row; the late `Accept` itself is not committed.
+   - An expired ownership-transfer `Offer` is the CASE_MANAGER's `Undo(Offer)`, carrying the `Offer` inline with the `endTime` it passed. The CASE_MANAGER made that `Offer` ([ADR-0148](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md)), so it is the one that withdraws it; the Case Owner's own withdrawal is an `Undo` of its proposal, a different shape. The entry keeps its own semantic type, `offer_case_ownership_transfer_expired`.
+   No separate act entry precedes the `Update(EmbargoConsent)`: the row's state already tells an expiry from a refusal, and a second entry would record an act nobody sent.
+   The synthetic `Expire` type is retired.
+5. **Recognizing a semantic type does not imply a handler for it.**
    A receiver maps a received activity to a use case by its semantic type; when none is registered, the activity is not processed ("no use case found").
    That outcome says the receiver does not handle the message, not that the message is invalid.
    Permission to send a message is a separate question, owned by the use cases that handle it ([ADR-0115](0115-received-handlers-check-sender-entitlement.md)), never by the inbox.
@@ -99,6 +109,6 @@ Chosen option: "The payload is valid AS2, and `eventType` is stored but must equ
 ## More Information
 
 - Decided in the 2026-10-15 demo UI planning session, which audited the merged demo UI (PR #3754).
-- The shapes for each ledger-only act, the replacement for the non-AS2 payload type, and the rulings for shared shapes are decided in #4723.
+- The replacement for the non-AS2 payload type and the rulings for the honoured late `Accept` and the two expiries (item 4) were decided on #4723 and built in #3743. The shapes for the other ledger-only acts, and the rulings for the other shared shapes, are still decided in #4723.
 - Whether to rename `eventType` to match the glossary term is open in #4734.
 - Glossary: **Semantic type** in `CONTEXT.md` and [the glossary](../reference/glossary.md).

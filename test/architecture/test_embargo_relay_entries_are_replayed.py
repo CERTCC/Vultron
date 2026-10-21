@@ -50,11 +50,7 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_SEMANTIC_TYPE,
-    HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
-    HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
     INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
-    INVITE_EXPIRED_SEMANTIC_TYPE,
-    INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 
 EMBARGO = {
@@ -133,22 +129,6 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
     "the owner's rejection of a proposal": (
         MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
         {"type": "Reject", "actor": PROPOSER, "object": EMBARGO},
-    ),
-    "invite expiry": (
-        INVITE_EXPIRED_SEMANTIC_TYPE,
-        {
-            "type": INVITE_EXPIRED_SNAPSHOT_TYPE,
-            "actor": REPLICA,
-            "object": {"type": "Invite", "object": EMBARGO},
-        },
-    ),
-    "honour late accept": (
-        HONOUR_LATE_ACCEPT_SEMANTIC_TYPE,
-        {
-            "type": HONOUR_LATE_ACCEPT_SNAPSHOT_TYPE,
-            "actor": REPLICA,
-            "object": {"type": "Invite", "object": EMBARGO},
-        },
     ),
     "noop late accept": (
         INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,

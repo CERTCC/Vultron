@@ -15,8 +15,9 @@ the CASE_MANAGER alone (PCR-03-001, #4646).
 
 Each test runs the real received use case in the replica holder's own store:
 the case lists the CASE_MANAGER, a vendor and the replica holder.  A copy sent
-by the vendor is refused on the sender check; the same copy relayed by the
-CASE_MANAGER passes it.
+by the vendor is refused on the sender check; the same copy sent by the
+CASE_MANAGER passes it, and is then refused because the replica is not the
+CASE_MANAGER the message is for (HP-01-005).
 """
 
 from collections.abc import Callable
@@ -165,18 +166,26 @@ def test_replica_refuses_a_listed_non_manager(
 
 
 @pytest.mark.spec("PCR-03-001")
+@pytest.mark.spec("HP-01-005")
 @pytest.mark.parametrize("deliver", DELIVERIES)
 def test_replica_admits_the_case_manager(
     deliver, make_payload, tree_runs
 ) -> None:
-    """The same copy relayed by the CASE_MANAGER passes the sender check."""
+    """The same copy from the CASE_MANAGER passes the sender check.
+
+    The replica is still not the CASE_MANAGER the message is for, so the gated
+    work does not run and the copy is refused for that, not for its sender.
+    """
     dl, _ = _replica_store()
 
     result = deliver(dl, make_payload, MANAGER_ID)
 
     assert len(tree_runs) == 1
     assert _sender_guard(tree_runs[0]) is py_trees.common.Status.SUCCESS
-    assert MANAGER_ID not in (result.reason or "")
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert result.reason == f"not the CASE_MANAGER of case '{CASE_ID}'"
+    assert dl.list_objects("CaseLedgerEntry") == []
+    assert dl.outbox_list() == []
 
 
 @pytest.mark.spec("PCR-03-001")

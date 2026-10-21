@@ -3589,22 +3589,31 @@ groups:
       Only the CASE_MANAGER evaluates ownership-transfer Offer expiry, and it MUST
       do so lazily, from `(end_time, now)`, whenever it processes an Accept, Reject
       or Undo of the Offer or a new proposal for the case; no scheduler is required.
-      When it finds an open Offer expired, it MUST commit a `CaseLedgerEntry`
-      recording the expiry, distinct from the Reject entry (CM-21-012), and MUST
-      broadcast `Announce(CaseLedgerEntry)` to all case participants; the entry
-      closes the Offer (CM-21-014). The commit MUST be behind the CASE_MANAGER role
-      gate (BT-17-001) and have a replica apply node (RSH-08-004). A replica learns
-      an expiry from that entry and never computes one.
+      When it finds an open Offer expired, it MUST withdraw the Offer it made by its
+      own factory-built `Undo(Offer(VulnerabilityCase))`, carrying the Offer inline
+      with the `endTime` that passed, commit that activity from its sealed blob
+      as the `offer_case_ownership_transfer_expired` entry, distinct from the
+      Reject entry (CM-21-012), and broadcast `Announce(CaseLedgerEntry)` to all
+      case participants; the entry closes the Offer (CM-21-014). The Case
+      Owner's own withdrawal is an `Undo` of its proposal instead (CM-21-015,
+      ADR-0140). The commit MUST be behind the CASE_MANAGER role gate
+      (BT-17-001) and have a replica apply node (RSH-08-004). A replica learns an
+      expiry from that entry and never computes one.
     rationale: >-
       Expiry evaluated in one place keeps every replica in agreement about whether a
       transfer is still in flight, as for embargo Invite expiry (CM-28-003,
       CM-28-014). Lazy evaluation needs no timer, and the next act on the case is
       the first moment the expiry matters. A distinct entry keeps "never answered"
-      apart from "declined".
+      apart from "declined". The expiry is the occasion and the `Undo` is the
+      CASE_MANAGER's act on it: a real AS2 activity, never a ledger entry
+      formatted to look like one (ADR-0140).
     verification: >-
       A test marked `CM-21-017` delivers a new proposal for a case whose earlier
       Offer has expired unanswered and asserts the CASE_MANAGER commits an expiry entry
-      before admitting it.
+      before admitting it;
+      `test/core/use_cases/received/actor/test_ownership_deadline.py::TestLazyExpiry::test_expiry_entry_is_the_case_managers_undo_of_the_offer`
+      asserts the entry's snapshot is the CASE_MANAGER's `Undo` of the Offer with
+      its `endTime`.
     relationships:
     - rel_type: refines
       spec_id: CM-21-014
@@ -4276,7 +4285,8 @@ groups:
       As part of the CM-23-002 owner-close sequence, after the CASE_MANAGER advances its own
       CaseParticipant to RM.CLOSED and before it commits `case_fully_closed`, it MUST expire every
       embargo Invite still awaiting a reply on the case (every consent row that is `INVITED` moves to `TIMED_OUT`), without waiting for its RSVP deadline. It MUST commit
-      an expired-invitation CaseLedgerEntry for each (CM-28-009, CM-28-014). A pending case Invite
+      each expiry as its own `Update(EmbargoConsent)` carrying the `TIMED_OUT` row (CM-28-009,
+      CM-28-014). A pending case Invite
       carries no RSVP deadline and so needs no settling: an answer to it after close is an external
       append, refused at the ADR-0085 boundary.
     rationale: >-
@@ -4288,7 +4298,8 @@ groups:
     verification: >-
       A test confirms that an owner Leave(VulnerabilityCase) on a case with an unanswered Invite
       whose RSVP deadline is in the future moves that participant's consent to `TIMED_OUT`, commits
-      the expired-invitation entry, and orders that entry after the CASE_MANAGER's RM.CLOSED entry
+      the CASE_MANAGER's `TIMED_OUT` `Update(EmbargoConsent)`, and orders that entry
+      after the CASE_MANAGER's RM.CLOSED entry
       and before `case_fully_closed`:
       `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_owner_close_expires_pending_invite_before_boundary`.
       `TestOwnerCloseSettlesPendingInvites` in the same file covers a case with no pending
@@ -5081,10 +5092,10 @@ groups:
       is recoverable from it; since ADR-0118 the consent row carries the distinction too, so a
       reader that consults only the participant record also sees it. See ADR-0065, ADR-0118.
     verification: >-
-      Inspection of `vultron/core/` confirms that the expired-invitation ledger entry type
-      (`invite_to_embargo_on_case_expired`) differs from the `Reject(Invite(EmbargoEvent))` entry
-      type used for explicit refusals, and that the participant records `TIMED_OUT` rather than
-      `DECLINED`.
+      Inspection of `vultron/core/` confirms that an expiry is recorded as the
+      CASE_MANAGER's `Update(EmbargoConsent)` carrying a `TIMED_OUT` row, never as
+      the invitee's `Reject(Invite(EmbargoEvent))`, whose row is `DECLINED`, and
+      that the participant records `TIMED_OUT` rather than `DECLINED`.
     adr:
     - ADR-0065
     stories:
@@ -5163,16 +5174,25 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST author a distinct ledger entry to record an expired invitation,
-      different from the `Reject(Invite(EmbargoEvent))` entry used to record an explicit refusal.
+      When an invitation's RSVP deadline passes unanswered, the CASE_MANAGER MUST
+      record the expiry as its own factory-built `Update(EmbargoConsent)` carrying
+      the invitee's `TIMED_OUT` row in full, committed from its sealed blob. It
+      MUST NOT record the expiry as an activity attributed to the invitee, which
+      sent nothing. The entry differs from the invitee's
+      `Reject(Invite(EmbargoEvent))`, whose row is `DECLINED`.
     rationale: >-
-      The ledger entry makes expiry-versus-refusal distinguishable in the ledger (CM-28-005), and it
-      is how a replica learns the `TIMED_OUT` state without computing it (CM-28-014); authoring a
-      single entry type for both events would conflate them. See ADR-0065, ADR-0118.
+      The expiry is the occasion and the `Update` is the CASE_MANAGER's act on it,
+      a real AS2 activity (ADR-0140). The `TIMED_OUT` row it carries makes
+      expiry-versus-refusal distinguishable in the ledger (CM-28-005), and it is
+      how a replica learns the `TIMED_OUT` state without computing it (CM-28-014).
+      A second, invitee-attributed entry would record an act nobody sent. See
+      ADR-0065, ADR-0118.
     verification: >-
-      Inspection of `vultron/core/` confirms that the expired-invitation ledger entry
-      (`INVITE_EXPIRED_SEMANTIC_TYPE`, snapshot type `Expire`) is authored as a distinct
-      entry type separate from the `Reject(Invite(EmbargoEvent))` entry.
+      `test/architecture/test_no_hand_built_payload_snapshots.py` confirms that
+      core builds no activity-shaped snapshot by hand, and
+      `test/core/use_cases/received/test_embargo_activation_copy.py::TestInviteTimeOut`
+      confirms that an expiry commits one CASE_MANAGER `Update(EmbargoConsent)`
+      carrying the `TIMED_OUT` row.
     relationships:
     - rel_type: refines
       spec_id: CM-28-005
@@ -5299,24 +5319,23 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Only the CASE_MANAGER evaluates invite expiry (CM-28-003). The expired-invitation ledger entry
-      (CM-28-009) MUST be committed behind the CASE_MANAGER role gate (BT-17-001) and MUST have a
-      replica apply node reachable from `create_announce_log_entry_tree` (RSH-08-004). The
-      CASE_MANAGER MUST commit the invitee's `TIMED_OUT` row as its own
-      `Update(EmbargoConsent)` entry after the expiry entry (ADR-0124, CLP-07-013); a replica
-      learns an expiry from those entries, copying the row, and never computes one.
+      Only the CASE_MANAGER evaluates invite expiry (CM-28-003). Its
+      `Update(EmbargoConsent)` carrying the invitee's `TIMED_OUT` row (CM-28-009)
+      MUST be committed behind the CASE_MANAGER role gate (BT-17-001) before the
+      row is written (ADR-0124, CLP-07-013), and reaches replicas through the
+      consent slot of `create_announce_log_entry_tree` (RSH-08-004). A replica
+      learns an expiry from that entry, copying the row, and never computes one.
     rationale: >-
       The expiry commit ran unconditionally in whichever store processed a late `Accept`, so a
       non-manager could author a ledger entry, and no replay node existed for the semantic
       type, so an expiry recorded by the manager reached no replica (#3918).
     verification: >-
       A test runs the late-`Accept` path as a non-manager and asserts no expiry entry is committed;
-      a test replays an `invite_to_embargo_on_case_expired` entry and its
-      `update_embargo_consent` entry into a replica and asserts the participant reads
-      `TIMED_OUT` only once the row's entry is copied:
+      a test replays the CASE_MANAGER's `update_embargo_consent` entry carrying the
+      `TIMED_OUT` row into a replica and asserts the participant reads `TIMED_OUT`
+      only once that entry is copied:
       `test/core/use_cases/received/test_embargo_invite_lapse.py::TestExpiryIsTheManagersAlone::test_non_manager_commits_no_expiry_entry`,
-      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`,
-      `test/core/behaviors/embargo/nodes/test_expiry.py::TestApplyInviteExpiryFromLedgerNode::test_the_expiry_entry_moves_no_row_on_a_replica`
+      `test/core/behaviors/sync/test_announce_tree.py::TestAnnounceLogEntryAppliesEmbargoInviteRelay::test_replica_reads_expired_from_expiry_entry`
       and `test/core/use_cases/received/test_embargo_activation_copy.py::TestInviteTimeOut`.
     relationships:
     - rel_type: refines
@@ -5337,7 +5356,7 @@ groups:
     statement: >-
       The CASE_MANAGER MUST expire every `INVITED` consent row whose RSVP deadline has
       passed and whose embargo register entry is an open proposal or the embargo in
-      force, each through the CM-28-009 expiry entry and its `TIME_OUT` effect, before
+      force, each through its CM-28-009 `Update(EmbargoConsent)` and `TIME_OUT`, before
       it commits the case owner's decision on an embargo proposal (MSM-07-008,
       MSM-07-009) and whenever it processes any other received embargo activity for the
       case. A row of a replaced, rejected, cancelled or ended embargo is frozen and MUST
@@ -5362,7 +5381,7 @@ groups:
       turn, the owner's `Accept(EmbargoEvent, target=Case)`, the owner's
       `Reject(EmbargoEvent, target=Case)` and another participant's
       `Reject(Invite(EmbargoEvent))`, and asserts for each that the
-      `invite_to_embargo_on_case_expired` entry and its `TIMED_OUT` row's entry are
+      CASE_MANAGER's `Update(EmbargoConsent)` carrying the `TIMED_OUT` row is
       committed before the activity's own entry and the invitee's row reads `TIMED_OUT`;
       it asserts every received embargo tree naming a case takes the sweep in its
       clock-decision stage, and runs the owner's embargo-decision trigger on the actor

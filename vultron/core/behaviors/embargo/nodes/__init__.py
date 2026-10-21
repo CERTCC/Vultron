@@ -70,8 +70,6 @@ from vultron.core.behaviors.embargo.nodes.ending_notice_replica import (
     AwaitsEmbargoEndingNoticeNode,
 )
 from vultron.core.behaviors.embargo.nodes.expiry import (
-    ApplyHonourLateAcceptFromLedgerNode,
-    ApplyInviteExpiryFromLedgerNode,
     ApplyInviteExpiryNoopFromLedgerNode,
     EvaluateInviteExpiryNode,
     InviteExpiryChangedConsentNode,
@@ -243,8 +241,6 @@ __all__ = [
     "ApplyEmbargoAbandonmentFromLedgerNode",
     "case_manager_admits_proposal_guard",
     # Invite expiry: evaluation (CM-28-014, BT-17-001) and replay (ADR-0118)
-    "ApplyHonourLateAcceptFromLedgerNode",
-    "ApplyInviteExpiryFromLedgerNode",
     "ApplyInviteExpiryNoopFromLedgerNode",
     "EvaluateInviteExpiryNode",
     "CommitAndApplyHonourLateAcceptNode",

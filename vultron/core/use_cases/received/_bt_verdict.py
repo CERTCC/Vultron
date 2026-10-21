@@ -252,6 +252,28 @@ def not_case_manager_refusal(
     return HandlerResult.refused(f"not the CASE_MANAGER of case '{case_id}'")
 
 
+def case_manager_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+    dl: CasePersistence,
+    case_id: str,
+) -> HandlerResult:
+    """*verdict*, or the refusal owed when the gate turned this actor away.
+
+    For a handler whose tree does nothing at an actor that is not the
+    CASE_MANAGER: its run succeeds there with every gated step skipped, and
+    that success is a misaddressed message, neither an applied one nor a
+    repeat (HP-01-005).  A redelivery to such an actor is refused the same
+    way: it was never this actor's to act on.  A ``SKIPPED`` from a repeat
+    guard that ends the run before the gate keeps its ``SKIPPED``, because
+    the gate never ran.  A ``REFUSED`` verdict is returned as it is.
+    """
+    if verdict.disposition is HandlerDisposition.REFUSED:
+        return verdict
+    refusal = not_case_manager_refusal(tree, dl, case_id)
+    return verdict if refusal is None else refusal
+
+
 def case_manager_absence_refusal(
     dl: CasePersistence, case_id: str
 ) -> HandlerResult | None:
@@ -291,11 +313,7 @@ def reference_edit_verdict(
             BTBridge.get_failure_reason(_root(tree))
             or "reference edit is already in effect"
         )
-    if verdict.disposition is HandlerDisposition.APPLIED:
-        refusal = not_case_manager_refusal(tree, dl, case_id)
-        if refusal is not None:
-            return refusal
-    return verdict
+    return case_manager_verdict(tree, verdict, dl, case_id)
 
 
 def _redelivery_verdict(

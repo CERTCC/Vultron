@@ -32,7 +32,7 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
-    not_case_manager_refusal,
+    case_manager_verdict,
     verdict_from_bt,
 )
 
@@ -119,12 +119,9 @@ class _EmbargoEventReceivedUseCase:
         )
         verdict = verdict_from_bt(tree, result, label=self._tree_label)
         verdict = self._refine_verdict(tree, verdict)
-        if verdict.disposition is HandlerDisposition.APPLIED:
-            # Only the CASE_MANAGER applies; a replica learns it from the
-            # ledger broadcast (BT-17-001, HP-01-005).
-            refusal = not_case_manager_refusal(tree, self._dl, case_id)
-            if refusal is not None:
-                verdict = refusal
+        # Only the CASE_MANAGER applies; a replica learns it from the
+        # ledger broadcast (BT-17-001, HP-01-005).
+        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
         if verdict.disposition is HandlerDisposition.APPLIED:
             message = self._applied_message(embargo_id, case_id)
             if message is not None:

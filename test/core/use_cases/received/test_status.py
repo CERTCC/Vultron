@@ -933,13 +933,18 @@ class TestStatusUseCases:
 class TestParticipantStatusLogEntryCascade:
     """CaseLedgerEntry cascade for AddParticipantStatusToParticipantReceivedUseCase."""
 
-    def _make_dl(self, case_id: str, actor_id: str) -> tuple:
+    def _make_dl(
+        self, case_id: str, actor_id: str, store_owner: str | None = None
+    ) -> tuple:
         from vultron.enums.roles import CVDRole
 
         # These tests run the received-side tree as the CaseActor (it is the
-        # receiving_actor_id they pass), so this is the CaseActor's own store.
+        # receiving_actor_id they pass), so this is the CaseActor's own store,
+        # unless *store_owner* names the participant whose replica it is.
         case_actor_id = f"{case_id}/actor"
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=store_owner or case_actor_id
+        )
         case_actor = VultronService(
             id_=case_actor_id,
             name=f"CaseActor for {case_id}",
@@ -1261,10 +1266,16 @@ class TestParticipantStatusLogEntryCascade:
         ]
         assert len(entries) == 1
 
-    def test_non_case_actor_receiver_does_not_commit_log_entry(
+    @pytest.mark.spec("HP-01-005")
+    def test_non_case_actor_receiver_refuses_and_commits_nothing(
         self, make_payload
     ) -> None:
-        """Peer-side replay of broadcast status must not append canonical entries."""
+        """A participant that is not the CASE_MANAGER refuses the status.
+
+        The adjudication, the commit and every effect sit behind the
+        CASE_MANAGER gate, so a copy at a participant does nothing; the
+        handler reports it as a refusal, never as applied (HP-01-005).
+        """
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,
         )
@@ -1273,7 +1284,7 @@ class TestParticipantStatusLogEntryCascade:
         non_case_actor_id = "https://example.org/users/finder"
         case_id = "https://example.org/cases/st_le5"
         dl, case_actor_id, participant, pstatus = self._make_dl(
-            case_id, actor_id
+            case_id, actor_id, store_owner=non_case_actor_id
         )
         case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert case is not None
@@ -1296,13 +1307,18 @@ class TestParticipantStatusLogEntryCascade:
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=non_case_actor_id)
-        AddParticipantStatusToParticipantReceivedUseCase(
+        outbox_before = dl.outbox_list()
+        result = AddParticipantStatusToParticipantReceivedUseCase(
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "not the CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == outbox_before
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")

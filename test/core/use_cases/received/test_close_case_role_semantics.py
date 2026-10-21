@@ -41,7 +41,7 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
-from test.support.ledger import fail_commits
+from test.support.ledger import fail_commits, is_consent_row_update
 from test.support.received import received_event, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -72,7 +72,6 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_SEMANTIC_TYPE
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -695,10 +694,11 @@ def _consent(dl: SqliteDataLayer, actor_id: str, embargo_id: str):
 
 
 def _expiry_entries(dl: SqliteDataLayer) -> list[CaseLedgerEntry]:
+    """The CASE_MANAGER's ``Update(EmbargoConsent)`` entries to ``TIMED_OUT``."""
     return [
         e
         for e in _case_ledger(dl)
-        if e.semantic_type == INVITE_EXPIRED_SEMANTIC_TYPE
+        if is_consent_row_update(e, EmbargoConsentState.TIMED_OUT)
     ]
 
 
@@ -776,15 +776,17 @@ class TestPostCloseBoundary:
             i for i, e in enumerate(ledger) if e.id_ in rm_closed_ids
         ]
         lapse_idx = [
-            i for i, t in enumerate(types) if t == INVITE_EXPIRED_SEMANTIC_TYPE
+            i
+            for i, e in enumerate(ledger)
+            if is_consent_row_update(e, EmbargoConsentState.TIMED_OUT)
         ]
         assert types[-1] == "case_fully_closed", types
         assert rm_closed_idx and lapse_idx, (
             "owner close must commit the CASE_MANAGER's RM.CLOSED entry and"
-            f" an expired-invitation entry (CM-23-014); got {types}"
+            f" a TIMED_OUT consent Update (CM-23-014); got {types}"
         )
         assert max(rm_closed_idx) < min(lapse_idx), (
-            "the expired-invitation entry must follow the CASE_MANAGER's"
+            "the TIMED_OUT consent Update must follow the CASE_MANAGER's"
             f" RM.CLOSED entry (CM-23-014); got {types}"
         )
 
@@ -812,10 +814,16 @@ class TestOwnerCloseSettlesPendingInvites:
         _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
         expired = _expiry_entries(dl)
-        named = {e.payload_snapshot["object"]["object"]["id"] for e in expired}
+        named = {e.payload_snapshot["object"]["embargoId"] for e in expired}
         assert named == {first, second}
         assert len(expired) == 2
-        assert all(e.payload_snapshot["actor"] == VENDOR_ID for e in expired)
+        assert all(
+            e.payload_snapshot["object"]["attributedTo"] == VENDOR_ID
+            for e in expired
+        )
+        assert all(
+            e.payload_snapshot["actor"] == CASE_ACTOR_ID for e in expired
+        )
         assert _consent(dl, VENDOR_ID, first) == EmbargoConsentState.TIMED_OUT
         assert _consent(dl, VENDOR_ID, second) == EmbargoConsentState.TIMED_OUT
         ledger = _case_ledger(dl)
@@ -963,18 +971,15 @@ class TestOwnerCloseSettlesPendingInvites:
         manager = _make_full_dl()
         embargo_id = _seed_pending_invite(manager)
         _close(manager, OWNER_ID, "https://example.org/activities/leave-owner")
+        # The expiry is the CASE_MANAGER's Update carrying the row.
         (settled,) = _expiry_entries(manager)
-        ledger = _case_ledger(manager)
-        # The expiry, then the CASE_MANAGER's Update carrying the row.
-        row_entry = ledger[ledger.index(settled) + 1]
-        assert row_entry.semantic_type == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
 
         replica = _make_full_dl(store_owner_id=VENDOR_ID)
         assert _seed_pending_invite(replica) == embargo_id
         case = replica.read(CASE_ID)
         prev_hash = getattr(case, "genesis_hash", _ZERO_HASH) or _ZERO_HASH
-        # The two entries, as the first of the replica's chain.
-        for log_index, source in enumerate((settled, row_entry)):
+        # The entry, as the first of the replica's chain.
+        for log_index, source in enumerate((settled,)):
             entry = _to_persistable_entry(
                 HashChainLedgerRecord(
                     case_id=CASE_ID,
@@ -1520,10 +1525,12 @@ class TestLeaveCommitsEachClosureStep:
             (_STATUS, OWNER_ID, RM.CLOSED.value),
             (_STATUS, CASE_ACTOR_ID, RM.CLOSED.value),
         ]
-        assert shape[4][0] == INVITE_EXPIRED_SEMANTIC_TYPE
-        # The TIMED_OUT row is the CASE_MANAGER's own entry (ADR-0124).
-        assert shape[5][0] == UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
-        assert shape[6:] == [("case_fully_closed", CASE_ACTOR_ID, None)]
+        # The expiry is the CASE_MANAGER's own TIMED_OUT row (ADR-0124).
+        assert shape[4][:2] == (
+            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
+            CASE_ACTOR_ID,
+        )
+        assert shape[5:] == [("case_fully_closed", CASE_ACTOR_ID, None)]
 
     @pytest.mark.spec("CM-23-004")
     @pytest.mark.parametrize(
@@ -2518,12 +2525,15 @@ class TestDeclineArmIsCaseManagerGated:
         and as the VENDOR actor (``receiving_actor_id``), so the executing
         actor does not hold ``CVDRole.CASE_MANAGER``.  A copy of the Case
         Owner's Leave arrives while an embargo is live.  Before #3825 this
-        emitted a ``Reject(Leave)``; it must now emit nothing.
+        emitted a ``Reject(Leave)``; it must now emit nothing.  The replica's
+        sender guard admits only the CASE_MANAGER, so it refuses this copy
+        before the gate; the gate itself is pinned by
+        ``test_non_manager_replica_refuses_a_leave_from_the_case_manager``.
         """
         dl = _make_full_dl(store_owner_id=VENDOR_ID)
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
-        CloseCaseReceivedUseCase(
+        result = CloseCaseReceivedUseCase(
             dl=dl,
             request=_make_close_case_event(
                 sender_actor_id=OWNER_ID, receiving_actor_id=VENDOR_ID
@@ -2533,6 +2543,7 @@ class TestDeclineArmIsCaseManagerGated:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
+        assert result.disposition is HandlerDisposition.REFUSED
         assert dl.outbox_list() == [], (
             "a non-CASE_MANAGER replica must emit no as:Reject when it"
             " receives a copy of the owner's Leave during a live embargo"
@@ -2563,6 +2574,36 @@ class TestDeclineArmIsCaseManagerGated:
 
         assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID)
         assert not _case_fully_closed_present(dl)
+
+    @pytest.mark.spec("HP-01-005")
+    def test_non_manager_replica_refuses_a_leave_from_the_case_manager(self):
+        """A Leave the sender guard admits at a replica is still refused.
+
+        The Case Owner's Leave above never reaches the gate: the replica's
+        sender guard admits only the CASE_MANAGER.  A Leave from the
+        CASE_MANAGER passes that guard, and the gated close-or-decline step
+        then does nothing at a replica, so the replica reports the
+        misaddressed Leave as a refusal, never as applied (HP-01-005).
+        """
+        dl = _make_full_dl(store_owner_id=VENDOR_ID)
+        rm_before = _participant_rm_states(dl, CASE_ACTOR_ID)
+
+        result = CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(
+                sender_actor_id=CASE_ACTOR_ID, receiving_actor_id=VENDOR_ID
+            ),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "not the CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == []
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert _participant_rm_states(dl, CASE_ACTOR_ID) == rm_before
 
 
 def _case_actor_rm_entry_states(dl: SqliteDataLayer) -> list[RM]:

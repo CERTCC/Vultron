@@ -24,7 +24,9 @@ receiving actor (CLP-10-005, ADR-0135).  The tree's factory composes every
 outcome, a reply that names no case included: that tree archives the reply
 and refuses it (CLP-10-018).  The handler's *refine* reads the verdict,
 reporting a redelivery of the reply that closed the Offer as ``SKIPPED``
-(HP-01-003), and a refusal is logged at WARNING with the sender and the case.
+(HP-01-003). A reply that reached a replica rather than the CASE_MANAGER is
+``REFUSED`` (HP-01-005), and a refusal is logged at WARNING with the sender
+and the case.
 """
 
 import logging
@@ -42,7 +44,10 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
+from vultron.core.use_cases.received._bt_verdict import (
+    case_manager_verdict,
+    verdict_from_bt,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -78,7 +83,8 @@ def run_offer_reply_tree(
         tree: The reply's received tree, as its factory composed it for
             the case the reply names (or names none).
         label: The tree's name, for the verdict and the logs.
-        case_id: The case the reply names, for the logs.
+        case_id: The case the reply names, for the logs and the
+            CASE_MANAGER refusal (HP-01-005).
         subject: The Offer, as a log names it, e.g. ``"role offer"``.
         refine: Reads what the tree's guards say beyond success or failure,
             such as a redelivery reported ``SKIPPED`` (HP-01-003).
@@ -99,6 +105,10 @@ def run_offer_reply_tree(
         activity=request,
     )
     verdict = refine(tree, verdict_from_bt(tree, result, label=label))
+    if case_id is not None:
+        # A reply to an Offer is the CASE_MANAGER's to apply; a replica the
+        # sender guard admitted did nothing past the gate (HP-01-005).
+        verdict = case_manager_verdict(tree, verdict, dl, case_id)
     if verdict.disposition is HandlerDisposition.REFUSED:
         logger.warning(
             "%s refused '%s' from '%s' for case '%s': %s",

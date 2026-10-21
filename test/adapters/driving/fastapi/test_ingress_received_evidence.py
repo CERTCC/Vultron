@@ -34,6 +34,8 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import prepare_for_dispatch
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
+)
+from vultron.adapters.driving.fastapi.inbox_queue_drain import (
     StoredActivityIngressAdapter,
 )
 from vultron.adapters.inbox_staging import (
@@ -192,11 +194,12 @@ def test_resend_of_an_archived_activity_routes_the_archived_copy(
     dl: SqliteDataLayer,
 ):
     """Detected from intake's archive, a resend is routed as the archived
-    body's parse, carrying no evidence; nothing is written, and the resend's
-    own body is left untouched at ingress (ADR-0149, #3762)."""
+    body's parse, carrying the archived body as its evidence; the resend's
+    own bytes are never routed, nothing is written, and the resend's own
+    body is left untouched at ingress (ADR-0149, #3762)."""
     first = _offer_of_stored_report(dl)
     first["summary"] = "first"
-    archive_received(dl, parse_activity(copy.deepcopy(first)))
+    record = archive_received(dl, parse_activity(copy.deepcopy(first)))
     before = dl.count_all()
     second = {**copy.deepcopy(first), "summary": "second"}
     adapter = FastAPIIngressAdapter(dl=dl)
@@ -206,9 +209,10 @@ def test_resend_of_an_archived_activity_routes_the_archived_copy(
     routed = adapter.rehydrate(artifact)
 
     assert routed.id_ == first["id"]
+    archived = json.loads(record.received_body)
     assert routed.summary == "first", "the archived copy is routed"
-    assert routed.received_evidence is None
-    assert prepare_for_dispatch(routed).received_evidence is None
+    assert routed.received_evidence == archived
+    assert prepare_for_dispatch(routed).received_body() == archived
     assert artifact.received_evidence == second
     assert dl.count_all() == before
 
@@ -356,17 +360,17 @@ def test_a_resend_that_cannot_be_rebuilt_at_all_is_refused(
 
 
 @pytest.mark.spec("VM-08-002")
-def test_an_archived_resend_deferred_again_is_held_without_evidence(
+def test_an_archived_resend_deferred_again_is_held_with_the_archived_body(
     dl: SqliteDataLayer,
 ):
-    """A resend routed as the archived copy and then deferred is held as a
-    row, so its replay carries no delivery's evidence, the first's
-    included."""
+    """A resend routed as the archived copy and then deferred is held with
+    the archived body, so its replay carries the first delivery's evidence,
+    never the resend's."""
     first = _offer_of_stored_report(dl)
-    archive_received(dl, parse_activity(copy.deepcopy(first)))
+    record = archive_received(dl, parse_activity(copy.deepcopy(first)))
     staging = InlineObjectStaging(dl)
     adapter = FastAPIIngressAdapter(dl=dl, staging=staging)
-    artifact = adapter.parse(copy.deepcopy(first))
+    artifact = adapter.parse({**copy.deepcopy(first), "summary": "resend"})
     assert artifact is not None
     adapter.rehydrate(artifact)
 
@@ -374,7 +378,9 @@ def test_an_archived_resend_deferred_again_is_held_without_evidence(
 
     held = dl.read(DeferredInboxActivity.build_id(first["id"]))
     assert isinstance(held, DeferredInboxActivity)
-    assert held.received_body is None
+    archived = json.loads(record.received_body)
+    assert held.received_body is not None
+    assert json.loads(held.received_body) == archived
     replayed = StoredActivityIngressAdapter(dl=dl).parse(first["id"])
     assert replayed is not None
-    assert replayed.received_evidence is None
+    assert replayed.received_evidence == archived

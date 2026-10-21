@@ -14,16 +14,12 @@ from vultron.core.behaviors.sender_entitlement import (
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.ledger_gap_buffer import (
-    LedgerGapBuffer,
-    resolve_ledger_gap_buffer,
-)
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
 )
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.ports.inbox_hand_back import InboxHandBackPort
+from vultron.core.ports.inbox_replay import InboxReplayPort
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
@@ -47,10 +43,10 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
     recorded (PCR-03-004).  With none of them, the Announce is refused.
 
     Seeding the case anchors its genesis hash, so an
-    ``Announce(CaseLedgerEntry)`` parked in the gap buffer during the
-    pre-genesis window (SYNC-15-004) may now extend the chain.  The tree
-    hands that entry back to this actor's inbox through the injected
-    :class:`~vultron.core.ports.inbox_hand_back.InboxHandBackPort` as a
+    ``Announce(CaseLedgerEntry)`` held during the pre-genesis window
+    (SYNC-15-004) may now extend the chain.  The tree replays that
+    ``Announce``, as it was received, through this actor's inbox via the
+    injected :class:`~vultron.core.ports.inbox_replay.InboxReplayPort`, as a
     delivery of its own (SYNC-15-005, SYNC-14-009); it never runs the entry's
     tree here.
     """
@@ -64,18 +60,16 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         dl: CasePersistence,
         request: AnnounceVulnerabilityCaseReceivedEvent,
         sync_port: SyncActivityPort | None = None,
-        gap_buffer: LedgerGapBuffer | None = None,
         wire_render_port: "WireRenderPort | None" = None,
         trigger_activity: "TriggerActivityPort | None" = None,
-        inbox_hand_back: InboxHandBackPort | None = None,
+        inbox_replay: InboxReplayPort | None = None,
     ) -> None:
         self._dl = dl
-        self._inbox_hand_back = inbox_hand_back
+        self._inbox_replay = inbox_replay
         self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._request = request
         self._sync_port = sync_port
-        self._gap_buffer = gap_buffer
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -84,9 +78,6 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             case_obj=case_obj,
             request=request,
             sender_rule=self.sender_entitlement,
-        )
-        gap_buffer = resolve_ledger_gap_buffer(
-            self._gap_buffer, request.receiving_actor_id
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -103,8 +94,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 self._dl, request.receiving_actor_id
             ),
             activity=request,
-            gap_buffer=gap_buffer,
-            inbox_hand_back=self._inbox_hand_back,
+            inbox_replay=self._inbox_replay,
         )
         verdict = verdict_from_bt(
             tree, result, label="AnnounceVulnerabilityCaseReceivedBT"

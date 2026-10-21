@@ -603,12 +603,15 @@ class TestEngageCaseLedgerCommit:
         assert inert_actor_id in withheld[0]
         assert "CM-10-004" in withheld[0]
 
-    def test_engage_received_by_non_case_manager_does_not_broadcast(self):
-        """A participant that is not the CASE_MANAGER announces nothing.
+    @pytest.mark.spec("HP-01-005")
+    def test_engage_received_by_non_case_manager_is_refused(self):
+        """A participant that is not the CASE_MANAGER refuses the Join.
 
         ``BroadcastCaseUpdateNode`` authors the ``Announce`` as the executing
         actor, so without a role gate every replica that received the Join
-        re-broadcast canonical case state under its own name.
+        re-broadcast canonical case state under its own name.  The gate skips
+        the work and the handler reports the misaddressed Join as a refusal,
+        never as applied (HP-01-005).
         """
         finder_id = "https://example.org/actors/finder-2300"
         dl = self._seed(
@@ -627,7 +630,7 @@ class TestEngageCaseLedgerCommit:
             }
         )
 
-        EngageCaseReceivedUseCase(
+        result = EngageCaseReceivedUseCase(
             dl,
             event,
             trigger_activity=TriggerActivityAdapter(dl),
@@ -635,7 +638,11 @@ class TestEngageCaseLedgerCommit:
             sync_port=SyncActivityAdapter(dl),
         ).execute()
 
-        assert self._queued_announces(dl) == []
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "not the CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == []
+        assert dl.list_objects("CaseLedgerEntry") == []
 
     def test_engage_without_receiving_actor_executes_as_store_owner(
         self, seeded_dl
@@ -704,48 +711,51 @@ class TestDeferCaseLedgerCommit:
 
     @pytest.fixture
     def seeded_dl(self, dl):
+        return self._seed(dl)
+
+    @classmethod
+    def _seed(cls, dl: SqliteDataLayer) -> SqliteDataLayer:
+        """*dl*'s replica of the case: vendor participant plus the CM."""
         from vultron.core.models.actor import VultronService
 
-        dl.create(VultronService(id_=self._SENDER_ID, name="Vendor"))
+        dl.create(VultronService(id_=cls._SENDER_ID, name="Vendor"))
         vendor_p = CaseParticipant(
-            id_=self._VENDOR_PARTICIPANT_ID,
-            attributed_to=self._SENDER_ID,
-            context=self._CASE_ID,
+            id_=cls._VENDOR_PARTICIPANT_ID,
+            attributed_to=cls._SENDER_ID,
+            context=cls._CASE_ID,
             participant_statuses=[
                 ParticipantStatus(
-                    attributed_to=self._SENDER_ID,
-                    context=self._CASE_ID,
+                    attributed_to=cls._SENDER_ID,
+                    context=cls._CASE_ID,
                     rm=RmDimension(state=RM.RECEIVED),
                 ),
                 ParticipantStatus(
-                    attributed_to=self._SENDER_ID,
-                    context=self._CASE_ID,
+                    attributed_to=cls._SENDER_ID,
+                    context=cls._CASE_ID,
                     rm=RmDimension(state=RM.VALID),
                 ),
             ],
         )
         dl.create(vendor_p)
-        dl.create(
-            VultronService(id_=self._CASE_MANAGER_ID, name="Coordinator")
-        )
+        dl.create(VultronService(id_=cls._CASE_MANAGER_ID, name="Coordinator"))
         cm_p = CaseParticipant(
-            id_=self._CM_PARTICIPANT_ID,
-            attributed_to=self._CASE_MANAGER_ID,
-            context=self._CASE_ID,
+            id_=cls._CM_PARTICIPANT_ID,
+            attributed_to=cls._CASE_MANAGER_ID,
+            context=cls._CASE_ID,
             case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
         )
         dl.create(cm_p)
         case = VulnerabilityCase(
-            id_=self._CASE_ID,
+            id_=cls._CASE_ID,
             name="Defer Ledger Commit Regression #2300",
-            attributed_to=self._CASE_MANAGER_ID,
+            attributed_to=cls._CASE_MANAGER_ID,
             case_participants=[
-                self._VENDOR_PARTICIPANT_ID,
-                self._CM_PARTICIPANT_ID,
+                cls._VENDOR_PARTICIPANT_ID,
+                cls._CM_PARTICIPANT_ID,
             ],
             actor_participant_index={
-                self._SENDER_ID: self._VENDOR_PARTICIPANT_ID,
-                self._CASE_MANAGER_ID: self._CM_PARTICIPANT_ID,
+                cls._SENDER_ID: cls._VENDOR_PARTICIPANT_ID,
+                cls._CASE_MANAGER_ID: cls._CM_PARTICIPANT_ID,
             },
         )
         dl.create(case)
@@ -821,6 +831,47 @@ class TestDeferCaseLedgerCommit:
             "Expected exactly one 'defer_case' ledger entry when "
             "receiving_actor_id is the CaseManager — regression for #2300"
         )
+
+    @pytest.mark.spec("HP-01-005")
+    def test_defer_received_by_non_case_manager_is_refused(self):
+        """A participant that is not the CASE_MANAGER refuses the Ignore.
+
+        The RM write, the commit and the effects all sit behind the
+        CASE_MANAGER gate, so the participant does nothing; it reports the
+        misaddressed Ignore as a refusal, never as applied (HP-01-005).
+        """
+        finder_id = "https://example.org/actors/finder-2300-defer"
+        dl = self._seed(
+            SqliteDataLayer("sqlite:///:memory:", actor_id=finder_id)
+        )
+        event = self._defer_event()
+        assert event.activity is not None
+        # Addressed to the finder too, so the run reaches the role gate this
+        # test exercises rather than stopping at the door (HP-01-005).
+        event = event.model_copy(
+            update={
+                "receiving_actor_id": finder_id,
+                "activity": event.activity.model_copy(
+                    update={"to": [self._CASE_MANAGER_ID, finder_id]}
+                ),
+            }
+        )
+        participant_before = dl.read(self._VENDOR_PARTICIPANT_ID)
+
+        result = DeferCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "not the CASE_MANAGER" in result.reason
+        assert dl.outbox_list() == []
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert dl.read(self._VENDOR_PARTICIPANT_ID) == participant_before
 
     def test_defer_case_transitions_vendor_rm_to_deferred(self, seeded_dl):
         """DeferCaseReceivedUseCase still transitions the deferring actor's RM to DEFERRED."""

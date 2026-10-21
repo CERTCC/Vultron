@@ -6,9 +6,12 @@ Provides concrete adapter classes that implement the
 DataLayer and dispatcher infrastructure:
 
 - :class:`FastAPIIngressAdapter` — parse (wire) + rehydrate (staged)
-- :class:`StoredActivityIngressAdapter` — replay of a held deferred activity
 - :class:`FastAPIDispatchAdapter` — wraps the dispatcher port
 - :class:`FastAPIQueuePort` — wraps pending-case queue helpers
+
+The replay of the inbox queue, with its bounded retry and dead letter, and
+its ``StoredActivityIngressAdapter`` live in
+:mod:`~vultron.adapters.driving.fastapi.inbox_queue_drain` (IE-06-004).
 
 These adapters are constructed in the inbox background task and passed to
 :func:`~vultron.core.behaviors.inbox.process_payload` (IO-03-001,
@@ -33,21 +36,25 @@ import logging
 from typing import Any, cast
 
 from vultron.adapters.driving.fastapi import inbox_port_factories
-from vultron.adapters.driving.fastapi.inbox_handler import dispatch
+from vultron.adapters.driving.fastapi.inbox_handler import (
+    dispatch,
+    emit_processing_fault,
+)
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
+from vultron.adapters.driving.fastapi.inbox_queue_drain import (
+    drain_inbox_queue,
+    warn_if_rejected,
+)
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
-from vultron.core.behaviors.inbox import (
-    InboxOutcome,
-    InboxOutcomeStatus,
-    process_payload,
-)
+from vultron.config import get_config
+from vultron.core.behaviors.inbox import process_payload
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.received_activity_record import (
@@ -179,17 +186,22 @@ class FastAPIIngressAdapter:
         reaches the receiver's store (DL-06-006, IO-03-004).
 
         A redelivery is routed in place of this body, as the copy the
-        receiver already holds, and without received evidence, because the
-        delivery routed is not this one (VM-08-002, IE-10-001):
+        receiver already holds (VM-08-002, IE-10-001):
 
-        - when the first delivery is still deferred, its held copy is routed,
-          and the record holding it is kept for the replay;
+        - when the first delivery is still deferred, its held copy is routed
+          without received evidence, and the record holding it is kept for
+          the replay, which carries it;
         - when intake already archived it, the archived body is parsed and
-          routed (ADR-0149), and the handlers' own idempotency guards answer
-          the repeat (ID-04).
+          routed (ADR-0149) with that body as its received evidence: it is
+          the first delivery's sealed body.  The handlers' own idempotency
+          guards answer the repeat (ID-04): a committed act is ``SKIPPED``,
+          and an act that never committed, such as one that failed, runs as
+          a first delivery and commits with the archived body (ADR-0151).
 
-        Either way this delivery's own body is left untouched for whatever
-        compares it with the held one (#3762).
+        When either held copy rebuilds, this delivery's own body is
+        never routed, and is left untouched for whatever compares it with
+        the held one (#3762).  Only when the held copy does not rebuild is
+        this delivery's body routed in its place, without received evidence.
 
         An ``Announce(CaseLedgerEntry)`` is the exception to the staged
         rebuild: per SYNC-13-002 the inline entry is deliberately NOT staged,
@@ -275,13 +287,19 @@ class FastAPIIngressAdapter:
 
     @staticmethod
     def _log_redelivery(activity: as_Activity, kind: str) -> None:
+        evidence = (
+            "with the archived body as its received evidence"
+            if kind == "archived"
+            else "without received evidence"
+        )
         logger.info(
             "FastAPIIngressAdapter.rehydrate: activity %s (actor %s) is"
-            " already held (%s); routing the held copy, without received"
-            " evidence (IE-10-001, VM-08-002).",
+            " already held (%s); routing the held copy, %s"
+            " (IE-10-001, VM-08-002).",
             activity.id_,
             getattr(activity.actor, "id_", activity.actor),
             kind,
+            evidence,
         )
 
     def _hydrate_in_place(self, activity: as_Activity) -> as_Activity:
@@ -297,54 +315,6 @@ class FastAPIIngressAdapter:
             return activity
         if isinstance(hydrated, as_Activity):
             return hydrated
-        return activity
-
-
-class StoredActivityIngressAdapter:
-    """Ingress adapter for the replay of a held activity.
-
-    Used when the payload is an activity-ID string popped from the inbox
-    queue: an activity deferred pending its case, or a ledger entry handed
-    back to the inbox (SYNC-14-009).  Either is held whole in a
-    :class:`~vultron.core.models.deferred_inbox_activity.DeferredInboxActivity`,
-    never under its own id (DL-06-006).
-
-    ``parse`` rebuilds the held activity and releases its record.
-    ``rehydrate`` is a no-op (parse already returns the rehydrated form).
-
-    Args:
-        dl: The receiving actor's own DataLayer, which holds the records.
-        staging: The inbox run's inline-object staging, which holds each
-            deferred activity for its replay.
-    """
-
-    def __init__(
-        self, dl: DataLayer, staging: InlineObjectStaging | None = None
-    ) -> None:
-        self._dl = dl
-        self._staging = staging or InlineObjectStaging(dl)
-
-    def parse(
-        self,
-        payload: dict[str, Any] | bytes | str | Any,
-    ) -> as_Activity | None:
-        """Rebuild the held activity *payload* names.
-
-        Returns ``None`` when nothing is held for the id.
-        """
-        if isinstance(payload, as_Activity):
-            return payload
-
-        activity_id = str(payload) if payload is not None else None
-        if not activity_id:
-            logger.warning("StoredActivityIngressAdapter.parse: empty payload")
-            return None
-
-        # ``None`` when nothing is held; the staging logs why.
-        return self._staging.rehydrate_deferred(activity_id)
-
-    def rehydrate(self, activity: as_Activity) -> as_Activity:
-        """No-op: parse already returns the rehydrated activity."""
         return activity
 
 
@@ -378,6 +348,18 @@ class FastAPIDispatchAdapter:
             event=scoped_event,
             dl=self._dl,
             dispatcher=self._dispatcher,
+        )
+
+    def emit_processing_fault(
+        self, event: VultronEvent, failure_class: str
+    ) -> None:
+        """Queue the receiving actor's fault to *event*'s sender (ASK-07-010)."""
+        emit_processing_fault(
+            self._dl,
+            self._actor_id,
+            event.activity_id,
+            event.actor_id,
+            failure_class,
         )
 
 
@@ -449,28 +431,6 @@ class FastAPIQueuePort:
         )
 
 
-def _warn_if_rejected(
-    outcome: InboxOutcome, actor_id: str, *, replayed: bool
-) -> None:
-    """Log a rejected outcome at WARNING (UCORG-05-013).
-
-    Every outcome is logged at DEBUG; a refusal is also logged here so it is
-    visible in an actor log at the default level. ``processed`` and
-    ``deferred`` stay at DEBUG — both are expected, routine outcomes.
-    """
-    if outcome.status is not InboxOutcomeStatus.REJECTED:
-        return
-    logger.warning(
-        "Inbox activity rejected (actor_id=%s activity_id=%s context_id=%s"
-        " replayed=%s): %s",
-        actor_id,
-        outcome.activity_id,
-        outcome.context_id,
-        replayed,
-        outcome.failure_reason,
-    )
-
-
 async def run_inbox_pipeline(
     payload: dict[str, Any] | bytes | str | Any,
     actor_dl: DataLayer,
@@ -481,12 +441,13 @@ async def run_inbox_pipeline(
     """Adapter-layer background task: construct adapters and run pipeline.
 
     Calls :func:`~vultron.core.behaviors.inbox.process_payload` for the
-    immediate payload, then processes any replayed activities that were
-    pushed back to the inbox queue (e.g., after bootstrap dispatch), and
-    finally drains the outbox.  The synchronous BT work runs in a worker
-    thread so the ASGI event loop keeps serving while a handler executes
-    (IE-06-002, BT-11-002); only the outbox drain, which is async I/O, runs on
-    the loop.
+    immediate payload, then replays every activity queued in the inbox
+    (e.g., after bootstrap dispatch) with bounded retry and dead letter
+    (:func:`~vultron.adapters.driving.fastapi.inbox_queue_drain.drain_inbox_queue`,
+    IE-06-004), and finally drains the outbox.
+    The synchronous BT work runs in a worker thread so the ASGI event loop
+    keeps serving while a handler executes (IE-06-002, BT-11-002); only the
+    outbox drain, which is async I/O, runs on the loop.
 
     This function is the background task scheduled by ``post_actor_inbox``.
     It is the ONLY place that constructs the adapter instances, satisfying
@@ -523,6 +484,8 @@ async def run_inbox_pipeline(
     # (EP-07-001, EP-07-002); None applies the protocol defaults.
     actor_config = inbox_port_factories._resolve_actor_config()
 
+    max_attempts = get_config().max_inbox_retry_attempts
+
     def _process_and_replay() -> None:
         """The synchronous BT work for one delivery, plus its replays.
 
@@ -536,45 +499,41 @@ async def run_inbox_pipeline(
             outcome.status,
             outcome.context_id,
         )
-        _warn_if_rejected(outcome, actor_id, replayed=False)
+        warn_if_rejected(outcome, actor_id, replayed=False)
 
-        # Process any replayed activities (pushed back to the queue by
-        # DeferCheckNode/DispatchNode replay after bootstrap).
-        stored_ingress = StoredActivityIngressAdapter(
-            dl=actor_dl, staging=staging
+        # Replay what this delivery, or an earlier one, queued: activities
+        # pushed back by the post-bootstrap replay, and held ledger
+        # Announces replayed once their entry applies (SYNC-14-009).
+        drain_inbox_queue(
+            actor_dl,
+            actor_id,
+            dispatch_adp,
+            queue,
+            staging,
+            actor_config,
+            max_attempts,
         )
-        while actor_dl.inbox_list():
-            item_id = actor_dl.inbox_pop()
-            if item_id is None:
-                break
-            replay_outcome = process_payload(
-                item_id,
-                stored_ingress,
-                dispatch_adp,
-                queue,
-                actor_config=actor_config,
-            )
-            logger.debug(
-                "run_inbox_pipeline: replayed status=%s context_id=%s",
-                replay_outcome.status,
-                replay_outcome.context_id,
-            )
-            _warn_if_rejected(replay_outcome, actor_id, replayed=True)
 
-    async with _get_actor_lock(actor_id):
-        # Off the event loop, deliberately.  Starlette runs an ``async``
-        # background task on the loop itself, and ``process_payload`` is
-        # synchronous — BT ticks, the BT global lock, SQLite I/O.  Called
-        # inline it stalls the whole container for every inbound activity: no
-        # HTTP response goes out, no delivery from a peer is accepted, the
-        # co-hosted OutboxMonitor coroutine cannot drain, and a trigger route
-        # waiting on the BT lock from its threadpool thread starves (IE-06-002,
-        # BT-11-002).  The rv/rcvcv demo flakes were the CaseActor's outbox
-        # paying one full BT tick per delivery on the vendor container (#3033,
-        # #2898).  ``asyncio.to_thread`` matches what the sync trigger routes
-        # already do; the BT global RLock serialises BT execution across
-        # threads, and the per-actor lock above (held across the thread hop)
-        # keeps this actor's deliveries FIFO (BT-11-001, #1525).
-        await asyncio.to_thread(_process_and_replay)
-
-    await outbox_handler(actor_id, actor_dl, emitter=emitter)
+    try:
+        async with _get_actor_lock(actor_id):
+            # Off the event loop, deliberately.  Starlette runs an
+            # ``async`` background task on the loop itself, and
+            # ``process_payload`` is synchronous — BT ticks, the BT global
+            # lock, SQLite I/O.  Called inline it stalls the whole container
+            # for every inbound activity: no HTTP response goes out, no
+            # delivery from a peer is accepted, the co-hosted OutboxMonitor
+            # coroutine cannot drain, and a trigger route waiting on the BT
+            # lock from its threadpool thread starves (IE-06-002,
+            # BT-11-002).  The rv/rcvcv demo flakes were the CaseActor's
+            # outbox paying one full BT tick per delivery on the vendor
+            # container (#3033, #2898).  ``asyncio.to_thread`` matches what
+            # the sync trigger routes already do; the BT global RLock
+            # serialises BT execution across threads, and the per-actor lock
+            # above (held across the thread hop) keeps this actor's
+            # deliveries FIFO (BT-11-001, #1525).
+            await asyncio.to_thread(_process_and_replay)
+    finally:
+        # The delivery's replies, and any fault a settled replay queued, are
+        # already in the outbox: a store write that raised while settling a
+        # replay must not leave them undelivered.
+        await outbox_handler(actor_id, actor_dl, emitter=emitter)
