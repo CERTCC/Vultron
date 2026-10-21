@@ -23,6 +23,11 @@ Implements the narrow externally-evidenced on-behalf exceptions from ADR-0121:
 - :class:`CheckOnBehalfTargetIsParticipantNode` — the target actor MUST
   already be a participant holding the asserted dimension's role; an
   on-behalf assertion never creates a participant (ADR-0121, PRM-06-006)
+- :func:`on_behalf_required_roles` — the roles the target must hold for the
+  asserted dimensions
+
+The trigger tree that sends an on-behalf assertion and the received tree that
+admits one (RSH-08-007) compose the same guards.
 """
 
 import logging
@@ -36,9 +41,36 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     _resolve_actor_roles,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
+
+
+def on_behalf_required_roles(
+    vf_state: "CS_vf | None", d_state: "CS_d | None"
+) -> list[CVDRole]:
+    """Return the roles an on-behalf target MUST hold for the asserted dimensions.
+
+    ``VENDOR`` for a ``vf_state`` (v→V, PRM-06-003) and ``DEPLOYER`` for a
+    ``d_state`` (d→D, PRM-06-004).  The roles are derived from the dimensions,
+    never passed alongside them, so the guard cannot check a role the write
+    does not need.
+
+    Raises:
+        ValueError: when neither dimension is set — an assertion with no
+            dimension has no role to check (ARCH-10-001).
+    """
+    roles: list[CVDRole] = []
+    if vf_state is not None:
+        roles.append(CVDRole.VENDOR)
+    if d_state is not None:
+        roles.append(CVDRole.DEPLOYER)
+    if not roles:
+        raise ValueError(
+            "An on-behalf status assertion needs vf_state or d_state"
+        )
+    return roles
 
 
 class _OnBehalfGuardNode(DataLayerConditionWithPorts):
