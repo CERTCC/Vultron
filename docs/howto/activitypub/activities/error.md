@@ -17,7 +17,7 @@ You finish with the sender informed of why the message failed, in a form it can 
 
 - The message that failed, and the sender's actor Uniform Resource Identifier (URI).
 - Your own determination of why it failed.
-  The three modes below are mutually exclusive.
+  The modes below are mutually exclusive.
 
 ---
 
@@ -26,6 +26,7 @@ You finish with the sender informed of why the message failed, in a form it can 
 | Failure mode | Send |
 |---|---|
 | Received but **not understood** — format error, unknown type, parse failure | `Create(ProcessingFault)` |
+| Received and understood, but **your processing failed** — an internal error, nothing kept | `Create(ProcessingFault)`, internal-error class |
 | Received and understood but **declined** — invalid state, rule violation, unauthorized | `as:Reject` |
 | Received and understood, but the condition needs **narrative explanation** | A case note: one `Add(Note)` carrying the note inline |
 
@@ -36,6 +37,8 @@ Three mechanisms cover every case (MSM-05-001).
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/create-processing-fault.md" %}
 
+- If you understood the message but your own processing of it failed, send `Create(ProcessingFault)` with the internal-error class, after your act has rolled back, and say nothing about the cause ([Faults and Acknowledgments](../../../reference/messages/faults_and_acknowledgements.md#create-processing-fault)).
+  The Vultron inbox sends this one for you.
 - If you understood the message and are refusing it, send `as:Reject`.
   Say which rule or state made it inadmissible.
 - If the condition needs a human to read it, add a note to the case.
