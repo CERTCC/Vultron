@@ -53,10 +53,9 @@ def _extract_payload_snapshot(activity: Any) -> dict[str, Any]:
 def carries_no_received_body(activity: Any) -> bool:
     """True for a received event routed without received evidence.
 
-    A resend of an activity still deferred is routed so, as is the
-    delivery's own body when the held copy does not rebuild (VM-08-002,
-    IE-10-001): this receiver holds no body for the copy it routes, so
-    there is nothing new to record.  The archived copy routed for a resend
+    A resend of the held body of an activity still deferred is routed so
+    (VM-08-002, IE-10-001): the copy routed is the held one, not this
+    delivery, so there is nothing new to record.  The archived copy routed for a resend
     of an archived activity carries the archived body and is not one.
     """
     return isinstance(activity, VultronEvent) and (

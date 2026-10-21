@@ -552,18 +552,31 @@ def test_in_place_hydration_carries_the_evidence(
 
 @pytest.mark.spec("IE-10-001")
 @pytest.mark.spec("ARCH-15-001")
+@pytest.mark.parametrize("kind", ["deferred", "archived"])
 def test_a_resend_whose_held_copy_does_not_rebuild_is_a_wiring_fault(
-    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch, kind: str
 ):
     """The held copy is the resend's own text, so if it does not rebuild,
     neither would this body: ingress raises rather than route either."""
     first = _offer_of_stored_report(dl)
-    record = archive_received(dl, parse_activity(copy.deepcopy(first)))
-    monkeypatch.setattr(
-        InlineObjectStaging, "rehydrate_archived", lambda *_args: None
-    )
+    if kind == "deferred":
+        _defer(dl, first)
+        held = dl.read(DeferredInboxActivity.build_id(first["id"]))
+        assert isinstance(held, DeferredInboxActivity)
+        resend = held.received_body
+        monkeypatch.setattr(
+            InlineObjectStaging, "rehydrate_held", lambda *_args: None
+        )
+    else:
+        resend = archive_received(
+            dl, parse_activity(copy.deepcopy(first))
+        ).received_body
+        monkeypatch.setattr(
+            InlineObjectStaging, "rehydrate_archived", lambda *_args: None
+        )
+    assert resend is not None
     adapter = FastAPIIngressAdapter(dl=dl)
-    artifact = adapter.parse(json.loads(record.received_body))
+    artifact = adapter.parse(json.loads(resend))
     assert artifact is not None
 
     with pytest.raises(VultronWiringError, match="does not rebuild"):
