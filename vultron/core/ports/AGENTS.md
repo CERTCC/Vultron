@@ -74,16 +74,17 @@ triggers that answer a received activity are its readers and the same adapter
 is the reply seam. Reason: core cannot parse wire bytes (ARCH-01-001), and a
 missing port is a `VultronWiringError`, never a fallback to a stored summary.
 
-### `InboxHandBackPort`
+### `InboxReplayPort`
 
-`InboxHandBackPort` (`inbox_hand_back.py`) hands a buffered ledger entry
-back to the receiving actor's own inbox as a delivery of its own
-(SYNC-14-009, ADR-0135). The adapter (`InboxHandBackAdapter`) only queues:
-it stores an `Announce(CaseLedgerEntry)` from the CASE_MANAGER and appends
-its id to the actor's inbox queue, which the running inbox loop drains
-through `process_payload`. Reason: running the entry inline makes one
-delivery run two trees (CLP-10-005). A missing port is a
-`VultronWiringError`, never an inline fallback.
+`InboxReplayPort` (`inbox_replay.py`) replays a held received activity, a
+held `Announce(CaseLedgerEntry)`, through the receiving actor's own inbox as
+a delivery of its own (SYNC-14-009, ADR-0135). The adapter
+(`InboxReplayAdapter`) only queues: it checks the activity's body is held in
+a `DeferredInboxActivity` and appends its id to the actor's inbox queue,
+which the running inbox loop drains through `process_payload`. It never
+builds an activity: the replay is the one that was received. Reason:
+running the entry inline makes one delivery run two trees (CLP-10-005). A
+missing port is a `VultronWiringError`, never an inline fallback.
 
 ### Server-Level Inbox: Deferred Design Decision
 

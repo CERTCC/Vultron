@@ -12,14 +12,15 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
     _make_event,
 )
+from test.support.inbox_replay import archive_event
 from vultron.core.behaviors.sync.nodes import (
     BufferOutOfOrderEntryNode,
     CheckHashMatchesNode,
     CheckHashOrRejectOnMismatchNode,
     SendRejectLogEntryNode,
 )
-from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.services.held_ledger_announces import held_ledger_announces
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
@@ -122,48 +123,50 @@ class TestBufferOutOfOrderEntryNode:
 
     @pytest.mark.spec("SYNC-14-001")
     @pytest.mark.spec("SYNC-14-002")
-    def test_buffers_genuine_forward_gap(self, bridge, case_actor):
-        """An entry two indices ahead of the tail is a forward gap — buffered → SUCCESS."""
-        gap_buffer = LedgerGapBuffer()
+    def test_holds_the_announce_of_a_genuine_forward_gap(
+        self, bridge, datalayer, case_actor
+    ):
+        """An entry two indices ahead of the tail is a forward gap: its
+        received Announce is held → SUCCESS."""
         # tail_index=0; entry at log_index=2 is a forward gap (> tail+1).
         entry = _make_entry(2, "deadbeef" * 8)
         event = _make_event(entry, actor_id=case_actor.id_)
+        archive_event(datalayer, event)
 
         result = bridge.execute_with_setup(
             tree=BufferOutOfOrderEntryNode(name="BufferOutOfOrderEntry"),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             tail_index=0,
-            gap_buffer=gap_buffer,
         )
 
         assert result.status == Status.SUCCESS
-        assert gap_buffer.depth(entry.case_id) == 1
+        [held] = held_ledger_announces(datalayer, entry.case_id)
+        assert held.activity_id == event.activity_id
 
     @pytest.mark.spec("SYNC-14-001")
-    def test_does_not_buffer_at_tail_entry(self, bridge, case_actor):
+    def test_does_not_hold_at_tail_entry(self, bridge, datalayer, case_actor):
         """An entry at log_index == tail_index + 1 is not a forward gap — FAILURE."""
-        gap_buffer = LedgerGapBuffer()
         # tail_index=0; entry at log_index=1 is the expected next, not a gap.
         entry = _make_entry(1, "deadbeef" * 8)
         event = _make_event(entry, actor_id=case_actor.id_)
+        archive_event(datalayer, event)
 
         result = bridge.execute_with_setup(
             tree=BufferOutOfOrderEntryNode(name="BufferOutOfOrderEntry"),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
             tail_index=0,
-            gap_buffer=gap_buffer,
         )
 
         assert result.status == Status.FAILURE
-        assert gap_buffer.depth(entry.case_id) == 0
+        assert held_ledger_announces(datalayer, entry.case_id) == []
 
     @pytest.mark.spec("SYNC-14-005")
-    def test_returns_failure_when_no_gap_buffer_injected(
-        self, bridge, case_actor
+    def test_returns_failure_when_no_tail_index(
+        self, bridge, datalayer, case_actor
     ):
-        """Without a gap_buffer on the blackboard, node returns FAILURE silently."""
+        """Without a tail index on the blackboard there is no gap to measure."""
         entry = _make_entry(5, "deadbeef" * 8)
         event = _make_event(entry, actor_id=case_actor.id_)
 
@@ -171,7 +174,7 @@ class TestBufferOutOfOrderEntryNode:
             tree=BufferOutOfOrderEntryNode(name="BufferOutOfOrderEntry"),
             actor_id=PARTICIPANT_ACTOR_ID,
             activity=event,
-            tail_index=0,
         )
 
         assert result.status == Status.FAILURE
+        assert held_ledger_announces(datalayer, entry.case_id) == []

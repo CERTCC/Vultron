@@ -461,7 +461,7 @@ def test_a_seed_past_the_termination_replays_the_rejection_forward_only(
 ):
     """A seed taken after the ET-answered rejection holds the revision
     ``REJECTED``: the entry is in place, so it is a no-op, not a refusal
-    into the gap buffer (ADR-0114)."""
+    whose Announce is held (ADR-0114)."""
     _ended_embargo(datalayer, reject_first=True)
     before = _case(datalayer).model_dump()
 

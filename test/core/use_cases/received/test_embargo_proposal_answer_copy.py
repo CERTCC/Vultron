@@ -84,14 +84,6 @@ from ._ledger_network import (
 _S = EmbargoConsentState
 
 
-@pytest.fixture(autouse=True)
-def _own_gap_buffers(monkeypatch):
-    """Each test gets its own per-actor gap buffers (process-global)."""
-    from vultron.core.models import ledger_gap_buffer
-
-    monkeypatch.setattr(ledger_gap_buffer, "_BUFFERS", {})
-
-
 def _net(name: str, *, owner: str = OWNER, **kwargs: Any) -> LedgerNetwork:
     """A network whose CASE_MANAGER can act by trigger (it has an actor)."""
     net = LedgerNetwork(

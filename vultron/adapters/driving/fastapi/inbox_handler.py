@@ -50,11 +50,11 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (
     _CASE_PROPOSAL_SEMANTICS,
     _CLOSE_CASE_SEMANTICS,
     _EMBARGO_INVITE_SEMANTICS,
-    _LEDGER_HAND_BACK_SEMANTICS,
+    _LEDGER_REPLAY_SEMANTICS,
     _STATUS_AUTH_TRIGGER_SEMANTICS,
     _SUBMIT_REPORT_SEMANTICS,
     _case_proposal_port_factory,
-    _inbox_hand_back_port_factory,
+    _inbox_replay_port_factory,
     _status_auth_trigger_port_factory,
     _trigger_activity_with_actor_config_port_factory,
 )
@@ -145,7 +145,7 @@ def make_dispatcher() -> ActivityDispatcher:
         _EMBARGO_INVITE_SEMANTICS,
         _CLOSE_CASE_SEMANTICS,
         _STATUS_AUTH_TRIGGER_SEMANTICS,
-        _LEDGER_HAND_BACK_SEMANTICS,
+        _LEDGER_REPLAY_SEMANTICS,
     )
     for i, left in enumerate(_all_sets):
         for right in _all_sets[i + 1 :]:
@@ -174,10 +174,7 @@ def make_dispatcher() -> ActivityDispatcher:
         }
     )
     port_factories.update(
-        {
-            sem: _inbox_hand_back_port_factory
-            for sem in _LEDGER_HAND_BACK_SEMANTICS
-        }
+        {sem: _inbox_replay_port_factory for sem in _LEDGER_REPLAY_SEMANTICS}
     )
     # Every received use case gets a TriggerActivityPort, a WireRenderPort and
     # a SyncActivityPort, on top of whatever else its semantics needs: a

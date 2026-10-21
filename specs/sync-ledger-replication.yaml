@@ -911,9 +911,11 @@ groups:
     round-trip does not converge under adversarial reordering, because replay re-announces
     entries individually over the same unordered transport (they can reorder and be dropped
     again). These requirements make replica convergence independent of delivery order by
-    holding forward-gap entries in a non-ledger buffer and draining them in hash-chain order
-    once the entry that closes the gap is committed. Rationale: ADR-0037
-    (docs/adr/0037-buffer-out-of-order-ledger-entries.md).
+    holding the received Announce of a forward-gap entry in a non-ledger holding area and
+    replaying it, in hash-chain order, once the entry that closes the gap is committed.
+    What is held and replayed is the Announce that was received, never one the replica
+    builds. Rationale: ADR-0037 (docs/adr/0037-buffer-out-of-order-ledger-entries.md),
+    ADR-0135.
   specs:
   - id: SYNC-14-001
     priority: MUST
@@ -922,14 +924,21 @@ groups:
       When a participant receives a valid Announce(CaseLedgerEntry) whose prev_log_hash does
       not match its current chain tail but whose log_index is strictly greater than
       tail_index + 1 (a forward gap), the participant MUST NOT permanently discard the entry;
-      it MUST retain the entry in a holding area pending arrival of its predecessor.
+      it MUST retain the Announce(CaseLedgerEntry) that carried it, as the body that arrived
+      (VM-08-002), in a holding area pending arrival of its predecessor. It MUST NOT retain
+      the entry apart from that Announce.
     rationale: >-
       The hash chain makes indefinite retention safe: a held entry is applied only when an
       entry whose entry_hash equals the held entry's prev_log_hash is committed, so a
-      fork/rewrite cannot masquerade as the predecessor.
+      fork/rewrite cannot masquerade as the predecessor. Holding the Announce rather than
+      the entry is what lets the drain apply what was received: an entry held alone can only
+      reach the inbox again inside an Announce the replica makes up, attributed to a sender
+      that never sent it (ISSUE-5012).
     verification: >-
-      Integration tests in `test/demo/` confirm that a forward-gap Announce(CaseLedgerEntry)
-      is retained in the non-ledger holding area rather than permanently discarded.
+      `test/core/use_cases/received/test_sync.py` asserts that a forward-gap
+      Announce(CaseLedgerEntry) is held as the body intake archived, with no ledger entry
+      stored; integration tests in `test/demo/` confirm a forward-gap entry is retained
+      rather than permanently discarded.
     stories:
     - story_2022_045
     - story_2022_088
@@ -937,12 +946,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A forward-gap entry that is buffered MUST still trigger resynchronization (SYNC-08-005)
+      A forward-gap entry whose Announce is held MUST still trigger resynchronization (SYNC-08-005)
       — the participant MUST send Reject(CaseLedgerEntry) carrying its last accepted hash so
       the CASE_MANAGER replays entries that are genuinely lost (never delivered) rather than
       merely reordered.
     verification: >-
-      Integration tests in `test/demo/` confirm that buffering a forward-gap entry causes a
+      Integration tests in `test/demo/` confirm that holding a forward-gap entry causes a
       Reject(CaseLedgerEntry) carrying the last accepted hash to be sent to the CASE_MANAGER.
     stories:
     - story_2022_045
@@ -952,19 +961,21 @@ groups:
     kind: protocol
     statement: >-
       After a participant commits a CaseLedgerEntry, it MUST drain the holding area: for each
-      newly committed tail, it MUST locate the buffered entry (if any) whose prev_log_hash
-      equals the new tail's entry_hash, apply that entry, and repeat, cascading until no
-      buffered entry extends the current tail.
+      newly committed tail, it MUST locate the held Announce (if any) whose entry's
+      prev_log_hash equals the new tail's entry_hash, apply that entry, and repeat, cascading
+      until no held Announce extends the current tail.
     verification: >-
       Integration tests in `test/demo/` confirm that committing a CaseLedgerEntry triggers a
-      cascading drain of buffered entries whose prev_log_hash chains from the new tail.
+      cascading drain of held entries whose prev_log_hash chains from the new tail.
     stories:
     - story_2022_045
     - story_2022_088
   - id: SYNC-14-004
     priority: MUST
     kind: protocol
-    statement: Draining a buffered entry MUST apply the entry's domain effects before persisting it (SYNC-12-001).
+    statement: >-
+      Draining a held entry MUST apply the entry's domain effects before
+      persisting it (SYNC-12-001).
     verification: >-
       Integration tests in `test/demo/` confirm that the drain path applies domain effects
       before persisting each drained entry, satisfying the effects-before-persist invariant.
@@ -982,10 +993,15 @@ groups:
     statement: The drain path MUST NOT re-apply effects for an entry already present in the local ledger (SYNC-12-003).
     rationale: Re-applying effects for a previously committed entry would cause duplicate state transitions and violate
       the idempotency guarantee established by SYNC-12-003.
+      A replayed Announce reaches the same already-stored check as any delivery
+      (SYNC-14-008), so an entry committed between its hold and its replay is
+      skipped, not applied again.
   - id: SYNC-14-008
     priority: MUST
     kind: protocol
-    statement: The drain path MUST be the same apply-then-persist path used for in-order delivery.
+    statement: >-
+      The drain path MUST be the same apply-then-persist path used for in-order
+      delivery, starting from the received Announce as in-order delivery does.
     rationale: Using a separate drain path risks diverging from the in-order path over time, reintroducing the
       ordering bugs that SYNC-12 was designed to prevent.
     verification: >-
@@ -998,33 +1014,40 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When a buffered entry becomes appliable, either because a participant
-      committed its predecessor or because the participant seeded the case
-      (SYNC-15-005), the drain MUST hand that entry back to the receiving
-      actor's own inbox processing as a delivery of its own, through the inbox's
-      sole entry point (IO-02-003) and under the receiving actor, rather than
-      running its tree inside the delivery that made it appliable. The buffer
-      holds the entry, not the `Announce(CaseLedgerEntry)` that carried it, so
-      the hand-back MUST carry it in an `Announce(CaseLedgerEntry)` attributed
-      to the case's CASE_MANAGER, the sender a replica applies entries from
-      (SYNC-15). The handed-back entry's own tree hands back the next one, so
-      the cascade (SYNC-14-003) needs no loop in the use case.
+      When a held Announce(CaseLedgerEntry) becomes appliable, either because a
+      participant committed its entry's predecessor or because the participant
+      seeded the case (SYNC-15-005), the drain MUST replay that held Announce
+      through the receiving actor's own inbox processing as a delivery of its
+      own, through the inbox's sole entry point (IO-02-003) and under the
+      receiving actor, rather than running its tree inside the delivery that
+      made it appliable. The replay MUST be the Announce that was received,
+      parsed again from the body held for it, so it carries the first
+      delivery's received evidence (VM-08-002); the participant MUST NOT build
+      an Announce of its own, or attribute one to the CASE_MANAGER or to any
+      sender that did not send it. The replayed Announce's own tree replays the
+      next one, so the cascade (SYNC-14-003) needs no loop in the use case.
     rationale: >-
       Running the successor inline made one delivery run several trees, chosen
       by Python (CLP-10-005), and attributed each drained entry to a sender it
       synthesized (the CASE_MANAGER when known, else the case id). Folding the
-      drain into the tree would nest one bridge run inside another, which hides an internal error in the
-      inner run. A hand-back makes the drain the same path as in-order delivery
-      by construction (SYNC-14-008) (ISSUE-4585, ADR-0135).
+      drain into the tree would nest one bridge run inside another, which hides
+      an internal error in the inner run. A delivery of its own makes the drain
+      the same path as in-order delivery by construction (SYNC-14-008)
+      (ISSUE-4585, ADR-0135). An Announce the replica built and attributed to
+      the CASE_MANAGER was never sent by anyone, yet intake archived it as
+      received evidence: a receiver that did not receive an Announce cannot
+      make one up (ISSUE-5012).
     verification: >-
       `test/core/use_cases/received/test_sync.py` asserts that committing an
-      entry with a buffered successor hands the successor to the inbox
-      hand-back port under the receiving actor and runs no second tree in the
-      same `execute()`; `test/core/use_cases/received/actor/test_announce.py`
-      asserts the same for an entry buffered before the case was seeded; each
-      asserts the handed-back Announce is attributed to the CASE_MANAGER; and
-      an integration test asserts an out-of-order pair converges through the
-      hand-back.
+      entry whose successor's Announce is held replays that Announce, by its
+      own id and with its own sender and received body, and runs no second
+      tree in the same `execute()`;
+      `test/core/use_cases/received/actor/test_announce.py` asserts the same
+      for an Announce held before the case was seeded; and
+      `test/adapters/driving/fastapi/test_ledger_replay_pipeline.py` asserts an
+      out-of-order pair and a pre-genesis pair converge through the replay,
+      with an intake archive that holds each delivered body once, as it
+      arrived, and no record of an Announce nobody sent.
     relationships:
     - rel_type: refines
       spec_id: SYNC-14-008
@@ -1032,31 +1055,43 @@ groups:
       spec_id: SYNC-15-005
     - rel_type: refines
       spec_id: CLP-10-005
+    - rel_type: refines
+      spec_id: SYNC-14-001
     adr:
     - ADR-0135
   - id: SYNC-14-005
     priority: MUST_NOT
     kind: project
     verification: >-
-      Inspection confirms the out-of-order holding area is a separate gap buffer and
-      that a buffered entry is persisted as a `CaseLedgerEntry` only when it is drained.
+      Inspection confirms the out-of-order holding area holds received Announces, apart
+      from the ledger, and that a held entry is persisted as a `CaseLedgerEntry` only when
+      its replayed Announce is applied.
     statement: >-
-      The out-of-order holding area MUST NOT be the canonical ledger/DataLayer store; a
-      buffered entry MUST NOT be persisted as a CaseLedgerEntry until it is drained (i.e.
-      until its predecessor is present), so that presence of a CaseLedgerEntry in the
-      DataLayer continues to mean "committed and effects applied" (SYNC-13-001).
+      The out-of-order holding area MUST NOT be the canonical ledger: it MAY keep
+      the held Announce in the receiver's DataLayer only as records of its own
+      kind, never as a CaseLedgerEntry, and a held entry MUST NOT be persisted as
+      a CaseLedgerEntry until it is drained (i.e. until its predecessor is
+      present), so that presence of a CaseLedgerEntry in the DataLayer continues
+      to mean "committed and effects applied" (SYNC-13-001).
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-13-001
-      note: Buffering in the DataLayer would break the presence-means-committed invariant
+      note: >-
+        Holding an entry as a CaseLedgerEntry would break the presence-means-committed
+        invariant
   - id: SYNC-14-006
     priority: SHOULD
     kind: protocol
     statement: >-
       The holding area SHOULD be bounded in size per case; when full it SHOULD evict the
-      entry farthest ahead of the current gap (highest log_index) and log a warning. Eviction
-      is recoverable because SYNC-14-002 already sent a Reject, so eviction MUST NOT be relied
-      upon to trigger recovery by itself.
+      held Announce whose entry is farthest ahead of the current gap (highest log_index),
+      body and all, and log a warning, or decline to hold the new one when its entry is
+      itself the farthest ahead. Eviction is recoverable because SYNC-14-002 already
+      sent a Reject, so eviction MUST NOT be relied upon to trigger recovery by itself.
+    verification: >-
+      `test/core/use_cases/received/test_sync.py` (`TestHeldAnnounceBound`)
+      asserts that a full holding area drops the farthest-ahead Announce with
+      its body and a warning, and declines one farther still.
 - id: SYNC-15
   title: Genesis-Unavailable Buffer-and-Reject
   description: >-
@@ -1071,9 +1106,10 @@ groups:
     hash, making convergence independent of whether the case or its ledger entries arrive
     first (issue #2186, #2180).  A Reject is still sent as the loss backstop, triggering the
     same replay path as the hash-mismatch case (SYNC-08-005, SYNC-14-002) for an entry that is
-    genuinely lost rather than merely early.  The forward-gap buffer of SYNC-14 alone does not
-    cover this window: it only holds entries for a case whose genesis anchor is already known,
-    so a distinct pre-genesis hold and a drain triggered by the case seed are required.
+    genuinely lost rather than merely early.  The forward-gap hold of SYNC-14 alone
+    does not cover this window: it only holds entries for a case whose genesis
+    anchor is already known, so a distinct pre-genesis hold and a drain triggered
+    by the case seed are required.
     Rationale for the buffer-and-drain path (SYNC-15-004, SYNC-15-005): ADR-0059
     (docs/adr/0059-buffer-pre-genesis-ledger-entries.md).
   specs:
@@ -1225,32 +1261,37 @@ groups:
       When a participant receives a valid Announce(CaseLedgerEntry) but cannot reconstruct the
       per-case genesis hash because the VulnerabilityCase is not yet present in its DataLayer
       (CLP-08-005), the participant MUST NOT rely solely on the reject/replay round-trip; it
-      MUST retain the entry in the same non-ledger holding area used for forward gaps (SYNC-14),
-      keyed by its prev_log_hash, pending arrival of the case seed.  Unlike a forward gap
+      MUST retain the Announce that carried the entry, as received, in the same non-ledger
+      holding area used for forward gaps (SYNC-14-001), keyed by the entry's prev_log_hash,
+      pending arrival of the case seed.  Unlike a forward gap
       (SYNC-14-001) this hold applies without a tail_index comparison — no chain tail exists in
       the pre-genesis window — so every entry for the missing case is held, including the
       genesis entry (log_index 0) whose prev_log_hash equals the per-case genesis hash.
     rationale: >-
       The reject/replay backstop (SYNC-15-001) does not converge under adversarial reordering
-      for the same reason forward gaps are buffered (SYNC-14): replay re-announces entries
+      for the same reason forward gaps are held (SYNC-14): replay re-announces entries
       individually over the same unordered transport and each pre-genesis entry Rejects again,
       amplifying churn (issue #2169) and, for the rvcv-handoff demo, dropping the
       add_report_to_case entry so no VultronOfferRecord is ever created (issue #2180). Holding
       the entry lets it drain deterministically once the case is seeded.
     verification: >-
       Integration tests in `test/demo/` confirm that a ledger entry received before the
-      VulnerabilityCase is seeded is held in the non-ledger buffer and drained once the
-      case seed anchors the genesis hash.
+      VulnerabilityCase is seeded is held in the non-ledger holding area and
+      drained once the case seed anchors the genesis hash.
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-14-001
-      note: Reuses the same non-ledger holding area and prev_log_hash keying as the forward-gap buffer
+      note: >-
+        Reuses the same non-ledger holding area and prev_log_hash keying as the
+        forward-gap hold
     - rel_type: depends_on
       spec_id: SYNC-14-005
-      note: A pre-genesis entry MUST NOT be persisted as a CaseLedgerEntry while buffered
+      note: A pre-genesis entry MUST NOT be persisted as a CaseLedgerEntry while held
     - rel_type: refines
       spec_id: SYNC-15-001
-      note: The Reject is retained as the loss backstop; buffering is the primary convergence path
+      note: >-
+        The Reject is retained as the loss backstop; holding is the primary
+        convergence path
     stories:
     - story_2022_045
     - story_2022_088
@@ -1260,10 +1301,11 @@ groups:
     statement: >-
       After a participant seeds the VulnerabilityCase (via Create or Announce(VulnerabilityCase)),
       which anchors the deterministic per-case genesis hash (CLP-08), it MUST drain the holding
-      area for that case: it MUST locate the buffered entry (if any) whose prev_log_hash equals
-      the per-case genesis hash, apply-then-persist it via the same path as in-order delivery
-      (SYNC-14-004), and cascade in hash-chain order (SYNC-14-003) until no buffered entry extends
-      the current tail.
+      area for that case: it MUST locate the held Announce (if any) whose entry's
+      prev_log_hash equals the per-case genesis hash, replay it (SYNC-14-009) so
+      its entry is applied-then-persisted via the same path as in-order delivery
+      (SYNC-14-004), and cascade in hash-chain order (SYNC-14-003) until no held
+      Announce extends the current tail.
     rationale: >-
       The genesis hash is derivable from the case object alone (deterministic from case_id,
       created_at, and the CASE_MANAGER id per CLP-08), so seeding the case is sufficient to anchor
@@ -1271,7 +1313,7 @@ groups:
       Draining on seed is what turns the pre-genesis hold (SYNC-15-004) into convergence.
     verification: >-
       Integration tests in `test/demo/` confirm that seeding the VulnerabilityCase triggers a
-      cascading drain of pre-genesis buffered entries in hash-chain order via the
+      cascading drain of pre-genesis held entries in hash-chain order via the
       apply-then-persist path.
     relationships:
     - rel_type: depends_on
@@ -1282,7 +1324,7 @@ groups:
       note: The drained entry MUST apply effects before persisting, on the same path as in-order delivery
     - rel_type: depends_on
       spec_id: SYNC-15-004
-      note: Drains exactly the entries that SYNC-15-004 buffered during the pre-genesis window
+      note: Drains exactly the entries that SYNC-15-004 held during the pre-genesis window
     stories:
     - story_2022_012
     - story_2022_045
@@ -1535,7 +1577,7 @@ groups:
       After replacing its case file under SYNC-16-006 with a copy whose tail is ahead of
       its chain, a participant MUST send `Reject(CaseLedgerEntry)` carrying its own
       tail, and MUST store each entry it applies at or before the copy's tail, whether
-      replayed or drained from its gap buffer (SYNC-14-003), as an idempotent no-op, not
+      replayed or drained from its holding area (SYNC-14-003), as an idempotent no-op, not
       refuse it.
     rationale: >-
       Those entries are already reflected in the copy. The refused entry the replica

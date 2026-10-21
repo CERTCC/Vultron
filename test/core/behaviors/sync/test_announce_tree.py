@@ -42,7 +42,6 @@ from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
-from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.participant_semantic_types import (
     CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
     UPDATE_CASE_OWNER_SEMANTIC_TYPE,
@@ -57,6 +56,7 @@ from vultron.core.models.rsvp_deadline import (
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
@@ -455,7 +455,6 @@ def test_replica_does_not_buffer_forward_gap_entry_with_bad_hash(
     """A tampered entry ahead of the tail is refused, not held for later."""
     entry = _tampered(_make_entry(2))
     event = _make_event(entry, actor_id=case_actor.id_)
-    gap_buffer = LedgerGapBuffer()
 
     result = bridge.execute_with_setup(
         tree=create_announce_log_entry_tree(
@@ -464,11 +463,10 @@ def test_replica_does_not_buffer_forward_gap_entry_with_bad_hash(
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
         sync_port=MagicMock(spec=SyncActivityPort),
-        gap_buffer=gap_buffer,
     )
 
     assert result.status == Status.FAILURE
-    assert gap_buffer.depth(CASE_ID) == 0
+    assert held_ledger_announces(datalayer, CASE_ID) == []
     assert datalayer.read(entry.id_) is None
 
 

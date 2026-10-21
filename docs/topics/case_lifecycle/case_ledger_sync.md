@@ -1,7 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
-introduces: [LedgerGapBuffer]
+introduces: [HeldLedgerAnnounce]
 description: >
   How replicas order ledger entries and catch up on the ones they missed.
 ---
@@ -253,13 +253,10 @@ Without that bound, a peer that cannot anchor its chain rejects every entry it i
 Each further replay from that same position doubles the wait, up to a ceiling, so a peer that never catches up is retried less and less often ([SYNC-15-013](../../reference/specs/protocol.md#sync-15-013)).
 A reject from a position that *has* advanced always triggers a replay, so a peer making progress is never held back.
 
-The holding area should also be bounded, so that a hostile or broken peer
-streaming far-future entries cannot exhaust memory. When it is full, the replica
-discards the entry farthest ahead of the gap and logs a warning
-([SYNC-14-006](../../reference/specs/protocol.md#sync-14-006)). Discarding is safe
-because the reject for that gap has already been sent — but the eviction itself
-sends nothing, so recovery waits on the replay that reject triggers, or on the
-next entry that fails to match the tail. The cooldown above may delay either.
+The holding area should also be bounded, so that a hostile or broken peer streaming far-future entries cannot exhaust the replica's storage.
+When it is full, the replica discards the held `Announce` farthest ahead of the gap and logs a warning ([SYNC-14-006](../../reference/specs/protocol.md#sync-14-006)).
+Discarding is safe because the reject for that gap has already been sent — but the eviction itself sends nothing, so recovery waits on the replay that reject triggers, or on the next entry that fails to match the tail.
+The cooldown above may delay either.
 
 The holding area is deliberately **not** the ledger
 ([SYNC-14-005](../../reference/specs/project.md#sync-14-005)). Across Vultron,
@@ -292,9 +289,10 @@ single lookup: the held entry whose `prevLogHash` equals the hash of the entry
 just committed.
 
 The drain then repeats until no held entry extends the chain ([SYNC-14-003](../../reference/specs/protocol.md#sync-14-003)).
-Each step is a delivery of its own: the replica hands the successor back to its own inbox, wrapped in an `Announce(CaseLedgerEntry)` from the case's CASE_MANAGER ([SYNC-14-009](../../reference/specs/project.md#sync-14-009)).
+Each step is a delivery of its own: the replica replays the `Announce(CaseLedgerEntry)` that carried the successor, the one it received and held as it arrived, through its own inbox ([SYNC-14-009](../../reference/specs/project.md#sync-14-009)).
+The replica never builds an `Announce` of its own for a held entry, so nothing is attributed to a sender that did not send it.
 The replica does not process the successor inside the delivery that committed its predecessor.
-When that delivery commits the successor, it hands back *its* successor in turn.
+When that delivery commits the successor, it replays *its* successor in turn.
 A run of ten entries that arrived in reverse order clicks into place in one cascade, in `log_index` order.
 
 Three properties make the drain safe:
@@ -370,12 +368,9 @@ The result is eventual consistency with a strong bound: given the same
 entries, every replica reaches the same state as the CASE_MANAGER, no matter what
 order those entries arrived in.
 
-The holding area itself is in memory only, and is lost on restart. That is
-deliberate: nothing in it is committed, so a restart cannot cost the replica
-anything it had already applied. The dropped entries themselves come back the
-same way an evicted one does — the next entry that does not match the replica's
-tail produces a `Reject`, and the CASE_MANAGER replays from the position that
-reject names.
+The holding area is kept in the replica's store, apart from its ledger, so a restart keeps what it holds.
+Nothing in it is committed, so it never stands in for an applied entry ([SYNC-14-005](../../reference/specs/project.md#sync-14-005)).
+An entry it does not hold comes back the same way an evicted one does — the next entry that does not match the replica's tail produces a `Reject`, and the CASE_MANAGER replays from the position that reject names.
 
 ---
 

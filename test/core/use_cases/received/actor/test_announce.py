@@ -16,17 +16,18 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.inbox_hand_back import (
-    HandedBack,
-    RecordingInboxHandBack,
-    deliver_handed_back,
+from test.support.inbox_replay import (
+    RecordingInboxReplay,
+    deliver_replayed,
+    held_depth,
+    hold_received,
+    ledger_announce_event,
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -440,16 +441,15 @@ def _genesis_entry_for(case_id: str, genesis_hash: str) -> CaseLedgerEntry:
 
 
 class TestAnnounceDrainsPreGenesisBuffer:
-    """Seeding a VulnerabilityCase hands pre-genesis ledger entries back.
+    """Seeding a VulnerabilityCase replays the held pre-genesis Announces.
 
     Regression for #2186 (root cause) / #2180 (symptom): an
     ``Announce(CaseLedgerEntry)`` that arrives before the ``VulnerabilityCase``
-    is seeded is parked in the actor-local gap buffer (SYNC-15-004) instead of
-    being permanently dropped.  Once the case seed lands — anchoring the
-    deterministic per-case genesis hash — the buffered entry is handed back to
-    the receiving actor's own inbox as a delivery of its own, attributed to the
-    CASE_MANAGER, and never applied inside the seed's delivery (SYNC-15-005,
-    SYNC-14-009, ADR-0135).
+    is seeded is held as received (SYNC-15-004) instead of being permanently
+    dropped.  Once the case seed lands — anchoring the deterministic per-case
+    genesis hash — that held ``Announce`` is replayed through the receiving
+    actor's own inbox as a delivery of its own, and never applied inside the
+    seed's delivery (SYNC-15-005, SYNC-14-009, ADR-0135).
     """
 
     @pytest.fixture()
@@ -457,8 +457,8 @@ class TestAnnounceDrainsPreGenesisBuffer:
         """A case whose attributed_to yields a deterministic genesis hash.
 
         It embeds its CASE_MANAGER participant, as every seeded replica does
-        (CP-09-004): the hand-back attributes the entry to that participant's
-        actor (SYNC-14-009).
+        (CP-09-004), so the replayed Announce from that actor passes its
+        sender guard (SYNC-13-006).
         """
         manager = as_CaseParticipant(
             case_roles=[CVDRole.CASE_MANAGER],
@@ -494,69 +494,63 @@ class TestAnnounceDrainsPreGenesisBuffer:
 
     @pytest.mark.spec("SYNC-14-009")
     @pytest.mark.spec("SYNC-15-005")
-    def test_pre_genesis_entry_is_handed_back_when_case_is_announced(
+    def test_pre_genesis_announce_is_replayed_when_case_is_announced(
         self, dl, make_payload, case_with_actor
     ):
         genesis_hash = case_with_actor.genesis_hash
         assert genesis_hash, "case must expose a deterministic genesis hash"
         entry = _genesis_entry_for(_CASE_ID, genesis_hash)
-
-        gap_buffer = LedgerGapBuffer()
-        assert gap_buffer.buffer(entry) is True
+        held = ledger_announce_event(
+            entry, actor=_CASE_ACTOR_ID, to=_RECEIVER_ID
+        )
+        hold_received(dl, held)
         assert dl.read(entry.id_) is None  # not yet applicable — case absent
-        hand_back = RecordingInboxHandBack()
+        replay = RecordingInboxReplay()
 
         _, result = self._seed(
-            dl,
-            make_payload,
-            case_with_actor,
-            gap_buffer=gap_buffer,
-            inbox_hand_back=hand_back,
+            dl, make_payload, case_with_actor, inbox_replay=replay
         )
 
         assert result.disposition is HandlerDisposition.APPLIED
         assert dl.read(_CASE_ID) is not None
-        # Handed back once, from the CASE_MANAGER, to the receiving actor ...
-        assert hand_back.handed_back == [
-            HandedBack(
-                entry=entry,
-                case_manager_id=_CASE_ACTOR_ID,
-                receiving_actor_id=dl.actor_id,
-            )
-        ]
-        assert gap_buffer.depth(_CASE_ID) == 0
+        # The Announce that was received is replayed once, by its own id ...
+        assert replay.replayed == [held.activity_id]
+        assert held_depth(dl, _CASE_ID) == 0
         # ... and not applied here: no second tree ran in this delivery.
         assert dl.read(entry.id_) is None
 
-        # Delivered as its own Announce, the entry applies.
-        deliver_handed_back(
-            hand_back,
+        # Delivered as its own delivery, the entry applies.
+        deliver_replayed(
+            replay,
+            dl,
+            _RECEIVER_ID,
             lambda ev: AnnounceLedgerEntryReceivedUseCase(
                 dl,
                 ev,
                 sync_port=SyncActivityAdapter(dl),
-                gap_buffer=gap_buffer,
-                inbox_hand_back=hand_back,
+                inbox_replay=replay,
             ).execute(),
         )
         assert dl.read(entry.id_) is not None
 
     @pytest.mark.spec("SYNC-14-009")
-    def test_missing_hand_back_port_is_a_wiring_error(
+    def test_missing_replay_port_is_a_wiring_error(
         self, dl, make_payload, case_with_actor
     ):
         """No port means a composition fault, never an inline apply."""
         entry = _genesis_entry_for(_CASE_ID, case_with_actor.genesis_hash)
-        gap_buffer = LedgerGapBuffer()
-        gap_buffer.buffer(entry)
+        hold_received(
+            dl,
+            ledger_announce_event(
+                entry, actor=_CASE_ACTOR_ID, to=_RECEIVER_ID
+            ),
+        )
 
-        with pytest.raises(VultronBTInternalError, match="inbox_hand_back"):
-            self._seed(
-                dl, make_payload, case_with_actor, gap_buffer=gap_buffer
-            )
+        with pytest.raises(VultronBTInternalError, match="inbox_replay"):
+            self._seed(dl, make_payload, case_with_actor)
 
         assert dl.read(entry.id_) is None
-        assert gap_buffer.depth(_CASE_ID) == 1
+        assert held_depth(dl, _CASE_ID) == 1
 
 
 # ---------------------------------------------------------------------------

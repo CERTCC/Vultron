@@ -123,8 +123,9 @@ deferred until its case is known is held whole in one `DeferredInboxActivity`
 (IO-03-004): the sealed received body and its staged inline rows, nothing derived
 from them (ADR-0149). Its replay parses the body again, so it carries the first
 delivery's evidence (VM-08-002); the replay, or the queue's expiry, deletes the
-record. The ledger hand-back (SYNC-14-009) is a delivery of its own and is held the
-same way, as the body it delivers. **Hold before you queue**:
+record. A held out-of-order `Announce(CaseLedgerEntry)` (SYNC-14-001) is held the
+same way, as the body that arrived, and its replay (SYNC-14-009) deletes the record.
+**Hold before you queue**:
 the record is the activity's only copy, so an id queued with nothing held behind it
 is lost, and `hold_for_replay` raises rather than queue one (DL-06-006).
 

@@ -1,13 +1,14 @@
 #!/usr/bin/env python
-"""End-to-end: a buffered ledger entry converges through the inbox hand-back.
+r"""End-to-end: a held ledger Announce converges through the inbox replay.
 
-A buffered ``CaseLedgerEntry`` that a commit or a case seed makes appliable is
-its own delivery (SYNC-14-009, ADR-0135).  These tests drive the real chain:
-``run_inbox_pipeline``, the FastAPI ingress and dispatch adapters, the real
-dispatcher and port factories, the received use cases and the
-``InboxHandBackAdapter``.  The only thing they assert about the mechanism is
-what reaches the store: the handed-back ``Announce(CaseLedgerEntry)``, from
-the CASE_MANAGER, and every entry in the chain.
+A held ``Announce(CaseLedgerEntry)`` that a commit or a case seed makes
+appliable is replayed as its own delivery (SYNC-14-009, ADR-0135).  These
+tests drive the real chain: ``run_inbox_pipeline``, the FastAPI ingress and
+dispatch adapters, the real dispatcher and port factories, the received use
+cases and the ``InboxReplayAdapter``.  The only thing they assert about the
+mechanism is what reaches the store: every entry in the chain, and an
+archive that holds exactly the ``Announce``\ s that were delivered, each
+once, as they arrived, and nothing nobody sent.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -32,10 +33,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from test.support.case_manager import add_case_manager_participant
+from test.support.received import delivered_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.adapters.driven.inbox_hand_back_adapter import (
-    hand_back_activity_id,
-)
 from vultron.adapters.driven.sync_activity_adapter import (
     ledger_entry_to_wire,
 )
@@ -44,30 +43,29 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.ledger_gap_buffer import get_ledger_gap_buffer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     announce_vulnerability_case_activity,
 )
-from vultron.wire.as2.parser import parse_received_body
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 pytestmark = pytest.mark.integration
 
-_CASE_MANAGER = "https://example.org/actors/case-manager-hb"
-_RECEIVER = "https://example.org/actors/receiver-hb"
-_CASE_ID = "https://example.org/cases/case-hand-back"
+_CASE_MANAGER = "https://example.org/actors/case-manager-rp"
+_RECEIVER = "https://example.org/actors/receiver-rp"
+_CASE_ID = "https://example.org/cases/case-replay"
 
 
 @pytest.fixture(autouse=True)
@@ -104,7 +102,7 @@ def _chain(genesis_hash: str, length: int) -> list[CaseLedgerEntry]:
         record = HashChainLedgerRecord(
             case_id=_CASE_ID,
             log_index=index,
-            object_id=f"https://example.org/activities/hb-{index}",
+            object_id=f"https://example.org/activities/rp-{index}",
             semantic_type="test_event",
             payload_snapshot={"index": index},
             prev_log_hash=prev,
@@ -116,7 +114,7 @@ def _chain(genesis_hash: str, length: int) -> list[CaseLedgerEntry]:
 
 
 def _body(activity: as_Activity) -> dict[str, Any]:
-    return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return delivered_body(activity)
 
 
 def _announce_entry(entry: CaseLedgerEntry) -> dict[str, Any]:
@@ -143,52 +141,56 @@ def _stored(dl: SqliteDataLayer, entries: list[CaseLedgerEntry]) -> list[bool]:
     return [dl.read(entry.id_) is not None for entry in entries]
 
 
-def _assert_handed_back_from_case_manager(
-    dl: SqliteDataLayer, entries: list[CaseLedgerEntry]
+def _assert_archive_is_what_was_delivered(
+    dl: SqliteDataLayer, delivered: list[dict[str, Any]]
 ) -> None:
-    """Each entry reached the store in an Announce from the CASE_MANAGER.
-
-    The Announce is held as received, archived by intake, and never under
-    its own id (DL-06-006).
-    """
-    for entry in entries:
-        announce_id = hand_back_activity_id(_RECEIVER, entry.id_)
-        assert dl.read(announce_id) is None
-        record = dl.read(ReceivedActivityRecord.build_id(announce_id))
-        assert isinstance(record, ReceivedActivityRecord), (
-            f"{entry.id_} was not handed back"
-        )
-        # Archived as the body the hand-back delivered (ADR-0149).
-        announce = parse_received_body(record.received_body)
-        assert _as_id(getattr(announce, "actor", None)) == _CASE_MANAGER
-        assert _as_id(getattr(announce, "object_", None)) == entry.id_
+    """Intake archived each delivered body once, as it arrived, and nothing
+    else: no record of an Announce nobody sent (CLP-10-017, VM-08-002)."""
+    archived = {
+        record.activity_id: record.received_body
+        for record in dl.list_objects("ReceivedActivityRecord")
+        if isinstance(record, ReceivedActivityRecord)
+    }
+    expected = {
+        body["id"]: parse_activity(body).received_evidence_json
+        for body in delivered
+    }
+    assert archived == expected
+    # Every held body was consumed by its replay (IO-03-004).
+    assert dl.list_objects("DeferredInboxActivity") == []
+    assert held_ledger_announces(dl, _CASE_ID) == []
 
 
 @pytest.mark.spec("SYNC-14-003")
+@pytest.mark.spec("SYNC-14-008")
 @pytest.mark.spec("SYNC-14-009")
-def test_out_of_order_pair_converges_through_the_hand_back(dl, dispatcher):
+@pytest.mark.spec("CLP-10-017")
+def test_out_of_order_pair_converges_through_the_replay(dl, dispatcher):
     case = _case()
     add_case_manager_participant(dl, case, _CASE_MANAGER)
     e0, e1 = _chain(case.genesis_hash, 2)
+    announce_e0, announce_e1 = _announce_entry(e0), _announce_entry(e1)
 
-    # e1 arrives first: a forward gap, so it is buffered (SYNC-14-001).
-    _deliver(dl, dispatcher, _announce_entry(e1))
+    # e1 arrives first: a forward gap, so its Announce is held as received
+    # (SYNC-14-001).
+    _deliver(dl, dispatcher, announce_e1)
     assert _stored(dl, [e0, e1]) == [False, False]
-    assert get_ledger_gap_buffer(_RECEIVER).depth(_CASE_ID) == 1
+    [held] = held_ledger_announces(dl, _CASE_ID)
+    assert held.activity_id == announce_e1["id"]
 
-    # e0 closes the gap; its delivery hands e1 back, and the same inbox loop
-    # then runs e1 as a delivery of its own.
-    _deliver(dl, dispatcher, _announce_entry(e0))
+    # e0 closes the gap; its delivery replays e1's Announce, and the same
+    # inbox loop then runs it as a delivery of its own.
+    _deliver(dl, dispatcher, announce_e0)
 
     assert _stored(dl, [e0, e1]) == [True, True]
-    assert get_ledger_gap_buffer(_RECEIVER).depth(_CASE_ID) == 0
     assert dl.inbox_list() == []
-    _assert_handed_back_from_case_manager(dl, [e1])
+    _assert_archive_is_what_was_delivered(dl, [announce_e1, announce_e0])
 
 
 @pytest.mark.spec("SYNC-15-005")
 @pytest.mark.spec("SYNC-14-009")
-def test_pre_genesis_entries_converge_through_the_hand_back(dl, dispatcher):
+@pytest.mark.spec("CLP-10-017")
+def test_pre_genesis_entries_converge_through_the_replay(dl, dispatcher):
     # The CASE_MANAGER's case embeds its own participant record, as every
     # seeded replica does (CP-09-004); the entries chain from its genesis.
     manager = CaseParticipant(
@@ -212,24 +214,21 @@ def test_pre_genesis_entries_converge_through_the_hand_back(dl, dispatcher):
     )
 
     # Both entries arrive before the case is seeded (SYNC-15-004).
-    for entry in entries:
-        _deliver(dl, dispatcher, _announce_entry(entry))
+    announces = [_announce_entry(entry) for entry in entries]
+    for body in announces:
+        _deliver(dl, dispatcher, body)
     assert _stored(dl, entries) == [False, False]
-    assert get_ledger_gap_buffer(_RECEIVER).depth(_CASE_ID) == 2
+    assert len(held_ledger_announces(dl, _CASE_ID)) == 2
 
-    # The CASE_MANAGER's case Announce seeds the case; the seed hands back the
-    # genesis entry, whose own commit hands back the next.
-    _deliver(
-        dl,
-        dispatcher,
-        _body(
-            announce_vulnerability_case_activity(
-                case, actor=_CASE_MANAGER, to=[_RECEIVER], context=_CASE_ID
-            )
-        ),
+    # The CASE_MANAGER's case Announce seeds the case; the seed replays the
+    # genesis entry's Announce, whose own commit replays the next.
+    seed = _body(
+        announce_vulnerability_case_activity(
+            case, actor=_CASE_MANAGER, to=[_RECEIVER], context=_CASE_ID
+        )
     )
+    _deliver(dl, dispatcher, seed)
 
     assert dl.read(_CASE_ID) is not None
     assert _stored(dl, entries) == [True, True]
-    assert get_ledger_gap_buffer(_RECEIVER).depth(_CASE_ID) == 0
-    _assert_handed_back_from_case_manager(dl, entries)
+    _assert_archive_is_what_was_delivered(dl, [*announces, seed])
