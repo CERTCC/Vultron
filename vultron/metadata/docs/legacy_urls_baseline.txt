@@ -2,9 +2,11 @@
 #
 # `uv run docs-legacy-urls` fails when the built site/ neither serves nor
 # redirects one of these URLs, unless a withheld declaration covers it. The list
-# only grows: a URL that was once published stays accounted for. Before
-# `publish` advances, run `uv run docs-legacy-urls --snapshot origin/publish` so
-# the pages it is about to replace are recorded while the evidence exists.
+# only grows: a URL that was once published stays accounted for. Before opening
+# the pull request to `publish`, run `uv run docs-legacy-urls --snapshot
+# origin/main` on a branch from `main` and merge the result into `main`, so the
+# incoming publish is recorded before it ships; `--require-recorded` fails that
+# pull request until it is.
 #
 # Seeded from origin/publish at ee5d96d3d (#3556).
 _acronyms/index.md
