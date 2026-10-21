@@ -246,14 +246,11 @@ def test_a_failed_proposal_is_applied_when_posted_again(
     ), "the failed act's outcome is rejected"
 
     # A second failing post of the same body builds no second fault: the
-    # fault id derives from the failed activity and the class, so at most the
-    # same sealed fault is queued again, same id and same body, which the
+    # fault id derives from the failed activity and the class, so the same
+    # sealed fault is queued and sent again, same id and same body, which the
     # sender deduplicates (ID-04-004, ID-04-005).
     _fail_the_relay(client, body)
-    assert [to for _body, to in emitter.sent] in (
-        [[PROPOSER]],
-        [[PROPOSER], [PROPOSER]],
-    )
+    assert [to for _body, to in emitter.sent] == [[PROPOSER], [PROPOSER]]
     assert all(f == fault for f in _faults(emitter)), "the same fault"
     assert len(_faults(emitter)) == len(emitter.sent)
     assert [

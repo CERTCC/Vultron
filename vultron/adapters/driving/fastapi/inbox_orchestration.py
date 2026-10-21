@@ -194,8 +194,10 @@ class FastAPIIngressAdapter:
           and an act that never committed, such as one that failed, runs as
           a first delivery and commits with the archived body (ADR-0151).
 
-        Either way this delivery's own body is never routed, and is left
-        untouched for whatever compares it with the held one (#3762).
+        When either held copy rebuilds, this delivery's own body is
+        never routed, and is left untouched for whatever compares it with
+        the held one (#3762).  Only when the held copy does not rebuild is
+        this delivery's body routed in its place, without received evidence.
 
         An ``Announce(CaseLedgerEntry)`` is the exception to the staged
         rebuild: per SYNC-13-002 the inline entry is deliberately NOT staged,
