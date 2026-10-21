@@ -2518,12 +2518,15 @@ class TestDeclineArmIsCaseManagerGated:
         and as the VENDOR actor (``receiving_actor_id``), so the executing
         actor does not hold ``CVDRole.CASE_MANAGER``.  A copy of the Case
         Owner's Leave arrives while an embargo is live.  Before #3825 this
-        emitted a ``Reject(Leave)``; it must now emit nothing.
+        emitted a ``Reject(Leave)``; it must now emit nothing.  The replica's
+        sender guard admits only the CASE_MANAGER, so it refuses this copy
+        before the gate; the gate itself is pinned by
+        ``test_non_manager_replica_refuses_a_leave_from_the_case_manager``.
         """
         dl = _make_full_dl(store_owner_id=VENDOR_ID)
         _seed_active_embargo(dl, em_state=EM.ACTIVE)
 
-        CloseCaseReceivedUseCase(
+        result = CloseCaseReceivedUseCase(
             dl=dl,
             request=_make_close_case_event(
                 sender_actor_id=OWNER_ID, receiving_actor_id=VENDOR_ID
@@ -2533,6 +2536,7 @@ class TestDeclineArmIsCaseManagerGated:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
+        assert result.disposition is HandlerDisposition.REFUSED
         assert dl.outbox_list() == [], (
             "a non-CASE_MANAGER replica must emit no as:Reject when it"
             " receives a copy of the owner's Leave during a live embargo"
