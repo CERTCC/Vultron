@@ -48,6 +48,7 @@ from typing import cast
 
 import pytest
 
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -69,7 +70,6 @@ from vultron.core.use_cases.received.report import (
     InvalidateReportReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     rm_close_report_activity,
     rm_invalidate_report_activity,
@@ -221,7 +221,7 @@ def _make_invalidate_event(
     # gate, which sits after the canonical ledger commit (CLP-10-013, #4304).
     # A hand-built bare-report activity is not canonical, so build the real
     # ``TentativeReject(Offer(Report))`` the wire factory emits.
-    event = extract_event(
+    event = received_event(
         rm_invalidate_report_activity(
             _offer(), actor=SENDER_ACTOR_ID, to=[RECEIVING_ACTOR_ID]
         )
@@ -235,7 +235,7 @@ def _make_invalidate_event(
 def _make_close_report_event(
     receiving_actor_id: str | None = RECEIVING_ACTOR_ID,
 ) -> CloseReportReceivedEvent:
-    event = extract_event(
+    event = received_event(
         rm_close_report_activity(
             _offer(), actor=SENDER_ACTOR_ID, to=[RECEIVING_ACTOR_ID]
         )

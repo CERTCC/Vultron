@@ -31,10 +31,10 @@ from test.support.embargo_register import (
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
-    received_event,
     register_rows,
     run_use_case,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import _as_id
@@ -214,7 +214,9 @@ class LedgerNetwork:
 
         *without* names ports the receiver is composed without.
         """
-        event = received_event(parse_activity(body), receiver)
+        event = received_event(
+            parse_activity(body), receiving_actor_id=receiver
+        )
         return self.receive_event(receiver, event, without=without)
 
     def receive_event(

@@ -71,7 +71,7 @@ class CaseLedgerEntry(RetiredFieldsRecord, CoreObject):
         term: Raft cluster term; ``None`` for single-node deployments.
         log_object_id: Full URI of the asserted activity or primary object.
         semantic_type: The registry's label for the entry's payload.
-        payload_snapshot: Normalised activity payload snapshot.
+        payload_snapshot: The asserted activity payload verbatim (CLP-07-011).
         prev_log_hash: SHA-256 hash of the predecessor entry's content.
         entry_hash: SHA-256 hash of this entry's canonical content.
         received_at: Server-generated TZ-aware UTC receipt timestamp.
@@ -117,7 +117,7 @@ class CaseLedgerEntry(RetiredFieldsRecord, CoreObject):
     )
     payload_snapshot: dict[NonEmptyString, Any] = Field(
         default_factory=dict,
-        description="Normalised snapshot of the asserted activity payload",
+        description="The asserted activity payload verbatim (CLP-07-011)",
         validation_alias="payloadSnapshot",
         serialization_alias="payloadSnapshot",
     )

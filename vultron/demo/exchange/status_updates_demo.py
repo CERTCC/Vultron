@@ -49,7 +49,10 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.verification import _fetch_participant
+from vultron.demo.helpers.verification import (
+    _fetch_participant,
+    verify_participant_status_appended,
+)
 from vultron.demo.helpers.workflow import setup_initialized_case
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -246,17 +249,9 @@ def demo_status_workflow(
 
     with demo_step("Step 2: Verify the status and the adopted case status"):
         with demo_check("ParticipantStatus present on the vendor's record"):
-            updated = _fetch_participant(client, case.id_, vendor.id_)
-            status_ids = (
-                [s.id_ for s in updated.participant_statuses]
-                if updated is not None
-                else []
+            verify_participant_status_appended(
+                client, case.id_, vendor.id_, participant_status.id_
             )
-            if participant_status.id_ not in status_ids:
-                raise ValueError(
-                    f"ParticipantStatus '{participant_status.id_}' not found"
-                    " on the vendor's participant record"
-                )
         with demo_check("Case status adopted public awareness"):
             updated_case = log_case_state(client, case.id_, "final state")
             if updated_case is None:

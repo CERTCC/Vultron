@@ -15,6 +15,7 @@
 
 """Tests for ``InboxHandBackAdapter`` (SYNC-14-009, ADR-0135)."""
 
+import json
 from typing import cast
 
 import pytest
@@ -24,7 +25,7 @@ from vultron.adapters.driven.inbox_hand_back_adapter import (
     InboxHandBackAdapter,
     hand_back_activity_id,
 )
-from vultron.adapters.driving.fastapi.inbox_staging import (
+from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
     hold_activity,
 )
@@ -86,7 +87,10 @@ def test_hand_back_queues_an_announce_from_the_case_manager(dl, entry):
     assert dl.read(expected_id) is None
     held = dl.read(DeferredInboxActivity.build_id(expected_id))
     assert isinstance(held, DeferredInboxActivity)
-    assert held.received_body is None, "no peer sent it (VM-08-002)"
+    # Held as the body this delivery carries, as any delivery is, so its
+    # replay is archived by intake (VM-08-002, ADR-0149).
+    assert held.received_body is not None
+    assert json.loads(held.received_body)["id"] == expected_id
     rebuilt = InlineObjectStaging(dl).rehydrate_held(expected_id)
     assert rebuilt is not None
     assert _as_id(getattr(rebuilt, "actor", None)) == _CASE_MANAGER
@@ -103,9 +107,13 @@ def test_queued_announce_routes_like_any_ledger_entry_delivery(dl, entry):
         entry, case_manager_id=_CASE_MANAGER, receiving_actor_id=_RECEIVER
     )
 
-    activity = InlineObjectStaging(dl).rehydrate_deferred(dl.inbox_pop() or "")
+    activity_id = dl.inbox_pop() or ""
+    held = dl.read(DeferredInboxActivity.build_id(activity_id))
+    assert isinstance(held, DeferredInboxActivity)
+    activity = InlineObjectStaging(dl).rehydrate_deferred(activity_id)
     assert activity is not None
-    assert activity.received_evidence is None
+    # The replay carries the body the hand-back delivered (VM-08-002).
+    assert activity.received_evidence_json == held.received_body
     event = cast(
         AnnounceLogEntryReceivedEvent,
         extract_event(cast(as_Activity, activity)),

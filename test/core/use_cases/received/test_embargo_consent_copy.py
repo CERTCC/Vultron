@@ -25,7 +25,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import committed_semantic_types, fail_commits
-from test.support.ledger_rebuild import received_event
+from test.support.received import received_event
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -381,7 +381,7 @@ class TestReplicaCopies:
         assert (
             net.receive_event(
                 BYSTANDER,
-                received_event(seed, BYSTANDER),
+                received_event(seed, receiving_actor_id=BYSTANDER),
             ).disposition
             is HandlerDisposition.APPLIED
         )

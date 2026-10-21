@@ -35,6 +35,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.received_activity_loader import ReceivedActivityLoader
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.predicates.addressing import (
     distinct_recipients,
@@ -154,6 +155,7 @@ def _resolve_embargo_proposal(
     proposal_id: str | None,
     actor_id: str,
     dl: CasePersistence,
+    received: ReceivedActivityLoader,
 ) -> EmbargoAnswerTarget:
     """Return the Invite an accept or reject trigger answers, and its embargo.
 
@@ -177,7 +179,7 @@ def _resolve_embargo_proposal(
                 _resolve_embargo_id_from_proposal_id(case, proposal_id),
             )
         return _resolve_invite_to_embargo_in_force(
-            case, proposal_id, actor_id, dl
+            case, proposal_id, actor_id, dl, received
         )
 
     resolved = find_embargo_proposal_id(case, dl)
@@ -196,16 +198,18 @@ def _resolve_invite_to_embargo_in_force(
     invite_id: str,
     actor_id: str,
     dl: CasePersistence,
+    received: ReceivedActivityLoader,
 ) -> EmbargoAnswerTarget:
     """Resolve *invite_id* as the actor's Invite for the embargo in force.
 
-    The Invite is read from *actor_id*'s own record of what it received
-    (``read_received_activity``), never from the open-proposal record
-    (EP-09-012).  It must be an ``Invite`` whose sole ``to`` recipient is
-    *actor_id* (EP-09-010) and whose object is the case's active embargo,
-    and the actor's consent row for that embargo must be ``INVITED`` or
-    ``TIMED_OUT`` (CM-18-001).  The answer is built from the same archived
-    Invite, never from a copy under the id its sender chose (DL-06-006).
+    The Invite is loaded through *received* from *actor_id*'s own record of
+    what it received (``read_received_activity``), never from the
+    open-proposal record (EP-09-012).  It must be an ``Invite`` whose sole
+    ``to`` recipient is *actor_id* (EP-09-010) and whose object is the case's
+    active embargo, and the actor's consent row for that embargo must be
+    ``INVITED`` or ``TIMED_OUT`` (CM-18-001).  The answer is built from the
+    same archived Invite, never from a copy under the id its sender chose
+    (DL-06-006).
 
     Raises:
         VultronNotFoundError: The actor holds no such Invite, the Invite
@@ -214,9 +218,9 @@ def _resolve_invite_to_embargo_in_force(
             embargo, or the row is in any other state.
     """
     resource = "Invite(EmbargoEvent)"
-    # Read from the archive or the inbox's deferred record, both of which
-    # hold the core summary; its fields are read by name.
-    invite = read_received_activity(dl, invite_id, resource)
+    # Loaded from the body the archive or the inbox's deferred record holds,
+    # as a read-only view; its fields are read by name (ADR-0149).
+    invite = read_received_activity(received, invite_id, resource)
     if getattr(invite, "type_", None) != "Invite":
         raise VultronNotFoundError(resource, invite_id)
     embargo_id = _as_id(getattr(invite, "object_", None))

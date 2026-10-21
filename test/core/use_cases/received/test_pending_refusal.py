@@ -25,6 +25,7 @@ from typing import cast
 
 import pytest
 
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import days_from_now_utc
@@ -41,7 +42,6 @@ from vultron.core.use_cases.received.embargo import (
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     em_reject_embargo_activity,
@@ -114,7 +114,7 @@ def _receive_reject(
     )
     event = cast(
         RejectInviteToEmbargoOnCaseReceivedEvent,
-        extract_event(reject).model_copy(
+        received_event(reject).model_copy(
             update={"receiving_actor_id": _PROPOSER}
         ),
     )

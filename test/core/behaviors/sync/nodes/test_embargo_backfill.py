@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import CASE_ID
+from test.support.received import received_event
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
@@ -45,7 +46,6 @@ from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -189,7 +189,7 @@ def test_genesis_reject_from_an_admitted_peer_seeds_the_case(
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
     )
-    event = cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     sync_port = MagicMock(spec=SyncActivityPort)
     trigger_activity = MagicMock(spec=TriggerActivityPort)
     trigger_activity.announce_vulnerability_case.return_value = (

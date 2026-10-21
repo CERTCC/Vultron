@@ -18,6 +18,7 @@ Pins the pre-flight guard (CLP-10-003): only the CaseActor writes a
 
 from __future__ import annotations
 
+from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -117,13 +118,15 @@ def _make_close_case_event(
         to=[CASE_ACTOR_ID],
         object_=case_obj,
     )
-    return CloseCaseReceivedEvent(
-        semantic_type=MessageSemantics.CLOSE_CASE,
-        activity_id=activity.id_,
-        actor_id=leave_actor_id,
-        object_=case_obj,
-        activity=activity,
-        receiving_actor_id=receiving_actor_id,
+    return with_evidence(
+        CloseCaseReceivedEvent(
+            semantic_type=MessageSemantics.CLOSE_CASE,
+            activity_id=activity.id_,
+            actor_id=leave_actor_id,
+            object_=case_obj,
+            activity=activity,
+            receiving_actor_id=receiving_actor_id,
+        )
     )
 
 

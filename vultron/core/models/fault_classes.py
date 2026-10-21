@@ -30,7 +30,7 @@ VULTRON_FAILURE_STATUS_ASSERTION_REFUSED = (
     f"{_VULTRON_NS}/errors/StatusAssertionRefused"
 )
 
-# RSH-05-021: replica refused a ledger entry because the effective
+# RSH-09-006: replica refused a ledger entry because the effective
 # composite state violates the RM↔VF, RM↔D, or VF↔D entailments.
 VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE = (
     f"{VULTRON_FAILURE_STATUS_ASSERTION_REFUSED}/ImpossibleState"

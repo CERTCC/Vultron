@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models._helpers import _as_id
@@ -35,7 +36,6 @@ from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.sync import replay_missing_entries_trigger
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -98,7 +98,7 @@ def _make_reject_event(
         actor=actor,
         to=to or [CASE_ACTOR_URI],
     )
-    return cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    return cast(RejectLogEntryReceivedEvent, received_event(activity))
 
 
 class TestRejectLogEntryPattern:
@@ -112,7 +112,7 @@ class TestRejectLogEntryPattern:
         activity = reject_log_entry_activity(
             wire_entry, context="a" * 64, actor=PARTICIPANT_URI
         )
-        event = extract_event(activity)
+        event = received_event(activity)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
 
     @pytest.mark.spec("SYNC-03-001")
@@ -144,7 +144,7 @@ class TestRejectLogEntryPattern:
             entry0.model_dump(mode="json")
         )
         activity = reject_log_entry_activity(wire_entry, actor=PARTICIPANT_URI)
-        event = extract_event(activity)
+        event = received_event(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)
         assert event.last_accepted_hash == ""
 

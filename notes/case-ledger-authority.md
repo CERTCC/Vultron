@@ -272,7 +272,7 @@ the status entries and never derive a closure path from their own state.
 The status entries are the CASE_MANAGER's own writes, so their
 `payloadSnapshot.actor` is the CASE_MANAGER; the leaver's act stays attributed to
 the leaver in `close_case`. A replica copies each step as carried; it refuses
-only a step whose composite state is impossible (RSH-05-021), and then writes
+only a step whose composite state is impossible (RSH-09-006), and then writes
 nothing in its place. Every activity-typed RM move works the same way: the
 report verdicts, engage/defer and the full-case Invite replies commit the act,
 then the status the CASE_MANAGER wrote (`CommitParticipantStatusEntriesNode`,
@@ -410,7 +410,7 @@ path (ADR-0117). There is one formula, `compute_genesis_hash`, called by the
 A computable hash still leaves a targeted-DoS gap; the planned fix is in
 [case-ledger-genesis-hardening.md](case-ledger-genesis-hardening.md).
 
-## Snapshots Are the Factory's Exact Blob
+## Snapshots Are the Body Sent
 
 - `EmitInviteActorToCaseNode` commits its entry through
   `create_commit_log_entry_tree`, and every entry passes
@@ -420,10 +420,13 @@ A computable hash still leaves a targeted-DoS gap; the planned fix is in
 - That Invite commit is the only one (ADR-0109, CM-17-006). An Invite that loops
   back to the CaseActor (for example via `cc:`) would be committed twice; one
   entry per `payloadSnapshot.id` is asserted by the invariant harness (CLP-07-002).
-- `_validate_canonical_entry` accepts a bare-string `target` **only when it
-  equals the entry's case URI**, at any depth; any other bare string in an
-  inline-object slot is refused (CLP-07-006). Do not add a core-side rewrite to
-  satisfy the validator; fix the factory.
+- A received entry's `payloadSnapshot` is the received body verbatim, read from
+  `VultronEvent.received_body()` (CLP-07-011). Core never inlines, patches or
+  rebuilds it; there is no fallback when the event carries no evidence.
+- `_validate_canonical_entry` refuses a bare-string `object` only: its type is
+  half the signature. Any other slot is recorded as sent, references included
+  (CLP-07-006). Do not add a core-side rewrite to satisfy the validator; fix the
+  factory.
 
 ## A Store-Local State Change Is Invisible to Every Replica
 

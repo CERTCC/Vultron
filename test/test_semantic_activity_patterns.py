@@ -11,14 +11,18 @@ from vultron.semantic_registry import (
 from vultron.wire.as2.extractor import (
     ActivityPattern,
     OfferCaseOwnershipTransferActivityPattern,
+    ProposeCaseOwnershipTransferActivityPattern,
     UndoCaseOwnershipTransferActivityPattern,
 )
 from vultron.wire.as2.extractor._instances import RefusalNoticePattern
 from vultron.wire.as2.factories import (
+    accept_case_ownership_transfer_activity,
     accept_case_participant_role_activity,
     announce_vulnerability_case_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
+    propose_case_ownership_transfer_activity,
+    reject_case_ownership_transfer_activity,
     reject_case_participant_role_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -310,7 +314,8 @@ def test_unknown_activity_type_with_bare_string_object_returns_unknown():
 
     # as_Flag has no registered Vultron patterns; a bare-string object_ should
     # return UNKNOWN, not UNKNOWN_UNRESOLVABLE_OBJECT.  (as_Undo was the
-    # example until Undo(Offer(VulnerabilityCase)) got a pattern, CM-21-015.)
+    # example until the ownership-transfer withdrawal got a pattern,
+    # CM-21-015.)
     activity = as_Flag(
         actor="https://example.org/alice",
         object_="urn:uuid:some-object",
@@ -1034,32 +1039,88 @@ def test_leave_of_the_case_is_not_a_withdrawal_from_the_embargo() -> None:
 
 
 # ---------------------------------------------------------------------------
-# VAM-04-015 — the ownership-transfer withdrawal, Undo(Offer(VulnerabilityCase))
+# VAM-04-015 — the ownership-transfer withdrawal, an Undo of the proposal
 # ---------------------------------------------------------------------------
+
+
+def _proposal():
+    return propose_case_ownership_transfer_activity(
+        as_VulnerabilityCase(name="Proposed"),
+        target="https://example.org/coordinator",
+        actor="https://example.org/vendor",
+        to=["https://example.org/case-actor"],
+    )
 
 
 @pytest.mark.spec("VAM-04-015")
 @pytest.mark.spec("CM-21-015")
-def test_undo_of_ownership_offer_matches_the_withdrawal_pattern():
-    case = as_VulnerabilityCase(name="Withdrawn")
-    offer = offer_case_ownership_transfer_activity(
-        case,
-        target="https://example.org/coordinator",
-        actor="https://example.org/vendor",
-    )
+def test_undo_of_ownership_proposal_matches_the_withdrawal_pattern():
     undo = undo_case_ownership_transfer_activity(
-        offer, actor="https://example.org/vendor"
+        _proposal(), actor="https://example.org/vendor"
     )
 
     assert (
         UndoCaseOwnershipTransferActivityPattern.object_
-        is OfferCaseOwnershipTransferActivityPattern
+        is ProposeCaseOwnershipTransferActivityPattern
     )
     assert UndoCaseOwnershipTransferActivityPattern.match(undo)
     assert (
         find_matching_semantics(undo)
         == MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER
     )
+
+
+@pytest.mark.spec("VAM-04-018")
+@pytest.mark.spec("CM-21-005")
+def test_ownership_proposal_is_told_apart_from_the_offer_by_shape():
+    """Offer(Offer(Case)) and Offer(Case) each match one pattern (ADR-0148)."""
+    proposal = _proposal()
+    offer = cast(Any, proposal.object_)
+
+    assert (
+        ProposeCaseOwnershipTransferActivityPattern.object_
+        is OfferCaseOwnershipTransferActivityPattern
+    )
+    assert (
+        find_matching_semantics(proposal)
+        == MessageSemantics.PROPOSE_CASE_OWNERSHIP_TRANSFER
+    )
+    assert not OfferCaseOwnershipTransferActivityPattern.match(proposal)
+    assert (
+        find_matching_semantics(offer)
+        == MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
+    )
+    assert not ProposeCaseOwnershipTransferActivityPattern.match(offer)
+
+
+@pytest.mark.spec("VAM-04-007")
+@pytest.mark.spec("VAM-04-008")
+@pytest.mark.spec("VAM-04-009")
+@pytest.mark.parametrize(
+    ("factory", "semantics"),
+    [
+        (None, MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER),
+        (
+            accept_case_ownership_transfer_activity,
+            MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
+        ),
+        (
+            reject_case_ownership_transfer_activity,
+            MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
+        ),
+    ],
+)
+def test_the_case_managers_offer_and_its_answers_match_their_patterns(
+    factory, semantics
+):
+    offer = cast(Any, _proposal().object_)
+    activity = (
+        offer
+        if factory is None
+        else factory(offer, actor="https://example.org/coordinator")
+    )
+
+    assert find_matching_semantics(activity) == semantics
 
 
 @pytest.mark.spec("CLP-05-001")

@@ -23,41 +23,46 @@ activity instead, under a key the receiver derives from the activity id, and
 is the only place the inbox holds it until the replay deletes it, or the
 queue's expiry does.
 
-It holds three things:
+It holds two things, and nothing derived from them (ADR-0149):
 
 - the activity itself.  A delivery is held as the received body the parser
   sealed (VM-08-002, ADR-0149), so its replay parses those bytes and carries
-  the same evidence as the first delivery.  An activity that arrived with no
-  sealed body (one this process built, such as a ledger entry handed back to
-  the inbox, SYNC-14-009) is held as its storage row instead, and its replay
-  carries no evidence;
+  the same evidence as the first delivery.  An activity handed to the inbox
+  in process with no sealed body is held as its storage row instead, and its
+  replay carries no evidence (VM-08-002);
 - the storage rows staged from its inline objects (IO-03-004), which the
   replay stages again for routing.  They are rows (``id_``, ``type_``,
   ``data_``), not domain objects, so no read by an object's own id ever
   reaches them, and they are held as one JSON string because storage
-  normalises the keys of a nested mapping (``id_`` to ``id``);
-- the core summary the received event carried (``activity``), the form intake
-  archives (``ReceivedActivityRecord``), so a core reader that asks for a
-  received activity still waiting on its case finds it (DL-06-006).
+  normalises the keys of a nested mapping (``id_`` to ``id``).
+
+A core reader that asks for a received activity still waiting on its case
+loads it from this record as it loads an archived one
+(the ``ReceivedActivityLoader`` port): the held body is parsed again,
+not read from a stored summary of it.
 """
 
 from __future__ import annotations
 
 import urllib.parse
-from typing import Any, Literal
+from collections.abc import Mapping
+from typing import Any, ClassVar, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import (
-    CoreRecord,
     NonEmptyString,
     UriString,
     with_record_id,
 )
+from vultron.core.models.received_body import require_json_object_text
+from vultron.core.models.retired_stored_fields import (
+    RetiredFieldsRecord,
+    RetiredStoredField,
+)
 
 
-class DeferredInboxActivity(CoreRecord):
+class DeferredInboxActivity(RetiredFieldsRecord):
     """One deferred inbox activity, held under the receiver's key.
 
     Exactly one of :attr:`received_body` and :attr:`activity_row_json` is
@@ -69,6 +74,11 @@ class DeferredInboxActivity(CoreRecord):
         validation_alias="type",
         serialization_alias="type",
     )
+    # The event's core summary of the activity, retired for the body itself
+    # (ADR-0149): nothing derived from what arrived is stored beside it.
+    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+        "activity": RetiredStoredField(None, "#4943"),
+    }
     activity_id: UriString = Field(
         ..., description="The sender's id for the deferred activity"
     )
@@ -92,13 +102,6 @@ class DeferredInboxActivity(CoreRecord):
             " the activity's inline objects"
         ),
     )
-    activity: VultronActivity | None = Field(
-        default=None,
-        description=(
-            "The core summary of the activity the received event carried,"
-            " as intake would archive it"
-        ),
-    )
 
     @classmethod
     def build_id(cls, activity_id: str) -> str:
@@ -115,6 +118,14 @@ class DeferredInboxActivity(CoreRecord):
             if activity_id is not None:
                 data = with_record_id(data, cls.build_id(activity_id))
         return data
+
+    @field_validator("received_body")
+    @classmethod
+    def _body_is_a_json_object(cls, value: str | None) -> str | None:
+        """Refuse a held body that is not the text of one JSON object."""
+        if value is None:
+            return value
+        return require_json_object_text(value, "received_body")
 
     @model_validator(mode="after")
     def _holds_the_activity_once(self) -> DeferredInboxActivity:

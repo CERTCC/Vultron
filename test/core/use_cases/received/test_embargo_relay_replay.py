@@ -25,7 +25,7 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.received import assert_held_only_as_received
+from test.support.received import assert_held_only_as_received, received_event
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -61,7 +61,6 @@ from vultron.core.use_cases.triggers.requests import (
     RejectEmbargoTriggerRequest,
     TerminateEmbargoTriggerRequest,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -977,7 +976,7 @@ def test_an_invite_naming_no_embargo_gets_a_processing_fault():
     """An Invite with no embargo is received but not understood: a fault."""
     net = _Network("https://example.org/cases/relay-replay-no-embargo")
     _, body = _pxa_invite_body(net, MANAGER, OWNER, "no-embargo")
-    event = extract_event(parse_activity(body)).model_copy(
+    event = received_event(parse_activity(body)).model_copy(
         update={"receiving_actor_id": OWNER, "object_": None}
     )
 

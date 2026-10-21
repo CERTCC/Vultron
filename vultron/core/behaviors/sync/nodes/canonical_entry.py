@@ -15,10 +15,12 @@
 """Canonical-entry validation for the case ledger commit boundary.
 
 Guards every ``CaseLedgerEntry`` before it reaches the hash chain: the
-``payloadSnapshot`` must carry a non-empty actor URI, a registered
-``(activity_type, object_type)`` signature, fully inline nested objects, a
-``context`` equal to the case URI, and — per CLP-07-003 — a CaseActor actor
-only for signatures the CaseActor is authorized to author.
+``payloadSnapshot`` must name its actor, carry its object inline under a
+registered ``(activity_type, object_type)`` signature, name no case but the
+entry's own in ``context``, and — per CLP-07-003 — name a CaseActor actor
+only for signatures the CaseActor is authorized to author.  The snapshot is
+checked, never changed: a received one is the body as it arrived
+(CLP-07-011).
 
 Extracted from ``chain.py`` to keep that module within the BTND-07-004
 500-line leaf limit; grouped here as its own semantic concern per BTND-07-006.
@@ -32,6 +34,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models._helpers import as_utc, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.rsvp_deadline import (
@@ -40,6 +43,7 @@ from vultron.core.models.rsvp_deadline import (
     INVITE_EXPIRED_SNAPSHOT_TYPE,
 )
 from vultron.core.models.wire_keys import wire_key
+from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.errors import VultronCanonicalEntryError
 
 logger = logging.getLogger(__name__)
@@ -60,7 +64,12 @@ _PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", CaseLedgerEntry)
 _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Create", "VulnerabilityCase"),
     ("Offer", "VulnerabilityReport"),
+    # The CASE_MANAGER's ownership-transfer Offer (CM-21-005, ADR-0148).
     ("Offer", "VulnerabilityCase"),
+    # The Case Owner's ownership-transfer proposal, Offer(Offer(Case)),
+    # committed as received (ADR-0148).  Owner-authored, so not in
+    # ``_CASE_AUTHORED_SIGNATURES``.
+    ("Offer", "Offer"),
     ("Accept", "Offer"),  # validate_report (RV) — object_ is the Offer
     ("TentativeReject", "Offer"),  # invalidate_report (RI)
     # A Reject of an Offer: the ownership transferee's decline (CLP-02-012),
@@ -68,9 +77,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # Close(Report) on a case is admitted now (CM-23-019).
     ("Reject", "Offer"),
     # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-003, CLP-02-013).
-    # The Case Owner's withdrawal of an ownership-transfer Offer (CM-21-015),
-    # the only Undo(Offer) semantic today; a second one would share this
-    # signature.  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
+    # The Case Owner's withdrawal of its ownership-transfer proposal
+    # (CM-21-015, ADR-0148), the only Undo(Offer) semantic today; a second
+    # one would share this signature.  Owner-authored, so not in
+    # ``_CASE_AUTHORED_SIGNATURES``.
     ("Undo", "Offer"),
     # No ``("Create", "Note")``: a received Create(Note) is not a protocol
     # message, so ``Add(Note)`` is a note's one entry (VAM-01-011).
@@ -185,9 +195,9 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Add", "CaseStatus"),  # add_case_status_to_case (CLP-12-001, #1767)
     }
 )
-_INLINE_OBJECT_KEYS: frozenset[str] = frozenset(
-    {"object", "object_", "target"}
-)
+#: The snapshot slots that carry the object the entry is about.  Its type is
+#: half of the entry's signature, so it must travel inline (AKM-02-004).
+_INLINE_OBJECT_KEYS: frozenset[str] = frozenset({"object", "object_"})
 
 
 def _snapshot_type(snapshot: dict[str, Any]) -> str | None:
@@ -210,8 +220,8 @@ def _snapshot_object_type(
     # Invite(Actor, target=...): object_ is the actor; use target.type so the
     # signature resolves to ('Invite','VulnerabilityCaseStub') for the stub
     # Invite, or ('Invite','VulnerabilityCase'), not ('Invite','Org').
-    # A target that is the case URI itself names the same thing (see
-    # ``_bare_inline_object_path``), so it resolves the same way.
+    # A target that is the case URI itself names the same thing, so it
+    # resolves the same way.
     obj = snapshot.get("object") or snapshot.get("object_")
     if not isinstance(obj, dict):
         return None
@@ -230,34 +240,21 @@ def _snapshot_object_type(
 
 
 def _bare_inline_object_path(
-    value: Any, case_id: str, path: str = _PAYLOAD_SNAPSHOT
+    payload_snapshot: dict[str, Any], path: str = _PAYLOAD_SNAPSHOT
 ) -> str | None:
-    """Return the path of the first bare-string inline-object value, or ``None``.
+    """Return the path of a bare-string ``object``, or ``None``.
 
-    A ``target`` that is the entry's own case URI is not a substitution
-    requiring an out-of-band lookup (CLP-07-006): the entry is *about* that
-    case, every replica holds it, and the factories address a case by its URI
-    (AKM-02-003).  It is therefore accepted at any depth.  Every other bare
-    string in an inline-object slot is refused.
+    The object an activity is about travels inline: a sender inlines what it
+    introduces (AKM-02-004), and the entry's signature is read from the
+    object's type.  Every other slot is recorded as the sender sent it
+    (CLP-07-006).  A bare reference there names an object the case's replicas
+    hold, such as the case in ``target`` or the participant a status is added
+    to (AKM-02-002), and a replica that lacks it dereferences it; the commit
+    boundary neither inlines nor refuses it.
     """
-    if isinstance(value, dict):
-        for key, child in value.items():
-            child_path = f"{path}.{key}"
-            if key in _INLINE_OBJECT_KEYS and isinstance(child, str):
-                if key == "target" and child == case_id:
-                    continue
-                return child_path
-            nested_path = _bare_inline_object_path(child, case_id, child_path)
-            if nested_path is not None:
-                return nested_path
-        return None
-    if isinstance(value, list):
-        for index, item in enumerate(value):
-            nested_path = _bare_inline_object_path(
-                item, case_id, f"{path}[{index}]"
-            )
-            if nested_path is not None:
-                return nested_path
+    for key in _INLINE_OBJECT_KEYS:
+        if isinstance(payload_snapshot.get(key), str):
+            return f"{path}.{key}"
     return None
 
 
@@ -274,9 +271,9 @@ def _validate_entry_timestamps(
     """Enforce the claimed-timestamp invariants at the commit boundary.
 
     Checks ``payloadSnapshot.published`` — the *asserting actor's* claimed
-    event time, carried across the wire→core boundary by
-    ``_build_activity_snapshot`` (ISSUE-3149) for received activities and
-    stamped with the CaseActor's own clock for CaseActor-authored ones.
+    event time, as it arrived in the received body for received activities
+    (CLP-07-011) and stamped with the CaseActor's own clock for
+    CaseActor-authored ones.
 
     This is deliberately a different field from ``CaseLedgerEntry.published``,
     the CaseActor's commit stamp.  The two invariant families do not belong at
@@ -424,17 +421,18 @@ def _validate_canonical_entry(
             f" {_PAYLOAD_SNAPSHOT}"
         )
 
-    snapshot_actor = payload_snapshot.get("actor")
-    if not isinstance(snapshot_actor, str) or not snapshot_actor:
+    # A received body names its actor as the sender wrote it: a URI, or the
+    # inline profile a Create(CaseProposal) carries (CP-01-010).
+    if snapshot_actor_id(payload_snapshot.get("actor")) is None:
         raise VultronCanonicalEntryError(
-            f"{semantic_type}: payloadSnapshot.actor must be a non-empty URI"
+            f"{semantic_type}: payloadSnapshot.actor must name an actor URI"
         )
 
     activity_type = _snapshot_type(payload_snapshot)
     object_type = _snapshot_object_type(payload_snapshot, case_id)
     signature = (activity_type or "", object_type or "")
 
-    bare_reference_path = _bare_inline_object_path(payload_snapshot, case_id)
+    bare_reference_path = _bare_inline_object_path(payload_snapshot)
     if bare_reference_path is not None:
         raise VultronCanonicalEntryError(
             f"{semantic_type}: {bare_reference_path} must be an inline object, "
@@ -447,10 +445,16 @@ def _validate_canonical_entry(
             "is not canonical"
         )
 
+    # The entry names its case on the envelope (``case_id``); the snapshot is
+    # the activity as asserted, so an activity that predates the case carries
+    # no ``context`` (CLP-07-011).  One that names a case names this
+    # one: a snapshot scoped to another case is not this case's event.
     context = payload_snapshot.get("context")
-    if context != case_id:
+    if context is not None and _extract_id_from_field(context) != case_id:
         raise VultronCanonicalEntryError(
-            f"{semantic_type}: payloadSnapshot.context must equal the case URI"
+            f"{semantic_type}: payloadSnapshot.context names"
+            f" {_extract_id_from_field(context)!r}, not the entry's case"
+            f" {case_id!r}"
         )
 
     # Claimed-timestamp invariants.  Unconditional for recorded entries: each

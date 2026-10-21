@@ -238,6 +238,19 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     return activity
 
 
+def parse_received_body(received_body: str) -> as_Activity:
+    """Parse a received body a receiver holds, as the inbox parsed it.
+
+    *received_body* is the evidence an earlier parse sealed (VM-08-002): the
+    text an archive or a deferred record keeps (ADR-0149).  Parsing it again
+    seals the same text, so the result carries exactly the held body.
+
+    Raises:
+        VultronParseError: When the held text no longer parses.
+    """
+    return parse_activity(json.loads(received_body))
+
+
 def _report_set_aside(
     body: dict[str, Any], set_aside: list[SetAsideKey]
 ) -> None:

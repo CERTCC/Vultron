@@ -310,13 +310,25 @@ AcceptCaseOwnershipTransferActivityPattern = ActivityPattern(
 RejectCaseOwnershipTransferActivityPattern = ActivityPattern(
     activity_=TAtype.REJECT, object_=OfferCaseOwnershipTransferActivityPattern
 )
+ProposeCaseOwnershipTransferActivityPattern = ActivityPattern(
+    description=(
+        "Offer(Offer(VulnerabilityCase)) — the Case Owner proposes an "
+        "ownership transfer to the CASE_MANAGER, which makes the one "
+        "Offer(VulnerabilityCase) the transferee answers (ADR-0148, "
+        "CM-21-005).  Told apart from that Offer by its shape: its object "
+        "is an Offer, not a case."
+    ),
+    activity_=TAtype.OFFER,
+    object_=OfferCaseOwnershipTransferActivityPattern,
+)
 UndoCaseOwnershipTransferActivityPattern = ActivityPattern(
     description=(
-        "Undo(Offer(VulnerabilityCase)) — the offerer withdraws an open "
-        "ownership-transfer Offer (CM-21-015)."
+        "Undo(Offer(Offer(VulnerabilityCase))) — the Case Owner withdraws "
+        "its ownership-transfer proposal, and with it the Offer the "
+        "CASE_MANAGER made from it (CM-21-015, ADR-0148)."
     ),
     activity_=TAtype.UNDO,
-    object_=OfferCaseOwnershipTransferActivityPattern,
+    object_=ProposeCaseOwnershipTransferActivityPattern,
 )
 
 # ---------------------------------------------------------------------------

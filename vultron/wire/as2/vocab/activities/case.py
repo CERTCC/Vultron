@@ -303,6 +303,36 @@ class _OfferCaseOwnershipTransferActivity(as_Offer):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"target"})
 
 
+class _ProposeCaseOwnershipTransferActivity(as_Offer):
+    """The Case Owner proposes an ownership transfer to the CASE_MANAGER.
+
+    Wire format: ``Offer(Offer(VulnerabilityCase), context=VulnerabilityCase)``
+    (ADR-0148).  The inner Offer is the template of the one Offer the
+    CASE_MANAGER makes to the transferee: its object is the case, its
+    ``target`` the transferee and its ``endTime`` the deadline to answer.
+    The proposal's shape, an Offer of an Offer, is what tells it apart from
+    the CASE_MANAGER's ``Offer(VulnerabilityCase)``, so neither pattern needs
+    a sender check (ADR-0039).
+
+    object_: _OfferCaseOwnershipTransferActivity (inline, required)
+    context: as_VulnerabilityCase or str URI (required): the case the
+        proposal is about, which the inner Offer's object must name
+
+    Declares ``object_`` in :attr:`inline_required_refs`: the inner Offer is
+    minted inline and never stored on its own, so its id resolves to nothing
+    (DL-08-001).
+    """
+
+    object_: _OfferCaseOwnershipTransferActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    context: as_VulnerabilityCase | NonEmptyString = Field(
+        ..., validation_alias="context", serialization_alias="context"
+    )
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
+
+
 class _AcceptCaseOwnershipTransferActivity(as_Accept):
     """The actor is accepting an offer to transfer ownership of the case.
 
@@ -328,16 +358,18 @@ class _RejectCaseOwnershipTransferActivity(as_Reject):
 
 
 class _UndoCaseOwnershipTransferActivity(as_Undo):
-    """The offerer is withdrawing its offer to transfer ownership of the case.
+    """The Case Owner is withdrawing its ownership-transfer proposal.
 
-    Sent by the Case Owner that made the Offer, addressed to the CASE_MANAGER
-    (CM-21-015).
+    Sent by the Case Owner that made the proposal, addressed to the
+    CASE_MANAGER, which withdraws the Offer it made from it (CM-21-015,
+    ADR-0148).
 
-    - object_: the _OfferCaseOwnershipTransferActivity being withdrawn (inline
-      typed object required — bare string IDs are rejected at construction time)
+    - object_: the _ProposeCaseOwnershipTransferActivity being withdrawn
+      (inline typed object required — bare string IDs are rejected at
+      construction time)
     """
 
-    object_: _OfferCaseOwnershipTransferActivity = Field(
+    object_: _ProposeCaseOwnershipTransferActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 

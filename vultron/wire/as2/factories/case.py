@@ -22,9 +22,9 @@ imported here and MUST NOT be imported by callers.
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import json
 import logging
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any, TypeVar, cast
 
 from pydantic import ValidationError
@@ -35,7 +35,6 @@ from vultron.core.models.dimensions import (
     EmDimension,
 )
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.enums.object_types import VultronObjectType
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._context import (
@@ -43,7 +42,12 @@ from vultron.wire.as2.factories._context import (
     case_uri_of,
     with_case_context,
 )
-from vultron.wire.as2.factories._held import as_answered
+from vultron.wire.as2.factories._held import (
+    answered_fields,
+    as_answered,
+    embedded_as_received,
+    validated_as,
+)
 from vultron.wire.as2.factories._inline import require_inline
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case import (
@@ -56,6 +60,7 @@ from vultron.wire.as2.vocab.activities.case import (
     _CreateCaseActivity,
     _OfferCaseOwnershipTransferActivity,
     _OfferCaseParticipantRoleActivity,
+    _ProposeCaseOwnershipTransferActivity,
     _RejectCaseOwnershipTransferActivity,
     _RejectCaseParticipantRoleActivity,
     _RmAcceptFullCaseInviteActivity,
@@ -640,6 +645,62 @@ def offer_case_ownership_transfer_activity(
         ) from exc
 
 
+def propose_case_ownership_transfer_activity(
+    case: as_VulnerabilityCase,
+    target: as_ActorRef,
+    end_time: datetime | None = None,
+    **kwargs,
+) -> as_Offer:
+    """Build Offer(Offer(VulnerabilityCase), context=case): the owner's proposal.
+
+    The Case Owner sends it to the CASE_MANAGER, which makes the one
+    ``Offer(VulnerabilityCase)`` the transferee answers (ADR-0148,
+    CM-21-005).  The inner Offer carries what the owner decides: the case as
+    its object, the transferee as its ``target`` and, when given, the
+    deadline to answer as its ``end_time`` (CM-21-016).  It is built with
+    :func:`offer_case_ownership_transfer_activity`, so it has the shape of
+    the Offer the CASE_MANAGER will make; the proposal's ``context`` names
+    the case by its URI.
+
+    Args:
+        case: The ``as_VulnerabilityCase`` whose ownership is proposed.
+        target: The actor (or actor URI) the owner proposes as the new owner.
+        end_time: Optional deadline to answer the Offer, carried on the
+            inner Offer.
+        **kwargs: Optional AS2 fields for the proposal itself (e.g.
+            ``actor``, ``to``, ``content``).
+
+    Returns:
+        An ``as_Offer`` whose ``object_`` is the inner ownership-transfer
+        Offer and whose ``context`` is the case URI.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    inner_kwargs: dict[str, Any] = {}
+    if end_time is not None:
+        inner_kwargs["end_time"] = end_time
+    if (actor := kwargs.get("actor")) is not None:
+        inner_kwargs["actor"] = actor
+    inner = offer_case_ownership_transfer_activity(
+        case, target=target, **inner_kwargs
+    )
+    try:
+        return _ProposeCaseOwnershipTransferActivity(
+            object_=cast(_OfferCaseOwnershipTransferActivity, inner),
+            context=case_uri_of(case) or case.id_,
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "propose_case_ownership_transfer_activity: invalid arguments: %s",
+            exc,
+        )
+        raise VultronActivityConstructionError(
+            "propose_case_ownership_transfer_activity: invalid arguments"
+        ) from exc
+
+
 _OwnershipReply = TypeVar("_OwnershipReply")
 
 
@@ -652,7 +713,8 @@ def _ownership_offer_reply(
     """Build *reply_class* around an ownership-transfer *offer*.
 
     Shared by the transferee's Accept and Reject and the offerer's Undo.
-    *offer* may be the Offer as a receiver archived it (its core form).
+    *offer* may be the Offer as a receiver parsed it from its archived body,
+    which the reply then embeds verbatim (:func:`as_answered`).
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails, as it
@@ -734,35 +796,43 @@ def reject_case_ownership_transfer_activity(
 
 
 def undo_case_ownership_transfer_activity(
-    offer: as_Offer,
+    proposal: as_Offer,
     **kwargs,
 ) -> as_Undo:
-    """Build an Undo(_OfferCaseOwnershipTransferActivity): a withdrawal.
+    """Build an Undo(_ProposeCaseOwnershipTransferActivity): a withdrawal.
 
-    The Case Owner that made the Offer withdraws it while it is open,
-    addressing the Undo to the CASE_MANAGER (CM-21-015).  The ``offer`` MUST
-    be an ``_OfferCaseOwnershipTransferActivity`` (i.e., the value returned
-    by :func:`offer_case_ownership_transfer_activity`).  A plain ``as_Offer``
-    will fail Pydantic validation and raise
+    The Case Owner withdraws its own proposal while the Offer the
+    CASE_MANAGER made from it is open, addressing the Undo to the
+    CASE_MANAGER (CM-21-015, ADR-0148).  The ``proposal`` MUST be a
+    ``_ProposeCaseOwnershipTransferActivity`` (i.e., the value returned by
+    :func:`propose_case_ownership_transfer_activity`), or the proposal as
+    the owner's store hands it back.  Anything else fails Pydantic validation and raises
     :exc:`VultronActivityConstructionError`.
 
     Args:
-        offer: The ``_OfferCaseOwnershipTransferActivity`` being withdrawn.
+        proposal: The ``_ProposeCaseOwnershipTransferActivity`` withdrawn.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
 
     Returns:
-        An ``as_Undo`` whose ``object_`` is the offer.
+        An ``as_Undo`` whose ``object_`` is the proposal.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    return _ownership_offer_reply(
-        _UndoCaseOwnershipTransferActivity,
-        "undo_case_ownership_transfer_activity",
-        offer,
-        kwargs,
-    )
+    label = "undo_case_ownership_transfer_activity"
+    try:
+        return _UndoCaseOwnershipTransferActivity(
+            object_=as_answered(
+                _ProposeCaseOwnershipTransferActivity, proposal
+            ),
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning("%s: invalid arguments: %s", label, exc)
+        raise VultronActivityConstructionError(
+            f"{label}: invalid arguments"
+        ) from exc
 
 
 def rm_invite_to_case_activity(
@@ -831,60 +901,36 @@ def rm_invite_to_case_activity(
         ) from exc
 
 
-def validate_held_case_invite(data: dict[str, Any]) -> as_Invite:
-    """Validate a held Invite's JSON form into ``as_Invite``, stub and all.
-
-    ``as_Invite.target`` is a generic ``as_Object`` slot, which keeps none of
-    a stub's own fields, so a target whose ``type`` is ``VulnerabilityCaseStub``
-    is validated as the stub itself (CM-11-013).  Any other target is kept as
-    the generic slot holds it, for :func:`_as_case_invite` to refuse.
-
-    Raises:
-        pydantic.ValidationError: when *data* is not an Invite, or its stub
-            does not validate (for example, it has no ``caseId``).
-    """
-    invite = as_Invite.model_validate(data)
-    stub = data.get("target")
-    if (
-        isinstance(stub, dict)
-        and stub.get("type") == VultronObjectType.VULNERABILITY_CASE_STUB.value
-    ):
-        invite = invite.model_copy(
-            update={"target": as_VulnerabilityCaseStub.model_validate(stub)}
-        )
-    return invite
-
-
 def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
     """Return *invite* as the case-Invite class the reply activities embed.
 
-    An Invite the invitee holds came through intake, which archives the
-    activity as the event carried it (CLP-10-017, ADR-0111) — not as this
-    class.  The caller validates that record into ``as_Invite`` at its edge
-    (ADR-0032); this function validates it on into the case-Invite class from
-    its JSON form.  Neither class checks the input's ``type`` (both set their
-    own), so it is checked here first.
+    An Invite the invitee holds came through intake, which archives the body
+    that arrived (CLP-10-017, ADR-0149); the caller parses it into
+    ``as_Invite`` at its edge (ADR-0032).  This function validates it on into
+    the case-Invite class from its JSON form, and the copy embeds the
+    received body verbatim (:func:`embedded_as_received`).  Neither class
+    checks the input's ``type`` (both set their own), so it is checked here
+    first.
 
     Raises:
         VultronActivityConstructionError: when *invite* is not an Invite, or
             does not validate as a case Invite.
     """
     if isinstance(invite, _RmInviteToCaseActivity):
-        return invite
-    data = json.loads(
-        invite.model_dump_json(by_alias=True, serialize_as_any=True)
-    )
-    if data.get("type") != as_TransitiveActivityType.INVITE.value:
+        return embedded_as_received(invite, invite)
+    if invite.type_ != as_TransitiveActivityType.INVITE.value:
         raise VultronActivityConstructionError(
-            f"activity '{data.get('id')}' is not a case Invite:"
-            f" its type is {data.get('type')!r}"
+            f"activity '{invite.id_}' is not a case Invite:"
+            f" its type is {invite.type_!r}"
         )
     try:
-        return _RmInviteToCaseActivity.model_validate(data)
+        case_invite = validated_as(_RmInviteToCaseActivity, invite)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
-            f"activity '{data.get('id')}' is not a case Invite"
+            f"activity '{invite.id_}' is not a case Invite"
         ) from exc
+    # The reply embeds the Invite as its sender sent it (DL-06-004).
+    return embedded_as_received(case_invite, invite)
 
 
 def rm_accept_invite_to_case_activity(
@@ -1044,9 +1090,7 @@ def _as_full_case_invite(invite: as_Invite) -> _RmInviteToFullCaseActivity:
     """
     if isinstance(invite, _RmInviteToFullCaseActivity):
         return invite
-    data = json.loads(
-        invite.model_dump_json(by_alias=True, serialize_as_any=True)
-    )
+    data = answered_fields(invite)
     target = data.get("target")
     if isinstance(target, dict):
         data["target"] = target.get("id")

@@ -157,12 +157,11 @@ def create_em_machine() -> Machine:
 def is_em_assertion_acceptable(current: EM, asserted: EM) -> bool:
     """Return True if a received CaseStatus's EM may be accepted.
 
-    The EM acceptance rule for a received ``CaseStatus`` (RSH-05-023): EM is
+    The EM acceptance rule for a received ``CaseStatus`` (RSH-09-005): EM is
     derived from the case's embargo register (ADR-0122), so a status can
     only carry the EM the receiver already derives — it never moves EM.  The
-    CASE_MANAGER's ``FilterCsEmDimensionNode`` and the replica's
-    ``ApplyCaseStatusFromLedgerNode`` both apply it, so the two sides of the
-    ledger cannot adjudicate EM differently.
+    CASE_MANAGER applies it before committing the status; a replica copies
+    the committed entry instead (CM-23-016).
     """
     return asserted == current
 

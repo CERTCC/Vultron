@@ -19,25 +19,19 @@ Covers actor invitations, recommendations, participant management, and
 Case Actor / CASE_MANAGER delegation activities.
 """
 
-import json
 import logging
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any, cast
 
-from pydantic import BaseModel, ValidationError
-
+from vultron.adapters.received_archive import (
+    read_held_as_received,
+    read_received_as_received,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.core.models.ownership_transfer_offer_record import (
-    VultronOwnershipTransferOfferRecord,
-)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.services.received_activity import (
-    read_held_activity,
-    read_received_activity,
-)
 from vultron.enums.roles import CVDRole
 from vultron.errors import (
     VultronAlreadyExistsError,
@@ -65,25 +59,21 @@ from vultron.wire.as2.factories.case import (
     accept_case_participant_role_activity,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
+    propose_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
     reject_case_participant_role_activity,
     rm_reject_invite_to_case_activity,
     undo_case_ownership_transfer_activity,
-    validate_held_case_invite,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
     as_Offer,
     as_Reject,
-    as_Undo,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 from ._base import (
     _addressing,
@@ -118,44 +108,28 @@ def _stored_case_invite(
 ) -> as_Invite:
     """Read the received Invite as this invitee holds it, stub and all.
 
-    The Invite is read with ``read_received_activity``: intake archives it on
-    arrival, since the inbox never holds a stub Invite back for its case
-    (PCR-06-005).  The reply factory checks that it is a case Invite.  The
-    Accept or Reject embeds the Invite as received, so its ``target`` stays
-    the case stub
-    (VAM-04-005, VAM-04-006): the CASE_MANAGER reads the case from the stub's
-    ``caseId`` (CM-11-003), and the stub's ``type`` is what tells the reply
-    apart from a reply to a full-case Invite (CM-11-013).
-
-    The held record is validated into ``as_Invite`` here, at the adapter
-    edge (ADR-0032): intake archives the activity as the event carried it,
-    a core activity the wire factories cannot name (ARCH-22-001).
+    The Invite is parsed from the body intake archived on arrival
+    (:func:`read_received_as_received`), since the inbox never holds a stub
+    Invite back for its case (PCR-06-005).  The parse resolves the inline
+    stub to its own class, and the reply factory checks that it is a case
+    Invite.  The Accept or Reject embeds the Invite as received, so its
+    ``target`` stays the case stub (VAM-04-005, VAM-04-006): the CASE_MANAGER
+    reads the case from the stub's ``caseId`` (CM-11-003), and the stub's
+    ``type`` is what tells the reply apart from a reply to a full-case Invite
+    (CM-11-013).
 
     Raises:
         VultronNotFoundError: when no activity with *invite_id* was received.
-        VultronValidationError: when the stored record is not a model, or it
-            does not validate as an Invite (a stub without ``caseId`` included).
+        VultronValidationError: when the activity received under *invite_id*
+            is not an Invite.
     """
-    held = read_received_activity(dl, invite_id, "RmInviteToCaseActivity")
-    if not isinstance(held, BaseModel):
+    held = read_received_as_received(dl, invite_id, "RmInviteToCaseActivity")
+    if not isinstance(held, as_Invite):
         raise VultronValidationError(
             f"invite '{invite_id}' is held as {type(held).__name__},"
-            " not as an activity model"
+            " not as an Invite"
         )
-    # The protocol's ``model_copy`` returns the protocol; read it as the model.
-    invite = cast(BaseModel, held)
-    if isinstance(invite, as_Invite):
-        return invite
-    data = json.loads(
-        invite.model_dump_json(by_alias=True, serialize_as_any=True)
-    )
-    try:
-        validated = validate_held_case_invite(data)
-    except ValidationError as exc:
-        raise VultronValidationError(
-            f"invite '{invite_id}' does not validate as an Invite"
-        ) from exc
-    return validated
+    return held
 
 
 class _ActorsMixin:
@@ -399,24 +373,16 @@ class _ActorsMixin:
         The ``to:`` list should contain the CaseActor URI so the Accept routes
         back to CaseActor for processing.
         """
-        # Read as received: the inbox stores the Offer with its participant
-        # as an id and stores no participant record, so only the intake
-        # archive holds the participant inline (#3763).  The factory validates
-        # the core activity it holds into the wire Offer.
+        # Read as received: parsed from the body intake archived, which
+        # holds the participant inline (#3763).  The Accept embeds it
+        # verbatim, and addresses the case as the Offer did (AKM-02-002).
         cp_offer = cast(
             as_Offer,
-            read_received_activity(
+            read_received_as_received(
                 self._dl, cp_offer_id, "Offer(CaseParticipant)"
             ),
         )
-        # Read-back rehydrates the offer's ``target`` into the full stored
-        # case; the Accept addresses the case by URI, as the Offer did on the
-        # wire (AKM-02-002, VM-08-003).
         target = _as_id(getattr(cp_offer, "target", None))
-        if target is not None:
-            # The embedded Offer carries the same reconstruction one level
-            # down; it addressed the case by URI on the wire too.
-            cp_offer = cp_offer.model_copy(update={"target": target})
         activity = accept_case_participant_offer_activity(
             offer=cp_offer, actor=actor, to=to, target=target
         )
@@ -759,6 +725,34 @@ class _ActorsMixin:
             id_=id_,
         )
 
+    def propose_case_ownership_transfer(
+        self,
+        case_id: str,
+        transferee_id: str,
+        actor: str,
+        content: str | None = None,
+        to: list[str] | None = None,
+        end_time: datetime | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the owner's ``Offer(Offer(VulnerabilityCase))``.
+
+        The proposal goes from ``actor`` to the CASE_MANAGER (*to*), which
+        makes the inner Offer itself (ADR-0148, TRIG-11-001).  The inner
+        Offer carries the case inline, so its shape is the Offer the
+        CASE_MANAGER will make, the transferee as its ``target`` and, when
+        given, *end_time* as its deadline (CM-21-016).
+        """
+        case = _case_for_wire(self._dl, case_id)
+        extra: dict[str, Any] = {"actor": actor, "to": to}
+        if content is not None:
+            extra["content"] = content
+        activity = propose_case_ownership_transfer_activity(
+            case, target=transferee_id, end_time=end_time, **extra
+        )
+        return _create_and_seal(
+            self._dl, activity, "propose_case_ownership_transfer"
+        )
+
     def offer_case_ownership_transfer(
         self,
         case_id: str,
@@ -768,33 +762,34 @@ class _ActorsMixin:
         to: list[str] | None = None,
         attributed_to: str | None = None,
         end_time: datetime | None = None,
-        in_reply_to: str | None = None,
+        id_: str | None = None,
     ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
-        Emits the offer from ``actor`` to ``transferee_id``.  The case is read
-        from the DataLayer and passed inline so the recipient can distinguish
-        this from a ``SUBMIT_REPORT`` offer (TRIG-11-001).  *end_time*, when
-        given, is the Offer's deadline to answer (TRIG-11-007, CM-21-016).
-        *in_reply_to*, when given, links a CASE_MANAGER forward to the
-        recorded Offer it forwards (CM-21-018).
+        The CASE_MANAGER's Offer to ``transferee_id``, made from the owner's
+        proposal (ADR-0148, CM-21-005).  The case is read from the DataLayer
+        and passed inline so the recipient can distinguish this from a
+        ``SUBMIT_REPORT`` offer.  *end_time*, when given, is the Offer's
+        deadline to answer (CM-21-016).  An Offer already built under *id_*
+        is the earlier attempt's, and its sealed body is handed back
+        (ID-04-004, OX-06-002).
         """
+        if (built := _already_sealed(self._dl, id_)) is not None:
+            return built
         case = _case_for_wire(self._dl, case_id)
-        extra: dict[str, Any] = {
-            "actor": actor,
-            "to": to or [transferee_id],
-        }
+        extra: dict[str, Any] = _addressing(actor, to or [transferee_id], id_)
         if content is not None:
             extra["content"] = content
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
         if end_time is not None:
             extra["end_time"] = end_time
-        if in_reply_to is not None:
-            extra["in_reply_to"] = in_reply_to
+        # The CASE_MANAGER ledgers the Offer it makes, and a ledger snapshot
+        # names its case as ``context`` (CLP-07).
         activity = offer_case_ownership_transfer_activity(
             case=case,
             target=transferee_id,
+            context=case_id,
             **extra,
         )
         return _create_and_seal(
@@ -843,21 +838,26 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Create and persist an ``Undo(Offer(VulnerabilityCase))`` withdrawal.
+        """Create and persist the owner's ``Undo`` of its own proposal.
 
-        See :meth:`_ownership_answer` (TRIG-11-006, CM-21-015).
+        *offer_id* names the ``Offer(Offer(VulnerabilityCase))`` this actor
+        sent, held under its own id (TRIG-11-006, CM-21-015, ADR-0148).  The
+        Undo goes to *to*, the CASE_MANAGER; there is no fallback, since the
+        proposal's ``actor`` is this actor itself.
         """
-        return self._ownership_answer(
-            undo_case_ownership_transfer_activity,
-            "withdraw_case_ownership_transfer",
-            offer_id=offer_id,
-            actor=actor,
-            to=to,
+        proposal = read_held_as_received(
+            self._dl, offer_id, "Offer(Offer(VulnerabilityCase))"
+        )
+        activity = undo_case_ownership_transfer_activity(
+            proposal=cast(as_Offer, proposal), actor=actor, to=to
+        )
+        return _create_and_seal(
+            self._dl, activity, "withdraw_case_ownership_transfer"
         )
 
     def _ownership_answer(
         self,
-        factory: Callable[..., as_Accept | as_Reject | as_Undo],
+        factory: Callable[..., as_Accept | as_Reject],
         label: str,
         offer_id: str,
         actor: str,
@@ -865,68 +865,24 @@ class _ActorsMixin:
     ) -> tuple[str, str]:
         """Build, persist and seal a reply to an ownership-transfer Offer.
 
-        The reply is the transferee's answer (Accept or Reject) or the
-        offerer's withdrawal (Undo).  Reads the offer as this actor holds
-        it (:func:`read_held_activity`): the transferee's received forward
-        from its intake archive, the offerer's own Offer under its id, never
-        a received Offer under the id its sender chose (DL-06-006).  Derives
+        The reply is the transferee's answer (Accept or Reject).  Reads the
+        offer as this actor received it (:func:`read_received_as_received`):
+        the CASE_MANAGER's Offer parsed from the body the transferee's intake
+        archived, never a record under the id its sender chose (DL-06-006,
+        ADR-0148), so the reply embeds it verbatim (DL-06-004).  Derives
         the ``to:`` field from the offer's ``actor`` when not supplied, and
         persists the reply that *factory* builds from it.
-
-        On a replica whose only source for the Offer was the replicated
-        ``offer_case_ownership_transfer`` ledger entry, what is stored at
-        ``offer_id`` is a core ``VultronOwnershipTransferOfferRecord`` rather
-        than the wire activity — the SYNC path cannot construct wire objects
-        (ARCH-03-001).  Rebuild the wire Offer from that record here, where wire
-        imports are allowed, so both delivery paths converge on the same answer
-        (#2225, ADR-0035 DL-06-002).
         """
-        raw = read_held_activity(
+        raw = read_received_as_received(
             self._dl, offer_id, "Offer(VulnerabilityCase)"
         )
-        if isinstance(raw, VultronOwnershipTransferOfferRecord):
-            raw = self._offer_from_core_record(raw)
         offer = cast(as_Offer, raw)
         if to is None:
             # Last resort, used only when the emit node found no local case
-            # or CASE_MANAGER to address.  For the CASE_MANAGER's forward the
-            # Offer's actor is the CASE_MANAGER (CM-21-006, CM-21-010); for an
-            # Offer rebuilt from a replicated ledger record it is the record's
-            # sender of record, which need not be.
+            # or CASE_MANAGER to address.  The Offer's actor is the
+            # CASE_MANAGER that made it (CM-21-006, CM-21-010).
             offer_actor_id = _as_id(getattr(offer, "actor", None))
             if offer_actor_id:
                 to = [offer_actor_id]
         activity = factory(offer=offer, actor=actor, to=to)
         return _create_and_seal(self._dl, activity, label)
-
-    def _offer_from_core_record(
-        self, record: "VultronOwnershipTransferOfferRecord"
-    ) -> Any:
-        """Rebuild the wire ownership-transfer Offer from its core record.
-
-        ``_OfferCaseOwnershipTransferActivity.object_`` MUST be an inline
-        ``as_VulnerabilityCase`` — a bare URI is rejected at construction and
-        would also make the activity indistinguishable from a SUBMIT_REPORT
-        Offer during semantic dispatch.  The case itself is already on the
-        replica (the SYNC path seeds it before the offer entry is applied), so
-        read it and project it to its wire form.
-        """
-        case = self._dl.read(record.case_id)
-        if case is None:
-            raise VultronNotFoundError("VulnerabilityCase", record.case_id)
-        if not isinstance(case, as_VulnerabilityCase):
-            raise VultronValidationError(
-                f"Record '{record.case_id}' is a {type(case).__name__},"
-                " not a VulnerabilityCase"
-            )
-        wire_case = case
-        # Reuse the same factory the offering side calls, so the rebuilt Offer
-        # is constructed exactly the way the wire path would have built it
-        # (test/architecture/test_activity_factory_imports.py forbids adapters
-        # from reaching into vultron.wire.as2.vocab.activities directly).
-        return offer_case_ownership_transfer_activity(
-            case=wire_case,
-            target=record.target_id,
-            id_=record.offer_id,
-            actor=record.actor_id,
-        )

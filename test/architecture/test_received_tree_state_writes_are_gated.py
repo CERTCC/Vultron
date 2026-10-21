@@ -183,7 +183,6 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyInviteExpiryFromLedgerNode",
             "ApplyInviteExpiryNoopFromLedgerNode",
             "ApplyNoteFromLedgerNode",
-            "ApplyOfferOwnershipTransferFromLedgerNode",
             "ApplyOfferReportFromLedgerNode",
             "ApplyOwnershipTransferFromLedgerNode",
             "ApplyParticipantStatusFromLedgerNode",

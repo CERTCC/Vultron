@@ -26,8 +26,10 @@ from vultron.adapters.outbox_sealed_body import (
     read_sealed_body,
     seal_outbound_body,
 )
+from vultron.adapters.received_archive import load_received_view
 from vultron.core.models.base import CoreObject
 from vultron.core.models.embargo_register import carry_embargo_inline
+from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_ordering import read_embargo_event
@@ -330,6 +332,16 @@ class _TriggerAdapterBase:
 
     def __init__(self, dl: CaseOutboxPersistence) -> None:
         self._dl = dl
+
+    def load_received_activity(
+        self, activity_id: str
+    ) -> ReceivedActivityView | None:
+        """Load the received *activity_id* from the body this store holds.
+
+        Parsed, rebuilt and extracted as the inbox did at delivery, and
+        returned read-only (ADR-0149, :func:`load_received_view`).
+        """
+        return load_received_view(self._dl, activity_id)
 
     def for_store(self, dl: CaseOutboxPersistence) -> "_TriggerAdapterBase":
         """Return an equivalent adapter that reads and writes *dl* (DL-07-009).

@@ -28,7 +28,7 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
-from vultron.adapters.driving.fastapi.inbox_staging import (
+from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -181,7 +181,7 @@ class InboxPipeline:
                 ):
                     return None
                 # Held before it is queued: the record is its only copy.
-                staging.hold_for_replay(event.activity_id, event.activity)
+                staging.hold_for_replay(event.activity_id)
                 _queue_pending_case_activity(
                     queue_dl=queue_dl,
                     case_id=case_id,

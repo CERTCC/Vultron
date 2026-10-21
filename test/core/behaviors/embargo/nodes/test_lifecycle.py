@@ -56,6 +56,7 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.enums.roles import CVDRole
+from vultron.errors import INTERNAL_FAULTS, VultronError
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -758,3 +759,40 @@ class TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer:
         )
         assert status is py_trees.common.Status.SUCCESS
         assert revision_id in self._accepted(dl, case.id_, CASE_MANAGER_ACTOR)
+
+
+class TestLifecycleNodeInternalFaults:
+    """A composition fault in a lifecycle node is no lifecycle refusal."""
+
+    @pytest.mark.spec("CLP-05-001")
+    @pytest.mark.parametrize(
+        "deciding", [False, True], ids=["write", "decide"]
+    )
+    @pytest.mark.parametrize(
+        "fault", INTERNAL_FAULTS, ids=lambda f: f.__name__
+    )
+    def test_an_internal_fault_is_raised_not_refused(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        deciding: bool,
+        fault: type[VultronError],
+    ):
+        def _raise(*_args: object, **_kwargs: object) -> None:
+            raise fault("a fault of ours")
+
+        monkeypatch.setattr(ProposeEmbargoLifecycleNode, "_transition", _raise)
+        dl, case, revision_id = (
+            TestProposeEmbargoLifecycleNodeOnBehalfOfAProposer()._case()
+        )
+        node = ProposeEmbargoLifecycleNode(
+            case_id=case.id_, embargo_id=revision_id, result_out={}
+        )
+        if deciding:
+            node = node.deciding()
+
+        result = BTBridge(
+            datalayer=dl, sync_port=SyncActivityAdapter(dl)
+        ).execute_with_setup(tree=node, actor_id=CASE_MANAGER_ACTOR)
+
+        assert result.status is py_trees.common.Status.FAILURE
+        assert result.internal_error

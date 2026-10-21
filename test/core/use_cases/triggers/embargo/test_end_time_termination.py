@@ -25,6 +25,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.ledger import ledger_entries
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -47,7 +48,7 @@ from vultron.core.models.case_participant import (
     ReporterParticipant,
     VendorParticipant,
 )
-from vultron.core.models.dimensions import PxaDimension
+from vultron.core.models.dimensions import PxaDimension, RmDimension
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     ThreatSignal,
@@ -92,7 +93,6 @@ from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronValidationError,
 )
-from vultron.semantic_registry import extract_event
 from vultron.trigger_registry import entries
 from vultron.wire.as2.factories import add_status_to_participant_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -169,8 +169,14 @@ class _World:
     def status_from(self, sender_id: str):
         """A received ``Add(ParticipantStatus)`` from *sender_id* to the
         CASE_MANAGER (PCR-08), handled by its real received use case."""
+        # Restate the finder's recorded RM: a status is accepted whole or
+        # refused whole, so a regression would refuse it outright (RSH-09-001).
+        current = self.finder_participant.participant_status
+        assert current is not None
         status = as_ParticipantStatus(
-            context=self.case_id, attributed_to=sender_id
+            context=self.case_id,
+            attributed_to=sender_id,
+            rm=RmDimension(state=current.rm.state),
         )
         self.dl.create(status)
         activity = add_status_to_participant_activity(
@@ -182,7 +188,7 @@ class _World:
         )
         event = cast(
             AddParticipantStatusToParticipantReceivedEvent,
-            extract_event(activity).model_copy(
+            received_event(activity).model_copy(
                 update={"receiving_actor_id": self.manager.id_}
             ),
         )

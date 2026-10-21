@@ -33,7 +33,8 @@ import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
 
-from test.support.received import received_record
+from test.support.received import received_activity, received_event
+from test.support.refusal_notice import assert_refusal_notice
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -119,10 +120,8 @@ def _accept_event(
     receiver: str = MANAGER,
 ) -> Any:
     """*sender*'s Accept of *invite_id* under a fresh id, as *receiver* routes it."""
-    # BYSTANDER holds the Invite as intake archived it (DL-06-006).
-    record = received_record(net.stores[BYSTANDER], invite_id)
-    assert record is not None
-    proposal = cast(Any, record.activity)
+    # BYSTANDER holds the Invite as the body intake archived (DL-06-006).
+    proposal = received_activity(net.stores[BYSTANDER], invite_id)
     activity = em_accept_embargo_activity(
         proposal,
         context=net.case_id,
@@ -177,20 +176,54 @@ def test_a_precondition_refusal_queues_one_refusal_notice():
     assert BTBridge.get_failure_reason(tree) == REFUSAL
     notices = _notices(net, MANAGER, BYSTANDER)
     assert len(notices) == 1
-    notice_id = notices[0].id_
-    assert notice_id == derived_activity_id(
+    assert notices[0].id_ == derived_activity_id(
         "refusal-notice", MANAGER, event.activity_id
     )
-    body = read_sealed_body_dict(net.stores[MANAGER], notice_id)
-    assert body is not None
-    assert body["type"] == "Reject"
-    assert body["actor"] == MANAGER
-    assert body["to"] == [BYSTANDER]
-    assert body["inReplyTo"] == event.activity_id
+    body = assert_refusal_notice(
+        net.stores[MANAGER],
+        manager=MANAGER,
+        refused_id=event.activity_id,
+        asserter=BYSTANDER,
+        reason=REFUSAL,
+        case_id=net.case_id,
+    )
     assert body["summary"] == REFUSAL
-    assert body["context"] == net.case_id
-    assert body["object"]["id"] == event.activity_id
     assert body["object"]["type"] == "Accept"
+
+
+@pytest.mark.spec("CLP-05-001")
+@pytest.mark.spec("DL-06-004")
+def test_the_refusal_notice_embeds_the_refused_activity_as_received():
+    """The notice embeds the body intake archived, verbatim: a ``cc``, an
+    ``endTime`` and a key no vocabulary names all survive (ADR-0149)."""
+    net, _, invite_id = _network("verbatim")
+    proposal = received_activity(net.stores[BYSTANDER], invite_id)
+    answer = em_accept_embargo_activity(
+        proposal,
+        context=net.case_id,
+        actor=BYSTANDER,
+        to=[MANAGER],
+        id_=f"{BYSTANDER}/answers/verbatim",
+    )
+    body = {
+        **json.loads(dump_outbound_body(answer)),
+        "cc": ["https://example.org/users/watcher"],
+        "endTime": "2031-01-01T00:00:00+00:00",
+        "x-vendorExtension": {"kept": True},
+    }
+    event = received_event(parse_activity(body), receiving_actor_id=MANAGER)
+
+    _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
+
+    notice = assert_refusal_notice(
+        net.stores[MANAGER],
+        manager=MANAGER,
+        refused_id=event.activity_id,
+        asserter=BYSTANDER,
+        reason=REFUSAL,
+        case_id=net.case_id,
+    )
+    assert notice["object"] == body
 
 
 @pytest.mark.spec("CLP-05-001")
@@ -545,6 +578,7 @@ def _notice_for(net: LedgerNetwork, refused_id: str) -> dict[str, Any]:
 @pytest.mark.spec("CLP-02-005")
 @pytest.mark.spec("CLP-05-001")
 @pytest.mark.spec("RSH-06-004")
+@pytest.mark.spec("RSH-09-002")
 def test_a_refused_rm_regression_gets_the_notice_and_the_note():
     """The RSH-06-004 note is sent alongside the notice, not instead of it."""
     from vultron.core.states.em import EM
@@ -564,7 +598,8 @@ def test_a_refused_rm_regression_gets_the_notice_and_the_note():
     refused_id = _notices(net, MANAGER, BYSTANDER)[0].in_reply_to
     notice = _notice_for(net, cast(str, refused_id))
     assert notice["object"]["type"] == "Add"
-    assert "refused in full" in str(notice["summary"])
+    # The notice names the refused dimension and why (RSH-09-002).
+    assert "rm: ACCEPTED → VALID moves RM backwards" in str(notice["summary"])
     assert any("backward" in (n.content or "") for n in _notes(net, MANAGER))
     # The notice is the one answer: no ProcessingFault as well (the user's
     # decision on #4756).

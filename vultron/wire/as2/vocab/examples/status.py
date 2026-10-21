@@ -98,7 +98,8 @@ def add_attacks_observed_to_case() -> as_Add:
 def participant_status() -> as_ParticipantStatus:
     status = as_ParticipantStatus(
         id_="https://vultron.example/cases/1/participants/vendor/status/1",
-        context="https://vultron.example/cases/1/participants/vendor",
+        # A status names its case, never the participant (HP-08-008).
+        context=case().id_,
         attributed_to="https://vultron.example/organizations/vendor",
         rm=RmDimension(state=RM.RECEIVED),
         vf=VfDimension(state=CS_vf.Vf),
@@ -127,7 +128,7 @@ def _add_participant_status(
     participant_id = f"https://vultron.example/cases/1/participants/{slug}"
     pstatus = as_ParticipantStatus(
         id_=f"{participant_id}/status/{number}",
-        context=participant_id,
+        context=case().id_,
         attributed_to=sender_id,
         rm=RmDimension(state=RM.ACCEPTED),
         vf=None if vf is None else VfDimension(state=vf),

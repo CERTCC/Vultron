@@ -30,6 +30,7 @@ Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemen
 Which one you are sending is determined by the field you set, not by a different activity.
 
 In every case, send `Add(ParticipantStatus)` targeting your own participant record, with the new status inline as its `object`.
+Set the status's `context` to the case your participant record belongs to: the CASE_MANAGER acts on the case of the participant record you target, and refuses a status whose `context` names another case (HP-08-008).
 The protocol names `Add(ParticipantStatus)` as the one form; a received `Create(ParticipantStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 ### Report that a vendor now knows
@@ -94,6 +95,7 @@ That is Attacks Observed (CA).
 ### What happens to your report
 
 Your report is your view of the case status, not a change to it.
+The CASE_MANAGER takes your participant status whole or refuses it whole: if one value cannot be accepted, nothing in the update is recorded, and its refusal notice names every value it refused and why (RSH-09-002).
 The CASE_MANAGER records the status on your participant record and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization (RSH-07-001).
 If it adopts the change, the CASE_MANAGER commits it as an `Add(CaseStatus)` entry to the case ledger.
 While an embargo is active or proposed, it then ends or abandons the embargo (RSH-03-001).

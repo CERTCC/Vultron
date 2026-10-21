@@ -62,10 +62,9 @@ class TestWireKey:
     def test_unknown_field_raises_rather_than_inventing_a_key(self):
         """The regression this module's value depends on.
 
-        Returning ``"noSuchField"`` here would be worse than failing: the patch
-        key and twin tables in ``core/behaviors/ledger_patch.py`` are built from
-        string field names and filtered with ``if key in rendered``, so a wrong
-        key silently drops the adjudicated dimension rather than raising.
+        Returning ``"noSuchField"`` here would be worse than failing: a caller
+        reading a snapshot with ``snapshot.get(key)`` would silently find
+        nothing rather than raising.
         """
         with pytest.raises(KeyError, match="no field 'no_such_field'"):
             wire_key("no_such_field", ParticipantStatus)

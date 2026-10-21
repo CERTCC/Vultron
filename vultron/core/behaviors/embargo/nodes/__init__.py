@@ -43,9 +43,9 @@ from vultron.core.behaviors.embargo.nodes.cascade import (
 from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
     IsActiveEmbargoNode,
+    IsAnswerableEmbargoNode,
     IsCloseBlockedByActiveEmbargoNode,
     IsProposedEmbargoNode,
-    IsRejectableEmbargoNode,
     LookupParticipantNode,
     ValidateCaseExistsNode,
 )
@@ -117,7 +117,8 @@ from vultron.core.behaviors.embargo.nodes.reinvite import (
 )
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     DecideRejectedEmbargoProposalNode,
-    OwnerRejectsRevisionAfterDisclosureNode,
+    EmbargoOutlivesDisclosureNode,
+    OwnerRejectionAppliesNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay import (
     EMBARGO_INVITE_SEMANTIC_TYPE,
@@ -167,8 +168,9 @@ __all__ = [
     # Conditions
     "ValidateCaseExistsNode",
     "IsActiveEmbargoNode",
-    "IsRejectableEmbargoNode",
-    "OwnerRejectsRevisionAfterDisclosureNode",
+    "IsAnswerableEmbargoNode",
+    "EmbargoOutlivesDisclosureNode",
+    "OwnerRejectionAppliesNode",
     "IsCloseBlockedByActiveEmbargoNode",
     "IsProposedEmbargoNode",
     "HasActiveEmbargoNode",

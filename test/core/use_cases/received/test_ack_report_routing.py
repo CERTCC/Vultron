@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import pytest
 
+from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -121,14 +122,16 @@ def _make_ack_event(
         object_=offer_obj,
         to=[FINDER_ID],
     )
-    return AckReportReceivedEvent(
-        semantic_type=MessageSemantics.ACK_REPORT,
-        activity_id=read_activity.id_,
-        actor_id=sender_id,
-        object_=offer_obj,
-        inner_object=report_obj,
-        activity=read_activity,
-        receiving_actor_id=receiving_actor_id,
+    return with_evidence(
+        AckReportReceivedEvent(
+            semantic_type=MessageSemantics.ACK_REPORT,
+            activity_id=read_activity.id_,
+            actor_id=sender_id,
+            object_=offer_obj,
+            inner_object=report_obj,
+            activity=read_activity,
+            receiving_actor_id=receiving_actor_id,
+        )
     )
 
 

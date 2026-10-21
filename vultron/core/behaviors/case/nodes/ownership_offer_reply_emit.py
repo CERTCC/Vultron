@@ -24,8 +24,8 @@ Provides:
   ``Reject(Offer(VulnerabilityCase))`` from the declining actor to the
   CASE_MANAGER (CM-21-010).
 - :class:`EmitWithdrawCaseOwnershipTransferNode` — emits
-  ``Undo(Offer(VulnerabilityCase))`` from the offerer to the CASE_MANAGER
-  (CM-21-015).
+  ``Undo(Offer(Offer(VulnerabilityCase)))``, the owner's withdrawal of its
+  own proposal, to the CASE_MANAGER (CM-21-015, ADR-0148).
 
 Split from ``ownership_transfer.py`` (BTND-07-004), which re-exports these
 names.  The leaf nodes are assembled into trigger trees in
@@ -43,7 +43,8 @@ class _EmitOwnershipAnswerNode(_EmitSingleActivityBase):
     """Emit a reply to an ownership-transfer Offer.
 
     The reply — the transferee's ``Accept`` or ``Reject`` of
-    ``Offer(VulnerabilityCase)``, or the offerer's ``Undo`` of it — is
+    ``Offer(VulnerabilityCase)``, or the owner's ``Undo`` of its proposal —
+    is
     addressed to the case's CASE_MANAGER, never to the other party: the
     CASE_MANAGER records the reply and broadcasts it (CM-21-006, CM-21-010,
     CM-21-015).  Subclasses name the port method that builds the activity
@@ -129,11 +130,12 @@ class EmitRejectCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
 
 
 class EmitWithdrawCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
-    """Emit ``Undo(Offer(VulnerabilityCase))`` to the CASE_MANAGER.
+    """Emit ``Undo(Offer(Offer(VulnerabilityCase)))`` to the CASE_MANAGER.
 
     Calls ``trigger_activity_factory.withdraw_case_ownership_transfer()``
-    with ``actor=self.actor_id`` and ``offer_id``, then queues the resulting
-    activity in the actor's outbox (TRIG-11-006, CM-21-015).
+    with ``actor=self.actor_id`` and ``offer_id``, the owner's own proposal,
+    then queues the resulting activity in the actor's outbox (TRIG-11-006,
+    CM-21-015, ADR-0148).
     """
 
     _verb = "withdrew"
@@ -142,9 +144,9 @@ class EmitWithdrawCaseOwnershipTransferNode(_EmitOwnershipAnswerNode):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         if to is None:
-            # No fallback: the stored Offer's ``actor`` is the offerer itself
-            # when it sent the Offer directly, so the port's last-resort
-            # addressing would send the withdrawal to its own sender.  A
+            # No fallback: the stored proposal's ``actor`` is the owner
+            # itself, so the port's last-resort addressing would send the
+            # withdrawal to its own sender.  A
             # withdrawal goes to the CASE_MANAGER or nowhere (CM-21-015,
             # PCR-08-011).  The trigger refuses this case before the tree
             # runs; the check here keeps the node safe on its own.

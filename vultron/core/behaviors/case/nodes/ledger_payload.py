@@ -15,61 +15,61 @@
 
 """Payload-snapshot extraction for :class:`CommitCaseLedgerEntryNode`.
 
-Split out of ``lifecycle.py`` (#3930) to keep that leaf under the BTND-07-004
-line cap.  The snapshot is the ``WireRenderPort`` rendering of the received
-activity (ARCH-20-001, CLP-07-009).
+A received entry records the received JSON verbatim: the evidence the parser
+sealed (VM-08-002), carried onto the dispatched event at the parse edge
+(CLP-07-011, ADR-0107).  Nothing here drops, re-dumps, inlines, patches or
+merges a field, so a replica holds what the sender sent, byte for byte, and
+an object it was sent by id alone is dereferenced, not filled in from this
+receiver's store (CLP-07-006).
 """
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any
 
-from vultron.core.models.base import CoreObject
-from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import build_activity_payload_snapshot
+from vultron.core.models.events.base import VultronEvent
 from vultron.errors import VultronWiringError
 
-if TYPE_CHECKING:
-    from vultron.core.ports.wire_render import WireRenderPort
 
+def _extract_payload_snapshot(activity: Any) -> dict[str, Any]:
+    """The received body *activity* was extracted from, unchanged.
 
-def _extract_payload_snapshot(
-    activity: Any,
-    dl: CasePersistence | None,
-    wire_render_port: "WireRenderPort",
-) -> dict[str, Any]:
-    """Build a normalized payload snapshot for case-ledger commits.
+    Args:
+        activity: The received event on the blackboard.
 
-    The AS2 shape comes from *wire_render_port* (ARCH-20-001, CLP-07-009).
+    Raises:
+        VultronWiringError: When *activity* is not a received event, or carries
+            no received evidence.  Either is a composition fault, not the
+            sender's: a received tree runs on the event its delivery produced
+            (ARCH-15-001, ADR-0095).
     """
-    event_activity = getattr(activity, "activity", None)
-    if event_activity is not None:
-        return cast(
-            dict[str, Any],
-            build_activity_payload_snapshot(
-                event_activity, dl, wire_render_port=wire_render_port
-            ),
-        )
-    if hasattr(activity, "model_dump") and not isinstance(
-        activity, CoreObject
-    ):
-        # An event with no activity has nothing AS2-shaped to record: the port
-        # would refuse it (ARCH-20-003), and a received handler would then
-        # blame the sender.  The tree was composed without its input, so say
-        # so as the composition fault it is (ARCH-15-001, ADR-0095).
+    if not isinstance(activity, VultronEvent):
         raise VultronWiringError(
-            f"{type(activity).__name__} carries no activity, so there is"
-            " nothing to record as the ledger payload snapshot (ARCH-15-001)"
+            f"{type(activity).__name__} is not a received event, so there is"
+            " no received body to record as the ledger payload snapshot"
+            " (ARCH-15-001)"
         )
-    snapshot = cast(
-        dict[str, Any],
-        build_activity_payload_snapshot(
-            activity, dl, wire_render_port=wire_render_port
-        ),
+    return activity.received_body()
+
+
+def carries_no_received_body(activity: Any) -> bool:
+    """True for a received event routed without received evidence.
+
+    A resend under an id already held, or of an activity already archived,
+    is routed so (VM-08-002, IE-10-001): this receiver holds no body for the
+    delivery it routes, so there is nothing new to record.
+    """
+    return isinstance(activity, VultronEvent) and (
+        activity.received_evidence is None
     )
-    # Domain events serialize actor_id, not the wire-format actor URI.
-    # Patch it in so the ledger schema's non-empty-URI check passes.
-    if not snapshot.get("actor"):
-        actor_id = getattr(activity, "actor_id", None)
-        if actor_id:
-            snapshot = dict(snapshot)
-            snapshot["actor"] = actor_id
-    return snapshot
+
+
+def unrecordable_resend_reason(activity_id: str, case_id: str) -> str:
+    """Why a resend with no received body is refused, not recorded.
+
+    Its first delivery was archived but never recorded (a guard refused it),
+    and the resend carries no body to record in its place (VM-08-002).
+    """
+    return (
+        f"activity '{activity_id}' is a resend of an activity this receiver"
+        f" archived but never recorded for case '{case_id}', and it carries"
+        " no received body to record (VM-08-002, IE-10-001)"
+    )

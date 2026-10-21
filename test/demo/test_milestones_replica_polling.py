@@ -26,6 +26,7 @@ Covers two async race patterns (Bugs #2134-adjacent and #2376):
    retry until pxa_state is public-aware and raise on timeout.
 """
 
+import json
 from typing import cast
 from unittest.mock import MagicMock, patch
 
@@ -200,7 +201,7 @@ def _record(activity: dict) -> dict:
     return {
         "type": "ReceivedActivityRecord",
         "id": "received-activity/x",
-        "activity": activity,
+        "received_body": json.dumps(activity),
     }
 
 
@@ -301,10 +302,12 @@ class _LateOTOfferClient:
                 record_id: {
                     "id": record_id,
                     "type": "ReceivedActivityRecord",
-                    "activity": {
-                        "id": _OT_FORWARDED_OFFER_ID,
-                        **_forwarded_offer_payload(),
-                    },
+                    "received_body": json.dumps(
+                        {
+                            "id": _OT_FORWARDED_OFFER_ID,
+                            **_forwarded_offer_payload(),
+                        }
+                    ),
                 }
             }
         return None
@@ -357,13 +360,18 @@ class TestFindOwnershipTransferOfferForActor:
         client.get.return_value = {
             record_id: {
                 "type": "ReceivedActivityRecord",
-                "activity": {
-                    "id": _OT_ORIGINAL_OFFER_ID,
-                    "type": "Offer",
-                    # sent to CaseActor, NOT to transferee
-                    "target": _OT_CASE_ACTOR_ID,
-                    "object": {"id": _OT_CASE_ID, "type": "VulnerabilityCase"},
-                },
+                "received_body": json.dumps(
+                    {
+                        "id": _OT_ORIGINAL_OFFER_ID,
+                        "type": "Offer",
+                        # sent to CaseActor, NOT to transferee
+                        "target": _OT_CASE_ACTOR_ID,
+                        "object": {
+                            "id": _OT_CASE_ID,
+                            "type": "VulnerabilityCase",
+                        },
+                    }
+                ),
             }
         }
         with pytest.raises(AssertionError, match="Timed out"):

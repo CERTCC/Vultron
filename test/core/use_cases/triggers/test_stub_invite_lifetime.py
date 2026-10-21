@@ -49,6 +49,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.ledger import ledger_entries
+from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -90,7 +91,6 @@ from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import remove_embargo_from_case_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -417,7 +417,7 @@ def test_in_reply_to_on_a_stub_invite_survives_parse_and_extraction(
     second = _send_stub_invite(dl, manager.id_, case.id_, invitee.id_)
 
     parsed = parse_activity(second)
-    event = extract_event(parsed)
+    event = received_event(parsed)
 
     assert parsed.in_reply_to == first["id"]
     assert event.semantic_type is MessageSemantics.INVITE_ACTOR_TO_CASE
@@ -475,7 +475,7 @@ def test_manager_refuses_a_reinvite_of_a_closed_participant(
         ).execute()
     )
     stored = dl.read(offer["id"])
-    event = extract_event(stored).model_copy(
+    event = received_event(stored).model_copy(
         update={"receiving_actor_id": manager.id_}
     )
     assert isinstance(event, OfferActorToCaseReceivedEvent)

@@ -37,10 +37,14 @@ import py_trees
 from vultron.core.behaviors.case.accept_case_proposal_received_tree import (
     create_accept_case_proposal_received_tree,
 )
+from vultron.core.use_cases.received.case_proposal import (
+    AcceptCaseProposalReceivedUseCase,
+)
 
 tree = create_accept_case_proposal_received_tree(
     report_id="urn:uuid:report-1",
     case_actor_id="urn:uuid:actor-1",
+    sender_rule=AcceptCaseProposalReceivedUseCase.sender_entitlement,
 )
 print("```")
 print(py_trees.display.unicode_tree(tree))
@@ -64,10 +68,14 @@ import py_trees
 from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
     create_reject_case_proposal_received_tree,
 )
+from vultron.core.use_cases.received.case_proposal import (
+    RejectCaseProposalReceivedUseCase,
+)
 
 tree = create_reject_case_proposal_received_tree(
     report_id="urn:uuid:report-1",
     sender_actor_id="urn:uuid:actor-1",
+    sender_rule=RejectCaseProposalReceivedUseCase.sender_entitlement,
 )
 print("```")
 print(py_trees.display.unicode_tree(tree))
@@ -90,10 +98,15 @@ import py_trees
 from vultron.core.behaviors.case.accept_invite_tree import (
     create_accept_invite_actor_to_case_tree,
 )
+from vultron.core.use_cases.received.actor.invite import (
+    AcceptInviteActorToCaseReceivedUseCase,
+)
 
 tree = create_accept_invite_actor_to_case_tree(
     case_id="urn:uuid:case-1",
     invitee_id="urn:uuid:actor-1",
+    invite_id="urn:uuid:invite-1",
+    sender_rule=AcceptInviteActorToCaseReceivedUseCase.sender_entitlement,
 )
 print("```")
 print(py_trees.display.unicode_tree(tree))

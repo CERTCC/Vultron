@@ -285,8 +285,8 @@ ENTRIES: list[SemanticEntry] = [
             ),
             # A participant's own view of the public state travels in the
             # case status its participant status embeds (CSB-15-003).  It is
-            # a suggestion: the CASE_MANAGER adjudicates it with the other
-            # dimensions (RSH-05), adopts it only through StatusAdoptionGate
+            # a suggestion: the CASE_MANAGER judges it with the rest of the
+            # status (RSH-09-003), adopts it only through StatusAdoptionGate
             # (RSH-07-001), and an adopted P, X or A ends or abandons the
             # embargo (RSH-03-001), so each is an occasion of this entry
             # (#4569).

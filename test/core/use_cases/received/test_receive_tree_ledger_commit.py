@@ -28,6 +28,7 @@ from typing import cast
 import py_trees
 import pytest
 
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -74,7 +75,6 @@ from vultron.core.use_cases.received.report import (
     InvalidateReportReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     rm_close_report_activity,
@@ -180,7 +180,7 @@ class TestCloseAndInvalidateReportCommit:
         dl = _store(receiver)
         event = cast(
             InvalidateReportReceivedEvent,
-            extract_event(
+            received_event(
                 rm_invalidate_report_activity(
                     _offer(), actor=FINDER_ID, to=[receiver]
                 )
@@ -205,7 +205,7 @@ class TestCloseAndInvalidateReportCommit:
         dl = _store(receiver)
         event = cast(
             CloseReportReceivedEvent,
-            extract_event(
+            received_event(
                 rm_close_report_activity(
                     _offer(), actor=FINDER_ID, to=[receiver]
                 )
@@ -239,7 +239,7 @@ class TestCloseAndInvalidateReportCommit:
     ):
         """A refused activity leaves no canonical entry (CLP-10-009)."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=MANAGER_ID)
-        event = extract_event(
+        event = received_event(
             build(_offer(), actor=FINDER_ID, to=[MANAGER_ID])
         )
         event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
@@ -302,7 +302,7 @@ class TestCloseAndInvalidateReportCommit:
         CASE_MANAGER's clarification note (CLP-10-022).
         """
         dl = _store(MANAGER_ID, sender_rm, finder_known=finder_known)
-        event = extract_event(
+        event = received_event(
             build(_offer(), actor=FINDER_ID, to=[MANAGER_ID])
         )
         event = event.model_copy(update={"receiving_actor_id": MANAGER_ID})
@@ -321,7 +321,7 @@ class TestCloseAndInvalidateReportCommit:
         dl = _store(MANAGER_ID)
         event = cast(
             InvalidateReportReceivedEvent,
-            extract_event(
+            received_event(
                 rm_invalidate_report_activity(
                     _offer(), actor=FINDER_ID, to=[MANAGER_ID]
                 )
@@ -380,7 +380,7 @@ def test_announce_case_tree_has_no_commit_stage():
     case = as_VulnerabilityCase(id_=CASE_ID, name="4304")
     event = cast(
         AnnounceVulnerabilityCaseReceivedEvent,
-        extract_event(
+        received_event(
             announce_vulnerability_case_activity(case, actor=MANAGER_ID)
         ),
     )

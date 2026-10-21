@@ -63,9 +63,9 @@ causal_edges:
     consequent: accept_case_ownership_transfer
     consequent_actor: coordinator
     note: >
-      The Case Actor records Vendor1's ownership offer before forwarding it to
-      the Coordinator (ADR-0053); the Coordinator's acceptance follows the
-      recorded offer.
+      The Case Actor makes and records the ownership offer Vendor1 proposed
+      before it reaches the Coordinator (ADR-0148); the Coordinator's
+      acceptance follows the recorded offer.
   - antecedent: report_submitted
     consequent: validate_report
     consequent_actor: vendor
@@ -132,8 +132,9 @@ recorded.
 ### 6. Vendor1 offers case ownership to the Coordinator
 
 Vendor1 decides that the Coordinator is better positioned to manage the case and initiates a case-ownership transfer.
-The offer is addressed to the **Case Actor**, not to the Coordinator (ADR-0053): the Case Actor records it as an `offer_case_ownership_transfer` entry, so every participant learns that a transfer is on offer, and then forwards an offer of its own to the Coordinator.
-The offer the Coordinator receives is therefore a new activity with its own identity.
+Vendor1 proposes the transfer to the **Case Actor**, not to the Coordinator (ADR-0053, ADR-0148).
+The Case Actor makes the offer itself, under its own identity, and records it as an `offer_case_ownership_transfer` entry, so every participant learns that a transfer is on offer.
+The offer the Coordinator receives is the Case Actor's own, with an identity the Case Actor derived from Vendor1's proposal.
 
 *Antecedent:* Coordinator's `accept_invite_actor_to_case` entry is in the ledger.
 
@@ -144,8 +145,7 @@ The Case Actor commits an `accept_case_ownership_transfer` ledger entry and appl
 Each of those changes follows as its own Case Actor entry (`update_case_participant` for each participant record, then `update_case_owner` for the case), and every entry is broadcast to **every** participant.
 That broadcast is how the Reporter, who is neither the old nor the new owner, learns who is now responsible for the case.
 
-*Antecedent:* the Case Actor's forwarded ownership offer has reached the
-Coordinator.
+*Antecedent:* the Case Actor's ownership offer has reached the Coordinator.
 
 ### 8. Coordinator invites Vendor2
 
@@ -194,4 +194,4 @@ A departure sent after the owner's is not recorded, so every other participant's
 | Reporter submits report to Vendor1 | Report submission precedes the case. |
 
 The ownership offer is not an unobservable step.
-The Case Actor records it as `offer_case_ownership_transfer` before it forwards the offer, and the Coordinator's `accept_case_ownership_transfer` follows it, which is the edge declared above.
+The Case Actor records it as `offer_case_ownership_transfer` once it sends the offer, and the Coordinator's `accept_case_ownership_transfer` follows it, which is the edge declared above.

@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -140,12 +141,14 @@ def _run_create_report(
     activity = VultronActivity(
         id_=activity_id, type_="Create", actor=sender_id, to=[dl.actor_id]
     )
-    event = CreateReportReceivedEvent(
-        semantic_type=MessageSemantics.CREATE_REPORT,
-        activity_id=activity_id,
-        actor_id=sender_id,
-        object_=VulnerabilityReport(id_=report_id),
-        activity=activity,
+    event = with_evidence(
+        CreateReportReceivedEvent(
+            semantic_type=MessageSemantics.CREATE_REPORT,
+            activity_id=activity_id,
+            actor_id=sender_id,
+            object_=VulnerabilityReport(id_=report_id),
+            activity=activity,
+        )
     )
     return CreateReportReceivedUseCase(dl, event).execute(), dl
 
@@ -240,13 +243,15 @@ class TestDuplicateReportHandling:
             actor="https://example.org/users/finder",
             to=[vendor_id],
         )
-        event = SubmitReportReceivedEvent(
-            semantic_type=MessageSemantics.SUBMIT_REPORT,
-            activity_id=activity_id,
-            actor_id="https://example.org/users/finder",
-            object_=report,
-            activity=activity,
-            receiving_actor_id=vendor_id,
+        event = with_evidence(
+            SubmitReportReceivedEvent(
+                semantic_type=MessageSemantics.SUBMIT_REPORT,
+                activity_id=activity_id,
+                actor_id="https://example.org/users/finder",
+                object_=report,
+                activity=activity,
+                receiving_actor_id=vendor_id,
+            )
         )
         return (report, event)
 
@@ -307,12 +312,14 @@ class TestDuplicateReportHandling:
             actor="https://example.org/users/finder",
             to=["https://test.example/api/v2/actors/test-actor"],
         )
-        event = CreateReportReceivedEvent(
-            semantic_type=MessageSemantics.CREATE_REPORT,
-            activity_id="https://example.org/activities/create-dup-1",
-            actor_id="https://example.org/users/finder",
-            object_=report,
-            activity=activity,
+        event = with_evidence(
+            CreateReportReceivedEvent(
+                semantic_type=MessageSemantics.CREATE_REPORT,
+                activity_id="https://example.org/activities/create-dup-1",
+                actor_id="https://example.org/users/finder",
+                object_=report,
+                activity=activity,
+            )
         )
         dl = SqliteDataLayer(
             "sqlite:///:memory:",

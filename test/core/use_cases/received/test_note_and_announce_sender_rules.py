@@ -42,6 +42,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.ledger import ledger_entries
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -88,7 +89,6 @@ from vultron.core.use_cases.received.actor.announce import (
 )
 from vultron.core.use_cases.received.note import AddNoteToCaseReceivedUseCase
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
     announce_vulnerability_case_activity,
@@ -197,7 +197,7 @@ class _World:
         }
 
     def _event(self, activity: Any) -> Any:
-        return extract_event(activity).model_copy(
+        return received_event(activity).model_copy(
             update={"receiving_actor_id": self.receiver_id}
         )
 
@@ -432,7 +432,7 @@ class _Replica:
         )
         event = cast(
             AnnounceVulnerabilityCaseReceivedEvent,
-            extract_event(activity).model_copy(
+            received_event(activity).model_copy(
                 update={"receiving_actor_id": self.receiver_id}
             ),
         )
@@ -499,7 +499,7 @@ def test_announce_tree_takes_no_clock_decision() -> None:
     case = as_VulnerabilityCase(name="No clock")
     event = cast(
         AnnounceVulnerabilityCaseReceivedEvent,
-        extract_event(
+        received_event(
             announce_vulnerability_case_activity(
                 case,
                 actor="https://example.org/actors/case-actor",

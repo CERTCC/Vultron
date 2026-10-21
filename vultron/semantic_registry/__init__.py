@@ -59,6 +59,7 @@ from datetime import timedelta
 from itertools import combinations
 from typing import Any
 
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import AnyReceivedEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.errors import RegistryOrderError
@@ -307,6 +308,7 @@ __all__ = [
     "find_matching_semantics",
     "matches_semantics",
     "extract_event",
+    "extract_received_activity",
     "use_case_map",
     "semantics_to_activity_class",
 ]
@@ -357,6 +359,32 @@ def extract_event(
         include_activity=entry.include_activity,
         **extra,
     )
+
+
+def extract_received_activity(activity: as_Activity) -> VultronActivity:
+    """The core view of a received *activity*, as the inbox extracts it.
+
+    The view a loaded archive gives core (ADR-0149): the activity summary
+    :func:`extract_event` puts on the event it dispatches, built by the same
+    match and extraction, so a later read of a received activity sees what
+    its delivery saw.  Unlike :func:`extract_event` it always builds the
+    summary, whichever semantics *activity* matches.
+
+    Args:
+        activity: The rehydrated AS2 activity, as the inbox routes it.
+    """
+    semantics = find_matching_semantics(activity)
+    event = _extract_intent(
+        activity,
+        semantics=semantics,
+        event_class=lookup_entry(semantics).event_class,
+        include_activity=True,
+    )
+    if event.activity is None:  # pragma: no cover - include_activity=True
+        raise AssertionError(
+            f"extraction of {activity.id_!r} built no activity summary"
+        )
+    return event.activity
 
 
 def use_case_map() -> dict[MessageSemantics, type]:

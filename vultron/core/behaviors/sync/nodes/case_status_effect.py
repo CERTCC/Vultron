@@ -16,8 +16,9 @@
 """Ledger replay of ``add_case_status_to_case`` entries (RSH-08-004, AC-2 #3814).
 
 The CASE_MANAGER commits an ``add_case_status_to_case`` entry for the
-``Add(CaseStatus)`` it accepts from a participant — the accepted portion, after
-per-dimension adjudication (RSH-05) — and for the case-status snapshot it takes
+``Add(CaseStatus)`` it accepts from a participant — the status as received,
+which it accepts whole or refuses whole (RSH-09-005) — and for the case-status
+snapshot it takes
 after each EM or P/X/A change of its own (RSH-04-002, RSH-04-003).  This module
 replays the entry on a participant replica, so the replica's
 ``case.case_statuses`` and ``current_status`` follow the CASE_MANAGER's without

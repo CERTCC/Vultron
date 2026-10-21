@@ -2,12 +2,12 @@
 
 !!! info "Offer case ownership transfer"
 
-    Offers the case to the actor named by the target, for example from a Reporter to a Coordinator, optionally with an `endTime` after which the CASE_MANAGER refuses an answer and records the offer as expired.
+    Offers the case to the actor named by the target, on the Case Owner's behalf: `attributedTo` names the owner. This is the one offer of the transfer, the one the new owner accepts or rejects. It carries the proposal's `endTime`, if any.
 
-    - **When…** the Case Owner offers to transfer ownership of the case to another actor
+    - **When…** the Case Manager offers the case to the actor the Case Owner proposed
     - **Send:** `Offer(VulnerabilityCase)`
-    - **Send to:** the case manager
-    - **Sent by:** the case owner
+    - **Send to:** a participant
+    - **Sent by:** the case manager
     - **Reference:** [Offer case ownership transfer](../../case_management.md#offer-case-ownership-transfer)
 
     ??? example "Example activity"

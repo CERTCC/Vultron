@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""``DecideRejectedEmbargoProposalNode``: the owner's rejection (EP-08-003).
+"""The owner's rejection nodes (EP-08-003, MSM-07-009).
 
 The effect of the case owner's ``Reject(EmbargoEvent, target=Case)``
 (ADR-0122): it returns EM to the prior terms (``REVISE → ACTIVE``, EJ) or to
@@ -20,7 +20,7 @@ lifecycle call.  Only the owner sends the activity; the received tree's
 sender guard establishes that, so the node itself checks no sender.
 """
 
-from typing import cast
+from typing import NoReturn, cast
 
 import py_trees
 import pytest
@@ -28,13 +28,18 @@ from py_trees.common import Status
 
 from test.support.embargo_register import propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.embargo.nodes import reject_proposed
 from vultron.core.behaviors.embargo.nodes.reject_proposed import (
     DecideRejectedEmbargoProposalNode,
+    EmbargoOutlivesDisclosureNode,
+    OwnerRejectionAppliesNode,
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import EmbargoRegisterStatus
+from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from .conftest import (
@@ -75,7 +80,7 @@ def _revising_case(
     return case, active.id_, revision.id_
 
 
-def _tick(node: DecideRejectedEmbargoProposalNode) -> Status:
+def _tick(node: py_trees.behaviour.Behaviour) -> Status:
     bt = py_trees.trees.BehaviourTree(root=node)
     bt.setup()
     bt.tick()
@@ -169,10 +174,16 @@ def test_a_reject_of_what_is_no_longer_proposed_changes_nothing(
 
 
 @pytest.mark.spec("EMB-04-002")
-def test_ej_with_pxa_set_fails_and_writes_nothing(
+@pytest.mark.spec("MSM-07-009")
+def test_ej_with_pxa_set_records_the_reject_step(
     dl: SqliteDataLayer,
 ) -> None:
-    case, _, revision_id = _revising_case(dl, "pxa")
+    """With P/X/A set the REJECT step is still recorded as decided.
+
+    The prior terms stand only until the termination that follows in the
+    same act; the node itself does not refuse (MSM-07-009).
+    """
+    case, active_id, revision_id = _revising_case(dl, "pxa")
     case.append_case_status(pxa=CS_pxa.Pxa)
     dl.save(case)
     setup_blackboard(dl, actor_id=OWNER)
@@ -183,10 +194,108 @@ def test_ej_with_pxa_set_fails_and_writes_nothing(
         )
     )
 
-    assert status is Status.FAILURE
-    kept = _case(dl, case.id_)
-    assert kept.current_status.em.state == EM.REVISE
-    assert kept.proposed_embargo_ids == [revision_id]
+    assert status is Status.SUCCESS
+    decided = _case(dl, case.id_)
+    assert decided.embargo_register_status(revision_id) is (
+        EmbargoRegisterStatus.REJECTED
+    )
+    assert decided.active_embargo_id == active_id
+
+
+# ---------------------------------------------------------------------------
+# OwnerRejectionAppliesNode: the guard trial (MSM-07-009)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.parametrize("pxa", [CS_pxa.pxa, CS_pxa.Pxa, CS_pxa.pXA])
+def test_the_rejection_and_its_termination_apply_and_nothing_is_written(
+    dl: SqliteDataLayer, pxa: CS_pxa
+) -> None:
+    """The trial passes with or without P/X/A, and writes nothing."""
+    case, _, revision_id = _revising_case(dl, f"trial-{pxa.name}")
+    case.append_case_status(pxa=pxa)
+    dl.save(case)
+    before = _case(dl, case.id_).embargo_register
+    setup_blackboard(dl, actor_id=OWNER)
+
+    status = _tick(
+        OwnerRejectionAppliesNode(case_id=case.id_, embargo_id=revision_id)
+    )
+
+    assert status is Status.SUCCESS
+    assert _case(dl, case.id_).embargo_register == before
+
+
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.spec("EMB-13-005")
+def test_a_termination_that_cannot_be_decided_refuses_the_rejection(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refused TERMINATE refuses the act before either entry commits."""
+    case, _, revision_id = _revising_case(dl, "trial-refused")
+    case.append_case_status(pxa=CS_pxa.Pxa)
+    dl.save(case)
+
+    def _refuse(*_args: object) -> NoReturn:
+        raise VultronInvalidStateTransitionError("termination refused")
+
+    monkeypatch.setattr(reject_proposed, "decide_termination", _refuse)
+    before = _case(dl, case.id_).embargo_register
+    setup_blackboard(dl, actor_id=OWNER)
+
+    node = OwnerRejectionAppliesNode(case_id=case.id_, embargo_id=revision_id)
+
+    assert _tick(node) is Status.FAILURE
+    assert "termination refused" in node.feedback_message
+    assert _case(dl, case.id_).embargo_register == before
+
+
+@pytest.mark.spec("MSM-07-009")
+def test_a_reject_the_register_refuses_fails_the_trial(
+    dl: SqliteDataLayer,
+) -> None:
+    """A REJECT naming the embargo in force, not a proposal, is refused."""
+    case, active_id, _ = _revising_case(dl, "trial-not-open")
+    setup_blackboard(dl, actor_id=OWNER)
+
+    node = OwnerRejectionAppliesNode(case_id=case.id_, embargo_id=active_id)
+
+    assert _tick(node) is Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# EmbargoOutlivesDisclosureNode (EMB-04-002)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("EMB-04-002")
+@pytest.mark.parametrize(
+    ("pxa", "reject_first", "expected"),
+    [
+        (CS_pxa.Pxa, True, Status.SUCCESS),  # prior terms stand, P set
+        (CS_pxa.pxa, True, Status.FAILURE),  # prior terms allowed
+        (CS_pxa.Pxa, False, Status.FAILURE),  # revision still open
+    ],
+)
+def test_the_embargo_outlives_disclosure_only_once_no_proposal_is_open(
+    dl: SqliteDataLayer, pxa: CS_pxa, reject_first: bool, expected: Status
+) -> None:
+    case, _, revision_id = _revising_case(dl, f"outlives-{pxa.name}")
+    case.append_case_status(pxa=pxa)
+    dl.save(case)
+    setup_blackboard(dl, actor_id=OWNER)
+    if reject_first:
+        assert (
+            _tick(
+                DecideRejectedEmbargoProposalNode(
+                    case_id=case.id_, embargo_id=revision_id
+                )
+            )
+            is Status.SUCCESS
+        )
+
+    assert _tick(EmbargoOutlivesDisclosureNode(case_id=case.id_)) is expected
 
 
 def test_an_unknown_case_fails(dl: SqliteDataLayer) -> None:

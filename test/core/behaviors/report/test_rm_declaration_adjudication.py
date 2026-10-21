@@ -22,7 +22,7 @@ recorded, a non-adjacent one included and flagged with the RSH-06-004 note; a
 backward one is refused and the recorded state kept (RSH-06-006).
 
 Every case comes from the table in ``test/support/rm_declaration.py`` that
-``test/core/behaviors/status/test_partial_accept_participant_status.py`` runs
+``test/core/behaviors/status/test_participant_status_acceptance.py`` runs
 the ``Add(ParticipantStatus)`` path against, so the two paths are asserted
 against the same rows (#3813 AC-4).
 
@@ -607,7 +607,7 @@ class TestRefusedRegressionIsNoted:
         # The refusal is the adjudication's, so the refusal stage ran and
         # only the CASE_MANAGER gate kept the note back.
         reason = BTBridge.get_failure_reason(tree)
-        assert "refused in full" in reason, reason
+        assert "rm: ACCEPTED → VALID moves RM backwards" in reason, reason
         assert recorded_notes(dl) == []
 
     @pytest.mark.spec("CLP-10-022")

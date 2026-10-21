@@ -7,6 +7,7 @@ revision: 1
 deciders: Allen D. Householder
 consulted: notes/wire-artifact-immutability.md, notes/case-ledger-authority.md, notes/datalayer-design.md, docs/adr/0074-wire-activity-artifact-immutability.md, docs/adr/0099-one-object-model-as2-is-a-serialization.md
 informed: CERT/CC Vultron protocol team
+supersedes: 0061-per-dimension-partial-accept.md
 stakeholder_type: [project-contributor]
 ---
 
@@ -87,7 +88,7 @@ Each step leaves a working system with the demos passing, so additive steps come
 | 2 | fetch-by-`id` endpoint on the case host; replica fetch-and-defer | #3739 |
 | 3 | senders inline what they introduce; fix demo and factory bare-`id` paths | #3740 |
 | 4 | whole accept or reject for participant status; retire RSH-05 | #3741 |
-| 5 | ledger records the evidence verbatim; carry the evidence from the parsed activity onto the dispatched event, since core sees only the event; persist it for deferred replay; rewrite CLP-07-006 and retire the normalization branch of CLP-07-011 and CLP-02-003 | #3742 |
+| 5 | ledger records the evidence verbatim; carry the evidence from the parsed activity onto the dispatched event, since core sees only the event; persist it for deferred replay; rewrite CLP-07-006 and retire the normalization branch of CLP-07-011 and CLP-02-003 | #3742 (done; persisting the received body is #4943) |
 | 6 | Lapse and case-closed become emitted activities | #3743 |
 
 Tracked under Epic #3738.

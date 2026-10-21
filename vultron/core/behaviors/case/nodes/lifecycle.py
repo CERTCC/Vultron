@@ -30,12 +30,10 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.ledger_payload import (
     _extract_payload_snapshot,
+    carries_no_received_body,
+    unrecordable_resend_reason,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.behaviors.ledger_patch import (
-    PATCH_KEY_TWINS,
-    drop_stale_twins,
-)
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -44,87 +42,13 @@ from vultron.core.predicates.addressing import (
     same_actor_id,
     snapshot_actor_id,
 )
+from vultron.core.sync_helpers import is_ledgered_activity
 from vultron.errors import (
     VultronBTInternalError,
     VultronCanonicalEntryError,
-    VultronValidationError,
 )
 
 logger = logging.getLogger(__name__)
-
-#: Blackboard key by which a preceding read-only guard in any receive tree may
-#: patch the ``object`` entry of the canonical ledger ``payload_snapshot`` read
-#: by :class:`CommitCaseLedgerEntryNode`.  The value is a mapping
-#: ``{"object_id": <id the patch applies to>, "fields": <wire-alias patch>}``,
-#: or ``None`` when no adjudication applies.
-#:
-#: ``fields`` is a *patch*, not a replacement object: the guard names only the
-#: fields it adjudicated, keyed by their wire aliases, and they are merged onto
-#: whatever the snapshot already holds.  That keeps the recorded shape identical
-#: to an unadjudicated entry's (RSH-05-009).
-#:
-#: Producers: :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`.
-#:
-#: Lifetime: **execution-scoped**.  The producing node writes it mid-tree and a
-#: later commit node consumes it within the same ``execute_with_setup`` run, but
-#: no single node can own its cleanup on every path — a ``memory=False`` Sequence
-#: can FAILURE-short-circuit before the consumer (or the owning finalize node)
-#: ever ticks.  It is therefore listed in ``BTBridge.execute_with_setup``'s
-#: ``managed_keys`` and reset to its pre-execution state in that method's
-#: ``finally`` block on every outcome, so a stranded override never bleeds into
-#: the next execution on the process-global blackboard (#3101; ADR-0087).
-BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE = "ledger_payload_object_override"
-
-
-#: Producer class names recognized by the override consumer.  An override with
-#: an unrecognized ``producer_type`` still applies (RSH-05-014 is a warning,
-#: not a block); this set is an audit allowlist, not a security gate.
-_RECOGNIZED_OVERRIDE_PRODUCERS: frozenset[str] = frozenset(
-    {"FilterParticipantStatusDimensionsNode", "FinalizeCsFilterNode"}
-)
-
-
-def _merge_snapshot_object_fields(
-    current: dict[str, Any], fields: dict[str, Any]
-) -> dict[str, Any]:
-    """Merge an adjudication patch onto a snapshot ``object``.
-
-    One level of nesting is merged rather than replaced so that patching
-    ``caseStatus.pxaState`` keeps the snapshot's ``caseStatus`` id and its other
-    fields.  A ``caseStatus`` that is still a bare reference string is left
-    alone — there is nothing to merge into, and clobbering it would drop the
-    reference.
-
-    ``name`` is dropped: it is a derived state summary and the sender's label
-    describes the value that was just refused.
-    """
-    merged = dict(current)
-    for key, value in fields.items():
-        existing = merged.get(key)
-        if isinstance(value, dict):
-            if not isinstance(existing, dict):
-                # Bare reference (or absent) — nothing to patch into.
-                continue
-            nested = dict(existing)
-            for nested_key, nested_value in value.items():
-                nested[nested_key] = nested_value
-                drop_stale_twins(nested, nested_key)
-            merged[key] = nested
-            continue
-        merged[key] = value
-        drop_stale_twins(merged, key)
-    merged.pop("name", None)
-    return merged
-
-
-def _snapshot_object_id(payload_snapshot: dict[str, Any]) -> str | None:
-    """Return the ID of a payload snapshot's ``object``, inlined or not."""
-    value = payload_snapshot.get("object")
-    if isinstance(value, str):
-        return value or None
-    if isinstance(value, dict):
-        return value.get("id") or value.get("id_") or None
-    return None
 
 
 def _assert_actor_identity(
@@ -154,6 +78,14 @@ def _assert_actor_identity(
             f" {snapshot_actor!r} does not match activity.actor_id"
             f" {activity_actor_id!r}; identity substitution refused"
         )
+
+
+def _semantic_type_of(activity: Any) -> str:
+    """The semantic an entry records *activity* as."""
+    semantics = getattr(activity, "semantic_type", None)
+    if semantics is not None:
+        return cast(str, semantics.value)
+    return getattr(activity, "activity_type", "case_event") or "case_event"
 
 
 class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
@@ -195,9 +127,6 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         "case_id": PortInformation(data_type=str, required=False),
         "activity": PortInformation(data_type=object, required=False),
         "sync_port": PortInformation(data_type=object, required=False),
-        "ledger_payload_object_override": PortInformation(
-            data_type=object, required=False
-        ),
     }
 
     @classmethod
@@ -206,7 +135,6 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             "case_id": "/case_id",
             "activity": "/activity",
             "sync_port": "/sync_port",
-            "ledger_payload_object_override": f"/{BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE}",
         }
 
     def initialise(self) -> None:
@@ -223,12 +151,6 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             self._sync_port = self.get_input("sync_port")
         except (NoDataAvailable, NotImplementedError):
             self._sync_port = None
-        try:
-            self._ledger_payload_object_override: Any = self.get_input(
-                "ledger_payload_object_override"
-            )
-        except (NoDataAvailable, NotImplementedError):
-            self._ledger_payload_object_override = None
 
     def _resolve_case_id(self) -> str | None:
         return self._case_id or self._case_id_bb
@@ -236,65 +158,41 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     def _resolve_activity(self) -> Any | None:
         return self._activity
 
-    def _resolve_payload_object_override(
-        self, payload_snapshot: dict[str, Any]
-    ) -> dict[str, Any] | None:
-        """Return a substitute ``object`` entry for the payload snapshot.
+    def _answer_resend(self, activity: Any, case_id: str) -> Status:
+        """Answer a resend routed without received evidence (IE-10-001).
 
-        A preceding read-only guard may have adjudicated the inbound assertion
-        and published the portion the receiver actually accepts (RSH-05).  The
-        canonical entry must record *that*, not the raw claim, otherwise the
-        refused value is hash-chained and replicated to every participant.
-
-        The override is a **patch**, not a replacement object: the guard names
-        only the fields it adjudicated and they are merged onto the snapshot's
-        existing ``object``.  That keeps the snapshot in the same wire shape the
-        un-adjudicated path produces — flat dimension values, a nested case
-        status, ``@context``, the consent state and the CVD roles, each under its
-        AS2 alias — which every replica and the invariant harness rely on
-        (RSH-05-009, CLP-07-011, CM-18-006).  A whole-object replacement built in
-        core would instead emit core dimension objects, since core must not
-        import the wire layer to convert (ADR-0009, ADR-0017).
-
-        Which keys a patch may name is
-        :data:`~vultron.core.behaviors.ledger_patch.PATCH_KEY_TWINS`.
-
-        The override names the object ID it applies to and is honoured only
-        when the snapshot's ``object`` refers to the same ID: the py_trees
-        blackboard is process-global and not cleared between executions, so an
-        unmatched override is a leftover from an earlier run and is ignored.
+        It has no body to record.  When the ledger records its first delivery
+        as the same semantic, that entry stands.  Otherwise the resend is
+        refused, not recorded: its first delivery was never recorded, or the
+        id is recorded for a different activity, which a resend rebuilt from
+        a different body would otherwise pass for (CLP-07-013).
         """
-        override = self._ledger_payload_object_override
-        if not isinstance(override, dict):
-            return None
-        fields = override.get("fields")
-        if not isinstance(fields, dict) or not fields:
-            return None
-        # RSH-05-014: warn when producer_type is present but unrecognized.
-        producer_type = override.get("producer_type")
-        if (
-            producer_type is not None
-            and producer_type not in _RECOGNIZED_OVERRIDE_PRODUCERS
+        assert self.datalayer is not None
+        activity_id = activity.activity_id
+        semantic_type = _semantic_type_of(activity)
+        if is_ledgered_activity(
+            self.datalayer, case_id, activity_id, semantic_type=semantic_type
         ):
-            self.logger.warning(
-                "%s: ledger_payload_object_override from unrecognized"
-                " producer '%s' — applying override (RSH-05-014)",
+            self.logger.info(
+                "%s: activity '%s' is a redelivery already recorded for case"
+                " '%s'; its first delivery's entry stands",
                 self.name,
-                producer_type,
+                activity_id,
+                case_id,
             )
-        # RSH-05-013: hard-fail on any unrecognized wire alias in fields.
-        unknown = set(fields) - set(PATCH_KEY_TWINS)
-        if unknown:
-            raise VultronValidationError(
-                f"ledger_payload_object_override contains unrecognized wire"
-                f" alias(es) {unknown!r} — fix the producer (RSH-05-013)"
+            return Status.SUCCESS
+        if is_ledgered_activity(self.datalayer, case_id, activity_id):
+            self.feedback_message = (
+                f"activity '{activity_id}' is recorded for case '{case_id}'"
+                f" as another activity than '{semantic_type}', and this"
+                " resend carries no received body to record (IE-10-001)"
             )
-        current = payload_snapshot.get("object")
-        if not isinstance(current, dict):
-            return None
-        if _snapshot_object_id(payload_snapshot) != override.get("object_id"):
-            return None
-        return _merge_snapshot_object_fields(current, fields)
+        else:
+            self.feedback_message = unrecordable_resend_reason(
+                activity_id, case_id
+            )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
     def _activity_metadata(
         self, activity: Any | None, case_id: str
@@ -303,16 +201,8 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             return case_id, "case_event", {}
 
         object_id = getattr(activity, "activity_id", case_id)
-        semantics = getattr(activity, "semantic_type", None)
-        semantic_type = (
-            semantics.value
-            if semantics is not None
-            else getattr(activity, "activity_type", "case_event")
-            or "case_event"
-        )
-        payload_snapshot = _extract_payload_snapshot(
-            activity, self.datalayer, self._require_wire_render_port()
-        )
+        semantic_type = _semantic_type_of(activity)
+        payload_snapshot = _extract_payload_snapshot(activity)
         return object_id, semantic_type, payload_snapshot
 
     def update(self) -> Status:
@@ -338,43 +228,18 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
+        if carries_no_received_body(activity):
+            return self._answer_resend(activity, case_id)
+
         object_id, semantic_type, payload_snapshot = self._activity_metadata(
             activity, case_id
         )
 
-        # Normalize context to case_id for activities that predate the case
-        # (e.g., Offer(VulnerabilityReport) submitted before the case existed).
-        if payload_snapshot and payload_snapshot.get("context") != case_id:
-            payload_snapshot = dict(payload_snapshot)
-            payload_snapshot["context"] = case_id
-
-        # Record the portion of the assertion the receiver accepts, when a
-        # preceding guard adjudicated it (RSH-05).
-        if payload_snapshot:
-            try:
-                replacement = self._resolve_payload_object_override(
-                    payload_snapshot
-                )
-            except VultronValidationError as exc:
-                self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                    "%s: refusing ledger commit for case '%s':"
-                    " override validation failed: %s",
-                    self.name,
-                    case_id,
-                    exc,
-                )
-                return Status.FAILURE
-            if replacement is not None:
-                payload_snapshot = dict(payload_snapshot)
-                payload_snapshot["object"] = replacement
-                self.logger.info(
-                    "%s: snapshotting the accepted portion of object '%s'"
-                    " for case '%s' (RSH-05)",
-                    self.name,
-                    _snapshot_object_id(payload_snapshot),
-                    case_id,
-                )
-
+        # The snapshot is the received body as it arrived, so its ``context``
+        # is the sender's: absent on an activity that predates the case, such
+        # as the Offer(VulnerabilityReport) that opened it.  The entry names
+        # its case on the envelope (``case_id``), which is what the commit
+        # boundary checks (CLP-07-011).
         _assert_actor_identity(semantic_type, payload_snapshot, activity)
 
         tree = create_commit_log_entry_tree(

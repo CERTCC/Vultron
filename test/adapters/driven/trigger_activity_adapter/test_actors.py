@@ -18,6 +18,7 @@ CASE_MANAGER delegation.
 """
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 
@@ -34,15 +35,22 @@ from vultron.wire.as2.factories import (
     recommend_actor_activity,
     rm_invite_to_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Invite,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+    as_VulnerabilityCaseStub,
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
 _INVITEE = "https://example.org/actors/vendor"
 _CASE_ID = "https://example.org/cases/case-001"
+#: A receiver refuses a stub with no summary at parse (MV-10-001), so the
+#: Invite a test delivers carries one.
+_STUB = as_VulnerabilityCaseStub(case_id=_CASE_ID, summary="A case to join")
 
 
 def _make_case(dl) -> as_VulnerabilityCase:
@@ -230,12 +238,12 @@ class TestAcceptCaseInvite:
         dl.create(invitee)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=_CASE_ID,
+            target=_STUB,
             actor=_ACTOR,
             to=[_INVITEE],
         )
         # A received Invite that reached its use case is archived by intake
-        # (CLP-10-017, ADR-0111).
+        # as the body that arrived (CLP-10-017, ADR-0149).
         archive_received(dl, invite)
         return invite.id_
 
@@ -345,7 +353,7 @@ class TestAcceptCaseInvite:
         """
         invite = rm_invite_to_case_activity(
             _INVITEE,
-            target=_CASE_ID,
+            target=_STUB,
             actor=_ACTOR,
             to=[_INVITEE],
         )
@@ -362,86 +370,34 @@ class TestAcceptCaseInvite:
                 invite_id="urn:uuid:never-received", actor=_INVITEE
             )
 
-    def test_a_held_record_that_is_not_a_model_is_refused(
-        self, adapter, dl, monkeypatch
-    ):
-        from vultron.adapters.driven.trigger_activity_adapter import actors
-
-        monkeypatch.setattr(
-            actors, "read_received_activity", lambda *_args: object()
-        )
-
-        with pytest.raises(VultronValidationError, match="not as an activity"):
-            adapter.accept_case_invite(
-                invite_id="urn:uuid:held-oddly", actor=_INVITEE
-            )
-
     @pytest.mark.spec("CM-11-013")
     @pytest.mark.parametrize(
-        ("held_target", "error", "reason"),
-        [
-            (
-                {"type": "VulnerabilityCase", "id": _CASE_ID},
-                VultronActivityConstructionError,
-                "not a case Invite",
-            ),
-            (_CASE_ID, VultronActivityConstructionError, "not a case Invite"),
-            (
-                {"type": "VulnerabilityCaseStub"},
-                VultronValidationError,
-                "does not validate as an Invite",
-            ),
-        ],
-        ids=["full-case-target", "uri-target", "stub-without-case-id"],
+        "held_target",
+        [{"type": "VulnerabilityCase", "id": _CASE_ID}, _CASE_ID],
+        ids=["full-case-target", "uri-target"],
     )
-    def test_a_held_invite_that_does_not_carry_a_valid_stub_is_refused(
-        self, adapter, monkeypatch, held_target, error, reason
+    def test_a_held_invite_that_does_not_carry_a_stub_is_refused(
+        self, adapter, monkeypatch, held_target
     ):
         """Only a stub Invite is answered here, and a stub is recognised by
-        its ``type`` alone (CM-11-013).  A stub without ``caseId`` fails its
-        own validation, so the reply never has to guess the case."""
-        from pydantic import BaseModel
-
+        its ``type`` alone (CM-11-013).  A stub that fails its own validation
+        never gets this far: the parse of the archived body refuses it."""
         from vultron.adapters.driven.trigger_activity_adapter import actors
 
-        class _Held(BaseModel):
-            type: str = "Invite"
-            actor: str = _ACTOR
-            object: dict[str, str] = {"type": "Organization", "id": _INVITEE}
-            target: dict[str, str] | str = held_target
-
-        monkeypatch.setattr(
-            actors, "read_received_activity", lambda *_args: _Held()
+        held = as_Invite(
+            actor=_ACTOR,
+            object_=as_Service(id_=_INVITEE),
+            target=held_target,
         )
-
-        with pytest.raises(error, match=reason):
-            adapter.accept_case_invite(
-                invite_id="urn:uuid:held-without-a-stub", actor=_INVITEE
-            )
-
-    def test_a_held_record_that_does_not_validate_as_an_invite_is_refused(
-        self, adapter, monkeypatch
-    ):
-        """The adapter validates the held record into ``as_Invite`` at its
-        edge (ADR-0032), so a malformed one is refused there."""
-        from pydantic import BaseModel
-
-        from vultron.adapters.driven.trigger_activity_adapter import actors
-
-        class _Held(BaseModel):
-            type: str = "Invite"
-            actor: int = 42
-            target: str = _CASE_ID
-
         monkeypatch.setattr(
-            actors, "read_received_activity", lambda *_args: _Held()
+            actors, "read_received_as_received", lambda *_args: held
         )
 
         with pytest.raises(
-            VultronValidationError, match="does not validate as an Invite"
+            VultronActivityConstructionError, match="not a case Invite"
         ):
             adapter.accept_case_invite(
-                invite_id="urn:uuid:held-malformed", actor=_INVITEE
+                invite_id="urn:uuid:held-without-a-stub", actor=_INVITEE
             )
 
     def test_an_archived_activity_that_is_not_an_invite_is_refused(
@@ -455,9 +411,7 @@ class TestAcceptCaseInvite:
         )
         archive_received(dl, offer)
 
-        with pytest.raises(
-            VultronActivityConstructionError, match="not a case Invite"
-        ):
+        with pytest.raises(VultronValidationError, match="not as an Invite"):
             adapter.accept_case_invite(invite_id=offer.id_, actor=_INVITEE)
 
 
@@ -815,17 +769,97 @@ class TestAnswerReceivedOwnershipOffer:
                 offer_id="urn:uuid:never-received", actor=_INVITEE
             )
 
-    def test_the_offerer_withdraws_the_offer_it_sent(self, adapter, dl):
-        """The offerer's own Offer is held under its own id, and read there."""
+    @pytest.mark.spec("DL-06-006")
+    @pytest.mark.parametrize(("method", "verb"), _OWNERSHIP_ANSWERS)
+    def test_an_offer_held_only_under_its_own_id_is_not_found(
+        self, adapter, dl, method, verb
+    ):
+        """Only the archived Offer is answered, never one under its id (ADR-0148)."""
         case = _make_case(dl)
-        offer_id, _ = adapter.offer_case_ownership_transfer(
+        offer = offer_case_ownership_transfer_activity(
+            case=case,
+            target=_INVITEE,
+            actor=_ACTOR,
+            attributed_to=_OWNER,
+            to=[_INVITEE],
+        )
+        dl.create(offer)
+        assert dl.read(offer.id_) is not None
+
+        with pytest.raises(
+            VultronNotFoundError, match=r"Offer\(VulnerabilityCase\)"
+        ):
+            getattr(adapter, method)(offer_id=offer.id_, actor=_INVITEE)
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-21-015")
+    def test_the_owner_withdraws_the_proposal_it_sent(self, adapter, dl):
+        """The owner's own proposal is held under its own id, and read there;
+        the Undo names the proposal (ADR-0148)."""
+        case = _make_case(dl)
+        proposal_id, _ = adapter.propose_case_ownership_transfer(
             case_id=case.id_, transferee_id=_INVITEE, actor=_OWNER, to=[_ACTOR]
         )
 
         _, blob = adapter.withdraw_case_ownership_transfer(
-            offer_id=offer_id, actor=_OWNER, to=[_ACTOR]
+            offer_id=proposal_id, actor=_OWNER, to=[_ACTOR]
         )
 
         body = json.loads(blob)
         assert body["type"] == "Undo"
-        assert body["object"]["id"] == offer_id
+        assert body["object"]["id"] == proposal_id
+        assert body["object"]["object"]["type"] == "Offer"
+        assert body["to"] == [_ACTOR]
+
+    @pytest.mark.spec("CM-21-005")
+    @pytest.mark.spec("CM-21-016")
+    def test_the_proposal_nests_the_offer_it_asks_for(self, adapter, dl):
+        case = _make_case(dl)
+        deadline = datetime(2030, 1, 1, tzinfo=UTC)
+
+        _, blob = adapter.propose_case_ownership_transfer(
+            case_id=case.id_,
+            transferee_id=_INVITEE,
+            actor=_OWNER,
+            to=[_ACTOR],
+            end_time=deadline,
+        )
+
+        body = json.loads(blob)
+        assert body["type"] == "Offer"
+        assert body["context"] == case.id_
+        assert body["to"] == [_ACTOR]
+        inner = body["object"]
+        assert inner["type"] == "Offer"
+        assert inner["object"]["id"] == case.id_
+        assert inner["target"]["id"] == _INVITEE
+        assert inner["endTime"].startswith("2030-01-01")
+
+    @pytest.mark.spec("CM-21-005")
+    def test_the_offer_built_under_a_derived_id_is_built_once(
+        self, adapter, dl
+    ):
+        """A retry under the same id hands back the sealed first build."""
+        case = _make_case(dl)
+        given_id = "urn:uuid:derived-ownership-offer"
+
+        first = adapter.offer_case_ownership_transfer(
+            case_id=case.id_,
+            transferee_id=_INVITEE,
+            actor=_ACTOR,
+            attributed_to=_OWNER,
+            id_=given_id,
+        )
+        again = adapter.offer_case_ownership_transfer(
+            case_id=case.id_,
+            transferee_id=_INVITEE,
+            actor=_ACTOR,
+            attributed_to=_OWNER,
+            id_=given_id,
+        )
+
+        assert first == again
+        body = json.loads(first[1])
+        assert body["id"] == given_id
+        assert body["context"] == case.id_
+        assert body["attributedTo"] == _OWNER

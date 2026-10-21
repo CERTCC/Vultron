@@ -23,8 +23,8 @@ CASE_MANAGER's status from the ledger fan-out (RSH-04-005, RSH-08-003).
 which embargo and status trees both compose, lives in the shared
 :mod:`vultron.core.behaviors.case_status_snapshot` module (BTND-04-001).
 
-Per-dimension adjudication nodes (RSH-05, ADR-0061, ISSUE-2256) live in
-:mod:`cs_dimension_filter` to keep this module under the 500-line limit.
+The whole accept-or-reject guard (RSH-09-005) lives in
+:mod:`case_status_acceptance`.
 """
 
 import logging

@@ -5,8 +5,8 @@ kind: guidance
 description: >
   How a CASE_MANAGER turns an inbound status claim into case state: the
   one-move-one-mover pipeline (ADR-0108), the two independent gates for
-  adoption and embargo teardown (ADR-0046), per-dimension partial accept and
-  cross-machine entailments (ADR-0061), and CaseStatus emission authority.
+  adoption and embargo teardown (ADR-0046), whole accept or reject of a
+  received status (ADR-0107), and CaseStatus emission authority.
 related_specs:
   - specs/behavior-tree-node-design.yaml
   - specs/received-status-handling.yaml
@@ -55,7 +55,7 @@ property of the pipeline:
   (RSH-04-005). Every other participant applies the ledger (PCR-03-001,
   RSH-08-003).
 - **One RM acceptance rule, from one place.** The activity-typed RM handlers and
-  `FilterParticipantStatusDimensionsNode` share `classify_rm_declaration`
+  `CheckParticipantStatusAcceptableNode` share `classify_rm_declaration`
   (`core/states/rm.py`), composed by `report/rm_declaration_tree.py`. Tests on
   both paths run one table, `test/support/rm_declaration.py`. Do not give a new
   RM handler its own adjacency check.
@@ -117,78 +117,41 @@ CASE_MANAGER's received tree decides whether to adopt it. The simulation
 are not wired into the received pipeline (see
 `docs/developer/reference/bt-fuzzer/rm-threat.md`).
 
-## Per-dimension partial accept (RSH-05, ADR-0061)
+## Whole accept or reject (RSH-09, ADR-0107)
 
-`FilterParticipantStatusDimensionsNode` adjudicates `rm`, `vfd` and `pxa`
-independently and publishes a *filtered* `ParticipantStatus` in which each
-refused dimension carries the participant's current value forward. Refusing the
-whole snapshot for one bad dimension would discard the accepted ones and skip
-teardown. `FilterCsEmDimensionNode` → `FilterCsPxaDimensionNode` →
-`FinalizeCsFilterNode` do the same for `CaseStatus`, at the participant replica
-that is its only receiver (RSH-05-015). Rules:
+`CheckParticipantStatusAcceptableNode` accepts a received `ParticipantStatus` as
+sent or refuses all of it; `CheckCaseStatusAcceptableNode` does the same for
+`CaseStatus`, at the participant replica that is its only receiver
+(RSH-04-005, RSH-09-005). Rules:
 
-- **The filters are guards.** They are read-only (CLP-10-006), run before
-  `GuardedCommitOrSkip`, and `FinalizeCsFilterNode` belongs in
-  `precondition_guards`, never among the effects (CLP-10-009). A wholly refused
-  regression therefore ends the tree before its effects; the RM gap note runs as
-  a `refusal_effects` instead (CLP-10-022).
-- **`em` is never adjudicated from a status.** EM is derived from the embargo
-  register, so an asserted EM that differs from `case.em_state` is refused
-  (RSH-05-023, ADR-0122).
-- **Write the handoff keys on every tick and match them by object ID.** The
-  py_trees blackboard is process-global and `BTBridge` restores only a few keys
-  between runs, so a producer writes `None` before any early return
-  (RSH-05-010, BT-17-003).
-- **The ledger override is a field patch, not a replacement object**
-  (RSH-05-009). `ledger_payload_object_override` names only the adjudicated
-  fields, keyed by wire alias, and `CommitCaseLedgerEntryNode` merges them onto
-  the sender's wire-shaped snapshot. Core cannot rebuild that wire shape
-  (ADR-0009), so patching makes shape preservation structural. Producers declare
-  `producer_type` and use only recognized aliases; the consumer hard-fails on an
-  unknown alias and warns on an unknown producer (RSH-05-011 to RSH-05-014).
-  Register a new producer in `_RECOGNIZED_OVERRIDE_PRODUCERS`.
-- **One port name cannot be both input and output** of a py_trees node; the CS
-  accumulator is written back through a second alias mapped to the same key.
-- **`ValidateRMTransitionNode` stays all-or-nothing** when the append subtree
-  runs standalone; it relaxes only when the blackboard says `rm` was refused
-  upstream.
-- **An omitted `caseStatus` is not a refusal.** The receiver's own values are
-  carried forward; persisting the assertion verbatim would blank them. If
-  carrying forward is the *only* change, nothing was learned and the status is
-  refused in full (RSH-05-005).
-- **A blocked dimension is not always a rewritten one.** `RM.CLOSED` restated at
-  `RM.CLOSED` is blocked but discards nothing; the WARNING distinguishes
-  `rewrote dimension(s)` from `blocked dimension(s) … with no change`.
-
-### Cross-machine entailments (RSH-05-020)
-
-Individually valid dimensions can still describe an impossible state (a ready
-fix before the report was accepted; a deployed fix before a ready one). A final
-pass evaluates RM↔VF, RM↔D (CSB-18-001) and VF↔D (CSB-17-001):
-
-- **Refuse the dimension that moved.** Refusing the incumbent side carries the
-  impossible value straight back. A dimension the sender omitted is never
-  reported as refused.
-- **Evaluate the effective state, not the assertion**, so a refused `vf` cannot
-  license the `d` paired with it. This is not a defence for `rm`: a refused `rm`
-  carries a value at or above the asserted one, so it can only accept more.
-- **Emit, receive and replica-apply share one evaluator**,
+- **Never record a status nobody sent.** No guard rewrites the received status
+  and no node patches the ledger snapshot: the ledger records what was asserted
+  and every replica copies it (RSH-09-001, CLP-07-013, CM-23-016).
+- **An omitted dimension is absent, not refused.** A status with no `vf`, `d`
+  or `caseStatus` is recorded without them; filling them from the receiver's
+  own state would record a value the sender never sent (ADR-0075). Judge each
+  dimension against its most recent recorded value, not the latest status's,
+  or an omission resets the baseline and a later regression passes
+  (`RecordedBaseline`, RSH-09-003). `rm` is never omitted: a status without
+  `rmState` states `START`.
+- **Report every reason.** The refusal notice names each refused dimension and
+  why, so the sender fixes the update in one round trip (RSH-09-002,
+  EH-07-001).
+- **The guards are read-only and run before the commit** (CLP-10-006,
+  CLP-10-009). A refused regression still owes the RSH-06-004 note: the guard
+  publishes the anomaly before it fails, and the note runs as a
+  `refusal_effects` (CLP-10-022).
+- **`em` is never judged from a participant status.** EM is derived from the
+  embargo register; a received `CaseStatus` whose EM differs from
+  `case.em_state` is refused (RSH-09-005, ADR-0122).
+- **Emit, receive and replica-apply share one entailment evaluator**,
   `composite_state_violations()` in
-  `vultron/core/states/composite_state_invariants.py`. No path calls an
-  individual `violation_*` function; the emit path reaches it through
-  `participant_transition_violations()` (ADR-0086).
-- **Re-evaluate after each refusal.** A refusal can retire a violation listed
-  beside it (refusing `d` for RM↔D also clears VF↔D).
-- **It is not a ladder check.** Non-adjacent forward advances stay legal
-  (CSB-16-001), and an absent dimension is absent, not initial (ADR-0075).
-- **RM↔VF and RM↔D are sound, not complete.** The real rule is a history
-  property (the actor passed `RM.ACCEPTED`); `RM_STATES_CONSISTENT_WITH_FIX`
-  approximates it with the states reachable from `ACCEPTED`, so `DEFERRED` and
-  `CLOSED` stay in. Narrowing it would refuse a peer that accepts and reports a
-  ready fix in one message. Tightening it needs RM history.
-- **The guarantee is conditional.** If the incumbent state is already
-  impossible, no per-dimension refusal can repair it; the pass logs and leaves
-  it. Read that log line as evidence of a write that bypassed the pass.
+  `vultron/core/states/composite_state_invariants.py`, evaluated on the status
+  as received (RSH-09-004). No path calls an individual `violation_*` function.
+- **RM↔VF and RM↔D are sound, not complete.** `RM_STATES_CONSISTENT_WITH_FIX`
+  approximates "passed `RM.ACCEPTED`" with the states reachable from it, so a
+  peer that accepts and reports a ready fix in one message is accepted.
+  Tightening it needs RM history (ISSUE-3015).
 
 ## Embargo teardown on P, X or A
 

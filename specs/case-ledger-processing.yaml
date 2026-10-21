@@ -80,12 +80,17 @@ groups:
   - id: CLP-02-003
     priority: MUST
     kind: protocol
-    statement: '`CaseLedgerEntry` MUST include the asserted activity payload, or a
-      normalized immutable snapshot of it, containing all fields required for deterministic
-      replay'
+    statement: '`CaseLedgerEntry` MUST include the asserted activity payload as its
+      `payloadSnapshot`, containing all fields required for deterministic replay: the
+      received body for an activity the CASE_MANAGER received, or its factory''s sealed
+      blob for one it emits (CLP-07-011, VM-08-003).'
     verification: '`test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that
-      each committed `CaseLedgerEntry` contains a non-empty `payloadSnapshot` that
-      round-trips through `model_validate` on the corresponding wire vocabulary class.'
+      each `CaseLedgerEntry` the CASE_MANAGER authors contains a non-empty `payloadSnapshot`
+      that round-trips through `model_validate` on the corresponding wire vocabulary class,
+      and `test/core/use_cases/received/test_verbatim_received_snapshot.py` confirms the
+      same of a received entry.'
+    adr:
+    - ADR-0107
     stories:
     - story_2022_045
     - story_2022_088
@@ -454,7 +459,7 @@ groups:
       `Add(ParticipantStatus)` gets no `Create(ProcessingFault)` beside it,
       since a guard's refusal is "received and understood but declined"
       (MSM-05-001; #4756). The replica's ImpossibleState fault for a ledger
-      entry it cannot apply (RSH-05-021) is a different failure and stays.
+      entry it cannot apply (RSH-09-006) is a different failure and stays.
     adr:
     - ADR-0141
     stories:
@@ -564,15 +569,30 @@ groups:
   - id: CLP-07-011
     priority: MUST
     kind: protocol
-    statement: The `payloadSnapshot` of a `CaseLedgerEntry` MUST be the verbatim AS2
-      activity that was asserted, or a deterministic canonical normalization of it.
-    rationale: The payload snapshot is the replication substrate; receivers must be
-      able to reconstitute the asserted activity from the snapshot alone without an
-      out-of-band lookup.
-    verification: '`test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that
-      for every committed `CaseLedgerEntry`, the `payloadSnapshot` field contains
-      a valid AS2 activity that revalidates through its wire vocabulary class via
-      `model_validate` without transformation.'
+    statement: >-
+      The `payloadSnapshot` of a `CaseLedgerEntry` MUST be the verbatim AS2 activity that
+      was asserted. For an activity the CASE_MANAGER received, it is the received JSON its
+      parser sealed as the activity's received evidence (VM-08-002); for one the
+      CASE_MANAGER emits, it is the blob its factory sealed, which is also the body
+      delivered (VM-08-003). The CASE_MANAGER MUST NOT drop, re-serialize, inline, patch
+      or merge any field of it; the metadata it adds (index, hashes, commit and receipt
+      times, `case_id`) lives on the entry, outside the snapshot.
+    rationale: >-
+      The payload snapshot is the replication substrate, and the entry hash covers it, so
+      what it holds is what every replica treats as the event. A snapshot rebuilt from the
+      receiver's object graph records the receiver's reconstruction, not what the sender
+      claimed, and every rewrite is one more thing a replica must reproduce exactly to
+      verify a hash (ADR-0107).
+    verification: >-
+      `test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that
+      for every `CaseLedgerEntry` the CASE_MANAGER authors, the `payloadSnapshot` field
+      contains a valid AS2 activity that revalidates through its wire vocabulary class via
+      `model_validate` without transformation.
+      `test/core/use_cases/received/test_verbatim_received_snapshot.py` confirms that a
+      received entry's snapshot equals the received body, key order included, revalidates
+      through its wire class without transformation, and is what a replica records.
+    adr:
+    - ADR-0107
     stories:
     - story_2022_045
   - id: CLP-07-012
@@ -788,26 +808,34 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Nested protocol objects referenced from a `payloadSnapshot` (e.g., `EmbargoEvent`,
-      `VulnerabilityReport`, `Note`, `ParticipantStatus`) MUST be embedded inline as full objects
-      in the snapshot; ID-string substitutions that require an out-of-band DataLayer lookup to
-      resolve MUST NOT be used in canonical snapshots. A `target` equal to the entry's own case
-      URI is not such a substitution — the entry is about that case and every replica holds it —
-      and the commit boundary MUST accept it, at any nesting depth, while refusing every other
-      bare string in an inline-object slot.
+      A `payloadSnapshot` MUST carry each nested object exactly as the asserted activity
+      carried it. An entry the CASE_MANAGER authors carries in full every object it
+      records. A received entry is the received body (CLP-07-011), so an object is inline
+      where its sender inlined it, as a sender does every object its recipient cannot be
+      expected to hold, and bare where its sender named an object the case's replicas
+      already hold (AKM-02-002). The CASE_MANAGER MUST NOT inline, resolve or replace a reference
+      when it records an entry, and the commit boundary MUST NOT refuse a bare reference
+      anywhere but the snapshot's own `object`, whose type is half of the entry's
+      signature. A replica that does not hold an object named by reference dereferences it.
     rationale: >-
       A protocol rule, not this prototype's inline-object shortcut (AKM-03-003): the entry
-      hash covers the `payloadSnapshot` and nothing outside it. An object named by ID alone
-      escapes the hash chain every participant verifies, so its content could differ
-      between replicas or change after commit with nothing to catch it, and replay would
-      depend on a lookup rather than on the ledger alone (CM-23-016). An implementation
-      that dereferences inlines here too.
+      hash covers the `payloadSnapshot` and nothing outside it, so an object carried in
+      full is under the hash every participant verifies, and an object named by id is
+      only identified by it. Filling a reference in at the CASE_MANAGER would put the
+      receiver's reconstruction in place of what was sent, and a replica could not tell
+      the sender's claim from the fill-in (ADR-0107).
     verification: >-
       `test/adapters/driven/trigger_activity_adapter/test_ledger_records.py` confirms that nested objects such as
       `EmbargoEvent`, `VulnerabilityReport`, and `Note` appear as fully inlined AS2 objects in
-      committed snapshots. `test/core/behaviors/sync/nodes/test_canonical_entry.py` confirms a
-      bare `target` naming the entry's case is accepted (top level and nested) and a bare `target`
-      naming another case, or a bare `object`, is refused.
+      the snapshots the CASE_MANAGER authors.
+      `test/core/use_cases/received/test_verbatim_received_snapshot.py` confirms that a
+      byte-for-byte change to a received body changes the recorded snapshot and that a
+      change to the receiver's store does not, and that a bare case reference is recorded
+      bare. `test/core/behaviors/sync/nodes/test_canonical_entry.py` confirms a bare
+      `target`, at the top level or nested, and a bare reference nested in the object are
+      accepted, and a bare `object` is refused.
+    adr:
+    - ADR-0107
     stories:
     - story_2022_045
   - id: CLP-07-007
@@ -816,6 +844,12 @@ groups:
     statement: '`payloadSnapshot` context values MUST use the case URI once a case
       exists; report URIs MUST NOT appear as the context for ParticipantStatus or
       other case-scoped snapshots after the report→case promotion has occurred'
+    rationale: >-
+      The obligation falls on whoever builds the activity. A received snapshot is the
+      body as sent (CLP-07-011), so the CASE_MANAGER neither writes a `context` in nor
+      rewrites one; the commit boundary refuses a `context` naming another case, and
+      the entry names its case on the envelope (`case_id`), so a snapshot that names no
+      `context`, such as the Offer that opened the case, is still that case's entry.
     verification: Integration tests in `test/demo/` confirm that `CaseLedgerEntry`
       objects created after report-to-case promotion carry the case URI (not the report
       URI) as the `payloadSnapshot.context` field for case-scoped entries such as
@@ -823,27 +857,18 @@ groups:
     stories:
     - story_2022_045
     - story_2022_030
-  - id: CLP-07-008
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: If a canonicalization path resolves an ID-string nested reference for
-      `payloadSnapshot` inlining, it MUST verify that the resolved object's context
-      matches the parent snapshot context before replacement. On context mismatch,
-      the entry MUST be rejected rather than inlining cross-case data.
-    rationale: Blind `dl.read(id)` replacement can leak unrelated local objects into
-      canonical snapshots when inbound activities carry attacker-controlled IDs.
   - id: CLP-07-009
     priority: MUST
     kind: project
-    statement: A `payloadSnapshot` — and every object inlined into one under CLP-07-006
-      — MUST be in the wire (AS2) shape, such that the wire vocabulary class for its
-      `type_` can revalidate it without translation. When the object being captured
-      is a core domain object, the wire shape MUST be produced through the core→wire
-      rendering port (ARCH-20-001), never by dumping the core object with `by_alias=True`
-      or by rewriting dumped keys in core. A received activity is such an object, since the
-      extractor rebuilds it as a core-branch `VultronActivity`; its snapshot is
-      rendered through the port too.
+    statement: >-
+      A `payloadSnapshot` — and every object carried inline in one (CLP-07-006) — MUST
+      be in the wire (AS2) shape, such that the wire vocabulary class for its `type_` can
+      revalidate it without translation. When the object being captured is a core domain
+      object, the wire shape MUST be produced through the core→wire rendering port
+      (ARCH-20-001), never by dumping the core object with `by_alias=True` or by rewriting
+      dumped keys in core. A received activity's snapshot is no such capture. It is the
+      received body itself (CLP-07-011), already in the wire shape, and nothing renders
+      it.
     rationale: 'CLP-07-011 requires the snapshot to be reconstitutable by receivers,
       and CLP-01-003/CLP-01-004 make it the replication substrate. Two distinct failure
       modes existed: core objects with no `alias_generator` were inlined in snake_case
@@ -1390,8 +1415,8 @@ groups:
     verification_debt: '#2575'
     statement: A separate `ValidateRMTransitionNode` in an effect stage
       (`replica_effects` or `manager_effects`) MUST NOT be
-      used in the receive-side path; `FilterParticipantStatusDimensionsNode` satisfies
-      the per-dimension adjudication requirement for an inbound `ParticipantStatus`
+      used in the receive-side path; `CheckParticipantStatusAcceptableNode` judges
+      an inbound `ParticipantStatus` before the commit (RSH-09-001)
       and a redundant validator after the commit creates divergence.
     rationale: '`add_participant_status_tree` previously contained `ValidateRMTransitionNode`
       after `GuardedCommit`, masked by a `_rm_was_carried_forward()` workaround. Both
@@ -1596,13 +1621,17 @@ groups:
     kind: project
     statement: Every receive-side BT tree MUST begin with the shared intake node that
       `create_receive_activity_tree` supplies. The intake node MUST idempotently archive
-      the received activity exactly as received, as a `ReceivedActivityRecord` whose id
-      the receiver derives (`ReceivedActivityRecord.build_id`) and which carries the
-      sender's activity id for the reverse lookup; it MUST NOT store the activity under
-      the id the sender chose, MUST NOT write a core record from any object inlined in
-      it, and MUST perform no other write. A core record a received object gives rise
-      to (a note, a report, a status, an embargo event, a case replica) is written by
-      an effect node from the copy the event carries, after the precondition guards.
+      the received activity exactly as received, as a `ReceivedActivityRecord` that
+      holds the received body as the parser sealed it (VM-08-002) and nothing derived
+      from it, whose id the receiver derives (`ReceivedActivityRecord.build_id`) and
+      which carries the sender's activity id for the reverse lookup. An activity that
+      reaches intake with no received body and nothing held for it MUST fail intake
+      as a wiring fault (ARCH-15-001) and archive nothing. It MUST NOT store the
+      activity under the id the sender chose, MUST NOT write a core record from any
+      object inlined in it, and MUST perform no other write. A core record a received
+      object gives rise to (a note, a report, a status, an embargo event, a case
+      replica) is written by an effect node from the copy the event carries, after the
+      precondition guards.
     rationale: 'One node, composed once by the shared factory, replaces the handler-local
       store helpers that received-side use cases called from `execute()` — the files
       `KNOWN_VIOLATIONS` enumerates once #3869 widens the ratchet (ISSUE-3339). The
@@ -1610,9 +1639,11 @@ groups:
       message shaped like that object, and writing it as a record before the guards
       would let any sender seed a case replica or a ledger entry ahead of the trust
       and chain checks (PCR-03-004, CBT-01-005) — a stored case row *is* the replica.
-      The archived row is also where #3742 persists the sealed received evidence
-      (ADR-0107) for deferred replay. The row is keyed by the receiver because the
-      DataLayer is one id-keyed table per actor: an activity stored under the id its
+      The archive is the sealed received body itself (ADR-0107, ADR-0149): a stored
+      summary of it drops what core does not name (`cc`, an RSVP deadline, a peer''s
+      own keys) and drifts from the extractor, so every reader loads the body again.
+      The row is keyed by the receiver because the DataLayer is one id-keyed table
+      per actor: an activity stored under the id its
       sender chose would let a sender who names its activity after a record the
       receiver derives (a pending-case-inbox marker, an offer record) occupy that id
       ahead of the receiver''s own write, so the later `create()` of the real record
@@ -1627,9 +1658,12 @@ groups:
       sender''s id, asserts no record of the inlined object (and no case replica) was
       created, asserts a second run writes nothing, and asserts a sender activity whose
       id equals a receiver-derived record id does not block the later `create()` of
-      that record.'
+      that record. `test/core/behaviors/case/nodes/test_intake.py` also asserts the
+      archive is exactly the body the parser sealed, and that an event with no body
+      fails intake unless the receiver already holds the activity.'
     adr:
     - ADR-0111
+    - ADR-0149
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005
@@ -1894,8 +1928,9 @@ groups:
       the delivery MUST write no case or participant state (RSH-08-003) — it
       MAY store the activity it answers so its answer can be built from it —
       and every emit in it MUST be covered by a named exemption (BT-17-008). A
-      tree with diversions MUST NOT take refusal effects (CLP-10-022): a
-      diverted delivery has already been answered.
+      diverted delivery has already been answered, so the factory MUST run no
+      refusal effect for it (CLP-10-022); a tree with diversions still answers
+      the refusals its guards make with the refusal notice (CLP-02-005).
     rationale: >-
       The late-Accept routing and the P/X/A refusal were alternative trees the
       use case chose and ran after or before the main one, which the one-tree
@@ -1909,10 +1944,14 @@ groups:
       diversion that does not hold lets the tree continue, one that holds runs
       its effects and ends the tree before the commit, a CASE_MANAGER
       diversion never diverts at another store, and the factory refuses an
-      ill-formed diversion; `test_receive_side_bt_commit_ordering.py` accepts a
-      commit ahead of the guarded commit only inside the clock-decision stage
-      or a CASE_MANAGER diversion; the embargo Accept and Invite handler tests
-      assert each diverted delivery's verdict and effects.
+      ill-formed diversion; `test_refusal_stage.py` asserts a diverted
+      delivery runs no refusal effect and a guard's refusal after a diversion
+      that does not hold runs them; `test_receive_side_bt_commit_ordering.py`
+      accepts a commit ahead of the guarded commit only inside the
+      clock-decision stage or a CASE_MANAGER diversion; the embargo Accept and
+      Invite handler tests assert each diverted delivery's verdict and
+      effects, and `test_embargo_refusal_notice.py` that an Accept answered
+      with ER gets no refusal notice.
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005

@@ -17,6 +17,7 @@ records it and forwards it to the target; the target answers the CASE_MANAGER,
 which commits the answer and, on an Accept, grants the role.
 """
 
+import json
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -137,11 +138,14 @@ def _deliver_offer(
 
     Neither the factory nor the wire parser admits a role-less Offer (the
     parser refuses one as malformed), so the role object is rebuilt without
-    its ``role`` after extraction to reach the use case's defensive guard.
+    its ``role`` after extraction to reach the use case's defensive guard,
+    and the received body loses its ``role`` with it.
     """
     request = make_payload(offer, receiving_actor_id=dl.actor_id)
     if drop_role:
         role_obj = request.activity.object_
+        body = request.received_body()
+        del body["object"]["role"]
         request = request.model_copy(
             update={
                 "activity": request.activity.model_copy(
@@ -150,7 +154,8 @@ def _deliver_offer(
                             id_=role_obj.id_
                         )
                     }
-                )
+                ),
+                "received_evidence": json.dumps(body),
             }
         )
     return OfferCaseParticipantRoleReceivedUseCase(
@@ -327,6 +332,7 @@ def test_an_offer_reusing_a_recorded_id_for_another_offer_is_refused(
     assert dl.outbox_list() == queued
 
 
+@pytest.mark.spec("CM-24-007")
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("CLP-10-006")
 def test_a_forward_that_fails_after_the_commit_is_sent_on_redelivery(

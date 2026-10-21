@@ -19,7 +19,7 @@ Demonstrates the workflow for transferring case ownership via the Vultron API.
 This demo script showcases two ownership transfer paths:
 
 1. Accept path: current owner (vendor) offers case to coordinator, with a
-   deadline to answer (TRIG-11-007) → the forwarded Offer carries it →
+   deadline to answer (TRIG-11-007) → the CaseActor's Offer carries it →
    coordinator accepts in time → case.attributed_to is updated to coordinator
 2. Reject path: current owner (vendor) offers case to coordinator → coordinator
    rejects → case.attributed_to remains with vendor
@@ -41,15 +41,17 @@ When run as a script, this module will:
 4. Run the demo workflows (accept, reject and withdraw)
 5. Verify side effects in the data layer
 
-Routing model (ADR-0053):
-The ``Offer(VulnerabilityCase)``, the response to it and its withdrawal are
-addressed to the **CaseActor's** inbox, never to the transferee or the offerer
-directly (CM-21-005, CM-21-006, CM-21-010, CM-21-015).  The CaseActor records
-the Offer, commits a ``CaseLedgerEntry``, broadcasts ``Announce(CaseLedgerEntry)`` to every
-participant — which is how actors outside the negotiation, such as the reporter,
-learn a transfer is pending — and only then forwards a **new** Offer of its own
-to the transferee.  The demo therefore discovers the forwarded Offer by its
-properties rather than by the original offer's id (EDF-06-004).
+Routing model (ADR-0053, ADR-0148):
+The vendor's proposal, ``Offer(Offer(VulnerabilityCase))``, the response to the
+Offer and the proposal's withdrawal are addressed to the **CaseActor's** inbox,
+never to the transferee or the offerer directly (CM-21-005, CM-21-006,
+CM-21-010, CM-21-015).  The CaseActor records the proposal, makes the one
+``Offer(VulnerabilityCase)`` of the transfer under its own id, sends it to the
+transferee and ledgers it, broadcasting each ``Announce(CaseLedgerEntry)`` to
+every participant — which is how actors outside the negotiation, such as the
+reporter, learn a transfer is pending.  The demo therefore discovers the
+CaseActor's Offer by its properties rather than by the proposal's id
+(EDF-06-004).
 """
 
 # Standard library imports
@@ -66,7 +68,7 @@ from vultron.demo.helpers.polling import (
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import recipient_ids
 from vultron.demo.helpers.workflow import (
-    await_forwarded_ownership_transfer_offer,
+    await_ownership_transfer_offer,
     seat_participant_through_stub_invite,
     setup_canonical_case,
 )
@@ -163,15 +165,16 @@ def _vendor_offers_ownership(
     CM-21-016).
 
     The ``offer-case-ownership-transfer`` trigger (TRIG-11-001, DEMOMA-05-001)
-    has the CaseActor send the Offer with ``attributed_to`` the vendor: the
-    CaseActor is the sender of record for a delegated case message, and the
-    vendor is the participant whose intent it carries (CM-24-001, CM-24-002).
-    Addressing it to the vendor instead is what made receivers reject the
-    Offer in #2142.  The demo gates on the CaseActor's ledger entry for it,
-    the cause of the forward the next step waits for (EDF-06).
+    sends the vendor's proposal to the CaseActor, which makes the Offer with
+    ``attributed_to`` the vendor: the CaseActor is the sender of record for a
+    delegated case message, and the vendor is the participant whose intent it
+    carries (CM-24-001, CM-24-002, ADR-0148).  The demo gates on the
+    CaseActor's ledger entry for that Offer, which it commits once the Offer
+    is queued for the coordinator, so it is the cause the next step waits
+    for (EDF-06).
 
     Returns:
-        The id of the Offer the vendor made, which it names to withdraw it.
+        The id of the vendor's proposal, which it names to withdraw it.
     """
     offer = (
         ActorSession(client=client, actor=vendor)
@@ -202,29 +205,29 @@ def _vendor_offers_ownership(
 _ANSWER_WINDOW = timedelta(days=1)
 
 
-def _check_forward_carries_deadline(
+def _check_offer_carries_deadline(
     client: DataLayerClient,
     coordinator: as_Actor,
-    forwarded_offer_id: str,
+    offer_id: str,
     deadline: datetime,
 ) -> None:
     """Check the Offer the coordinator holds names the vendor's deadline.
 
-    The coordinator answers the CaseActor's forward, not the vendor's Offer
-    (CM-21-005), so the forward is what must tell it when it may no longer
+    The coordinator answers the CaseActor's Offer, not the vendor's proposal
+    (CM-21-005), so that Offer is what must tell it when it may no longer
     answer (CM-21-016).
     """
-    with demo_check("Forwarded Offer carries the deadline to answer"):
-        forwarded = verify_received_activity_stored(
-            client, forwarded_offer_id, actor_id=coordinator.id_
+    with demo_check("The CaseActor's Offer carries the deadline to answer"):
+        received = verify_received_activity_stored(
+            client, offer_id, actor_id=coordinator.id_
         )
-        end_time = forwarded.get("endTime")
+        end_time = received.get("endTime")
         if end_time is None or datetime.fromisoformat(end_time) != deadline:
             raise ValueError(
-                f"Expected the forwarded Offer to carry endTime {deadline},"
+                f"Expected the CaseActor's Offer to carry endTime {deadline},"
                 f" got: {end_time}"
             )
-        logger.info("Forwarded Offer answer deadline: %s", end_time)
+        logger.info("Offer answer deadline: %s", end_time)
 
 
 def _check_owner_unchanged(
@@ -284,8 +287,8 @@ def demo_transfer_ownership_accept(
     2. Vendor offers case ownership to coordinator, with a deadline to
        answer (OfferCaseOwnershipTransferActivity → **CaseActor** inbox,
        CM-21-005, TRIG-11-007)
-    3. CaseActor forwards a new Offer to the coordinator, carrying the
-       deadline; the demo discovers it
+    3. CaseActor makes the Offer from the proposal and sends it to the
+       coordinator, carrying the deadline; the demo discovers it
     4. Coordinator accepts through its ``accept-case-ownership-transfer``
        trigger (AcceptCaseOwnershipTransferActivity → **CaseActor** inbox,
        CM-21-006, TRIG-11-002)
@@ -315,25 +318,23 @@ def demo_transfer_ownership_accept(
         )
 
     with demo_gate(
-        "Step 3: CaseActor forwarded the Offer to the coordinator (CM-21-005)"
+        "Step 3: CaseActor sent its Offer to the coordinator (CM-21-005)"
     ):
-        forwarded_offer_id = await_forwarded_ownership_transfer_offer(
+        offer_id = await_ownership_transfer_offer(
             client, case=case, transferee=coordinator
         )
-        logger.info("Forwarded offer id: %s", forwarded_offer_id)
-        _check_forward_carries_deadline(
-            client, coordinator, forwarded_offer_id, deadline
-        )
+        logger.info("CaseActor's offer id: %s", offer_id)
+        _check_offer_carries_deadline(client, coordinator, offer_id, deadline)
 
         with demo_step("Step 4: Coordinator accepts ownership transfer"):
             # Through the coordinator's own trigger (DEMOMA-05-001,
-            # TRIG-11-002), naming the forwarded offer's id, not the vendor's
-            # original: the CaseActor minted a new Offer, and only the
-            # forwarded one exists on the coordinator's replica (CM-21-005).
+            # TRIG-11-002), naming the CaseActor's Offer, not the vendor's
+            # proposal: only that Offer exists on the coordinator's replica
+            # (CM-21-005, ADR-0148).
             accept = (
                 ActorSession(client=client, actor=coordinator)
                 .quiet()
-                .accept_case_ownership_transfer(offer_id=forwarded_offer_id)
+                .accept_case_ownership_transfer(offer_id=offer_id)
                 .activity
             )
             logger.info("Coordinator sent accept: %s", logfmt(accept))
@@ -373,7 +374,8 @@ def demo_transfer_ownership_reject(
     1. Setup: canonical CaseActor-owned case, coordinator added as participant
     2. Vendor offers case ownership to coordinator
        (OfferCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-005)
-    3. CaseActor forwards a new Offer to the coordinator; the demo discovers it
+    3. CaseActor makes the Offer and sends it to the coordinator; the demo
+       discovers it
     4. Coordinator rejects through its ``reject-case-ownership-transfer``
        trigger (RejectCaseOwnershipTransferActivity → **CaseActor** inbox,
        CM-21-010, TRIG-11-005)
@@ -401,21 +403,21 @@ def demo_transfer_ownership_reject(
         )
 
     with demo_gate(
-        "Step 3: CaseActor forwarded the Offer to the coordinator (CM-21-005)"
+        "Step 3: CaseActor sent its Offer to the coordinator (CM-21-005)"
     ):
-        forwarded_offer_id = await_forwarded_ownership_transfer_offer(
+        offer_id = await_ownership_transfer_offer(
             client, case=case, transferee=coordinator
         )
-        logger.info("Forwarded offer id: %s", forwarded_offer_id)
+        logger.info("CaseActor's offer id: %s", offer_id)
 
         with demo_step("Step 4: Coordinator rejects ownership transfer"):
             # Through the coordinator's own trigger (DEMOMA-05-001,
-            # TRIG-11-005), naming the forwarded offer's id: only the
-            # forward exists on the coordinator's replica (CM-21-005).
+            # TRIG-11-005), naming the CaseActor's Offer: only that Offer
+            # exists on the coordinator's replica (CM-21-005).
             reject_result = (
                 ActorSession(client=client, actor=coordinator)
                 .quiet()
-                .reject_case_ownership_transfer(offer_id=forwarded_offer_id)
+                .reject_case_ownership_transfer(offer_id=offer_id)
             )
             reject = reject_result.activity
             logger.info("Coordinator sent reject: %s", logfmt(reject))
@@ -466,7 +468,8 @@ def demo_transfer_ownership_withdraw(
     1. Setup: canonical CaseActor-owned case, coordinator added as participant
     2. Vendor offers case ownership to coordinator
        (OfferCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-005)
-    3. CaseActor forwards a new Offer to the coordinator; the demo discovers it
+    3. CaseActor makes the Offer and sends it to the coordinator; the demo
+       discovers it
     4. Before the coordinator answers, the vendor withdraws the Offer through
        its ``withdraw-case-ownership-transfer`` trigger
        (UndoCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-015,
@@ -487,32 +490,32 @@ def demo_transfer_ownership_withdraw(
     original_owner = _initial_owner(client, case, case_actor_id)
 
     # Bound before the step (#2308): a failed step leaves no unbound name.
-    offer_id = ""
+    proposal_id = ""
     with demo_step(
         "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
     ):
-        offer_id = _vendor_offers_ownership(
+        proposal_id = _vendor_offers_ownership(
             client, case, vendor, coordinator, case_actor_id
         )
 
     with demo_gate(
-        "Step 3: CaseActor forwarded the Offer to the coordinator (CM-21-005)"
+        "Step 3: CaseActor sent its Offer to the coordinator (CM-21-005)"
     ):
-        forwarded_offer_id = await_forwarded_ownership_transfer_offer(
+        offer_id = await_ownership_transfer_offer(
             client, case=case, transferee=coordinator
         )
-        logger.info("Forwarded offer id: %s", forwarded_offer_id)
+        logger.info("CaseActor's offer id: %s", offer_id)
 
         with demo_step(
             "Step 4: Vendor withdraws the ownership transfer offer"
         ):
             # Through the vendor's own trigger (DEMOMA-05-001, TRIG-11-006),
-            # naming the Offer the vendor made: that is the one the CaseActor
-            # ledgered, and the one the vendor's store holds.
+            # naming the vendor's own proposal: the one its store holds, from
+            # which the CaseActor made the Offer it withdraws (ADR-0148).
             undo = (
                 ActorSession(client=client, actor=vendor)
                 .quiet()
-                .withdraw_case_ownership_transfer(offer_id=offer_id)
+                .withdraw_case_ownership_transfer(offer_id=proposal_id)
                 .activity
             )
             logger.info("Vendor sent withdrawal: %s", logfmt(undo))

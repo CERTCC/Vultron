@@ -15,7 +15,7 @@
 CM-21-016: an Accept or Reject the CASE_MANAGER processes after the Offer's
 ``end_time`` is refused, with no role change and no answer entry.
 CM-21-017: the CASE_MANAGER finds the expiry lazily — when it processes an
-Accept, Reject or Undo of the Offer, or a new Offer for the case — and commits
+Accept, Reject or Undo of the Offer, or a new proposal for the case — and commits
 one distinct expiry entry behind its role gate, broadcast like any other; the
 entry closes the Offer (CM-21-014).  A replica never computes an expiry.
 
@@ -284,8 +284,8 @@ class TestLazyExpiry:
         for kind in ("VulnerabilityCase", "CaseParticipant"):
             for obj in dl.list_objects(kind):
                 replica.create(obj)
-        # The CASE_MANAGER's own forward of the reply: what a replica is
-        # entitled to receive (PCR-03-001), so the door guards pass.
+        # A reply sent by the CASE_MANAGER: what a replica is entitled to
+        # receive (PCR-03-001), so the door guards pass.
         reply = accept_case_ownership_transfer_activity(
             offer, actor=_CASE_ACTOR_ID, to=[_COORDINATOR_ID]
         )
@@ -373,19 +373,21 @@ class TestTheActivityIsNotTheEvidence:
 
 @pytest.mark.spec("CM-21-005")
 @pytest.mark.spec("CM-21-016")
-def test_forward_carries_the_offers_deadline(make_payload):
-    """The transferee answers the forward, so the forward names the deadline."""
+def test_the_offer_carries_the_proposals_deadline(make_payload):
+    """The proposal's inner Offer names the deadline, and the Offer the
+    CASE_MANAGER makes, the one the transferee answers, carries it."""
     case_id = "https://example.org/cases/case_dl_forward"
     _, deliver, trigger_activity = _ownership_offer_harness(
         make_payload, case_id
     )
     deadline = _future()
 
-    deliver(_COORDINATOR_ID, f"{case_id}/offer", end_time=deadline)
+    _, offer = deliver(_COORDINATOR_ID, f"{case_id}/offer", end_time=deadline)
 
     trigger_activity.offer_case_ownership_transfer.assert_called_once()
     _, kwargs = trigger_activity.offer_case_ownership_transfer.call_args
     assert kwargs["end_time"] == deadline
+    assert offer.end_time == deadline
 
 
 class TestOnlyThePartyPromptsTheExpiry:

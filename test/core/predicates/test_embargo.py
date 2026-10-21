@@ -19,7 +19,9 @@ import pytest
 
 from test.support.embargo_register import activate, propose
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_register import rejection_changes
 from vultron.core.predicates.embargo import (
+    embargo_outlives_disclosure,
     pxa_is_embargo_eligible,
     rejection_ends_embargo,
 )
@@ -105,3 +107,28 @@ class TestRejectionEndsEmbargo:
 
     def test_an_embargo_that_is_not_open_is_not_a_revision(self):
         assert rejection_ends_embargo(_case(), _ACTIVE) is False
+
+
+@pytest.mark.spec("EMB-04-002")
+@pytest.mark.spec("MSM-07-009")
+class TestEmbargoOutlivesDisclosure:
+    """Read after the owner's REJECT step: the prior terms with P/X/A set."""
+
+    @staticmethod
+    def _rejected(case: VulnerabilityCase) -> VulnerabilityCase:
+        case.apply_embargo_register_step(rejection_changes(_REVISION))
+        return case
+
+    def test_the_prior_terms_standing_after_disclosure_outlive_it(self):
+        assert embargo_outlives_disclosure(self._rejected(_case())) is True
+
+    def test_no_public_info_lets_the_prior_terms_stand(self):
+        case = self._rejected(_case(pxa=CS_pxa.pxa))
+        assert embargo_outlives_disclosure(case) is False
+
+    def test_an_open_proposal_keeps_the_negotiation_open(self):
+        assert embargo_outlives_disclosure(_case()) is False
+
+    def test_no_embargo_in_force_has_nothing_to_end(self):
+        case = self._rejected(_case(active=False))
+        assert embargo_outlives_disclosure(case) is False

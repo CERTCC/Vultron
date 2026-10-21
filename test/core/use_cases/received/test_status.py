@@ -21,10 +21,15 @@ from test.core.use_cases.received.conftest import (
     queued_bodies,
     seed_case_manager_participant,
     seed_case_participant,
+    seed_store_owner_as_case_manager,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.driving.fastapi.inbox_orchestration import (
+    FastAPIIngressAdapter,
+)
 from vultron.core.behaviors.sender_entitlement import (
     AddresseeSide,
     SenderEntitlementKind,
@@ -35,6 +40,9 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.dimensions import (
     EmDimension,
     RmDimension,
+)
+from vultron.core.models.events.status import (
+    AddParticipantStatusToParticipantReceivedEvent,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
@@ -425,18 +433,18 @@ class TestStatusUseCases:
         mock_trigger.emit_processing_fault.assert_not_called()
 
     @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("RSH-09-008")
     def test_wholly_refused_participant_status_returns_refused(
         self, make_payload
     ):
-        """Wholly-refused BT returns REFUSED (AC-2, ISSUE-3199, #2255).
+        """A refused status returns REFUSED (AC-2, ISSUE-3199, #2255).
 
-        When FilterParticipantStatusDimensionsNode refuses every dimension (the
-        filtered status is indistinguishable from the current state), execute()
+        When CheckParticipantStatusAcceptableNode refuses the status, execute()
         returns ``HandlerResult.refused`` so that the inbox DispatchNode writes
         "rejected" to KEY_OUTCOME_STATUS and surfaces a rejected InboxOutcome
         rather than a silent 202 Accepted / processed (HP-01-003).
         """
-        # The filter runs at the CASE_MANAGER: a replica takes the update
+        # The guard runs at the CASE_MANAGER: a replica takes the update
         # from the CASE_MANAGER alone and refuses this sender first
         # (PCR-03-001).
         receiver_id = "https://example.org/users/case-manager-ps-ac2"
@@ -449,7 +457,7 @@ class TestStatusUseCases:
             context=case_id,
             attributed_to=sender_id,
         )
-        # Seed participant at RM.ACCEPTED: a backward VALID is refused in full
+        # Seed participant at RM.ACCEPTED: a backward VALID is refused
         pstatus = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s1",
             context=case_id,
@@ -468,7 +476,7 @@ class TestStatusUseCases:
         seed_case_manager_participant(dl, case, receiver_id)
         dl.create(case)
 
-        # A backward RM with no other change — filter will refuse it in full
+        # A backward RM — the guard refuses the whole status
         dup_status = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s_dup",
             context=case_id,
@@ -493,7 +501,8 @@ class TestStatusUseCases:
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert result.reason is not None
-        assert "wholly refused" in result.reason
+        assert "ParticipantStatus refused" in result.reason
+        assert "rm: ACCEPTED → VALID moves RM backwards" in result.reason
 
     def test_add_case_status_refuses_an_em_move_the_register_has_not_made(
         self, monkeypatch, make_payload
@@ -501,9 +510,9 @@ class TestStatusUseCases:
         """A status asserting EM other than the case's derived EM is refused.
 
         EM is derived from the embargo register and is never moved by a
-        status (ADR-0122, RSH-05-023): even ``NONE → PROPOSED``, a move the
-        EM machine once allowed, is refused, and the case's EM is carried
-        forward unchanged.
+        status (ADR-0122, RSH-09-005): even ``NONE → PROPOSED``, a move the
+        EM machine once allowed, refuses the whole status, and the case's EM
+        is unchanged.
         """
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
@@ -609,7 +618,7 @@ class TestStatusUseCases:
         ).execute()
         # The default call-out withholds adoption of a non-owner's claim
         # (RSH-07-001).  The append lands, and a withheld adoption is not a
-        # refusal of the assertion (RSH-05-022), so it is SKIPPED (#2255).
+        # refusal of the assertion (RSH-09-008), so it is SKIPPED (#2255).
         assert result.disposition == HandlerDisposition.SKIPPED
         assert result.reason is not None
         assert "CASE_OWNER approval required" in result.reason
@@ -621,6 +630,181 @@ class TestStatusUseCases:
             getattr(s, "id_", s) for s in participant.participant_statuses
         ]
         assert pstatus.id_ in status_ids
+
+    @pytest.mark.spec("HP-08-008")
+    @pytest.mark.spec("IO-03-004")
+    def test_add_participant_status_through_ingress_naming_another_case_is_refused(
+        self,
+    ):
+        """An Add(ParticipantStatus) whose status names case B but whose
+        target participant is case A's is refused before the commit on the
+        inbox path: the case is the target participant's own, so neither
+        case gains an entry and A's participant gains no status (#4961).
+
+        The sender is a participant of both cases, so the sender guard would
+        pass on either; only the case the handler picks decides the outcome.
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        sender = "https://example.org/users/vendor"
+        case_a = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ps4a",
+            name="Case A",
+            attributed_to=dl.actor_id,
+        )
+        case_b = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ps4b",
+            name="Case B",
+            attributed_to=dl.actor_id,
+        )
+        for case in (case_a, case_b):
+            seed_store_owner_as_case_manager(dl, case)
+        target = seed_case_participant(dl, case_a, sender)
+        seed_case_participant(dl, case_b, sender)
+        dl.create(case_a)
+        dl.create(case_b)
+        status_id = f"{case_b.id_}/participants/vendor/statuses/s1"
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        activity = add_status_to_participant_activity(
+            as_ParticipantStatus(id_=status_id, context=case_b.id_),
+            target=as_CaseParticipant.model_validate(
+                target.model_dump(by_alias=True, mode="json")
+            ),
+            actor=sender,
+            to=[dl.actor_id],
+            context=case_b.id_,
+        )
+        ingress = FastAPIIngressAdapter(dl)
+        parsed = ingress.parse(
+            activity.model_dump(by_alias=True, mode="json", exclude_none=True)
+        )
+        assert parsed is not None
+        event = received_event(ingress.rehydrate(parsed)).model_copy(
+            update={"receiving_actor_id": dl.actor_id}
+        )
+        assert isinstance(
+            event, AddParticipantStatusToParticipantReceivedEvent
+        )
+
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "HP-08-007" in result.reason
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+        stored = cast(as_CaseParticipant, dl.read(target.id_))
+        assert status_id not in [
+            getattr(s, "id_", s) for s in stored.participant_statuses
+        ]
+
+    @pytest.mark.spec("HP-08-008")
+    def test_add_participant_status_to_an_unheld_participant_is_refused(
+        self, make_payload
+    ):
+        """A target participant the receiver does not hold leaves no case to
+        act on, whatever case the status and the activity name, so the Add
+        is refused with no entry (#4961)."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        sender = "https://example.org/users/vendor"
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ps5",
+            name="Case",
+            attributed_to=dl.actor_id,
+        )
+        seed_store_owner_as_case_manager(dl, case)
+        seed_case_participant(dl, case, sender)
+        dl.create(case)
+        unheld = as_CaseParticipant(
+            id_=f"{case.id_}/participants/unheld",
+            context=case.id_,
+            attributed_to=sender,
+        )
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            make_payload(
+                add_status_to_participant_activity(
+                    as_ParticipantStatus(
+                        id_=f"{unheld.id_}/statuses/s1", context=case.id_
+                    ),
+                    target=unheld,
+                    actor=sender,
+                    to=[dl.actor_id],
+                    context=case.id_,
+                ),
+                receiving_actor_id=dl.actor_id,
+            ),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "holds no case" in result.reason
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+        assert dl.read(unheld.id_) is None
+
+    @pytest.mark.spec("HP-08-008")
+    def test_add_participant_status_to_a_record_naming_no_case_is_refused(
+        self, make_payload
+    ):
+        """A held participant record whose ``context`` names no case leaves
+        no case to act on, whatever case the status and the activity name,
+        so the Add is refused with no entry and no appended status
+        (#4961)."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        sender = "https://example.org/users/vendor"
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ps6",
+            name="Case",
+            attributed_to=dl.actor_id,
+        )
+        seed_store_owner_as_case_manager(dl, case)
+        target = seed_case_participant(dl, case, sender)
+        dl.create(case)
+        target.context = None
+        dl.save(target)
+        status_id = f"{target.id_}/statuses/s1"
+        entries_before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            make_payload(
+                add_status_to_participant_activity(
+                    as_ParticipantStatus(id_=status_id, context=case.id_),
+                    target=as_CaseParticipant.model_validate(
+                        target.model_dump(by_alias=True, mode="json")
+                    ),
+                    actor=sender,
+                    to=[dl.actor_id],
+                    context=case.id_,
+                ),
+                receiving_actor_id=dl.actor_id,
+            ),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason is not None and "holds no case" in result.reason
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+        stored = cast(as_CaseParticipant, dl.read(target.id_))
+        assert status_id not in [
+            getattr(s, "id_", s) for s in stored.participant_statuses
+        ]
 
     def test_add_participant_status_uses_store_owner_when_no_receiving_actor(
         self, make_payload

@@ -99,7 +99,9 @@ The Case Manager refuses an activation once the case is public, an exploit is pu
 If an embargo is active, it stays in force on its current terms (`EJ`); otherwise the case has no embargo (`ER`).
 While another proposal is still open, the case stays in negotiation.
 No participant's consent changes, the Case Owner's included.
-If the case is public, an exploit is public, or attacks are observed when the Case Owner rejects the last open revision, the Case Manager ends the embargo instead (`ET`).
+If the case is public, an exploit is public, or attacks are observed when the Case Owner rejects the last open revision, the Case Manager also ends the embargo in the same act (`ET`).
+The ledger then holds two entries: the `Reject`, which leaves the revision rejected, and the Case Manager's own `Remove`, which leaves the embargo terminated.
+If the termination is refused, neither entry is committed.
 
 {% include-markdown "./_occasions/sections/embargo-termination.md" %}
 
@@ -140,6 +142,32 @@ If the case is public, an exploit is public, or attacks are observed when the Ca
 - **Open revisions:** every open revision the sender had agreed to is declined with it, because each one would replace the embargo it left.
 - **Refused:** a `Leave` of an embargo that is not in force, from a sender whose consent to it is not `AGREED`, or from the Case Owner, which ends an embargo by terminating it (`ET`).
 - **Not a Reject:** a `Reject` of the Invite for the embargo in force, sent by a participant that agreed to it, is refused; withdrawal is this activity (MSM-07-004).
+
+## When the Case Manager Refuses a Message
+
+When the Case Manager refuses an embargo message because the case cannot take it, nothing is committed.
+The Case Manager tells the sender why with the [refusal notice](faults_and_acknowledgements.md#refusal-notice) (CLP-02-005, CLP-05-001).
+The notice is a `Reject` whose `object` is the refused activity, inline, whose `inReplyTo` names that activity's id, and whose `summary` gives the reason.
+It goes to the sender alone, and the sender closes its pending request when the notice arrives.
+
+| Message | Refused, with the notice, when |
+|---|---|
+| `Invite(Event)` (`EP`, `EV`) | the embargo has ended (EM `EXITED`), which admits no proposal. The notice is a `Reject` of the Invite, the same shape as a decline, and the proposer reads it as one (EP-09-008). |
+| `Accept(Invite(Event))` (`EA`, `EC`) | the `Event` is neither the embargo in force nor an open proposal: the register does not hold it, or the proposal was already decided, replaced or ended (CM-18-003). |
+| `Reject(Invite(Event))` (`ER`, `EJ`) | the `Event` is neither the embargo in force nor an open proposal, or the sender agreed to the embargo in force, since withdrawal is `Leave(Event)` (MSM-07-004). |
+| `Accept(Event)[target=VulnerabilityCase]` | the `Event` is not an open proposal of the case, or the case is public, an exploit is public, or attacks are observed (MSM-07-008, EMB-02-002). |
+| `Reject(Event)[target=VulnerabilityCase]` | the `Event` is not an open proposal of the case, or the termination the rejection would cause is refused (MSM-07-009). |
+| `Remove(Event)` (`ET`) | it claims `END_TIME_REACHED` before the embargo's end time, or a Case Owner's `Remove` names a `THREAT_SIGNAL` cause (EMB-13-005). |
+| `Leave(Event)` | no embargo is in force, the `Event` is not the embargo in force, the sender's consent to it is not `AGREED`, or the sender is the Case Owner (MSM-07-010). |
+
+Some deliveries get no notice:
+
+- A message the sender has no standing to send is refused with no answer (HP-01-006).
+- A repeat of an answer already recorded, under a new id or the same one, is skipped and gets no notice (CM-13-005).
+- An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with `ER` instead (EMB-01-002, EMB-02-002).
+  The Case Manager's `ER` to an `Accept` reaches the participant, which closes its pending `Accept`.
+- A late `Accept` is answered by the Case Manager's own late-acceptance entry or re-invitation (EMB-17).
+- A failure inside the Case Manager is not a refusal, and is never answered with a notice.
 
 ## Formal messages with no dedicated wire activity
 

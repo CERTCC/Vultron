@@ -53,6 +53,9 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.verification import (
+    verify_participant_status_appended,
+)
 from vultron.demo.helpers.workflow import (
     seat_participant_through_stub_invite,
     submit_validate_and_create_case,
@@ -209,7 +212,7 @@ def demo_manage_participants_accept(
         # The Add carries the new status inline: this implementation does not
         # support a separate Create(ParticipantStatus) (#4598).
         participant_status = as_ParticipantStatus(
-            context=coordinator_participant.id_,
+            context=case.id_,
             rm=RmDimension(state=RM.ACCEPTED),
             attributed_to=coordinator.id_,
             cvd_role=[CVDRole.COORDINATOR],
@@ -218,8 +221,16 @@ def demo_manage_participants_accept(
             participant_status,
             actor=coordinator.id_,
             target=coordinator_participant.id_,
+            to=[vendor.id_],
         )
-        post_to_inbox_and_wait(client, coordinator.id_, add_status)
+        # A participant sends its status to the CASE_MANAGER alone
+        # (PCR-08-001); the vendor holds that role here, and a replica
+        # refuses an Add(ParticipantStatus) from anyone else (PCR-03-001).
+        post_to_inbox_and_wait(client, vendor.id_, add_status)
+        with demo_check("ParticipantStatus appended to participant"):
+            verify_participant_status_appended(
+                client, case.id_, coordinator.id_, participant_status.id_
+            )
         with demo_check("Case state after status update"):
             log_case_state(
                 client, case.id_, "after AddStatusToParticipantActivity"

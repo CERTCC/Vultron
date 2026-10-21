@@ -23,6 +23,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -41,7 +42,6 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.case.lifecycle import (
     AddReportToCaseReceivedUseCase,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import add_report_to_case_activity
 from vultron.wire.as2.vocab.examples._base import gen_report
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -70,7 +70,7 @@ def _managed_case(dl) -> as_VulnerabilityCase:
 
 
 def _add(dl, report, *, sender=_OWNER_ID):
-    event = extract_event(
+    event = received_event(
         add_report_to_case_activity(
             report, target=_CASE_ID, actor=sender, to=[_MANAGER_ID]
         )

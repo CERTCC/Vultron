@@ -10,6 +10,7 @@ The report is stored under its own id; the Offer that carried it is a received
 activity, read only from the receiver's archive record (DL-06-006).
 """
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -54,7 +55,9 @@ def _client(
             return {
                 ReceivedActivityRecord.build_id(_OFFER): {
                     "type": "ReceivedActivityRecord",
-                    "activity": {"id": _OFFER, "type": "Offer"},
+                    "received_body": json.dumps(
+                        {"id": _OFFER, "type": "Offer"}
+                    ),
                 }
             }
         reads[key] = reads.get(key, 0) + 1

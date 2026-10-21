@@ -249,14 +249,15 @@ guards, commit, effects.
    the received activity exactly as received, idempotently, as a
    `ReceivedActivityRecord` whose id the *receiver* derives
    (`build_id(sender_activity_id)`), carrying the sender's id for reverse
-   lookup. Never store under the sender's id: one id-keyed table per actor lets
-   a sender squat an id we derive for our own records. Readers of the archive go
-   through `build_id`. Intake decides nothing, ledgers nothing, and writes
-   nothing else (CLP-10-017); it runs first so a refusal still leaves the
-   archive (CLP-10-018). An object carried inline (case, note, status, embargo)
-   is a message shaped like that object; the record core keeps is written by an
-   effect node after the guards, because a stored case row *is* the replica
-   (PCR-03-004, CBT-01-005).
+   lookup. It stores the event's sealed `received_evidence` and nothing derived
+   from it (ADR-0149). Never store under the sender's id: one id-keyed table per
+   actor lets a sender squat an id we derive for our own records. Readers load
+   the archive (`read_received_activity`), never parse it themselves. Intake
+   decides nothing, ledgers nothing, and writes nothing else (CLP-10-017); it
+   runs first so a refusal still leaves the archive (CLP-10-018). An object
+   carried inline (case, note, status, embargo) is a message shaped like that
+   object; the record core keeps is written by an effect node after the guards,
+   because a stored case row *is* the replica (PCR-03-004, CBT-01-005).
 2. **Door guards** — in order: the post-close write boundary (CM-23-013), the
    addressee check (HP-01-005), the closed-sender door (CM-23-018) and the
    sender guard (HP-01-006).
@@ -350,7 +351,11 @@ guards, commit, effects.
    gate, and skips them on a
    redelivery whose intake was already archived and on a failed guard whose
    `failed_as_repeat` is set (`ReportsIdempotentRepeat`, the repeat a handler
-   reports `SKIPPED`). The stage then fails with the guard's reason, so nothing
+   reports `SKIPPED`), and on a delivery a `Diversion` among the guards took,
+   which its diversion already answered (CLP-10-026). A guard that turns a
+   `VultronError` into a refusal re-raises `INTERNAL_FAULTS` first
+   (`vultron/errors.py`): an internal failure is never answered with a
+   notice. The stage then fails with the guard's reason, so nothing
    of the assertion commits and the handler reads `REFUSED`. A refusal effect
    must be `EmitCapable` and hold no `StateWriteCapable` node, except the
    CASE_MANAGER's own note (`_CommitCaseManagerNoteBase`, RSH-06-004), which

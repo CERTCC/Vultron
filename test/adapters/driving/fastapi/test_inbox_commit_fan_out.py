@@ -29,6 +29,7 @@ from typing import Any
 
 import pytest
 
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.adapters.outbox_sealed_body import read_sealed_body
@@ -36,7 +37,6 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import recommend_actor_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -123,7 +123,7 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
         to=[_MANAGER_ID],
         suggested_roles=["vendor"],
     )
-    event = extract_event(activity).model_copy(
+    event = received_event(activity).model_copy(
         update={"receiving_actor_id": _MANAGER_ID}
     )
 

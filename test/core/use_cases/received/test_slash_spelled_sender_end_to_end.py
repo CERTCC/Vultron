@@ -23,6 +23,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.embargo_register import propose
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -43,7 +44,6 @@ from vultron.core.use_cases.received.embargo import (
     WithdrawFromEmbargoOnCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     reject_embargo_proposal_activity,
     withdraw_from_embargo_activity,
@@ -70,7 +70,7 @@ def _ports(dl: SqliteDataLayer) -> dict:
 
 def _event(activity: Any) -> Any:
     """The received event, as the inbox hands it to the use case."""
-    return extract_event(activity).model_copy(
+    return received_event(activity).model_copy(
         update={"receiving_actor_id": _CASE_ACTOR}
     )
 

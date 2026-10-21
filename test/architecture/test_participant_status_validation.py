@@ -57,14 +57,17 @@ _VALIDATING_NODE_MODULES: tuple[str, ...] = (
 #
 # There are two kinds of entry here, and only the first kind is a *writer*:
 #
-#   1. WRITER exclusions (three after ADR-0114/#4048): `_adjudication.py` (the
-#      receive path), `participant_status_effect.py` (the replica-apply path),
-#      and `invite_inert_participant.py` (the ADR-0114 birth write at
-#      invite-send time).  All three write a ParticipantStatus but under a
-#      disposition where the emit evaluator does not apply:
-#      - ADR-0089 named the first two as the end state; `invite_inert_participant`
-#        is a BIRTH write — there is no prior state to validate a transition
-#        against (BTND-10-001 birth exemption, CM-11-006).
+#   1. WRITER exclusions (two after #3741): `participant_status_effect.py` (the
+#      replica-apply path) and `invite_inert_participant.py` (the ADR-0114
+#      birth write at invite-send time).  Both write a ParticipantStatus but
+#      under a disposition where the emit evaluator does not apply:
+#      - ADR-0089 named the replica-apply path as an end state;
+#        `invite_inert_participant` is a BIRTH write — there is no prior state
+#        to validate a transition against (BTND-10-001 birth exemption,
+#        CM-11-006).
+#      The receive path no longer writes a status of its own: it accepts the
+#      received status whole or refuses it (RSH-09-001), so it constructs no
+#      dimension objects and left this set with #3741.
 #      The former `models/case_participant.py` writer entry is gone: ADR-0089
 #      deleted `CaseParticipant.append_rm_state`, so the model no longer writes
 #      a ParticipantStatus at all (and models/ is outside this scan regardless).
@@ -74,7 +77,7 @@ _VALIDATING_NODE_MODULES: tuple[str, ...] = (
 #      validating less; the price is that it also catches read-side, guard-side
 #      and CaseStatus-writing modules that never write a ParticipantStatus
 #      (`common.py`, `deploy_fix.py`, `develop_fix_conditions.py`,
-#      `case_status.py`, `cs_dimension_filter.py`).  These are declared
+#      `case_status.py`, `case_status_snapshot.py`).  These are declared
 #      permanently rather than narrowing the gate — a narrower gate keyed on the
 #      store site is exactly what a real writer could dodge, which is the
 #      failure mode this test exists to remove.
@@ -84,18 +87,8 @@ _VALIDATING_NODE_MODULES: tuple[str, ...] = (
 # was settled by ADR-0089 with these two as its end state.
 # permanent: ADR-0089 (two writer dispositions, permanent non-writer over-catch)
 _DECLARED_EXCLUSIONS: dict[str, str] = {
-    # Receive path, not emit path.  It MUST NOT use the emit evaluator: it
-    # adjudicates each dimension independently and carries the participant's
-    # current value forward for refused ones (ADR-0061, RSH-05-001), which is
-    # the opposite disposition by design — the two halves of Postel's maxim.
-    # It already shares `composite_state_violations()`, which is the part both
-    # paths genuinely have in common (#2906).
-    "vultron/core/behaviors/status/nodes/_adjudication.py": (
-        "receive path — per-dimension partial accept, deliberately the"
-        " opposite disposition (ADR-0061, RSH-05-001)"
-    ),
-    # Replica-apply path (RSH-05-021), a third disposition distinct from both
-    # emit and receive: the assertion was already made and validated by the
+    # Replica-apply path (RSH-09-006), a disposition distinct from emit: the
+    # assertion was already made and validated by the
     # peer that emitted it, and this node decides whether the local replica can
     # *apply* the resulting ledger entry.  It MUST NOT use the emit evaluator.
     # The emit evaluator's role gates ask whether the *asserting* actor held
@@ -107,7 +100,7 @@ _DECLARED_EXCLUSIONS: dict[str, str] = {
     "vultron/core/behaviors/sync/nodes/participant_status_effect.py": (
         "replica-apply path — applies a peer-validated ledger entry; no"
         " asserting-actor roles in hand, and refuses via ProcessingFault"
-        " rather than by rejecting a local write (RSH-05-021)"
+        " rather than by rejecting a local write (RSH-09-006)"
     ),
     # Shared evaluator infrastructure — constructs dimension objects to read
     # the participant's *current* state from a stored ParticipantStatus (the
@@ -144,13 +137,6 @@ _DECLARED_EXCLUSIONS: dict[str, str] = {
     "vultron/core/behaviors/case_status_snapshot.py": (
         "writes CaseStatus.pxa, not ParticipantStatus — separate model type"
         " (ADR-0080); out of scope for the participant-status evaluator"
-    ),
-    # Receive-path PXA adjudication for CaseStatus (not ParticipantStatus).
-    # Also receive-path in the same sense as _adjudication.py, but operates
-    # on the case-level PXA dimension, not the participant dimensions.
-    "vultron/core/behaviors/status/nodes/cs_dimension_filter.py": (
-        "receive-path CaseStatus adjudication — PxaDimension for case-level"
-        " PXA, not participant-level; different lifecycle (ADR-0080)"
     ),
     # Birth write at invite-send time (ADR-0114, CM-11-006). Creates the
     # invitee's first ParticipantStatus at RM.RECEIVED.  There is no prior

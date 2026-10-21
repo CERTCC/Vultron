@@ -27,16 +27,16 @@ teardown gate and its CSB-18 note are tested on ``Add(ParticipantStatus)`` in
 ``test_add_participant_status_bt.py``.
 
 Covers:
-  - CheckCaseStatusIdempotencyNode, the Cs dimension filters and the
+  - CheckCaseStatusIdempotencyNode, CheckCaseStatusAcceptableNode and the
     Cs invariant guards (node level and through the tree);
   - the sender rule: refused at the CASE_MANAGER and from a non-manager;
   - ThreatTerminationBranchNode and EmitCaseStatusUpdateNode (node level).
 
 Regression coverage:
-  - Bug #2704: FilterCsEmDimensionNode must return FAILURE (not SUCCESS) when
-    _resolve_asserted() returns None (CLP-10-009).
-  - Bug #2706: FilterCsPxaDimensionNode must write the updated accumulator back
-    via _set_output so PXA refusals survive a copy-returning blackboard.
+  - Bug #2704: CheckCaseStatusAcceptableNode must return FAILURE (not SUCCESS)
+    when _resolve_asserted() returns None (CLP-10-009).
+  - #3741: a received CaseStatus is accepted whole or refused whole
+    (RSH-09-005).
 
 Per issue #758 AC-1, AC-3; issue #4851.
 """
@@ -52,6 +52,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.embargo_register import activate, propose
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -72,10 +73,8 @@ from vultron.core.behaviors.status.nodes import (
     CASE_STATUS_ALREADY_PRESENT,
     CheckCaseStatusIdempotencyNode,
 )
-from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
-    FilterCsEmDimensionNode,
-    FilterCsPxaDimensionNode,
-    FinalizeCsFilterNode,
+from vultron.core.behaviors.status.nodes.case_status_acceptance import (
+    CheckCaseStatusAcceptableNode,
 )
 from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
     CheckCsEphemeralStateNode,
@@ -113,7 +112,6 @@ from vultron.core.use_cases.received.status import (
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     announce_log_entry_activity,
@@ -312,16 +310,16 @@ class TestCheckCaseStatusIdempotencyNode:
 
 
 # ---------------------------------------------------------------------------
-# FilterCsEmDimensionNode — Bug #2704 (CLP-10-009)
+# CheckCaseStatusAcceptableNode — Bug #2704 (CLP-10-009)
 # ---------------------------------------------------------------------------
 
 CASE_MANAGER_ID_2704 = "https://example.org/actors/case-mgr-2704"
 
 
-class TestFilterCsEmDimensionNodeBug2704:
+class TestCheckCaseStatusAcceptableNodeBug2704:
     """Guard must return FAILURE when status object is unresolvable (#2704).
 
-    Before the fix FilterCsEmDimensionNode returned SUCCESS when
+    Before the fix CheckCaseStatusAcceptableNode returned SUCCESS when
     _resolve_asserted() returned None, allowing GuardedCommit to fire and write
     a ledger entry for a status that could never be applied (CLP-10-009).
     """
@@ -364,7 +362,7 @@ class TestFilterCsEmDimensionNodeBug2704:
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         )
-        node = FilterCsEmDimensionNode(
+        node = CheckCaseStatusAcceptableNode(
             case_id=CASE_ID,
             status_id=STATUS_ID,
             status_obj_fallback=None,
@@ -373,13 +371,13 @@ class TestFilterCsEmDimensionNodeBug2704:
             tree=node, actor_id=CASE_MANAGER_ID_2704
         )
         assert result.status == Status.FAILURE, (
-            "FilterCsEmDimensionNode must return FAILURE when the status object"
+            "CheckCaseStatusAcceptableNode must return FAILURE when the status object"
             " cannot be resolved (CLP-10-009, #2704)"
         )
 
     @pytest.mark.spec("CLP-10-009")
     def test_unresolvable_status_produces_no_ledger_entry(self, make_payload):
-        """Full tree: an unresolvable status fails FilterCsEmDimensionNode
+        """Full tree: an unresolvable status fails a precondition guard
         before GuardedCommit → zero CaseLedgerEntries (#2704).
 
         Runs at a replica, from the CASE_MANAGER (RSH-04-005), so the sender
@@ -403,10 +401,11 @@ class TestFilterCsEmDimensionNodeBug2704:
 
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
-        # The case check (HP-08-007) now refuses it first; the filter's own
-        # FAILURE is pinned by test_guard_fails_when_status_unresolvable.
+        # The case check (HP-08-007) now refuses it first; the acceptance
+        # guard's own FAILURE is pinned by
+        # test_guard_fails_when_status_unresolvable.
         assert node_failed(tree, CarriedObjectInTargetCaseNode) or node_failed(
-            tree, FilterCsEmDimensionNode
+            tree, CheckCaseStatusAcceptableNode
         ), (
             "An unresolvable status must be rejected by a precondition guard"
             " before GuardedCommit fires (CLP-10-009, #2704)"
@@ -415,74 +414,126 @@ class TestFilterCsEmDimensionNodeBug2704:
 
 
 # ---------------------------------------------------------------------------
-# FilterCsEmDimensionNode — absent case_id (ARCH-15-001)
+# CheckCaseStatusAcceptableNode — absent case_id (ARCH-15-001)
 # ---------------------------------------------------------------------------
 
 
-class TestFilterCsEmDimensionNodeAbsentCaseId:
+class TestCheckCaseStatusAcceptableNodeAbsentCaseId:
     """Guard returns SUCCESS immediately when case_id is absent (ARCH-15-001)."""
 
     @pytest.mark.spec("ARCH-15-001")
     def test_none_case_id_returns_success(self, bridge):
         """None case_id → SUCCESS (no case to look up; nothing to filter)."""
-        node = FilterCsEmDimensionNode(case_id=None, status_id=STATUS_ID)
+        node = CheckCaseStatusAcceptableNode(case_id=None, status_id=STATUS_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
     @pytest.mark.spec("ARCH-15-001")
     def test_empty_string_case_id_returns_success(self, bridge):
         """Empty-string case_id → SUCCESS (no case to look up; nothing to filter)."""
-        node = FilterCsEmDimensionNode(case_id="", status_id=STATUS_ID)
+        node = CheckCaseStatusAcceptableNode(case_id="", status_id=STATUS_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------
-# FilterCsPxaDimensionNode — Bug #2706 (explicit _set_output write-back)
+# CheckCaseStatusAcceptableNode — whole accept or reject (RSH-09-005)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckCaseStatusAcceptableNode:
+    """The node accepts a CaseStatus as sent or refuses all of it."""
+
+    def _run(self, bridge, dl, case, asserted):
+        dl.create(case)
+        dl.create(asserted)
+        node = CheckCaseStatusAcceptableNode(
+            case_id=CASE_ID, status_id=STATUS_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        return result.status, node.feedback_message
+
+    @pytest.mark.spec("RSH-09-005")
+    def test_the_first_case_status_with_the_cases_em_is_accepted(
+        self, bridge, dl
+    ):
+        """A case holding no status yet has no P/X/A to regress from."""
+        case = as_VulnerabilityCase(id_=CASE_ID, name="No Status Yet")
+        assert case.case_statuses == []
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=case.em_state),
+            pxa=PxaDimension(state=CS_pxa.PXA),
+        )
+        status, _ = self._run(bridge, dl, case, asserted)
+        assert status == Status.SUCCESS
+
+    @pytest.mark.spec("RSH-09-005")
+    def test_the_first_case_status_must_still_carry_the_cases_em(
+        self, bridge, dl
+    ):
+        """The EM rule needs no prior status: the register derives it."""
+        case = as_VulnerabilityCase(id_=CASE_ID, name="No Status Yet")
+        assert case.case_statuses == []
+        assert case.em_state == EM.NONE
+        asserted = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
+        )
+        status, message = self._run(bridge, dl, case, asserted)
+        assert status == Status.FAILURE
+        assert "em: ACTIVE differs from the case's NONE" in message
+
+    @pytest.mark.spec("RSH-09-005")
+    def test_the_cases_em_with_a_forward_pxa_is_accepted(self, bridge, dl):
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Accepted", attributed_to=ACTOR_ID
+        )
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=EM.NONE),
+            pxa=PxaDimension(state=CS_pxa.PXA),
+        )
+        status, _ = self._run(bridge, dl, case, asserted)
+        assert status == Status.SUCCESS
+
+    @pytest.mark.spec("RSH-09-005", "EH-07-001")
+    def test_every_refused_rule_is_named(self, bridge, dl):
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Refused", attributed_to=ACTOR_ID
+        )
+        case.append_case_status(pxa=CS_pxa.Pxa)
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            em=EmDimension(state=EM.ACTIVE),
+            pxa=PxaDimension(state=CS_pxa.pxa),
+        )
+        status, reason = self._run(bridge, dl, case, asserted)
+        assert status == Status.FAILURE
+        assert "em: ACTIVE differs from the case's NONE" in reason
+        assert "pxa: Pxa → pxa is not a forward move" in reason
+
+
+# ---------------------------------------------------------------------------
+# CheckCaseStatusAcceptableNode — P/X/A regression (RSH-09-005)
 # ---------------------------------------------------------------------------
 
 CASE_MANAGER_ID_2706 = "https://example.org/actors/case-mgr-2706"
 
 
-class TestFilterCsPxaDimensionNodeBug2706:
-    """PXA accumulator write-back must be explicit via _set_output (#2706).
+class TestPxaRegressionRefusedWhole:
+    """A P/X/A regression refuses the whole CaseStatus (RSH-09-005)."""
 
-    Before the fix FilterCsPxaDimensionNode relied on in-place mutation of the
-    blackboard reference to propagate PXA refusals to FinalizeCsFilterNode.
-    If the blackboard ever returns a copy from get_input the mutation is
-    silently discarded — PXA refusals are lost and the tree incorrectly accepts
-    a refused assertion.
-    """
-
-    def test_output_ports_include_acc_write_back(self):
-        """FilterCsPxaDimensionNode must declare an output port for accumulator write-back (#2706).
-
-        Before the fix the node had no output ports and relied on in-place mutation.
-        This test FAILS on pre-fix code.
-        """
-        output_ports = FilterCsPxaDimensionNode.output_ports()
-        assert output_ports, (
-            "FilterCsPxaDimensionNode must declare at least one output port for"
-            " the accumulator write-back (#2706)"
-        )
-
-    @pytest.mark.spec("CLP-10-009")
-    def test_pxa_refusal_survives_copy_returning_blackboard(
-        self, make_payload
-    ):
-        """PXA refusal propagates correctly even when get_input returns a copy (#2706).
-
-        Simulates a copy-returning blackboard: in-place dict mutation is lost,
-        so the only way to propagate the updated acc is via _set_output.
-        Without the fix the mutation is discarded, FinalizeCsFilterNode sees an
-        empty refused list and the tree incorrectly returns SUCCESS.
+    @pytest.mark.spec("RSH-09-005", "CLP-10-009")
+    def test_a_pxa_regression_is_refused_whole(self, make_payload):
+        """A P/X/A regression with the case's EM refuses the whole status:
+        the tree fails before GuardedCommit and nothing is committed.
 
         Runs at a replica, from the CASE_MANAGER (RSH-04-005), so the sender
-        guard admits it and FinalizeCsFilterNode is what refuses it.
+        guard admits it and CheckCaseStatusAcceptableNode is what refuses it.
         """
-        import copy as _copy
-        from unittest.mock import patch
-
         case = VulnerabilityCase(
             id_=CASE_ID, name="2706 Case", attributed_to=CASE_MANAGER_ID
         )
@@ -495,30 +546,13 @@ class TestFilterCsPxaDimensionNodeBug2706:
         dl.create(status_obj)
         event = make_payload(_from_manager(status_obj))
 
-        # Patch get_input on FilterCsPxaDimensionNode to return a DEEP COPY of
-        # any dict, simulating a blackboard that never returns mutable
-        # references.  A shallow dict() copy shares nested lists, so deep copy
-        # is required to isolate the mutation from the stored object.
-        _real_get_input = FilterCsPxaDimensionNode.get_input
+        result, tree = _run_at_replica(dl, event)
 
-        def _copy_returning(self_node, port_name, default=None):
-            val = _real_get_input(self_node, port_name, default)
-            return _copy.deepcopy(val) if isinstance(val, dict) else val
-
-        with patch.object(
-            FilterCsPxaDimensionNode, "get_input", new=_copy_returning
-        ):
-            result, tree = _run_at_replica(dl, event)
-
-        # pxa regression with no EM change → whole refusal → FAILURE.
-        # Without fix: copy mutation discarded → Finalize sees refused=[] → SUCCESS.
-        # With fix:    _set_output writes updated acc → Finalize sees refused=['pxa'] → FAILURE.
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
-        assert node_failed(tree, FinalizeCsFilterNode), (
-            "A whole-refused PXA regression must fail FinalizeCsFilterNode."
-            " FilterCsPxaDimensionNode must write the updated acc back via"
-            " _set_output (#2706)"
+        assert node_failed(tree, CheckCaseStatusAcceptableNode)
+        assert "pxa: Pxa → pxa is not a forward move" in (
+            BTBridge.get_failure_reason(tree)
         )
         assert _ledger_entries(dl) == []
 
@@ -526,33 +560,6 @@ class TestFilterCsPxaDimensionNodeBug2706:
 # ---------------------------------------------------------------------------
 # Full tree: add_case_status_tree, at a participant replica
 # ---------------------------------------------------------------------------
-
-
-def _capture_override(tree: py_trees.behaviour.Behaviour):
-    """Wrap *tree* with a probe that captures the ledger payload override.
-
-    The override is a within-execution hand-off (FinalizeCsFilterNode writes
-    it, GuardedCommit consumes it) and the bridge resets it at the execution
-    boundary (#3101, ADR-0087), so it is not readable after
-    ``execute_with_setup`` returns.  A SUCCESS probe appended after the tree
-    still sees Finalize's write on the accept path.  Returns
-    ``(probed_tree, captured)``.
-    """
-    captured: dict[str, object] = {}
-
-    class _CaptureOverride(py_trees.behaviour.Behaviour):
-        def update(self) -> Status:
-            captured["override"] = py_trees.blackboard.Blackboard.storage.get(
-                "/ledger_payload_object_override"
-            )
-            return Status.SUCCESS
-
-    probed = py_trees.composites.Sequence(
-        name="AddCaseStatusToCaseBTWithProbe",
-        memory=False,
-        children=[tree, _CaptureOverride(name="CaptureOverride")],
-    )
-    return probed, captured
 
 
 class TestAddCaseStatusTreeSenderRule:
@@ -696,14 +703,12 @@ class TestAddCaseStatusTree:
         assert door_guards_admitted(tree)
         assert BTBridge.get_failure_reason(tree) == CASE_STATUS_ALREADY_PRESENT
 
-    @pytest.mark.spec("RSH-05-017")
-    @pytest.mark.spec("RSH-05-023")
+    @pytest.mark.spec("RSH-09-005")
     def test_status_moving_em_alone_is_refused(self, make_payload):
-        """A status whose only change is EM → refused in full; not appended.
+        """A status whose EM differs from the case's → refused; not appended.
 
         EM is derived from the embargo register and no status moves it
-        (RSH-05-023): the asserted EM is refused and the case's carried
-        forward, which leaves nothing new, so the tree FAILS (RSH-05-005).
+        (RSH-09-005, ADR-0122).
         """
         case = as_VulnerabilityCase(
             id_=CASE_ID, name="EM Guard", attributed_to=CASE_MANAGER_ID
@@ -726,7 +731,7 @@ class TestAddCaseStatusTree:
         )
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
-        assert node_failed(tree, FinalizeCsFilterNode)
+        assert node_failed(tree, CheckCaseStatusAcceptableNode)
 
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
@@ -768,22 +773,15 @@ class TestAddCaseStatusTree:
         assert node_failed(tree, CheckCsEphemeralStateNode)
         assert STATUS_ID not in _status_ids(dl)
 
-    @pytest.mark.spec("RSH-05-015")
-    @pytest.mark.spec("RSH-05-016")
-    @pytest.mark.spec("RSH-05-023")
-    @pytest.mark.spec("RSH-05-019")
-    def test_em_move_with_pxa_advance_refuses_em_and_accepts_pxa(
+    @pytest.mark.spec("RSH-09-005")
+    def test_em_move_with_pxa_advance_refuses_the_whole_status(
         self, make_payload
     ):
-        """EM move (NONE→PROPOSED) with a PXA advance → BT SUCCEEDS.
+        """EM move (NONE→PROPOSED) with a PXA advance → refused whole.
 
-        Bug #2256: all-or-nothing CS validation discarded a valid dimension
-        when another was refused.  Per-dimension adjudication refuses the
-        asserted EM — a status never moves EM (RSH-05-023) — carries the
-        case's EM forward, and still accepts the PXA advance: the filtered
-        status the guards publish holds EM NONE and PXA Pxa.  The CASE_MANAGER
-        side of the same split, on an adopted participant report, is
-        ``test_an_adopted_report_never_moves_em``.
+        A status never moves EM (ADR-0122), and accepting only its P/X/A
+        would record a status nobody sent (RSH-09-001), so the forward P/X/A
+        is refused with it and nothing is appended or committed.
         """
         case = VulnerabilityCase(
             id_=CASE_ID, name="EM PXA Split", attributed_to=CASE_MANAGER_ID
@@ -800,23 +798,29 @@ class TestAddCaseStatusTree:
         )
         dl.create(asserted)
         event = make_payload(_from_manager(asserted))
-        probed, captured = _capture_override(
-            add_case_status_tree(sender_rule=_CASE_STATUS_RULE, request=event)
+
+        result, tree = _run_at_replica(dl, event)
+
+        assert result.status == Status.FAILURE
+        assert door_guards_admitted(tree)
+        assert node_failed(tree, CheckCaseStatusAcceptableNode)
+        assert "em: PROPOSED differs from the case's NONE" in (
+            BTBridge.get_failure_reason(tree)
         )
-
-        result, _ = _run_at_replica(dl, event, tree=probed)
-
-        assert result.status == Status.SUCCESS
-        fields = cast(dict, captured["override"])["fields"]
-        assert fields == {"emState": EM.NONE.name, "pxaState": "Pxa"}
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
+        assert STATUS_ID not in _status_ids(dl)
         assert updated_case.em_state == EM.NONE
+        assert updated_case.current_status.pxa.state == CS_pxa.pxa
+        assert _ledger_entries(dl) == []
+        # The stored object is the one received, never rewritten.
+        saved_status = cast(CaseStatus, dl.read(STATUS_ID))
+        assert saved_status.em.state == EM.PROPOSED
 
-    @pytest.mark.spec("RSH-05-023")
+    @pytest.mark.spec("RSH-09-005")
     def test_status_carrying_the_cases_em_passes_it(
         self, make_payload, caplog
     ):
-        """An asserted EM identical to the case's is not refused (RSH-05-023)."""
+        """An asserted EM identical to the case's is not refused (RSH-09-005)."""
         import logging
 
         case = VulnerabilityCase(
@@ -833,34 +837,28 @@ class TestAddCaseStatusTree:
         )
         dl.create(asserted)
         event = make_payload(_from_manager(asserted))
-        probed, captured = _capture_override(
-            add_case_status_tree(sender_rule=_CASE_STATUS_RULE, request=event)
-        )
 
         with caplog.at_level(logging.WARNING):
-            result, _ = _run_at_replica(dl, event, tree=probed)
+            result, tree = _run_at_replica(dl, event)
 
         assert result.status == Status.SUCCESS
+        assert door_guards_admitted(tree)
         assert not [
-            r for r in caplog.records if "refused EM" in r.getMessage()
+            r for r in caplog.records if "refused for case" in r.getMessage()
         ]
-        # Nothing refused, so the guards publish no override: the status is
-        # taken as asserted.
-        assert captured["override"] is None
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         assert updated_case.em_state == EM.PROPOSED
 
-    @pytest.mark.spec("RSH-05-019")
+    @pytest.mark.spec("RSH-09-005")
     @pytest.mark.spec("SL-03-001")
     def test_pxa_refusal_warning_names_case_id_not_status_id(
         self, make_payload, caplog
     ):
-        """The PXA refusal WARNING reports the case ID, with the status ID labelled.
+        """The refusal WARNING reports the case ID, with the status ID labelled.
 
-        Bug #3039: FilterCsPxaDimensionNode filled the ``for case '%s'``
+        Bug #3039: the PXA refusal once filled the ``for case '%s'``
         placeholder with the *status* ID, so an operator correlating the
-        warning against case IDs saw a URI that matched no case.  The sibling
-        EM refusal warning already reports ``case_id``; the two must agree.
+        warning against case IDs saw a URI that matched no case.
         """
         import logging
 
@@ -870,9 +868,7 @@ class TestAddCaseStatusTree:
         case.append_case_status(pxa=CS_pxa.Pxa)
         dl = _replica_store(case)
 
-        # The case's own EM + PXA regression → PXA dimension refused and
-        # logged; nothing else is new, so the status is refused in full
-        # (RSH-05-005) — the warning fires either way.
+        # The case's own EM + PXA regression → the status is refused.
         asserted = as_CaseStatus(
             id_=STATUS_ID,
             context=CASE_ID,
@@ -888,108 +884,18 @@ class TestAddCaseStatusTree:
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
 
-        pxa_refusals = [
+        refusals = [
             r.getMessage()
             for r in caplog.records
-            if r.levelno == logging.WARNING and "refused PXA" in r.getMessage()
+            if r.levelno == logging.WARNING
+            and "refused for case" in r.getMessage()
         ]
-        assert len(pxa_refusals) == 1, pxa_refusals
-        msg = pxa_refusals[0]
+        assert len(refusals) == 1, refusals
+        msg = refusals[0]
         assert f"for case '{CASE_ID}'" in msg, msg
-        assert f"status '{STATUS_ID}'" in msg, msg
+        assert f"CaseStatus '{STATUS_ID}'" in msg, msg
         assert f"for case '{STATUS_ID}'" not in msg, msg
-
-    @pytest.mark.spec("RSH-05-023")
-    @pytest.mark.spec("SL-03-001")
-    def test_em_refusal_warning_names_case_id_and_labelled_status_id(
-        self, make_payload, caplog
-    ):
-        """The EM refusal WARNING has the same shape as the PXA one (#3039).
-
-        Case in the ``for case '%s'`` slot, status in its own labelled
-        ``(status '%s')`` slot, so an operator can correlate either refusal
-        the same way.
-        """
-        import logging
-
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="EM Refusal Log", attributed_to=CASE_MANAGER_ID
-        )
-        case.append_case_status(pxa=CS_pxa.pxa)
-        dl = _replica_store(case)
-
-        # EM other than the case's (NONE → ACTIVE) + valid PXA advance → EM
-        # refused, tree still SUCCEEDS (partial accept), refusal is logged.
-        asserted = as_CaseStatus(
-            id_=STATUS_ID,
-            context=CASE_ID,
-            em=EmDimension(state=EM.ACTIVE),
-            pxa=PxaDimension(state=CS_pxa.Pxa),
-        )
-        dl.create(asserted)
-
-        with caplog.at_level(logging.WARNING):
-            result, _ = _run_at_replica(
-                dl, make_payload(_from_manager(asserted))
-            )
-        assert result.status == Status.SUCCESS
-
-        em_refusals = [
-            r.getMessage()
-            for r in caplog.records
-            if r.levelno == logging.WARNING and "refused EM" in r.getMessage()
-        ]
-        assert len(em_refusals) == 1, em_refusals
-        msg = em_refusals[0]
-        assert f"for case '{CASE_ID}'" in msg, msg
-        assert f"(status '{STATUS_ID}')" in msg, msg
-
-    @pytest.mark.spec("RSH-05-012")
-    def test_finalize_cs_filter_node_emstate_uses_name_serialization(
-        self, make_payload
-    ):
-        """emState in BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE equals EM member .name.
-
-        Regression guard for the FinalizeCsFilterNode serialization invariant:
-        ``emState`` must equal ``filtered.em.state.name`` so that
-        ``_coerce_em(emState)`` via ``EM[v]`` (name-based lookup) round-trips
-        correctly.  Using ``str()`` is fragile because it returns .value, which
-        equals .name only while no EM member has value ≠ name (RSH-05-012).
-        """
-        case = VulnerabilityCase(
-            id_=CASE_ID, name="EM PXA Split", attributed_to=CASE_MANAGER_ID
-        )
-        propose(case, f"{CASE_ID}/embargo_events/serialized")
-        dl = _replica_store(case)
-
-        # EM PROPOSED→ACTIVE refused (carried forward as PROPOSED) + PXA
-        # pxa→Pxa accepted: a partial accept, so Finalize writes the override.
-        asserted = as_CaseStatus(
-            id_=STATUS_ID,
-            context=CASE_ID,
-            em=EmDimension(state=EM.ACTIVE),
-            pxa=PxaDimension(state=CS_pxa.Pxa),
-        )
-        dl.create(asserted)
-        event = make_payload(_from_manager(asserted))
-        probed, captured = _capture_override(
-            add_case_status_tree(sender_rule=_CASE_STATUS_RULE, request=event)
-        )
-
-        result, _ = _run_at_replica(dl, event, tree=probed)
-        assert result.status == Status.SUCCESS
-
-        override = cast(dict, captured.get("override"))
-        assert override is not None, (
-            "FinalizeCsFilterNode must set BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE"
-            " during a partial-accept"
-        )
-        em_state_field = override["fields"]["emState"]
-        assert em_state_field == EM.PROPOSED.name, (
-            f"emState must be EM member .name ('{EM.PROPOSED.name}'),"
-            f" got {em_state_field!r}"
-        )
-        assert EM[em_state_field] == EM.PROPOSED
+        assert "pxa: Pxa → pxa is not a forward move" in msg, msg
 
 
 # ---------------------------------------------------------------------------
@@ -1089,7 +995,9 @@ class TestAddCaseStatusToCaseReceivedUseCase:
 
         assert result.disposition is HandlerDisposition.REFUSED
         # The guards refused the content, not the sender (HP-01-006).
-        assert "refused in full" in (result.reason or ""), result.reason
+        assert "em: ACTIVE differs from the case's NONE" in (
+            result.reason or ""
+        ), result.reason
         warn_msgs = [
             r.message for r in caplog.records if r.levelno == logging.WARNING
         ]
@@ -1417,7 +1325,7 @@ class TestThreatTerminationBranchNode:
             actor=CASE_MANAGER_ID,
             to=[ACTOR_ID],
         )
-        event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
         AnnounceLedgerEntryReceivedUseCase(
             dl,
             event.model_copy(update={"receiving_actor_id": ACTOR_ID}),
@@ -1694,7 +1602,7 @@ class TestCaseLedgerEntryCreation:
         )
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
-        assert node_failed(tree, FinalizeCsFilterNode)
+        assert node_failed(tree, CheckCaseStatusAcceptableNode)
         assert _ledger_entries(dl) == [], (
             "An invalid Add(CaseStatus) rejected by a precondition guard must"
             " produce zero CaseLedgerEntries (CLP-10-009)"
@@ -1777,11 +1685,11 @@ class TestEmitCaseStatusUpdateNodePromotion:
 
 
 # ---------------------------------------------------------------------------
-# AC-4: FilterCsEmDimensionNode returns FAILURE on missing case (#2957)
+# AC-4: CheckCaseStatusAcceptableNode returns FAILURE on missing case (#2957)
 # ---------------------------------------------------------------------------
 
 
-class TestFilterCsEmDimensionNodeMissingCase:
+class TestCheckCaseStatusAcceptableNodeMissingCase:
     """AC-4 regression: FAILURE (not SUCCESS) when case absent from DataLayer.
 
     CLP-10-009: the guard must abort before GuardedCommit when the case
@@ -1791,50 +1699,25 @@ class TestFilterCsEmDimensionNodeMissingCase:
 
     def test_missing_case_returns_failure(self, bridge):
         """case_id set but case not in DataLayer → FAILURE."""
-        node = FilterCsEmDimensionNode(case_id=CASE_ID, status_id=STATUS_ID)
+        node = CheckCaseStatusAcceptableNode(
+            case_id=CASE_ID, status_id=STATUS_ID
+        )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
     def test_missing_case_feedback_message_names_case(self, bridge):
         """FAILURE feedback_message includes the missing case_id."""
-        node = FilterCsEmDimensionNode(case_id=CASE_ID, status_id=STATUS_ID)
+        node = CheckCaseStatusAcceptableNode(
+            case_id=CASE_ID, status_id=STATUS_ID
+        )
         bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert node.feedback_message
         assert CASE_ID in node.feedback_message
 
 
 # ---------------------------------------------------------------------------
-# AC-5: FilterCsEmDimensionNode._clear() does not own BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE (#2957)
+# AC-2 / AC-3: PxaEmInvariantDiagnosticNode (CONCERN-3008)
 # ---------------------------------------------------------------------------
-
-
-class TestFilterCsEmDimensionNodeClearBehavior:
-    """AC-5 regression: _clear() must not zero BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE.
-
-    That key is solely owned by FinalizeCsFilterNode (CONCERN-2711, BT-17-003).
-    Prior to #2957 FilterCsEmDimensionNode zeroed it in _clear(), potentially
-    wiping a value set by FinalizeCsFilterNode in the same tick.
-    """
-
-    def test_clear_preserves_ledger_override_sentinel(self, bridge):
-        """Pre-seeded BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE survives _clear()."""
-        sentinel = {"test": "sentinel_2957"}
-        py_trees.blackboard.Blackboard.storage[
-            "/ledger_payload_object_override"
-        ] = sentinel
-
-        # Empty DL → FAILURE after _clear(); _clear() must not touch the key.
-        node = FilterCsEmDimensionNode(case_id=CASE_ID, status_id=STATUS_ID)
-        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-
-        stored = py_trees.blackboard.Blackboard.storage.get(
-            "/ledger_payload_object_override"
-        )
-        assert stored is sentinel, (
-            "FilterCsEmDimensionNode._clear() must not zero"
-            " BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE (CONCERN-2711, #2957)"
-        )
-
 
 DIAG_CASE_ID = "https://example.org/cases/diag-3008"
 DIAG_STATUS_ID = f"{DIAG_CASE_ID}/statuses/s1"
@@ -1882,9 +1765,12 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         activate(case, embargo.id_)
         for actor in (REPLICA_ID, PEER_ID):
             seed_case_participant(dl, case, actor)
+        # The status carries the case's EM: a status never moves EM, so one
+        # that differs is refused whole (RSH-09-005).
         status_obj = as_CaseStatus(
             id_=DIAG_STATUS_ID,
             context=DIAG_CASE_ID,
+            em=EmDimension(state=EM.ACTIVE),
             pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl.create(case)
@@ -1894,7 +1780,7 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
 
         event = cast(
             AddCaseStatusToCaseReceivedEvent,
-            extract_event(
+            received_event(
                 add_status_to_case_activity(
                     status_obj,
                     target=as_VulnerabilityCase(id_=DIAG_CASE_ID),
@@ -1937,3 +1823,27 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
         updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
         assert updated.current_status.em.state == EM.ACTIVE
         assert dl.outbox_list() == []
+
+
+# ---------------------------------------------------------------------------
+# Regression: add_case_status_tree must build without a case_id (Bug #4978)
+# ---------------------------------------------------------------------------
+
+
+class TestAddCaseStatusTreeNoCaseId:
+    """Without a case_id the factory still builds the tree (#4978).
+
+    The tree has no ungated emitter at all (RSH-04-005), so it names no
+    replica emit exemption with or without a case, and the factory has no
+    stale exemption to refuse (BT-17-008).
+    """
+
+    @pytest.mark.spec("BT-17-008")
+    def test_tree_builds_without_case_id(self):
+        request = AddCaseStatusToCaseReceivedEvent(
+            activity_id="a1", actor_id="https://example.org/actors/vendor"
+        )
+        tree = add_case_status_tree(request, sender_rule=_CASE_STATUS_RULE)
+        node_types = {type(n) for n in tree.iterate()}
+        assert CheckCaseStatusAcceptableNode in node_types
+        assert ThreatTerminationBranchNode not in node_types

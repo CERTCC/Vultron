@@ -34,10 +34,6 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.behaviors.status.nodes.dimension_filter import (
-    BB_DIMENSION_FILTER,
-    resolve_dimension_filter,
-)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
@@ -95,14 +91,9 @@ class ResolveAndPersistStatusObjectNode(
 ):
     """Resolve the status object by ID, persisting fallback if needed.
 
-    When :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`
-    has partially accepted the inbound status, the *filtered* status (refused
-    dimensions carried forward) is persisted at ``status_id`` and used in place
-    of the raw assertion, so that the appended record describes the accepted
-    portion (RSH-05).
-
-    Otherwise tries the DataLayer first; if not found, uses
-    ``status_obj_fallback`` and saves it.
+    Tries the DataLayer first; if not found, uses ``status_obj_fallback`` and
+    saves it.  The status is stored as received: on the received path it was
+    accepted whole before this node runs, never rewritten (RSH-09-001).
 
     Validates that the resolved object is a ParticipantStatus (has rm and
     vfd attributes).
@@ -124,11 +115,6 @@ class ResolveAndPersistStatusObjectNode(
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
 
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        BB_DIMENSION_FILTER: PortInformation(data_type=object, required=False),
-    }
-
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "append_status_status_obj": PortInformation(
             data_type=object, required=True
@@ -137,31 +123,14 @@ class ResolveAndPersistStatusObjectNode(
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            BB_DIMENSION_FILTER: f"/{BB_DIMENSION_FILTER}",
-            "append_status_status_obj": "/append_status_status_obj",
-        }
+        return {"append_status_status_obj": "/append_status_status_obj"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        filtered = resolve_dimension_filter(
-            self.blackboard_client, self.status_id
-        )
-        if filtered is not None:
-            status_obj = filtered["filtered_status"]
-            self.datalayer.save(status_obj)
-            self.logger.info(
-                "ResolveAndPersistStatusObjectNode: persisted partially"
-                " accepted status '%s' (refused: %s) in place of the raw"
-                " assertion (RSH-05)",
-                self.status_id,
-                ", ".join(filtered["refused"]),
-            )
-        else:
-            status_obj = self.datalayer.read(self.status_id)
+        status_obj = self.datalayer.read(self.status_id)
         if not hasattr(status_obj, "id_"):
             status_obj = self.status_obj_fallback
             if status_obj is not None:

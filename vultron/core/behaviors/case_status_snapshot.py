@@ -138,10 +138,10 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     def _reported(self) -> CaseStatus | None:
         """The case status the adopted ``ParticipantStatus`` embeds.
 
-        Read from the stored, dimension-filtered status the append step saved
-        (RSH-05), so a status received by reference is adopted too.  ``None``
-        when no report is named, or the status embeds no ``case_status``
-        (it reports no P/X/A).
+        Read from the stored status the append step saved, which is the
+        status as received (RSH-09-001), so a status received by reference is
+        adopted too.  ``None`` when no report is named, or the status embeds
+        no ``case_status`` (it reports no P/X/A).
 
         Raises:
             VultronNotFoundError: no ``ParticipantStatus`` is stored at

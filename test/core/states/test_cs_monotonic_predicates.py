@@ -24,7 +24,7 @@ fix between two status updates reports ``vf → VF`` in one message), and that
 is monotone but not an adjacent transition.
 
 They are the acceptance rule for the ``vf``, ``d``, and ``pxa`` dimensions of a
-received ``ParticipantStatus`` (RSH-05), so every ordered pair of states is
+received ``ParticipantStatus`` (RSH-09-003), so every ordered pair of states is
 covered here rather than the handful the adjudication tests happen to exercise.
 
 Both state groups are tuples of independent one-way latches, so the expected

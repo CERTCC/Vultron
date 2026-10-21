@@ -22,6 +22,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -38,7 +39,6 @@ from vultron.core.use_cases.received.note import (
     RemoveNoteFromCaseReceivedUseCase,
 )
 from vultron.errors import VultronBTInternalError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
@@ -230,7 +230,7 @@ class TestNoteUseCases:
             activity.model_dump(by_alias=True, mode="json", exclude_none=True)
         )
         assert parsed is not None
-        event = extract_event(ingress.rehydrate(parsed)).model_copy(
+        event = received_event(ingress.rehydrate(parsed)).model_copy(
             update={"receiving_actor_id": case_actor_id}
         )
         assert isinstance(event, AddNoteToCaseReceivedEvent)
@@ -375,7 +375,7 @@ class TestNoteUseCases:
             activity.model_dump(by_alias=True, mode="json", exclude_none=True)
         )
         assert parsed is not None
-        event = extract_event(ingress.rehydrate(parsed)).model_copy(
+        event = received_event(ingress.rehydrate(parsed)).model_copy(
             update={"receiving_actor_id": case_actor_id}
         )
         assert isinstance(event, AddNoteToCaseReceivedEvent)

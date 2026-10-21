@@ -37,7 +37,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.adapters.driving.fastapi.inbox_staging import hold_activity
+from vultron.adapters.inbox_staging import hold_activity
 from vultron.config.actor import ActorConfig
 from vultron.config.app import load_actor_config
 from vultron.core.behaviors.call_out.bundles.case_proposal import (
@@ -79,10 +79,11 @@ PortFactory = Callable[[DataLayer], dict[str, Any]]
 def _wire_render_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Create the ``WireRenderPort`` every received use case is given.
 
-    Every received tree ends in a guarded ledger commit, and the commit's
-    payload snapshot is the AS2 rendering of the received activity, so every
-    use case needs the port: core cannot produce that shape itself
-    (ARCH-20-001, CLP-07-009).  The adapter is stateless, so *dl* is unused.
+    A received entry records the received body itself (CLP-07-011), but a
+    received tree may also write and commit records the CASE_MANAGER authors,
+    whose snapshots are AS2 renderings core cannot produce itself
+    (ARCH-20-001, CLP-07-009, CLP-07-013).  So every use case is given the
+    port.  The adapter is stateless, so *dl* is unused.
     """
     return {"wire_render_port": As2WireRenderAdapter()}
 

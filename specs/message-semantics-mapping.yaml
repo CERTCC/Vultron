@@ -861,8 +861,12 @@ groups:
       exactly when the row for the active embargo is AGREED, so accepting a proposed
       revision binds the participant to nothing new until the owner activates it
       (MSM-07-008). An Accept from a DECLINED row is the participant changing its answer, so
-      the row moves directly to AGREED with no re-invite first (CM-18-003). A participant whose
-      row's register entry is final records nothing (CM-18-003).
+      the row moves directly to AGREED with no re-invite first (CM-18-003).
+      An Accept of an embargo that is neither the active embargo nor an open
+      proposal, because the register does not hold it or holds it in a final
+      status, records nothing (CM-18-003): the CASE_MANAGER MUST refuse it
+      before it is committed, with a reported reason, and answer it with the
+      refusal notice (CLP-05-001).
     rationale: >-
       The case owner's decision for the case has its own activity (MSM-07-008, ADR-0122), so
       an Accept of an Invite means one thing whoever sends it and no handler branches on the
@@ -878,6 +882,9 @@ groups:
       owner's Accept of an Invite records only its own consent, that a signatory accepting a
       proposed revision keeps its AGREED row for the active embargo, and that a DECLINED
       participant's Accept moves its row directly to AGREED.
+      `test/core/use_cases/received/test_embargo_refusal_notice.py` asserts
+      that an Accept of a decided proposal and of an embargo the register does
+      not hold are refused uncommitted, each with the refusal notice.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003

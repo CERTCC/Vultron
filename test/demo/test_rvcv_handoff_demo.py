@@ -765,45 +765,50 @@ def _otc_post_inbox(client, actor_slug: str, activity) -> None:
     )
 
 
-def _otc_record_offer(dl, offer, case_manager_id: str) -> None:
-    """Run the CASE_MANAGER's received Offer use case on *dl*, forward stubbed."""
-    from unittest.mock import MagicMock
+def _otc_make_offer(dl, proposal, case_manager_id: str) -> Any:
+    """Run the CASE_MANAGER's received proposal use case on *dl*.
 
+    The CASE_MANAGER ledgers the proposal and makes the Offer (ADR-0148);
+    returns that Offer, the one the transferee answers.
+    """
+    from test.support.received import received_event
     from vultron.adapters.driven.sync_activity_adapter import (
         SyncActivityAdapter,
     )
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
     from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     from vultron.core.models.events.actor import (
-        OfferCaseOwnershipTransferReceivedEvent,
+        ProposeCaseOwnershipTransferReceivedEvent,
     )
     from vultron.core.models.use_case_result import HandlerDisposition
+    from vultron.core.participants.ownership_offer import ownership_offer_id
     from vultron.core.use_cases.received.actor.ownership import (
-        OfferCaseOwnershipTransferReceivedUseCase,
+        ProposeCaseOwnershipTransferReceivedUseCase,
     )
-    from vultron.semantic_registry import extract_event
 
-    forward = MagicMock()
-    forward.offer_case_ownership_transfer.return_value = (
-        f"{offer.id_}/forwarded",
-        "{}",
-    )
-    event = extract_event(offer).model_copy(
-        update={"receiving_actor_id": case_manager_id}
-    )
-    assert isinstance(event, OfferCaseOwnershipTransferReceivedEvent)
-    result = OfferCaseOwnershipTransferReceivedUseCase(
+    event = received_event(proposal, receiving_actor_id=case_manager_id)
+    assert isinstance(event, ProposeCaseOwnershipTransferReceivedEvent)
+    result = ProposeCaseOwnershipTransferReceivedUseCase(
         dl,
         event,
-        trigger_activity=forward,
+        trigger_activity=TriggerActivityAdapter(dl),
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
     assert result.disposition is HandlerDisposition.APPLIED, result
-    # The Offer's own fan-out and its stubbed forward are not this test's
-    # subject; drop them so nothing is delivered back into the Coordinator's
-    # own inbox while it handles the Accept.
+    # The proposal's and the Offer's fan-out are not this test's subject;
+    # drop them so only the Accept's deliveries are observed.
     while dl.outbox_pop() is not None:
         pass
+    offer = dl.read(
+        ownership_offer_id(
+            case_manager_id, event.case_id or "", proposal.id_, event.actor_id
+        )
+    )
+    assert offer is not None
+    return offer
 
 
 @contextlib.contextmanager
@@ -813,8 +818,9 @@ def _otc_ownership_transferred(
     """Run the AC-5c ownership transfer and yield the Reporter's app.
 
     Three isolated actor apps wired through *router*: the Vendor (case owner),
-    the Coordinator (CASE_MANAGER, which records the Vendor's Offer and receives
-    the Accept) and the Reporter.  The case lives only on the Coordinator, so
+    the Coordinator (CASE_MANAGER, which makes the Offer from the Vendor's
+    proposal and receives the Accept) and the Reporter, the transferee.
+    The case lives only on the Coordinator, so
     neither peer can anchor its chain: each Rejects every ledger entry it is
     sent, which is what drives the Reject/replay loop SYNC-15-003 bounds.
     Yields once the Accept's inbox POST — and every delivery it set off — has
@@ -828,7 +834,7 @@ def _otc_ownership_transferred(
     from vultron.enums.roles import CVDRole
     from vultron.wire.as2.factories.case import (
         accept_case_ownership_transfer_activity,
-        offer_case_ownership_transfer_activity,
+        propose_case_ownership_transfer_activity,
     )
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_CaseParticipant,
@@ -942,35 +948,30 @@ def _otc_ownership_transferred(
                 cdl.create(as_Service(id_=vendor_id, name="Vendor OTC"))
                 cdl.create(as_Service(id_=reporter_id, name="Reporter OTC"))
 
-                # The Coordinator records (ledgers) the Vendor's Offer, as
-                # its received Offer use case does: an Accept is acted on
-                # only for an Offer the CASE_MANAGER recorded (CM-21-011).
-                # It runs in-process because the transferee is the
-                # Coordinator itself, and its forward would be delivered
-                # back into the inbox call that sent it.
+                # The Vendor proposes the transfer to the Reporter; the
+                # Coordinator, the CASE_MANAGER, makes and ledgers the Offer
+                # (ADR-0148).  It runs in-process: the Offer's own delivery
+                # is not this test's subject.
                 case_wire = as_VulnerabilityCase.model_validate(
                     {"id": case_id, "name": case.name or "OTC Test Case"}
                 )
-                offer = offer_case_ownership_transfer_activity(
-                    case=case_wire,
+                proposal = propose_case_ownership_transfer_activity(
+                    case_wire,
                     # Inline, as the inbox rehydrates it: the ledger
                     # commit refuses a bare-id target (CLP-07).
-                    target=as_Service(
-                        id_=coordinator_id, name="Coordinator OTC"
-                    ),
+                    target=as_Service(id_=reporter_id, name="Reporter OTC"),
                     actor=vendor_id,
                     to=[coordinator_id],
                 )
-                _otc_record_offer(cdl, offer, coordinator_id)
+                offer = _otc_make_offer(cdl, proposal, coordinator_id)
 
-                # Build and deliver Accept(Offer) to Coordinator's inbox.
-                # The Coordinator IS the CaseActor so it processes the
-                # Accept, updates attributed_to, commits the ledger entry,
-                # and fans out Announce(CaseLedgerEntry) to all
-                # case participants.
+                # The Reporter accepts, at the Coordinator's inbox.  The
+                # Coordinator IS the CaseActor so it processes the Accept,
+                # updates attributed_to, commits the ledger entry, and fans
+                # out Announce(CaseLedgerEntry) to all case participants.
                 accept = accept_case_ownership_transfer_activity(
                     offer=offer,
-                    actor=coordinator_id,
+                    actor=reporter_id,
                     to=[coordinator_id],
                 )
                 _otc_post_inbox(coordinator_tc, _OTC_COORDINATOR_SLUG, accept)
@@ -988,16 +989,18 @@ class TestOwnershipTransferAnnounceReachesReporterAC5c:
     """AC-5c: Reporter receives Announce(CaseLedgerEntry) after ownership transfer.
 
     Three-actor setup:
-    - Vendor  — case owner, offers ownership transfer
-    - Coordinator — CaseActor, receives Offer (as CaseActor) and Accept,
-                    commits the ledger entry, broadcasts Announce
-    - Reporter  — observer / case participant; must receive the
+    - Vendor  — case owner, proposes the ownership transfer
+    - Coordinator — CaseActor, makes the Offer from the proposal and
+                    receives the Accept, commits the ledger entry,
+                    broadcasts Announce
+    - Reporter  — the transferee; must receive the
                 Announce(CaseLedgerEntry) without any manual trigger
 
     All three actors use isolated FastAPI apps wired via _TestClientRouter.
     The test seeds the case and participants directly on the Coordinator's
-    DataLayer, has the Coordinator record the Vendor's Offer, then delivers
-    the Accept(Offer) to the Coordinator's inbox
+    DataLayer, has the Coordinator make the Offer from the Vendor's
+    proposal, then delivers the Reporter's Accept(Offer) to the
+    Coordinator's inbox
     via HTTP POST.  The outbox drains automatically (TestClient processes
     BackgroundTasks synchronously), routing the Announce to Reporter's inbox.
     Reporter's DataLayer is then checked for an Announce whose object is a

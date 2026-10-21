@@ -22,6 +22,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.received import with_evidence
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
@@ -32,7 +33,7 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.enums.roles import CVDRole
 
 CASE_ID = "https://example.org/cases/case-001"
@@ -101,31 +102,32 @@ def test_guarded_commit_tree_skips_commit_for_non_manager(
     mock_update.assert_not_called()
 
 
-class _FakeActivity:
-    """Minimal stand-in activity for CommitCaseLedgerEntryNode blackboard input.
+def _FakeActivity(
+    activity_id: str = ACTIVITY_ID,
+    semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE,
+) -> VultronEvent:
+    """A received event for CommitCaseLedgerEntryNode's blackboard input.
 
-    The payload uses ``("Create", "VulnerabilityCase")`` — a canonical
+    The body uses ``("Create", "VulnerabilityCase")`` — a canonical
     signature per ``_CANONICAL_PAYLOAD_SIGNATURES`` — with an inline object
     dict (not a bare URI string) and a non-empty ``actor`` URI.
     """
-
-    def __init__(
-        self,
-        activity_id: str = ACTIVITY_ID,
-        semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE,
-    ):
-        self.activity_id = activity_id
-        self.semantic_type = semantic_type
-
-        self.activity = VultronActivity(
-            id_=activity_id,
-            type_="Create",
-            actor=MANAGER_ACTOR_ID,
-            # CLP-07-011: the commit boundary requires a claimed timestamp on
-            # every recorded snapshot.
-            published=now_utc(),
-            object_={"id": CASE_ID, "type": "VulnerabilityCase"},
+    return with_evidence(
+        VultronEvent(
+            semantic_type=semantic_type,
+            activity_id=activity_id,
+            actor_id=MANAGER_ACTOR_ID,
+            activity=VultronActivity(
+                id_=activity_id,
+                type_="Create",
+                actor=MANAGER_ACTOR_ID,
+                # CLP-07-011: the commit boundary requires a claimed
+                # timestamp on every recorded snapshot.
+                published=now_utc(),
+                object_={"id": CASE_ID, "type": "VulnerabilityCase"},
+            ),
         )
+    )
 
 
 @pytest.fixture

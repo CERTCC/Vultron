@@ -16,9 +16,11 @@ from vultron.core.behaviors.status.add_participant_status_tree import (
 from vultron.core.behaviors.status.nodes import (
     CASE_STATUS_ALREADY_PRESENT,
 )
-from vultron.core.behaviors.status.nodes.dimension_filter import (
-    FilterParticipantStatusDimensionsNode,
+from vultron.core.behaviors.status.nodes.participant_status_acceptance import (
+    CheckParticipantStatusAcceptableNode,
 )
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
     AddParticipantStatusToParticipantReceivedEvent,
@@ -56,16 +58,15 @@ from vultron.core.behaviors.sender_entitlement import (
 logger = logging.getLogger(__name__)
 
 
-def _filter_node_wholly_refused(tree: py_trees.behaviour.Behaviour) -> bool:
-    """Return True if FilterParticipantStatusDimensionsNode returned FAILURE.
+def _status_refused(tree: py_trees.behaviour.Behaviour) -> bool:
+    """Return True if CheckParticipantStatusAcceptableNode refused the status.
 
-    Used by AddParticipantStatusToParticipantReceivedUseCase to distinguish a
-    wholly-refused dimension-filter from other BT failure causes (ISSUE-3199,
-    AC-2).  Only the filter's total-refusal path warrants a refusal;
-    sender-not-a-participant or authorization failures are
-    different failure modes that do not indicate the assertion was wholly refused.
+    Used by AddParticipantStatusToParticipantReceivedUseCase to tell a refused
+    status from other BT failure causes (RSH-09-008, ISSUE-3199): a
+    sender-not-a-participant or authorization failure does not say the status
+    itself was refused.
     """
-    return node_failed(tree, FilterParticipantStatusDimensionsNode)
+    return node_failed(tree, CheckParticipantStatusAcceptableNode)
 
 
 def _adoption_gate_blocked(tree: py_trees.behaviour.Behaviour) -> bool:
@@ -226,8 +227,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             self._dl, request.receiving_actor_id
         )
 
-        # Resolve case_id for the guarded-commit subtree (pre-flight lookup).
-        case_id = self._resolve_case_id_for_log_cascade()
+        # The case is the target participant's own (HP-08-008); the tree
+        # refuses a status of any other case before the commit (HP-08-007).
+        case_id = self._target_participant_case_id()
 
         call_out_kwargs = (
             {"call_out": self._call_out} if self._call_out is not None else {}
@@ -258,7 +260,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         ):
             # The raw claim is on the participant record; only its adoption as
             # canonical was withheld (RSH-01-001, RSH-01-002).  That is not a
-            # refusal of the assertion's content (RSH-05-022), so no fault.
+            # refusal of the assertion's content (RSH-09-008), so no fault.
             return HandlerResult.skipped(
                 f"ParticipantStatus '{request.status_id}' recorded but not"
                 " adopted: CASE_OWNER approval required (RSH-01-002)"
@@ -271,28 +273,25 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             )
             # The tree's refusal notice is the one answer (CLP-05-001); no
             # ProcessingFault is sent as well (#4756).
-            if _filter_node_wholly_refused(tree):
+            if _status_refused(tree):
                 return HandlerResult.refused(
-                    f"ParticipantStatus assertion wholly refused for activity"
+                    f"ParticipantStatus refused for activity"
                     f" '{request.activity_id}': {verdict.reason}"
                 )
         return verdict
 
-    def _resolve_case_id_for_log_cascade(self) -> str | None:
-        request = self._request
+    def _target_participant_case_id(self) -> str | None:
+        """The case the target participant's own record names (HP-08-008).
 
-        if request.status is not None:
-            context = getattr(request.status, "context", None)
-            if context:
-                return str(context)
-
-        if request.context_id is not None:
-            return request.context_id
-
-        if request.status_id:
-            stored_status = self._dl.read(request.status_id)
-            if stored_status is not None:
-                context = getattr(stored_status, "context", None)
-                if context:
-                    return str(context)
-        return None
+        The receiver's stored record of the participant decides the case,
+        never the status's ``context`` or the activity's: the sender chooses
+        those, while the status is appended to whichever case owns the
+        participant.  A participant the receiver does not hold, or whose
+        record names no case, leaves no case, and the sender guard refuses
+        (HP-01-008).
+        """
+        participant_id = self._request.participant_id
+        stored = self._dl.read(participant_id) if participant_id else None
+        if not isinstance(stored, CaseParticipant):
+            return None
+        return _as_id(stored.context)

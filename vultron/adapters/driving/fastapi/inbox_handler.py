@@ -54,11 +54,11 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (
     _status_auth_trigger_port_factory,
     _trigger_activity_with_actor_config_port_factory,
 )
-from vultron.adapters.driving.fastapi.inbox_staging import (
-    InlineObjectStaging,
-)
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.startup_slot import StartupSlot
+from vultron.adapters.inbox_staging import (
+    InlineObjectStaging,
+)
 from vultron.adapters.outbox_dead_letter import RetryStore
 from vultron.config import get_config
 from vultron.core.dispatcher import get_dispatcher
@@ -327,7 +327,7 @@ def _dispatch_or_defer_inbox_item(
             event.activity_id,
         )
         # Held before it is queued: the record is its only copy (DL-06-006).
-        staging.hold_for_replay(event.activity_id, event.activity)
+        staging.hold_for_replay(event.activity_id)
         _queue_pending_case_activity(
             queue_dl,
             case_id,

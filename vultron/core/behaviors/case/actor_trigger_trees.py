@@ -46,7 +46,7 @@ from vultron.core.behaviors.case.nodes.invite_response import (
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
-    EmitOfferCaseOwnershipTransferNode,
+    EmitProposeCaseOwnershipTransferNode,
     EmitRejectCaseOwnershipTransferNode,
     EmitWithdrawCaseOwnershipTransferNode,
 )
@@ -227,27 +227,28 @@ def offer_case_ownership_transfer_trigger_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the offer-case-ownership-transfer workflow.
 
-    Emits the Case Owner's own ``Offer(VulnerabilityCase)`` (ownership
-    transfer variant) to the case's CASE_MANAGER (CM-21-005, TRIG-11-001).
-    The CASE_MANAGER's received tree forwards it to the transferee; no
-    trigger tree emits as the CASE_MANAGER (CM-24-004, ADR-0109).
+    Emits the Case Owner's proposal, ``Offer(Offer(VulnerabilityCase))``, to
+    the case's CASE_MANAGER (CM-21-005, TRIG-11-001).  The CASE_MANAGER's
+    received tree makes the one ``Offer(VulnerabilityCase)`` the transferee
+    answers; no trigger tree emits as the CASE_MANAGER (CM-24-004,
+    ADR-0109, ADR-0148).
 
     Args:
         case_id: ID of the VulnerabilityCase whose ownership is being offered.
         transferee_id: Actor URI of the intended new owner.
         content: Optional human-readable message included in the offer.
         captured: Optional dict; ``captured["activity"]`` is set on success.
-        end_time: Optional deadline to answer the Offer, set as its
-            activity-level ``end_time`` (TRIG-11-007, CM-21-016).
+        end_time: Optional deadline to answer the Offer, set as the inner
+            Offer's ``end_time`` (TRIG-11-007, CM-21-016).
 
     Returns:
-        Sequence containing a single EmitOfferCaseOwnershipTransferNode.
+        Sequence containing a single EmitProposeCaseOwnershipTransferNode.
     """
     root = py_trees.composites.Sequence(
         name="OfferCaseOwnershipTransferTriggerBT",
         memory=False,
         children=[
-            EmitOfferCaseOwnershipTransferNode(
+            EmitProposeCaseOwnershipTransferNode(
                 case_id=case_id,
                 transferee_id=transferee_id,
                 content=content,
@@ -352,11 +353,14 @@ def withdraw_case_ownership_transfer_trigger_bt(
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the withdraw-case-ownership-transfer workflow.
 
-    Emits ``Undo(Offer(VulnerabilityCase))`` from the offerer, addressed to
-    the case's CASE_MANAGER (TRIG-11-006, CM-21-015).
+    Emits ``Undo(Offer(Offer(VulnerabilityCase)))`` from the Case Owner,
+    addressed to the case's CASE_MANAGER (TRIG-11-006, CM-21-015): the owner
+    withdraws its own proposal, and the CASE_MANAGER the Offer it made from
+    it (ADR-0148).
 
     Args:
-        offer_id: ID of the ``_OfferCaseOwnershipTransferActivity`` withdrawn.
+        offer_id: ID of the ``_ProposeCaseOwnershipTransferActivity``
+            withdrawn, the owner's own proposal.
         case_id: ID of the VulnerabilityCase; used to resolve the
             CASE_MANAGER.
         captured: Optional dict; ``captured["activity"]`` is set on success.

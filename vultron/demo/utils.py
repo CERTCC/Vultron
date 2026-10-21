@@ -593,24 +593,30 @@ def read_stored_of_types(
     return objects if isinstance(objects, dict) else {}
 
 
-#: The stored type a received activity is read from: intake's archive record,
-#: kept under a key the receiver derives (CLP-10-017, ADR-0111).  A row of an
+#: The stored type a received activity is read from: intake's archive record of
+#: the body that arrived, kept under a key the receiver derives (CLP-10-017,
+#: ADR-0149).  A row of an
 #: activity type under its own id is one the actor authored, never one it
 #: received (DL-06-006).
 RECEIVED_ACTIVITY_RECORD_TYPE = ReceivedActivityRecord.__name__
 
 
 def received_activity_in(record: dict) -> dict:
-    """The activity a served ``ReceivedActivityRecord`` *record* wraps.
+    """The activity a served ``ReceivedActivityRecord`` *record* archives.
+
+    The record keeps the body that arrived, as JSON text (CLP-10-017,
+    ADR-0149), so the activity is that body decoded: its sender's own wire
+    form.
 
     Raises:
-        AssertionError: when the record wraps no activity.
+        AssertionError: when the record holds no JSON object body.
     """
-    activity = record.get("activity")
+    body = record.get("received_body")
+    activity = json.loads(body) if isinstance(body, str) else None
     if not isinstance(activity, dict):
         raise AssertionError(  # noqa: TRY004 — demo_check assertion, not a type error
-            f"received-activity record {record.get('id')!r} wraps no"
-            f" activity: {activity!r}"
+            f"received-activity record {record.get('id')!r} holds no"
+            f" received body: {body!r}"
         )
     return activity
 
@@ -618,10 +624,10 @@ def received_activity_in(record: dict) -> dict:
 def served_field(obj: dict, wire_key: str, field_name: str) -> object:
     """*obj*'s field served as *wire_key* or, failing that, as *field_name*.
 
-    The store route serves a stored object's own fields under their wire
-    (camelCase) names, but the objects nested in an archive record's activity
-    under their field names (``case_id``), so a reader that may get either
-    shape reads both.  The wire name wins when both are present.
+    The store route serves a stored object under one of two shapes: an AS2
+    object's fields under their wire (camelCase) names, a bare core record's
+    under their field names (``attributed_to``), so a reader that may get
+    either shape reads both.  The wire name wins when both are present.
     """
     return obj[wire_key] if wire_key in obj else obj.get(field_name)
 

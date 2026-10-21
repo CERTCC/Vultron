@@ -49,6 +49,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
 from test.support.ledger_records import with_ledger_records
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -70,7 +71,6 @@ from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import (
-    extract_event,
     find_matching_semantics,
     use_case_map,
 )
@@ -158,7 +158,7 @@ def route_received(
     caller keeps working when the implementation adds a new message type.
     Ports a use case does not declare are not passed.
     """
-    event = extract_event(activity).model_copy(
+    event = received_event(activity).model_copy(
         update={"receiving_actor_id": receiving_actor_id}
     )
     use_case_class = use_case_map()[find_matching_semantics(activity)]
@@ -509,7 +509,7 @@ def test_full_case_invite_reply_without_position_is_refused_at_the_edge(
             content=content,
         )
         with pytest.raises(VultronParseValidationError, match="ledger"):
-            extract_event(reply)
+            received_event(reply)
 
     latest = joining_case.participant().participant_statuses[-1]
     assert participant_status_rm_state(latest) == RM.RECEIVED
@@ -700,7 +700,7 @@ def test_stub_invite_reply_resolves_case_from_the_case_the_stub_names(
     assert getattr(stub, "id_", stub) != joining_case.case.id_, (
         "the stub must carry its own ID for this requirement to be observable"
     )
-    assert getattr(extract_event(accept), "case_id", None) == (
+    assert getattr(received_event(accept), "case_id", None) == (
         joining_case.case.id_
     )
     result = joining_case.route(accept)

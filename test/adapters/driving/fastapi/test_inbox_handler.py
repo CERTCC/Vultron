@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from test.support.received import assert_held_only_as_received
+from test.support.received import assert_held_only_as_received, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi import inbox_handler as ih
@@ -1062,10 +1062,11 @@ def test_make_dispatcher_gives_embargo_ending_paths_the_trigger_port(
 def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
     """Every received use case is constructed with a ``WireRenderPort``.
 
-    Every received tree ends in a guarded ledger commit, and its payload
-    snapshot is an AS2 rendering core cannot produce itself (CLP-07-009).  So a
-    semantic with no other port still needs this one, and the use case must
-    accept it: the dispatcher calls ``use_case_class(dl, event, **kwargs)``.
+    A received tree may write and commit records the CASE_MANAGER authors,
+    whose snapshots are AS2 renderings core cannot produce itself
+    (CLP-07-009, CLP-07-013).  So a semantic with no other port still gets
+    this one, and the use case must accept it: the dispatcher calls
+    ``use_case_class(dl, event, **kwargs)``.
     """
     import inspect
 
@@ -1333,13 +1334,15 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
         actor=FINDER_ID,
         to=[VENDOR_ID],
     )
-    event = SubmitReportReceivedEvent(
-        semantic_type=MessageSemantics.SUBMIT_REPORT,
-        activity_id=OFFER_ID,
-        actor_id=FINDER_ID,
-        object_=report,
-        activity=activity,
-        receiving_actor_id=VENDOR_ID,
+    event = with_evidence(
+        SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=OFFER_ID,
+            actor_id=FINDER_ID,
+            object_=report,
+            activity=activity,
+            receiving_actor_id=VENDOR_ID,
+        )
     )
 
     dispatcher.dispatch(event, dl)
@@ -1620,7 +1623,7 @@ def test_a_failed_item_stays_held_whether_retried_or_dead_lettered(
 ) -> None:
     """The rebuild released the item's record; the failure path holds it
     again, so neither the retry nor the dead letter loses the activity."""
-    from vultron.adapters.driving.fastapi.inbox_staging import (
+    from vultron.adapters.inbox_staging import (
         InlineObjectStaging,
         hold_activity,
     )

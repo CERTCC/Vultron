@@ -74,7 +74,7 @@ from vultron.core.behaviors.status.nodes import (
     ResolveAndPersistStatusObjectNode,
     ValidateRMTransitionNode,
 )
-from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
+from vultron.core.behaviors.status.nodes.rm_rule import BB_RM_ANOMALY
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
 )
@@ -85,9 +85,6 @@ from vultron.core.models.dimensions import (
     PxaDimension,
     RmDimension,
     VfDimension,
-)
-from vultron.core.models.events.status import (
-    AddParticipantStatusToParticipantReceivedEvent,
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
@@ -1439,13 +1436,12 @@ class TestRejectionValidatorBeforeCommit:
 
     ValidateRMTransitionNode must NOT fire after GuardedCommit in the
     receive-side path.  Before the fix it did, causing canonical/replica
-    divergence for a participant at RM.CLOSED whose update was partially
-    accepted (vfd or other dimension advanced).
+    divergence when it refused a status the ledger had already recorded.
 
     The fix is validate_rm=False in add_participant_status_tree, delegating
-    rm adjudication entirely to FilterParticipantStatusDimensionsNode
-    (precondition guard).  The _rm_was_carried_forward() workaround was
-    removed; this test proves it is not needed.
+    rm judgment entirely to CheckParticipantStatusAcceptableNode
+    (precondition guard), which refuses the whole status before the commit
+    (RSH-09-001).
     """
 
     def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
@@ -1456,24 +1452,16 @@ class TestRejectionValidatorBeforeCommit:
             sync_port=SyncActivityAdapter(dl),
         )
 
-    @pytest.mark.spec("CLP-10-009")
-    def test_partial_accept_with_backward_rm_succeeds_and_produces_ledger_entry(
+    @pytest.mark.spec("CLP-10-009", "RSH-09-002")
+    def test_backward_rm_with_vf_advance_is_refused_before_the_commit(
         self, make_payload
     ):
-        """Participant is RM.ACCEPTED; incoming status advances vfd but asserts
+        """Participant is RM.ACCEPTED; incoming status advances vf but asserts
         a backwards rm (VALID ≺ ACCEPTED).
 
-        FilterParticipantStatusDimensionsNode refuses rm and carries ACCEPTED
-        forward; vfd advance is accepted (partial accept → SUCCESS).  The
-        sender is not at RM.CLOSED: a closed sender is refused before any
-        dimension is filtered (CM-23-018).
-        GuardedCommit fires and produces one CaseLedgerEntry.
-        ValidateRMTransitionNode is SKIPPED (validate_rm=False), so the
-        carried-forward ACCEPTED rm no longer causes a post-commit FAILURE.
-
-        This test FAILS on pre-fix code where ValidateRMTransitionNode ran
-        after GuardedCommit and the _rm_was_carried_forward() workaround had
-        been removed (demonstrating the latent divergence risk).
+        The whole status is refused in the precondition guard, so no receipt
+        entry is committed and the vf advance is not recorded either: the
+        ledger never records a status the sender did not send (RSH-09-001).
         """
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
         from vultron.core.states.cs import CS_vf
@@ -1540,9 +1528,8 @@ class TestRejectionValidatorBeforeCommit:
         result = bridge.execute_with_setup(
             tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
-        assert result.status == Status.SUCCESS, (
-            "Partial accept (rm refused, vfd accepted) must succeed — "
-            "ValidateRMTransitionNode must NOT abort after GuardedCommit (CLP-10-009)"
+        assert result.status == Status.FAILURE, (
+            "a backward rm refuses the whole status before GuardedCommit"
         )
 
         receipt_entries = [
@@ -1552,16 +1539,15 @@ class TestRejectionValidatorBeforeCommit:
             and getattr(e, "semantic_type", None)
             == "add_participant_status_to_participant"
         ]
-        assert len(receipt_entries) == 1, (
-            "One receipt CaseLedgerEntry must be committed for the partial accept "
-            "(rm refused → carried forward, vfd accepted)"
+        assert receipt_entries == [], (
+            "a refused status commits no receipt entry (CLP-10-009)"
         )
 
     @pytest.mark.spec("CLP-10-009")
     def test_fully_rejected_update_produces_no_ledger_entry(
         self, make_payload
     ):
-        """All dimensions refused by FilterParticipantStatusDimensionsNode →
+        """A status refused by CheckParticipantStatusAcceptableNode →
         FAILURE before GuardedCommit → zero CaseLedgerEntries (CLP-10-009).
         """
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -1698,7 +1684,7 @@ class TestEmitRMGapNoteNode:
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
-        # Pre-populate anomaly flag as if FilterParticipantStatusDimensionsNode ran
+        # Pre-populate anomaly flag as if CheckParticipantStatusAcceptableNode ran
         self._set_anomaly("gap", RM.RECEIVED, RM.ACCEPTED)
 
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
@@ -2105,12 +2091,11 @@ class TestAdoptedPxaReachesTheCaseStatus:
         assert entries[0].payload_snapshot["object"]["pxaState"] == "Pxa"
 
     @pytest.mark.spec("RSH-01-003")
-    @pytest.mark.spec("RSH-05-023")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_an_adopted_report_never_moves_em(
         self, populated_dl, make_payload
     ):
-        """The P advance is adopted; the embedded EM is not (RSH-05-023):
+        """The P advance is adopted; the embedded EM is not (ADR-0122):
         EM is derived from the embargo register alone."""
 
         result = _run_at_case_manager(
@@ -2219,35 +2204,66 @@ class TestAdoptedPxaReachesTheCaseStatus:
         assert result.status == Status.SUCCESS, result.feedback_message
         assert _case_pxa(populated_dl) == CS_pxa.PXA
 
+    def _emit(self, dl: SqliteDataLayer, reported_status_id: str) -> Status:
+        """Tick ``EmitCaseStatusUpdateNode`` alone, adopting the status
+        stored at *reported_status_id*."""
+        from vultron.core.behaviors.case_status_snapshot import (
+            EmitCaseStatusUpdateNode,
+        )
+
+        node = EmitCaseStatusUpdateNode(
+            case_id=CASE_ID, reported_status_id=reported_status_id
+        )
+        return (
+            _cm_bridge(dl)
+            .execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+            .status
+        )
+
     @pytest.mark.spec("RSH-01-003")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
-    def test_a_status_received_by_reference_is_adopted(
-        self, populated_dl, make_payload
-    ):
-        """The Add names its status by id only; the stored copy is read at
-        tick, so its P is adopted all the same (#4956)."""
-        from vultron.semantic_registry import extract_event
-        from vultron.wire.as2.parser import parse_activity
-
-        activity = _pxa_report(CS_pxa.Pxa)
-        status = activity.object_
+    def test_the_stored_status_is_what_is_adopted(self, populated_dl):
+        """The node reads the report by id at tick, not from the inline
+        activity, so the stored copy's P is adopted (#4956)."""
+        status = _pxa_report(CS_pxa.Pxa).object_
         assert isinstance(status, as_ParticipantStatus)
         populated_dl.create(status)
-        body = activity.model_dump(
-            by_alias=True, mode="json", exclude_none=True
-        )
-        body["object"] = status.id_
-        by_reference = cast(
-            AddParticipantStatusToParticipantReceivedEvent,
-            extract_event(parse_activity(body)),
-        )
-        assert by_reference.status_id == status.id_
-        assert getattr(by_reference.status, "case_status", None) is None
 
-        result = _run_at_case_manager(populated_dl, by_reference)
-
-        assert result.status == Status.SUCCESS, result.feedback_message
+        assert self._emit(populated_dl, status.id_) == Status.SUCCESS
         assert _case_pxa(populated_dl) == CS_pxa.Pxa
+
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.spec("ARCH-15-001")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_a_missing_reported_status_fails_and_commits_nothing(
+        self, populated_dl
+    ):
+        """Nothing stored at the id is a broken store, never a report to
+        skip: the node fails and commits no CaseStatus."""
+        missing = f"{PARTICIPANT_ID}/statuses/missing"
+
+        assert self._emit(populated_dl, missing) == Status.FAILURE
+        assert _case_status_entries(populated_dl) == []
+        assert _case_pxa(populated_dl) == CS_pxa.pxa
+
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.spec("ARCH-15-001")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_a_reported_id_naming_a_case_status_fails(self, populated_dl):
+        """The id must name a ``ParticipantStatus``; a ``CaseStatus`` stored
+        there fails the node and commits nothing."""
+        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+
+        wrong = as_CaseStatus(
+            id_=f"{CASE_ID}/statuses/not-a-participant-status",
+            context=CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.Pxa),
+        )
+        populated_dl.create(wrong)
+
+        assert self._emit(populated_dl, wrong.id_) == Status.FAILURE
+        assert _case_status_entries(populated_dl) == []
+        assert _case_pxa(populated_dl) == CS_pxa.pxa
 
 
 class TestAdoptedPxa:

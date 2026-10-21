@@ -163,7 +163,7 @@ GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
         ),
         (
             f"{_C}/nodes/ownership_offer_guard.py",
-            "case_manager_admits_ownership_offer_guard",
+            "case_manager_admits_ownership_proposal_guard",
         ),
         (
             f"{_C}/nodes/ownership_offer_guard.py",
@@ -380,6 +380,25 @@ def _diversion_calls() -> Iterator[tuple[str, str, ast.Call]]:
                     yield rel, scope.name, call
 
 
+def _exemption_name(value: ast.expr) -> ast.Name | None:
+    """The named constant an exemption keyword passes, or ``None`` if inline.
+
+    ``CONST if cond else None`` counts as ``CONST``: a tree whose reduced
+    build has no ungated emitter must drop the exemption there, or the
+    factory refuses it as stale (BT-17-008, #4978).
+    """
+    if isinstance(value, ast.Name):
+        return value
+    if (
+        isinstance(value, ast.IfExp)
+        and isinstance(value.body, ast.Name)
+        and isinstance(value.orelse, ast.Constant)
+        and value.orelse.value is None
+    ):
+        return value.body
+    return None
+
+
 def _exemption_uses() -> frozenset[tuple[str, str, str]]:
     """Each named exemption a received tree, or a diversion of one, passes."""
     uses: set[tuple[str, str, str]] = set()
@@ -393,11 +412,12 @@ def _exemption_uses() -> frozenset[tuple[str, str, str]]:
     for rel, scope, call, keyword in sites:
         for kw in call.keywords:
             if kw.arg == keyword:
-                assert isinstance(kw.value, ast.Name), (
+                value = _exemption_name(kw.value)
+                assert value is not None, (
                     f"{rel}:{scope}: pass a named exemption constant from"
                     " replica_emit_exemptions, not an inline value"
                 )
-                uses.add((kw.value.id, rel, scope))
+                uses.add((value.id, rel, scope))
     return frozenset(uses)
 
 

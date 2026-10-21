@@ -31,6 +31,10 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
 )
 from test.support.embargo_register import activate, propose
+from test.support.refusal_notice import (
+    assert_no_refusal_notice,
+    assert_refusal_notice,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -252,13 +256,22 @@ def test_a_leave_of_an_embargo_not_in_force_is_refused_uncommitted(
     make_payload,
 ):
     dl = _store()
+    leave = _leave(dl, embargo_id=_AGREED_REVISION)
 
-    result = _withdraw(dl, make_payload, embargo_id=_AGREED_REVISION)
+    result = _withdraw(dl, make_payload, activity=leave)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "not the embargo in force" in (result.reason or "")
     assert _rows(dl, _FINDER)[_AGREED_REVISION] == "AGREED"
     assert _ledger(dl) == []
+    assert_refusal_notice(
+        dl,
+        manager=_MANAGER,
+        refused_id=leave.id_,
+        asserter=_FINDER,
+        reason="not the embargo in force",
+        case_id=_CASE_ID,
+    )
 
 
 @pytest.mark.spec("MSM-07-010")
@@ -267,13 +280,22 @@ def test_a_leave_with_no_embargo_in_force_is_refused_uncommitted(
     make_payload,
 ):
     dl = _store(in_force=False)
+    leave = _leave(dl, embargo_id=_AGREED_REVISION)
 
-    result = _withdraw(dl, make_payload, embargo_id=_AGREED_REVISION)
+    result = _withdraw(dl, make_payload, activity=leave)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "No embargo is in force" in (result.reason or "")
     assert _rows(dl, _FINDER)[_AGREED_REVISION] == "AGREED"
     assert _ledger(dl) == []
+    assert_refusal_notice(
+        dl,
+        manager=_MANAGER,
+        refused_id=leave.id_,
+        asserter=_FINDER,
+        reason="No embargo is in force",
+        case_id=_CASE_ID,
+    )
 
 
 @pytest.mark.spec("MSM-07-010")
@@ -287,14 +309,23 @@ def test_a_leave_from_a_row_that_is_not_agreed_is_refused_uncommitted(
     finder = dl.read(_case(dl).actor_participant_index[_FINDER])
     assert isinstance(finder, CaseParticipant)
     _set_rows(dl, finder, {_ACTIVE: row})
+    leave = _leave(dl)
 
-    result = _withdraw(dl, make_payload)
+    result = _withdraw(dl, make_payload, activity=leave)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert f"is {row.value}" in (result.reason or "")
     assert "not AGREED" in (result.reason or "")
     assert _rows(dl, _FINDER)[_AGREED_REVISION] == "AGREED"
     assert _ledger(dl) == []
+    assert_refusal_notice(
+        dl,
+        manager=_MANAGER,
+        refused_id=leave.id_,
+        asserter=_FINDER,
+        reason="not AGREED",
+        case_id=_CASE_ID,
+    )
 
 
 @pytest.mark.spec("MSM-07-010")
@@ -303,13 +334,22 @@ def test_a_leave_from_a_row_that_is_not_agreed_is_refused_uncommitted(
 def test_a_leave_from_the_case_owner_is_refused_uncommitted(make_payload):
     """The case owner ends an embargo by terminating it (CM-02-005)."""
     dl = _store()
+    leave = _leave(dl, sender=_OWNER)
 
-    result = _withdraw(dl, make_payload, sender=_OWNER)
+    result = _withdraw(dl, make_payload, activity=leave)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "case owner" in (result.reason or "")
     assert _rows(dl, _OWNER)[_ACTIVE] == "AGREED"
     assert _ledger(dl) == []
+    assert_refusal_notice(
+        dl,
+        manager=_MANAGER,
+        refused_id=leave.id_,
+        asserter=_OWNER,
+        reason="case owner",
+        case_id=_CASE_ID,
+    )
 
 
 @pytest.mark.spec("MSM-07-010")
@@ -328,8 +368,11 @@ def test_a_replica_does_not_apply_a_withdrawal(make_payload):
 
 def _reject(
     dl: SqliteDataLayer, make_payload: Any, embargo_id: str
-) -> HandlerResult:
-    """The finder rejects its relayed Invite to *embargo_id*."""
+) -> tuple[HandlerResult, str]:
+    """The finder rejects its relayed Invite to *embargo_id*.
+
+    Returns the verdict and the Reject's id.
+    """
     invite = em_propose_embargo_activity(
         cast(as_EmbargoEvent, dl.read(embargo_id)),
         context=_CASE_ID,
@@ -341,13 +384,14 @@ def _reject(
         invite, context=_CASE_ID, actor=_FINDER, to=[_MANAGER]
     )
     event = make_payload(reject, receiving_actor_id=_MANAGER)
-    return RejectInviteToEmbargoOnCaseReceivedUseCase(
+    result = RejectInviteToEmbargoOnCaseReceivedUseCase(
         dl,
         event,
         sync_port=SyncActivityAdapter(dl),
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
     ).execute()
+    return result, reject.id_
 
 
 @pytest.mark.spec("MSM-07-004")
@@ -358,7 +402,7 @@ def test_a_reject_of_the_embargo_in_force_from_an_agreed_row_is_refused(
     """A Reject never withdraws: withdrawal is ``Leave(EmbargoEvent)``."""
     dl = _store()
 
-    result = _reject(dl, make_payload, _ACTIVE)
+    result, reject_id = _reject(dl, make_payload, _ACTIVE)
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert "withdrawal is Leave(EmbargoEvent)" in (result.reason or "")
@@ -368,6 +412,15 @@ def test_a_reject_of_the_embargo_in_force_from_an_agreed_row_is_refused(
         _INVITED_REVISION: "INVITED",
     }
     assert _ledger(dl) == []
+    # MSM-07-004: the signatory learns why (CLP-05-001).
+    assert_refusal_notice(
+        dl,
+        manager=_MANAGER,
+        refused_id=reject_id,
+        asserter=_FINDER,
+        reason="withdrawal is Leave(EmbargoEvent)",
+        case_id=_CASE_ID,
+    )
 
 
 @pytest.mark.spec("MSM-07-004")
@@ -375,9 +428,10 @@ def test_a_signatorys_reject_of_a_revision_leaves_it_bound(make_payload):
     """Refusing a revision declines that row only; the active row stays."""
     dl = _store()
 
-    result = _reject(dl, make_payload, _INVITED_REVISION)
+    result, reject_id = _reject(dl, make_payload, _INVITED_REVISION)
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert_no_refusal_notice(dl, manager=_MANAGER, refused_id=reject_id)
     assert _rows(dl, _FINDER) == {
         _ACTIVE: "AGREED",
         _AGREED_REVISION: "AGREED",
@@ -403,6 +457,7 @@ def test_a_redelivered_leave_is_skipped_and_changes_nothing(make_payload):
     assert "redelivery" in (result.reason or "")
     assert _rows(dl, _FINDER) == rows
     assert _ledger(dl) == ledger
+    assert_no_refusal_notice(dl, manager=_MANAGER, refused_id=leave.id_)
 
 
 @pytest.mark.spec("MSM-07-010")
@@ -420,6 +475,14 @@ def test_a_new_leave_after_a_withdrawal_is_still_refused(make_payload):
     assert result.disposition is HandlerDisposition.REFUSED
     assert "not AGREED" in (result.reason or "")
     assert _ledger(dl) == ledger
+    assert_refusal_notice(
+        dl,
+        manager=_MANAGER,
+        refused_id=second.id_,
+        asserter=_FINDER,
+        reason="not AGREED",
+        case_id=_CASE_ID,
+    )
 
 
 @pytest.mark.spec("CM-10-004")

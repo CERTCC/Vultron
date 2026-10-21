@@ -14,26 +14,27 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """Trigger-side emit nodes and receive-side application nodes for the
-ownership-transfer workflow (TRIG-11 / OT-02).
+ownership-transfer workflow (TRIG-11 / OT-02, ADR-0148).
 
 Provides:
 
-- :class:`EmitOfferCaseOwnershipTransferNode` — emits the Case Owner's own
-  ``Offer(VulnerabilityCase)`` (ownership transfer variant) to the case's
-  CASE_MANAGER, naming the transferee as its ``target``.
+- :class:`EmitProposeCaseOwnershipTransferNode` — emits the Case Owner's
+  proposal, ``Offer(Offer(VulnerabilityCase))``, to the case's CASE_MANAGER,
+  the inner Offer naming the transferee as its ``target``.
 - :class:`EmitAcceptCaseOwnershipTransferNode`,
   :class:`EmitRejectCaseOwnershipTransferNode` and
-  :class:`EmitWithdrawCaseOwnershipTransferNode` — the replies to an Offer,
-  defined in ``ownership_offer_reply_emit.py`` and re-exported here.
+  :class:`EmitWithdrawCaseOwnershipTransferNode` — the replies, defined in
+  ``ownership_offer_reply_emit.py`` and re-exported here.
 - :class:`AcceptCaseOwnershipTransferNode` — applies the accepted
   ownership transfer to the DataLayer: updates ``case.attributed_to``,
   moves ``CVDRole.CASE_OWNER`` to the new owner's participant record, and
   commits each changed object as its own ledger entry (CLP-07-013); defined
   in ``ownership_transfer_apply.py`` with
   :class:`AcceptRecordedOwnershipOfferNode` and re-exported here.
-- :class:`ForwardOfferToTransfereeNode` — CaseActor-only effect node that
-  builds a new ``Offer(VulnerabilityCase)`` addressed to the transferee and
-  queues it in the CaseActor's outbox (CM-21-005, ADR-0053).
+- :class:`MakeOwnershipTransferOfferNode` — CASE_MANAGER-only effect node
+  that makes the one ``Offer(VulnerabilityCase)`` of the transfer from the
+  owner's proposal, queues it in the CASE_MANAGER's outbox and commits it
+  (CM-21-005, ADR-0148).
 
 These leaf nodes are assembled into trigger/receive trees in the parent
 ``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules per
@@ -42,6 +43,7 @@ BTND-07-003.
 
 import logging
 from datetime import datetime
+from typing import cast
 
 from py_trees.common import Status
 
@@ -56,23 +58,34 @@ from vultron.core.behaviors.case.nodes.ownership_transfer_apply import (
     _TransferCaseOwnershipNode,
 )
 from vultron.core.behaviors.delegated_authorship import delegated_authorship
-from vultron.core.behaviors.helpers import _EmitSingleActivityBase
+from vultron.core.behaviors.helpers import (
+    TRIGGER_FACTORY_UNAVAILABLE,
+    _EmitSingleActivityBase,
+)
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
+from vultron.core.models.protocol_pair import (
+    OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE,
+)
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.ownership_offer import ownership_offer_id
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
 
-class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
-    """Emit the Case Owner's ``Offer(VulnerabilityCase)`` to the CASE_MANAGER.
+class EmitProposeCaseOwnershipTransferNode(_EmitSingleActivityBase):
+    """Emit the Case Owner's ownership-transfer proposal to the CASE_MANAGER.
 
-    Calls ``trigger_activity_factory.offer_case_ownership_transfer()`` with
-    ``actor=self.actor_id`` — the offering Case Owner, never the CASE_MANAGER
-    (CM-24-004, ADR-0109) — ``case_id`` and ``transferee_id``, addressed
-    ``to`` the case's CASE_MANAGER (CM-21-005), then queues it in the owner's
-    own outbox (TRIG-11-001).  The CASE_MANAGER's received tree forwards it to
-    the transferee.  An ``end_time`` becomes the Offer's activity-level
-    ``end_time``, the deadline to answer it (TRIG-11-007, CM-21-016); without
-    one the Offer carries none.
+    Calls ``trigger_activity_factory.propose_case_ownership_transfer()``
+    with ``actor=self.actor_id`` — the proposing Case Owner, never the
+    CASE_MANAGER (CM-24-004, ADR-0109) — ``case_id`` and ``transferee_id``,
+    addressed ``to`` the case's CASE_MANAGER (CM-21-005), then queues it in
+    the owner's own outbox (TRIG-11-001).  The proposal is
+    ``Offer(Offer(VulnerabilityCase))``: the CASE_MANAGER's received tree
+    makes the inner Offer itself, under its own id (ADR-0148).  An
+    ``end_time`` becomes the inner Offer's ``end_time``, the deadline to
+    answer it (TRIG-11-007, CM-21-016); without one the Offer carries none.
     """
 
     def __init__(
@@ -105,7 +118,7 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
             cm_id = resolve_case_manager_id(case, self.datalayer)
             if cm_id:
                 case_actor_id = [cm_id]
-        return self.trigger_activity_factory.offer_case_ownership_transfer(
+        return self.trigger_activity_factory.propose_case_ownership_transfer(
             actor=self.actor_id,
             case_id=self.case_id,
             transferee_id=self.transferee_id,
@@ -116,7 +129,7 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
-            "Actor '%s' sent the CASE_MANAGER an ownership transfer offer for"
+            "Actor '%s' proposed to the CASE_MANAGER an ownership transfer of"
             " case '%s' to '%s'",
             self.actor_id,
             self.case_id,
@@ -124,38 +137,44 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
         )
 
 
-class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
-    """CaseActor effect node: build and enqueue a forwarded ownership-transfer Offer.
+class MakeOwnershipTransferOfferNode(_EmitSingleActivityBase):
+    """CASE_MANAGER effect: make the ownership-transfer Offer a proposal asks for.
 
-    Implements CM-21-005 / ADR-0053: after the CaseActor records the ledger
-    entry for an incoming ``Offer(VulnerabilityCase)``, it MUST forward a new
-    ``Offer(VulnerabilityCase, actor=case_actor, attributed_to=original_offerer,
-    to=[transferee])`` to the transferee's inbox via the CaseActor's own outbox.
+    The one ``Offer(VulnerabilityCase)`` of the transfer (ADR-0148,
+    CM-21-005): the CASE_MANAGER builds it from what it validated in the
+    owner's proposal — the case, the transferee as ``target`` and ``to``,
+    and the deadline as ``end_time`` (CM-21-016) — with ``actor`` itself and
+    ``attributedTo`` the owner, from the shared delegated-authorship helper
+    (CM-24-001, CM-24-002, CM-24-005).  Nothing else of the inner Offer is
+    copied: its id is
+    :func:`~vultron.core.participants.ownership_offer.ownership_offer_id`,
+    derived from the proposal, so a redelivery rebuilds the same Offer and
+    the outbox queues it once (OX-06-002).
 
-    Must be wrapped in ``create_case_manager_gated_tree`` so that non-CaseManager
-    actors skip this node cleanly (they should never forward the offer).
+    It queues the Offer, then commits it as the
+    ``offer_case_ownership_transfer`` entry, whose snapshot is the sealed
+    Offer itself (SYNC-09-002, VM-08-003): that is the Offer the transferee
+    answers and the ledger closes.  The build, the queue and the commit are
+    one transaction, so a failed commit sends nothing.  The commit runs here, inside the
+    CASE_MANAGER gate the factory wraps ``manager_effects`` in (CLP-09-001,
+    BT-17-008).
 
-    Logs WARNING and returns FAILURE when ``trigger_activity_factory`` is absent
-    from the blackboard — this leaves all outboxes untouched.
-
-    The forward carries ``in_reply_to`` set to *offer_id*, the recorded
-    Offer's id (the ``offer_case_ownership_transfer`` entry's
-    ``log_object_id``), so an answer naming the forward resolves to the Offer
-    it forwards by that link, never by time (CM-21-018).
-
-    The forward carries the received Offer's ``end_time``, so the transferee,
-    which holds and answers the forward, knows its deadline (CM-21-016).  The
-    forward is an activity this node mints, so its timestamps serialise in
-    UTC (CS-13-005); the received Offer's own offset stays on its ledger
-    entry.
+    It runs after the proposal's own entry, so a fault building, queuing or
+    committing the Offer is the CASE_MANAGER's, never a refusal of the
+    owner: it is not caught, and escapes to ``BTBridge`` as an internal error
+    (ARCH-15-001).  A redelivery of the proposal then makes the Offer under
+    the same id.  A missing factory raises :class:`VultronWiringError`, a
+    wiring fault the handler also reports as internal.
+    The Offer's timestamps serialise in UTC, as for any activity the
+    CASE_MANAGER mints (CS-13-005).
     """
 
     def __init__(
         self,
         case_id: str,
         transferee_id: str,
-        original_actor_id: str,
-        offer_id: str,
+        owner_id: str,
+        proposal_id: str,
         captured: dict | None = None,
         name: str | None = None,
         end_time: datetime | None = None,
@@ -163,27 +182,28 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
         super().__init__(captured=captured, name=name)
         self.case_id = case_id
         self.transferee_id = transferee_id
-        self.original_actor_id = original_actor_id
-        self.offer_id = offer_id
+        self.owner_id = owner_id
+        self.proposal_id = proposal_id
         self.end_time = end_time
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         if self.trigger_activity_factory is None:
-            self.logger.warning(
-                "%s: no trigger_activity port — cannot forward offer"
-                " to transferee (CM-21-005)",
-                self.name,
+            # A composition fault, not a refusal of the owner, whose proposal
+            # is already ledgered (ARCH-15-001).
+            raise VultronWiringError(
+                f"{self.name}: {TRIGGER_FACTORY_UNAVAILABLE} to make the"
+                f" ownership-transfer Offer of case '{self.case_id}'"
             )
-            return Status.FAILURE
-        try:
+        # Not caught: see the class docstring.  Built (which stores it),
+        # queued and committed in one transaction, so a failed commit takes
+        # the queued Offer back out: no transferee is sent an Offer the
+        # ledger does not record (CLP-07-015, ADR-0146).
+        with cast(CaseOutboxPersistence, self.datalayer).transaction():
             activity_id, activity_blob = self._call_factory()
             self._emit_through_seam(activity_id, activity_blob)
-        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
-            self.feedback_message = f"ForwardOfferToTransfereeNode failed: {e}"
-            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
-            return Status.FAILURE
+            self._record_sent(activity_id, activity_blob)
         self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
 
@@ -192,7 +212,7 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
         assert self.actor_id is not None
         authorship = delegated_authorship(
             doing_actor_id=self.actor_id,
-            requesting_actor_id=self.original_actor_id,
+            requesting_actor_id=self.owner_id,
         )
         return self.trigger_activity_factory.offer_case_ownership_transfer(
             case_id=self.case_id,
@@ -201,19 +221,34 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
             to=[self.transferee_id],
             attributed_to=authorship.attributed_to,
             end_time=self.end_time,
-            in_reply_to=self.offer_id,
+            id_=ownership_offer_id(
+                self.actor_id, self.case_id, self.proposal_id, self.owner_id
+            ),
+        )
+
+    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
+        """Commit the queued Offer as its one canonical entry (SYNC-09-002)."""
+        assert self.actor_id is not None
+        commit_emitted_activity(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            actor_id=self.actor_id,
+            case_id=self.case_id,
+            activity_id=activity_id,
+            activity_blob=activity_blob,
+            semantic_type=OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE,
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
-            "%s: CaseActor '%s' forwarded ownership-transfer offer '%s'"
-            " to transferee '%s' in reply to recorded offer '%s'"
-            " (CM-21-005, CM-21-018)",
+            "%s: CASE_MANAGER '%s' offered case '%s' to '%s' as Offer '%s',"
+            " made from '%s''s proposal '%s' (CM-21-005, ADR-0148)",
             self.name,
             self.actor_id,
-            activity_id,
+            self.case_id,
             self.transferee_id,
-            self.offer_id,
+            activity_id,
+            self.owner_id,
+            self.proposal_id,
         )
 
 
@@ -222,8 +257,8 @@ __all__ = [
     "AcceptCaseOwnershipTransferNode",
     "AcceptRecordedOwnershipOfferNode",
     "EmitAcceptCaseOwnershipTransferNode",
-    "EmitOfferCaseOwnershipTransferNode",
+    "EmitProposeCaseOwnershipTransferNode",
     "EmitRejectCaseOwnershipTransferNode",
     "EmitWithdrawCaseOwnershipTransferNode",
-    "ForwardOfferToTransfereeNode",
+    "MakeOwnershipTransferOfferNode",
 ]

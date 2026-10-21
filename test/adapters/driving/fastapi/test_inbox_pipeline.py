@@ -9,7 +9,7 @@ from vultron.adapters.driving.fastapi.inbox_pipeline import (
     MAX_REQUEUE_ATTEMPTS,
     InboxPipeline,
 )
-from vultron.adapters.driving.fastapi.inbox_staging import hold_activity
+from vultron.adapters.inbox_staging import hold_activity
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.protocols import PersistableModel

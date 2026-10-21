@@ -24,6 +24,7 @@ from test.support.inbox_hand_back import (
     RecordingInboxHandBack,
     deliver_handed_back,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case import VulnerabilityCase
@@ -42,7 +43,6 @@ from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
 )
 from vultron.errors import VultronBTInternalError
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -172,7 +172,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         activity = announce_log_entry_activity(
             wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI]
         )
-        event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
         # The inbox adapter always sets receiving_actor_id in production; set
         # it here so the reject is enqueued against the receiving actor's
         # outbox (matching send_announce_log_entry's explicit-actor queueing).
@@ -198,7 +198,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             "object": first_entry.model_dump(mode="json", by_alias=True),
         }
         parsed = parse_activity(body)
-        event = cast(AnnounceLogEntryReceivedEvent, extract_event(parsed))
+        event = cast(AnnounceLogEntryReceivedEvent, received_event(parsed))
         assert (
             event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
         )
@@ -389,7 +389,7 @@ class TestOutOfOrderAnnounceBuffering:
         activity = announce_log_entry_activity(
             wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI]
         )
-        return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        return cast(AnnounceLogEntryReceivedEvent, received_event(activity))
 
     def _chain(
         self, case: VulnerabilityCase, length: int
@@ -658,7 +658,7 @@ class TestPreGenesisAnnounceBuffering:
         activity = announce_log_entry_activity(
             wire_entry, actor=ACTOR_URI, to=[RECEIVER_URI]
         )
-        event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
         return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
     @pytest.mark.spec("SYNC-15-001")
@@ -732,7 +732,7 @@ class TestAnnounceLedgerEntryDisposition:
         activity = announce_log_entry_activity(
             wire_entry, actor=actor, to=[RECEIVER_URI]
         )
-        event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
         return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
     def _seed_case_managed_by(self, dl, manager_id: str) -> None:
@@ -977,7 +977,7 @@ class TestUnaddressedAnnounceActsOnNothing:
         )
         copy = cast(
             AnnounceLogEntryReceivedEvent,
-            extract_event(
+            received_event(
                 announce_log_entry_activity(
                     wire_entry,
                     actor=ACTOR_URI,

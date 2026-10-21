@@ -32,9 +32,7 @@ the embargo trees (RSH-01-003, RSH-04-004).
     ├─ CarriedObjectInTargetCaseNode               # this case only (HP-08-007)
     ├─ CheckCsEphemeralStateNode                   # pX ephemeral guard (CSB-17-012, ISSUE-2524)
     ├─ CheckCsHistoryPrefixNode                    # history prefix guard (CSB-17-005, ISSUE-2524)
-    ├─ FilterCsEmDimensionNode                     # per-dim EM adjudication (RSH-05, ISSUE-2256)
-    ├─ FilterCsPxaDimensionNode                    # per-dim PXA adjudication (RSH-05, ISSUE-2256)
-    ├─ FinalizeCsFilterNode                        # whole-refusal gate; FAILURE if nothing new
+    ├─ CheckCaseStatusAcceptableNode               # accept whole or refuse whole (RSH-09-005)
     └─ GuardedCommitOrSkip                         # declined off the CASE_MANAGER (CLP-10-006)
 
 Per issue #758 (BT-SM Integration: AddCaseStatusToCaseReceivedUseCase),
@@ -59,10 +57,8 @@ from vultron.core.behaviors.sender_guard import SenderCheckContext
 from vultron.core.behaviors.status.nodes import (
     CheckCaseStatusIdempotencyNode,
 )
-from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
-    FilterCsEmDimensionNode,
-    FilterCsPxaDimensionNode,
-    FinalizeCsFilterNode,
+from vultron.core.behaviors.status.nodes.case_status_acceptance import (
+    CheckCaseStatusAcceptableNode,
 )
 from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
     CheckCsEphemeralStateNode,
@@ -82,7 +78,7 @@ def add_case_status_tree(
 
     Handles receipt of an ``Add(CaseStatus, VulnerabilityCase)`` activity at
     a participant replica, from the case's CASE_MANAGER (RSH-04-005).  After
-    the factory's intake and guards, seven precondition guards run in a
+    the factory's intake and guards, five precondition guards run in a
     Sequence:
 
     1. Idempotency check — fail fast if the status is already present.
@@ -92,13 +88,10 @@ def add_case_status_tree(
        constraint (CSB-17-012, ISSUE-2524).
     4. History-prefix guard — rejects single-step PXA transitions that would
        produce an invalid CS history prefix (CSB-17-005, ISSUE-2524).
-    5. Per-dimension EM adjudication — accept valid advances, carry forward
-       refused EM; returns FAILURE when the case is not found in the DataLayer
-       (CLP-10-009), otherwise SUCCESS (RSH-05, ISSUE-2256).
-    6. Per-dimension PXA adjudication — accepts monotone-forward PXA moves,
-       carries forward refused PXA; always returns SUCCESS (RSH-05, ISSUE-2256).
-    7. Whole-refusal gate — returns FAILURE if no dimension carries new state;
-       returns SUCCESS otherwise, publishing the filtered CaseStatus.
+    5. Acceptance — the status is accepted as sent when its EM is the case's
+       and its P/X/A confirms or advances the case's, and refused whole
+       otherwise; also FAILURE when the case or the status cannot be resolved
+       (CLP-10-009, RSH-09-005).
 
     The tree has no effects: a replica writes no case state on receipt and
     takes the status from the ledger fan-out (RSH-08-003), and it asks for no
@@ -156,13 +149,11 @@ def add_case_status_tree(
                 status_id=status_id,
                 status_obj_fallback=status_obj,
             ),
-            FilterCsEmDimensionNode(
+            CheckCaseStatusAcceptableNode(
                 case_id=case_id,
                 status_id=status_id,
                 status_obj_fallback=status_obj,
             ),
-            FilterCsPxaDimensionNode(),
-            FinalizeCsFilterNode(),
         ],
     )
     logger.debug(

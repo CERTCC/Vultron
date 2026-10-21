@@ -28,6 +28,8 @@ import pytest
 from py_trees.common import Status
 
 from test.support.embargo_register import terminate
+from test.support.received import received_event
+from test.support.refusal_notice import assert_no_refusal_notice
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -41,6 +43,10 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_termination import (
+    EmbargoTermination,
+    ThreatSignal,
+)
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_SEMANTIC_TYPE,
     INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
@@ -57,6 +63,7 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.errors import VultronBTInternalError
+from vultron.wire.as2.parser import parse_activity
 
 from .test_embargo_relay_replay import (
     BYSTANDER,
@@ -186,12 +193,16 @@ def test_the_owner_rejecting_one_of_two_revisions_keeps_the_other_open():
 
 
 @pytest.mark.spec("EMB-04-002")
+@pytest.mark.spec("MSM-07-009")
+@pytest.mark.spec("EMB-13-005")
 @pytest.mark.spec("TB-06-007")
 def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
-    """EJ with P/X/A set terminates (ET) in every store, not ACTIVE again.
+    """EJ with P/X/A set ends EXITED in every store, not ACTIVE again.
 
     The owner's ``Reject(EmbargoEvent, target=Case)`` of the last open
-    revision (ADR-0122, EMB-04-002).
+    revision (ADR-0122, EMB-04-002): the revision ends ``REJECTED`` and the
+    embargo ``TERMINATED`` with the threat signal as its cause, as two
+    entries every replica copies (MSM-07-009, EMB-13-005).
     """
     net = _Network("https://example.org/cases/answer-after-disclosure")
     revision = _propose(net, "late", 90)
@@ -222,11 +233,28 @@ def test_the_owner_rejecting_a_revision_after_disclosure_ends_the_embargo():
         assert case.current_status.em.state == EM.EXITED, actor_id
         assert case.active_embargo_id is None, actor_id
         assert case.proposed_embargo_ids == [], actor_id
-        # Cancelled by the termination, not rejected (EP-08-004, ADR-0124).
+        # Rejected as decided, then the embargo terminated (MSM-07-009).
         assert case.embargo_register_status(revision) is (
-            EmbargoRegisterStatus.CANCELLED
+            EmbargoRegisterStatus.REJECTED
         ), actor_id
-    assert EMBARGO_TEARDOWN_SEMANTIC_TYPE in _semantic_types(net, BYSTANDER)
+        assert case.embargo_register_status(net.initial_embargo_id) is (
+            EmbargoRegisterStatus.TERMINATED
+        ), actor_id
+        assert case.embargo_termination == EmbargoTermination.threat(
+            [ThreatSignal.P]
+        ), actor_id
+    entries = sorted(
+        (
+            obj
+            for obj in net.stores[BYSTANDER].list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+        ),
+        key=lambda entry: entry.log_index,
+    )
+    types = [str(entry.semantic_type) for entry in entries]
+    assert types.index("reject_embargo_proposal_on_case") < types.index(
+        EMBARGO_TEARDOWN_SEMANTIC_TYPE
+    )
 
 
 @pytest.mark.spec("BT-17-001")
@@ -411,6 +439,10 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     assert em_before == EM.REVISE
 
     net.receive(MANAGER, body)
+    # A late-Accept arm answers the delivery itself (CLP-10-026).
+    assert_no_refusal_notice(
+        net.stores[MANAGER], manager=MANAGER, refused_id=str(body["id"])
+    )
     _deliver_all(net, OWNER)
 
     manager_record = cast(
@@ -545,6 +577,10 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
         )
 
     net.receive(MANAGER, body)
+    # A late-Accept arm answers the delivery itself (CLP-10-026).
+    assert_no_refusal_notice(
+        net.stores[MANAGER], manager=MANAGER, refused_id=str(body["id"])
+    )
     _deliver_all(net, OWNER)
 
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
@@ -637,6 +673,10 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
     dl_mgr = net.stores[MANAGER]
 
     net.receive(MANAGER, body)
+    # A late-Accept arm answers the delivery itself (CLP-10-026).
+    assert_no_refusal_notice(
+        net.stores[MANAGER], manager=MANAGER, refused_id=str(body["id"])
+    )
     _deliver_all(net, OWNER)
 
     # The replica's consent row is unchanged: the frozen row timed out
@@ -671,6 +711,64 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
     assert snapshot["object"]["actor"] == BYSTANDER
     assert snapshot == read_sealed_body_dict(dl_mgr, committed.log_object_id)
     assert noop_entries[0].payload_snapshot == snapshot
+
+
+@pytest.mark.spec("EMB-17-004")
+@pytest.mark.spec("IE-10-001")
+@pytest.mark.spec("VM-08-002")
+def test_a_resent_late_accept_without_evidence_keeps_its_acknowledgement():
+    """A resend of the archived late Accept is routed with no received body.
+
+    The acknowledgement already recorded for that Accept stands: nothing new
+    is committed, and the resend is not an internal error.
+    """
+    net = _Network("https://example.org/cases/answer-noop-late-accept-resend")
+    body, _accept_id, _bystander_pid, _revision_id = (
+        _late_accept_on_an_exited_embargo(net)
+    )
+    net.receive(MANAGER, body)
+    resend = received_event(
+        parse_activity(body),
+        receiving_actor_id=MANAGER,
+        received_evidence=None,
+    )
+
+    net.receive_event(MANAGER, resend)
+
+    assert (
+        _semantic_types(net, MANAGER).count(INVITE_EXPIRED_NOOP_SEMANTIC_TYPE)
+        == 1
+    )
+
+
+@pytest.mark.spec("CLP-10-026")
+@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("IE-10-001")
+def test_a_late_accept_with_no_body_and_no_acknowledgement_is_refused():
+    """With no received body and nothing recorded, the arm cannot answer.
+
+    The acknowledgement carries the Accept inline, so a resend routed without
+    its body is answered only by an acknowledgement already recorded.  With
+    none, the arm's condition does not hold (CLP-10-026): the delivery falls
+    to the late-Accept guard and is refused, a sender-caused verdict, not an
+    internal error, and nothing is committed.
+    """
+    net = _Network("https://example.org/cases/answer-late-accept-no-body")
+    body, _accept_id, _bystander_pid, _revision_id = (
+        _late_accept_on_an_exited_embargo(net)
+    )
+    resend = received_event(
+        parse_activity(body),
+        receiving_actor_id=MANAGER,
+        received_evidence=None,
+    )
+
+    verdict = net.receive_event(MANAGER, resend)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
+    assert INVITE_EXPIRED_NOOP_SEMANTIC_TYPE not in _semantic_types(
+        net, MANAGER
+    )
 
 
 @pytest.mark.spec("CLP-10-026")

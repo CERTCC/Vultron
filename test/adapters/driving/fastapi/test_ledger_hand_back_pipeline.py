@@ -60,6 +60,7 @@ from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     announce_vulnerability_case_activity,
 )
+from vultron.wire.as2.parser import parse_received_body
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 pytestmark = pytest.mark.integration
@@ -157,7 +158,8 @@ def _assert_handed_back_from_case_manager(
         assert isinstance(record, ReceivedActivityRecord), (
             f"{entry.id_} was not handed back"
         )
-        announce = record.activity
+        # Archived as the body the hand-back delivered (ADR-0149).
+        announce = parse_received_body(record.received_body)
         assert _as_id(getattr(announce, "actor", None)) == _CASE_MANAGER
         assert _as_id(getattr(announce, "object_", None)) == entry.id_
 

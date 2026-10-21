@@ -17,7 +17,7 @@
 
 import types
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import (
     Annotated,
@@ -431,8 +431,9 @@ def _as_id(obj: Any) -> str | None:
 
     - If *obj* is ``None``, returns ``None``.
     - If *obj* has an ``id_`` attribute, returns ``obj.id_``.
-    - If *obj* is a ``dict`` (an inline object as stored), returns its ``id_``
-      or ``id`` string, so an inline case is named by its URI rather than by the
+    - If *obj* is a mapping (an inline object as stored, or as a received
+      activity's read-only view hands it out), returns its ``id_`` or ``id``
+      string, so an inline case is named by its URI rather than by the
       ``str()`` of the whole mapping.
     - Otherwise returns ``str(obj)``.
 
@@ -441,7 +442,7 @@ def _as_id(obj: Any) -> str | None:
     """
     if obj is None:
         return None
-    id_ = obj.get("id_") or obj.get("id") if isinstance(obj, dict) else None
+    id_ = obj.get("id_") or obj.get("id") if isinstance(obj, Mapping) else None
     id_ = id_ or getattr(obj, "id_", None)
     if isinstance(id_, str):
         return id_
