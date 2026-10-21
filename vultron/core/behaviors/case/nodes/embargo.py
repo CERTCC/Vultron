@@ -191,12 +191,10 @@ class InitializeCreationEmbargoNode(
     #4152).  A contest with no resolvable reporter fails before the
     initialization commit, leaving the case at ``EM.NONE``.
 
-    A registered revision owes a relay (EP-04-011): the same commit stores a
-    :class:`PendingCreationTimeRevisionRelay` naming the loser, the report,
-    this CASE_MANAGER and a freshly minted id for its ``Invite``, which
-    ``RelayCreationTimeRevisionNode`` reads from the store.  Committing both
-    together means no failure leaves a registered revision with no relay
-    owed, nor a relay owed for a revision never registered (#4121, #4156).
+    A registered revision owes a relay (EP-04-011), which
+    ``RelayCreationTimeRevisionNode`` sends later in the same creation act
+    (ADR-0146): a failed relay rolls this registration back with it, so no
+    failure leaves a registered revision that was never relayed.
 
     The transition itself is validated by the lifecycle service, not by an
     upstream guard (CSB-16, EMB-18-001).  The once-per-case guard ahead of
@@ -328,18 +326,11 @@ class InitializeCreationEmbargoNode(
     def _revision(
         self, case: VulnerabilityCase, candidate: CreationTimeRevisionCandidate
     ) -> CreationRevision:
-        """Name the revision's proposer and the relay it owes (EP-04-011)."""
+        """Name the revision's proposer (MSM-07-005, #4152)."""
         assert self.datalayer is not None
-        assert self.actor_id is not None
         proposer_id, _winner = creation_revision_parties(
             self.datalayer, case, candidate.losing_source, self._report_id
         )
-        # creation_revision_parties refuses a missing report id.
-        assert self._report_id is not None
         return CreationRevision(
-            embargo=candidate.embargo,
-            proposer_id=proposer_id,
-            relay=candidate.relay_obligation(
-                case.id_, self._report_id, self.actor_id
-            ),
+            embargo=candidate.embargo, proposer_id=proposer_id
         )

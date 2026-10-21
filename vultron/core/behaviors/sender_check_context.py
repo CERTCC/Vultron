@@ -34,6 +34,7 @@ __all__ = [
     "AuthoredCaseProposal",
     "AuthoredNote",
     "AuthoredObject",
+    "AuthoredParticipantRecord",
     "CaseBootstrapRequest",
     "CaseProposalRequest",
     "ClosedSenderCheck",
@@ -156,8 +157,25 @@ class AuthoredCaseProposal:
     proposal_id: str
 
 
+@dataclass(frozen=True)
+class AuthoredParticipantRecord:
+    """An ``AUTHOR`` sender must be the participant this record names.
+
+    The record's ``attributed_to`` is the participant it belongs to, so a
+    received ``Add(ParticipantStatus)`` onto it is the sender's statement
+    about itself (RSH-08-007).
+
+    Attributes:
+        participant_id: The participant record the status is added to.
+    """
+
+    participant_id: str
+
+
 #: The object an ``AUTHOR`` sender must have written.
-AuthoredObject = AuthoredNote | AuthoredCaseProposal
+AuthoredObject = (
+    AuthoredNote | AuthoredCaseProposal | AuthoredParticipantRecord
+)
 
 
 @dataclass(frozen=True)

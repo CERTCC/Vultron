@@ -1,0 +1,11 @@
+{#-
+  Extends the Material theme's base template. Each block below adds to the
+  theme's own and calls super(), so a theme upgrade keeps its markup.
+-#}
+{% extends "base.html" %}
+
+{#- The page-type badge sits above the page's title (DF-11-018, ADR-0136). -#}
+{% block content %}
+  {% include "partials/page_type.html" %}
+  {{ super() }}
+{% endblock %}

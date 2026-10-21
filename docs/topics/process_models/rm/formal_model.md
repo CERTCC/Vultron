@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
+page_type: explanation
 description: >
   The formal definition of the RM model, including the state subsets used on the Model Interactions pages.
 ---

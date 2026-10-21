@@ -730,9 +730,11 @@ class BTBridge:
                 "is_leader",
                 "wire_render_port",
                 # Published by ResolveCreationTimeRevisionNode, read by
-                # InitializeCreationEmbargoNode (EP-04-011).  The writer ticks
-                # only on the creation arm, so a redelivery that skips that arm
-                # would otherwise hand the reader the previous execution's value.
+                # InitializeCreationEmbargoNode and RelayCreationTimeRevisionNode
+                # (EP-04-011).  The writer ticks only on the creation arm, so a
+                # redelivery that skips that arm would otherwise hand the
+                # readers the previous execution's value, and the relay would
+                # send an Invite no registration in this act asked for.
                 "creation_time_revision_candidate",
                 # Published by the RM adjudication guards
                 # (CheckParticipantStatusAcceptableNode,

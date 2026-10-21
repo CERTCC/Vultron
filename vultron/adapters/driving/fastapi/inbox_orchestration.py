@@ -50,7 +50,7 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
 )
 from vultron.adapters.driving.fastapi.inbox_queue_drain import (
     drain_inbox_queue,
-    warn_if_rejected,
+    log_if_rejected,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.inbox_staging import (
@@ -621,7 +621,7 @@ async def run_inbox_pipeline(
             outcome.status,
             outcome.context_id,
         )
-        warn_if_rejected(outcome, actor_id, replayed=False)
+        log_if_rejected(outcome, actor_id, replayed=False)
 
         # Replay what this delivery, or an earlier one, queued: activities
         # pushed back by the post-bootstrap replay, and held ledger

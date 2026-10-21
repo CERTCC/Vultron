@@ -2,6 +2,7 @@
 description: How large the Vultron protocol state space is for each participant role and for a whole case, and why coordination keeps it tractable.
 stakeholder_type: [process-researcher]
 level: 500
+page_type: explanation
 ---
 
 # About the Size of the Protocol State Space

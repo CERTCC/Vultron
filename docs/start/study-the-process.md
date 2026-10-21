@@ -4,6 +4,7 @@ description: >
   works and how to measure and improve it.
 stakeholder_type: [process-researcher]
 level: 100
+page_type: routing
 ---
 
 # You study how vulnerability disclosure works and want the models behind it

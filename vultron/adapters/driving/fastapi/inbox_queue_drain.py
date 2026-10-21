@@ -54,16 +54,30 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 logger = logging.getLogger(__name__)
 
 
-def warn_if_rejected(
+def log_if_rejected(
     outcome: InboxOutcome, actor_id: str, *, replayed: bool
 ) -> None:
-    """Log a rejected outcome at WARNING (UCORG-05-013).
+    """Log a rejected outcome: WARNING, or INFO if unhandled (UCORG-05-013).
 
     Every outcome is logged at DEBUG; a refusal is also logged here so it is
     visible in an actor log at the default level. ``processed`` and
-    ``deferred`` stay at DEBUG — both are expected, routine outcomes.
+    ``deferred`` stay at DEBUG — both are expected, routine outcomes.  An
+    ``unhandled`` outcome (no use case found) is logged at INFO: the
+    receiver does not handle the message, which does not make it an anomaly
+    (IO-01-005, SE-05-002).
     """
     if outcome.status is not InboxOutcomeStatus.REJECTED:
+        return
+    if outcome.unhandled:
+        logger.info(
+            "Inbox activity not handled (actor_id=%s activity_id=%s"
+            " context_id=%s replayed=%s): %s",
+            actor_id,
+            outcome.activity_id,
+            outcome.context_id,
+            replayed,
+            outcome.failure_reason,
+        )
         return
     logger.warning(
         "Inbox activity rejected (actor_id=%s activity_id=%s context_id=%s"
@@ -415,7 +429,7 @@ def drain_inbox_queue(
                 outcome.status,
                 outcome.context_id,
             )
-            warn_if_rejected(outcome, actor_id, replayed=True)
+            log_if_rejected(outcome, actor_id, replayed=True)
             attempt.settle_rejection(outcome)
 
             if attempt.failure is not None and not attempt.permanent:

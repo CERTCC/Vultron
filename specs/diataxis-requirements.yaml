@@ -14,9 +14,18 @@ groups:
   - id: DF-01-001
     priority: SHOULD
     kind: process
+    adr:
+      - ADR-0136
     statement: >-
-      Organize the main documentation into the four Diátaxis categories: Tutorials, How-to
-      guides, Reference, and Explanation.
+      Each reader-facing page SHOULD be one of the four Diátaxis content types —
+      tutorial, how-to guide, explanation or reference — and declare it as its
+      `page_type` (DF-11-018); the content types label pages and need not organize the
+      site's navigation.
+    rationale: >-
+      A reader arriving from search learns what kind of page they landed on from the
+      page itself, while the navigation is free to group pages by subject and reader
+      (ADR-0136). Keeping Diátaxis as a per-page property preserves its authoring
+      discipline (DF-01-002 through DF-01-004) without making it the site's top level.
   - id: DF-01-002
     priority: MUST
     kind: process
@@ -941,6 +950,79 @@ groups:
     verification: >-
       The DF-11-015 fixture test confirms the rendered member page carries no
       navigation-order footer, and that a page on no thread still carries it.
+  - id: DF-11-018
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      Every reader-facing `docs/` page (DF-11-001) MUST declare exactly one `page_type`
+      in its YAML frontmatter, one of `tutorial`, `how-to`, `explanation`,
+      `reference` or `routing`, where `routing` is for a page that mainly gives
+      directions — the home page, the start pages, and indexes that only route. A
+      page's `page_type` is independent of its `contents:` shape (DF-11-005): an index
+      whose prose mostly explains is `explanation`. A project working-record page
+      (DF-11-003) and an `{% include-markdown %}` fragment (DF-11-010) MUST NOT declare
+      a `page_type`.
+    rationale: >-
+      Once the navigation stops grouping pages by Diátaxis type, the type survives
+      only as a declaration on the page. A required key makes a missing one a fault
+      rather than a silent gap, for the same reason `contents:` is required on landing
+      pages. The working record's door already says what kind of page it is, and a
+      fragment takes its declarations from its hosts.
+    verification: >-
+      `test/metadata/docs/test_page_frontmatter.py::TestPageTypeSchema` covers the
+      permitted values and rejects every other spelling;
+      `TestCheck::test_reader_facing_page_without_a_page_type_fails`,
+      `TestCheck::test_working_record_page_with_a_page_type_fails` and
+      `TestFragments::test_fragment_declaring_a_page_type_is_reported` cover the
+      check; `test_committed_tree_passes` runs it over the committed tree, and
+      `docs-frontmatter` runs as a pre-commit hook and in CI.
+  - id: DF-11-019
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      The built site MUST show, on every reader-facing page whose `page_type`
+      (DF-11-018) is not `routing`, a badge naming that type, rendered from the page's
+      own frontmatter, and MUST show no badge on a `routing` page. A page-type badge
+      MUST NOT be written by hand beside a link unless a check fails when it differs
+      from the linked page's declared `page_type`.
+    rationale: >-
+      A badge tells a reader arriving from search what kind of page they landed on. A
+      badge read from the page's own declaration cannot drift from it; a hand-written
+      badge beside a link restates the target's declaration and drifts silently when
+      the target changes type. A routing page only gives directions, so a badge there
+      would be noise.
+    verification: >-
+      `test/metadata/docs/test_page_type_badge.py` renders the badge template for
+      every `page_type`, confirming the label for each rendered type and no output for
+      `routing`, an undeclared page or a malformed value; confirms a stylesheet rule
+      for every rendered type, that the theme override includes the template in the
+      content block every page renders, and that no reader-facing page replaces that
+      template; and fails on any `docs/` Markdown file that writes the badge markup
+      by hand. With
+      `test/metadata/docs/test_page_frontmatter.py::test_committed_tree_passes`
+      (every reader-facing page declares a valid `page_type`), a page that rendered
+      the wrong badge or none would fail one of these.
+  - id: DF-11-020
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      A navigation section MUST NOT hold both a page about the Vultron protocol and a
+      page about the reference implementation.
+    rationale: >-
+      A reader who wants the protocol must be able to trust that every page in a
+      protocol section binds them or explains what binds them; a reference-
+      implementation page beside them reads as part of the protocol. The nav is the
+      only place the two are grouped together. The Diátaxis-type sections predate
+      the rule and mix the two until #4684 replaces them; until #4946 adds a check
+      over the nav, it is a review rule for new and moved pages.
+    verification_debt: '#2571'
+    tracking_issue: '#4946'
 - id: DF-12
   title: Protocol Specification normative text rendered from the requirement tiers
   description: >-

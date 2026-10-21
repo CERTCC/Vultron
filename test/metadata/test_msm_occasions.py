@@ -588,10 +588,41 @@ def test_fix_readiness_row_reads_as_specified(table):
         "| a Vendor has a fix ready"
         " | `Add(ParticipantStatus)[target=CaseParticipant]`"
         " | the case manager"
-        " | a participant (usually: vendor)"
+        " | the case manager or the case owner or the participant status's"
+        " author (usually: vendor)"
         " | `vfState` = `VF`"
         " | [Fix Readiness (CF)](../cs.md#fix-readiness) |"
     )
+
+
+@pytest.mark.spec("MSM-06-001")
+@pytest.mark.spec("MSM-08-005")
+@pytest.mark.spec("SE-05-002")
+def test_an_unhandled_entry_renders_not_handled_on_its_page():
+    """The generator renders an entry no received use case handles.
+
+    The fix-readiness entry stands in for a recognized type with no use
+    case: its rows still render, through the YAML, with "Sent by" stating
+    that it is not handled rather than failing on a missing sender rule.
+    """
+    semantics = MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+    registry = [
+        dataclasses.replace(e, use_case_class=None)
+        if e.semantics is semantics
+        else e
+        for e in SEMANTIC_REGISTRY
+    ]
+
+    contents = gen.desired_contents(_ROOT, registry)
+
+    row = next(
+        line
+        for line in contents[f"{gen.FRAGMENT_DIR}/lookup-cs.md"].splitlines()
+        if "fix-readiness" in line
+    )
+    assert " | not handled (usually: vendor) | " in row
+    section = contents[f"{gen.FRAGMENT_DIR}/sections/fix-readiness.md"]
+    assert "- **Sent by:** not handled (usually: vendor)" in section
 
 
 def test_whole_table_is_every_slice_under_its_group_title(table):

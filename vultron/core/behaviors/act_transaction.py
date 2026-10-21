@@ -148,6 +148,48 @@ class ActTransaction(py_trees.composites.Sequence):
             raise _RolledBack
 
 
+class RefusalActTransaction(ActTransaction):
+    """An :class:`ActTransaction` in a refusal arm: its failure fails the tree.
+
+    A refusal arm sits in a ``Selector``, which tries the next arm when one
+    fails, and the arms after a refusal admit.  A refusal whose act rolled
+    back must not fall through to them, so where an ``ActTransaction``
+    returns ``FAILURE``, this one raises :class:`RefusedActRolledBackError`
+    once the block is rolled back.  ``BTBridge`` reports the tree as an
+    internal error and nothing the act wrote is kept, so the delivery is
+    neither admitted nor declined (``notes/bt-pitfalls.md`` § "A Refusal Arm
+    in a Selector Fails Toward 'Admit'", CLP-07-015).
+    """
+
+    def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
+        for node in super().tick():
+            if node is self and self.status != Status.SUCCESS:
+                raise RefusedActRolledBackError(
+                    f"{self.name}: the refusal failed and was rolled back"
+                    f" ({self._failure_reason()}); failing the tree rather"
+                    " than trying the next arm"
+                )
+            yield node
+
+    def _failure_reason(self) -> str:
+        """The failed child's feedback, or this node's own."""
+        failed = next(
+            (c for c in self.children if c.status == Status.FAILURE), None
+        )
+        if failed is not None:
+            return f"{failed.name}: {failed.feedback_message or 'failed'}"
+        return self.feedback_message or "a step failed"
+
+
+class RefusedActRolledBackError(RuntimeError):
+    """A :class:`RefusalActTransaction` failed, so its tree must fail.
+
+    A plain ``RuntimeError``, as :class:`ActTransactionError` is: the refusal
+    was decided, so its failure is the CASE_MANAGER's own fault, never a
+    protocol outcome.
+    """
+
+
 class OneActExemption(BaseModel):
     """One recorded decision that a received tree commits outside one act.
 
@@ -217,5 +259,7 @@ __all__ = [
     "ActTransaction",
     "ActTransactionError",
     "OneActExemption",
+    "RefusalActTransaction",
+    "RefusedActRolledBackError",
     "received_act_stage",
 ]

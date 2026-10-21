@@ -32,9 +32,10 @@ CASE_MANAGER's alone (RSH-04-001, RSH-04-005).
 
     AddParticipantStatusBT (Sequence)
     ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)
-    ├─ SenderIsParticipantNode                # Sender guard from the declared rule (HP-01-008)
+    ├─ SenderRuleGuard                        # Declared sender rule (HP-01-008, RSH-08-007)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
     │   ├─ CarriedObjectInTargetCaseNode      # Guard: status of this case (HP-08-007)
+    │   ├─ [OnBehalfStatusGuard]              # Another's record: only v→V/d→D (RSH-08-007)
     │   ├─ CheckParticipantStatusAcceptableNode  # Guard: accept whole or refuse whole (RSH-09)
     │   └─ RefusalEffects → IfCaseManager[EmitRMGapNoteNode]  # Note on a wholly refused regression (RSH-06-004)
     └─ AddParticipantStatusBTAct (ActTransaction, only if case_id)  # One act (CLP-07-015)
@@ -100,7 +101,10 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsCaseOwnerNode,
     SenderRule,
 )
-from vultron.core.behaviors.sender_guard import SenderCheckContext
+from vultron.core.behaviors.sender_guard import (
+    AuthoredParticipantRecord,
+    SenderCheckContext,
+)
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
@@ -111,12 +115,16 @@ from vultron.core.behaviors.status.nodes import (
 from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
     PxaEmInvariantDiagnosticNode,
 )
+from vultron.core.behaviors.status.nodes.status_subject import (
+    on_behalf_status_guard,
+)
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
 )
 from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
+from vultron.primitives import same_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +166,7 @@ def add_participant_status_tree(
     call_out: StatusAuthorizationCallOutBundle = STATUS_AUTHORIZATION_DETERMINISTIC,
     *,
     sender_rule: SenderRule,
+    target_actor_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddParticipantStatus workflow.
 
@@ -216,6 +225,12 @@ def add_participant_status_tree(
             approves all non-CASE_OWNER updates (historical behavior).
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
+        target_actor_id: The actor the receiver's stored record of the
+            target participant names.  When it is not the sender, the
+            status is an on-behalf assertion, and the tree admits only the
+            v→V or d→D a CASE_MANAGER or Case Owner may assert for this
+            actor (RSH-08-007, PRM-06-003/004).  The sender guard has
+            already refused any other sender of such a status.
 
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.
@@ -252,22 +267,44 @@ def add_participant_status_tree(
         sender_rule=sender_rule,
         # A replica takes the update from the CASE_MANAGER alone, so with no
         # CASE_MANAGER to check against it refuses (PCR-03-001, #4646).
+        # At the CASE_MANAGER the sender is the participant the target
+        # record names, or the CASE_MANAGER or Case Owner (RSH-08-007).
         sender_context=SenderCheckContext(
             sender_id=actor_id,
             case_id=tree_case_id,
             case_manager_required=True,
+            authored_object=AuthoredParticipantRecord(
+                participant_id=participant_id
+            ),
         ),
         precondition_guards=[
             # HP-08-007: a status of another case never joins this one.
+            # RSH-08-007: only the participant asserts its own status, save
+            # the on-behalf v→V and d→D of PRM-06-003/004.
             *(
                 [
                     CarriedObjectInTargetCaseNode(
                         object_id=status_id,
                         carried=status_obj,
                         case_id=tree_case_id,
+                    ),
+                ]
+                if tree_case_id
+                else []
+            ),
+            *(
+                [
+                    on_behalf_status_guard(
+                        case_id=tree_case_id,
+                        participant_id=participant_id,
+                        target_actor_id=target_actor_id,
+                        status_id=status_id,
+                        status_obj=status_obj,
                     )
                 ]
                 if tree_case_id
+                and target_actor_id is not None
+                and not same_actor_id(target_actor_id, actor_id)
                 else []
             ),
             CheckParticipantStatusAcceptableNode(

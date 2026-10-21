@@ -441,21 +441,21 @@ every exception into FAILURE, so a missing payload or store error in a decline
 arm becomes "proceed with accept" (CP-05-002). No ordering of arms fixes both this
 and the reverse error (CLP-10-009).
 
-**Fix with durable state, not structure.** Persist the decision before the side
-effect, and make its absence a precondition of the permissive arm:
+**Fix with an act that fails the tree, not structure.** Run the decision and its
+side effect in one `RefusalActTransaction`: a failure rolls both back and raises, so
+`BTBridge` fails the whole tree instead of the Selector trying the permissive arm.
+A record of the decision answers later deliveries:
 
 ```text
 Selector
-  ├─ AlreadyDeclinedArm      # record exists → decision stands; ensure the Reject went out
-  ├─ DeclineProposalArm      # Inverter(evaluate) → RECORD → emit
-  └─ AcceptProposalArm
-       ├─ CheckNoDeclineRecordNode   # FAILURE when the record exists
-       └─ <accept flow>
+  ├─ CheckDeclineRecordExistsNode  # record exists → decision stands
+  ├─ DeclineProposalArm            # Inverter(evaluate) → RefusalActTransaction[record, emit]
+  └─ <accept act>
 ```
 
-This also makes redelivery idempotent (the decision is not re-made), a lost side
-effect recoverable ("decided, nothing emitted" is a distinct state), and the
-re-emitted reason match the original.
+This also makes redelivery idempotent (the decision is not re-made), and the
+record commits with the side effect, so "decided, nothing emitted" is not a state
+the store can hold (CLP-07-015).
 
 Rules for the arm:
 
@@ -466,10 +466,8 @@ Rules for the arm:
 - **An "already answered" guard covers every state the permissive path leaves
   behind**, probing the earliest durable evidence that it began, not its last
   step.
-- **Record the id of what you sent on the decision record.** Neither the store
-  ("persisted") nor the outbox ("queued", and popped on delivery) can say whether
-  a refusal was sent. Three states: undecided, decided-but-unanswered (re-emit),
-  decided-and-answered (emit nothing).
+- **Answer a redelivery from the decision record, never the outbox.** The outbox
+  pops a delivered refusal, so "is one queued?" re-emits on every later delivery.
 - **Key every guard on the identity of the request being adjudicated**, never on
   a value the sender chooses (such as an embedded `report_id`), and write your own
   per-request evidence before the first effect. A gate keyed on a requester's

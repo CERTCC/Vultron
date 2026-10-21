@@ -28,9 +28,6 @@ from test.support.embargo_register import activate, propose, terminate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.pending_creation_time_revision_relay import (
-    PendingCreationTimeRevisionRelay,
-)
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.services.embargo_lifecycle.creation import (
@@ -435,21 +432,10 @@ def _revision(case_id: str, days: int = 90) -> as_EmbargoEvent:
 
 
 def _creation_revision(
-    case_id: str, revision: as_EmbargoEvent, proposer_id: str
+    revision: as_EmbargoEvent, proposer_id: str
 ) -> CreationRevision:
-    """*revision*, proposed by *proposer_id*, with the relay it owes."""
-    return CreationRevision(
-        embargo=revision,
-        proposer_id=proposer_id,
-        relay=PendingCreationTimeRevisionRelay(
-            case_id=case_id,
-            embargo_id=revision.id_,
-            proposal_id="urn:uuid:00000000-0000-4000-8000-000000004156",
-            losing_source="actor_default",
-            report_id="https://example.org/reports/r-1",
-            case_actor_id="https://example.org/actors/case-manager",
-        ),
-    )
+    """*revision*, proposed by *proposer_id*."""
+    return CreationRevision(embargo=revision, proposer_id=proposer_id)
 
 
 @pytest.mark.spec("EP-04-003")
@@ -467,16 +453,11 @@ def test_a_revision_is_stored_and_proposed_in_the_same_commit(
         case_id=case.id_,
         embargo=embargo,
         actor_id=owner.id_,
-        revision=_creation_revision(case.id_, revision, owner.id_),
+        revision=_creation_revision(revision, owner.id_),
     )
 
     assert [{obj.id_ for obj in batch} for batch in batches] == [
-        {
-            case.id_,
-            owner_p.id_,
-            revision.id_,
-            PendingCreationTimeRevisionRelay.build_id(case.id_),
-        }
+        {case.id_, owner_p.id_, revision.id_}
     ]
     assert (result.em_before, result.em_after) == (EM.NONE, EM.REVISE)
     stored = _stored_case(dl, case.id_)
@@ -516,7 +497,7 @@ def test_the_revision_is_consented_to_by_its_proposer_not_the_executor(
         case_id=case.id_,
         embargo=embargo,
         actor_id=executor_id,
-        revision=_creation_revision(case.id_, revision, reporter_id),
+        revision=_creation_revision(revision, reporter_id),
     )
 
     assert _consents_of(dl, reporter_p.id_) == {
@@ -548,13 +529,11 @@ def test_a_failed_revision_commit_leaves_the_revision_unstored(
                 case_id=case.id_,
                 embargo=embargo,
                 actor_id=owner.id_,
-                revision=_creation_revision(case.id_, revision, owner.id_),
+                revision=_creation_revision(revision, owner.id_),
             )
 
     _assert_untouched(dl, case.id_)
     assert dl.read(revision.id_) is None
-    # EP-04-011: the relay is owed only with the revision it relays (#4156).
-    assert dl.read(PendingCreationTimeRevisionRelay.build_id(case.id_)) is None
 
 
 @pytest.mark.spec("EP-04-004")
@@ -575,7 +554,7 @@ def test_a_revision_id_held_by_other_terms_is_refused_unchanged(
             case_id=case.id_,
             embargo=embargo,
             actor_id=owner.id_,
-            revision=_creation_revision(case.id_, revision, owner.id_),
+            revision=_creation_revision(revision, owner.id_),
         )
 
     _assert_untouched(dl, case.id_)

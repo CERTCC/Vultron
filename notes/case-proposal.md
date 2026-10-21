@@ -6,7 +6,7 @@ description: >
   Rules for changing the CaseProposal implementation: who may answer a
   proposal, the admission-gate invariants, the proposer profile on the envelope,
   native case initialization by the CASE_MANAGER, the CaseActor identity and the
-  dedicated case-actor container, durable delivery of the case announcement,
+  dedicated case-actor container, case creation as one act,
   duplicate-proposal handling, and finding the
   canonical case in exchange demos.
 related_specs:
@@ -68,26 +68,27 @@ injects the bundle in `inbox_port_factories._case_proposal_port_factory`, so the
 is reachable in production, not only in tests. Three invariants keep a refusal safe;
 the general form of each is in [bt-pitfalls](bt-pitfalls.md).
 
-1. **Persist the decision before the side effect.** `RecordProposalDeclineNode` writes
-   `CaseProposalDeclineRecord` before `EmitRejectCaseProposalNode`, and the accept arm
-   is gated on its absence (`CheckNoDeclineRecordNode`). Everything in the refusal arm
-   ahead of the record raises rather than returning `FAILURE`, because in a refusal
-   arm either status can hand control to the accept branch.
+1. **A failed refusal fails the tree.** `RecordProposalDeclineNode` and
+   `EmitRejectCaseProposalNode` run in one `RefusalActTransaction`, which rolls both
+   back and raises when either fails, so the Selector never reaches the accept arm.
+   Everything in the refusal arm ahead of the decision raises rather than returning
+   `FAILURE` too, because in a refusal arm either status can hand control to the
+   accept branch.
 2. **Key every guard on the proposal, never the report.** `report_id` is
    sender-chosen and two proposals may name one report, so a report-keyed guard
    admits an unjudged proposal as a duplicate. `CaseProposalAdmissionRecord`, written
    as the accept flow's first step, is the proposal-keyed evidence.
-3. **"Told them" comes from the record, not the outbox.** `outbox_pop` removes a
-   delivered `Reject`, so an outbox check re-emits on every delivery.
-   `CaseProposalDeclineRecord.reject_activity_id` gives `CheckRejectAlreadyAnsweredNode`
-   three states: undecided, declined-unanswered (re-emits), declined-answered.
+3. **"Already declined" comes from the record, not the outbox.** `outbox_pop` removes
+   a delivered `Reject`, so an outbox check re-emits on every delivery. The record
+   commits with its `Reject`, so `CheckDeclineRecordExistsNode` alone answers a
+   redelivery, and no state "declined, nothing queued" exists (CLP-07-015).
 
 A refusal has no channel for a reason or cause, so the `Reject` carries no `summary`
 and an unreachable backend reads as a permanent decline (#3446).
 
 The decision records name the actor owed the answer `proposer_uri`. A row
 carrying the retired `vendor_uri` key is refused
-([datalayer-design](datalayer-design.md) § "Renaming a Stored Field").
+([datalayer-design](datalayer-design.md) § "Retiring a Stored Field").
 
 Guards live in `vultron/core/behaviors/case/nodes/proposal_admission_conditions.py`;
 writes and the emit in `proposal_admission_actions.py` (BTND-07-003).
@@ -177,32 +178,27 @@ identity `http://case-actor:7999/api/v2/actors/case-actor`.
 
 ---
 
-## Durable Delivery of the Case Announcement (CP-05-005)
+## Case Creation Is One Act (CP-05-005, CLP-07-015)
 
-`Accept(CaseProposal)` and `Create(VulnerabilityCase)` must never be split: an
-`Accept` with no `Create` leaves the proposer with no case.
+The accept arm, from the admission record to the creation-time revision relay, is
+one `ActTransaction` (`CreateCaseFromProposalAct`). Rules:
 
-- Both are queued inside the creation `ActTransaction` (ADR-0146), so a `Create` that
-  cannot be queued rolls back the `Accept`, and once the act commits the durable
-  outbox retries the `Create` (OX-13). Add no retry marker for it.
-- The `Create` id is derived from the proposal (`create_case_activity_id()` in
-  `vultron/core/behaviors/case/nodes/proposal_announcement.py`), never minted, so a
-  redelivery that finds it stored queues nothing (#4146). `announced_case_id()`
-  checks the stored activity is a `Create` for *this* case, because the proposal id
-  is sender-chosen.
+- **Keep every write of the creation inside the act**, the `Accept`, the `Create`,
+  the ledger commits and the relay included. A failure then rolls back the case and
+  everything queued, so no `Accept` is sent without its `Create` and the inbox's
+  redelivery processes the proposal fresh. Do not add a stored marker or a startup
+  runner to finish a creation later: the durable outbox retries delivery (OX-13).
+- **Derive the `Create` id** from the proposal (`create_case_activity_id()` in
+  `proposal_announcement.py`), never mint it, so a redelivery names the activity its
+  first delivery queued (OX-06-002, #4146). `announced_case_id()` checks the stored
+  activity is a `Create` for *this* case, because the proposal id is sender-chosen.
+- **The relay reads what to relay from this act**, not from the store:
+  `RelayCreationTimeRevisionNode` acts only when this execution's
+  `InitializeCreationEmbargoNode` registered a revision, and reads that revision from
+  the case. See [embargo-default-semantics](embargo-default-semantics.md).
 
-### Creation-Time Revision Relay Marker (EP-04-011)
-
-Creation-time initialization runs once per case (EP-04-012), so a failed relay of the
-shortest-wins loser would never be retried by a redelivered proposal.
-`InitializeCreationEmbargoNode` writes a `PendingCreationTimeRevisionRelay` in the same
-commit that registers the revision; `RelayCreationTimeRevisionNode` relays, indexes and
-deletes it. The lifespan scan (`vultron/adapters/driving/fastapi/pending_retry.py`)
-calls `retry_pending_creation_time_revision_relays()`, which scans each hosted
-actor's own store (ADR-0073) and sends nothing until the case's `create_case` entry
-is committed (CM-14-007). The relay runs after the creation act commits, so unlike
-the `Create` it needs its own marker. See
-[embargo-default-semantics](embargo-default-semantics.md) for the relay itself.
+Rows of the retired marker types are refused at load like any deleted stored type
+([datalayer-design](datalayer-design.md) § "Retiring a Stored Field").
 
 ---
 

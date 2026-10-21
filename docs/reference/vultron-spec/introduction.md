@@ -4,6 +4,7 @@ description: >
   Sections 1 to 3 of the Vultron Protocol Specification: the introduction, the terminology, and an overview of the protocol.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 ---
 
 # Introduction and Overview

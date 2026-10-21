@@ -520,6 +520,45 @@ def test_dispatcher_fallback_declares_neither_occasion_nor_page(
         _entry(MessageSemantics.UNKNOWN, **overrides)
 
 
+@pytest.mark.spec("SE-05-002")
+def test_an_entry_may_name_no_use_case():
+    """A recognized type no received use case handles still builds."""
+    entry = _entry(use_case_class=None)
+    assert entry.use_case_class is None
+    assert entry.handled is False
+    assert _entry().handled is True
+
+
+@pytest.mark.spec("SE-05-002")
+@pytest.mark.spec("MSM-08-001")
+@pytest.mark.spec("MSM-06-002")
+@pytest.mark.parametrize(
+    ("overrides", "match"),
+    [({"occasions": ()}, "MSM-08-001"), ({"page": None}, "MSM-06-002")],
+    ids=["occasion", "page"],
+)
+def test_an_unhandled_entry_still_needs_its_occasions_and_page(
+    overrides: dict[str, Any], match: str
+):
+    """Having no use case waives nothing else an entry declares.
+
+    Its phrase is a required argument, so omitting it is already a
+    ``TypeError`` (SE-07-003); its pattern is required by the registry
+    (SE-03-001).
+    """
+    with pytest.raises(ValueError, match=match):
+        _entry(use_case_class=None, **overrides)
+
+
+@pytest.mark.spec("SE-05-002")
+@pytest.mark.spec("SE-04-002")
+@pytest.mark.parametrize("semantics", sorted(DISPATCHER_FALLBACKS))
+def test_a_dispatcher_fallback_needs_a_use_case(semantics: MessageSemantics):
+    """An unrecognized activity routes through the fallback's use case."""
+    with pytest.raises(ValueError, match="SE-04"):
+        _entry(semantics, occasions=(), page=None, use_case_class=None)
+
+
 # ---------------------------------------------------------------------------
 # Same-addressee siblings (MSM-08-011).
 # ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ description: >
   stub with real backend logic.
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
+page_type: how-to
 ---
 
 # Wiring a Capability into the Reference Implementation

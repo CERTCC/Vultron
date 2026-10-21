@@ -56,6 +56,7 @@ from vultron.core.behaviors.inbox.nodes import (
     KEY_OUTCOME_STATUS,
     KEY_PAYLOAD,
     KEY_QUEUE,
+    KEY_UNHANDLED,
 )
 
 logger = logging.getLogger(__name__)
@@ -135,6 +136,7 @@ def _read_inbox_outcome() -> InboxOutcome:
         KEY_FAILURE_REASON, access=py_trees.common.Access.READ
     )
     result_bb.register_key(KEY_EVENT, access=py_trees.common.Access.READ)
+    result_bb.register_key(KEY_UNHANDLED, access=py_trees.common.Access.READ)
 
     # No node wrote a status: the BT failed somewhere that records nothing,
     # so the payload was not processed (fail closed).
@@ -154,6 +156,11 @@ def _read_inbox_outcome() -> InboxOutcome:
         failure_reason = None
 
     try:
+        unhandled = bool(result_bb.inbox_unhandled)
+    except KeyError:
+        unhandled = False
+
+    try:
         activity_id: str | None = result_bb.inbox_event.activity_id
     except KeyError:
         # Rejected before extraction: there is no event to name.
@@ -164,6 +171,7 @@ def _read_inbox_outcome() -> InboxOutcome:
         context_id=context_id,
         activity_id=activity_id,
         failure_reason=failure_reason,
+        unhandled=unhandled,
     )
 
 

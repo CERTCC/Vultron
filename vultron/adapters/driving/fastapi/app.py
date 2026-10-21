@@ -47,9 +47,6 @@ from vultron.adapters.driving.fastapi.outbox_handler import (
 from vultron.adapters.driving.fastapi.outbox_monitor import (
     OutboxMonitor,
 )
-from vultron.adapters.driving.fastapi.pending_retry import (
-    retry_pending_creation_time_revision_relays,
-)
 from vultron.adapters.driving.fastapi.routers import demo_triggers, router
 from vultron.config import RunMode, get_config
 from vultron.logging_setup import (
@@ -224,11 +221,6 @@ def _make_lifespan(*, configure_globals: bool = True):
             # drain is running, and stop it where inline drains alone are
             # wanted.
             application.state.outbox_monitor = monitor
-
-            # Complete any creation-time embargo revision relay a previous
-            # run left owed (EP-04-011, #4121): creation-time initialization
-            # runs once per case, so nothing else would re-send it.
-            retry_pending_creation_time_revision_relays()
 
         # Replay what a previous run left in any hosted actor's inbox queue;
         # nothing else would until that actor's next delivery (IE-06-006).

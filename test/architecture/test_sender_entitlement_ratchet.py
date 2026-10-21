@@ -58,13 +58,20 @@ from vultron.semantic_registry import SEMANTIC_REGISTRY
 
 
 def _received_entries():
-    """Yield (semantics, use_case_class) for every non-UNKNOWN registry entry."""
+    """Yield (semantics, use_case_class) for every handled non-UNKNOWN entry.
+
+    An entry with no use case is recognized but not handled (SE-05-002), so
+    it has no use case to declare a sender entitlement.
+    """
     unknown_names = {
         MessageSemantics.UNKNOWN.name,
         MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT.name,
     }
     for entry in SEMANTIC_REGISTRY:
-        if entry.semantics.name not in unknown_names:
+        if (
+            entry.semantics.name not in unknown_names
+            and entry.use_case_class is not None
+        ):
             yield entry.semantics, entry.use_case_class
 
 
@@ -877,12 +884,11 @@ PERMANENT_EXEMPTIONS: frozenset[str] = frozenset(
 
 def _exemptions() -> dict[str, SenderExemption]:
     return {
-        entry.use_case_class.__name__: declared
+        use_case.__name__: declared
         for entry in SEMANTIC_REGISTRY
-        if isinstance(
-            declared := getattr(
-                entry.use_case_class, "sender_entitlement", None
-            ),
+        if (use_case := entry.use_case_class) is not None
+        and isinstance(
+            declared := getattr(use_case, "sender_entitlement", None),
             SenderExemption,
         )
     }

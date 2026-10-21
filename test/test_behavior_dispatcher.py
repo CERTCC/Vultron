@@ -10,9 +10,9 @@ from vultron.core.models.events import (
     MessageSemantics,
 )
 from vultron.core.models.report import VulnerabilityReport
-from vultron.core.models.use_case_result import HandlerResult
-from vultron.errors import (
-    VultronApiHandlerNotFoundError,
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
 )
 
 
@@ -98,6 +98,7 @@ def test_dispatch_returns_the_use_case_verdict(verdict):
 
 
 @pytest.mark.spec("UCORG-05-001")
+@pytest.mark.spec("HP-05-001")
 @pytest.mark.parametrize("not_a_verdict", [None, {"ok": True}, "applied"])
 def test_dispatch_rejects_a_use_case_that_returns_no_handler_result(
     not_a_verdict,
@@ -140,45 +141,51 @@ def test_dispatch_lets_a_handler_exception_propagate():
 
 @pytest.mark.spec("HP-02-001")
 @pytest.mark.spec("HP-02-002")
-@pytest.mark.spec("HP-05-001")
+@pytest.mark.spec("SE-05-002")
+@pytest.mark.spec("UCORG-05-012")
 def test_dispatch_refuses_a_semantics_with_no_registered_use_case():
     """The handler is resolved from ``event.semantic_type`` before any runs.
 
-    A semantics with no entry in the routing table is a contract breach the
-    dispatcher raises on (HP-05-001), not a silent no-op; no ``execute()`` is
-    reached.
+    A semantics with no use case in the routing table is recognized but not
+    handled: the dispatcher returns a ``REFUSED`` verdict saying no use case
+    was found, rather than raising (SE-05-002), and no handler ran, so the
+    verdict is not success (UCORG-05-012).
     """
     dispatcher = DirectActivityDispatcher(use_case_map={})
 
-    with pytest.raises(VultronApiHandlerNotFoundError, match="create_report"):
-        dispatcher.dispatch(_create_report_event(), MagicMock())
+    result = dispatcher.dispatch(_create_report_event(), MagicMock())
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert result.reason == "No use case found for semantics 'create_report'"
 
 
+@pytest.mark.spec("SE-05-002")
 @pytest.mark.spec("SL-03-001")
-def test_dispatch_logs_no_use_case_found_at_warning_with_context(caplog):
-    """No use case found is logged at WARNING with semantic, activity_id, actor_id.
+def test_dispatch_logs_no_use_case_found_at_info_with_context(caplog):
+    """No use case found is one INFO record with semantic, activity_id, actor_id.
 
     A recognized semantic type with no handler is a valid message the receiver
-    does not process: a signal of an implementation gap, not a failure. The log
-    is at WARNING, not ERROR (AC-1), and names the semantic type, activity_id,
-    and actor_id so the missing handler is attributable.
+    does not handle, not a failure or an anomaly, so it is logged at INFO with
+    no traceback, and names the semantic type, activity_id and actor_id so
+    the missing handler is attributable.
     """
     caplog.set_level(logging.DEBUG, logger="vultron.core.dispatcher")
     dispatcher = DirectActivityDispatcher(use_case_map={})
     event = _create_report_event()
 
-    with pytest.raises(VultronApiHandlerNotFoundError):
-        dispatcher.dispatch(event, MagicMock())
+    dispatcher.dispatch(event, MagicMock())
 
-    # Find the "No use case found" log record
-    records = [r for r in caplog.records if "No use case found" in r.message]
+    records = [
+        r for r in caplog.records if "No use case found" in r.getMessage()
+    ]
     assert len(records) == 1, "Expected exactly one 'No use case found' log"
-
     record = records[0]
-    assert record.levelname == "WARNING", "Expected WARNING level, not ERROR"
-    assert str(event.semantic_type) in record.message
-    assert event.activity_id in record.message
-    assert event.actor_id in record.message
+    assert record.levelno == logging.INFO
+    assert record.exc_info is None
+    message = record.getMessage()
+    assert str(event.semantic_type) in message
+    assert event.activity_id in message
+    assert event.actor_id in message
 
 
 @pytest.mark.spec("HP-06-001")

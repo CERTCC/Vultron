@@ -34,7 +34,7 @@ does not raise); an internal error, including a missing consent row, raises
 (CLP-10-025, ADR-0095).  A replica copies the row from the ``Update`` entry
 through the consent slot, as it copies every other consent-row change
 (CM-23-016).  The trees place both nodes behind the CASE_MANAGER role gate
-(CM-28-014, BT-17-001).
+(CM-28-016, BT-17-001).
 """
 
 from typing import ClassVar, cast
