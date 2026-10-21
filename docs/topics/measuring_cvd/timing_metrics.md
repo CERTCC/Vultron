@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+page_type: explanation
 description: >
   Intervals, dwell times, margins, and spreads that the case ledger's timestamps make measurable within one case.
 ---
@@ -40,7 +41,7 @@ The ordering measure keeps only the sign of $m$, so every timing metric below re
 
 The [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) writes one case ledger entry for each admitted change to the case.
 Every report-management status, embargo step, consent change, participant status, and case status is its own entry.
-The ledger is therefore a time-ordered history of the case, and it is the data source for every metric on this page.
+The ledger is therefore a time-ordered history of the case, and it is the data source for nearly every metric on this page; the [data gaps](#data-gaps) section names the exceptions.
 
 Each entry carries two kinds of order and two clocks.
 
@@ -48,7 +49,7 @@ Each entry carries two kinds of order and two clocks.
 |---|---|---|
 | Log index | The entry's position in the hash chain | The authoritative causal order (CLP-14-001) |
 | Commit stamp | The CASE_MANAGER's own clock at commit time (CLP-14-002, CM-02-009) | One clock for the whole case; the default for intervals |
-| Claimed time | The time the asserting participant put on its activity | Each participant's own clock, monotonic only within that participant's stream (CLP-15-003) |
+| Claimed time | The time the asserting participant put on its activity | Each participant's own clock, required to be monotonic only across a participant's causally related activities (CLP-15-003), and recorded as received even when it is not (CLP-15-005) |
 
 The commit stamp is the safer default.
 It comes from one clock, so intervals between any two entries are comparable.
@@ -68,7 +69,7 @@ Five shapes cover the proposed metrics.
 | Margin | A signed interval for an ordering desideratum | $m(\mathbf{F} \prec \mathbf{P})$ |
 | Dwell time | Total time the case spends in a state | Time with an embargo revision open |
 | Spread | Time between the first and the last participant to reach the same event | First vendor's $\mathbf{F}$ to last vendor's $\mathbf{F}$ |
-| Count or rate | How often something happens in one case | Embargo invitations that time out |
+| Count or rate | How often something happens in one case | Embargo Invites that end in a pocket veto |
 
 ---
 
@@ -81,10 +82,12 @@ They are per-participant, because Report Management (RM) is per-participant.
 |---|---|
 | Time to validate | $\mathbf{R}_i$ to $\mathbf{Va}_i$ |
 | Time to accept | $\mathbf{Va}_i$ to $\mathbf{Ac}_i$ |
-| Time to judge, for an invitee | Invitation to the participant's answer to the full-case invitation |
-| Time to join | Invitation to $\mathbf{J}_i$ |
+| Time to join, for an Invitee | Its Stub Invite to $\mathbf{J}_i$ |
+| Time to judge, for an Invitee | Its Full-Case Invite to its answer, which is $\mathbf{Va}_i$ when it accepts (CM-11-011) |
 
-The first two intervals are not measurable for the case owner from commit stamps; the [data gaps](#data-gaps) section explains why.
+An Invitee's $\mathbf{R}_i$ is its $\mathbf{J}_i$, because accepting the Stub Invite leaves it at RM Received (CM-11-001).
+For an Invitee, then, time to validate is time to judge plus the wait between joining and receiving the Full-Case Invite.
+The case owner's $\mathbf{R}$ and the reporter's $\mathbf{Ac}$ are seated when the case is created, so neither has a measurable time; the [data gaps](#data-gaps) section explains why.
 
 ---
 
@@ -95,19 +98,19 @@ Embargo Management (EM) is per-case, and Participant Embargo Consent (PEC) is pe
 
 | Metric | Definition |
 |---|---|
-| Time to embargo | Case creation to $\mathbf{E}$, usually zero because a case starts with an embargo in force |
+| Time to embargo | Case creation to $\mathbf{E}$, usually zero because a case starts with an active embargo |
 | Decision latency | A proposal to the case owner's decision on it |
 | Revision count and time in Revise | How many revisions were proposed, and the dwell time in EM Revise |
 | Planned and actual length | The embargo's end time minus $t(\mathbf{E})$, against $t(\mathbf{E_x})$ minus $t(\mathbf{E})$ |
 | Time left at exit | The embargo's end time minus $t(\mathbf{E_x})$; zero when the end time was reached |
 | Exit cause | Whether the end time was reached, or the embargo ended early, and for an early end its recorded cause |
-| Response latency | Each participant's time from embargo invitation to its answer |
-| Time-out rate | The share of embargo invitations that time out unanswered |
+| Response latency | Each participant's time from an embargo Invite to its answer |
+| Pocket-veto rate | The share of embargo Invites that move to `TIMED_OUT` at their RSVP deadline, not counting those the case's close times out |
 | Lapse count | How many participants lapsed when a revision with longer terms came into force |
 
 Time left at exit and exit cause together separate the two ways an embargo ends.
 An embargo that ends early because every fix is ready ends on its own terms.
-An embargo that ends early because of a threat signal has a margin of zero against $\mathbf{P}$, $\mathbf{X}$, or $\mathbf{A}$, and its time left at exit is what the threat cost.
+An embargo that ends early because of a threat signal has a margin of about zero against the signal that ended it, slightly negative under commit stamps because the termination is committed after the status that reported the signal, and its time left at exit is what the threat cost.
 
 ---
 
@@ -164,7 +167,7 @@ Exploit exposure measures the same race as a duration.
 |---|---|
 | Case duration | Case creation to the case being fully closed |
 | Time open after disclosure | $\mathbf{P}$ to the case being fully closed |
-| Invitations expired at close | Pending invitations that the owner's close times out |
+| Embargo Invites timed out at close | Embargo Invites still awaiting a reply that the owner's close moves to `TIMED_OUT` (CM-23-014) |
 | Ownership transfer latency | An offer to transfer case ownership to its acceptance, rejection, withdrawal, or expiry |
 
 ---
@@ -176,12 +179,14 @@ They help separate a slow case from a case whose messages went missing.
 
 | Metric | Definition |
 |---|---|
-| Gap rate | Received RM declarations that skip a step, which the receiver accepts but flags as a gap |
+| Gap rate | Received RM declarations that skip a step, which the CASE_MANAGER accepts and notes on the case (RSH-06-004) |
+| Regression count | Received RM declarations that move backward, which the CASE_MANAGER refuses and notes (RSH-06-002) |
 | Refusal count | Assertions the CASE_MANAGER refused rather than admitted |
 | Replay count | Ledger replays requested by participants whose replica fell behind |
 | Clock skew | Commit stamp minus claimed time, per participant |
 
-A rising gap rate suggests lost messages, because a gap is a forward move whose intermediate step never arrived.
+A gap is a forward move whose intermediate step the CASE_MANAGER never saw: either a message was lost, or the participant took the step locally and declared only its latest state.
+A rising gap rate is therefore a prompt to look for lost messages, not proof of them.
 A large clock skew for one participant means its claimed times cannot be trusted for intervals.
 
 ---
@@ -189,14 +194,20 @@ A large clock skew for one participant means its claimed times cannot be trusted
 ## Data gaps
 
 Most of the metrics above can be computed from the case ledger as it is.
-Four gaps limit them.
+Five gaps limit them.
 
-### Intake before the case exists
+### Statuses seated at case creation
 
-A report is received, validated, and accepted by its first recipient before the case is created.
-The statuses seated at case creation are committed in the creation sequence, so their commit stamps carry the creation time, not the time each decision was made.
-The first recipient's time to validate and time to accept are therefore not recoverable from commit stamps.
-The report's own received time lives with the recipient, outside the case ledger.
+The case owner creates the case on receiving the report, and the creation sequence seats it at RM Received (CM-14-009) and the reporter at RM Accepted (CM-14-012).
+Those statuses are committed in the creation sequence, so their commit stamps carry the creation time, not the time of the event.
+The case owner's $\mathbf{R}$ is the creation time, and the report's own received time lives with the case owner, outside the case ledger.
+The reporter's $\mathbf{Ac}$ is not a decision at all, so it has no interval to measure.
+The case owner's later validation and acceptance are entries of their own, so its time to validate and time to accept are measurable from the creation time.
+
+### Refusals and replays are not on the ledger
+
+A refusal notice and a replica's request for a replay are about the ledger, not about the case, so neither is ledgered (CLP-02-012, CLP-02-013).
+The refusal count and the replay count need the CASE_MANAGER's own logs or its outbox, not the case ledger.
 
 ### Commit time is not occurrence time
 
@@ -207,7 +218,8 @@ For $\mathbf{X}$ and $\mathbf{A}$, which happen outside the protocol, the lag be
 
 ### Embargo records carry no times of their own
 
-An entry in the embargo register and a participant's consent row hold a status and no timestamp.
+An entry in the embargo register and a participant's consent row hold a status, and no time of the step that set it.
+They do carry times about the embargo: an embargo's end time, and an Invite's RSVP deadline.
 Their timing comes only from the ledger entries that recorded each step.
 Every embargo metric therefore needs a join from the register and the consent rows back to the ledger.
 
@@ -234,12 +246,12 @@ It also lets a program report the distribution of an interval across its cases, 
 | Area | Representative metrics |
 |---|---|
 | Intake and triage | Time to validate, accept, judge, join |
-| Embargo | Decision latency, revisions, planned and actual length, time left at exit, exit cause, response latency, time-out rate |
+| Embargo | Decision latency, revisions, planned and actual length, time left at exit, exit cause, response latency, pocket-veto rate |
 | Fix and deployment | Time to fix and deploy; notification spread, fix spread, trailing-vendor gap |
 | Disclosure margins | $m(\mathbf{F} \prec \mathbf{P})$, $m(\mathbf{D} \prec \mathbf{P})$, $m(\mathbf{P} \prec \mathbf{X})$, and the margin of every other desideratum |
 | Exposure | Time with $\mathbf{P}$ or $\mathbf{X}$ and no $\mathbf{D}$ |
-| Closure | Case duration, time open after disclosure, invitations expired, transfer latency |
-| Process health | Gap rate, refusals, replays, clock skew |
+| Closure | Case duration, time open after disclosure, embargo Invites timed out at close, transfer latency |
+| Process health | Gap rate, regressions, refusals, replays, clock skew |
 
 ## Further reading
 
