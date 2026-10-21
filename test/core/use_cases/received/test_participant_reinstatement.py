@@ -35,6 +35,9 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.core.use_cases.received._archived_redelivery import (
+    route_archived_redelivery,
+)
 from test.core.use_cases.received.actor.test_case_joining_replies import (
     route_received,
 )
@@ -613,7 +616,8 @@ def test_a_failed_reinstatement_invite_keeps_nothing_and_redelivery_runs_afresh(
     The Invite fails after the reinstatement's entry, the reinstatement and
     its notice are written: the act keeps none of them, so the participant
     is still removed, its consent row is unchanged, the outbox and the
-    ledger are as before, and a redelivery reinstates it afresh.
+    ledger are as before, and a redelivery, routed as the copy intake
+    archived, reinstates it afresh.
     """
     _make_other_a_non_signatory(case)
     case.remove(OTHER)
@@ -636,7 +640,11 @@ def test_a_failed_reinstatement_invite_keeps_nothing_and_redelivery_runs_afresh(
     assert {entry.id_ for entry in case.ledger()} == ledger_before
     assert case.dl.outbox_list() == outbox_before
 
-    result = case.route(_owner_reinstates(case, OTHER))
+    # The inbox routes the redelivery as the copy intake archived
+    # (IE-10-001), not as the resent body.
+    result = route_archived_redelivery(
+        case.dl, _ADD_ACTIVITY_ID, receiving_actor_id=MANAGER
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert not case.participant(OTHER).removed

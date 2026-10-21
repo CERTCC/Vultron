@@ -34,6 +34,9 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.core.use_cases.received._archived_redelivery import (
+    archived_redelivery,
+)
 from test.support.embargo_register import (
     activate,
     propose,
@@ -647,6 +650,22 @@ def _close(
         request=_make_close_case_event(
             sender_actor_id=sender_actor_id, activity_id=activity_id
         ),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        trigger_activity=TriggerActivityAdapter(dl),
+    ).execute()
+
+
+def _redeliver_close(dl: SqliteDataLayer, activity_id: str) -> HandlerResult:
+    """A redelivery of the Leave *activity_id*, routed as the inbox routes it:
+    the copy intake archived (IE-10-001), not the resent body."""
+    event = archived_redelivery(
+        dl, activity_id, receiving_actor_id=CASE_ACTOR_ID
+    )
+    assert isinstance(event, CloseCaseReceivedEvent)
+    return CloseCaseReceivedUseCase(
+        dl=dl,
+        request=event,
         sync_port=SyncActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
         trigger_activity=TriggerActivityAdapter(dl),
@@ -1662,8 +1681,8 @@ class TestLeaveCommitsEachClosureStep:
                 dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
             )
 
-        result = _close(
-            dl, VENDOR_ID, "https://example.org/activities/leave-vendor"
+        result = _redeliver_close(
+            dl, "https://example.org/activities/leave-vendor"
         )
 
         assert result.disposition == HandlerDisposition.APPLIED
@@ -2701,8 +2720,8 @@ class TestCaseActorRMClosedRecordingFailsClosed:
             self._fail_case_actor_commits(patch, dl)
             _close(dl, OWNER_ID, "https://example.org/activities/leave-owner")
 
-        result = _close(
-            dl, OWNER_ID, "https://example.org/activities/leave-owner"
+        result = _redeliver_close(
+            dl, "https://example.org/activities/leave-owner"
         )
 
         assert result.disposition == HandlerDisposition.APPLIED

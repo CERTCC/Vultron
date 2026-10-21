@@ -23,6 +23,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.core.use_cases.received._archived_redelivery import (
+    archived_redelivery_as,
+)
 from test.core.use_cases.received.conftest import (
     assert_only_refusal_notice,
     seed_case_manager_participant,
@@ -38,6 +41,10 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.actor import (
+    AcceptCaseParticipantRoleReceivedEvent,
+    OfferCaseParticipantRoleReceivedEvent,
+)
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -339,7 +346,8 @@ def test_a_forward_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     make_payload,
 ):
     """The fault is ours, not a refusal.  The Offer's entry and its forward
-    are one act, so the fault keeps neither, and the redelivery is a new
+    are one act, so the fault keeps neither.  The redelivery is routed as
+    the inbox routes it, the copy intake archived (IE-10-001), and is a new
     Offer that is recorded and forwarded once (CLP-07-015)."""
     dl = _store(_CASE_MANAGER_ID)
     offer = _offer()
@@ -355,7 +363,16 @@ def test_a_forward_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     assert _semantic_types(dl) == []
     assert _forwards(dl) == []
 
-    result = _deliver_offer(dl, make_payload, offer)
+    result = OfferCaseParticipantRoleReceivedUseCase(
+        dl,
+        archived_redelivery_as(
+            dl,
+            offer.id_,
+            OfferCaseParticipantRoleReceivedEvent,
+            receiving_actor_id=dl.actor_id,
+        ),
+        **_ports(dl),
+    ).execute()
 
     assert result.disposition is HandlerDisposition.APPLIED
     assert _semantic_types(dl) == ["offer_case_participant_role"]
@@ -1017,8 +1034,8 @@ def test_a_grant_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     make_payload, monkeypatch
 ):
     """The fault is ours.  The Accept's entry and its grant are one act, so
-    the fault keeps neither, and the redelivered Accept is a new answer
-    (CLP-07-015)."""
+    the fault keeps neither, and the redelivered Accept, routed as the copy
+    intake archived (IE-10-001), is a new answer (CLP-07-015)."""
     from vultron.core.behaviors.case.nodes import delegation
 
     dl = _store(_CASE_MANAGER_ID)
@@ -1044,14 +1061,16 @@ def test_a_grant_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     assert "accept_case_participant_role" not in entries
     assert not _target_holds(dl, CVDRole.VENDOR)
 
-    result = _deliver_answer(
+    result = AcceptCaseParticipantRoleReceivedUseCase(
         dl,
-        make_payload,
-        offer,
-        accept=True,
-        sender=_TARGET_ID,
-        answer_id=answer_id,
-    )
+        archived_redelivery_as(
+            dl,
+            answer_id,
+            AcceptCaseParticipantRoleReceivedEvent,
+            receiving_actor_id=dl.actor_id,
+        ),
+        **_ports(dl),
+    ).execute()
 
     assert result.disposition is HandlerDisposition.APPLIED
     assert _semantic_types(dl) == [*entries, "accept_case_participant_role"]

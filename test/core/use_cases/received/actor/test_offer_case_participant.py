@@ -27,6 +27,9 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
+from test.core.use_cases.received._archived_redelivery import (
+    archived_redelivery,
+)
 from test.core.use_cases.received.conftest import (
     assert_only_refusal_notice,
     queued_bodies,
@@ -1851,7 +1854,17 @@ class TestActorSuggestionAnswersAreSentOnceOnRetry:
         assert answer_id not in dl.outbox_list()
         assert self._entries_of(dl, semantic_type) == []
 
-        retry = self._run(use_case_class, dl, event)
+        # The inbox routes the retry as the copy intake archived
+        # (IE-10-001), not as the resent body.
+        retry = self._run(
+            use_case_class,
+            dl,
+            archived_redelivery(
+                dl,
+                event.activity_id,
+                receiving_actor_id=event.receiving_actor_id,
+            ),
+        )
 
         assert retry.disposition is HandlerDisposition.APPLIED, retry
         assert dl.outbox_list().count(answer_id) == 1

@@ -24,6 +24,9 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.core.use_cases.received._archived_redelivery import (
+    archived_redelivery,
+)
 from test.core.use_cases.received.conftest import seed_inert_invitee
 from test.core.use_cases.received.test_embargo_revision_relay import (
     MANAGER,
@@ -37,6 +40,7 @@ from test.support.embargo_register import (
     propose,
     write_consent_rows,
 )
+from test.support.received import case_stub
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -107,7 +111,7 @@ def _invited_joiner(dl: SqliteDataLayer, case_id: str, make_payload):
     invite = rm_invite_to_case_activity(
         as_Actor(id_=JOINER),
         to=[JOINER],
-        target=case_id,
+        target=case_stub(case_id),
         actor=MANAGER,
         roles=[CVDRole.VENDOR],
         id_=f"{case_id}/invitations/joiner",
@@ -260,7 +264,8 @@ def test_a_failed_relay_keeps_nothing_of_the_join_and_redelivery_runs_afresh(
     The relay fails after the Accept's entry, the join, the consent row, the
     Announce and the backfill are written: the act keeps none of them, so
     the joiner's record, the outbox and the ledger are as before.  The
-    redelivered Accept is processed afresh and relays the revision once.
+    redelivered Accept, routed as the copy intake archived, is processed
+    afresh and relays the revision once.
     """
     from vultron.core.behaviors.case.nodes.invite_revision_relay import (
         RelayOpenProposalsToJoinerNode,
@@ -292,7 +297,16 @@ def test_a_failed_relay_keeps_nothing_of_the_join_and_redelivery_runs_afresh(
     assert {e.id_ for e in dl.list_objects("CaseLedgerEntry")} == ledger_before
     assert dl.outbox_list() == outbox_before, "no Announce or backfill"
 
-    result = _accept(dl, accept)
+    # The inbox routes the redelivery as the copy intake archived
+    # (IE-10-001), not as the resent body.
+    result = _accept(
+        dl,
+        archived_redelivery(
+            dl,
+            accept.activity_id,
+            receiving_actor_id=accept.receiving_actor_id,
+        ),
+    )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert len(_relayed_to(dl, JOINER)) == 1

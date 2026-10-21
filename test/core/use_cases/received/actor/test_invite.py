@@ -18,6 +18,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.core.use_cases.received._archived_redelivery import (
+    archived_redelivery,
+)
 from test.core.use_cases.received.conftest import (
     seed_inert_invitee,
     seed_store_owner_as_case_manager,
@@ -154,7 +157,7 @@ def _seed_late_joiner_case() -> dict[str, Any]:
     invite = rm_invite_to_case_activity(
         invitee,
         to=[invitee.id_],
-        target=case.id_,
+        target=case_stub(case.id_),
         actor=case_actor_id,
         roles=[CVDRole.VENDOR],
         id_=f"{case.id_}/invitations/1",
@@ -1362,10 +1365,10 @@ class TestInviteActorUseCases:
         ledger_before = {e.id_ for e in dl.list_objects("CaseLedgerEntry")}
         accept = _accept_invite(invite, actor=invitee_id)
 
-        def _accept() -> None:
+        def _accept(event) -> None:
             AcceptInviteActorToCaseReceivedUseCase(
                 dl,
-                make_payload(accept),
+                event,
                 sync_port=MagicMock(),
                 trigger_activity=lj["trigger_activity"],
                 wire_render_port=As2WireRenderAdapter(),
@@ -1382,14 +1385,16 @@ class TestInviteActorUseCases:
             # The Invite is queued, so the failed commit escapes rather than
             # failing the tree (BT-14-001).
             with pytest.raises(VultronBTInternalError, match="commit failed"):
-                _accept()
+                _accept(make_payload(accept))
         (invite_id,) = failed
         assert invite_id not in dl.outbox_list()
         assert {
             e.id_ for e in dl.list_objects("CaseLedgerEntry")
         } == ledger_before
 
-        _accept()
+        # The inbox routes the redelivery as the copy intake archived
+        # (IE-10-001), not as the resent body.
+        _accept(archived_redelivery(dl, accept.id_))
 
         assert dl.outbox_list().count(invite_id) == 1
         recorded = [
