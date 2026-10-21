@@ -5948,9 +5948,9 @@ groups:
       `Reject(CaseProposal)`. A redelivered split proposal with the same proposal identifier
       MUST NOT create a second child case (CP-05-006).
     rationale: >-
-      Reusing the proposal answer gives the split the admission decision, the durable-delivery
-      marker and the duplicate handling the creation flow already has, rather than a second
-      creation path to keep in step with it.
+      Reusing the proposal answer gives the split the admission decision, the one-act creation and
+      the duplicate handling the creation flow already has, rather than a second creation path to
+      keep in step with it.
     verification: >-
       A test marked `CM-32-002` delivers one split proposal twice and asserts one child case, an
       `Accept(CaseProposal)` whose `result` names it, and one `Create(VulnerabilityCase)` for it.

@@ -327,18 +327,15 @@ class _ProposalsMixin:
         return _seal(self._dl, activity)
 
     def emit_prepared_create_case(self, payload: dict) -> tuple[str, str]:
-        """Persist and seal a ``Create(VulnerabilityCase)`` prepared earlier.
+        """Persist and seal a ``Create(VulnerabilityCase)`` the node built.
 
-        The CASE_MANAGER pre-builds this activity when it writes the
-        ``PendingCreateCaseActivity`` marker, so that a crash between the
-        ``Accept`` and the ``Create`` can be recovered by re-sending the *same*
-        activity under the *same* id (CP-05-005).  *payload* is that stored
-        AS2 document.  Rebuilding it here rather than in the emitting node keeps
-        the persist-and-seal step in the adapter, where every other outbound
-        activity gets it, so the body the outbox delivers is the body sealed
-        here (VM-08-003).
+        The CASE_MANAGER's emitting node builds the activity, with the case
+        inline and an id derived from the proposal it answers (OX-06-002), and
+        hands its AS2 rendering here as *payload*.  The persist-and-seal step
+        stays in the adapter, where every other outbound activity gets it, so
+        the body the outbox delivers is the body sealed here (VM-08-003).
 
-        Persisting is idempotent on the activity id: a replay after a crash
+        Persisting is idempotent on the activity id: a redelivered proposal
         finds the record already present and seals nothing new.
         """
         try:

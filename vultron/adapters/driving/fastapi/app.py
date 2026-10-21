@@ -43,10 +43,6 @@ from vultron.adapters.driving.fastapi.outbox_handler import (
 from vultron.adapters.driving.fastapi.outbox_monitor import (
     OutboxMonitor,
 )
-from vultron.adapters.driving.fastapi.pending_retry import (
-    retry_pending_create_case_activities,
-    retry_pending_creation_time_revision_relays,
-)
 from vultron.adapters.driving.fastapi.routers import demo_triggers, router
 from vultron.config import RunMode, get_config
 from vultron.logging_setup import (
@@ -218,16 +214,6 @@ def _make_lifespan(*, configure_globals: bool = True):
             # drain is running, and stop it where inline drains alone are
             # wanted.
             application.state.outbox_monitor = monitor
-
-            # Retry any Create(VulnerabilityCase) activities that were
-            # left pending from a previous process run (CP-05-005, #1139).
-            # The OutboxMonitor is started first so it can drain the
-            # re-queued activities immediately after startup.
-            retry_pending_create_case_activities()
-            # Complete any creation-time embargo revision relay a previous
-            # run left owed (EP-04-011, #4121): creation-time initialization
-            # runs once per case, so nothing else would re-send it.
-            retry_pending_creation_time_revision_relays()
 
         yield {SHUTDOWN_STATE_KEY: ledger_stream_shutdown}
 

@@ -261,7 +261,6 @@ class TestCoreTypeMapFallback:
         "CoreActor",
         "OfferRecord",
         "PendingCaseInbox",
-        "PendingCreateCaseActivity",
         "ReportCaseLink",
         "ReplicationState",
     ]
@@ -337,17 +336,6 @@ class TestCoreTypeMapFallback:
 
         cls = find_in_vocabulary("PendingCaseInbox", include_core=True)
         assert cls is VultronPendingCaseInbox
-
-    def test_pending_create_case_activity_resolves_correctly(self):
-        """find_in_vocabulary('PendingCreateCaseActivity') returns PendingCreateCaseActivity."""
-        from vultron.core.models.pending_create_case_activity import (
-            PendingCreateCaseActivity,
-        )
-
-        cls = find_in_vocabulary(
-            "PendingCreateCaseActivity", include_core=True
-        )
-        assert cls is PendingCreateCaseActivity
 
     def test_report_case_link_resolves_correctly(self):
         """find_in_vocabulary('ReportCaseLink') returns VultronReportCaseLink."""

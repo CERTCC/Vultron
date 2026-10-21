@@ -24,7 +24,7 @@ AC-3: AS2 Activity types (no core counterpart) still reconstruct via wire path.
 """
 
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 from pydantic import Field
@@ -346,36 +346,66 @@ def test_record_row_with_an_unknown_key_reads_absent_and_says_why(dl, caplog):
     assert "renamed_away" in messages[0]
 
 
-def test_row_of_a_deleted_type_reads_absent_naming_the_type(dl, caplog):
+_DELETED_TYPES: list[tuple[str, dict[str, Any]]] = [
+    # Deleted by ADR-0148 (#4940).
+    (
+        "VultronOwnershipTransferOfferRecord",
+        {"caseId": "https://example.org/cases/c-4940"},
+    ),
+    # The two case-creation markers, deleted when case creation became one
+    # act (CLP-07-015, #4984).
+    (
+        "PendingCreateCaseActivity",
+        {
+            "proposalId": "https://example.org/proposals/p-4984",
+            "caseActorId": "https://example.org/actors/case-actor",
+            "ownerUri": "https://example.org/actors/vendor",
+        },
+    ),
+    (
+        "PendingCreationTimeRevisionRelay",
+        {
+            "caseId": "https://example.org/cases/c-4984",
+            "embargoId": "https://example.org/embargoes/e-4984",
+            "losingSource": "actor_default",
+        },
+    ),
+]
+
+
+@pytest.mark.spec("CLP-07-015")
+@pytest.mark.parametrize(
+    ("type_name", "fields"),
+    _DELETED_TYPES,
+    ids=[name for name, _ in _DELETED_TYPES],
+)
+def test_row_of_a_deleted_type_reads_absent_naming_the_type(
+    dl, caplog, type_name, fields
+):
     """A stored row whose type was deleted reads absent; the WARNING names it.
 
     A deleted type needs no retirement marker: the vocabulary miss is the
-    logged cause of the ``None``.  ``VultronOwnershipTransferOfferRecord``
-    was deleted by ADR-0148 (#4940); old file-backed stores may still hold it.
+    logged cause of the ``None``, so the row is refused, never silently
+    dropped.  Old file-backed stores may still hold one.
     """
-    offer_id = "https://example.org/activities/offer-pre-4940"
+    row_id = f"https://example.org/rows/{type_name}"
     dl.create(
         Record(
-            id_=offer_id,
-            type_="VultronOwnershipTransferOfferRecord",
-            data_={
-                "id": offer_id,
-                "type": "VultronOwnershipTransferOfferRecord",
-                "offerId": offer_id,
-                "caseId": "https://example.org/cases/c-4940",
-            },
+            id_=row_id,
+            type_=type_name,
+            data_={"id": row_id, "type": type_name, **fields},
         )
     )
 
     with caplog.at_level("WARNING"):
-        assert dl.read(offer_id) is None
+        assert dl.read(row_id) is None
 
     messages = [
         r.getMessage() for r in caplog.records if r.levelname == "WARNING"
     ]
     assert len(messages) == 1
-    assert repr(offer_id) in messages[0]
-    assert "'VultronOwnershipTransferOfferRecord'" in messages[0]
+    assert repr(row_id) in messages[0]
+    assert repr(type_name) in messages[0]
     assert "not found in vocabulary" in messages[0]
 
 

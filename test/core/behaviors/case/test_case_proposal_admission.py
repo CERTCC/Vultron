@@ -25,14 +25,14 @@ when it declines. These tests pin five properties:
   inline (CP-05-004, CP-05-009).
 - A decline writes **no** case state. The decline arm runs ahead of every effect,
   so there is no half-built case paired with a "declined" response (CLP-10-009).
-- **A refusal is terminal.** A decline whose Reject cannot be emitted fails the
-  tree rather than falling through into the accept flow. This is the regression
-  worth guarding: a Selector falls through on FAILURE and
-  ``_EmitSingleActivityBase.update()`` converts any exception into FAILURE, so
-  before the decline record gated the accept arm a declining policy produced a
-  *full accept* — case created, ``Accept`` + ``Create`` queued, status SUCCESS.
+- **A refusal never becomes an accept.** A decline whose Reject cannot be
+  emitted rolls back and fails the tree rather than falling through into the
+  accept flow. This is the regression worth guarding: a Selector falls through
+  on FAILURE and ``_EmitSingleActivityBase.update()`` converts any exception
+  into FAILURE, so an unguarded declining policy produced a *full accept* —
+  case created, ``Accept`` + ``Create`` queued, status SUCCESS.
 - An answered proposal is not re-adjudicated, whether it was accepted
-  (CP-05-005, CP-05-006), declined, or has a retry marker in flight.
+  (CP-05-005, CP-05-006) or declined.
 """
 
 from types import SimpleNamespace
@@ -71,15 +71,15 @@ from vultron.core.behaviors.case.nodes import proposal_case_lookup
 from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckProposalCaseFullyClosedNode,
 )
+from vultron.core.behaviors.case.nodes.proposal_announcement import (
+    case_is_announced,
+)
 from vultron.core.behaviors.case.nodes.proposal_case_lookup import (
     accept_scan_can_match,
     accepted_case_id,
     activity_names_proposal,
     find_proposer_case,
     proposal_case_ids,
-)
-from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
-    case_is_announced,
 )
 from vultron.core.behaviors.sender_entitlement import SenderRule
 from vultron.core.models.actor import VultronOrganization
@@ -89,9 +89,6 @@ from vultron.core.models.case_proposal_admission import (
 )
 from vultron.core.models.case_proposal_decline import (
     CaseProposalDeclineRecord,
-)
-from vultron.core.models.pending_create_case_activity import (
-    PendingCreateCaseActivity,
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_persistence import CasePersistence
@@ -376,13 +373,11 @@ class TestDeclineWritesNoCaseState:
 
         assert "Accept" not in _types_in_outbox(dl)
 
-    def test_no_retry_marker_is_written(self, dl):
-        """No Create(VulnerabilityCase) is owed, so no marker may linger."""
+    def test_no_create_is_queued(self, dl):
+        """No case is announced for a declined proposal."""
         _run_tree(dl, call_out=_declining_bundle([]))
 
-        assert (
-            dl.read(PendingCreateCaseActivity.build_id(_PROPOSAL_URI)) is None
-        )
+        assert "Create" not in _types_in_outbox(dl)
 
 
 # ---------------------------------------------------------------------------
@@ -396,11 +391,12 @@ class TestAFailedRejectDoesNotBecomeAnAccept:
     """The regression this arm's structure exists to prevent.
 
     ``_EmitSingleActivityBase.update()`` converts any exception into FAILURE, and
-    a Selector falls through on FAILURE. Before the decline record gated the
-    accept arm, a decline whose Reject could not be built produced a *full
-    accept*: case created, ledger entries committed, ``Accept`` + ``Create``
-    queued, status SUCCESS. A refusal gate whose failure direction is "admit" is
-    worse than no gate.
+    a Selector falls through on FAILURE. A decline whose Reject could not be
+    built once produced a *full accept*: case created, ledger entries committed,
+    ``Accept`` + ``Create`` queued, status SUCCESS. A refusal gate whose failure
+    direction is "admit" is worse than no gate.  The decline now records its
+    decision and queues its Reject in one ``RefusalActTransaction``, which rolls
+    back and fails the tree.
     """
 
     def test_no_wire_proposal_fails_instead_of_accepting(self, dl):
@@ -423,30 +419,33 @@ class TestAFailedRejectDoesNotBecomeAnAccept:
         assert _cases(dl) == []
         assert _types_in_outbox(dl) == []
 
-    def test_the_decline_is_recorded_even_when_the_emit_fails(self, dl):
-        """The record is written first, which is what makes the refusal stick."""
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_failed_emit_keeps_no_decline_record(self, dl):
+        """The record and its Reject are one act: "declined with nothing
+        queued" is not a state the store can hold."""
         _run_tree(dl, call_out=_declining_bundle([]), with_proposal_dict=False)
 
         record_id = CaseProposalDeclineRecord.build_id(_PROPOSAL_URI)
-        assert dl.read(record_id) is not None
+        assert dl.read(record_id) is None
+        assert _types_in_outbox(dl) == []
 
-    def test_a_later_admitting_delivery_does_not_reverse_the_decline(self, dl):
-        """Once declined, an admitting backend cannot accept the proposal."""
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_redelivery_after_a_failed_decline_decides_afresh(self, dl):
+        """Nothing of the failed decline was kept, so the next delivery is
+        adjudicated from the beginning and its Reject is queued."""
         _run_tree(dl, call_out=_declining_bundle([]), with_proposal_dict=False)
 
-        status = _run_tree(dl)  # deterministic default admits
+        ticks: list[str] = []
+        status = _run_tree(dl, call_out=_declining_bundle(ticks))
 
-        assert _cases(dl) == [], "the recorded refusal outranks a later admit"
-        assert "Accept" not in _types_in_outbox(dl)
-        assert status == Status.SUCCESS, (
-            "the resend arm completes the owed Reject, so the delivery is "
-            "handled rather than failed"
-        )
+        assert status == Status.SUCCESS
+        assert ticks == ["EvaluateCaseProposal"]
         assert _types_in_outbox(dl) == ["Reject"]
+        assert _cases(dl) == []
 
 
 # ---------------------------------------------------------------------------
-# A declined proposal is not re-adjudicated, and a lost Reject is recoverable
+# A declined proposal is not re-adjudicated
 # ---------------------------------------------------------------------------
 
 
@@ -511,17 +510,6 @@ class TestDeclineIsIdempotent:
             "cannot keep"
         )
 
-    def test_redelivery_emits_a_reject_that_was_never_queued(self, dl):
-        """Because the record is written first, a lost Reject is recoverable."""
-        _run_tree(dl, call_out=_declining_bundle([]), with_proposal_dict=False)
-        assert _types_in_outbox(dl) == []
-
-        status = _run_tree(dl, call_out=_declining_bundle([]))
-
-        assert status == Status.SUCCESS
-        assert _types_in_outbox(dl) == ["Reject"]
-        assert _cases(dl) == []
-
 
 # ---------------------------------------------------------------------------
 # An answered proposal is never re-adjudicated (CP-05-005, CP-05-006)
@@ -568,27 +556,6 @@ class TestAnsweredProposalsAreNotReAdjudicated:
         # redelivery that names no report creates no second case (#4650).
         assert len(_cases(dl)) == 1
 
-    def test_in_flight_retry_marker_short_circuits_before_the_decision(
-        self, dl
-    ):
-        """The marker branch precedes the decline arm, so neither fires."""
-        dl.save(
-            PendingCreateCaseActivity(
-                id_=PendingCreateCaseActivity.build_id(_PROPOSAL_URI),
-                proposal_id=_PROPOSAL_URI,
-                case_actor_id=_CASE_ACTOR_URI,
-                owner_uri=_VENDOR_URI,
-                create_activity_payload={},
-            )
-        )
-
-        ticks: list[str] = []
-        status = _run_tree(dl, call_out=_declining_bundle(ticks))
-
-        assert status == Status.SUCCESS
-        assert ticks == []
-        assert _types_in_outbox(dl) == []
-
 
 # ---------------------------------------------------------------------------
 # Bundle wiring (BT-23-003, BT-23-008, BT-23-009)
@@ -634,12 +601,11 @@ def test_stochastic_backend_declares_its_blackboard_output():
 class TestDeclineReasonReachesTheProposer:
     """The reason travels on the decline record, not as a call argument.
 
-    A `Reject` re-emitted on a later delivery must carry the reason the original
-    decision gave, which is why the node reads the record rather than being
-    constructed with the text. Nothing writes a reason yet — a call-out point
-    signals refusal by returning FAILURE and BT-18 defines outputs only for the
-    SUCCESS case — so these tests exercise the read path a future backend needs
-    (see #3399).
+    The ``Reject`` reads its summary from the record its decision wrote.  The
+    admission call-out point writes no reason yet — it signals refusal by
+    returning FAILURE and BT-18 defines outputs only for the SUCCESS case
+    (see #3399) — while the closed-case decline does (``TestTheOwnersNewProposalForAClosedCaseIsDeclined``
+    below).
     """
 
     def test_reject_carries_no_summary_when_no_reason_was_recorded(self, dl):
@@ -648,24 +614,6 @@ class TestDeclineReasonReachesTheProposer:
 
         (reject,) = _outbox_activities(dl)
         assert getattr(reject, "summary", None) is None
-
-    def test_reject_carries_the_recorded_reason(self, dl):
-        """A pre-recorded decline reason reaches the wire as the summary."""
-        dl.save(
-            CaseProposalDeclineRecord(
-                proposal_id=_PROPOSAL_URI,
-                case_actor_id=_CASE_ACTOR_URI,
-                proposer_uri=_VENDOR_URI,
-                reason="proposing actor is not on the admission list",
-            )
-        )
-
-        # The record already exists, so the resend arm owes the Reject.
-        status = _run_tree(dl, call_out=_declining_bundle([]))
-
-        assert status == Status.SUCCESS
-        (reject,) = _outbox_activities(dl)
-        assert reject.summary == "proposing actor is not on the admission list"
 
 
 # ---------------------------------------------------------------------------
@@ -757,15 +705,16 @@ class TestAnUnanswerableStoreFailsRatherThanAdmits:
 
 
 @pytest.mark.spec("CP-05-004")
-class TestQueuedNotMerelyStored:
-    """A Reject that was persisted but never enqueued is still owed.
+@pytest.mark.spec("CLP-07-015")
+class TestAQueueFaultRollsTheDeclineBack:
+    """The adapter persists the ``Reject`` and *then* enqueues it.
 
-    The adapter persists the activity and *then* enqueues it, so a queue fault
-    leaves a stored ``Reject`` nobody will deliver. A store-only check reads that
-    as "already told them" and reports SUCCESS forever with an empty outbox.
+    A queue fault rolls the stored ``Reject`` and the decline record back with
+    it, so no stored ``Reject`` is left that nobody will deliver, and the next
+    delivery declines afresh.
     """
 
-    def test_a_reject_that_was_never_enqueued_is_re_emitted(self):
+    def test_a_reject_that_was_never_enqueued_is_not_kept(self):
         dl = _fault_store(_OutboxAppendFaults)
         try:
             first = _run_tree(dl, call_out=_declining_bundle([]))
@@ -773,8 +722,13 @@ class TestQueuedNotMerelyStored:
             assert _types_in_outbox(dl) == [], "the queue write faulted"
             assert (
                 dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI))
-                is not None
-            ), "the decision must still be recorded"
+                is None
+            ), "the decision is rolled back with its Reject"
+            assert [
+                a
+                for a in dl.list_objects("Reject")
+                if str(getattr(a, "type_", "")) == "Reject"
+            ] == []
 
             dl.fail = False
             status = _run_tree(dl, call_out=_declining_bundle([]))
@@ -1174,10 +1128,7 @@ class TestTheOwnersNewProposalForAClosedCaseIsDeclined:
         assert _case_state(dl) == state_before, (
             "no new case and no case or participant change"
         )
-        assert (
-            dl.read(PendingCreateCaseActivity.build_id(_SECOND_PROPOSAL_URI))
-            is None
-        )
+        assert "Create" not in _types_in_outbox(dl)
 
     def test_the_decline_is_recorded_on_the_proposal(self, dl):
         _accepted_then_closed(dl)
@@ -1338,11 +1289,11 @@ class TestTheClosedCaseCheckFailsTowardRefusal:
         assert _ledger_count(dl) == ledger_before
         assert _case_state(dl) == state_before
         assert (
-            _decline_record(dl, _SECOND_PROPOSAL_URI).reject_activity_id
+            dl.read(CaseProposalDeclineRecord.build_id(_SECOND_PROPOSAL_URI))
             is None
-        )
+        ), "the decline is rolled back with its Reject (CLP-07-015)"
 
-    def test_the_owed_reject_is_sent_on_the_next_delivery(self, dl):
+    def test_the_next_delivery_declines_afresh(self, dl):
         _accepted_then_closed(dl)
         _run_tree(
             dl, proposal_uri=_SECOND_PROPOSAL_URI, with_trigger_port=False

@@ -50,7 +50,6 @@ _SAMPLES: dict[str, dict[str, Any]] = {
     },
     "CaseProposalAdmissionRecord": {**_PROPOSAL, "proposer_uri": _URI},
     "CaseProposalDeclineRecord": {**_PROPOSAL, "proposer_uri": _URI},
-    "PendingCreateCaseActivity": {**_PROPOSAL, "owner_uri": _URI},
     "DeadLetterRecord": {
         "unresolvable_uri": _URI,
         "actor_id": _URI,
@@ -67,14 +66,6 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "actor_id": _URI,
         "reason": "unreachable",
         "total_attempts": 3,
-    },
-    "PendingCreationTimeRevisionRelay": {
-        "case_id": f"{_URI}/case",
-        "embargo_id": f"{_URI}/embargo",
-        "proposal_id": f"{_URI}/p-1",
-        "losing_source": "actor_default",
-        "report_id": f"{_URI}/report",
-        "case_actor_id": f"{_URI}/manager",
     },
     "DeferredInboxActivity": {"activity_id": _URI, "received_body": "{}"},
     "HeldLedgerAnnounce": {

@@ -25,7 +25,10 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-from vultron.core.behaviors.act_transaction import ActTransaction
+from vultron.core.behaviors.act_transaction import (
+    ActTransaction,
+    RefusalActTransaction,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
@@ -338,3 +341,52 @@ def test_a_received_act_block_at_a_replica_keeps_its_replica_writes(
     assert result.status is Status.SUCCESS
     assert _held(dl, "persisted")
     assert _held(dl, "answer")
+
+
+# --- RefusalActTransaction ----------------------------------------------------
+
+
+def _refusal_then_admit(
+    dl: SqliteDataLayer, refusal_status: Status
+) -> py_trees.composites.Selector:
+    """A refusal arm whose act ends in *refusal_status*, then an admit arm."""
+    return py_trees.composites.Selector(
+        name="Arms",
+        memory=False,
+        children=[
+            RefusalActTransaction(
+                name="DeclineAct",
+                children=[
+                    _save(dl, "decline"),
+                    _save(dl, "reject", status=refusal_status),
+                ],
+            ),
+            _save(dl, "admit"),
+        ],
+    )
+
+
+def test_a_refusal_act_that_succeeds_commits_and_stops_the_selector(
+    dl: SqliteDataLayer,
+):
+    result = _run(dl, _refusal_then_admit(dl, Status.SUCCESS))
+
+    assert result.status is Status.SUCCESS
+    assert _held(dl, "decline")
+    assert _held(dl, "reject")
+    assert not _held(dl, "admit")
+
+
+@pytest.mark.spec("CP-05-002")
+def test_a_failed_refusal_act_rolls_back_and_fails_the_tree_not_admitting(
+    dl: SqliteDataLayer,
+):
+    """A Selector would try the admit arm after a FAILURE; the refusal's act
+    raises instead, so nothing is kept and nothing is admitted."""
+    result = _run(dl, _refusal_then_admit(dl, Status.FAILURE))
+
+    assert result.status is Status.FAILURE
+    assert result.internal_error
+    assert "Savereject" in str(result.errors)
+    assert not _held(dl, "decline")
+    assert not _held(dl, "admit")

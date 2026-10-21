@@ -145,21 +145,19 @@ class RecordProposalAdmissionNode(DataLayerActionWithPorts):
 
 
 class RecordProposalDeclineNode(DataLayerAction):
-    """Persist the decline decision *before* the ``Reject`` is queued.
+    """Persist the decline decision ahead of the ``Reject`` it answers with.
 
-    Writing the record first is what makes the decision terminal: if the emit
-    that follows fails, ``CheckNoDeclineRecordNode`` still refuses the accept
-    path, so the tree fails rather than creating the case and sending an
-    ``Accept`` the service had already decided against.
+    The record and the ``Reject`` run in one ``RefusalActTransaction``, so
+    they commit together or not at all, and a failure fails the tree rather
+    than letting the Selector try the accept arm.  The ``Reject`` reads its
+    reason from the record, so the record is written first.
 
     Idempotent — a record that already exists is left as it is, so the original
     decision (and its reason) survives redelivery.
 
     **Failing to record raises rather than returning FAILURE.** By the time this
-    node runs the policy has already refused, and a FAILURE here would hand the
-    enclosing Selector to the accept arm — admitting a proposal that was just
-    declined. The record is the *only* thing that stops that, so if it cannot be
-    written the tree must fail outright. This is the same reason
+    node runs the policy has already refused, so if the record cannot be
+    written the tree must fail outright, never admit. This is the same reason
     ``CheckProposalAlreadyAnsweredNode`` does not catch its store errors.
 
     That applies to a **missing DataLayer or actor_id** too, not only to a
@@ -295,11 +293,8 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
-        # Stamp the decline record with what was actually queued.  This is the
-        # only durable trace that the proposer was told: the outbox loses the
-        # activity on delivery and the object store cannot say whether it was
-        # ever enqueued, so without this a redelivery after delivery mints a
-        # fresh Reject every time.  See CheckRejectAlreadyAnsweredNode.
+        # Stamp the decline record with what was actually queued, in the same
+        # transaction: the record names the Reject that answered the proposal.
         assert self.datalayer is not None
         record_id = CaseProposalDeclineRecord.build_id(self._proposal_id)
         record = self.datalayer.read(record_id)
@@ -310,8 +305,7 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
         else:
             # The decline arm writes the record before this node runs, so its
             # absence means the ordering was broken rather than that no decision
-            # was taken.  Say so loudly instead of leaving the resend guard
-            # permanently unable to answer.
+            # was taken.  Say so loudly.
             logger.error(
                 "%s: queued Reject '%s' for proposal '%s' but found no decline"
                 " record to stamp — the refusal is not idempotent",

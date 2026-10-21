@@ -416,26 +416,25 @@ groups:
   - id: CP-05-005
     priority: MUST
     kind: protocol
-    statement: If the case-actor service successfully sends `Accept(as_CaseProposal)` but fails to send `Create(VulnerabilityCase)`,
-      it MUST retry `Create(VulnerabilityCase)` independently. The `Accept` is irrevocable once sent and MUST NOT be resent
-      on retry; only `Create(VulnerabilityCase)` requires retry.
-    rationale: The two-activity sequence is not atomic at the network level. Resending `Accept` on retry would cause the report receiver
-      to see a duplicate acceptance and potentially re-enter the initialization flow. The `PendingCreateCaseActivity` marker
-      stores the pre-constructed `Create(VulnerabilityCase)` payload verbatim. The corrected field assignment
-      (`context=case_uri`, `in_reply_to=accept_uri` per CP-05-003 and ADR-0045) is baked into the payload so the retry
-      runner can replay the exact activity without re-running the BT.
+    statement: >-
+      The case-actor service MUST queue `Accept(as_CaseProposal)` and `Create(VulnerabilityCase)`
+      for an accepted proposal together or not at all, and MUST NOT send the `Accept` without the
+      `Create`. Once queued, each one MUST be retried until it is delivered or its delivery attempts
+      are exhausted (OX-13). The `Accept` is irrevocable once sent: a retry or a re-send MUST carry
+      the same `Accept` under its original identifier, never a second one (CP-05-006).
+    rationale: >-
+      The two sends are not atomic on the network, so they are made atomic where they are
+      queued: an `Accept` with no `Create` behind it tells the report receiver of a case nothing
+      announces. Once both are queued, the outbox retries each one, so a failed `Create` needs no
+      retry of its own. A second `Accept` reads as a second, independent decision.
     verification: >-
-      The `Accept`, the `Create`, the retry marker and the case are written in one
-      DataLayer transaction (ADR-0146, CP-09-009). The marker is cleared inside
-      that transaction, so after the commit the durable outbox, which already
-      holds the `Create`, is what retries its delivery (OX-13); a `Create` that
-      cannot be queued rolls back the `Accept` with it, and no `Accept` is ever
-      sent without its `Create`.
-      `test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTMarkerWiring::test_a_failed_create_emit_rolls_back_the_accept_and_the_marker`
-      pins that. The Create's id is derived from the proposal, so a redelivery
-      queues no second `Create(VulnerabilityCase)`;
-      `TestARedeliveryAnnouncesTheCaseOnce` pins this after a late-tree failure and
-      after a full success (#4146).
+      The `Accept`, the `Create` and the case are written in one DataLayer transaction (ADR-0146,
+      CLP-07-015, CP-09-009): a `Create` that cannot be queued rolls back the `Accept` with it, so
+      no `Accept` is ever sent without its `Create`.
+      `test/core/behaviors/case/test_case_proposal_received_tree.py::TestTheAcceptAndCreateAreQueuedTogether::test_a_failed_create_emit_rolls_back_the_accept`
+      pins that. The Create's id is derived from the proposal (OX-06-002), so a redelivery queues
+      no second `Create(VulnerabilityCase)`; `TestARedeliveryAnnouncesTheCaseOnce` pins this after
+      a late-tree failure and after a full success (#4146).
     stories:
     - story_2022_012
   - id: CP-05-006

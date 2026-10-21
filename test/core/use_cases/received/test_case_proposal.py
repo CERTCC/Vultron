@@ -40,9 +40,6 @@ from vultron.core.behaviors.call_out.bundles.case_proposal import (
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.pending_create_case_activity import (
-    PendingCreateCaseActivity,
-)
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -393,40 +390,6 @@ class TestCreateCaseProposalIdempotency:
         assert result_val == first_case_id, (
             f"Accept.result should be existing case '{first_case_id}'"
             f", got {result_val!r} (AC-2, CP-05-006)"
-        )
-
-    def test_in_flight_proposal_is_no_op(self, make_payload):
-        """AC-3: Proposal with existing marker is a no-op (no duplicate Accept)."""
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=_CASE_ACTOR_URI,
-        )
-        proposal = _make_proposal()
-
-        # Run first proposal fully so a case and outbox entries exist
-        _run_create_proposal(dl, proposal, make_payload)
-        first_accepts = list(dl.list_objects("Accept"))
-        first_creates = list(dl.list_objects("Create"))
-
-        # Manually re-insert the marker to simulate an in-flight state
-        marker = PendingCreateCaseActivity(
-            proposal_id=proposal.id_,
-            case_actor_id=_CASE_ACTOR_URI,
-            owner_uri=_VENDOR_URI,
-            create_activity_payload={},
-        )
-        dl.save(marker)
-
-        # Resend proposal — marker present, so use case should no-op
-        _run_create_proposal(dl, proposal, make_payload)
-
-        after_accepts = list(dl.list_objects("Accept"))
-        after_creates = list(dl.list_objects("Create"))
-        assert len(after_accepts) == len(first_accepts), (
-            "No new Accept should be sent when marker is present (AC-3)"
-        )
-        assert len(after_creates) == len(first_creates), (
-            "No new Create should be sent when marker is present (AC-3)"
         )
 
 
@@ -837,22 +800,6 @@ class TestCaseProposalDisposition:
             self._case_actor_dl(), _make_proposal(), make_payload
         )
         assert result.disposition == HandlerDisposition.APPLIED
-
-    @pytest.mark.spec("HP-01-003")
-    def test_in_flight_proposal_is_skipped(self, make_payload):
-        dl = self._case_actor_dl()
-        proposal = _make_proposal()
-        _run_create_proposal(dl, proposal, make_payload)
-        dl.save(
-            PendingCreateCaseActivity(
-                proposal_id=proposal.id_,
-                case_actor_id=_CASE_ACTOR_URI,
-                owner_uri=_VENDOR_URI,
-                create_activity_payload={},
-            )
-        )
-        result = _run_create_proposal(dl, proposal, make_payload)
-        assert result.disposition == HandlerDisposition.SKIPPED
 
     @pytest.mark.spec("HP-01-003")
     @pytest.mark.spec("CP-05-004")

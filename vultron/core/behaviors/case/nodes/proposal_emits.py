@@ -22,21 +22,30 @@ CaseActor outbox. Composed by ``create_case_proposal_received_tree``
 """
 
 import logging
+from typing import Any
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
-from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+from vultron.core.behaviors.case.nodes.proposal_announcement import (
     announced_case_id,
+    create_case_activity_id,
 )
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     _EmitSingleActivityBase,
 )
-from vultron.core.models.pending_create_case_activity import (
-    PendingCreateCaseActivity,
+from vultron.core.models.activity import VultronCreateCaseActivity
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_register import carry_embargo_inline
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.services.embargo_ordering import read_embargo_event
+from vultron.errors import (
+    VultronError,
+    VultronNotFoundError,
+    VultronProtocolViolationError,
+    VultronValidationError,
 )
-from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +54,7 @@ class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
     """Build Accept(CaseProposal), store it, and queue it to the outbox.
 
     Sets ``accept_activity_id`` on the blackboard so the downstream
-    ``WriteCreateCaseMarkerNode`` can set the causal ``in_reply_to``
+    ``EmitCreateVulnerabilityCaseNode`` can set the causal ``in_reply_to``
     link on ``Create(VulnerabilityCase)`` (CP-05-003, ADR-0045).
 
     Reads ``case_id`` from the blackboard (written by either
@@ -162,49 +171,137 @@ class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
 
 
 class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
-    """Reconstruct Create(VulnerabilityCase) from the stored marker and queue it.
+    """Build ``Create(VulnerabilityCase)`` for the case owner and queue it.
 
-    Reads the pre-constructed ``Create(VulnerabilityCase)`` payload from the
-    ``PendingCreateCaseActivity`` marker written by
-    ``WriteCreateCaseMarkerNode``.  Using the stored payload (rather than
-    building a new activity from blackboard fields) guarantees that the
-    activity ``id_`` in the DataLayer and outbox is identical to the ``id_``
-    recorded in the marker.  This is critical for CP-05-005 idempotency: the
-    retry runner checks outbox membership by the marker's stored ``id_``, so
-    a fresh ``id_`` here would cause a duplicate delivery after crash/restart.
+    The activity carries the case inline, with its participants, active
+    embargo and reports materialised, so the owner's replica is seeded from
+    it (ADR-0041 AC-5, CBT-01-009, CBT-01-012).  ``context`` is the case and
+    ``in_reply_to`` the ``Accept`` the previous node queued (CP-05-003,
+    ADR-0045).  Its id is derived from the CASE_MANAGER and the proposal
+    (:func:`create_case_activity_id`), so a redelivery that reaches this node
+    rebuilds it under the same id and the outbox queues it once (OX-06-002).
 
-    Failure returns FAILURE so the enclosing Sequence surfaces it; the Accept
-    has already been sent at this point (CP-05-005 covers the retry case).
+    The ``Accept`` and this ``Create`` are queued in the creation act's one
+    transaction (ADR-0146): when this node fails, the ``Accept`` is rolled
+    back with it, so no ``Accept`` is sent without its ``Create``.  Once the
+    act commits, the durable outbox retries the delivery of both (OX-13,
+    CP-05-005).
+
+    Returns FAILURE when ``case_id`` or ``accept_activity_id`` is missing, the
+    case's active embargo cannot be read (EMB-18-003), or the derived id
+    already holds a ``Create`` for another case (the sender reused the
+    proposal id).
     """
 
     def __init__(
         self,
         proposal_id: str,
+        owner_uri: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._proposal_id = proposal_id
+        self._owner_uri = owner_uri
+        self._case_id_bb: str | None = None
+        self._accept_activity_id_bb: str | None = None
 
-    def _already_queued(self) -> bool:
-        """Whether this proposal's Create was queued by an earlier delivery.
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+        "accept_activity_id": PortInformation(data_type=str, required=False),
+    }
 
-        ``WriteCreateCaseMarkerNode`` writes no marker for a redelivered
-        proposal whose Create is already stored, so a missing marker with
-        that activity present is the announced case, not a lost marker
-        (CP-05-005, #4146).
-        """
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "accept_activity_id": "/accept_activity_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        self._accept_activity_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._case_id_bb = None
+        try:
+            self._accept_activity_id_bb = self.get_input("accept_activity_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._accept_activity_id_bb = None
+
+    def _build_case_object(
+        self, raw_case: VulnerabilityCase
+    ) -> dict[str, Any]:
         assert self.datalayer is not None
-        case_id = announced_case_id(self.datalayer, self._proposal_id)
-        if case_id is None:
-            return False
-        logger.info(
-            "%s: Create(VulnerabilityCase) of case '%s' for proposal '%s' was"
-            " already queued — not announcing the case again (CP-05-005)",
-            self.name,
-            case_id,
-            self._proposal_id,
-        )
-        return True
+        # Materialise each participant ref so store_embedded_participants
+        # on the owner's side receives full objects, not bare ID strings (AC-5).
+        materialized: list[Any] = []
+        for ref in raw_case.case_participants:
+            if isinstance(ref, str):
+                p_obj = self.datalayer.read(ref)
+                materialized.append(p_obj if p_obj is not None else ref)
+            else:
+                materialized.append(ref)
+        updates: dict[str, Any] = {"case_participants": materialized}
+        # Carry the active embargo inline too: a recipient refuses a case
+        # naming an embargo its own store cannot read (EMB-18-003), and the
+        # CASE_MANAGER minted this one, so no recipient holds it yet.  Raises
+        # when this store cannot read it — sending the bare id would only
+        # hand every recipient a case it must refuse.
+        if isinstance(raw_case.active_embargo, str):
+            updates["embargo_register"] = carry_embargo_inline(
+                raw_case.embargo_register,
+                read_embargo_event(self.datalayer, raw_case.active_embargo),
+            )
+        case_copy = raw_case.model_copy(update=updates)
+        # A missing port is a composition fault, not the sender's: raise
+        # VultronWiringError rather than failing the tree (ARCH-20-001).
+        port = self._require_wire_render_port()
+        case_dict = port.render(case_copy)
+        case_dict.setdefault("type", "VulnerabilityCase")
+        # Inline full VulnerabilityReport dicts after render so invited
+        # actors' _store_embedded_reports stores them (CBT-01-012, ISSUE-2134).
+        # Done post-render because VulnerabilityCase.vulnerability_reports is
+        # typed list[str]; embedding objects directly triggers Pydantic warnings.
+        inlined_reports: list[Any] = []
+        for report_ref in raw_case.vulnerability_reports:
+            if isinstance(report_ref, str):
+                r_obj = self.datalayer.read(report_ref)
+                if isinstance(r_obj, VulnerabilityReport):
+                    r_dict = port.render(r_obj)
+                    r_dict.setdefault("type", "VulnerabilityReport")
+                    inlined_reports.append(r_dict)
+                else:
+                    inlined_reports.append(report_ref)
+            else:
+                inlined_reports.append(report_ref)
+        case_dict["vulnerability_reports"] = inlined_reports
+        return case_dict
+
+    def _announces_another_case(self, case_id: str) -> str | None:
+        """Why the derived id cannot announce *case_id*, or ``None`` if it can."""
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        try:
+            announced = announced_case_id(
+                self.datalayer, self.actor_id, self._proposal_id
+            )
+        except VultronProtocolViolationError as exc:
+            return str(exc)
+        if announced is not None and announced != case_id:
+            return (
+                f"proposal '{self._proposal_id}' already announced case"
+                f" '{announced}', not '{case_id}': the sender reused the"
+                " proposal id, so this case cannot be announced (CP-05-005)"
+            )
+        return None
+
+    def _fail(self, message: str) -> Status:
+        self.feedback_message = message
+        logger.warning("%s: %s", self.name, message)
+        return Status.FAILURE
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -212,68 +309,67 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        # Read the pre-built payload from the marker to guarantee id_ consistency
-        # with CP-05-005 retry logic.
-        marker_id = PendingCreateCaseActivity.build_id(self._proposal_id)
-        raw_marker = self.datalayer.read(marker_id)
-        if raw_marker is None:
-            try:
-                already_queued = self._already_queued()
-            except VultronError as exc:
-                # WriteCreateCaseMarkerNode fails the tree on this first; here
-                # it only means there is nothing this node may emit.
-                logger.warning("%s: %s", self.name, exc)
-                already_queued = False
-            if already_queued:
-                return Status.SUCCESS
-        if not isinstance(raw_marker, PendingCreateCaseActivity):
-            self.feedback_message = (
-                f"PendingCreateCaseActivity marker '{marker_id}' not found"
-                " or wrong type; cannot emit Create(VulnerabilityCase)"
-            )
-            logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        if not raw_marker.create_activity_payload:
-            self.feedback_message = (
-                f"Marker '{marker_id}' has no create_activity_payload"
-            )
-            logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
+        case_id = self._case_id_bb
+        if not isinstance(case_id, str):
+            return self._fail("case_id not found in blackboard")
+        accept_activity_id = self._accept_activity_id_bb
+        if not isinstance(accept_activity_id, str):
+            return self._fail("accept_activity_id not found in blackboard")
+        if (violation := self._announces_another_case(case_id)) is not None:
+            return self._fail(violation)
         if (f := self._require_factory()) is not None:
             logger.error("%s: %s", self.name, self.feedback_message)
             return f
         assert self.trigger_activity_factory is not None
 
-        # The adapter rebuilds the prepared activity, persists it under the
-        # marker's id, and seals the body the outbox will deliver (VM-08-003).
+        # Regime 1 (ADR-0087, #3101): the CaseActor authored this case upstream
+        # in the same tree, so an absent case is an anomaly, not a skip.
+        case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure
+        try:
+            case_object = self._build_case_object(case)
+        except (VultronNotFoundError, VultronValidationError) as exc:
+            return self._fail(
+                f"Invariant violation (EMB-18-003): case '{case_id}' names an"
+                f" active embargo this store cannot read: {exc}"
+            )
+
+        # The report receiver (the Case Owner) is the only addressee
+        # (CBT-01-010, CM-22-001): it introduces the CASE_MANAGER to the
+        # reporter with its own Create(VulnerabilityCase) (CBT-01-001,
+        # ADR-0132).  The reporter never addressed this actor, so a Create from
+        # it would give the reporter nothing to check the sender against.
+        # CP-05-003 / ADR-0045: context = case URI (deferral routing key);
+        # in_reply_to = Accept URI (causal antecedent, AS2-correct field).
+        create_activity = VultronCreateCaseActivity(
+            id_=create_case_activity_id(self.actor_id, self._proposal_id),
+            actor=self.actor_id,
+            object_=case_object,
+            context=case_id,
+            in_reply_to=accept_activity_id,
+            to=[self._owner_uri],
+        )
+        # ``create_activity`` is a core-branch object, so its wire shape comes
+        # from the port (ARCH-20-001); the adapter persists it and seals the
+        # body the outbox delivers (VM-08-003).
+        payload = self._require_wire_render_port().render(create_activity)
         try:
             activity_id, _blob = (
                 self.trigger_activity_factory.emit_prepared_create_case(
-                    raw_marker.create_activity_payload
+                    payload
                 )
             )
         except VultronError as exc:
-            self.feedback_message = (
-                f"Could not emit Create(VulnerabilityCase)"
-                f" from marker '{marker_id}': {exc}"
+            return self._fail(
+                f"Could not emit Create(VulnerabilityCase) for proposal"
+                f" '{self._proposal_id}': {exc}"
             )
-            logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
 
-        try:
-            # Route through the shared emit seam (OX-14-001, ASK-04-008).
-            # factory.emit_prepared_create_case returns (id, blob); pass
-            # empty blob since no captured dict is present here.
-            self._emit_through_seam(activity_id, "")
-        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
-            self.feedback_message = (
-                f"Failed to enqueue Create(VulnerabilityCase) to outbox: {exc}"
-            )
-            logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
+        # Route through the shared emit seam (OX-14-001, ASK-04-008).
+        # A Create still pending from an earlier attempt is not queued again
+        # (OX-06-002).
+        self._emit_through_seam(activity_id, "")
         logger.info(
             "%s: Queued Create(VulnerabilityCase) '%s' from proposal '%s'",
             self.name,
