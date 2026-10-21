@@ -28,6 +28,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.embargo_register import terminate
+from test.support.received import received_event
 from test.support.refusal_notice import assert_no_refusal_notice
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -62,6 +63,7 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.errors import VultronBTInternalError
+from vultron.wire.as2.parser import parse_activity
 
 from .test_embargo_relay_replay import (
     BYSTANDER,
@@ -701,6 +703,60 @@ def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
     assert snapshot["object"]["actor"] == BYSTANDER
     assert snapshot == read_sealed_body_dict(dl_mgr, committed.log_object_id)
     assert noop_entries[0].payload_snapshot == snapshot
+
+
+@pytest.mark.spec("EMB-17-004")
+@pytest.mark.spec("IE-10-001")
+@pytest.mark.spec("VM-08-002")
+def test_a_resent_late_accept_without_evidence_keeps_its_acknowledgement():
+    """A resend of the archived late Accept is routed with no received body.
+
+    The acknowledgement already recorded for that Accept stands: nothing new
+    is committed, and the resend is not an internal error.
+    """
+    net = _Network("https://example.org/cases/answer-noop-late-accept-resend")
+    body, _accept_id, _bystander_pid, _revision_id = (
+        _late_accept_on_an_exited_embargo(net)
+    )
+    net.receive(MANAGER, body)
+    resend = received_event(
+        parse_activity(body),
+        receiving_actor_id=MANAGER,
+        received_evidence=None,
+    )
+
+    net.receive_event(MANAGER, resend)
+
+    assert (
+        _semantic_types(net, MANAGER).count(INVITE_EXPIRED_NOOP_SEMANTIC_TYPE)
+        == 1
+    )
+
+
+@pytest.mark.spec("CLP-10-026")
+@pytest.mark.spec("VM-08-002")
+def test_a_late_accept_with_no_body_and_no_acknowledgement_is_not_answered():
+    """With no received body and nothing recorded, there is nothing to carry.
+
+    The arm does not complete, which CLP-10-026 makes an internal error, and
+    no acknowledgement is committed.
+    """
+    net = _Network("https://example.org/cases/answer-late-accept-no-body")
+    body, _accept_id, _bystander_pid, _revision_id = (
+        _late_accept_on_an_exited_embargo(net)
+    )
+    resend = received_event(
+        parse_activity(body),
+        receiving_actor_id=MANAGER,
+        received_evidence=None,
+    )
+
+    with pytest.raises(VultronBTInternalError, match="no received body"):
+        net.receive_event(MANAGER, resend)
+
+    assert INVITE_EXPIRED_NOOP_SEMANTIC_TYPE not in _semantic_types(
+        net, MANAGER
+    )
 
 
 @pytest.mark.spec("CLP-10-026")

@@ -252,13 +252,13 @@ def test_received_body_is_forwarded_as_payload_snapshot_unchanged(bridge):
 
 
 @pytest.mark.spec("VM-08-002")
-@pytest.mark.spec("ARCH-15-001")
-def test_event_without_received_evidence_is_a_wiring_fault(bridge):
+@pytest.mark.spec("IE-10-001")
+def test_an_unrecorded_event_without_evidence_is_refused_not_recorded(bridge):
     """An event with no received body has nothing to record.
 
-    It is not rebuilt from the event's objects: the failure is a
-    composition fault, reported as an internal error rather than a refusal
-    of the sender.
+    It is a resend of an activity archived but never recorded (IE-10-001).
+    It is not rebuilt from the event's objects: the node refuses it, a
+    FAILURE the handler reports as REFUSED, rather than an internal error.
     """
     event = VultronEvent(
         semantic_type=MessageSemantics.CREATE_CASE,
@@ -272,8 +272,8 @@ def test_event_without_received_evidence_is_a_wiring_fault(bridge):
         )
 
     assert result.status == Status.FAILURE
-    assert result.internal_error is True
-    assert "carries no received evidence" in (result.feedback_message or "")
+    assert result.internal_error is False
+    assert "carries no received body" in (result.feedback_message or "")
     mock_factory.assert_not_called()
 
 

@@ -30,6 +30,8 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.ledger_payload import (
     _extract_payload_snapshot,
+    carries_no_received_body,
+    unrecordable_resend_reason,
 )
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
@@ -40,9 +42,11 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
 from vultron.core.states.em import EM
+from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronWiringError
 
 
@@ -134,15 +138,17 @@ class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
     executing CASE_MANAGER, with the received Accept inline, and
     its sealed blob is the entry's ``payloadSnapshot`` (VM-08-003).
 
-    The received Accept is read from ``/activity`` and rendered through the
-    wire-render port, the shape a received activity is recorded in
-    (CLP-07-009).  Addressed to nobody: the ledger fan-out is its delivery,
-    and a replica stores it and changes nothing (EMB-17-010).  The factory
-    derives the ``Ignore``'s id from the CASE_MANAGER and the Accept, so a
-    redelivered Accept commits nothing new.
+    The received Accept is read from ``/activity`` and carried inline as it
+    arrived, the received body a received entry records (CLP-07-011).
+    Addressed to nobody: the ledger fan-out is its delivery, and a replica
+    stores it and changes nothing (EMB-17-010).  The factory derives the
+    ``Ignore``'s id from the CASE_MANAGER and the Accept, so a redelivered
+    Accept commits nothing new.  A resend routed without received evidence
+    (IE-10-001) has no body to carry: the acknowledgement already recorded
+    for its Accept stands, and with none recorded the resend is refused.
 
-    A missing received event or rendering port is a composition fault and
-    raises (ARCH-15-001, ADR-0095).
+    A missing received event is a composition fault and raises
+    (ARCH-15-001, ADR-0095).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -166,6 +172,37 @@ class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
     def initialise(self) -> None:
         super().initialise()
         self._event = self._try_get_input("activity")
+
+    def update(self) -> Status:
+        if carries_no_received_body(self._event):
+            return self._answer_resend(cast(VultronEvent, self._event))
+        return super().update()
+
+    def _answer_resend(self, event: VultronEvent) -> Status:
+        """The recorded acknowledgement of *event*'s Accept stands, if any."""
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        acknowledged = any(
+            entry.semantic_type == INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
+            and _extract_id_from_field(entry.payload_snapshot.get("object"))
+            == event.activity_id
+            for entry in recorded_entries_for_case(
+                case_id=self._case_id, dl=self.datalayer
+            )
+        )
+        if acknowledged:
+            self.feedback_message = (
+                f"late Accept '{event.activity_id}' is a redelivery already"
+                f" acknowledged on case '{self._case_id}'"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+        self.feedback_message = unrecordable_resend_reason(
+            event.activity_id, self._case_id
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
     def _late_accept(self) -> dict[str, Any]:
         """The received Accept, as it arrived and as its entry records it."""

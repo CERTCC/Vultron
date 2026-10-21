@@ -231,3 +231,20 @@ def test_an_event_from_an_activity_without_evidence_carries_none():
     assert event.received_evidence is None
     with pytest.raises(VultronWiringError, match="no received evidence"):
         event.received_body()
+
+
+@pytest.mark.spec("VM-08-002")
+@pytest.mark.parametrize("evidence", ["not json", "[1, 2]", '"text"'])
+def test_an_event_refuses_evidence_that_is_not_a_json_object(evidence: str):
+    """Received evidence is the text of a body, which is always an object."""
+    from pydantic import ValidationError
+
+    from vultron.core.models.events.base import MessageSemantics, VultronEvent
+
+    with pytest.raises(ValidationError, match="received_evidence"):
+        VultronEvent(
+            semantic_type=MessageSemantics.UNKNOWN,
+            activity_id="https://example.org/activities/a1",
+            actor_id=ACTOR,
+            received_evidence=evidence,
+        )

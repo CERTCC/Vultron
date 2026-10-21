@@ -219,7 +219,9 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
     )
     payload_snapshot: dict[NonEmptyString, Any] = Field(
         default_factory=dict,
-        description="Normalized snapshot of the asserted activity payload for replay",
+        description=(
+            "The asserted activity payload verbatim, for replay (CLP-07-011)"
+        ),
     )
     prev_log_hash: str = Field(
         default="",

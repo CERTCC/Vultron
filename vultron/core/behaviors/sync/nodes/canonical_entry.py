@@ -34,6 +34,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models._helpers import as_utc, parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.rsvp_deadline import (
@@ -257,16 +258,6 @@ def _bare_inline_object_path(
     return None
 
 
-def _snapshot_reference_id(value: Any) -> str | None:
-    """The id a snapshot slot names: a bare URI, or an inline object's ``id``."""
-    if isinstance(value, str):
-        return value
-    if isinstance(value, dict):
-        ref = value.get("id")
-        return ref if isinstance(ref, str) else None
-    return None
-
-
 def _validate_entry_timestamps(
     *,
     semantic_type: str,
@@ -459,10 +450,10 @@ def _validate_canonical_entry(
     # no ``context`` (CLP-07-011).  One that names a case names this
     # one: a snapshot scoped to another case is not this case's event.
     context = payload_snapshot.get("context")
-    if context is not None and _snapshot_reference_id(context) != case_id:
+    if context is not None and _extract_id_from_field(context) != case_id:
         raise VultronCanonicalEntryError(
             f"{semantic_type}: payloadSnapshot.context names"
-            f" {_snapshot_reference_id(context)!r}, not the entry's case"
+            f" {_extract_id_from_field(context)!r}, not the entry's case"
             f" {case_id!r}"
         )
 

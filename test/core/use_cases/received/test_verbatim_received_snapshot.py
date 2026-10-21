@@ -234,8 +234,39 @@ def test_a_resend_of_an_archived_activity_adds_no_entry():
 
     verdict = run_use_case(dl, resend)
 
-    assert verdict.disposition in {
-        HandlerDisposition.APPLIED,
-        HandlerDisposition.SKIPPED,
-    }, verdict.reason
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
+    assert [e.id_ for e in ledger_entries(dl, CASE_ID)] == before
+
+
+@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("IE-10-001")
+def test_a_resend_whose_first_delivery_was_never_recorded_is_refused():
+    """With no received body and no entry, there is nothing to record.
+
+    As when a guard refused the first delivery after intake archived it, the
+    ledger holds no entry for the activity, and the resend carries no body to
+    record in its place: it is refused, not recorded, and not reported as an
+    internal error.
+    """
+    net = LedgerNetwork(CASE_ID)
+    body = json.loads(
+        dump_outbound_body(
+            rm_engage_case_activity(
+                net.case(MANAGER), actor=OWNER, to=[MANAGER]
+            )
+        )
+    )
+    dl = net.stores[MANAGER]
+    before = [e.id_ for e in ledger_entries(dl, CASE_ID)]
+    ingress = FastAPIIngressAdapter(dl)
+    artifact = ingress.parse(copy.deepcopy(body))
+    assert artifact is not None
+    resend = prepare_for_dispatch(ingress.rehydrate(artifact)).model_copy(
+        update={"receiving_actor_id": MANAGER, "received_evidence": None}
+    )
+
+    verdict = run_use_case(dl, resend)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert "no received body" in (verdict.reason or "")
     assert [e.id_ for e in ledger_entries(dl, CASE_ID)] == before

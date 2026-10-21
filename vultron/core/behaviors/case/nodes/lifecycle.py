@@ -30,12 +30,13 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.ledger_payload import (
     _extract_payload_snapshot,
+    carries_no_received_body,
+    unrecordable_resend_reason,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.models.events.base import VultronEvent
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.addressing import (
     same_actor_id,
@@ -149,16 +150,27 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     def _resolve_activity(self) -> Any | None:
         return self._activity
 
-    def _is_recorded_resend(self, activity: Any, case_id: str) -> bool:
-        """True for an event with no received evidence the ledger records."""
+    def _answer_resend(self, activity_id: str, case_id: str) -> Status:
+        """Answer a resend routed without received evidence (IE-10-001).
+
+        It has no body to record.  When the ledger records its first delivery,
+        that entry stands; otherwise the resend is refused, not recorded.
+        """
         assert self.datalayer is not None
-        return (
-            isinstance(activity, VultronEvent)
-            and activity.received_evidence is None
-            and is_ledgered_activity(
-                self.datalayer, case_id, activity.activity_id
+        if is_ledgered_activity(self.datalayer, case_id, activity_id):
+            self.logger.info(
+                "%s: activity '%s' is a redelivery already recorded for case"
+                " '%s'; its first delivery's entry stands",
+                self.name,
+                activity_id,
+                case_id,
             )
+            return Status.SUCCESS
+        self.feedback_message = unrecordable_resend_reason(
+            activity_id, case_id
         )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
     def _activity_metadata(
         self, activity: Any | None, case_id: str
@@ -200,18 +212,8 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        if self._is_recorded_resend(activity, case_id):
-            # A resend of an archived activity is routed without received
-            # evidence (VM-08-002, IE-10-001), so it has no body to record;
-            # its first delivery's entry is the record of it.
-            self.logger.info(
-                "%s: activity '%s' is a redelivery already recorded for case"
-                " '%s'; its first delivery's entry stands",
-                self.name,
-                activity.activity_id,
-                case_id,
-            )
-            return Status.SUCCESS
+        if carries_no_received_body(activity):
+            return self._answer_resend(activity.activity_id, case_id)
 
         object_id, semantic_type, payload_snapshot = self._activity_metadata(
             activity, case_id

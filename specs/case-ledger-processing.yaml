@@ -844,6 +844,12 @@ groups:
     statement: '`payloadSnapshot` context values MUST use the case URI once a case
       exists; report URIs MUST NOT appear as the context for ParticipantStatus or
       other case-scoped snapshots after the report→case promotion has occurred'
+    rationale: >-
+      The obligation falls on whoever builds the activity. A received snapshot is the
+      body as sent (CLP-07-011), so the CASE_MANAGER neither writes a `context` in nor
+      rewrites one; the commit boundary refuses a `context` naming another case, and
+      the entry names its case on the envelope (`case_id`), so a snapshot that names no
+      `context`, such as the Offer that opened the case, is still that case's entry.
     verification: Integration tests in `test/demo/` confirm that `CaseLedgerEntry`
       objects created after report-to-case promotion carry the case URI (not the report
       URI) as the `payloadSnapshot.context` field for case-scoped entries such as
@@ -851,22 +857,12 @@ groups:
     stories:
     - story_2022_045
     - story_2022_030
-  - id: CLP-07-008
-    priority: MUST
-    kind: project
-    verification_debt: '#2575'
-    statement: If a canonicalization path resolves an ID-string nested reference for
-      `payloadSnapshot` inlining, it MUST verify that the resolved object's context
-      matches the parent snapshot context before replacement. On context mismatch,
-      the entry MUST be rejected rather than inlining cross-case data.
-    rationale: Blind `dl.read(id)` replacement can leak unrelated local objects into
-      canonical snapshots when inbound activities carry attacker-controlled IDs.
   - id: CLP-07-009
     priority: MUST
     kind: project
     statement: >-
-      A `payloadSnapshot` — and every object inlined into one under CLP-07-006 — MUST be
-      in the wire (AS2) shape, such that the wire vocabulary class for its `type_` can
+      A `payloadSnapshot` — and every object carried inline in one (CLP-07-006) — MUST
+      be in the wire (AS2) shape, such that the wire vocabulary class for its `type_` can
       revalidate it without translation. When the object being captured is a core domain
       object, the wire shape MUST be produced through the core→wire rendering port
       (ARCH-20-001), never by dumping the core object with `by_alias=True` or by rewriting

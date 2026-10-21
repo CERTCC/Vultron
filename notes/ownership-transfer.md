@@ -158,10 +158,10 @@ actor's `case.attributed_to` changes on its own replica (`test/ci/invariants/`).
   an executing actor this container does not host (BT-05-005).
 - A case always has a CASE_MANAGER (CM-24-006): when none resolves, fail; never send
   to the transferee directly.
-- The proposal carries `context=case_id`, which the commit boundary requires
-  (`payloadSnapshot.context` equals the case) and against which the inner Offer's
-  object is checked. The trigger returns the proposal; the owner names it to
-  withdraw (TRIG-11-006).
+- The proposal carries `context=case_id`, which the commit boundary checks
+  (a `payloadSnapshot.context` that is present must name the entry's case) and
+  against which the inner Offer's object is checked. The trigger returns the
+  proposal; the owner names it to withdraw (TRIG-11-006).
 - **The transferee travels and is stored inline**, as an `Actor` object, never a
   bare id (DL-08-003): the ledger snapshot of the proposal and of the Offer carry it
   inline (CLP-07-006), so the CASE_MANAGER needs no actor-profile write. The factory
@@ -281,10 +281,11 @@ CASE_MANAGER inbox receives Reject
   `vultron.demo.helpers.workflow.setup_canonical_case`.
 - **The transferee must be known to the CASE_MANAGER**: in its address book
   (`seed_peer(client, local_actor_id=case_actor_id, ...)`) and seated on its replica
-  through the stub Invite (`seat_participant_through_stub_invite`). The snapshot's
-  `target` must be inline (CLP-07), and `Add(CaseParticipant)` never seats a member
-  (CM-31-011), so a missing transferee fails at commit with
-  `payloadSnapshot.target must be an inline object`.
+  through the stub Invite (`seat_participant_through_stub_invite`), because
+  `Add(CaseParticipant)` never seats a member (CM-31-011). The commit boundary no
+  longer catches a transferee sent by bare id: a snapshot records `target` as sent
+  (CLP-07-006), so the inline `Actor` the factory builds is what every replica
+  reads.
 - **The exchange demo drives every step through its actor's trigger**
   (DEMOMA-05-001): the vendor's `offer-case-ownership-transfer`, then the
   coordinator's `accept-` or `reject-case-ownership-transfer`. It gates on the

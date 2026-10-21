@@ -88,7 +88,7 @@ Each step leaves a working system with the demos passing, so additive steps come
 | 2 | fetch-by-`id` endpoint on the case host; replica fetch-and-defer | #3739 |
 | 3 | senders inline what they introduce; fix demo and factory bare-`id` paths | #3740 |
 | 4 | whole accept or reject for participant status; retire RSH-05 | #3741 |
-| 5 | ledger records the evidence verbatim; carry the evidence from the parsed activity onto the dispatched event, since core sees only the event; persist it for deferred replay; rewrite CLP-07-006 and retire the normalization branch of CLP-07-011 and CLP-02-003 | #3742 (done; the deferred-replay body is #4871) |
+| 5 | ledger records the evidence verbatim; carry the evidence from the parsed activity onto the dispatched event, since core sees only the event; persist it for deferred replay; rewrite CLP-07-006 and retire the normalization branch of CLP-07-011 and CLP-02-003 | #3742 (done; persisting the received body is #4943) |
 | 6 | Lapse and case-closed become emitted activities | #3743 |
 
 Tracked under Epic #3738.

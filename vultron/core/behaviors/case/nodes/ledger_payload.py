@@ -48,3 +48,28 @@ def _extract_payload_snapshot(activity: Any) -> dict[str, Any]:
             " (ARCH-15-001)"
         )
     return activity.received_body()
+
+
+def carries_no_received_body(activity: Any) -> bool:
+    """True for a received event routed without received evidence.
+
+    A resend under an id already held, or of an activity already archived,
+    is routed so (VM-08-002, IE-10-001): this receiver holds no body for the
+    delivery it routes, so there is nothing new to record.
+    """
+    return isinstance(activity, VultronEvent) and (
+        activity.received_evidence is None
+    )
+
+
+def unrecordable_resend_reason(activity_id: str, case_id: str) -> str:
+    """Why a resend with no received body is refused, not recorded.
+
+    Its first delivery was archived but never recorded (a guard refused it),
+    and the resend carries no body to record in its place (VM-08-002).
+    """
+    return (
+        f"activity '{activity_id}' is a resend of an activity this receiver"
+        f" archived but never recorded for case '{case_id}', and it carries"
+        " no received body to record (VM-08-002, IE-10-001)"
+    )

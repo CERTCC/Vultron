@@ -9,7 +9,7 @@ import json
 from enum import StrEnum, auto
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import (
@@ -166,6 +166,30 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
     # activity the receiver built itself, or one dispatched outside the inbox
     # path.
     received_evidence: NonEmptyString | None = None
+
+    @field_validator("received_evidence")
+    @classmethod
+    def _evidence_is_a_json_object(cls, value: str | None) -> str | None:
+        """Refuse evidence that is not the text of a JSON object (ARCH-10-001).
+
+        The parser seals the decoded body of an activity, which is always an
+        object, so anything else is not a received body.
+        """
+        if value is None:
+            return value
+        try:
+            decoded = json.loads(value)
+        except ValueError as exc:
+            raise ValueError(
+                "received_evidence is not JSON text (VM-08-002)"
+            ) from exc
+        if not isinstance(decoded, dict):
+            # Pydantic reports a ValueError as a ValidationError; a TypeError
+            # would escape validation instead.
+            raise ValueError(  # noqa: TRY004
+                "received_evidence is not the text of a JSON object (VM-08-002)"
+            )
+        return value
 
     def received_body(self) -> dict[str, Any]:
         """A fresh copy of the received JSON this event was extracted from.
