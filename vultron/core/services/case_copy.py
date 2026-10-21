@@ -199,9 +199,7 @@ def _named_by(case: VulnerabilityCase) -> set[str]:
     """The ids of the records *case* names but a copy of it does not carry."""
     named = {str(n) for n in case.notes}
     named |= {
-        str(i)
-        for ref in [*case.case_statuses, *case.vulnerability_reports]
-        if (i := _as_id(ref)) is not None
+        str(i) for ref in case.case_statuses if (i := _as_id(ref)) is not None
     }
     named |= {entry.embargo_id for entry in case.embargo_register}
     named |= {str(v) for v in case.pending_embargo_proposal_index.values()}

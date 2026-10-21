@@ -25,6 +25,7 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import ledger_entries
+from test.support.received import received_event
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -35,8 +36,11 @@ from vultron.adapters.outbox_sealed_body import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_copy_position import CaseCopyPosition
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
+from vultron.wire.as2.factories import genesis_replay_reject_activity
+from vultron.wire.as2.parser import parse_activity
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
@@ -198,3 +202,54 @@ def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
 
     assert _tail(net, BYSTANDER) == _tail(net, MANAGER)
     assert _statuses(net, BYSTANDER) == _statuses(net, MANAGER)
+
+
+def _genesis_request(case_id: str, sender: str) -> dict[str, Any]:
+    """The objectless genesis-replay Reject *sender* sends the CASE_MANAGER."""
+    return genesis_replay_reject_activity(
+        case_id, actor=sender, to=[MANAGER]
+    ).model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-03-005")
+def test_a_genesis_request_for_a_case_the_manager_lacks_is_refused() -> None:
+    """The Reject's target is the only case it names; one the CASE_MANAGER
+    does not hold has nothing to replay and is refused."""
+    net = LedgerNetwork("https://example.org/cases/copy-genesis-unknown")
+    _send(net, net.pxa_report(OWNER, CS_pxa.pXa))
+    queued = len(net.queued(MANAGER, to=BYSTANDER))
+
+    verdict = net.receive(
+        MANAGER,
+        _genesis_request("https://example.org/cases/not-held", BYSTANDER),
+    )
+
+    assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
+    assert len(net.queued(MANAGER, to=BYSTANDER)) == queued
+    assert (
+        list(net.stores[MANAGER].list_objects("VultronReplicationState")) == []
+    )
+
+
+@pytest.mark.spec("SYNC-16-007")
+def test_a_reject_naming_neither_an_entry_nor_a_case_is_refused() -> None:
+    """The parser admits no such Reject; one that reaches the use case all
+    the same names nothing to replay, and is refused before any tree runs."""
+    net = LedgerNetwork("https://example.org/cases/copy-genesis-nothing")
+    _send(net, net.pxa_report(OWNER, CS_pxa.pXa))
+    event = cast(
+        RejectLogEntryReceivedEvent,
+        received_event(
+            parse_activity(_genesis_request(net.case_id, BYSTANDER)),
+            receiving_actor_id=MANAGER,
+        ),
+    ).model_copy(update={"target": None})
+    assert event.rejected_case_id is None
+    queued = len(net.queued(MANAGER, to=BYSTANDER))
+
+    verdict = net.receive_event(MANAGER, event)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
+    assert "names neither" in (verdict.reason or "")
+    assert len(net.queued(MANAGER, to=BYSTANDER)) == queued

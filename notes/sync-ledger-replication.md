@@ -281,6 +281,11 @@ same entry forever (ADR-0142).
   because an old copy can arrive late (SYNC-16-006). The position is the chain's
   tail, or the last replacing copy's tail (`CaseCopyPosition`) while the chain is
   short of it, so two copies arriving out of order cannot move the case back.
+- **A copy carries each record as the store holds it now.** `_case_for_wire`
+  re-reads a participant or report the case holds inline, because a current
+  copy replaces the replica's records unconditionally; a stale inline snapshot
+  regressed a replica's RM (#4797). The CASE_MANAGER skips a copy of its own,
+  as it receives its broadcast as a participant: its case is the source.
 - **Replace and record in one transaction.** `SeedAnnouncedCaseNode` writes the
   participants, the case and the copy's tail together (ADR-0146); a split write
   could leave a replaced case whose reflected entries are applied again.

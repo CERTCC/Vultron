@@ -21,6 +21,7 @@ related_specs:
     through MV-11-005)
   - specs/vocabulary-model.yaml (VM-06-008, VM-10-001)
   - specs/sync-ledger-replication.yaml (SYNC-16-005)
+  - specs/vultron-as2-mapping.yaml (VAM-04-011)
 related_notes:
   - notes/vocabulary-registry.md
   - notes/core-wire-rendering-port.md
@@ -173,6 +174,12 @@ declaration (MV-11-001, VM-10-001), so one entry declares the property
 everywhere. An activity that carries such a copy keeps it inline
 (`inline_required_refs`), or the receiver's staged rebuild reads back its own
 stored object in its place (#4797).
+
+Not the activity's `content`, where the full-case Invite carries its position
+(VAM-04-011): ADR-0142 puts the tail on the case's wire form, because the
+position describes the copy, not the message, and a copy kept inline in a
+stored activity keeps it. Reach for a carried property only for such a value;
+a value about the message belongs on the activity.
 
 ### The `id_` Failures Are an Alias-Injection Bug, Not a Field-Name Bug
 

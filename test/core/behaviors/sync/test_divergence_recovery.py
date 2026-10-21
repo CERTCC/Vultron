@@ -188,9 +188,11 @@ def test_replication_state_records_the_last_reseed() -> None:
 _MANAGER_PARTICIPANT_ID = f"{_CASE_ID}/participants/case-manager"
 
 
-def _replica_holding(name: str) -> SqliteDataLayer:
+def _replica_holding(
+    name: str, actor_id: str = _REPLICA_ID
+) -> SqliteDataLayer:
     """A replica that holds the case, whose roster names its CASE_MANAGER."""
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_REPLICA_ID)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
     dl.create(
         CaseParticipant(
             id_=_MANAGER_PARTICIPANT_ID,
@@ -245,15 +247,16 @@ def _announce(
     dl: SqliteDataLayer,
     *,
     with_sync_port: bool = True,
+    receiver: str = _REPLICA_ID,
 ) -> HandlerResult:
     activity = announce_vulnerability_case_activity(
-        copy, actor=_CASE_ACTOR_ID, to=[_REPLICA_ID], context=_CASE_ID
+        copy, actor=_CASE_ACTOR_ID, to=[receiver], context=_CASE_ID
     )
     return AnnounceVulnerabilityCaseReceivedUseCase(
         dl,
         cast(
             AnnounceVulnerabilityCaseReceivedEvent,
-            received_event(activity, receiving_actor_id=_REPLICA_ID),
+            received_event(activity, receiving_actor_id=receiver),
         ),
         sync_port=SyncActivityAdapter(dl) if with_sync_port else None,
     ).execute()
@@ -437,7 +440,7 @@ def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     assert body is not None
     assert body["type"] == "Reject"
     assert "object" not in body
-    assert body.get("context", "") == ""
+    assert body["context"] == ""
     assert body["target"] == _CASE_ID
     assert body["to"] == [_CASE_ACTOR_ID]
     event = cast(
@@ -674,6 +677,104 @@ def test_a_carried_value_under_two_disagreeing_spellings_is_refused() -> None:
 
     with pytest.raises(ValidationError, match="disagree"):
         as_VulnerabilityCase.model_validate(data)
+
+
+@pytest.mark.spec("SYNC-16-005")
+def test_a_null_and_a_value_under_two_spellings_disagree() -> None:
+    """An explicit null says "no tail", so it cannot sit beside one."""
+    data = _owned_case("copy").model_dump(mode="json")
+    data["ledgerTail"] = None
+    data["ledger_tail"] = {"log_index": 2, "entry_hash": "ab" * 32}
+
+    with pytest.raises(ValidationError, match="disagree"):
+        as_VulnerabilityCase.model_validate(data)
+    assert (
+        as_VulnerabilityCase.model_validate(
+            {**_owned_case("copy").model_dump(mode="json"), "ledgerTail": None}
+        ).ledger_tail
+        is None
+    )
+
+
+@pytest.mark.spec("SYNC-16-006")
+def test_the_case_managers_own_copy_is_skipped() -> None:
+    """The CASE_MANAGER receives its own broadcast as a participant; its case
+    is the copy's source, so the copy changes nothing (ADR-0124)."""
+    dl = _replica_holding("manager case", actor_id=_CASE_ACTOR_ID)
+
+    result = _announce(
+        _owned_case("its own copy").with_ledger_tail(
+            LedgerPosition(log_index=4, entry_hash="ef" * 32)
+        ),
+        dl,
+        receiver=_CASE_ACTOR_ID,
+    )
+
+    assert result.disposition is HandlerDisposition.SKIPPED, result.reason
+    assert _case_name(dl) == "manager case"
+    assert dl.read(CaseCopyPosition.build_id(_CASE_ID)) is None
+    assert dl.outbox_list() == []
+
+
+@pytest.mark.spec("SYNC-16-007")
+def test_a_genesis_request_for_a_later_copy_is_its_own_activity() -> None:
+    """The genesis-replay Reject's id names the copy's tail, so a request
+    after a later copy is not deduplicated as a repeat of the first."""
+    dl = _replica_holding("empty replica")
+    _announce(
+        _owned_case("first copy").with_ledger_tail(
+            LedgerPosition(log_index=3, entry_hash="ef" * 32)
+        ),
+        dl,
+    )
+    _announce(
+        _owned_case("first copy again").with_ledger_tail(
+            LedgerPosition(log_index=3, entry_hash="ef" * 32)
+        ),
+        dl,
+    )
+    assert len(dl.outbox_list()) == 1
+
+    _announce(
+        _owned_case("later copy").with_ledger_tail(
+            LedgerPosition(log_index=5, entry_hash="cd" * 32)
+        ),
+        dl,
+    )
+
+    assert len(set(dl.outbox_list())) == 2
+
+
+@pytest.mark.spec("SYNC-16-007")
+def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
+    """The inbox rebuilds an activity's object before routing; the Reject
+    that names none has none to rebuild, and still reaches its handler,
+    whose sender guard refuses a stranger and records no replay state."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+    dl.create(_owned_case("manager case"))
+    body = genesis_replay_reject_activity(
+        _CASE_ID, actor=_STRANGER_ID, to=[_CASE_ACTOR_ID]
+    ).model_dump(mode="json", by_alias=True, exclude_none=True)
+    staging = InlineObjectStaging(dl)
+
+    outcome = process_payload(
+        body,
+        FastAPIIngressAdapter(dl=dl, staging=staging),
+        FastAPIDispatchAdapter(
+            dl=dl, actor_id=_CASE_ACTOR_ID, dispatcher=make_dispatcher()
+        ),
+        FastAPIQueuePort(
+            dl=dl, actor_dl=dl, actor_id=_CASE_ACTOR_ID, staging=staging
+        ),
+    )
+
+    # Routed and judged: the stranger is no participant, so the sender
+    # guard refuses it (SYNC-03-005); the rebuild did not drop it.
+    assert outcome.status is InboxOutcomeStatus.REJECTED, outcome
+    assert outcome.failure_reason is not None
+    assert "RejectLogEntryReceivedBT" in outcome.failure_reason
+    assert "not an active participant" in outcome.failure_reason
+    assert list(dl.list_objects("VultronReplicationState")) == []
 
 
 @pytest.mark.spec("SYNC-16-005")

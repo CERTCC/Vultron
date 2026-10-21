@@ -67,6 +67,7 @@ class SyncActivityPort(Protocol):
     def send_genesis_replay_reject(
         self,
         case_id: str,
+        copy_tail_hash: str,
         actor_id: str,
         to: list[str],
     ) -> None:
@@ -79,6 +80,9 @@ class SyncActivityPort(Protocol):
 
         Args:
             case_id: The case to replay.
+            copy_tail_hash: The ``entry_hash`` of the tail the replacing copy
+                named.  It keeps each request its own: a request for a later
+                copy is not a repeat of an earlier one (ID-04-004).
             actor_id: URI of the actor sending the rejection.
             to: List of recipient actor URIs (the CASE_MANAGER).
         """

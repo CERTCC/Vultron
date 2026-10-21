@@ -289,6 +289,8 @@ A participant that already holds the case compares the tail with its own chain. 
 [I] In this implementation, the tail travels as the `ledgerTail` property of the case object in `Announce(VulnerabilityCase)`, the only message that carries it, with `logIndex` and `entryHash` members.
 The CASE_MANAGER fills it in each time it sends the announcement, and no case record stores it.
 A replica that holds the case refuses a copy with no tail, because it cannot tell that copy from a stale one.
+The copy carries each participant and report as the CASE_MANAGER's store holds it when it sends the copy, because a replica that takes the copy replaces its own with them.
+The CASE_MANAGER receives its own announcement as a participant and skips it, because its case is the copy's source.
 A replica already past the tail that holds a different entry at the tail's index reports the conflict, not a stale copy, because the chains disagree.
 Until its chain reaches the tail of the copy that last replaced its case, the replica treats that tail as its own position, so an older copy is stale too.
 A replica stores an entry the copy reflects without applying it, but still stores each record the entry carries that the copy names by id only, such as a note, a case status or a proposed embargo.

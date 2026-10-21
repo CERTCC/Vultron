@@ -32,13 +32,16 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.services.case_copy import CaseCopyVerdict, judge_case_copy
+from vultron.core.services.case_copy import (
+    CaseCopyJudgement,
+    CaseCopyVerdict,
+    judge_case_copy,
+)
 from vultron.errors import VultronValidationError, VultronWiringError
 
 #: Blackboard key: whether the announced copy replaces a case this replica
@@ -66,7 +69,9 @@ class CaseCopyNotStaleNode(
     - otherwise ``SUCCESS``: the copy replaces the case.
 
     A copy that names no tail cannot be told from a stale one, so a replica
-    holding the case refuses it (``FAILURE``, WARNING).
+    holding the case refuses it (``FAILURE``, WARNING).  A copy this actor
+    sent itself, as the CASE_MANAGER receiving its own broadcast, is skipped
+    like a stale one: its case is the copy's source (``is_stale``, INFO).
 
     Writes ``/case_copy_replaces`` on every ``SUCCESS``: ``True`` when the
     copy replaces a held case, ``False`` for a first seed.
@@ -109,6 +114,23 @@ class CaseCopyNotStaleNode(
             # Regime 2 (ADR-0087): no replica yet, so this is a first seed.
             self._set_output(CASE_COPY_REPLACES_KEY, False)
             return Status.SUCCESS
+
+        if self._request.actor_id == self.actor_id:
+            # The CASE_MANAGER receives its own broadcast as a participant.
+            # Its case is the source of the copy, not a replica of it, so the
+            # copy has nothing to give it (ADR-0124).
+            self.is_stale = True
+            self.feedback_message = (
+                f"the copy of case '{self.case_id}' is this actor's own; its"
+                " case is the source of the copy"
+            )
+            self.logger.info(
+                "%s: skipping Announce '%s': %s",
+                self.name,
+                self._request.activity_id,
+                self.feedback_message,
+            )
+            return Status.FAILURE
 
         tail = getattr(self.case_obj, "ledger_tail", None)
         if tail is None:
@@ -222,17 +244,14 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None and self.actor_id is not None
         tail = required_tail(self.case_obj, self.case_id, self.name)
-        chain_tail = judge_case_copy(
-            self.case_id, tail, self.datalayer
-        ).chain_tail
-        chain_index = chain_tail.log_index if chain_tail else -1
-        if tail.log_index <= chain_index:
+        judgement = judge_case_copy(self.case_id, tail, self.datalayer)
+        if tail.log_index <= judgement.chain_index:
             return Status.SUCCESS
-        self._send_reject(chain_tail, tail)
+        self._send_reject(judgement, tail)
         return Status.SUCCESS
 
     def _send_reject(
-        self, chain_tail: CaseLedgerEntry | None, tail: LedgerPosition
+        self, judgement: CaseCopyJudgement, tail: LedgerPosition
     ) -> None:
         if self._sync_port is None:
             raise VultronWiringError(
@@ -241,6 +260,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
             )
         assert self.actor_id is not None
         to = [self._request.actor_id]
+        chain_tail = judgement.chain_tail
         self.logger.info(
             "%s: case '%s' replaced by a copy at entry %d, ahead of this"
             " replica's chain at %d; sending Reject(CaseLedgerEntry) to '%s'"
@@ -248,13 +268,16 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
             self.name,
             self.case_id,
             tail.log_index,
-            chain_tail.log_index if chain_tail else -1,
+            judgement.chain_index,
             self._request.actor_id,
         )
         if chain_tail is None:
             # No entry to name: ask for a replay from genesis (SYNC-16-007).
             self._sync_port.send_genesis_replay_reject(
-                case_id=self.case_id, actor_id=self.actor_id, to=to
+                case_id=self.case_id,
+                copy_tail_hash=tail.entry_hash,
+                actor_id=self.actor_id,
+                to=to,
             )
             return
         self._sync_port.send_reject_log_entry(

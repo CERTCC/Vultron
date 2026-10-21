@@ -835,7 +835,8 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
     The guard of the ``LEDGER_PEER`` kind, the standing of a
     ``Reject(CaseLedgerEntry)`` resync request (SYNC-03-005).
     Reads ``activity`` from the blackboard and takes the case from the
-    ``CaseLedgerEntry`` it carries.
+    ``CaseLedgerEntry`` it carries, or, for the ``Reject`` that names no entry
+    because its sender holds none, from its ``target`` (SYNC-16-007).
     Returns ``SUCCESS`` only when the sender is an active participant of that
     case (:func:`~vultron.core.participants.recipients.is_case_content_recipient`,
     CM-10-004).
@@ -877,11 +878,6 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
         # The rejected entry's case, or the case the objectless genesis
         # Reject names as its target (SYNC-16-007).
         case_id = getattr(self.activity, "rejected_case_id", None)
-        rejected = getattr(self.activity, "rejected_entry", None)
-        if (not isinstance(case_id, str) or not case_id) and isinstance(
-            rejected, CaseLedgerEntry
-        ):
-            case_id = rejected.case_id
         if not isinstance(case_id, str) or not case_id:
             try:
                 case_id = _log_entry_from(self.activity, self.name).case_id

@@ -222,12 +222,17 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         together or not at all, so a failure part-way leaves no replica half
         replaced (ADR-0146).  A store failure raises, and the handler reports
         it as an internal error.
+
+        The embargo the copy carries is stored before, outside the
+        transaction, on both paths (:meth:`update`): it is an immutable
+        record copied as received (CM-23-016), so one left stored by a failed
+        replacement is the record a redelivery stores again, not a half
+        replacement.
         """
         assert self.datalayer is not None
-        chain_tail = judge_case_copy(
+        chain_index = judge_case_copy(
             self.case_id, tail, self.datalayer
-        ).chain_tail
-        chain_index = chain_tail.log_index if chain_tail else -1
+        ).chain_index
         with self.datalayer.transaction():
             _store_embedded_reports(self.case_obj, self.datalayer)
             store_embedded_participants(

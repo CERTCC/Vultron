@@ -394,7 +394,9 @@ class CoreObject(CoreRecord):
     #:
     #: A carried value is part of the object's value: two copies that differ
     #: only in it are not equal, and ``model_copy`` keeps it.  A dump's
-    #: ``include`` and ``exclude`` select it by its name, as a field.
+    #: ``include`` and ``exclude`` select it by its name, as a field.  A null
+    #: value is no value, and ``model_construct`` skips validation, so it
+    #: takes none: attach one with :meth:`with_carried`.
     carried_properties: ClassVar[Mapping[str, type[BaseModel]]] = (
         MappingProxyType({})
     )
@@ -424,17 +426,18 @@ class CoreObject(CoreRecord):
                 for spelling in dict.fromkeys((to_camel(name), name))
                 if spelling in remaining
             ]
+            # An explicit null is a supplied spelling: it says "none", so it
+            # disagrees with a value under the other spelling.
             parsed = [
-                _validate_carried(name, model, item)
+                None if item is None else _validate_carried(name, model, item)
                 for item in supplied
-                if item is not None
             ]
             if len(parsed) > 1 and parsed[0] != parsed[1]:
                 raise ValueError(
                     f"carried value {name!r} supplied under two spellings"
                     f" that disagree: {parsed[0]!r} and {parsed[1]!r}"
                 )
-            if parsed:
+            if parsed and parsed[0] is not None:
                 values[name] = parsed[0]
         obj = handler(remaining)
         if values:

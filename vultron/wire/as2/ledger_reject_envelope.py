@@ -25,7 +25,6 @@ when it is built or parsed (ADR-0032: validate at the edge); routing uses
 :func:`is_genesis_replay_reject` to send this one to the ledger handler.
 """
 
-from vultron.core.models._helpers import _as_id
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
@@ -37,16 +36,7 @@ def is_genesis_replay_reject(activity: object) -> bool:
     It is a plain ``Reject`` with no ``object``, an empty last-accepted hash
     and a ``target`` that names the case.
     """
-    if (
-        not isinstance(activity, as_Reject)
-        or str(activity.type_) != "Reject"
-        or activity.object_ is not None
-    ):
-        return False
-    context = activity.context
-    if context not in (None, "") and _as_id(context):
-        return False
-    return bool(_as_id(activity.target))
+    return isinstance(activity, as_Reject) and activity.asks_for_genesis_replay
 
 
 __all__ = ["is_genesis_replay_reject"]

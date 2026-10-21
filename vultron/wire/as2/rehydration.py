@@ -37,6 +37,7 @@ from vultron.core.models._helpers import strip_annotated
 from vultron.core.models.base import CoreObject
 from vultron.core.models.wire_keys import input_keys
 from vultron.errors import VultronReferenceResolutionError
+from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import as_Collection
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
@@ -487,7 +488,9 @@ def rehydrate(
         obj = _resolve_string_id(obj, dl)
 
     rehydrated_nested = None
-    if hasattr(obj, "object_"):
+    # The genesis-replay Reject names no object by design (SYNC-16-007);
+    # every other activity with no object is refused below.
+    if hasattr(obj, "object_") and not is_genesis_replay_reject(obj):
         rehydrated_nested = _rehydrate_nested_object_field(obj, dl, depth)
 
     rehydrated = _cast_to_vocabulary_type(obj, dl)

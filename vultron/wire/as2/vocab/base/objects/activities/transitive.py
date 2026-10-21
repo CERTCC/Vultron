@@ -16,6 +16,7 @@
 
 from pydantic import Field, field_validator, model_validator
 
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
 from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
@@ -417,25 +418,32 @@ class as_Reject(as_TransitiveActivity):
         default=None, validation_alias="object", serialization_alias="object"
     )
 
+    @property
+    def asks_for_genesis_replay(self) -> bool:
+        """Whether this is the objectless genesis-replay ``Reject``.
+
+        A plain ``Reject`` with no ``object``, an empty last-accepted hash
+        (``context`` absent or ``""``) and a ``target`` that names the case
+        (SYNC-16-007).  The one rule the parser and the router both read.
+        """
+        return (
+            self.object_ is None
+            and str(self.type_) == str(TA_type.REJECT)
+            and self.context in (None, "")
+            and bool(_as_id(self.target))
+        )
+
     @model_validator(mode="after")
     def _objectless_only_to_replay_from_genesis(self) -> "as_Reject":
         """Refuse a ``Reject`` with no object unless it asks for genesis."""
-        if self.object_ is not None:
+        if self.object_ is not None or self.asks_for_genesis_replay:
             return self
-        context = self.context
-        hash_given = context not in (None, "")
-        if (
-            str(self.type_) != str(TA_type.REJECT)
-            or hash_given
-            or not self.target
-        ):
-            raise ValueError(
-                f"{self.type_} names no object.  Only a Reject(CaseLedgerEntry)"
-                " asking for a replay from genesis may: it carries an empty"
-                " last-accepted hash and names the case as its target"
-                " (SYNC-16-007)"
-            )
-        return self
+        raise ValueError(
+            f"{self.type_} names no object.  Only a Reject(CaseLedgerEntry)"
+            " asking for a replay from genesis may: it carries an empty"
+            " last-accepted hash and names the case as its target"
+            " (SYNC-16-007)"
+        )
 
 
 class as_TentativeReject(as_Reject):
