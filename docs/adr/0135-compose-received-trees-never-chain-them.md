@@ -15,6 +15,8 @@ consulted: >-
   Claude Opus 5.5; ADR-0022; ADR-0111; specs/case-ledger-processing.yaml
   CLP-10; specs/sync-ledger-replication.yaml SYNC-14; issue #4585
 informed: []
+partially_superseded_by:
+  - 0153-a-received-message-is-one-staged-record-archived-only-when-applied.md
 stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0111-intake-is-the-first-received-side-stage.md
