@@ -18,6 +18,7 @@ The Case Owner proposes a transfer to the CASE_MANAGER as
 from the proposal.  The harness delivers proposals and hands back that Offer.
 """
 
+import json
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -2804,7 +2805,8 @@ def test_a_slash_spelled_attribution_is_taken_and_filed_as_received(
     assert_held_only_as_received(dl, offer.id_)
     record = received_record(dl, offer.id_)
     assert record is not None
-    assert getattr(record.activity, "attributed_to", None) == _VENDOR_ID + "/"
+    # Filed as received: the archived body keeps the sender's spelling.
+    assert json.loads(record.received_body)["attributedTo"] == _VENDOR_ID + "/"
     assert _owner(dl, case_id) == _VENDOR_ID
 
 

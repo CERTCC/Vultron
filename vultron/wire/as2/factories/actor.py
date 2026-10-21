@@ -33,6 +33,7 @@ from vultron.wire.as2.factories._context import (
     case_target_ref,
     with_case_context,
 )
+from vultron.wire.as2.factories._held import embedded_as_received
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,
@@ -259,7 +260,8 @@ def accept_case_participant_offer_activity(
             )
         )
         return _AcceptCaseParticipantOfferActivity(
-            object_=typed_offer,
+            # Embedded as the Case Owner received it (DL-06-004).
+            object_=embedded_as_received(typed_offer, offer),
             target=case_target_ref(target),
             **with_case_context(kwargs, target),
         )

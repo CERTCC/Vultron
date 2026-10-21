@@ -15,9 +15,15 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import json
-from typing import Any
+from typing import Any, Self
 
-from pydantic import Field, PrivateAttr
+from pydantic import (
+    Field,
+    PrivateAttr,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+)
 
 from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.enums import as_ObjectType as O_type
@@ -120,6 +126,48 @@ class as_Activity(as_Object):
                 "received evidence; received evidence is sealed once (VM-08-002)."
             )
         self._received_evidence = evidence_json
+
+    #: Set only by :meth:`inlined_as_received`: the AS2 form of this copy is
+    #: its received evidence, verbatim (DL-06-004, ADR-0149).
+    _inline_as_received: bool = PrivateAttr(default=False)
+
+    def inlined_as_received(self) -> Self:
+        """A copy of this received activity whose AS2 form is the body received.
+
+        For a reply that embeds the activity it answers (an embargo
+        ``Accept`` of an ``Invite``, a refusal notice, a case proposal's
+        inline report ``Offer``).  The Actor Knowledge Model asks for the
+        activity as its sender sent it, and the parsed graph is not that: the
+        parse sets aside a key the vocabulary does not name (MV-11-003), and
+        a dump renders defaults the sender did not send.  So the copy's
+        ``by_alias`` dump is the sealed received evidence itself, every key
+        and value as it arrived (VM-08-002), while the copy is still the
+        validated activity for the reply's own construction.  A storage dump
+        (``by_alias=False``) is unchanged.
+
+        Raises:
+            ValueError: When this activity carries no received evidence, so
+                there is no body to embed.
+        """
+        if self._received_evidence is None:
+            raise ValueError(
+                f"{type(self).__name__} {self.id_!r} carries no received"
+                " evidence to embed as received (VM-08-002)"
+            )
+        copy = self.model_copy()
+        copy._inline_as_received = True
+        return copy
+
+    @model_serializer(mode="wrap")
+    def _serialize_as_received(
+        self,
+        handler: SerializerFunctionWrapHandler,
+        info: SerializationInfo,
+    ) -> Any:
+        """The received body on the AS2 path of an inlined-as-received copy."""
+        if self._inline_as_received and info.by_alias:
+            return self.received_evidence
+        return handler(self)
 
     def description(self):
         raise NotImplementedError

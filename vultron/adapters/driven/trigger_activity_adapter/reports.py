@@ -18,9 +18,9 @@
 import logging
 from typing import Any
 
+from vultron.adapters.received_archive import read_held_as_received
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.services.received_activity import read_held_activity
 from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
 from vultron.wire.as2.factories import (
     rm_close_report_activity,
@@ -165,13 +165,14 @@ class _ReportsMixin:
     def _resolve_offer(self, offer_id: str) -> Any:
         """Read the Offer as this actor holds it; else rebuild it from its record.
 
-        A received Offer is read from its intake archive, never under the id
-        its sender chose (DL-06-006); an Offer this actor sent is held under
-        its own id (:func:`read_held_activity`).  When neither is held, the
-        Offer is reconstituted from its ``VultronOfferRecord``.
+        A received Offer is parsed from the body its intake archived, never
+        read under the id its sender chose (DL-06-006), so the reply embeds
+        it as the Reporter sent it (DL-06-004); an Offer this actor sent is
+        held under its own id (:func:`read_held_as_received`).  When neither
+        is held, the Offer is reconstituted from its ``VultronOfferRecord``.
         """
         try:
-            return read_held_activity(
+            return read_held_as_received(
                 self._dl, offer_id, "Offer(VulnerabilityReport)"
             )
         except VultronNotFoundError:

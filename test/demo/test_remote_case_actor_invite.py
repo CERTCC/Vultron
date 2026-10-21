@@ -58,6 +58,9 @@ from test.demo.conftest import (
     create_isolated_actor_app,
 )
 from test.support.embargo_register import register
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.actor import CoreActor
@@ -503,7 +506,7 @@ class TestOwnerInviteThroughARemoteCaseActor:
 
         invite = _case_actor_invite(topology, ca_dl)
         received = read_received_activity(
-            invitee_dl, str(invite.id_), "Invite"
+            TriggerActivityAdapter(invitee_dl), str(invite.id_), "Invite"
         )
         assert getattr(received, "actor", None) == topology.ca_actor_id
 

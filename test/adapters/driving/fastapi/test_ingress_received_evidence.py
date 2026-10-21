@@ -27,6 +27,7 @@ import logging
 from typing import Any
 
 import pytest
+from py_trees.common import Status
 
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -35,10 +36,17 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
     StoredActivityIngressAdapter,
 )
-from vultron.adapters.driving.fastapi.inbox_staging import (
+from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.intake import (
+    IntakeReceivedActivityNode,
+)
 from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.parser import parse_activity
@@ -179,27 +187,28 @@ def test_resend_under_a_held_id_routes_without_this_body_evidence(
 
 @pytest.mark.spec("VM-08-002")
 @pytest.mark.spec("IE-10-001")
-def test_resend_of_an_archived_activity_routes_without_its_evidence(
+def test_resend_of_an_archived_activity_routes_the_archived_copy(
     dl: SqliteDataLayer,
 ):
-    """Detected from intake's archive, a resend carries no evidence.
-
-    The archive keeps the core summary, not a body ingress can rebuild, so
-    this delivery is rebuilt and routed unsealed; nothing is written.
-    """
-    body = _offer_of_stored_report(dl)
-    archive_received(dl, parse_activity(copy.deepcopy(body)))
+    """Detected from intake's archive, a resend is routed as the archived
+    body's parse, carrying no evidence; nothing is written, and the resend's
+    own body is left untouched at ingress (ADR-0149, #3762)."""
+    first = _offer_of_stored_report(dl)
+    first["summary"] = "first"
+    archive_received(dl, parse_activity(copy.deepcopy(first)))
     before = dl.count_all()
+    second = {**copy.deepcopy(first), "summary": "second"}
     adapter = FastAPIIngressAdapter(dl=dl)
-    artifact = adapter.parse(copy.deepcopy(body))
+    artifact = adapter.parse(second)
     assert artifact is not None
 
     routed = adapter.rehydrate(artifact)
 
-    assert routed.id_ == body["id"]
+    assert routed.id_ == first["id"]
+    assert routed.summary == "first", "the archived copy is routed"
     assert routed.received_evidence is None
     assert prepare_for_dispatch(routed).received_evidence is None
-    assert artifact.received_evidence == body
+    assert artifact.received_evidence == second
     assert dl.count_all() == before
 
 
@@ -216,6 +225,34 @@ def test_replay_of_a_deferred_activity_carries_its_own_evidence(
     assert replayed is not None, "precondition: held activity replayed"
     assert replayed.received_evidence == body
     assert prepare_for_dispatch(replayed).received_body() == body
+
+
+@pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("CLP-10-017")
+def test_a_replayed_deferral_is_archived_as_its_first_delivery(
+    dl: SqliteDataLayer,
+):
+    """Deferred, then replayed through the inbox and dispatched: intake
+    archives the body the first delivery sealed, so a deferred replay records
+    the same evidence as a first delivery would (ADR-0149)."""
+    body = _offer_of_stored_report(dl)
+    body["x-firstDelivery"] = True
+    _defer(dl, body)
+    replayed = StoredActivityIngressAdapter(dl=dl).parse(body["id"])
+    assert replayed is not None
+    event = prepare_for_dispatch(replayed)
+
+    result = BTBridge(datalayer=dl).execute_with_setup(
+        tree=IntakeReceivedActivityNode(),
+        actor_id="https://test.example/api/v2/actors/test-actor",
+        activity=event,
+    )
+
+    assert result.status == Status.SUCCESS
+
+    record = dl.read(ReceivedActivityRecord.build_id(body["id"]))
+    assert isinstance(record, ReceivedActivityRecord)
+    assert json.loads(record.received_body) == body
 
 
 @pytest.mark.spec("VM-08-002")

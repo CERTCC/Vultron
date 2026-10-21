@@ -237,6 +237,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0142 A Diverged Replica Is Repaired by a Fresh Case Copy That Names Its Ledger Position](0142-a-diverged-replica-is-repaired-by-a-fresh-case-copy-that-names-its-ledger-position.md) *(provisional)*
 - [ADR-0144 Once a Report Belongs to a Case, Only Its Owner Closes It, by Leave](0144-once-a-report-belongs-to-a-case-only-its-owner-closes-it-by-leave.md) *(provisional)*
 - [ADR-0145 A Case Is Left Through the Leave-Case Trigger, Whose Actor Runs Its Pre-Close Step First](0145-a-case-is-left-through-the-leave-case-trigger-whose-actor-runs-its-pre-close-step-first.md) *(provisional)*
+- [ADR-0149 The Received Archive Is the Sealed Received Body, Read Through a Read-Only View Parsed on Load](0149-the-received-archive-is-the-sealed-received-body-read-through-a-read-only-view.md) *(provisional)* — partially supersedes 0035-core-activity-representation-and-envelope-reconstitution.md
 
 ## Proposed ADRs
 
@@ -253,7 +254,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0146 One Atomic Commit per Embargo Act](0146-one-atomic-commit-per-embargo-act.md) *(revision 4)*
 - [ADR-0147 The Protocol Specification Renders Its Normative Text from the YAML Requirements](0147-the-protocol-specification-renders-its-normative-text-from-the-yaml-requirements.md)
 - [ADR-0148 An Owner Proposes an Ownership-Transfer Offer and the CASE_MANAGER Makes It](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md) — partially supersedes 0053-ownership-transfer-routed-via-caseactor.md
-- [ADR-0149 The Received Archive Is the Sealed Received Body, Read Through a Read-Only View Parsed on Load](0149-the-received-archive-is-the-sealed-received-body-read-through-a-read-only-view.md) — partially supersedes 0035-core-activity-representation-and-envelope-reconstitution.md
 - [ADR-0150 A Reading-Path Thread Is Staged Data on Its Start Page, Rendered at Both Ends](0150-a-reading-path-thread-is-staged-data-on-its-start-page-rendered-at-both-ends.md)
 - [ADR-0151 A Received Act Commits Its Own Entry with Its Consequences](0151-a-received-act-commits-its-own-entry-with-its-consequences.md) — partially supersedes 0111-intake-is-the-first-received-side-stage.md
 

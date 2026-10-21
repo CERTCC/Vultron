@@ -86,7 +86,7 @@ from test.demo.conftest import (
     create_isolated_actor_app,
     submit_report_through_reporter,
 )
-from test.support.received import received_of_type
+from test.support.received import received_event, received_of_type
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -99,7 +99,6 @@ from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
 from vultron.demo.utils import case_actor_id_for_report
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
 )
@@ -499,7 +498,8 @@ class TestCaseProposalRoundTrip:
                 replica, actor=sender, to=[reporter_actor_id]
             )
             event = cast(
-                AnnounceVulnerabilityCaseReceivedEvent, extract_event(activity)
+                AnnounceVulnerabilityCaseReceivedEvent,
+                received_event(activity),
             ).model_copy(update={"receiving_actor_id": reporter_actor_id})
             return AnnounceVulnerabilityCaseReceivedUseCase(
                 reporter_iso.dl, event

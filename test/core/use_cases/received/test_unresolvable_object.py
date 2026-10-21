@@ -18,6 +18,7 @@ from typing import cast
 import pytest
 
 from test.conftest import TEST_ACTOR_ID
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.unknown import UnresolvableObjectReceivedEvent
@@ -26,7 +27,6 @@ from vultron.core.models.received_activity_record import (
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.use_cases.received.unknown import UnresolvableObjectUseCase
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept
 
 ACTOR_URI = "https://example.org/coordinator"
@@ -40,7 +40,7 @@ def _make_unresolvable_event() -> UnresolvableObjectReceivedEvent:
         to=[TEST_ACTOR_ID],
         object_=UNRESOLVABLE_URI,
     )
-    event = extract_event(accept)
+    event = received_event(accept)
     assert (
         event.semantic_type == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
     ), f"Expected UNKNOWN_UNRESOLVABLE_OBJECT but got {event.semantic_type}"

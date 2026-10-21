@@ -30,6 +30,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -42,7 +43,6 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import CloseReportReceivedUseCase
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     rm_close_report_activity,
     rm_submit_report_activity,
@@ -115,7 +115,7 @@ def _close_report(
         to=_OWNER,
         actor=_STRANGER,
     )
-    event = extract_event(
+    event = received_event(
         rm_close_report_activity(offer, actor=sender, to=[receiver])
     )
     return cast(

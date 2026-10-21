@@ -43,6 +43,7 @@ from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
+from vultron.adapters.received_archive import parse_received_body
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -157,7 +158,8 @@ def _assert_handed_back_from_case_manager(
         assert isinstance(record, ReceivedActivityRecord), (
             f"{entry.id_} was not handed back"
         )
-        announce = record.activity
+        # Archived as the body the hand-back delivered (ADR-0149).
+        announce = parse_received_body(record.received_body)
         assert _as_id(getattr(announce, "actor", None)) == _CASE_MANAGER
         assert _as_id(getattr(announce, "object_", None)) == entry.id_
 

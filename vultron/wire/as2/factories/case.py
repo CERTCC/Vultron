@@ -36,7 +36,6 @@ from vultron.core.models.dimensions import (
     EmDimension,
 )
 from vultron.core.models.ledger_position import LedgerPosition
-from vultron.enums.object_types import VultronObjectType
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories._context import (
@@ -44,7 +43,10 @@ from vultron.wire.as2.factories._context import (
     case_uri_of,
     with_case_context,
 )
-from vultron.wire.as2.factories._held import as_answered
+from vultron.wire.as2.factories._held import (
+    as_answered,
+    embedded_as_received,
+)
 from vultron.wire.as2.factories._inline import require_inline
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.case import (
@@ -710,7 +712,8 @@ def _ownership_offer_reply(
     """Build *reply_class* around an ownership-transfer *offer*.
 
     Shared by the transferee's Accept and Reject and the offerer's Undo.
-    *offer* may be the Offer as a receiver archived it (its core form).
+    *offer* may be the Offer as a receiver parsed it from its archived body,
+    which the reply then embeds verbatim (:func:`as_answered`).
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails, as it
@@ -801,8 +804,8 @@ def undo_case_ownership_transfer_activity(
     CASE_MANAGER made from it is open, addressing the Undo to the
     CASE_MANAGER (CM-21-015, ADR-0148).  The ``proposal`` MUST be a
     ``_ProposeCaseOwnershipTransferActivity`` (i.e., the value returned by
-    :func:`propose_case_ownership_transfer_activity`), or its core form as
-    the owner holds it.  Anything else fails Pydantic validation and raises
+    :func:`propose_case_ownership_transfer_activity`), or the proposal as
+    the owner's store hands it back.  Anything else fails Pydantic validation and raises
     :exc:`VultronActivityConstructionError`.
 
     Args:
@@ -897,46 +900,23 @@ def rm_invite_to_case_activity(
         ) from exc
 
 
-def validate_held_case_invite(data: dict[str, Any]) -> as_Invite:
-    """Validate a held Invite's JSON form into ``as_Invite``, stub and all.
-
-    ``as_Invite.target`` is a generic ``as_Object`` slot, which keeps none of
-    a stub's own fields, so a target whose ``type`` is ``VulnerabilityCaseStub``
-    is validated as the stub itself (CM-11-013).  Any other target is kept as
-    the generic slot holds it, for :func:`_as_case_invite` to refuse.
-
-    Raises:
-        pydantic.ValidationError: when *data* is not an Invite, or its stub
-            does not validate (for example, it has no ``caseId``).
-    """
-    invite = as_Invite.model_validate(data)
-    stub = data.get("target")
-    if (
-        isinstance(stub, dict)
-        and stub.get("type") == VultronObjectType.VULNERABILITY_CASE_STUB.value
-    ):
-        invite = invite.model_copy(
-            update={"target": as_VulnerabilityCaseStub.model_validate(stub)}
-        )
-    return invite
-
-
 def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
     """Return *invite* as the case-Invite class the reply activities embed.
 
-    An Invite the invitee holds came through intake, which archives the
-    activity as the event carried it (CLP-10-017, ADR-0111) — not as this
-    class.  The caller validates that record into ``as_Invite`` at its edge
-    (ADR-0032); this function validates it on into the case-Invite class from
-    its JSON form.  Neither class checks the input's ``type`` (both set their
-    own), so it is checked here first.
+    An Invite the invitee holds came through intake, which archives the body
+    that arrived (CLP-10-017, ADR-0149); the caller parses it into
+    ``as_Invite`` at its edge (ADR-0032).  This function validates it on into
+    the case-Invite class from its JSON form, and the copy embeds the
+    received body verbatim (:func:`embedded_as_received`).  Neither class
+    checks the input's ``type`` (both set their own), so it is checked here
+    first.
 
     Raises:
         VultronActivityConstructionError: when *invite* is not an Invite, or
             does not validate as a case Invite.
     """
     if isinstance(invite, _RmInviteToCaseActivity):
-        return invite
+        return embedded_as_received(invite, invite)
     data = json.loads(
         invite.model_dump_json(by_alias=True, serialize_as_any=True)
     )
@@ -946,11 +926,13 @@ def _as_case_invite(invite: as_Invite) -> _RmInviteToCaseActivity:
             f" its type is {data.get('type')!r}"
         )
     try:
-        return _RmInviteToCaseActivity.model_validate(data)
+        case_invite = _RmInviteToCaseActivity.model_validate(data)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
             f"activity '{data.get('id')}' is not a case Invite"
         ) from exc
+    # The reply embeds the Invite as its sender sent it (DL-06-004).
+    return embedded_as_received(case_invite, invite)
 
 
 def rm_accept_invite_to_case_activity(

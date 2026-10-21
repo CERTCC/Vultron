@@ -39,16 +39,15 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _queue_pending_case_activity,
     _replay_pending_case_activities,
 )
-from vultron.adapters.driving.fastapi.inbox_staging import (
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
-from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.behaviors.inbox import (
     InboxOutcome,
     InboxOutcomeStatus,
     process_payload,
 )
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.received_activity_record import (
@@ -178,14 +177,18 @@ class FastAPIIngressAdapter:
         (:class:`~.inbox_staging.InlineObjectStaging`).  Nothing staged
         reaches the receiver's store (DL-06-006, IO-03-004).
 
-        A redelivery is routed without this body's received evidence, because
-        the copy routed may not be this body (VM-08-002, IE-10-001):
+        A redelivery is routed in place of this body, as the copy the
+        receiver already holds, and without received evidence, because the
+        delivery routed is not this one (VM-08-002, IE-10-001):
 
         - when the first delivery is still deferred, its held copy is routed,
           and the record holding it is kept for the replay;
-        - when intake already archived it, this delivery is rebuilt: the
-          archive keeps the core summary, not a routable activity, and the
-          handlers' own idempotency guards answer the repeat (ID-04).
+        - when intake already archived it, the archived body is parsed and
+          routed (ADR-0149), and the handlers' own idempotency guards answer
+          the repeat (ID-04).
+
+        Either way this delivery's own body is left untouched for whatever
+        compares it with the held one (#3762).
 
         An ``Announce(CaseLedgerEntry)`` is the exception to the staged
         rebuild: per SYNC-13-002 the inline entry is deliberately NOT staged,
@@ -226,13 +229,15 @@ class FastAPIIngressAdapter:
             if held is not None:
                 self._log_redelivery(activity, redelivery)
                 return held
+        if redelivery == "archived":
+            archived = self._staging.rehydrate_archived(activity.id_)
+            if archived is not None:
+                self._log_redelivery(activity, redelivery)
+                return archived
 
         result = self._staging.rehydrate_parsed(activity)
         if result is None:
             return activity
-        if redelivery is not None:
-            self._log_redelivery(activity, redelivery)
-            return result
         return _carry_received_evidence(activity, result)
 
     def _held_copy_kind(self, activity_id: str) -> str | None:
@@ -250,7 +255,7 @@ class FastAPIIngressAdapter:
     def _log_redelivery(activity: as_Activity, kind: str) -> None:
         logger.info(
             "FastAPIIngressAdapter.rehydrate: activity %s (actor %s) is"
-            " already held (%s); routing it without this delivery's received"
+            " already held (%s); routing the held copy, without received"
             " evidence (IE-10-001, VM-08-002).",
             activity.id_,
             getattr(activity.actor, "id_", activity.actor),
@@ -387,17 +392,15 @@ class FastAPIQueuePort:
         activity_id: str,
         case_id: str,
         case_actor_id: str | None = None,
-        activity: VultronActivity | None = None,
     ) -> None:
         """Persist *activity_id* in the deferred queue for *case_id*.
 
         The activity is held whole with its staged inline objects, because
         the replay rebuilds it after this delivery's staging is gone, and the
-        receiver keeps no copy under its id (DL-06-006).  *activity* is the
-        event's core summary, held for core readers until intake archives it.
-        It is held before it is queued, so a failed hold queues nothing.
+        receiver keeps no copy under its id (DL-06-006).  It is held before
+        it is queued, so a failed hold queues nothing.
         """
-        self._staging.hold_for_replay(activity_id, activity)
+        self._staging.hold_for_replay(activity_id)
         _queue_pending_case_activity(
             queue_dl=self._actor_dl,
             case_id=case_id,

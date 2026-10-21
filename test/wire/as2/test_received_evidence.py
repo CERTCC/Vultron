@@ -248,3 +248,27 @@ def test_an_event_refuses_evidence_that_is_not_a_json_object(evidence: str):
             actor_id=ACTOR,
             received_evidence=evidence,
         )
+
+
+@pytest.mark.spec("DL-06-004")
+def test_an_inlined_copy_dumps_as_the_received_body_on_the_as2_path():
+    """``inlined_as_received`` makes the copy's AS2 form the sealed body,
+    keys the vocabulary does not name included; its storage dump, and the
+    original's AS2 dump, are unchanged (ADR-0149)."""
+    body = {**_offer_report(), "x-peerExtension": {"kept": True}}
+    parsed = parse_activity(copy.deepcopy(body))
+
+    inlined = parsed.inlined_as_received()
+
+    assert inlined.model_dump(by_alias=True, mode="json") == body
+    assert "x-peerExtension" not in parsed.model_dump(by_alias=True)
+    assert inlined.model_dump(mode="json") == parsed.model_dump(mode="json")
+
+
+def test_an_activity_with_no_evidence_cannot_be_inlined_as_received():
+    """An activity this process built has no received body to embed."""
+    built = parse_activity(_offer_report()).model_copy()
+    unsealed = type(built).model_validate(built.model_dump(by_alias=True))
+
+    with pytest.raises(ValueError, match="no received evidence"):
+        unsealed.inlined_as_received()

@@ -33,7 +33,7 @@ import pytest
 from py_trees.common import Status
 from pydantic import ValidationError
 
-from test.support.received import received_record
+from test.support.received import received_activity, received_event
 from test.support.refusal_notice import assert_refusal_notice
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -120,10 +120,8 @@ def _accept_event(
     receiver: str = MANAGER,
 ) -> Any:
     """*sender*'s Accept of *invite_id* under a fresh id, as *receiver* routes it."""
-    # BYSTANDER holds the Invite as intake archived it (DL-06-006).
-    record = received_record(net.stores[BYSTANDER], invite_id)
-    assert record is not None
-    proposal = cast(Any, record.activity)
+    # BYSTANDER holds the Invite as the body intake archived (DL-06-006).
+    proposal = received_activity(net.stores[BYSTANDER], invite_id)
     activity = em_accept_embargo_activity(
         proposal,
         context=net.case_id,
@@ -191,6 +189,41 @@ def test_a_precondition_refusal_queues_one_refusal_notice():
     )
     assert body["summary"] == REFUSAL
     assert body["object"]["type"] == "Accept"
+
+
+@pytest.mark.spec("CLP-05-001")
+@pytest.mark.spec("DL-06-004")
+def test_the_refusal_notice_embeds_the_refused_activity_as_received():
+    """The notice embeds the body intake archived, verbatim: a ``cc``, an
+    ``endTime`` and a key no vocabulary names all survive (ADR-0149)."""
+    net, _, invite_id = _network("verbatim")
+    proposal = received_activity(net.stores[BYSTANDER], invite_id)
+    answer = em_accept_embargo_activity(
+        proposal,
+        context=net.case_id,
+        actor=BYSTANDER,
+        to=[MANAGER],
+        id_=f"{BYSTANDER}/answers/verbatim",
+    )
+    body = {
+        **json.loads(dump_outbound_body(answer)),
+        "cc": ["https://example.org/users/watcher"],
+        "endTime": "2031-01-01T00:00:00+00:00",
+        "x-vendorExtension": {"kept": True},
+    }
+    event = received_event(parse_activity(body), receiving_actor_id=MANAGER)
+
+    _run(net, MANAGER, _tree(net.case_id, BYSTANDER), event)
+
+    notice = assert_refusal_notice(
+        net.stores[MANAGER],
+        manager=MANAGER,
+        refused_id=event.activity_id,
+        asserter=BYSTANDER,
+        reason=REFUSAL,
+        case_id=net.case_id,
+    )
+    assert notice["object"] == body
 
 
 @pytest.mark.spec("CLP-05-001")

@@ -41,7 +41,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
 )
-from vultron.adapters.driving.fastapi.inbox_staging import (
+from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
     _stage_inline_object,
     _StagingStore,
@@ -284,7 +284,7 @@ def _announce_body(inline: dict[str, Any]) -> dict[str, Any]:
 @pytest.fixture
 def persisted(monkeypatch) -> list[object]:
     """Capture every object ``_stage_inline_object`` hands to storage."""
-    from vultron.adapters.driving.fastapi import inbox_staging
+    from vultron.adapters import inbox_staging
 
     captured: list[object] = []
     real_object_to_record = inbox_staging.object_to_record

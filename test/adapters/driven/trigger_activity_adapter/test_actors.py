@@ -35,15 +35,22 @@ from vultron.wire.as2.factories import (
     recommend_actor_activity,
     rm_invite_to_case_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Invite,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+    as_VulnerabilityCaseStub,
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
 _INVITEE = "https://example.org/actors/vendor"
 _CASE_ID = "https://example.org/cases/case-001"
+#: A receiver refuses a stub with no summary at parse (MV-10-001), so the
+#: Invite a test delivers carries one.
+_STUB = as_VulnerabilityCaseStub(case_id=_CASE_ID, summary="A case to join")
 
 
 def _make_case(dl) -> as_VulnerabilityCase:
@@ -231,12 +238,12 @@ class TestAcceptCaseInvite:
         dl.create(invitee)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=_CASE_ID,
+            target=_STUB,
             actor=_ACTOR,
             to=[_INVITEE],
         )
         # A received Invite that reached its use case is archived by intake
-        # (CLP-10-017, ADR-0111).
+        # as the body that arrived (CLP-10-017, ADR-0149).
         archive_received(dl, invite)
         return invite.id_
 
@@ -346,7 +353,7 @@ class TestAcceptCaseInvite:
         """
         invite = rm_invite_to_case_activity(
             _INVITEE,
-            target=_CASE_ID,
+            target=_STUB,
             actor=_ACTOR,
             to=[_INVITEE],
         )
@@ -363,86 +370,34 @@ class TestAcceptCaseInvite:
                 invite_id="urn:uuid:never-received", actor=_INVITEE
             )
 
-    def test_a_held_record_that_is_not_a_model_is_refused(
-        self, adapter, dl, monkeypatch
-    ):
-        from vultron.adapters.driven.trigger_activity_adapter import actors
-
-        monkeypatch.setattr(
-            actors, "read_received_activity", lambda *_args: object()
-        )
-
-        with pytest.raises(VultronValidationError, match="not as an activity"):
-            adapter.accept_case_invite(
-                invite_id="urn:uuid:held-oddly", actor=_INVITEE
-            )
-
     @pytest.mark.spec("CM-11-013")
     @pytest.mark.parametrize(
-        ("held_target", "error", "reason"),
-        [
-            (
-                {"type": "VulnerabilityCase", "id": _CASE_ID},
-                VultronActivityConstructionError,
-                "not a case Invite",
-            ),
-            (_CASE_ID, VultronActivityConstructionError, "not a case Invite"),
-            (
-                {"type": "VulnerabilityCaseStub"},
-                VultronValidationError,
-                "does not validate as an Invite",
-            ),
-        ],
-        ids=["full-case-target", "uri-target", "stub-without-case-id"],
+        "held_target",
+        [{"type": "VulnerabilityCase", "id": _CASE_ID}, _CASE_ID],
+        ids=["full-case-target", "uri-target"],
     )
-    def test_a_held_invite_that_does_not_carry_a_valid_stub_is_refused(
-        self, adapter, monkeypatch, held_target, error, reason
+    def test_a_held_invite_that_does_not_carry_a_stub_is_refused(
+        self, adapter, monkeypatch, held_target
     ):
         """Only a stub Invite is answered here, and a stub is recognised by
-        its ``type`` alone (CM-11-013).  A stub without ``caseId`` fails its
-        own validation, so the reply never has to guess the case."""
-        from pydantic import BaseModel
-
+        its ``type`` alone (CM-11-013).  A stub that fails its own validation
+        never gets this far: the parse of the archived body refuses it."""
         from vultron.adapters.driven.trigger_activity_adapter import actors
 
-        class _Held(BaseModel):
-            type: str = "Invite"
-            actor: str = _ACTOR
-            object: dict[str, str] = {"type": "Organization", "id": _INVITEE}
-            target: dict[str, str] | str = held_target
-
-        monkeypatch.setattr(
-            actors, "read_received_activity", lambda *_args: _Held()
+        held = as_Invite(
+            actor=_ACTOR,
+            object_=as_Service(id_=_INVITEE),
+            target=held_target,
         )
-
-        with pytest.raises(error, match=reason):
-            adapter.accept_case_invite(
-                invite_id="urn:uuid:held-without-a-stub", actor=_INVITEE
-            )
-
-    def test_a_held_record_that_does_not_validate_as_an_invite_is_refused(
-        self, adapter, monkeypatch
-    ):
-        """The adapter validates the held record into ``as_Invite`` at its
-        edge (ADR-0032), so a malformed one is refused there."""
-        from pydantic import BaseModel
-
-        from vultron.adapters.driven.trigger_activity_adapter import actors
-
-        class _Held(BaseModel):
-            type: str = "Invite"
-            actor: int = 42
-            target: str = _CASE_ID
-
         monkeypatch.setattr(
-            actors, "read_received_activity", lambda *_args: _Held()
+            actors, "read_received_as_received", lambda *_args: held
         )
 
         with pytest.raises(
-            VultronValidationError, match="does not validate as an Invite"
+            VultronActivityConstructionError, match="not a case Invite"
         ):
             adapter.accept_case_invite(
-                invite_id="urn:uuid:held-malformed", actor=_INVITEE
+                invite_id="urn:uuid:held-without-a-stub", actor=_INVITEE
             )
 
     def test_an_archived_activity_that_is_not_an_invite_is_refused(
@@ -456,9 +411,7 @@ class TestAcceptCaseInvite:
         )
         archive_received(dl, offer)
 
-        with pytest.raises(
-            VultronActivityConstructionError, match="not a case Invite"
-        ):
+        with pytest.raises(VultronValidationError, match="not as an Invite"):
             adapter.accept_case_invite(invite_id=offer.id_, actor=_INVITEE)
 
 

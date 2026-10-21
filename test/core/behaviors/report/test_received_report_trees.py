@@ -33,6 +33,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.nodes.storage import (
@@ -374,25 +375,29 @@ class TestCreateParticipantStatusNodeInvalid:
 
 def _make_create_report_event() -> CreateReportReceivedEvent:
     # object_ IS the report for CreateReport (report_id = object_id)
-    return CreateReportReceivedEvent(
-        semantic_type=MessageSemantics.CREATE_REPORT,
-        activity_id=ACTIVITY_ID,
-        actor_id=ACTOR_ID,
-        object_=CoreReport(id_=REPORT_ID),
-        inner_object=CoreReport(id_=REPORT_ID),
-        activity=_make_activity(type_="Create"),
+    return with_evidence(
+        CreateReportReceivedEvent(
+            semantic_type=MessageSemantics.CREATE_REPORT,
+            activity_id=ACTIVITY_ID,
+            actor_id=ACTOR_ID,
+            object_=CoreReport(id_=REPORT_ID),
+            inner_object=CoreReport(id_=REPORT_ID),
+            activity=_make_activity(type_="Create"),
+        )
     )
 
 
 def _make_ack_report_event() -> AckReportReceivedEvent:
-    return AckReportReceivedEvent(
-        semantic_type=MessageSemantics.ACK_REPORT,
-        activity_id=ACTIVITY_ID,
-        actor_id=ACTOR_ID,
-        object_=CoreReport(id_=ACTIVITY_ID),
-        inner_object=CoreReport(id_=REPORT_ID),
-        activity=_make_activity(type_="Read"),
-        receiving_actor_id=ACTOR_ID,
+    return with_evidence(
+        AckReportReceivedEvent(
+            semantic_type=MessageSemantics.ACK_REPORT,
+            activity_id=ACTIVITY_ID,
+            actor_id=ACTOR_ID,
+            object_=CoreReport(id_=ACTIVITY_ID),
+            inner_object=CoreReport(id_=REPORT_ID),
+            activity=_make_activity(type_="Read"),
+            receiving_actor_id=ACTOR_ID,
+        )
     )
 
 
@@ -413,24 +418,28 @@ def _record_offer_to_sender(dl: SqliteDataLayer) -> None:
 
 
 def _make_close_report_event() -> CloseReportReceivedEvent:
-    return CloseReportReceivedEvent(
-        semantic_type=MessageSemantics.CLOSE_REPORT,
-        activity_id=ACTIVITY_ID,
-        actor_id=ACTOR_ID,
-        object_=CoreReport(id_=ACTIVITY_ID),
-        inner_object=CoreReport(id_=REPORT_ID),
-        activity=_make_activity(type_="Reject"),
+    return with_evidence(
+        CloseReportReceivedEvent(
+            semantic_type=MessageSemantics.CLOSE_REPORT,
+            activity_id=ACTIVITY_ID,
+            actor_id=ACTOR_ID,
+            object_=CoreReport(id_=ACTIVITY_ID),
+            inner_object=CoreReport(id_=REPORT_ID),
+            activity=_make_activity(type_="Reject"),
+        )
     )
 
 
 def _make_invalidate_report_event() -> InvalidateReportReceivedEvent:
-    return InvalidateReportReceivedEvent(
-        semantic_type=MessageSemantics.INVALIDATE_REPORT,
-        activity_id=ACTIVITY_ID,
-        actor_id=ACTOR_ID,
-        object_=CoreReport(id_=ACTIVITY_ID),
-        inner_object=CoreReport(id_=REPORT_ID),
-        activity=_make_activity(type_="TentativeReject"),
+    return with_evidence(
+        InvalidateReportReceivedEvent(
+            semantic_type=MessageSemantics.INVALIDATE_REPORT,
+            activity_id=ACTIVITY_ID,
+            actor_id=ACTOR_ID,
+            object_=CoreReport(id_=ACTIVITY_ID),
+            inner_object=CoreReport(id_=REPORT_ID),
+            activity=_make_activity(type_="TentativeReject"),
+        )
     )
 
 

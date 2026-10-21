@@ -1621,13 +1621,17 @@ groups:
     kind: project
     statement: Every receive-side BT tree MUST begin with the shared intake node that
       `create_receive_activity_tree` supplies. The intake node MUST idempotently archive
-      the received activity exactly as received, as a `ReceivedActivityRecord` whose id
-      the receiver derives (`ReceivedActivityRecord.build_id`) and which carries the
-      sender's activity id for the reverse lookup; it MUST NOT store the activity under
-      the id the sender chose, MUST NOT write a core record from any object inlined in
-      it, and MUST perform no other write. A core record a received object gives rise
-      to (a note, a report, a status, an embargo event, a case replica) is written by
-      an effect node from the copy the event carries, after the precondition guards.
+      the received activity exactly as received, as a `ReceivedActivityRecord` that
+      holds the received body as the parser sealed it (VM-08-002) and nothing derived
+      from it, whose id the receiver derives (`ReceivedActivityRecord.build_id`) and
+      which carries the sender's activity id for the reverse lookup. An activity that
+      reaches intake with no received body and nothing held for it MUST fail intake
+      as a wiring fault (ARCH-15-001) and archive nothing. It MUST NOT store the
+      activity under the id the sender chose, MUST NOT write a core record from any
+      object inlined in it, and MUST perform no other write. A core record a received
+      object gives rise to (a note, a report, a status, an embargo event, a case
+      replica) is written by an effect node from the copy the event carries, after the
+      precondition guards.
     rationale: 'One node, composed once by the shared factory, replaces the handler-local
       store helpers that received-side use cases called from `execute()` — the files
       `KNOWN_VIOLATIONS` enumerates once #3869 widens the ratchet (ISSUE-3339). The
@@ -1635,9 +1639,11 @@ groups:
       message shaped like that object, and writing it as a record before the guards
       would let any sender seed a case replica or a ledger entry ahead of the trust
       and chain checks (PCR-03-004, CBT-01-005) — a stored case row *is* the replica.
-      The archived row is also where #3742 persists the sealed received evidence
-      (ADR-0107) for deferred replay. The row is keyed by the receiver because the
-      DataLayer is one id-keyed table per actor: an activity stored under the id its
+      The archive is the sealed received body itself (ADR-0107, ADR-0149): a stored
+      summary of it drops what core does not name (`cc`, an RSVP deadline, a peer''s
+      own keys) and drifts from the extractor, so every reader loads the body again.
+      The row is keyed by the receiver because the DataLayer is one id-keyed table
+      per actor: an activity stored under the id its
       sender chose would let a sender who names its activity after a record the
       receiver derives (a pending-case-inbox marker, an offer record) occupy that id
       ahead of the receiver''s own write, so the later `create()` of the real record
@@ -1652,9 +1658,12 @@ groups:
       sender''s id, asserts no record of the inlined object (and no case replica) was
       created, asserts a second run writes nothing, and asserts a sender activity whose
       id equals a receiver-derived record id does not block the later `create()` of
-      that record.'
+      that record. `test/core/behaviors/case/nodes/test_intake.py` also asserts the
+      archive is exactly the body the parser sealed, and that an event with no body
+      fails intake unless the receiver already holds the activity.'
     adr:
     - ADR-0111
+    - ADR-0149
     relationships:
     - rel_type: refines
       spec_id: CLP-10-005

@@ -33,7 +33,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
     FastAPIQueuePort,
 )
-from vultron.adapters.driving.fastapi.inbox_staging import (
+from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
 from vultron.core.behaviors.case.nodes.proposal_retry_marker import (

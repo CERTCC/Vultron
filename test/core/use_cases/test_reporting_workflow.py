@@ -96,9 +96,9 @@ def _call_use_case(
     dl=None,
     expected: HandlerDisposition = HandlerDisposition.APPLIED,
 ):
-    from vultron.semantic_registry import extract_event
+    from test.support.received import received_event
 
-    event = extract_event(activity)
+    event = received_event(activity)
 
     assert event.semantic_type != MessageSemantics.UNKNOWN
     assert event.semantic_type in MessageSemantics

@@ -16,6 +16,7 @@ from test.support.embargo_register import (
     terminate,
     write_consent_rows,
 )
+from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -66,7 +67,6 @@ from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     create_participant_activity,
@@ -154,7 +154,7 @@ def _make_event(
     activity = announce_log_entry_activity(
         entry=wire_entry, actor=actor_id, to=recipients
     )
-    event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+    event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
     # The inbox pipeline attaches the core wire activity; intake archives it.
     event.activity = VultronActivity(
         id_=event.activity_id,

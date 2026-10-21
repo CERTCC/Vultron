@@ -197,9 +197,9 @@ def em_accept_embargo_activity(
     Per ActivityStreams convention the actor accepts the proposal
     activity itself, not the ``as_EmbargoEvent`` being proposed.
     The ``proposal`` MUST be the value returned by
-    :func:`em_propose_embargo_activity`, or the Invite as a receiver
-    archived it (its core form); a plain ``as_Invite`` will fail
-    validation.
+    :func:`em_propose_embargo_activity`, or the Invite a receiver parsed
+    from its archived body, which the answer embeds verbatim
+    (:func:`as_answered`); a plain ``as_Invite`` will fail validation.
 
     Args:
         proposal: The ``_EmProposeEmbargoActivity`` being accepted.
@@ -239,9 +239,9 @@ def em_reject_embargo_activity(
     Per ActivityStreams convention the actor rejects the proposal
     activity itself, not the ``as_EmbargoEvent`` being proposed.
     The ``proposal`` MUST be the value returned by
-    :func:`em_propose_embargo_activity`, or the Invite as a receiver
-    archived it (its core form); a plain ``as_Invite`` will fail
-    validation.
+    :func:`em_propose_embargo_activity`, or the Invite a receiver parsed
+    from its archived body, which the answer embeds verbatim
+    (:func:`as_answered`); a plain ``as_Invite`` will fail validation.
 
     Args:
         proposal: The ``_EmProposeEmbargoActivity`` being rejected.

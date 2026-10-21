@@ -17,6 +17,7 @@ from vultron.core.models.base import (
     NonEmptyString,
     ValidatedAssignmentMixin,
 )
+from vultron.core.models.received_body import require_json_object_text
 from vultron.errors import VultronWiringError
 from vultron.primitives import NormalisedActorId
 
@@ -177,19 +178,7 @@ class VultronEvent(ValidatedAssignmentMixin, BaseModel):
         """
         if value is None:
             return value
-        try:
-            decoded = json.loads(value)
-        except ValueError as exc:
-            raise ValueError(
-                "received_evidence is not JSON text (VM-08-002)"
-            ) from exc
-        if not isinstance(decoded, dict):
-            # Pydantic reports a ValueError as a ValidationError; a TypeError
-            # would escape validation instead.
-            raise ValueError(  # noqa: TRY004
-                "received_evidence is not the text of a JSON object (VM-08-002)"
-            )
-        return value
+        return require_json_object_text(value, "received_evidence")
 
     def received_body(self) -> dict[str, Any]:
         """A fresh copy of the received JSON this event was extracted from.

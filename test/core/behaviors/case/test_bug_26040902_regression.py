@@ -40,6 +40,8 @@ This test verifies the fix by:
 import pytest
 from py_trees.common import Status
 
+from test.support.received import with_evidence
+
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
 
 
@@ -169,12 +171,14 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         actor=_reporter_actor_id,
         object_=report,
     )
-    submit_report_event = SubmitReportReceivedEvent(
-        semantic_type=MessageSemantics.SUBMIT_REPORT,
-        activity_id=_offer_id,
-        activity_type="Offer",
-        actor_id=_reporter_actor_id,
-        activity=offer_activity_snapshot,
+    submit_report_event = with_evidence(
+        SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=_offer_id,
+            activity_type="Offer",
+            actor_id=_reporter_actor_id,
+            activity=offer_activity_snapshot,
+        )
     )
 
     bridge = BTBridge(

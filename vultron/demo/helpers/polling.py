@@ -872,13 +872,12 @@ def _received_activity_id(raw_id: str, obj_data: dict) -> str:
 
 
 def _stub_case_id(stub: dict) -> object:
-    """The case a served ``VulnerabilityCaseStub`` names (CM-11-013).
+    """The case a received ``VulnerabilityCaseStub`` names (CM-11-013).
 
-    The archive record serves the objects nested in its activity under their
-    field names (``case_id``); the wire name (``caseId``) is read first, as
-    every served object is (:func:`served_field`).
+    The archive record keeps the Invite as the body that arrived
+    (ADR-0149), so the stub is in its wire form.
     """
-    return served_field(stub, "caseId", "case_id")
+    return stub.get("caseId")
 
 
 def _is_case_invite_for(

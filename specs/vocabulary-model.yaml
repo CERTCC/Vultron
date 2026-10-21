@@ -482,20 +482,21 @@ groups:
       parsed activity, any object nested in it, or the caller's body is mutated.
       If a more hydrated form is required for routing or use-case execution, it MUST be produced
       as a separate object, and it MUST carry the same evidence unchanged.
-      A replay of a deferred activity is parsed again from the received body held
-      for it, and carries that body as its evidence. An activity rebuilt from
-      anything other than its own delivery's body (a resend under an id already
-      held, or an activity the receiver built itself and holds as a stored row)
-      carries no received evidence, and it MUST NOT be given the evidence of a
-      different delivery.
+      A replay of a deferred activity, or a load of an archived one, is parsed
+      again from the received body held for it, and carries that body as its
+      evidence. An activity routed or rebuilt from anything other than its own
+      delivery's body (a resend under an id already held, routed as the held copy,
+      or an activity held as a stored row) carries no received evidence, and it
+      MUST NOT be given the evidence of a different delivery.
     rationale: >-
       The received artifact is the evidence of what arrived, and the ledger replicates it via
       `Announce(CaseLedgerEntry)`. A class-level `frozen=True` cannot hold it: `frozen` does not
       reach nested models, and since ARCH-25-003 the nested objects are mutable core
       classes. The evidence is therefore a value taken at parse, not a property of the graph.
-      The deferred record keeps the sealed body (IO-03-004), so a replay carries the
-      first delivery's evidence (ADR-0149). A resend is another delivery: its body on
-      the copy routed in its place would claim the wrong event.
+      The deferred record and intake's archive keep the sealed body (IO-03-004,
+      CLP-10-017), so a replay carries the first delivery's evidence and a load
+      sees the body that arrived (ADR-0149). A resend is another delivery: the held
+      body on the copy routed in its place would claim the wrong event.
     verification: >-
       `test/architecture/test_wire_artifact_immutability.py` parses every example activity as a
       sender delivers it and, for each class reachable in the parsed tree, overwrites the fields

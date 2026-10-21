@@ -74,7 +74,7 @@ class _SvcFullCaseInviteReplyBase(SvcActivityTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
         held = read_received_activity(
-            self._dl, request.invite_id, "full-case Invite"
+            self._received_activities, request.invite_id, "full-case Invite"
         )
         floor = stored_invite_floor(held)
         case_id = _as_id(getattr(held, "target", None))

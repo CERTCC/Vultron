@@ -42,22 +42,20 @@ Blackboard contract (BTND-03-003):
 
 - ``activity`` (READ, ``/activity``): the received
   :class:`~vultron.core.models.events.base.VultronEvent`.  The refused
-  activity is its received body, verbatim, as a received entry records it
-  (CLP-07-011, ADR-0107); its sender is the asserter.
+  activity is the body intake archived for it, embedded verbatim
+  (CLP-10-017, ADR-0149); the event's sender is the asserter.
 """
 
+import json
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
-from typing import Final
+from typing import Any, Final
 
 import py_trees
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
 from vultron.core.behaviors.case.nodes.diversion_stage import Diversion
-from vultron.core.behaviors.case.nodes.ledger_payload import (
-    _extract_payload_snapshot,
-)
 from vultron.core.behaviors.case.nodes.refusal_stage import (
     enclosing_refusal_reason,
 )
@@ -71,6 +69,9 @@ from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.pending_assertion import (
     PendingAssertion,
     get_pending_assertion_store,
+)
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
 )
 from vultron.errors import VultronWiringError
 from vultron.primitives import NonEmptyString
@@ -205,7 +206,7 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
 
     def _call_factory(self) -> tuple[str, str]:
         event = self._event
-        if not isinstance(event, VultronEvent) or event.activity is None:
+        if not isinstance(event, VultronEvent):
             raise VultronWiringError(
                 f"{self.name}: no received activity on the blackboard to"
                 " refuse (ARCH-15-001)"
@@ -224,10 +225,35 @@ class EmitRefusalNoticeNode(_EmitSingleActivityBase):
         return self.trigger_activity_factory.refusal_notice(
             case_id=self._case_id,
             actor=self.actor_id,
-            refused_activity=_extract_payload_snapshot(event),
+            refused_activity=self._archived_body(event.activity_id),
             asserter=event.actor_id,
             reason=reason,
         )
+
+    def _archived_body(self, activity_id: str) -> dict[str, Any]:
+        """The refused activity's body, as intake archived it (ADR-0149).
+
+        The notice embeds the refused activity as the asserter sent it
+        (CLP-05-001, DL-06-004).  It is read from the archive, the one copy
+        of what arrived, and handed to the reply seam unread.
+
+        Raises:
+            VultronWiringError: When nothing is archived for *activity_id*:
+                intake archives every received activity before any guard
+                runs (CLP-10-017), so the tree is miswired.
+        """
+        assert self.datalayer is not None
+        record = self.datalayer.read(
+            ReceivedActivityRecord.build_id(activity_id)
+        )
+        if not isinstance(record, ReceivedActivityRecord):
+            raise VultronWiringError(
+                f"{self.name}: activity '{activity_id}' was refused but is not"
+                " archived, so there is no received body to embed"
+                " (CLP-10-017)"
+            )
+        body: dict[str, Any] = json.loads(record.received_body)
+        return body
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(

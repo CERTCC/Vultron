@@ -35,9 +35,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
-from vultron.core.models.received_activity_record import (
-    ReceivedActivityRecord,
-)
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.use_cases.triggers.actor import (
     SvcRejectCaseOwnershipTransferUseCase,
 )
@@ -197,20 +196,27 @@ def test_raises_when_actor_not_found(transferee_world):
     assert dl.outbox_list() == []
 
 
-def test_raises_when_offer_names_no_case():
-    """A received Offer whose ``object_`` names no case is refused."""
+def test_raises_when_offer_names_no_case(monkeypatch):
+    """A received Offer whose ``object_`` names no case is refused.
+
+    The parse of an archived Offer requires an object, so the loaded view
+    is stood in for to reach the guard.
+    """
+    from vultron.core.use_cases.triggers import actor as actor_triggers
+
     actor_id = "https://example.org/actors/transferee-nocase"
     offer_id = "https://example.org/activities/offer-nocase"
     actor = MagicMock()
     actor.id_ = actor_id
-    archived = MagicMock(spec=ReceivedActivityRecord)
-    archived.activity = MagicMock(object_=None)
-    held = {
-        actor_id: actor,
-        ReceivedActivityRecord.build_id(offer_id): archived,
-    }
     dl = MagicMock()
-    dl.read.side_effect = held.get
+    dl.read.side_effect = {actor_id: actor}.get
+    monkeypatch.setattr(
+        actor_triggers,
+        "read_received_activity",
+        lambda *_args: ReceivedActivityView(
+            VultronActivity(type_="Offer", actor=actor_id, object_=None)
+        ),
+    )
 
     with pytest.raises(VultronNotFoundError, match="case reference"):
         _execute(dl, actor_id, offer_id)

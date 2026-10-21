@@ -51,7 +51,6 @@ class _StubQueuePort:
     def __init__(self, case_known: bool = False) -> None:
         self._case_known = case_known
         self.queued: list[tuple] = []
-        self.held_activities: list[object] = []
 
     def is_case_known(self, case_id: str) -> bool:
         return self._case_known
@@ -60,10 +59,9 @@ class _StubQueuePort:
         return False
 
     def queue(
-        self, activity_id: str, case_id: str, case_actor_id=None, activity=None
+        self, activity_id: str, case_id: str, case_actor_id=None
     ) -> None:
         self.queued.append((activity_id, case_id, case_actor_id))
-        self.held_activities.append(activity)
 
 
 def _make_event(
@@ -140,8 +138,9 @@ class TestDeferCheckNodeNonUriContextId:
         assert len(queue.queued) == 1
 
     @pytest.mark.spec("DL-06-006")
-    def test_the_event_activity_is_held_with_the_deferral(self):
-        """The core summary is queued with the id, for core readers (#4871)."""
+    def test_the_deferral_queues_the_id_and_nothing_derived(self):
+        """Only the id is queued: the adapter holds the received body, and no
+        summary of it rides along for core readers (ADR-0149)."""
         summary = VultronActivity(
             id_=ACTIVITY_ID, type_="Announce", actor=ACTOR_ID
         )
@@ -150,7 +149,9 @@ class TestDeferCheckNodeNonUriContextId:
             "https://example.org/cases/unknown-case", queue, activity=summary
         )
 
-        assert queue.held_activities == [summary]
+        assert queue.queued == [
+            (ACTIVITY_ID, "https://example.org/cases/unknown-case", ACTOR_ID)
+        ]
 
     def test_no_queue_port_skips_deferral(self):
         """Without a queue port, deferral is skipped regardless of context_id."""

@@ -401,25 +401,37 @@ groups:
 - id: DL-06
   title: Activity Read-Back and the Semantic/Envelope Split
   description: >-
-    Core code MUST NOT read a persisted wire AS2 Activity back from the DataLayer to recover its semantic content. AS2
-    protocol Activities are wire-only envelopes with no registered core counterpart (the DL-05-004 exemption set); the
-    domain fact each carries MUST live as core state. Reading a stored activity is permitted only to reconstitute the
-    verbatim envelope for an outbound reply, and only through a wire/adapter-owned seam — never core interpreting it.
-    Decided in ADR-0035; extends DL-05 and ARCH-09-001.
+    Core code MUST NOT read a persisted wire AS2 Activity back from the DataLayer to
+    recover its semantic content. AS2 protocol Activities are wire-only envelopes with
+    no registered core counterpart (the DL-05-004 exemption set); the domain fact each
+    carries MUST live as core state. A received activity is archived as the body that
+    arrived, and two reads of it are sanctioned: core reads its facts from the read-only
+    view a load of that body yields, and a wire/adapter-owned seam parses it to embed it
+    in a reply. Decided in ADR-0035, partially superseded by ADR-0149; extends DL-05 and
+    ARCH-09-001.
   specs:
   - id: DL-06-001
     priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
     statement: >-
-      Core code (`vultron/core/`) MUST NOT call `dl.read(activity_id)` or `dl.list_objects(<activity_type>)` to recover
-      the semantic content of a persisted wire AS2 Activity (e.g. reading a stored `Offer` to obtain the embedded report,
-      or a stored `Invite` to obtain its case or embargo id). The domain fact MUST be obtained from core state instead.
+      Core code (`vultron/core/`) MUST NOT call `dl.read(activity_id)` or
+      `dl.list_objects(<activity_type>)` to recover the semantic content of a persisted
+      wire AS2 Activity (e.g. reading a stored `Offer` to obtain the embedded report, or
+      a stored `Invite` to obtain its case or embargo id). Core MUST read a received
+      activity's facts only from the read-only view a load of its archived body yields
+      (the `ReceivedActivityLoader` port, ADR-0149), and every other domain fact from
+      core state.
     rationale: >-
-      AS2 protocol Activities are wire-only envelopes with no core counterpart, so reading one back into core hands a
-      `vultron.wire.as2` type to core code (ARCH-01-002) and re-interprets an activity the semantic extractor already
-      interpreted once (ARCH-03-001). The activity is being used as the system of record for a domain fact, inverting the
-      rule that wire is a projection of core (ARCH-09-001). Decided in ADR-0035; source concern #1506.
+      AS2 protocol Activities are wire-only envelopes with no core counterpart, so
+      reading one back into core hands a `vultron.wire.as2` type to core code
+      (ARCH-01-002) and re-interprets an activity the semantic extractor already
+      interpreted once (ARCH-03-001). The activity is being used as the system of record
+      for a domain fact, inverting the rule that wire is a projection of core
+      (ARCH-09-001). The archive's loaded view is the exception, and the only one: it is
+      the semantic extractor's own output for the archived body, built by the one
+      interpretation site, so it re-interprets nothing and hands core no wire type
+      (ADR-0149). Decided in ADR-0035; source concern #1506.
     relationships:
     - rel_type: implements
       spec_id: ARCH-09-001
@@ -435,15 +447,21 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      Every domain fact an actor must remember from a received protocol message MUST be recorded as core state — either a
-      state transition on an existing core entity or a purpose-built core record — at the point the semantic extractor
-      first interprets the inbound activity. Core MUST NOT reconstruct such a fact by re-reading the stored activity later.
+      Every domain fact an actor must remember from a received protocol message MUST be
+      recorded as core state — either a state transition on an existing core entity or a
+      purpose-built core record — at the point the semantic extractor first interprets
+      the inbound activity. Core MUST NOT reconstruct such a fact by re-reading a stored
+      activity later. Reading the read-only view a received activity's archive loads
+      (DL-06-001) is not such a re-read.
     rationale: >-
-      Core is the sole system of record for domain facts (the Actor Knowledge Model bounds an actor's knowledge to what it
-      has received, and that knowledge is held as core state). Capturing the fact once at extraction time removes the need
-      for core to reach back through the wire envelope. This does NOT mean cloning each AS2 Activity into a 1:1 core
-      Activity class; model only the domain fact each message conveys, in domain vocabulary, capturing only what handlers
-      use. Decided in ADR-0035.
+      Core is the sole system of record for domain facts (the Actor Knowledge Model
+      bounds an actor's knowledge to what it has received, and that knowledge is held as
+      core state). Capturing the fact once at extraction time removes the need for core
+      to reach back through the wire envelope. This does NOT mean cloning each AS2
+      Activity into a 1:1 core Activity class; model only the domain fact each message
+      conveys, in domain vocabulary, capturing only what handlers use. The archive's
+      loaded view is the extraction itself, run again on the archived body, so reading
+      it reaches back through no envelope (ADR-0149). Decided in ADR-0035.
     relationships:
     - rel_type: implements
       spec_id: ARCH-03-001
@@ -452,6 +470,7 @@ groups:
     - wire-format
     adr:
     - ADR-0035
+    - ADR-0149
   - id: DL-06-003
     priority: MUST
     kind: project
@@ -475,17 +494,23 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      Reconstituting the verbatim original activity for an outbound reply's inline `object_` / `in_reply_to` field (as the
-      Actor Knowledge Model requires) MAY read a stored activity payload back, but this retrieval MUST be owned by the
-      wire/adapter layer and treat the stored activity as an opaque envelope; core code MUST NOT read the activity to
-      interpret its meaning. Such a wire/adapter-owned envelope seam is NOT counted as a core boundary violation under
-      DL-05-004.
+      Reconstituting the verbatim original activity for an outbound reply's inline
+      `object_` / `in_reply_to` field (as the Actor Knowledge Model requires) MUST read
+      the received body the receiver archived and parse it in the wire/adapter layer,
+      and the reply MUST embed that body as received, every key included; core code MUST
+      NOT read the body to interpret its meaning. Such a wire/adapter-owned seam is NOT
+      counted as a core boundary violation under DL-05-004.
     rationale: >-
-      Activity IDs are non-regenerable random `urn:uuid:` values and the Actor Knowledge Model requires a reply to embed
-      the full inline original activity, so verbatim reconstitution cannot be produced by re-projecting core state — the
-      original envelope (with its original id) must be retained and read back. Confining that read to a wire/adapter seam
-      that never interprets the payload keeps semantic authority in core while satisfying transport needs. `CaseLedgerEntry`
-      `payloadSnapshot` is the existing precedent for opaque, write-only activity retention. Decided in ADR-0035.
+      Activity IDs are non-regenerable random `urn:uuid:` values and the Actor Knowledge
+      Model requires a reply to embed the full inline original activity, so verbatim
+      reconstitution cannot be produced by re-projecting core state — the original
+      envelope (with its original id) must be retained and read back. Confining that
+      read to a wire/adapter seam that never interprets the payload keeps semantic
+      authority in core while satisfying transport needs. A re-dump of a parsed or
+      extracted form is not the original: the parse sets aside keys the vocabulary does
+      not name, and the extractor keeps only what core reads, so the reply embeds the
+      archived body itself (ADR-0149). `CaseLedgerEntry` `payloadSnapshot` is the
+      existing precedent for opaque, write-only activity retention. Decided in ADR-0035.
     relationships:
     - rel_type: refines
       spec_id: DL-05-004
@@ -494,18 +519,22 @@ groups:
     - wire-format
     adr:
     - ADR-0035
+    - ADR-0149
   - id: DL-06-005
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: >-
-      As each core semantic read is migrated off activity read-back (per DL-06-001 through DL-06-003), the corresponding
-      AS2 Activity type MUST be removed from the DL-05-004 ratchet exemption set. The exemption set MUST reach zero once
-      all core semantic activity reads are migrated; the only remaining sanctioned activity reads are the wire/adapter
-      envelope-reconstitution seam of DL-06-004.
+      As each core semantic read is migrated off activity read-back (per DL-06-001
+      through DL-06-003), the corresponding AS2 Activity type MUST be removed from the
+      DL-05-004 ratchet exemption set. The exemption set MUST reach zero once all core
+      semantic activity reads are migrated; the only remaining sanctioned activity reads
+      are the wire/adapter envelope-reconstitution seam of DL-06-004 and core's reads of
+      an archive's loaded view (DL-06-001).
     rationale: >-
-      Ties the migration to an enforceable, monotonically shrinking ratchet so progress is measurable and regressions are
-      blocked. Decided in ADR-0035; source concern #1506.
+      Ties the migration to an enforceable, monotonically shrinking ratchet so progress
+      is measurable and regressions are blocked. Decided in ADR-0035; source concern
+      #1506.
     relationships:
     - rel_type: refines
       spec_id: DL-05-004

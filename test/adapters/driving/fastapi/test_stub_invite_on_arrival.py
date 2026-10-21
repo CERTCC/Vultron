@@ -57,7 +57,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
     FastAPIQueuePort,
 )
-from vultron.adapters.driving.fastapi.inbox_staging import (
+from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict

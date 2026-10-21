@@ -34,6 +34,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.received import with_evidence
 from vultron.core.behaviors import sender_entitlement
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.carried_snapshot import (
@@ -1279,17 +1280,19 @@ def test_sender_guard_refused_names_only_the_sender_guards_refusal(
     sender: str, guards: list[py_trees.behaviour.Behaviour], refused: bool
 ) -> None:
     tree = _participant_tree(sender, guards)
-    event = EngageCaseReceivedEvent(
-        activity_id="https://example.org/activities/engage-guard",
-        actor_id=sender,
-        object_=as_VulnerabilityCase(id_=CASE_ID, name="Sender rule case"),
-        semantic_type=MessageSemantics.ENGAGE_CASE,
-        activity=VultronActivity(
-            id_="https://example.org/activities/engage-guard",
-            type_="Join",
-            actor=sender,
-            to=[MANAGER],
-        ),
+    event = with_evidence(
+        EngageCaseReceivedEvent(
+            activity_id="https://example.org/activities/engage-guard",
+            actor_id=sender,
+            object_=as_VulnerabilityCase(id_=CASE_ID, name="Sender rule case"),
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=VultronActivity(
+                id_="https://example.org/activities/engage-guard",
+                type_="Join",
+                actor=sender,
+                to=[MANAGER],
+            ),
+        )
     )
     result = _store(MANAGER).run(tree, activity=event)
     assert result.status == Status.FAILURE

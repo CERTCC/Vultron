@@ -192,8 +192,9 @@ Runs at the transferee: intake keeps the CASE_MANAGER's Offer only as its
 `ReceivedActivityRecord`, never under the id its sender chose (DL-06-006), and the
 sender guard admits the CASE_MANAGER alone. Nothing is committed there.
 
-- **Answer only the Offer intake archived.** The accept and reject triggers and the
-  adapter read it with `read_received_activity`, so an actor that never received
+- **Answer only the Offer intake archived.** The accept and reject triggers read it
+  with `read_received_activity` and the adapter with `read_received_as_received`
+  (the reply embeds the archived body verbatim), so an actor that never received
   the Offer gets a not-found, whatever is stored under the Offer's id (DL-06-006).
   The `offer_case_ownership_transfer` entry has no replay effect: the transferee
   holds the Offer, the owner its proposal, and a bystander never answers

@@ -406,6 +406,17 @@ class VultronWiringError(VultronError):
     """
 
 
+class VultronReadOnlyViewError(VultronError, AttributeError):
+    """Raised on an attempt to change a read-only view of a received activity.
+
+    A received activity's view is parsed fresh from the archived body on
+    every load (ADR-0149), so a change to it could only ever reach that one
+    copy, and would read as a change to what arrived.  Core changes its own
+    records instead.  An ``AttributeError``, as assignment to any frozen
+    object raises.
+    """
+
+
 class VultronUnhostedActorError(VultronWiringError):
     """Raised when execution is scoped to an actor this container does not host.
 

@@ -23,12 +23,15 @@ Spec coverage:
 - AF-04-002: All factory functions re-exported from factories/__init__.py.
 """
 
+import json
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
 
 from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
@@ -42,6 +45,7 @@ from vultron.wire.as2.factories import (
     remove_embargo_from_case_activity,
     withdraw_from_embargo_activity,
 )
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
@@ -626,49 +630,96 @@ def test_ignore_late_embargo_accept_refuses_a_non_embargo_accept():
         )
 
 
-@pytest.mark.spec("DL-06-006")
+def _received(activity: as_Invite, **extra: object) -> as_Invite:
+    """*activity* as a receiver parses it from the body its sender sent.
+
+    *extra* adds keys to that body, as a sender that names more than this
+    receiver's vocabulary would.
+    """
+    body = activity.model_dump(
+        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
+    )
+    body.update(extra)
+    return cast(as_Invite, parse_activity(body))
+
+
+@pytest.mark.spec("DL-06-004")
 @pytest.mark.parametrize(
     "factory", [em_accept_embargo_activity, em_reject_embargo_activity]
 )
-def test_answer_embeds_an_invite_as_intake_archived_it(
+def test_answer_embeds_the_invite_as_its_sender_sent_it(
     sample_proposal, factory
 ):
-    """A received Invite is held in its core form, as the event carried it;
-    the answer factory validates it into the proposal class it embeds."""
-    from vultron.semantic_registry import extract_event
+    """A received Invite, parsed from its archived body, is embedded as that
+    body, verbatim: its RSVP deadline, its ``cc`` and a key no vocabulary
+    names all survive into the answer (ADR-0149)."""
+    end_time = "2031-02-03T04:05:06+00:00"
+    received = _received(
+        sample_proposal,
+        endTime=end_time,
+        cc=["https://example.org/actors/observer"],
+        fooBar={"kept": True},
+    )
 
-    archived = extract_event(sample_proposal).activity
-    assert archived is not None
-    assert not isinstance(archived, as_Invite)
-
-    result = factory(proposal=archived, context=_CASE_URI, actor=_ACTOR_URI)
+    result = factory(proposal=received, context=_CASE_URI, actor=_ACTOR_URI)
 
     assert result.object_.id_ == sample_proposal.id_
     assert result.object_.object_.id_ == sample_proposal.object_.id_
+    # Dumped as the outbox seals an outbound body (OUTBOUND_DUMP_KWARGS).
+    embedded = json.loads(
+        result.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )["object"]
+    assert embedded == received.received_evidence
+    assert embedded["endTime"] == end_time
+    assert embedded["cc"] == ["https://example.org/actors/observer"]
+    assert embedded["fooBar"] == {"kept": True}
+
+
+@pytest.mark.spec("DL-06-004")
+def test_answer_refuses_core_s_view_of_the_invite(sample_proposal):
+    """A reply embeds what arrived, never a re-dump of core's view of it."""
+    from vultron.semantic_registry import extract_received_activity
+
+    view = ReceivedActivityView(
+        extract_received_activity(_received(sample_proposal))
+    )
+
+    with pytest.raises(VultronActivityConstructionError):
+        em_accept_embargo_activity(
+            proposal=cast(as_Invite, view),
+            context=_CASE_URI,
+            actor=_ACTOR_URI,
+        )
 
 
 @pytest.mark.spec("AF-04-001")
 @pytest.mark.parametrize(
     "factory", [em_accept_embargo_activity, em_reject_embargo_activity]
 )
-def test_answer_refuses_an_archived_activity_that_is_not_an_embargo_invite(
+def test_answer_refuses_a_received_activity_that_is_not_an_embargo_invite(
     factory,
 ):
-    """An archived activity of another shape fails validation, wrapped."""
-    from vultron.semantic_registry import extract_event
+    """A received activity of another shape fails validation, wrapped."""
     from vultron.wire.as2.factories import rm_invite_to_case_activity
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
 
     case_invite = rm_invite_to_case_activity(
         "https://example.org/actors/invitee",
-        target=_CASE_URI,
+        target=as_VulnerabilityCaseStub(case_id=_CASE_URI, summary="A case"),
         actor=_ACTOR_URI,
     )
-    archived = extract_event(case_invite).activity
-    assert archived is not None
 
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        factory(proposal=archived, context=_CASE_URI, actor=_ACTOR_URI)
+        factory(
+            proposal=_received(case_invite),
+            context=_CASE_URI,
+            actor=_ACTOR_URI,
+        )
     cause = exc_info.value.__cause__
-    # as_answered's validation of the core form refused it, not the reply's.
+    # as_answered's validation of the parsed Invite refused it.
     assert isinstance(cause, ValidationError)
     assert cause.title == "_EmProposeEmbargoActivity"

@@ -30,6 +30,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
     _make_entry,
 )
+from test.support.received import received_event
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes import (
     CollectEmbargoInviteRecipientsNode,
@@ -57,7 +58,6 @@ from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -323,7 +323,7 @@ def test_genesis_reject_from_non_signatory_seeds_no_case(datalayer) -> None:
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
     )
-    event = cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     sync_port = MagicMock(spec=SyncActivityPort)
     trigger_activity = MagicMock(spec=TriggerActivityPort)
 
@@ -364,7 +364,7 @@ def test_genesis_pre_seed_itself_withholds_case_from_non_signatory(
         actor=NON_SIGNATORY_ID,
         to=[MANAGER_ID],
     )
-    event = cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     sync_port = MagicMock(spec=SyncActivityPort)
     trigger_activity = MagicMock(spec=TriggerActivityPort)
     tree = py_trees.composites.Sequence(
@@ -580,7 +580,7 @@ def test_a_closed_peers_reject_is_answered_up_to_its_own_closure(
         actor=SIGNATORY_ID,
         to=[MANAGER_ID],
     )
-    event = cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    event = cast(RejectLogEntryReceivedEvent, received_event(activity))
     sync_port = MagicMock(spec=SyncActivityPort)
 
     result = BTBridge(

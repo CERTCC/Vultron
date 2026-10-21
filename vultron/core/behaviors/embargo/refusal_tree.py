@@ -108,7 +108,7 @@ def pxa_invite_refusal(
     """The P/X/A refusal of a received ``Invite(EmbargoEvent)`` (EMB-01-002).
 
     The terms the Invite carries are stored first; the ER is built from the
-    Invite as intake archived it (CLP-10-017, DL-06-006).  Storing the terms
+    body intake archived for the Invite (CLP-10-017, DL-06-006).  Storing the terms
     moves no EM or consent state (EP-09-003).  An Invite naming its terms by
     URI only is answered all the same: the ER names the Invite by id
     (ADR-0123).  Only the invitee answers (EP-09-010); any other store keeps
