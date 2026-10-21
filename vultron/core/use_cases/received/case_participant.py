@@ -167,9 +167,10 @@ class _CaseOwnerParticipantMoveUseCase[
         if any(node_failed(tree, guard) for guard in self._SKIP_GUARDS):
             return HandlerResult.skipped(failure_reason(tree, result))
         if any(node_failed(tree, effect) for effect in self._EFFECTS):
-            # The move is committed by now; a fact that could not be
+            # The guards admitted the move; a fact that could not be
             # recorded, or a notice that could not be built or queued, is
-            # our fault, not the sender's (ADR-0095, BT-14-001).
+            # our fault, not the sender's (ADR-0095, BT-14-001).  The act's
+            # transaction keeps nothing of it (CLP-07-015).
             raise VultronBTInternalError(
                 f"{label}: {failure_reason(tree, result)}"
             )

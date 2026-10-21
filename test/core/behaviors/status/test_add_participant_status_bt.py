@@ -2145,6 +2145,38 @@ class TestAdoptedPxaReachesTheCaseStatus:
         assert _case_pxa(populated_dl) == CS_pxa.pxa
         assert _case_status_entries(populated_dl) == []
 
+    @pytest.mark.spec("CLP-07-015")
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.executes_as(CASE_MANAGER_ID)
+    def test_a_failed_adoption_fails_the_act_and_keeps_nothing(
+        self, populated_dl, make_payload, monkeypatch
+    ):
+        """Only a withheld adoption keeps the act; one that fails rolls back
+        the append and the act's own entry with it (CLP-07-015)."""
+        participant_before = populated_dl.read(PARTICIPANT_ID)
+        assert isinstance(participant_before, CaseParticipant)
+        ledger_before = {
+            e.id_ for e in populated_dl.list_objects("CaseLedgerEntry")
+        }
+        monkeypatch.setattr(
+            EmitCaseStatusUpdateNode, "update", lambda self: Status.FAILURE
+        )
+
+        result = _run_at_case_manager(
+            populated_dl, make_payload(_pxa_report(CS_pxa.Pxa))
+        )
+
+        assert result.status == Status.FAILURE
+        stored = populated_dl.read(PARTICIPANT_ID)
+        assert isinstance(stored, CaseParticipant)
+        assert stored.participant_statuses == (
+            participant_before.participant_statuses
+        ), "the append is rolled back"
+        assert {
+            e.id_ for e in populated_dl.list_objects("CaseLedgerEntry")
+        } == ledger_before
+        assert _case_pxa(populated_dl) == CS_pxa.pxa
+
     @pytest.mark.spec("RSH-01-003")
     @pytest.mark.executes_as(CASE_MANAGER_ID)
     def test_a_report_omitting_a_latch_keeps_it(

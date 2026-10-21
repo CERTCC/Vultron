@@ -4694,30 +4694,30 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER records an activity and then forwards it on its
-      sender's behalf (CM-33-001), the forward MUST carry the same
-      id on every attempt, derived from the recorded activity. A failure to
-      build or send the forward after the record MUST NOT be reported as a
-      refusal of the sender (HP-01-003). A redelivery of the recorded activity
-      MUST reuse its recorded entry and MUST rebuild and send the forward
-      while the request it carries is still open; holding a copy of the
-      forward MUST NOT be taken as proof that it was sent. Once that request
-      is closed (answered, withdrawn or expired), a redelivery MUST send
-      nothing.
+      sender's behalf (CM-33-001), the forward MUST carry the same id on every
+      attempt, derived from the recorded activity, and the record and the
+      forward MUST commit as one act (CLP-07-015), so a failure to build or
+      send the forward keeps neither. That failure MUST NOT be reported as a
+      refusal of the sender (HP-01-003). A redelivery of an activity whose
+      first delivery failed so MUST be processed as a new delivery. A
+      redelivery of a recorded activity MUST send nothing.
     rationale: >-
-      The record precedes the forward (CLP-10-006), so a failed forward leaves
-      a recorded request its addressee never got and cannot answer (#4814). A
-      held copy is no proof of sending: it is written before it is queued.
-      One id makes a resend safe: the outbox holds one pending entry per id
-      (OX-06-002), and the addressee takes a repeat it holds as a no-op.
+      The record precedes the forward (CLP-10-006), so a forward that failed
+      after a kept record left a recorded request its addressee never got and
+      cannot answer (#4814). With the record and the forward in one act, no
+      recorded request lacks its forward, so no redelivery has a forward to
+      finish (#4983). One id makes a resend safe: the outbox holds one pending
+      entry per id (OX-06-002), and the addressee takes a repeat it holds as a
+      no-op.
     verification: >-
       A test marked `CM-24-007` for each forward fails the forward after the
-      record and asserts the handler raises an internal error, not `REFUSED`;
-      a redelivery then sends one forward under the derived id with no second
-      ledger entry, including when a copy of the forward was stored but never
-      queued; a redelivery after the role Offer was answered sends nothing.
-      The ownership-transfer Offer is not a forward: the CASE_MANAGER makes
-      it from the owner's proposal and ledgers it once queued (CM-21-005,
-      ADR-0148), so it is out of scope here.
+      record and asserts the handler raises an internal error, not `REFUSED`,
+      and that no entry and no forward is kept; a redelivery then records the
+      activity once and sends one forward under the derived id; a redelivery
+      after the role Offer was recorded sends nothing. The ownership-transfer
+      Offer is not a forward: the CASE_MANAGER makes it from the owner's
+      proposal and ledgers it once queued (CM-21-005, ADR-0148), so it is out
+      of scope here.
     relationships:
     - rel_type: refines
       spec_id: CM-24-004

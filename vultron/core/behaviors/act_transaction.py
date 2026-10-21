@@ -40,8 +40,10 @@ import py_trees
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
 
+from vultron.core.behaviors.exemption_registry import require_registered
 from vultron.core.behaviors.node_logger import node_logger
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronWiringError
 from vultron.primitives import NonEmptyString
 
 
@@ -170,9 +172,50 @@ class OneActExemption(BaseModel):
 ONE_ACT_EXEMPTIONS: Final[Mapping[str, OneActExemption]] = MappingProxyType({})
 
 
+def received_act_stage(
+    name: str,
+    act: list[py_trees.behaviour.Behaviour],
+    case_id: str | None,
+    exemption: OneActExemption | None,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The guarded commit and the effects after it, as one act by default.
+
+    A tree that commits to *case_id* runs its commit and every effect after
+    it in one ``ActTransaction`` named ``{name}Act``: the act's own entry and
+    every consequence a later node commits succeed or fail as one
+    (CLP-07-015, ADR-0146, ADR-0151).  A tree with no commit has no act to
+    hold, and its effects run as they are.
+
+    Raises:
+        VultronWiringError: *exemption* is not registered in
+            ``ONE_ACT_EXEMPTIONS``, or it exempts a tree that commits to no
+            case and so has no act to run outside of.
+    """
+    if exemption is not None:
+        where = f"create_receive_activity_tree({name})"
+        require_registered(
+            exemption,
+            ONE_ACT_EXEMPTIONS,
+            where=where,
+            kind="one-act",
+            registry_name="ONE_ACT_EXEMPTIONS",
+            spec_id="CLP-07-015",
+        )
+        if case_id is None:
+            raise VultronWiringError(
+                f"{where}: one-act exemption {exemption.name!r} exempts a"
+                " tree that commits to no case; drop it (CLP-07-015)"
+            )
+        return act
+    if case_id is None:
+        return act
+    return [ActTransaction(name=f"{name}Act", children=act)]
+
+
 __all__ = [
     "ONE_ACT_EXEMPTIONS",
     "ActTransaction",
     "ActTransactionError",
     "OneActExemption",
+    "received_act_stage",
 ]

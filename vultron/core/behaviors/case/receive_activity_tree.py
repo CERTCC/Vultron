@@ -82,9 +82,9 @@ from collections.abc import Sequence
 import py_trees
 
 from vultron.core.behaviors.act_transaction import (
-    ONE_ACT_EXEMPTIONS,
     ActTransaction,
     OneActExemption,
+    received_act_stage,
 )
 from vultron.core.behaviors.case.case_clock_decisions import (
     case_clock_decisions,
@@ -293,46 +293,6 @@ def _addressee_stage(
         spec_id="HP-01-005",
     )
     return []
-
-
-def _act_stage(
-    name: str,
-    act: list[py_trees.behaviour.Behaviour],
-    case_id: str | None,
-    exemption: OneActExemption | None,
-) -> list[py_trees.behaviour.Behaviour]:
-    """The guarded commit and the effects after it, as one act by default.
-
-    A tree that commits to *case_id* runs its commit and every effect after
-    it in one ``ActTransaction`` named ``{name}Act``: the act's own entry and
-    every consequence a later node commits succeed or fail as one
-    (CLP-07-015, ADR-0146, ADR-0151).  A tree with no commit has no act to
-    hold, and its effects run as they are.
-
-    Raises:
-        VultronWiringError: *exemption* is not registered in
-            ``ONE_ACT_EXEMPTIONS``, or it exempts a tree that commits to no
-            case and so has no act to run outside of.
-    """
-    if exemption is not None:
-        where = f"create_receive_activity_tree({name})"
-        require_registered(
-            exemption,
-            ONE_ACT_EXEMPTIONS,
-            where=where,
-            kind="one-act",
-            registry_name="ONE_ACT_EXEMPTIONS",
-            spec_id="CLP-07-015",
-        )
-        if case_id is None:
-            raise VultronWiringError(
-                f"{where}: one-act exemption {exemption.name!r} exempts a"
-                " tree that commits to no case; drop it (CLP-07-015)"
-            )
-        return act
-    if case_id is None:
-        return act
-    return [ActTransaction(name=f"{name}Act", children=act)]
 
 
 def _manager_stage(
@@ -1267,7 +1227,7 @@ def create_receive_activity_tree(
         )
     # The act's own entry commits with its consequences, or none of them is
     # kept (CLP-07-015, ADR-0151).
-    children.extend(_act_stage(name, act, case_id, one_act_exemption))
+    children.extend(received_act_stage(name, act, case_id, one_act_exemption))
     return ReceivedActivityTree(
         name=name,
         children=children,

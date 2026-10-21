@@ -14,6 +14,7 @@ description: >
 related_specs:
   - specs/outbox.yaml
   - specs/sync-ledger-replication.yaml
+  - specs/case-ledger-processing.yaml
 related_issues:
   - https://github.com/CERTCC/Vultron/issues/2302
   - https://github.com/CERTCC/Vultron/issues/3602
@@ -152,13 +153,14 @@ emission, or every redelivery grows the store and outbox (ID-04-004, #4215).
   the activity under a fresh id defeats it: any emit node whose tree can run again
   after its commit failed — a redelivered request, a resumed tree, a level-triggered
   node — MUST derive the id. Where the build, the queue write and the commit run
-  in one `transaction()` (the embargo acts, the stub re-issue and the relay,
-  ADR-0146), a failed commit leaves nothing stored or queued, so a retry starts
-  from the beginning; prefer that to a node that looks for its own sent,
-  unrecorded activity.
+  in one `transaction()` (every received act that commits to a case, and the
+  embargo trigger arms, ADR-0146), a failed commit leaves nothing stored or
+  queued, so a retry starts from the beginning; prefer that to a node that looks
+  for its own sent, unrecorded activity.
 - A send that no retry rebuilds and that is not in a transaction (a
-  `_CommitCaseManagerActivityBase` node whose act opens none, such as the case
-  closure) MUST withdraw the activity with `outbox_withdraw` when its commit
+  `_CommitCaseManagerActivityBase` node whose act opens none, such as one in a
+  trigger tree outside an `ActTransaction`) MUST withdraw the activity with
+  `outbox_withdraw` when its commit
   fails, then raise: left pending it reaches participants with no entry
   recording it (CLP-07-013). See
   `_CommitCaseManagerActivityBase._withdraw_unrecorded`.

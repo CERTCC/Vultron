@@ -233,11 +233,11 @@ class TestStageOrder:
     def test_a_registered_one_act_exemption_runs_the_commit_outside_one(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from vultron.core.behaviors.case import receive_activity_tree
+        from vultron.core.behaviors import act_transaction
 
         exemption = OneActExemption(name="test-exemption", reason="a test")
         monkeypatch.setattr(
-            receive_activity_tree,
+            act_transaction,
             "ONE_ACT_EXEMPTIONS",
             {exemption.name: exemption},
         )
@@ -268,11 +268,11 @@ class TestStageOrder:
     def test_a_one_act_exemption_without_a_commit_is_a_wiring_error(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from vultron.core.behaviors.case import receive_activity_tree
+        from vultron.core.behaviors import act_transaction
 
         exemption = OneActExemption(name="test-exemption", reason="a test")
         monkeypatch.setattr(
-            receive_activity_tree,
+            act_transaction,
             "ONE_ACT_EXEMPTIONS",
             {exemption.name: exemption},
         )
