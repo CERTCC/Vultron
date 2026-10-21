@@ -32,7 +32,7 @@ CASE_MANAGER's alone (RSH-04-001, RSH-04-005).
 
     AddParticipantStatusBT (Sequence)
     ├─ [IntakeReceivedActivityNode]           # Always first (CLP-10-017)
-    ├─ SenderRuleGuard                        # Sender guard from the declared rule (HP-01-008, RSH-08-007)
+    ├─ SenderRuleGuard                        # Declared sender rule (HP-01-008, RSH-08-007)
     ├─ PreconditionGuardStage                 # Refusal-effects stage (CLP-10-022)
     │   ├─ CarriedObjectInTargetCaseNode      # Guard: status of this case (HP-08-007)
     │   ├─ [OnBehalfStatusGuard]              # Another's record: only v→V/d→D (RSH-08-007)

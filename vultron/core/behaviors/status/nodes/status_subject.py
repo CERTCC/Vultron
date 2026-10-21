@@ -66,6 +66,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import CS_d, CS_vf
@@ -210,15 +211,10 @@ class CheckOnBehalfStatusShapeNode(DataLayerConditionWithPorts):
         self._expected_roles = expected_roles
         self._status_obj_fallback = status_obj_fallback
 
-    def _violations(self) -> list[str]:
+    def _violations(self, case: VulnerabilityCase) -> list[str]:
         assert self.datalayer is not None
         violations: list[str] = []
-        case = self.datalayer.read_case(self._case_id)
-        indexed = (
-            case.actor_participant_index.get(self._target_actor_id)
-            if case is not None
-            else None
-        )
+        indexed = case.actor_participant_index.get(self._target_actor_id)
         if indexed != self._participant_id:
             violations.append(
                 f"the case lists '{indexed}', not '{self._participant_id}',"
@@ -258,7 +254,11 @@ class CheckOnBehalfStatusShapeNode(DataLayerConditionWithPorts):
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
-        violations = self._violations()
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1: the index check needs the case
+        assert case is not None
+        violations = self._violations(case)
         if not violations:
             return Status.SUCCESS
         self.feedback_message = (
