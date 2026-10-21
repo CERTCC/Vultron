@@ -28,36 +28,15 @@ from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from vultron.core.models.events import MessageSemantics
-from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.dispatcher import ActivityDispatcher
-from vultron.errors import (
-    UnroutableActivityError,
-    VultronApiHandlerNotFoundError,
-    VultronValidationError,
-)
+from vultron.errors import VultronApiHandlerNotFoundError
 
 if TYPE_CHECKING:
     from vultron.core.models.events import VultronEvent
     from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
-
-_JOIN_BACKFILL_GATED_SEMANTICS = frozenset(
-    {
-        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
-        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
-        MessageSemantics.ADD_NOTE_TO_CASE,
-        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
-        MessageSemantics.DEFER_CASE,
-        MessageSemantics.ENGAGE_CASE,
-        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
-        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
-        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
-        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
-        MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE,
-    }
-)
 
 
 class DispatcherBase:
@@ -107,10 +86,9 @@ class DispatcherBase:
         """Run the routed use case and return its verdict.
 
         This is the link that calls ``execute()``, so it is the first hop that
-        must keep the ``HandlerResult`` (UCORG-05-010). An unroutable activity
-        runs no handler; the dispatcher then synthesizes a ``REFUSED`` verdict
-        rather than returning as though one had succeeded (UCORG-05-012). The
-        activity is still dropped, not re-queued (ARCH-15-003).
+        must keep the ``HandlerResult`` (UCORG-05-010). Semantics with no
+        registered use case run no handler; the lookup raises, so the
+        pipeline records a rejection, never ``processed`` (UCORG-05-012).
 
         Raises:
             VultronApiHandlerNotFoundError: No use case is registered for the
@@ -118,17 +96,6 @@ class DispatcherBase:
             TypeError: The use case returned something other than a
                 ``HandlerResult`` — a contract breach, not a verdict.
         """
-        try:
-            self._enforce_join_backfill_gate(event, dl)
-        except UnroutableActivityError as exc:
-            logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                "Activity '%s' is unroutable and will be dropped"
-                " (semantics=%s actor_id=%s): no case_id extractable",
-                event.activity_id,
-                event.semantic_type,
-                event.actor_id,
-            )
-            return HandlerResult.refused(f"unroutable: {exc.reason}")
         try:
             use_case_class = self._get_use_case(event.semantic_type)
         except VultronApiHandlerNotFoundError:
@@ -161,91 +128,6 @@ class DispatcherBase:
                 " (UCORG-05-001)"
             )
         return result
-
-    def _enforce_join_backfill_gate(
-        self, event: "VultronEvent", dl: "DataLayer"
-    ) -> None:
-        if event.semantic_type not in _JOIN_BACKFILL_GATED_SEMANTICS:
-            return
-        sender_id = event.actor_id
-        if not sender_id:
-            return
-        case_id = self._extract_case_id(event)
-        highest_contiguous_index, has_case_entries = (
-            self._highest_contiguous_case_log_index(case_id, dl)
-        )
-        if not has_case_entries:
-            return
-        state_id = VultronReplicationState(
-            case_id=case_id,
-            peer_id=sender_id,
-        ).id_
-        state = dl.read(state_id)
-        if not isinstance(state, VultronReplicationState):
-            return
-        # A completed join-backfill means the peer holds the full canonical
-        # prefix — or never needed one (genesis participants whose replication
-        # state was created by the Reject(CaseLedgerEntry) sync path, which
-        # leaves the join_backfill_* fields at their -1/True defaults).  Only
-        # peers with an *incomplete* backfill are gated; otherwise a settled
-        # genesis participant is wrongly rejected as "backfill not started".
-        if state.join_backfill_complete:
-            return
-        if state.join_backfill_last_sent_index < 0:
-            raise VultronValidationError(
-                f"Actor '{sender_id}' has no contiguous canonical ledger "
-                f"prefix for case '{case_id}' (genesis backfill not started)."
-            )
-        if state.join_backfill_last_sent_index > highest_contiguous_index:
-            raise VultronValidationError(
-                f"Actor '{sender_id}' reported join backfill index "
-                f"{state.join_backfill_last_sent_index} for case '{case_id}', "
-                "but the canonical ledger prefix is not contiguous to that "
-                "index."
-            )
-
-    def _highest_contiguous_case_log_index(
-        self, case_id: str, dl: "DataLayer"
-    ) -> tuple[int, bool]:
-        case_indices = sorted(
-            index
-            for obj in dl.list_objects("CaseLedgerEntry")
-            if getattr(obj, "case_id", None) == case_id
-            and isinstance(index := getattr(obj, "log_index", None), int)
-        )
-        if not case_indices:
-            return -1, False
-        expected = 0
-        for index in case_indices:
-            if index != expected:
-                break
-            expected += 1
-        return expected - 1, True
-
-    def _extract_case_id(self, event: "VultronEvent") -> str:
-        if (
-            event.semantic_type
-            == MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
-        ):
-            status_obj = getattr(event, "object_", None)
-            status_context = getattr(status_obj, "context", None)
-            if isinstance(status_context, str) and status_context:
-                return status_context
-        for attr in (
-            "case_id",
-            "inner_context_id",
-            "context_id",
-            "origin_id",
-            "inner_target_id",
-            "target_id",
-        ):
-            value = getattr(event, attr, None)
-            if isinstance(value, str) and value:
-                return value
-        raise UnroutableActivityError(
-            activity_id=getattr(event, "activity_id", "") or "",
-            reason="No case_id attribute found on event",
-        )
 
     def _get_use_case(self, semantics: MessageSemantics) -> type:
         use_case_class = self._use_case_map.get(semantics)

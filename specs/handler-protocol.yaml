@@ -473,10 +473,10 @@ groups:
       `test/core/ports/test_use_case.py::TestUnknownUseCase::test_execute_logs_warning`,
       `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_receiving_actor_in_cc_logs_warning_no_case`,
       and
-      `test/core/test_fail_fast_silent_sites.py::TestExtractCaseIdRaisesUnroutableActivityError::test_unroutable_event_is_dropped_not_retried`
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py::test_remove_embargo_naming_no_case_is_refused_by_its_handler`
       each drive an expected condition (unrecognised activity, `cc`-only addressing,
-      unroutable event), assert the log record or refusal it produces, and complete
-      with no exception escaping the handler or `dispatch()`.
+      an activity that names no case), assert the log record or refusal it produces,
+      and complete with no exception escaping the handler or `dispatch()`.
 - id: HP-06
   title: Logging
   specs:
@@ -509,9 +509,9 @@ groups:
     kind: project
     statement: Handlers MUST log errors at ERROR level with full context
     verification: >-
-      `test/core/test_fail_fast_silent_sites.py::TestExtractCaseIdRaisesUnroutableActivityError::test_unroutable_event_is_logged_at_error_with_context`
-      asserts the dispatcher's ERROR record for a dropped activity carries the activity id,
-      semantics, and actor id.
+      `test/core/behaviors/inbox/test_process_payload.py::TestDispatchNodeFaults::test_dispatch_raise_is_logged_with_its_traceback`
+      asserts the one ERROR record for a dispatch that raised carries the activity id,
+      the actor id, and the traceback.
     relationships:
     - rel_type: depends_on
       spec_id: SL-03-001
