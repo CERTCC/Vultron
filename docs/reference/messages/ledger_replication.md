@@ -93,6 +93,11 @@ Any `Announce(CaseLedgerEntry)` that arrives before the seed is held as a `HeldL
   `vultron/wire/as2/factories/case.py`.
 - **Spec:** SYNC-09-001.
 
+Each `Announce(VulnerabilityCase)` names the ledger position its copy reflects as the case object's `ledgerTail`: the `logIndex` and `entryHash` of the last ledger entry.
+The CASE_MANAGER fills it in from its ledger each time it sends the copy, and a participant that already holds the case judges the copy by it (SYNC-16-005).
+A copy the participant's chain is already past is skipped, a copy naming a different entry at an index the participant holds is refused, and any other copy replaces the case (SYNC-16-006).
+After a replacement whose tail is ahead of its chain, the participant sends `Reject(CaseLedgerEntry)` naming its own tail and stores each entry the copy already reflects as a no-op (SYNC-16-007).
+
 The activity and its rendered example are documented under [Announce vulnerability case](case_management.md#announce-vulnerability-case).
 
 ---
