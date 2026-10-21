@@ -81,7 +81,7 @@ Name an actor-id field for the role it records, not the trust relation: a name
 containing "trusted" trips CodeQL's clear-text-logging heuristic on every log
 line printing a public actor URI (#4020). A stored row carrying a renamed key is
 refused on load via `RetiredFieldsRecord`, never aliased (see
-[datalayer-design.md](datalayer-design.md) § "Renaming a Stored Field").
+[datalayer-design.md](datalayer-design.md) § "Retiring a Stored Field").
 
 ## Early CASE_MANAGER Messages Are Queued, Not Rejected (CBT-03)
 

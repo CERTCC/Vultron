@@ -23,20 +23,16 @@ longer proposal before anything is written and publishes it as
 registers it in the same commit that activates the embargo, so a failure can
 never leave the case active with the revision missing (EP-04-012, #4142).
 
-The revision then follows the relay like any other (EP-04-011, ADR-0113): the
-same commit records the relay as owed in a durable
-``PendingCreationTimeRevisionRelay`` that mints the id its ``Invite`` will
-carry, so no crash can leave a registered revision that nobody owes.
-``RelayCreationTimeRevisionNode`` (``embargo_revision_relay``) emits that
+The revision then follows the relay like any other (EP-04-011, ADR-0113):
+``RelayCreationTimeRevisionNode`` (``embargo_revision_relay``) emits its
 ``Invite`` on the losing party's behalf, and indexes it for the owner's default
-selection (EP-08-002), only once the initialization sequence is complete
-(CM-14-007).  A failed relay keeps the record, so redelivery or the startup
-runner retries it (#4121, #4156).
+selection (EP-08-002), once the initialization sequence is complete
+(CM-14-007).  Both run in the creation act's one transaction (ADR-0146), so a
+failed relay rolls the registration back with the rest of the creation.
 """
 
 import logging
 from datetime import timedelta
-from typing import cast
 
 from py_trees.common import Status
 from pydantic import BaseModel, ConfigDict
@@ -46,13 +42,9 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models._helpers import _as_id, _new_urn, from_now_utc
+from vultron.core.models._helpers import _as_id, from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
-from vultron.core.models.pending_creation_time_revision_relay import (
-    LosingSource,
-    PendingCreationTimeRevisionRelay,
-)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_duration import (
     EmbargoDurationSource,
@@ -112,26 +104,6 @@ class CreationTimeRevisionCandidate(BaseModel):
 
     embargo: EmbargoEvent
     losing_source: EmbargoDurationSource
-
-    def relay_obligation(
-        self, case_id: str, report_id: str, case_actor_id: str
-    ) -> PendingCreationTimeRevisionRelay:
-        """Record the relay this revision owes, minting its Invite's id.
-
-        The relay records that id in ``pending_embargo_proposal_index`` once
-        the Invite is sent, not here: the bootstrap
-        ``Create(VulnerabilityCase)`` carries the case whole, and an index
-        entry already in it would read, at the invitee, as an Invite it had
-        already answered (EP-04-011).
-        """
-        return PendingCreationTimeRevisionRelay(
-            case_id=case_id,
-            embargo_id=self.embargo.id_,
-            proposal_id=_new_urn(),
-            losing_source=cast(LosingSource, self.losing_source.value),
-            report_id=report_id,
-            case_actor_id=case_actor_id,
-        )
 
 
 class ResolveCreationTimeRevisionNode(DataLayerActionWithPorts):

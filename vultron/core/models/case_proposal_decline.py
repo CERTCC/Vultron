@@ -15,33 +15,17 @@
 
 """Durable record that a ``Create(as_CaseProposal)`` was declined.
 
-The record is written by the admission decision **before** the
-``Reject(as_CaseProposal)`` is queued, and it is what makes a decline safe.
-Three properties depend on it:
+The admission decision writes the record and queues the
+``Reject(as_CaseProposal)`` in one transaction (``RefusalActTransaction``,
+CLP-07-015), so the store holds both or neither.  Two properties depend on it:
 
-- **The decision is terminal.** Once the record exists, the accept path refuses
-  to run. Without it, any failure while emitting the ``Reject`` — a missing
-  wire proposal, an uninjected port, a store error — would let the enclosing
-  Selector fall through to the accept flow and create the case, telling the
-  proposer "yes" after the service decided "no".
-- **Redelivery is idempotent.** A second delivery of the same proposal finds the
-  record and does not re-adjudicate, so a retrying proposer is not sent a new
+- **The decision is terminal.** Once the record exists, a later delivery of
+  the proposal finds it and neither re-adjudicates nor runs the accept path.
+- **Redelivery is idempotent.** A retrying proposer is not sent a new
   ``Reject`` each time, and a stateful or stochastic backend cannot accept what
   it previously refused (CP-05-006 applies the same rule to the accept side).
-- **A lost ``Reject`` is recoverable.** Because the record is written first, a
-  redelivery can see "declined, but nothing was queued" and emit the ``Reject``
-  then.
 
-``reject_activity_id`` is what keeps the second and third properties from
-contradicting each other. "Has the proposer been told?" cannot be answered from
-the outbox, because ``outbox_pop`` removes an activity on delivery while its
-stored copy remains: a delivered ``Reject`` therefore looks exactly like one that
-was never queued, and re-emitting on that reading mints a fresh ``Reject`` on
-*every* subsequent delivery — unbounded store growth and outbound amplification
-driven by whoever is replaying the proposal. Recording the id of the ``Reject``
-this service actually queued gives the guard a third state ("declined **and**
-answered") that neither the store nor the outbox can express on its own.
-
+``reject_activity_id`` names the ``Reject`` that answered the proposal.
 
 Spec: ``specs/case-proposal.yaml`` CP-05-002, CP-05-004.
 """
@@ -80,10 +64,8 @@ class CaseProposalDeclineRecord(RetiredFieldsRecord):
             blackboard outputs only for the SUCCESS case, so a refusal has no
             sanctioned channel for a payload. Tracked in #3446.
         reject_activity_id: URI of the ``Reject`` this service queued for the
-            proposer, set once the emit succeeds. ``None`` means the decision
-            was recorded but the proposer has not been told, which is the state
-            a redelivery recovers. See the module docstring for why the outbox
-            cannot answer this.
+            proposer, set by the emit in the transaction that writes the
+            record.  ``None`` only until that emit runs.
 
     A stored record that still carries the retired ``vendor_uri`` key is
     refused on load (#4128); the store must be reset.
@@ -114,8 +96,8 @@ class CaseProposalDeclineRecord(RetiredFieldsRecord):
     reject_activity_id: UriString | None = Field(
         default=None,
         description=(
-            "URI of the Reject queued for the proposer; None means the decline"
-            " was recorded but the proposer has not been told"
+            "URI of the Reject queued for the proposer; None only until the"
+            " emit that commits with the record runs"
         ),
     )
 

@@ -47,7 +47,7 @@ The service URL comes from the actor's configuration — `VULTRON_ACTOR__CASE_AC
 ## The mechanical path
 
 Accepting a proposal is the largest single cascade in the protocol.
-The accepting service does eleven things, and the order is not interchangeable.
+The accepting service does the steps below, and the order is not interchangeable.
 
 | Step | What it establishes |
 |---|---|
@@ -62,20 +62,23 @@ The accepting service does eleven things, and the order is not interchangeable.
 | Emit `Accept(as_CaseProposal)` | The proposer learns its request succeeded |
 | Emit `Create(VulnerabilityCase)` | The proposer receives the case replica, with Participants inline |
 | Commit the canonical ledger entries | The case's history starts here, and each entry fans out to every Participant |
+| Relay a contested creation's revision | When the reporter and the owner both proposed terms, the longer ones are sent as an `Invite(EmbargoEvent)` to the party whose terms won (EP-04-011) |
 
-The ledger commits come last for a reason that is easy to miss.
+The ledger commits come after both emissions for a reason that is easy to miss.
 Each commit fans its entry out through the same first-in-first-out outbox that carries the `Create(VulnerabilityCase)`.
 A commit placed ahead of the `Create` therefore hands every Participant ledger entries for a case it does not hold yet.
 Each such entry takes the pre-genesis recovery path — buffer, `Reject`, replay from genesis — while the replica waits behind the whole fan-out (CP-09-009).
 Emitting the case first makes that recovery path what it was designed to be: a backstop for transport reordering, not the normal route.
-Every step from the case to the last ledger entry is written in one storage transaction, so a step that fails keeps none of them, including the queued `Accept` and `Create` (CLP-07-013).
+The revision relay comes after the ledger commits, because no modification of the case may start before its initialization is complete (CM-14-007).
+Case creation is one act: every step from the case to the revision relay is written in one storage transaction, so a step that fails keeps none of them, including the queued `Accept`, `Create` and `Invite` (CLP-07-015).
 Delivery learns of the queued messages only once that transaction commits, so a failed creation sends nothing, and a redelivered proposal starts again from the beginning.
+No marker is stored for a later run to finish the creation.
 
-The two emissions are separate steps for a reason worth understanding.
+The two emissions are queued together or not at all.
 The `Accept` is irrevocable once sent: the service has committed to managing the case.
-The replica delivery can still fail after both are queued.
-Once the transaction commits, the outbox holds the `Create` and retries its delivery on its own, so only the `Create` is retried and the `Accept` is never resent (CP-05-005).
-The `Create` takes an id derived from the proposal: a redelivery that finds that activity already stored announces nothing again, and one that finds a `Create` for a different case under it fails rather than leave the new case unannounced.
+An `Accept` with no `Create` behind it would tell the proposer of a case that nothing announces, so neither is queued without the other (CP-05-005).
+Once both are queued, the outbox retries the delivery of each one until it succeeds or its attempts run out.
+The `Create` takes an id derived from the proposal: a redelivery that finds the case already announced announces nothing again, and one that finds a `Create` for a different case under that id fails rather than leave the new case unannounced.
 Sending a second `Accept` would tell the proposer it had been accepted twice, and there is no such thing.
 
 ---
@@ -93,7 +96,7 @@ Whether that actor already holds more open cases than the service will carry.
 And whether the inline report is substantive enough to be worth coordinating.
 All of that lives here or nowhere.
 
-The decision is placed ahead of every one of the eleven steps above, and that placement is the interesting part.
+The decision is placed ahead of every step above, and that placement is the interesting part.
 A refusal has to happen before the case exists.
 A service that created the case, committed ledger entries, and *then* declined would be telling the proposer "no" while holding a case that no Participant will ever converge on — the canonical-versus-replica divergence CLP-10-009 exists to prevent.
 
@@ -102,9 +105,9 @@ The proposing actor records the refusal (CP-06-003, CP-06-004).
 It records a reply only from the actor it addressed the proposal to, and a reply from anyone else is refused with its records unchanged (CP-06-005).
 Once a case exists for the report, no reply replaces the case's trusted CASE_MANAGER.
 
-The refusal is recorded before it is sent, and that ordering carries weight.
-A decline that cannot be delivered does not silently become an acceptance: the service writes the decision down first and refuses to run the accept path afterwards, so the irrevocability CP-05-004 and CP-05-005 rely on holds in both directions.
-The consequence a reader should expect: a service that decided "no" and then failed to say so reports a processing failure, and retries the refusal on the next delivery — it never creates the case.
+The refusal is recorded and queued in one storage transaction, and a refusal that fails stops the whole delivery.
+A decline that cannot be queued does not silently become an acceptance: the service keeps neither the decision nor the `Reject`, and does not try the accept path, so the irrevocability CP-05-004 and CP-05-005 rely on holds in both directions.
+The consequence a reader should expect: a service that decided "no" and then failed to say so reports a processing failure, and decides again on the next delivery — it never creates the case.
 
 Two properties of the guarding are worth stating, because each is a way a refusal gate can be defeated rather than merely fail.
 
@@ -196,7 +199,7 @@ Bringing in a vendor or a coordinator is a separate flow.
 | [CP-05-002](../../../reference/specs/protocol.md#cp-05-002) | The service MUST evaluate the proposal and either accept or reject it |
 | [CP-05-003](../../../reference/specs/protocol.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
 | [CP-05-004](../../../reference/specs/protocol.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal, inline or by reference |
-| [CP-05-005](../../../reference/specs/protocol.md#cp-05-005) | A failed `Create` MUST be retried without resending the `Accept` |
+| [CP-05-005](../../../reference/specs/protocol.md#cp-05-005) | `Accept` and `Create(VulnerabilityCase)` MUST be queued together or not at all, each retried until delivered, and the `Accept` never sent a second time |
 | [CP-05-006](../../../reference/specs/protocol.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case; when the case is fully closed it MUST be answered with `Reject(as_CaseProposal)` instead, with no ledger entry and no case or participant change |
 | [CP-05-008](../../../reference/specs/protocol.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case; when the owner's case is fully closed the proposal MUST be answered with `Reject(as_CaseProposal)`, with no ledger entry and no case or participant change |
 | [CP-05-007](../../../reference/specs/protocol.md#cp-05-007) | A proposer MUST treat an unanswered proposal as expired at its deadline |

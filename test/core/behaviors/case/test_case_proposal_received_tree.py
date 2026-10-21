@@ -13,9 +13,15 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for the CreateCaseProposalReceivedBT ``Create`` emit (CP-05-005).
+"""Unit tests for CreateCaseProposalReceivedBT (CP-05, CP-09, ADR-0041).
 
-Verifies that
+Case creation at the CASE_MANAGER is one act (CLP-07-015, ADR-0146): the
+case, its participants and embargo, the ``Accept`` and the
+``Create(VulnerabilityCase)``, the creation entries and a contested
+creation's relayed revision commit together, or nothing does and a
+redelivery processes the proposal fresh.
+
+The ``Create`` emit tests verify that
   - ``EmitCreateVulnerabilityCaseNode`` queues ``Create(VulnerabilityCase)``
     under an id derived from the proposal, carrying the inline case, the
     case URI as ``context`` and the ``Accept`` URI as ``inReplyTo``.
@@ -44,13 +50,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi import outbox_handler as oh
-from vultron.adapters.driving.fastapi.pending_retry import (
-    retry_pending_creation_time_revision_relays,
-)
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
-    EmitAcceptCaseProposalNode,
     EmitCreateVulnerabilityCaseNode,
     embargo_revision_relay,
 )
@@ -3507,12 +3509,14 @@ class TestEP04SenderProposalAtCaseCreation:
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("CM-24-001")
     @pytest.mark.spec("CM-24-002")
+    @pytest.mark.spec("CM-14-007")
     def test_the_owners_losing_default_is_relayed_to_the_reporter(
         self, make_payload
     ):
         """The Reporter's shorter terms won: the CASE_MANAGER relays the
         owner's longer default to the Reporter on the owner's behalf, under
-        the id the registration minted, commits it, and only then indexes it
+        the id derived from the case proposal (OX-06-002), commits it, and
+        only then indexes it
         (EP-04-011, EP-08-002)."""
         dl = self._store()
         self._publish_owner_policy()
@@ -3569,10 +3573,12 @@ class TestEP04SenderProposalAtCaseCreation:
     def test_a_failed_relay_is_an_internal_error_not_a_refusal(
         self, make_payload, monkeypatch
     ):
-        """By the relay the proposal is accepted and the case created and
-        announced, so a revision the manager cannot relay is its own fault:
-        the handler raises rather than refusing the sender (ADR-0095), and
-        nothing is indexed for an Invite that was never sent."""
+        """By the relay the proposal is accepted and the case initialized, so
+        a revision the manager cannot relay is its own fault: the handler
+        raises rather than refusing the sender (ADR-0095).  The relay is part
+        of the creation act (CLP-07-015, ADR-0146), so nothing the act wrote
+        is kept: no case, participant, embargo, ledger entry or queued
+        activity."""
         from vultron.core.behaviors.case.nodes import (
             embargo_revision_relay as relay_module,
         )
@@ -3589,78 +3595,71 @@ class TestEP04SenderProposalAtCaseCreation:
         ):
             self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
 
-        assert self._invites(dl) == []
+        _assert_nothing_of_the_case_is_left(dl)
+
+    @pytest.mark.spec("EP-04-011")
+    @pytest.mark.spec("EP-08-002")
+    @pytest.mark.spec("CLP-07-015")
+    @pytest.mark.spec("IE-10-001")
+    def test_a_redelivery_after_a_failed_relay_processes_the_proposal_fresh(
+        self, make_payload, monkeypatch
+    ):
+        """The failed relay rolled the whole creation back, so the inbox's
+        redelivery — the copy intake archived (IE-10-001) — creates the case,
+        registers the revision and relays it in one act, exactly once."""
+        from test.core.use_cases.received._archived_redelivery import (
+            archived_redelivery,
+        )
+        from vultron.core.use_cases.received.case_proposal import (
+            CreateCaseProposalReceivedUseCase,
+        )
+
+        dl = self._store()
+        self._publish_owner_policy()
+        event, _ = self._event_with_terms(
+            make_payload, sender_days=self._SENDER_END_DAYS
+        )
+
+        def _execute(delivered: Any) -> HandlerResult:
+            return CreateCaseProposalReceivedUseCase(
+                dl,
+                delivered,
+                wire_render_port=As2WireRenderAdapter(),
+                trigger_activity=TriggerActivityAdapter(dl),
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+
+        monkeypatch.setattr(
+            embargo_revision_relay, "invitation_recipients", lambda *a, **k: []
+        )
+        with pytest.raises(VultronBTInternalError):
+            _execute(event)
+        monkeypatch.undo()
+        _assert_nothing_of_the_case_is_left(dl)
+
+        redelivery = archived_redelivery(
+            dl,
+            event.activity_id,
+            receiving_actor_id=event.receiving_actor_id,
+        )
+        result = _execute(redelivery)
+
+        assert result.disposition is HandlerDisposition.APPLIED, result.reason
         (case,) = [
             c
             for c in dl.list_objects("VulnerabilityCase")
             if isinstance(c, VulnerabilityCase)
         ]
-        assert case.pending_embargo_proposal_index == {}
-        # The obligation survives the failure, so it can be retried (#4121).
-        assert dl.list_objects("PendingCreationTimeRevisionRelay") != []
+        self._assert_relayed(dl, case, loser=_VENDOR_URI, winner=_REPORTER_URI)
 
-    @pytest.mark.spec("EP-04-011")
-    @pytest.mark.spec("EP-04-012")
-    @pytest.mark.spec("EP-08-002")
-    def test_a_redelivery_after_a_failed_relay_sends_the_invite(
-        self, make_payload, monkeypatch
-    ):
-        """Initialization runs once per case (EP-04-012), so a redelivered
-        proposal registers nothing; the recorded obligation is what lets it
-        complete the relay the first delivery failed, exactly once (#4121)."""
-        dl = self._store()
-        self._publish_owner_policy()
-        monkeypatch.setattr(
-            embargo_revision_relay, "invitation_recipients", lambda *a, **k: []
+        _execute(
+            archived_redelivery(
+                dl,
+                event.activity_id,
+                receiving_actor_id=event.receiving_actor_id,
+            )
         )
-        with pytest.raises(VultronBTInternalError):
-            self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
-        monkeypatch.undo()
-
-        case, _ = self._run(
-            make_payload, dl, sender_days=self._SENDER_END_DAYS
-        )
-
-        (revision_id,) = case.proposed_embargo_ids
-        (invite,) = self._invites(dl)
-        assert case.pending_embargo_proposal_index == {revision_id: invite.id_}
-        assert [_as_id(r) for r in invite.to] == [_REPORTER_URI]
-        assert _as_id(invite.attributed_to) == _VENDOR_URI
-        assert dl.list_objects("PendingCreationTimeRevisionRelay") == []
-
-        self._run(make_payload, dl, sender_days=self._SENDER_END_DAYS)
-        assert [i.id_ for i in self._invites(dl)] == [invite.id_]
-
-    @pytest.mark.spec("EP-04-011")
-    @pytest.mark.spec("CM-14-007")
-    @pytest.mark.spec("CM-14-011")
-    def test_the_startup_runner_does_not_relay_ahead_of_the_case_creation(
-        self, make_payload, monkeypatch
-    ):
-        """The tree fails after recording the obligation but before its
-        ledger commit.  The startup runner must not send the Invite then: it
-        would be the case's first ledger entry, announced to parties that
-        never received the case (#4121).  The obligation is rolled back with
-        the creation (ADR-0146), so there is nothing for it to relay."""
-        dl = self._store()
-        self._publish_owner_policy()
-        monkeypatch.setattr(
-            EmitAcceptCaseProposalNode,
-            "update",
-            lambda self: py_trees.common.Status.FAILURE,
-        )
-        self._execute(make_payload, dl, sender_days=self._SENDER_END_DAYS)
-        monkeypatch.undo()
-        assert dl.list_objects("PendingCreationTimeRevisionRelay") == []
-        assert dl.list_objects("VulnerabilityCase") == []
-
-        relayed = retry_pending_creation_time_revision_relays(
-            datalayers_factory=lambda: {_CASE_ACTOR_URI: dl}
-        )
-
-        assert relayed == 0
-        assert self._invites(dl) == []
-        assert dl.list_objects("CaseLedgerEntry") == []
+        assert len(self._invites(dl)) == 1
 
     @pytest.mark.spec("EP-04-011")
     @pytest.mark.spec("EP-04-012")
