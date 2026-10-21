@@ -261,7 +261,7 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   the closed-case check and the accept arm cannot resolve different cases.
 - The `Accept`'s `result` always names the case the proposal produced or reused, so
   the requester correlates it without a second `Create`, which is not sent again.
-  `CheckCaseAlreadyAnnouncedNode` skips the marker and `Create` steps, and
+  `CheckCaseAlreadyAnnouncedNode` skips the `Create` step, and
   `CommitNativeLedgerEntriesNode` skips entries already recorded; without that skip
   the reused entries fan out again.
 - **Every native-initialization node must be a no-op on a case that already has what it

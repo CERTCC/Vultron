@@ -218,6 +218,7 @@ class TestEmitCreateVulnerabilityCaseNode:
         case_id: str | None = _CASE_URI,
         accept_id: str | None = "https://example.org/activities/a-001",
         seed: bool = True,
+        with_factory: bool = True,
     ) -> py_trees.common.Status:
         """Execute EmitCreateVulnerabilityCaseNode via BTBridge."""
         if seed and case_id is not None:
@@ -244,7 +245,9 @@ class TestEmitCreateVulnerabilityCaseNode:
         result = BTBridge(
             datalayer=dl,
             wire_render_port=As2WireRenderAdapter(),
-            trigger_activity=TriggerActivityAdapter(dl),
+            trigger_activity=(
+                TriggerActivityAdapter(dl) if with_factory else None
+            ),
             sync_port=SyncActivityAdapter(dl),
         ).execute_with_setup(tree=tree, actor_id=_CASE_ACTOR_URI)
         return result.status
@@ -441,6 +444,31 @@ class TestEmitCreateVulnerabilityCaseNode:
             TriggerActivityAdapter,
             "emit_prepared_create_case",
             side_effect=VultronActivityConstructionError("refused"),
+        ):
+            status = self._run_node(dl)
+        assert status == py_trees.common.Status.FAILURE
+        assert dl.outbox_list() == []
+
+    def test_fails_when_the_case_is_not_stored(self):
+        """The CaseActor created the case upstream, so a missing one fails
+        the node rather than being skipped (ADR-0087)."""
+        dl = self._dl()
+        assert self._run_node(dl, seed=False) == py_trees.common.Status.FAILURE
+        assert dl.outbox_list() == []
+
+    def test_fails_without_a_trigger_activity_port(self):
+        """With no port to build the Create through, nothing is queued."""
+        dl = self._dl()
+        status = self._run_node(dl, with_factory=False)
+        assert status == py_trees.common.Status.FAILURE
+        assert dl.outbox_list() == []
+
+    def test_fails_when_the_outbox_refuses_the_create(self):
+        """An enqueue failure fails the node, so the creation act rolls
+        back instead of committing an Accept with no Create (ADR-0146)."""
+        dl = self._dl()
+        with patch.object(
+            dl, "outbox_append", side_effect=RuntimeError("queue down")
         ):
             status = self._run_node(dl)
         assert status == py_trees.common.Status.FAILURE
