@@ -36,10 +36,12 @@ from vultron.adapters.driven.datalayer_sqlite.engine import (
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
     FastAPIQueuePort,
-    StoredActivityIngressAdapter,
 )
 from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _expire_pending_case_activities,
+)
+from vultron.adapters.driving.fastapi.inbox_replay import (
+    StoredActivityIngressAdapter,
 )
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,

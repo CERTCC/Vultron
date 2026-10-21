@@ -291,20 +291,20 @@ groups:
       store, using the same persisted retry and dead-letter mechanism as outbox
       delivery.
     rationale: >-
-      The dispatcher lets handler exceptions propagate (DR-03-002), so this boundary
-      gives a failure its meaning. A protocol violation fails the same way every time,
-      so it is dropped. Any other exception may be transient, but may equally be a
-      deterministic bug, and an unbounded re-queue loops on it forever. One persisted
-      mechanism shared with the outbox (OX-13) keeps attempt counts across restarts.
-      A failed act keeps nothing (ADR-0151), so each retry re-runs the whole act. A
-      live delivery is not queued, so it is not retried here: its retry is the
-      sender's resend, which the fault it is answered with invites (ASK-07-010).
+      Handler exceptions propagate to this boundary (DR-03-002). A protocol violation
+      fails the same way every time, so it is dropped. Any other exception may be
+      transient or a deterministic bug, so an unbounded re-queue could loop forever.
+      The outbox's persisted mechanism (OX-13) keeps counts across restarts. A failed
+      act keeps nothing (ADR-0151), so a retry re-runs the whole act. A live delivery
+      is not queued: its retry is the sender's resend (ASK-07-010).
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_replay_retry.py` runs
-      `run_inbox_pipeline` with a queued item whose dispatch, or whose rebuild, raises:
-      it is re-queued until the configured attempt limit and then appears in the
-      dead-letter store with its reason, a retry that succeeds clears its count, and
-      an item raising `VultronProtocolViolationError` is dropped on the first attempt.
+      `run_inbox_pipeline` with a queued item whose dispatch, rebuild or extraction
+      raises: it is re-queued until the configured attempt limit, counting attempts
+      an earlier run stored, and then appears in the dead-letter store with its last
+      error; each failure is logged at ERROR with `activity_id` and `actor_id`; a
+      retry that succeeds clears its count; and an item raising
+      `VultronProtocolViolationError` is dropped on the first attempt.
       `test/adapters/driven/test_sqlite_outbox_dead_letter.py` shows that the attempt
       count and the dead letter survive a restart of the store.
     relationships:
