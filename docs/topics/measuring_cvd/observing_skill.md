@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [process-researcher]
 level: 500
+page_type: explanation
 description: >
   The skill coefficient applied to Microsoft security updates and to commodity exploit data.
 ---

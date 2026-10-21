@@ -4,6 +4,7 @@ description: >
   Sections 10 and 11 of the Vultron Protocol Specification: how the state machines interact, and how participants join, change role in, and leave a case.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 ---
 
 # Interactions and Lifecycle

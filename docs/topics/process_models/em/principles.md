@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [cvd-practitioner]
 level: 200
+page_type: explanation
 description: >
   What an embargo is for, and the norms Participants follow while one is in force.
 ---

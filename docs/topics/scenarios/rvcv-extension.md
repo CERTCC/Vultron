@@ -71,6 +71,7 @@ causal_edges:
       precedes the case.
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
+page_type: reference
 ---
 
 # RVCV-extension Scenario: Reporter + Vendor1 + Coordinator + Vendor2

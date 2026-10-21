@@ -3,6 +3,7 @@ description: >
   The release versioning scheme for the Vultron repository.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
+page_type: reference
 ---
 
 # Vultron Release Versioning

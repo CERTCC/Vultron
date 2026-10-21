@@ -76,6 +76,7 @@ causal_edges:
       precedes the case.
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
+page_type: reference
 ---
 
 # RCCV-handoff Scenario: Reporter + C1 → C2 + Vendor

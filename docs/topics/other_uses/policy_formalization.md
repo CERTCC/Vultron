@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [process-researcher]
 level: 400
+page_type: explanation
 description: >
   Expressing a disclosure policy as timers between state transitions.
 ---

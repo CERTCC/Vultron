@@ -65,7 +65,7 @@ stakeholder_type: [project-contributor]
   - `adr-back-edges` → `vultron.metadata.adr.back_edges:main`.
     It reports each live decision record that no requirement's `adr:` edge and no `specs/` or `notes/` citation points back to, unless it is in the record-only exemption set, and each exemption that is no longer needed.
   - `docs-frontmatter` → `vultron.metadata.docs.page_frontmatter:main`.
-    It validates the `stakeholder_type` and `level` every `docs/` page declares (DF-11-001), skipping include fragments.
+    It validates the `stakeholder_type`, `level` (DF-11-001) and `page_type` (DF-11-018) every reader-facing `docs/` page declares, and refuses `level` and `page_type` on working-record pages and every key on include fragments.
     It also fails a working-record page that is in the nav or matched by no `not_in_nav` pattern (DF-11-003).
   - `docs-level-order` → `vultron.metadata.docs.level_order:main`.
     It fails when a `docs/` page uses a glossary term that a higher-level page declares in `introduces:`, unless the page links that introducing page at or before the first use or the use itself links to the glossary (DF-11-002).

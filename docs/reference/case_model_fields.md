@@ -3,6 +3,7 @@ description: >
   The fields of the case, participant, and status objects, as the reference implementation defines them.
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
+page_type: reference
 ---
 
 # Case Model Fields
