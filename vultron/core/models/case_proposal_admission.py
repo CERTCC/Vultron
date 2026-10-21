@@ -19,12 +19,11 @@ The mirror image of :class:`~vultron.core.models.case_proposal_decline.CasePropo
 and written for the same reason: the admission decision needs durable evidence
 that is keyed on the **proposal**, not on the report.
 
-``main_flow`` writes this as its first step, before the case is created. That
-ordering is what the guard on the refusal arm needs, because the accept path
-creates the case *before* it emits the ``Accept`` (its ledger entries are
-committed after the ``Accept`` and ``Create`` are queued, CP-09-009). A
-delivery that fails in that window leaves a case with no stored ``Accept``, and without a proposal-keyed record the only evidence available is
-report-keyed — which answers a different question:
+``main_flow`` writes this as its first step, in the same ``ActTransaction``
+as the case and the queued ``Accept`` (ADR-0146), so the record exists exactly
+when the ``Accept`` was committed. The guard on the refusal arm reads it
+because the only other evidence available is report-keyed, which answers a
+different question:
 
 - *"has a case been created for this report?"* is true for a proposal this
   service never saw, because ``report_id`` comes from the report the **sender**
