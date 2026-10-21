@@ -363,6 +363,7 @@ def _replica_state(dl: SqliteDataLayer) -> tuple[str, str]:
     )
 
 
+@pytest.mark.spec("HP-01-005")
 @pytest.mark.spec("RSH-08-003")
 @pytest.mark.spec("CM-31-007")
 def test_replica_stores_the_managers_notice_and_writes_nothing(
@@ -375,7 +376,7 @@ def test_replica_stores_the_managers_notice_and_writes_nothing(
 
     result = _route_to_replica(replica, notice)
 
-    assert result.disposition is HandlerDisposition.SKIPPED
+    assert result.disposition is HandlerDisposition.APPLIED
     assert _replica_state(replica) == before
     assert replica.read(ReceivedActivityRecord.build_id(notice.id_))
     assert list(replica.list_objects("CaseLedgerEntry")) == []

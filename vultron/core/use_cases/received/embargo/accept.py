@@ -44,9 +44,9 @@ from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
 from vultron.core.use_cases.received._bt_verdict import (
+    case_manager_verdict,
     embargo_answer_repeat_verdict,
     failure_reason,
-    not_case_manager_refusal,
     pxa_refusal_verdict,
     taken_diversion,
     verdict_from_bt,
@@ -209,7 +209,4 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         Only the CASE_MANAGER records an answer; a replica learns it from the
         ledger broadcast (BT-17-001, HP-01-005).
         """
-        if verdict.disposition is not HandlerDisposition.APPLIED:
-            return verdict
-        refusal = not_case_manager_refusal(tree, self._dl, case_id)
-        return verdict if refusal is None else refusal
+        return case_manager_verdict(tree, verdict, self._dl, case_id)

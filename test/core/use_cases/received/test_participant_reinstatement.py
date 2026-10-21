@@ -473,6 +473,7 @@ def test_bystander_replica_applies_the_reinstatement_from_its_entry(
     assert record.is_signatory(EMBARGO_ID)
 
 
+@pytest.mark.spec("HP-01-005")
 @pytest.mark.spec("RSH-08-003")
 def test_replica_stores_the_managers_notice_and_writes_nothing(
     case: _RemovalCase,
@@ -492,7 +493,7 @@ def test_replica_stores_the_managers_notice_and_writes_nothing(
         sync_port=SyncActivityAdapter(replica),
     )
 
-    assert result.disposition is HandlerDisposition.SKIPPED
+    assert result.disposition is HandlerDisposition.APPLIED
     stored = replica.read(_participant_id(VENDOR))
     assert isinstance(stored, CaseParticipant)
     assert stored.removed, "the notice must not apply the reinstatement"

@@ -72,11 +72,11 @@ from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
+    case_manager_verdict,
     door_refusal,
     named_node_status,
     node_failed,
     node_succeeded,
-    not_case_manager_refusal,
     verdict_from_bt,
 )
 
@@ -412,14 +412,11 @@ class RejectLedgerEntryReceivedUseCase:
         verdict = verdict_from_bt(
             tree, result, label="RejectLogEntryReceivedBT"
         )
-        if verdict.disposition is HandlerDisposition.APPLIED:
-            # Only the CASE_MANAGER answers a rejection; a replica that
-            # receives one was misaddressed (SYNC-03-005, HP-01-005).
-            refusal = not_case_manager_refusal(
-                tree, self._dl, rejected_entry.case_id
-            )
-            if refusal is not None:
-                verdict = refusal
+        # Only the CASE_MANAGER answers a rejection; a replica that
+        # receives one was misaddressed (SYNC-03-005, HP-01-005).
+        verdict = case_manager_verdict(
+            tree, verdict, self._dl, rejected_entry.case_id
+        )
         if verdict.disposition is HandlerDisposition.REFUSED:
             logger.warning(
                 "sync: could not act on Reject(CaseLedgerEntry) '%s': %s",

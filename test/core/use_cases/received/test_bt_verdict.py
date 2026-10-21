@@ -43,9 +43,13 @@ from vultron.core.behaviors.sender_guard import (
     ClosedSenderCheck,
     SenderCheckContext,
 )
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
+    case_manager_verdict,
     closed_sender_verdict,
     door_guards_admitted,
     failure_reason,
@@ -371,6 +375,45 @@ def test_not_case_manager_refusal_names_a_case_with_no_manager():
     assert verdict is not None
     assert verdict.disposition == HandlerDisposition.REFUSED
     assert verdict.reason == f"case '{_CASE_ID}' has no CASE_MANAGER"
+
+
+@pytest.mark.spec("HP-01-005")
+@pytest.mark.parametrize(
+    "verdict",
+    [HandlerResult.applied(), HandlerResult.skipped("already recorded")],
+    ids=["applied", "skipped"],
+)
+def test_case_manager_verdict_refuses_whatever_the_gate_turned_away(verdict):
+    """A run the gate turned away is a misaddressed message, not an applied
+    one and not a repeat: a repeat stops at intake, before the gate."""
+    refused = case_manager_verdict(
+        _gated_run(Status.FAILURE), verdict, _store(), _CASE_ID
+    )
+    assert refused.disposition is HandlerDisposition.REFUSED
+    assert refused.reason == f"not the CASE_MANAGER of case '{_CASE_ID}'"
+
+
+@pytest.mark.spec("HP-01-005")
+def test_case_manager_verdict_keeps_a_refusal_the_run_reached():
+    """The run's own refusal names its own reason; the gate does not replace it."""
+    verdict = HandlerResult.refused("sender has no standing")
+    assert (
+        case_manager_verdict(
+            _gated_run(Status.FAILURE), verdict, _store(), _CASE_ID
+        )
+        is verdict
+    )
+
+
+@pytest.mark.spec("HP-01-005")
+def test_case_manager_verdict_keeps_the_case_managers_verdict():
+    verdict = HandlerResult.applied()
+    assert (
+        case_manager_verdict(
+            _gated_run(Status.SUCCESS), verdict, _store(), _CASE_ID
+        )
+        is verdict
+    )
 
 
 def _door_tree(door: Status) -> ReceivedActivityTree:
