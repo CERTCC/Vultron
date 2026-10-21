@@ -405,6 +405,15 @@ class TestEmitCreateVulnerabilityCaseNode:
         )
         assert dl.outbox_list() == []
 
+    def test_fails_when_the_case_is_not_stored(self):
+        """Regime 1 (ADR-0087): the tree created the case, so an absent one
+        is an anomaly, never a skip."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        assert self._run_node(dl, seed=False) == (
+            py_trees.common.Status.FAILURE
+        )
+        assert dl.outbox_list() == []
+
     def test_fails_when_accept_activity_id_missing(self):
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
         assert self._run_node(dl, accept_id=None) == (
