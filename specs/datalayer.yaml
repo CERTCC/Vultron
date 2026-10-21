@@ -175,11 +175,12 @@ groups:
       `clear_*`, `update`, `get_all`, `all`, `count_all`, or other infrastructure, admin, or diagnostic
       operations that belong to the full `DataLayer` adapter contract.'
     rationale: >-
-      Prevents low-level storage and operational concerns from leaking into core use cases and BT nodes.
-      `delete` was on this prohibition list while simultaneously being declared on the Protocol and called
-      from core BT nodes to remove records the core itself wrote. Removing such a record is a domain
-      operation, not an admin one, so `delete` moved to DL-04-002. `update` stays prohibited: core
-      code mutates through `save`, which is idempotent by object id.
+      Prevents low-level storage and operational concerns from leaking into core use
+      cases and BT nodes. `delete` was on this prohibition list while simultaneously
+      being declared on the Protocol and called from core BT nodes to remove records the
+      core itself wrote. Removing such a record is a domain operation, not an admin one,
+      so `delete` moved to DL-04-002. `update` stays prohibited: core code mutates
+      through `save`, which is idempotent by object id.
   - id: DL-04-004
     priority: MUST
     kind: project

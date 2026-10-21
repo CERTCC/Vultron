@@ -417,24 +417,27 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The case-actor service MUST queue `Accept(as_CaseProposal)` and `Create(VulnerabilityCase)`
-      for an accepted proposal together or not at all, and MUST NOT send the `Accept` without the
-      `Create`. Once queued, each one MUST be retried until it is delivered or its delivery attempts
-      are exhausted (OX-13). The `Accept` is irrevocable once sent: a retry or a re-send MUST carry
-      the same `Accept` under its original identifier, never a second one (CP-05-006).
+      The case-actor service MUST queue `Accept(as_CaseProposal)` and
+      `Create(VulnerabilityCase)` for an accepted proposal together or not at all, and
+      MUST NOT send the `Accept` without the `Create`. Once queued, each one MUST be
+      retried until it is delivered or its delivery attempts are exhausted (OX-13). The
+      `Accept` is irrevocable once sent: a retry or a re-send MUST carry the same
+      `Accept` under its original identifier, never a second one (CP-05-006).
     rationale: >-
-      The two sends are not atomic on the network, so they are made atomic where they are
-      queued: an `Accept` with no `Create` behind it tells the report receiver of a case nothing
-      announces. Once both are queued, the outbox retries each one, so a failed `Create` needs no
-      retry of its own. A second `Accept` reads as a second, independent decision.
+      The two sends are not atomic on the network, so they are made atomic where they
+      are queued: an `Accept` with no `Create` behind it tells the report receiver of a
+      case nothing announces. Once both are queued, the outbox retries each one, so a
+      failed `Create` needs no retry of its own. A second `Accept` reads as a second,
+      independent decision.
     verification: >-
-      The `Accept`, the `Create` and the case are written in one DataLayer transaction (ADR-0146,
-      CLP-07-015, CP-09-009): a `Create` that cannot be queued rolls back the `Accept` with it, so
-      no `Accept` is ever sent without its `Create`.
+      The `Accept`, the `Create` and the case are written in one DataLayer transaction
+      (ADR-0146, CLP-07-015, CP-09-009): a `Create` that cannot be queued rolls back the
+      `Accept` with it, so no `Accept` is ever sent without its `Create`.
       `test/core/behaviors/case/test_case_proposal_received_tree.py::TestTheAcceptAndCreateAreQueuedTogether::test_a_failed_create_emit_rolls_back_the_accept`
-      pins that. The Create's id is derived from the proposal (OX-06-002), so a redelivery queues
-      no second `Create(VulnerabilityCase)`; `TestARedeliveryAnnouncesTheCaseOnce` pins this after
-      a late-tree failure and after a full success (#4146).
+      pins that. The Create's id is derived from the proposal (OX-06-002), so a
+      redelivery queues no second `Create(VulnerabilityCase)`;
+      `TestARedeliveryAnnouncesTheCaseOnce` pins this after a late-tree failure and
+      after a full success (#4146).
     stories:
     - story_2022_012
   - id: CP-05-006

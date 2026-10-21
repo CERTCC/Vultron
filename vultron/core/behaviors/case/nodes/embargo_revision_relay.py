@@ -85,8 +85,10 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     the initialization, publishes no candidate, and relays nothing.
 
     **The Invite's id is derived** from the proposal that created the case
-    (*answers*), the revision and the invitee, so the same creation relays
-    under the same id (ID-04-004, OX-06-002).  The index is written after
+    (*answers*), the case, the revision and the invitee, never minted
+    (ID-04-004, OX-06-002), so the same act relays under one id however often
+    it runs.  A rolled-back creation sent nothing, so the redelivery that
+    creates the case again relays under its own new case's id.  The index is written after
     the Invite is sent, never at registration: the bootstrap
     ``Create(VulnerabilityCase)`` carries the case whole, and had it carried
     ``embargo → Invite id`` the invitee's idempotency guard

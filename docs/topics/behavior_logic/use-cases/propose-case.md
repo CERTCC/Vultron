@@ -46,7 +46,7 @@ The service URL comes from the actor's configuration — `VULTRON_ACTOR__CASE_AC
 ## The mechanical path
 
 Accepting a proposal is the largest single cascade in the protocol.
-The accepting service does eleven things, and the order is not interchangeable.
+The accepting service does the steps below, and the order is not interchangeable.
 
 | Step | What it establishes |
 |---|---|
@@ -63,7 +63,7 @@ The accepting service does eleven things, and the order is not interchangeable.
 | Commit the canonical ledger entries | The case's history starts here, and each entry fans out to every Participant |
 | Relay a contested creation's revision | When the reporter and the owner both proposed terms, the longer ones are sent as an `Invite(EmbargoEvent)` to the party whose terms won (EP-04-011) |
 
-The ledger commits come last for a reason that is easy to miss.
+The ledger commits come after both emissions for a reason that is easy to miss.
 Each commit fans its entry out through the same first-in-first-out outbox that carries the `Create(VulnerabilityCase)`.
 A commit placed ahead of the `Create` therefore hands every Participant ledger entries for a case it does not hold yet.
 Each such entry takes the pre-genesis recovery path — buffer, `Reject`, replay from genesis — while the replica waits behind the whole fan-out (CP-09-009).

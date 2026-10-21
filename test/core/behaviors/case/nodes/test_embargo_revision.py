@@ -158,9 +158,10 @@ def test_a_registered_revision_the_case_does_not_hold_open_raises(
 def test_the_same_creation_relays_under_the_same_id(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """The Invite's id is derived from the proposal that created the case,
-    so a rolled-back creation that a redelivery runs again relays the same
-    Invite (ID-04-004)."""
+    """The Invite's id is derived, never minted (ID-04-004): a relay that
+    rolled back and runs again on the same case relays one Invite, under the
+    id derived from the case proposal, the case, the revision and the
+    invitee."""
     seed(bt_scenario)
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(

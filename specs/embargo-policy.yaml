@@ -643,23 +643,24 @@ groups:
       back and a redelivered proposal creates the case and relays the revision again.
       Nothing is stored for a later run.
     verification: >-
-      A marker test of `InitializeDefaultEmbargoNode` asserts that a contested
-      creation registers the loser as an open proposal without indexing it. Tree tests of
-      the case-proposal received tree assert the relayed `Invite(EmbargoEvent)` for both
-      directions — `actor` the CASE_MANAGER, `attributedTo` the losing party, queued to the
-      winning party, committed, then indexed in `pending_embargo_proposal_index` for the
-      owner's default selection, with the bootstrap `Create` carrying no index entry — and
-      that a tie or a redelivered proposal relays no second Invite, that a failed relay
-      leaves nothing of the case, and that the inbox's archived redelivery then creates the
-      case and relays the Invite once. Node tests assert that an owner who reported to
-      itself has nothing relayed or indexed, that a relay with no registration in its act
-      relays nothing, that the same creation relays under the same Invite id, that a
-      failure inside the act keeps nothing, and that the proposer's replica indexes the
-      replayed Invite while the invitee's does not. Node and service tests
-      (`TestTheRevisionIsConsentedToByItsProposer`) assert that the losing party's record,
-      not the executing actor's, gains the revision id, that a failed registration leaves
-      no revision, and that a contest with no report to name the reporter fails before the
-      initialization commit, leaving the case at `EM.NONE` (MSM-07-005, #4152).
+      A marker test of `InitializeDefaultEmbargoNode` asserts that a contested creation
+      registers the loser as an open proposal without indexing it. Tree tests of the
+      case-proposal received tree assert the relayed `Invite(EmbargoEvent)` for both
+      directions — `actor` the CASE_MANAGER, `attributedTo` the losing party, queued to
+      the winning party, committed, then indexed in `pending_embargo_proposal_index` for
+      the owner's default selection, with the bootstrap `Create` carrying no index entry
+      — and that a tie or a redelivered proposal relays no second Invite, that a failed
+      relay leaves nothing of the case, and that the inbox's archived redelivery then
+      creates the case and relays the Invite once. Node tests assert that an owner who
+      reported to itself has nothing relayed or indexed, that a relay with no
+      registration in its act relays nothing, that the same creation relays under the
+      same Invite id, that a failure inside the act keeps nothing, and that the
+      proposer's replica indexes the replayed Invite while the invitee's does not. Node
+      and service tests (`TestTheRevisionIsConsentedToByItsProposer`) assert that the
+      losing party's record, not the executing actor's, gains the revision id, that a
+      failed registration leaves no revision, and that a contest with no report to name
+      the reporter fails before the initialization commit, leaving the case at `EM.NONE`
+      (MSM-07-005, #4152).
     relationships:
     - rel_type: refines
       spec_id: EP-04-003

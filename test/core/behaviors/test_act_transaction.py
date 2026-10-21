@@ -28,6 +28,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.act_transaction import (
     ActTransaction,
     RefusalActTransaction,
+    RefusedActRolledBackError,
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.role_gates import (
@@ -390,3 +391,18 @@ def test_a_failed_refusal_act_rolls_back_and_fails_the_tree_not_admitting(
     assert "Savereject" in str(result.errors)
     assert not _held(dl, "decline")
     assert not _held(dl, "admit")
+
+
+def test_a_refusal_act_with_no_datalayer_raises_naming_why():
+    """With no DataLayer the act cannot open its transaction; the refusal
+    still fails the tree, and says why."""
+    act = RefusalActTransaction(
+        name="DeclineAct",
+        children=[_Do("Noop", lambda: None, Status.SUCCESS)],
+    )
+    act.setup()
+    py_trees.blackboard.Blackboard.unset("/datalayer")
+
+    with pytest.raises(RefusedActRolledBackError, match="DataLayer not found"):
+        for _ in act.tick():
+            pass
