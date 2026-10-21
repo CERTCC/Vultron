@@ -306,7 +306,7 @@ When a participant receives a valid `Announce(CaseLedgerEntry)` whose `prev_log_
 It MUST retain the `Announce(CaseLedgerEntry)` that carried it, as the body that arrived, in a non-ledger holding area, keyed by the entry's `prev_log_hash`, pending arrival of its predecessor.
 It MUST NOT retain the entry apart from that `Announce`. (SYNC-14-001)
 
-A forward-gap entry whose `Announce` is held MUST still trigger resynchronisation: the participant MUST send `Reject(CaseLedgerEntry)` carrying its last accepted hash, so the CASE_MANAGER can replay entries that are genuinely lost (not merely reordered). (SYNC-14-002)
+A forward-gap entry whose `Announce` is held MUST still trigger resynchronization: the participant MUST send `Reject(CaseLedgerEntry)` carrying its last accepted hash, so the CASE_MANAGER can replay entries that are genuinely lost (not merely reordered). (SYNC-14-002)
 
 ### 6.3 Drain on Predecessor Commit
 
