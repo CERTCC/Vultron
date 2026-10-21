@@ -33,6 +33,9 @@ from vultron.core.behaviors.inbox import (
     process_payload,
 )
 from vultron.core.models.events import VultronEvent
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+)
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
@@ -91,16 +94,26 @@ class _StubDispatchAdapter:
         self,
         should_fail: bool = False,
         result: HandlerResult | None = None,
+        fault_fails: bool = False,
     ) -> None:
         self.dispatched: list[VultronEvent] = []
+        self.faults: list[tuple[VultronEvent, str]] = []
         self._should_fail = should_fail
         self._result = result or HandlerResult.applied()
+        self._fault_fails = fault_fails
 
     def dispatch(self, event: VultronEvent) -> HandlerResult:
         if self._should_fail:
             raise RuntimeError("Dispatch error (stub)")
         self.dispatched.append(event)
         return self._result
+
+    def emit_processing_fault(
+        self, event: VultronEvent, failure_class: str
+    ) -> None:
+        if self._fault_fails:
+            raise RuntimeError("outbox write failed (stub)")
+        self.faults.append((event, failure_class))
 
 
 class _StubQueuePort:
@@ -478,6 +491,11 @@ class _NoVerdictDispatchAdapter:
     def dispatch(self, event: VultronEvent) -> Any:
         return None
 
+    def emit_processing_fault(
+        self, event: VultronEvent, failure_class: str
+    ) -> None:
+        raise AssertionError("a returned value is no raise to answer")
+
 
 class TestProcessPayloadHandlerDisposition:
     @pytest.mark.spec("UCORG-05-011")
@@ -595,6 +613,7 @@ class TestDispatchNodeFaults:
         assert len(replay_errors) == 1
         assert replay_errors[0].exc_info is not None
 
+    @pytest.mark.spec("HP-06-003")
     def test_dispatch_raise_is_logged_with_its_traceback(
         self, report_activity, caplog
     ):
@@ -611,8 +630,137 @@ class TestDispatchNodeFaults:
             r for r in caplog.records if "dispatch raised" in r.getMessage()
         ]
         assert len(raised) == 1
+        # An internal error, logged once at ERROR (HP-06-003, ADR-0151).
+        assert raised[0].levelno == logging.ERROR
+        assert report_activity.id_ in raised[0].getMessage()
+        assert SENDER_ID in raised[0].getMessage()
         assert raised[0].exc_info is not None
         assert raised[0].exc_info[0] is RuntimeError
+
+
+class TestARaisedDispatchIsAnsweredWithAFault:
+    """A raising received use case is answered with a fault (ASK-07-010)."""
+
+    @pytest.mark.spec("ASK-07-010")
+    @pytest.mark.spec("ASK-07-001")
+    def test_the_sender_gets_one_internal_error_fault(self, report_activity):
+        dispatch = _StubDispatchAdapter(should_fail=True)
+
+        outcome = process_payload(
+            {}, _StubIngressAdapter(activity=report_activity), dispatch
+        )
+
+        assert outcome.status is InboxOutcomeStatus.REJECTED
+        assert [
+            (event.activity_id, event.actor_id, failure_class)
+            for event, failure_class in dispatch.faults
+        ] == [
+            (
+                report_activity.id_,
+                SENDER_ID,
+                VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+            )
+        ]
+
+    @pytest.mark.spec("ASK-07-010")
+    @pytest.mark.parametrize(
+        "result",
+        [
+            HandlerResult.applied(),
+            HandlerResult.skipped("repeat"),
+            HandlerResult.deferred("awaiting predecessor"),
+            HandlerResult.refused("not a peer"),
+        ],
+        ids=["applied", "skipped", "deferred", "refused"],
+    )
+    def test_a_verdict_is_not_answered_with_a_fault(
+        self, report_activity, result
+    ):
+        """Only a raise is an internal error; a verdict is no fault."""
+        dispatch = _StubDispatchAdapter(result=result)
+
+        process_payload(
+            {}, _StubIngressAdapter(activity=report_activity), dispatch
+        )
+
+        assert dispatch.faults == []
+
+    @pytest.mark.spec("ASK-07-010")
+    def test_a_raised_fault_is_not_answered_with_a_fault(self):
+        """Two peers failing alike must not answer each other's faults."""
+        from vultron.wire.as2.factories.fault import (
+            create_processing_fault_activity,
+        )
+        from vultron.wire.as2.vocab.objects.processing_fault import (
+            as_ProcessingFault,
+        )
+
+        fault = create_processing_fault_activity(
+            actor=SENDER_ID,
+            fault=as_ProcessingFault(
+                failure_class=VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+                in_reply_to="https://example.org/activities/failed",
+            ),
+            to=[RECEIVER_ID],
+        )
+        dispatch = _StubDispatchAdapter(should_fail=True)
+
+        outcome = process_payload(
+            {}, _StubIngressAdapter(activity=fault), dispatch
+        )
+
+        assert outcome.status is InboxOutcomeStatus.REJECTED
+        assert "Dispatch raised" in (outcome.failure_reason or "")
+        assert dispatch.faults == []
+
+    @pytest.mark.spec("ASK-07-002")
+    def test_a_parse_failure_is_not_answered(self):
+        dispatch = _StubDispatchAdapter(should_fail=True)
+
+        outcome = process_payload(
+            {}, _StubIngressAdapter(activity=None, fail_parse=True), dispatch
+        )
+
+        assert outcome.status is InboxOutcomeStatus.REJECTED
+        assert dispatch.faults == []
+
+    @pytest.mark.spec("ASK-07-002")
+    def test_an_activity_with_no_sender_is_not_answered(self, report_activity):
+        """No sender means no event, so nothing reaches dispatch."""
+        # As a sender with no identity would deliver it; the factory itself
+        # refuses to build an activity with no actor.
+        anonymous = report_activity.model_copy(update={"actor": None})
+        assert anonymous.actor is None, "precondition: no sender"
+        dispatch = _StubDispatchAdapter(should_fail=True)
+
+        outcome = process_payload(
+            {}, _StubIngressAdapter(activity=anonymous), dispatch
+        )
+
+        assert outcome.status is InboxOutcomeStatus.REJECTED
+        assert dispatch.dispatched == []
+        assert dispatch.faults == []
+
+    @pytest.mark.spec("ASK-07-010")
+    @pytest.mark.spec("MV-01-007")
+    def test_a_fault_that_cannot_be_queued_leaves_the_rejection(
+        self, report_activity, caplog
+    ):
+        dispatch = _StubDispatchAdapter(should_fail=True, fault_fails=True)
+
+        with caplog.at_level(logging.ERROR):
+            outcome = process_payload(
+                {}, _StubIngressAdapter(activity=report_activity), dispatch
+            )
+
+        assert outcome.status is InboxOutcomeStatus.REJECTED
+        assert "Dispatch raised" in (outcome.failure_reason or "")
+        assert any(
+            "ProcessingFault not queued" in r.getMessage()
+            and report_activity.id_ in r.getMessage()
+            and r.exc_info is not None
+            for r in caplog.records
+        )
 
 
 class TestInboundRsvpWindows:

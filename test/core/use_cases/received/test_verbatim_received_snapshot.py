@@ -207,10 +207,12 @@ def test_a_replica_records_the_received_artifact_not_the_routing_copy():
 @pytest.mark.spec("VM-08-002")
 @pytest.mark.spec("IE-10-001")
 def test_a_resend_of_an_archived_activity_adds_no_entry():
-    """The resend is routed without evidence; the first entry stands.
+    """The resend is routed as the archived copy; the first entry stands.
 
-    ``Join`` (RM engage) has no repeat guard of its own, so the resend reaches
-    the commit, which finds the activity already recorded.
+    The archived copy carries the first delivery's body as its evidence
+    (IE-10-001, VM-08-002).  ``Join`` (RM engage) has no repeat guard of its
+    own, so the resend reaches the commit with a body to record, and the
+    commit finds the activity already recorded as the same semantic.
     """
     net = LedgerNetwork(CASE_ID)
     body = json.loads(
@@ -230,7 +232,7 @@ def test_a_resend_of_an_archived_activity_adds_no_entry():
     resend = prepare_for_dispatch(ingress.rehydrate(artifact)).model_copy(
         update={"receiving_actor_id": MANAGER}
     )
-    assert resend.received_evidence is None, "precondition: routed unsealed"
+    assert resend.received_body() == body, "precondition: archived body"
 
     verdict = run_use_case(dl, resend)
 
@@ -243,10 +245,10 @@ def test_a_resend_of_an_archived_activity_adds_no_entry():
 def test_a_resend_whose_first_delivery_was_never_recorded_is_refused():
     """With no received body and no entry, there is nothing to record.
 
-    As when a guard refused the first delivery after intake archived it, the
-    ledger holds no entry for the activity, and the resend carries no body to
-    record in its place: it is refused, not recorded, and not reported as an
-    internal error.
+    An event routed with no received body (as the held copy of a resend is
+    while its first delivery is still deferred) whose activity the ledger
+    does not record has no body to record: it is refused, not recorded, and
+    not reported as an internal error.
     """
     net = LedgerNetwork(CASE_ID)
     body = json.loads(

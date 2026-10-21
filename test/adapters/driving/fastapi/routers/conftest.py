@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from test.support.embargo_register import activate, propose
+from test.support.emitter import RecordingEmitter
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -128,6 +129,9 @@ def client_actors(datalayer):
     app = FastAPI()
     app.include_router(actors_router.router)
     app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl_override()
+    # No dispatcher is installed, so every inbox post raises and is answered
+    # with a fault (ASK-07-010); record it rather than deliver it over HTTP.
+    app.state.emitter = RecordingEmitter()
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}

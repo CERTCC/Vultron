@@ -731,7 +731,11 @@ groups:
       transaction, a failed received act keeps nothing, and a later delivery of
       the activity is not stopped as a repeat (ADR-0151, #4933). One act as the
       default of every received tree, not an opt-in, keeps a new tree from
-      dropping it silently (#4983).
+      dropping it silently (#4983). Through the inbox that later delivery is
+      routed as the copy intake archived, carrying the archived body as its
+      evidence (IE-10-001, VM-08-002), so it commits with the first delivery's
+      body; the sender is told of the failure by an internal-error fault
+      (ASK-07-010, #4981).
     verification: >-
       A test fails the second commit of a two-entry act and asserts the
       CASE_MANAGER keeps no entry, no queued activity and no row change from it; a
@@ -742,10 +746,12 @@ groups:
       own proposal and a received one, and assert the act keeps none of its
       consequences. Tests fail a received withdrawal's row commit and a received
       proposal's relay and assert the received act's own entry is not kept, and
-      that a redelivery of the proposal is applied (#4933). Tests fail the relay
+      that a redelivery of the proposal is applied, in process and through the
+      FastAPI inbox (#4933). Tests fail the relay
       to a joiner and a reinstated participant's embargo Invite and assert the
       act keeps no joined mark, consent row, outbox entry or ledger entry, and
-      that a redelivery is processed afresh; tests fail a Leave's closure step
+      that a redelivery through the FastAPI inbox is processed afresh, as is a
+      failed role-Offer forward's; tests fail a Leave's closure step
       and assert no close_case entry is kept. An architecture test asserts every
       received tree that commits runs its own entry and every node after it in
       one `ActTransaction`, or names a registered exemption, held to equality

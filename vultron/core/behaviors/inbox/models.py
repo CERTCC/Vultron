@@ -103,6 +103,19 @@ class DispatchAdapter(Protocol):
         """
         ...  # pragma: no cover
 
+    def emit_processing_fault(
+        self, event: VultronEvent, failure_class: str
+    ) -> None:
+        """Queue ``Create(ProcessingFault)`` of *failure_class* to the sender.
+
+        The receiving actor answers *event*'s sender, ``event.actor_id``,
+        about the activity ``event.activity_id`` (ASK-07-001).  The fault id
+        is derived from the failed activity and the failure class, so a
+        second failure of the same activity builds no second fault
+        (ASK-07-010, ID-04-004).
+        """
+        ...  # pragma: no cover
+
 
 @runtime_checkable
 class PendingCaseQueuePort(Protocol):

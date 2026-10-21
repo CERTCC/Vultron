@@ -51,6 +51,8 @@ from vultron.core.models.case_participant import (
 from vultron.core.models.dimensions import PxaDimension, RmDimension
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
+    FixDeployedCause,
+    OtherCause,
     ThreatSignal,
     ThreatSignalTermination,
 )
@@ -196,11 +198,16 @@ class _World:
             self.dl, event, **self.ports()
         ).execute()
 
-    def sentinel_request(self, reason=TerminationReason.END_TIME_REACHED):
+    def sentinel_request(
+        self, reason=TerminationReason.END_TIME_REACHED, cause=None
+    ):
         return SvcTerminateEmbargoUseCase(
             self.dl,
             TerminateEmbargoTriggerRequest(
-                actor_id=self.manager.id_, case_id=self.case_id, reason=reason
+                actor_id=self.manager.id_,
+                case_id=self.case_id,
+                reason=reason,
+                cause=cause,
             ),
             **self.ports(),
         ).execute()
@@ -386,6 +393,24 @@ def test_an_early_request_after_the_end_time_ends_it_at_its_end_time() -> None:
 
 
 @pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("EMB-13-004")
+def test_an_early_request_naming_a_cause_after_the_end_time_records_none() -> (
+    None
+):
+    """Once the end time has passed the embargo ends END_TIME_REACHED, which
+    has no cause, so the requested cause is not recorded."""
+    world = _World(end_time=now_utc() - timedelta(minutes=5))
+
+    result = world.sentinel_request(
+        reason=TerminationReason.EARLY, cause=FixDeployedCause()
+    )
+
+    assert result.activity is not None
+    assert "terminationCause" not in result.activity
+    _assert_full_cascade(world, EmbargoTermination.end_time_reached())
+
+
+@pytest.mark.spec("EMB-13-003")
 @pytest.mark.spec("BT-15-001")
 def test_a_case_trigger_after_the_end_time_runs_the_lazy_check_first() -> None:
     """A threat status the manager triggers after the end time finds the
@@ -497,7 +522,11 @@ def test_an_early_termination_runs_the_full_cascade() -> None:
 
     world.sentinel_request(reason=TerminationReason.EARLY)
 
-    _assert_full_cascade(world, EmbargoTermination.early())
+    # An EARLY request naming no cause is recorded as OTHER (EMB-14-001).
+    _assert_full_cascade(
+        world,
+        EmbargoTermination(reason=TerminationReason.EARLY, cause=OtherCause()),
+    )
 
 
 @pytest.mark.spec("EP-08-004")

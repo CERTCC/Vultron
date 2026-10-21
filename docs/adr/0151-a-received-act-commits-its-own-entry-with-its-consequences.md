@@ -2,13 +2,15 @@
 status: proposed
 date: 2026-10-20
 created: 2026-10-20
-updated: 2026-10-20
-revision: 1
+updated: 2026-10-21
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0111, ADR-0135, ADR-0146;
   specs/case-ledger-processing.yaml CLP-07-013, CLP-07-015, CLP-10-006;
-  issue #4933
+  specs/protocol-asks.yaml ASK-07-010; specs/inbox-endpoint.yaml IE-10-001;
+  specs/vocabulary-model.yaml VM-08-002;
+  issues #4933, #4981
 informed: []
 partially_supersedes:
   - 0111-intake-is-the-first-received-side-stage.md
@@ -66,7 +68,7 @@ Chosen option: **A, one transaction for the act's own entry and its consequences
 4. **A failed received act leaves no trace but intake's archive.**
    Because no entry is kept, the idempotency guards that read the ledger do not see the act: a later delivery of the activity is not stopped as a repeat, and runs the act again.
    Nothing redelivers it on its own, and nothing re-applies a change after a rollback.
-   A child that raises is an internal error: the handler raises, and the inbox, which answered the sender before processing, logs it.
+   A child that raises is an internal error: the handler raises, and the inbox, which answered the sender before processing, logs it and answers the sender with a fault (detail 7).
    An effect that returns failure without raising is read as the handler's verdict on that failure, `REFUSED` by default.
    In both cases nothing of the act is kept.
 5. **The act block is the same at every receiver.**
@@ -76,6 +78,22 @@ Chosen option: **A, one transaction for the act's own entry and its consequences
    A tree asks for the act block through the factory (`create_receive_activity_tree(as_one_act=True)`), which needs a commit stage; no tree builds its own.
    Every received embargo tree that commits does so.
    Whether other received trees do is decided per tree, with the case trees that still commit an embargo consequence after their act (#4959).
+7. **The sender of a failed act gets an internal-error fault.**
+   The inbox answers the sender of a received act that fails on an internal error with one `Create(ProcessingFault)` of the internal-error failure class (ASK-07-010).
+   It sends the fault after the act's transaction has rolled back, so the rollback does not remove it, and the fault carries no diagnostics (ASK-07-006).
+   The fault is a notice, not a recovery: it changes nothing of the act, and the sender decides whether to send the activity again.
+   Its id is derived from the failed activity and the failure class, so a second failure of the same activity builds no second fault.
+   A processing fault whose own handling fails is not answered with another, so two receivers that fail alike never answer each other without end.
+   The fault goes to the actor the activity names; the prototype inbox does not yet authenticate that sender (#509).
+   The fault is not ledgered, as no fault the inbox sends is; whether a case-attributable fault belongs in the ledger is open (ASK-07-008, #4800).
+   The inbox logs the failed act once at ERROR, with the activity id and the sender's actor id, and keeps the outcome as rejected, which it logs at WARNING with the receiving actor's id.
+   The bridge that ran the tree keeps its own ERROR record of the node that raised, as it does for every internal error, so that record names the failing node and the inbox's names the failed act.
+   A refusal notice answers only a guard's refusal (CLP-10-022), never an internal error.
+8. **A later delivery runs the failed act again with the first delivery's body.**
+   A later delivery of the same activity arrives as a redelivery, because intake archived the first one.
+   The inbox routes the archived copy, which carries the body intake archived as its received evidence (IE-10-001, VM-08-002); the later delivery's own body is never routed.
+   No entry of the failed act exists for the idempotency guards to find, so the act runs as a first delivery and commits with the archived body.
+   A redelivery of an act that committed is still answered as a repeat, `SKIPPED`, and commits nothing new.
 
 This record supersedes detail 1 of ADR-0111 in part.
 That detail set four stages, intake, guards, guarded commit and effects, and each was composed as its own node.
@@ -90,13 +108,16 @@ The rest of ADR-0111 stands.
 - Bad, because the transaction now also holds the store's write lock for the received act's own commit and its replica effects, so another writer on the same store waits longer.
 - Bad, because a failure in a replica effect at the CASE_MANAGER now also removes the act's entry, where before it left the entry committed.
   This is the intended outcome: the act did not complete.
-- Bad, because the sender is not told that its act failed: the inbox answered before processing, and a refusal notice answers only a guard's refusal.
-  This was already so before this record; it now means the act is wholly absent rather than half done.
+- Good, because the sender of a failed act is told by an internal-error fault (detail 7), and its retry, or any later delivery, runs the act again (detail 8).
+- Bad, because the fault says only that processing failed, not why, so the sender cannot tell a transient failure from one that will repeat.
 
 ## Validation
 
 - A test fails a received withdrawal's consent-row commit and asserts that no row is saved and the `Leave`'s own entry is not kept.
 - A test fails a received proposal's relay part-way and asserts that the proposal keeps no entry, no row, no relayed Invite and no register step, and that a redelivery is applied and relayed.
+- `test/adapters/driving/fastapi/test_failed_act_redelivery.py` posts a received proposal through the FastAPI inbox while its relay fails, twice, then posts the same body again.
+  It asserts that each failed post kept nothing, was rejected and logged one ERROR record naming the act, that the sender got one internal-error fault with no diagnostics and no second one, that the last post applied and relayed the act, and that a replica copies the same consent rows; a redelivery of the applied act is `SKIPPED`.
+- `test/core/behaviors/inbox/test_process_payload.py` asserts that only a raised dispatch is answered with a fault, and that a parse failure or an activity with no sender is not.
 - `test/architecture/test_embargo_consequences_in_one_act.py` asserts that every received embargo tree commits its own entry inside an `ActTransaction`.
 - `test/core/behaviors/case/test_receive_activity_tree.py` asserts the factory puts the commit, the replica effects and the CASE_MANAGER gate in one `ActTransaction`, and refuses the option on a tree with no commit.
 - `test/core/behaviors/test_act_transaction.py` asserts that at a participant replica a failing replica effect keeps none of the replica effects' writes.
@@ -127,6 +148,8 @@ The rest of ADR-0111 stands.
 - ADR-0135 — compose received trees, never chain them.
 - ADR-0146 — one atomic commit per embargo act.
 - #4933 — the implementation.
+- #4981 — the internal-error fault, and a failed act runs again on an HTTP redelivery.
+- #4800 — whether a case-attributable fault is ledgered.
 - #4959 — the case trees that still commit an embargo consequence after their act.
 
 Generated spec requirements: `case-ledger-processing.yaml` CLP-07-015.

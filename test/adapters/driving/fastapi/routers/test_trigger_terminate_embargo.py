@@ -87,6 +87,43 @@ def test_trigger_terminate_embargo_missing_case_id_returns_422(
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
+@pytest.mark.spec("EMB-14-001")
+def test_trigger_terminate_embargo_carries_the_requested_cause(
+    client_triggers, actor, case_with_embargo
+):
+    """The cause in the body reaches the Remove as terminationCause."""
+    case_obj, _ = case_with_embargo
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/terminate-embargo",
+        json={"case_id": case_obj.id_, "cause": {"kind": "FIX_DEPLOYED"}},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert resp.json()["activity"]["terminationCause"] == {
+        "kind": "FIX_DEPLOYED"
+    }
+
+
+@pytest.mark.spec("EMB-13-004")
+@pytest.mark.spec("EMB-13-005")
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"cause": {"kind": "THREAT_SIGNAL", "signals": ["P"]}},
+        {"reason": "END_TIME_REACHED", "cause": {"kind": "OTHER"}},
+    ],
+)
+def test_trigger_terminate_embargo_refuses_a_cause_it_may_not_name(
+    client_triggers, actor, case_with_embargo, body
+):
+    """A THREAT_SIGNAL cause, or a cause on END_TIME_REACHED, is a 422."""
+    case_obj, _ = case_with_embargo
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/terminate-embargo",
+        json={"case_id": case_obj.id_, **body},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
 def test_trigger_terminate_embargo_ignores_unknown_fields(
     client_triggers, actor, case_with_embargo
 ):
