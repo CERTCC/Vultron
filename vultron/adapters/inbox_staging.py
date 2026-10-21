@@ -282,17 +282,6 @@ class InlineObjectStaging:
             activity, received_body=activity.received_evidence_json
         )
 
-    def rehydrate_resend(self, activity: as_Activity) -> as_Activity | None:
-        """Rebuild a resend of a held activity from its own body, as no delivery.
-
-        For a redelivery whose held copy does not rebuild: this delivery's
-        body is routed in its place, but staged with no received body, so a
-        resend deferred again is held as its row and its replay carries no
-        evidence (VM-08-002).
-        """
-
-        return self._rehydrate_with(activity, received_body=None)
-
     def _rehydrate_with(
         self, activity: as_Activity, *, received_body: str | None
     ) -> as_Activity | None:
@@ -351,9 +340,9 @@ class InlineObjectStaging:
         body is parsed and routed in place of the redelivered one
         (IE-10-001, ADR-0149).  It carries that body as its received
         evidence: the body is the first delivery's, sealed at its parse, so
-        the copy routed is that delivery and not this one (VM-08-002).  The
-        resend's own bytes are never routed, so a resend with a different
-        body under the same id never replaces the first copy (#3762).  Held
+        the copy routed is that delivery and not this one (VM-08-002).  Only
+        a resend of exactly that body gets here; ingress refuses a different
+        body under the same id before any copy is rebuilt (IE-10-002).  Held
         for a replay, should the copy be deferred, it keeps the same body.
         Returns ``None`` when nothing is archived under *activity_id*.
         """

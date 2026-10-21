@@ -143,6 +143,9 @@ silently dropped the new body (#3762). The match is exact, with no normalisation
 so a body re-serialized with a different key order is refused too. The rule covers
 every activity type: an `Announce(CaseLedgerEntry)` hydrated in place (SYNC-13-004)
 gets the same comparison, and only a same-body repeat reaches SYNC-12-003's gate.
+Both sides of the match are always sealed for a delivery, so a held row with no body
+or an unsealed activity under a held id raises `VultronWiringError` (ARCH-15-001)
+rather than guess a match (`test_ingress_received_evidence.py`).
 
 **The archive records receipt, not the act.** A received act that failed kept no
 entry, so the idempotency guards do not see it and its redelivery runs as a first

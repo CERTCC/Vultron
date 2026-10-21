@@ -606,18 +606,23 @@ def test_a_row_under_the_senders_id_is_not_replayed(dl):
 
 @pytest.mark.spec("IO-03-004", "IE-10-001")
 def test_a_redelivery_of_a_deferred_activity_is_not_held_again(dl):
-    """The held body is kept; the redelivered one is not held in its place."""
+    """The held body is kept; the redelivered one is not held again.
+
+    A redelivery is the same body (IE-10-002 refuses a different one), so
+    the record written by the first delivery is the one kept.
+    """
     staging = InlineObjectStaging(dl)
     first = _add_note_body(content="first")
     routed = _routed(dl, first, staging=staging)
     assert staging.hold_for_replay(routed.id_)
+    held_before = staging.held(routed.id_)
 
     again = InlineObjectStaging(dl)
-    second = {**first, "summary": "second"}
-    _routed(dl, second, staging=again)
+    _routed(dl, json.loads(json.dumps(first)), staging=again)
 
     assert again.hold_for_replay(routed.id_) is False
     held = staging.held(routed.id_)
+    assert held == held_before
     assert held is not None and held.received_body is not None
     assert json.loads(held.received_body) == first
 
