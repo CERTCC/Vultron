@@ -172,6 +172,8 @@ nav:
       - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
       - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
       - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
+      - Desiderata from the Process Models: 'topics/measuring_cvd/process_model_desiderata.md'
+      - Timing Metrics Within a Case: 'topics/measuring_cvd/timing_metrics.md'
       - Reward Functions: 'topics/measuring_cvd/reward_functions.md'
       - State Space Size: 'topics/measuring_cvd/state_space_size.md'
       - CS Model Limitations: 'topics/process_models/cs/cs_model_limitations.md'

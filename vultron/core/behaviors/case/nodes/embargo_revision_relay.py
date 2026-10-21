@@ -14,18 +14,17 @@
 """Relay the creation-time revision to the party whose terms won (EP-04-011).
 
 ``InitializeCreationEmbargoNode`` registers the shortest-wins loser as a
-pending revision inside ``InitializeDefaultEmbargoNode``, and records the relay
-as owed in a durable :class:`PendingCreationTimeRevisionRelay` marker in the
-same commit (#4142).  :class:`RelayCreationTimeRevisionNode` sends the revision
-like any other (EP-09, ADR-0113) once the case tree has finished its
-initialization sequence (CM-14-007), indexes it so the owner's default
-selection reaches it (EP-08-002), and deletes the marker.
+pending revision inside ``InitializeDefaultEmbargoNode``.
+:class:`RelayCreationTimeRevisionNode` sends the revision like any other
+(EP-09, ADR-0113) once the case tree has finished its initialization sequence
+(CM-14-007), and indexes it so the owner's default selection reaches it
+(EP-08-002).
 
-The marker is what makes a failed relay recoverable (#4121).  Initialization
-runs once per case (EP-04-012), so a redelivered proposal never registers the
-revision again; the marker survives the failure instead, and the next
-delivery's relay or the startup retry runner
-(``retry_pending_creation_time_revision_relays``) completes it.
+The relay is part of the creation act: the case tree runs it in the same
+``ActTransaction`` as the creation, after the ledger commit (ADR-0146,
+CLP-07-015).  A failed relay rolls the whole creation back, so a redelivered
+proposal creates the case again and registers and relays the revision in one
+act.  Nothing is kept for a later run.
 
 This module is not re-exported from ``vultron.core.behaviors.case.nodes``:
 the relay subclasses the embargo relay emit, whose module imports the case
@@ -34,16 +33,14 @@ cycle.  Import it from here.
 """
 
 import logging
-from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.embargo_revision import (
+    CANDIDATE_KEY,
+    CreationTimeRevisionCandidate,
     creation_revision_parties,
-)
-from vultron.core.behaviors.case.nodes.proposal_ledger import (
-    CREATE_CASE_SEMANTIC_TYPE,
 )
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
@@ -56,13 +53,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.pending_creation_time_revision_relay import (
-    PendingCreationTimeRevisionRelay,
-)
 from vultron.core.participants.recipients import invitation_recipients
-from vultron.core.services.embargo_duration import EmbargoDurationSource
-from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import BtNodePreconditionError, VultronError
 
 if TYPE_CHECKING:
@@ -70,230 +61,170 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_MARKER_TYPE = "PendingCreationTimeRevisionRelay"
-
-
-class _RelayState(Enum):
-    """Where an owed relay stands, read from the case and its ledger."""
-
-    SEND = auto()
-    NOT_YET = auto()  # the case's creation entries are not committed yet
-    CLOSED = auto()  # the revision is no longer an open proposal
-    COMMITTED = auto()  # its Invite is already in the ledger
-
 
 class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
     """Relay the creation-time revision to the party whose terms won (EP-04-011).
 
-    The #3913 relay emit, fed from the case's
-    :class:`PendingCreationTimeRevisionRelay` marker rather than from a
-    received proposal: the CASE_MANAGER emits ``Invite(EmbargoEvent)`` as
+    The #3913 relay emit, fed from the case rather than from a received
+    embargo proposal: the CASE_MANAGER emits ``Invite(EmbargoEvent)`` as
     ``actor`` with the losing party in ``attributedTo`` (CM-24-001,
-    CM-24-002), under the proposal id the registration minted, and commits it
-    in this tree once it is queued (ADR-0119).  The committed Invite is the revision's proposal entry: no
-    proposal activity exists at creation, and #4099's replay recognises the
-    entry as a relayed Invite (EP-09-007).  The losing party is the proposer
-    and is not invited (EP-09-002).  The case tree places this node after its
-    ledger commit, so no modification is initiated before the initialization
-    sequence is complete (CM-14-007).
+    CM-24-002) and commits it in this tree once it is queued (ADR-0119).  The
+    committed Invite is the revision's proposal entry: no proposal activity
+    exists at creation, and #4099's replay recognises the entry as a relayed
+    Invite (EP-09-007).  The losing party is the proposer and is not invited
+    (EP-09-002).  The case tree places this node after its ledger commit, so
+    no modification is initiated before the initialization sequence is
+    complete (CM-14-007).
 
-    **The input is read from the store, not the blackboard**, so the relay is
-    retried wherever it runs again: a later delivery of a proposal for the
-    case, or the startup retry runner, which passes *case_id* (#4121).  The
-    marker is deleted once the obligation is discharged, and kept whenever
-    the relay fails, so a failure is never final.
+    **What it relays.**  ``ResolveCreationTimeRevisionNode`` publishes the
+    contested proposal and whose terms lost (``CANDIDATE_KEY``) only in the
+    execution whose ``InitializeCreationEmbargoNode`` registers it, so the
+    node relays only in the act that registered the revision.  It reads the
+    revision from the case: the registration left it as the case's one open
+    proposal.  A redelivered proposal whose case was already created skips
+    the initialization, publishes no candidate, and relays nothing.
 
-    **The index is written after the Invite is sent**, never at registration.
-    The bootstrap ``Create(VulnerabilityCase)`` carries the case whole; had it
-    carried ``embargo → Invite id``, the invitee's idempotency guard
+    **The Invite's id is derived** from the proposal that created the case
+    (*answers*), the case, the revision and the invitee, never minted
+    (ID-04-004, OX-06-002), so the same act relays under one id however often
+    it runs.  A rolled-back creation sent nothing, so the redelivery that
+    creates the case again relays under its own new case's id.  The index is written after
+    the Invite is sent, never at registration: the bootstrap
+    ``Create(VulnerabilityCase)`` carries the case whole, and had it carried
+    ``embargo → Invite id`` the invitee's idempotency guard
     (``EmbargoProposalNotYetRecordedNode``) would read the Invite as already
     answered and skip it.  The invitee indexes the Invite when it answers, and
     the proposer's replica learns it from the replayed entry
     (``ApplyEmbargoInviteFromLedgerNode``), so the owner's default selection
     reaches it on either side (EP-08-002).
 
-    Outcomes, all decided from the store:
+    A reporter that is itself the CASE_OWNER leaves nobody to invite:
+    nothing is sent or indexed.  A revision the case does not hold open,
+    a revision whose parties cannot be resolved, or a winning party that is
+    not an invitation recipient raises: the creation act rolls back, since
+    the fault is the manager's own, never a refusal of the sender's proposal.
 
-    - no marker: nothing is owed, SUCCESS;
-    - the case's genesis ledger entry is not committed yet (a case tree that
-      failed before its ledger commit): nothing is sent and the marker is
-      kept, since a relay now would fan an entry out ahead of the case's
-      creation (CM-14-007, CM-14-011);
-    - the revision is no longer an open proposal: nothing to relay, the
-      marker is deleted;
-    - its Invite is already in the ledger: nothing is sent again, and the
-      marker is deleted.  The send, the winner's row, the index and the
-      marker's deletion commit in one transaction (ADR-0146), so a failure
-      leaves the marker and nothing else, and a committed Invite is always
-      indexed and discharged with it;
-    - a reporter that is itself the CASE_OWNER: nobody to invite, nothing is
-      indexed, the marker is deleted;
-    - otherwise the Invite is sent, indexed, and the marker deleted.
-
-    A revision whose parties cannot be resolved, or whose winning party is not
-    an invitation recipient, raises and keeps the marker: the case is already
-    created and announced, so the fault is the manager's own, never a refusal
-    of the sender's proposal.
+    Args:
+        proposal_id: The ``Create(as_CaseProposal)``'s proposal; the relay
+            answers it.
+        report_id: The report the case is created from; its author is the
+            reporter (EP-04-004).
+        actor_config: Source of the RSVP windows (CM-28-012).
+        name: Optional node name.
     """
 
     def __init__(
         self,
-        case_id: str | None = None,
-        name: str | None = None,
+        proposal_id: str,
+        report_id: str | None,
         actor_config: "ActorConfig | None" = None,
+        name: str | None = None,
     ) -> None:
-        # The embargo and proposer are known only at tick time, from the
-        # marker; ``update`` and ``_resolve_parties`` set them, so the base
-        # constructor gets placeholders.
+        # The case, embargo and proposer are known only at tick time;
+        # ``_load_relay_inputs`` and ``_resolve_parties`` set them, so the
+        # base constructor gets placeholders.
         super().__init__(
-            case_id=case_id or "",
+            case_id="",
             embargo_id="",
             proposer_id="",
             name=name or self.__class__.__name__,
             actor_config=actor_config,
+            answers=proposal_id,
         )
-        self._fixed_case_id = case_id
-        self._marker: PendingCreationTimeRevisionRelay | None = None
+        self._report_id = report_id
+        self._candidate: CreationTimeRevisionCandidate | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "case_id": PortInformation(data_type=str, required=False),
+        CANDIDATE_KEY: PortInformation(
+            data_type=CreationTimeRevisionCandidate | None, required=False
+        ),
         "sync_port": PortInformation(data_type=object, required=False),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id", "sync_port": "/sync_port"}
+        return {
+            "case_id": "/case_id",
+            CANDIDATE_KEY: f"/{CANDIDATE_KEY}",
+            "sync_port": "/sync_port",
+        }
 
     def _load_relay_inputs(self) -> None:
         self._recipients = []
-        self._marker = None
-        case_id = self._fixed_case_id or self._try_get_input("case_id")
+        case_id = self._try_get_input("case_id")
         self._case_id = case_id if isinstance(case_id, str) else ""
-
-    def _activity_id_for(self, recipient_id: str) -> str | None:
-        # The marker's id is the relay's only idempotency key; ``None`` would
-        # mint a fresh Invite the ledger could never match (BT-HELPER-01).
-        if self._marker is None:
-            raise RuntimeError(
-                f"{self.name}: no relay marker loaded for case"
-                f" '{self._case_id}', so the Invite has no id to carry"
-            )
-        return self._marker.proposal_id
+        candidate = self._try_get_input(CANDIDATE_KEY)
+        self._candidate = (
+            candidate
+            if isinstance(candidate, CreationTimeRevisionCandidate)
+            else None
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
-        assert self.datalayer is not None
-        marker = self._pending_marker()
-        if marker is None:
+        candidate = self._candidate
+        if candidate is None:
             self.feedback_message = "no creation-time revision to relay"
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
-        self._marker = marker
-        self._embargo_id = marker.embargo_id
         case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
-        entries = recorded_entries_for_case(
-            case_id=case.id_, dl=self.datalayer
-        )
-        state = self._relay_state(case, marker, entries)
-        if state is _RelayState.NOT_YET:
-            return Status.SUCCESS  # kept: a later run relays it
-        if state in (_RelayState.CLOSED, _RelayState.COMMITTED):
-            self._discharge(marker)
-            return Status.SUCCESS
         try:
-            self._resolve_parties(case, marker)
+            self._embargo_id = self._open_revision(case, candidate)
+            self._resolve_parties(case, candidate)
         except VultronError as exc:
-            # The proposal was already accepted and the case created and
-            # announced, so this is a fault in the manager's own records,
-            # never the sender's.  BTBridge reads a VultronError as a protocol
-            # outcome, so it is re-raised as the internal error it is, which
-            # the handler raises rather than refusing (ADR-0095), as the
-            # base relay does for its own store's anomalies.
+            # The proposal was already accepted and the case initialized, so
+            # this is a fault in the manager's own records, never the
+            # sender's.  BTBridge reads a VultronError as a protocol outcome,
+            # so it is re-raised as the internal error it is, which the
+            # handler raises rather than refusing (ADR-0095), as the base
+            # relay does for its own store's anomalies.
             raise RuntimeError(
-                f"{self.name}: cannot relay creation-time revision"
-                f" '{self._embargo_id}' on case '{self._case_id}': {exc}"
+                f"{self.name}: cannot relay the creation-time revision on"
+                f" case '{self._case_id}': {exc}"
             ) from exc
-        # The send, the index and the marker's deletion land together or not
-        # at all (ADR-0146); the base relay's own block nests inside this one.
-        with self.datalayer.transaction():
-            if self._recipients:
-                if (status := super().update()) is not Status.SUCCESS:
-                    return status
-                self._index_relayed(marker)
-            # else: the owner reported to itself, so there is nobody to invite.
-            self._discharge(marker)
+        if not self._recipients:
+            # The owner reported to itself, so there is nobody to invite.
+            return Status.SUCCESS
+        if (status := super().update()) is not Status.SUCCESS:
+            return status
+        self._index_relayed()
         return Status.SUCCESS
 
-    def _pending_marker(self) -> PendingCreationTimeRevisionRelay | None:
-        """The case's relay obligation, if one is still recorded."""
-        assert self.datalayer is not None
-        if not self._case_id:
-            return None
-        stored = self.datalayer.read(
-            PendingCreationTimeRevisionRelay.build_id(self._case_id)
-        )
-        return (
-            stored
-            if isinstance(stored, PendingCreationTimeRevisionRelay)
-            else None
-        )
+    @staticmethod
+    def _open_revision(
+        case: VulnerabilityCase, candidate: CreationTimeRevisionCandidate
+    ) -> str:
+        """The revision the registration left open on *case*.
 
-    def _index_relayed(self, marker: PendingCreationTimeRevisionRelay) -> None:
+        Raises:
+            BtNodePreconditionError: the case does not hold the registered
+                revision as an open proposal.
+        """
+        revision_id = candidate.embargo.id_
+        if revision_id not in case.proposed_embargo_ids:
+            raise BtNodePreconditionError(
+                f"case '{case.id_}' holds no open proposal '{revision_id}',"
+                " though this act registered it (EP-04-003)"
+            )
+        return revision_id
+
+    def _index_relayed(self) -> None:
         """Index the sent Invite for the owner's default selection (EP-08-002)."""
         assert self.datalayer is not None
+        (winner_id,) = self._recipients
+        invite_id = self._activity_id_for(winner_id)
+        assert invite_id is not None  # derived: the relay answers a proposal
         record_embargo_proposal_index(
-            self.datalayer,
-            marker.case_id,
-            marker.embargo_id,
-            marker.proposal_id,
+            self.datalayer, self._case_id, self._embargo_id, invite_id
         )
-
-    def _discharge(self, marker: PendingCreationTimeRevisionRelay) -> None:
-        """Delete the marker: the relay is no longer owed."""
-        assert self.datalayer is not None
-        self.datalayer.delete(_MARKER_TYPE, marker.id_)
-        self.logger.info(
-            "%s: relay of creation-time revision '%s' on case '%s' discharged",
-            self.name,
-            marker.embargo_id,
-            marker.case_id,
-        )
-
-    def _relay_state(
-        self,
-        case: VulnerabilityCase,
-        marker: PendingCreationTimeRevisionRelay,
-        entries: list[CaseLedgerEntry],
-    ) -> _RelayState:
-        """Decide, without writing anything, what the owed relay still needs."""
-        if not any(
-            e.semantic_type == CREATE_CASE_SEMANTIC_TYPE for e in entries
-        ):
-            # Only a retry outside the case tree reaches this: the tree runs
-            # the relay after its ledger commit.
-            reason = (
-                "waits for the case's creation entries (CM-14-007, CM-14-011)"
-            )
-            state = _RelayState.NOT_YET
-        elif marker.embargo_id not in case.proposed_embargo_ids:
-            reason, state = "is no longer an open proposal", _RelayState.CLOSED
-        elif any(e.log_object_id == marker.proposal_id for e in entries):
-            reason, state = "was already relayed", _RelayState.COMMITTED
-        else:
-            return _RelayState.SEND
-        self.feedback_message = (
-            f"creation-time revision '{marker.embargo_id}' on case"
-            f" '{case.id_}' {reason} — nothing sent"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return state
 
     def _resolve_parties(
-        self, case: VulnerabilityCase, marker: PendingCreationTimeRevisionRelay
+        self, case: VulnerabilityCase, candidate: CreationTimeRevisionCandidate
     ) -> None:
         """Set the proposer (the loser) and the one invitee (the winner)."""
         assert self.datalayer is not None
@@ -301,10 +232,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
         # The loser proposed the revision (MSM-07-005, #4152); the reporter's
         # terms arrived as the sender proposal (EP-04-004).
         self._proposer_id, winner_id = creation_revision_parties(
-            self.datalayer,
-            case,
-            EmbargoDurationSource(marker.losing_source),
-            marker.report_id,
+            self.datalayer, case, candidate.losing_source, self._report_id
         )
         # Shared recipient selection (CM-10-007), narrowed to the other party:
         # nobody else held terms at creation (EP-04-011).
@@ -325,7 +253,7 @@ class RelayCreationTimeRevisionNode(RelayEmbargoInviteToEachNode):
                 " relay revision '%s' to",
                 self.name,
                 winner_id,
-                marker.embargo_id,
+                self._embargo_id,
             )
             return
         if not self._recipients:

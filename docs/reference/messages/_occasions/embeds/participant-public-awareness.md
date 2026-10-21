@@ -7,7 +7,7 @@
     - **When…** a Participant learns that the public knows of the vulnerability
     - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
     - **Send to:** the case manager
-    - **Sent by:** a participant
+    - **Sent by:** the case manager or the case owner or the participant status's author
     - **Distinguished by:** `caseStatus.pxaState` = `Pxa`
     - **Reference:** [Public awareness in a participant status](../../cs.md#participant-public-awareness)
 

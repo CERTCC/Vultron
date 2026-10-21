@@ -87,11 +87,6 @@ ONE_ACT_EXEMPT_TREES: dict[_Site, str] = {}
 #: ``ActTransaction``, with the reason.
 OUTSIDE_AN_ACT: dict[tuple[str, str, str], str] = {
     (
-        f"{_B}/case/case_proposal_received_tree.py",
-        "create_case_proposal_received_tree",
-        "RelayCreationTimeRevisionNode",
-    ): "case creation; the relay keeps its stored marker; #4984",
-    (
         f"{_B}/embargo/answer_trees.py",
         "accept_invite_to_embargo_tree",
         "ReinviteLateAccepterNode",
@@ -284,4 +279,7 @@ def test_the_walk_finds_later_nodes_inside_an_act() -> None:
         "RelayOpenProposalsToJoinerNode",
         "InviteReinstatedParticipantToEmbargoNode",
         "ReissueStubInvitesNode",
+        # Case creation commits no received entry of its own; its relay is
+        # in the creation act (#4984).
+        "RelayCreationTimeRevisionNode",
     } <= named_inside

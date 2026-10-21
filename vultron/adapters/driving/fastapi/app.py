@@ -33,6 +33,10 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
     init_dispatcher,
     make_dispatcher,
 )
+from vultron.adapters.driving.fastapi.inbox_startup_replay import (
+    finish_startup_inbox_replay,
+    start_startup_inbox_replay,
+)
 from vultron.adapters.driving.fastapi.ledger_stream import (
     SHUTDOWN_STATE_KEY,
     install_shutdown_signal_hook,
@@ -42,9 +46,6 @@ from vultron.adapters.driving.fastapi.outbox_handler import (
 )
 from vultron.adapters.driving.fastapi.outbox_monitor import (
     OutboxMonitor,
-)
-from vultron.adapters.driving.fastapi.pending_retry import (
-    retry_pending_creation_time_revision_relays,
 )
 from vultron.adapters.driving.fastapi.routers import demo_triggers, router
 from vultron.config import RunMode, get_config
@@ -179,9 +180,12 @@ def _make_lifespan(*, configure_globals: bool = True):
         configure_globals: When ``True`` (the default for the production
             singleton ``app_v2``), the lifespan installs the
             ``HttpDeliveryAdapter`` as the module-level default emitter,
-            configures logging, and starts the background ``OutboxMonitor``.
+            configures logging, starts the background ``OutboxMonitor``, and
+            starts the startup replay of every hosted actor's inbox queue
+            (IE-06-006).
             When ``False`` (used by :func:`create_app` for isolated test apps),
-            these global side-effects are skipped so that multiple apps
+            these global side-effects are skipped, the startup replay
+            included, so that multiple apps
             running in the same process do not contaminate each other's state.
     """
 
@@ -218,15 +222,19 @@ def _make_lifespan(*, configure_globals: bool = True):
             # wanted.
             application.state.outbox_monitor = monitor
 
-            # Complete any creation-time embargo revision relay a previous
-            # run left owed (EP-04-011, #4121): creation-time initialization
-            # runs once per case, so nothing else would re-send it.
-            retry_pending_creation_time_revision_relays()
+        # Replay what a previous run left in any hosted actor's inbox queue;
+        # nothing else would until that actor's next delivery (IE-06-006).
+        startup_replay = (
+            start_startup_inbox_replay(application.state.emitter)
+            if configure_globals
+            else None
+        )
 
         yield {SHUTDOWN_STATE_KEY: ledger_stream_shutdown}
 
         ledger_stream_shutdown.set()
         undo_shutdown_hook()
+        await finish_startup_inbox_replay(startup_replay)
 
         if monitor is not None:
             monitor.stop()

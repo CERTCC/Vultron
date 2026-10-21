@@ -16,7 +16,9 @@ import json
 from typing import cast
 
 import pytest
+from py_trees.common import Status
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from test.core.use_cases.received.conftest import (
     queued_bodies,
     seed_case_manager_participant,
@@ -26,10 +28,14 @@ from test.core.use_cases.received.conftest import (
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIIngressAdapter,
 )
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sender_entitlement import (
     AddresseeSide,
     SenderEntitlementKind,
@@ -53,6 +59,7 @@ from vultron.core.use_cases.received.status import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
+from vultron.wire.as2.enums import as_TransitiveActivityType
 from vultron.wire.as2.factories import (
     add_status_to_case_activity,
     add_status_to_participant_activity,
@@ -1214,7 +1221,10 @@ class TestParticipantStatusLogEntryCascade:
         ).execute()
 
         assert result.disposition is HandlerDisposition.REFUSED
-        assert "CM-23-018" in (result.reason or "")
+        # The closed sender holds none of the rule's standings: the AUTHOR
+        # check refuses it for its recorded closure (CM-23-018), and the
+        # any-of guard's reason names every standing (HP-01-006, BT-13-001).
+        assert "HP-01-006" in (result.reason or "")
         assert list(dl.list_objects("CaseLedgerEntry")) == []
         assert dl.outbox_list() == []
         stored = dl.read(participant.id_)
@@ -1485,3 +1495,417 @@ def test_add_case_status_admits_only_the_case_manager_at_a_participant():
     )
     assert rule.side(AddresseeSide.CASE_MANAGER) == frozenset()
     assert rule.side(AddresseeSide.OUTSIDE_CASE) == frozenset()
+
+
+#: The actors of the status-subject tests below (RSH-08-007, #4987).
+_SUBJ_CASE_ID = "https://example.org/cases/case_subject"
+_SUBJ_VENDOR = "https://example.org/users/subject-vendor"
+_SUBJ_DEPLOYER = "https://example.org/users/subject-deployer"
+_SUBJ_REPORTER = "https://example.org/users/subject-reporter"
+_SUBJ_OWNER = "https://example.org/users/subject-owner"
+
+
+class TestParticipantStatusSubjectIsTheSender:
+    """Only a participant asserts its own status, save the on-behalf v→V and
+    d→D a CASE_MANAGER or Case Owner may assert (RSH-08-007, PRM-06-003/004).
+
+    Each test drives the Add through the inbox ingress at the CASE_MANAGER,
+    which is the store's own actor.
+    """
+
+    @staticmethod
+    def _case_manager_store() -> tuple[SqliteDataLayer, dict[str, str]]:
+        """A CASE_MANAGER store holding a vendor, a deployer, a reporter and
+        a Case Owner, each with a first status; returns the store and the
+        participant id of each actor."""
+        from vultron.core.models.dimensions import DDimension, VfDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.cs import CS_d, CS_vf
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/case-manager",
+        )
+        case = as_VulnerabilityCase(
+            id_=_SUBJ_CASE_ID, name="Subject", attributed_to=dl.actor_id
+        )
+        seed_store_owner_as_case_manager(dl, case)
+        seeded: dict[str, str] = {}
+        vf_unaware = VfDimension(state=CS_vf.vf)
+        d_undeployed = DDimension(state=CS_d.d)
+        for actor_id, roles, rm, vf, d in (
+            (_SUBJ_VENDOR, [CVDRole.VENDOR], RM.RECEIVED, vf_unaware, None),
+            (
+                _SUBJ_DEPLOYER,
+                [CVDRole.DEPLOYER],
+                RM.ACCEPTED,
+                None,
+                d_undeployed,
+            ),
+            (_SUBJ_REPORTER, [CVDRole.REPORTER], RM.ACCEPTED, None, None),
+            (_SUBJ_OWNER, [CVDRole.CASE_OWNER], RM.ACCEPTED, None, None),
+        ):
+            participant = seed_case_participant(dl, case, actor_id, roles)
+            participant.participant_statuses = [
+                ParticipantStatus(
+                    context=case.id_,
+                    attributed_to=actor_id,
+                    rm=RmDimension(state=rm),
+                    cvd_role=roles,
+                    vf=vf,
+                    d=d,
+                )
+            ]
+            dl.save(participant)
+            seeded[actor_id] = participant.id_
+        dl.create(case)
+        return dl, seeded
+
+    @staticmethod
+    def _deliver(
+        dl: SqliteDataLayer,
+        sender: str,
+        target_id: str,
+        status: as_ParticipantStatus,
+    ):
+        target = cast(as_CaseParticipant, dl.read(target_id))
+        activity = add_status_to_participant_activity(
+            status,
+            target=as_CaseParticipant.model_validate(
+                target.model_dump(by_alias=True, mode="json")
+            ),
+            actor=sender,
+            to=[cast(str, dl.actor_id)],
+            context=_SUBJ_CASE_ID,
+        )
+        ingress = FastAPIIngressAdapter(dl)
+        parsed = ingress.parse(
+            activity.model_dump(by_alias=True, mode="json", exclude_none=True)
+        )
+        assert parsed is not None
+        event = received_event(ingress.rehydrate(parsed)).model_copy(
+            update={"receiving_actor_id": dl.actor_id}
+        )
+        assert isinstance(
+            event, AddParticipantStatusToParticipantReceivedEvent
+        )
+        return AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    @staticmethod
+    def _status(
+        target_actor: str, roles: list[CVDRole], rm: RM, **dims
+    ) -> as_ParticipantStatus:
+        return as_ParticipantStatus(
+            id_=f"{_SUBJ_CASE_ID}/statuses/{target_actor.rsplit('/', 1)[-1]}"
+            f"-{len(dims)}-{rm.value}-{sorted(dims)}",
+            context=_SUBJ_CASE_ID,
+            attributed_to=target_actor,
+            rm=RmDimension(state=rm),
+            cvd_role=roles,
+            **dims,
+        )
+
+    @staticmethod
+    def _assert_refused_untouched(
+        dl: SqliteDataLayer,
+        result,
+        target_id: str,
+        status_id: str,
+        entries_before: int,
+    ) -> None:
+        assert result.disposition == HandlerDisposition.REFUSED, result
+        assert len(dl.list_objects("CaseLedgerEntry")) == entries_before
+        stored = cast(as_CaseParticipant, dl.read(target_id))
+        assert status_id not in [
+            getattr(s, "id_", s) for s in stored.participant_statuses
+        ]
+
+    @staticmethod
+    def _rejects_sent(dl: SqliteDataLayer) -> list[object]:
+        """The refusal notices (``Reject``) queued in the outbox."""
+        return [
+            queued
+            for queued in (dl.read(i) for i in dl.outbox_list())
+            if getattr(queued, "type_", None)
+            == as_TransitiveActivityType.REJECT
+        ]
+
+    @staticmethod
+    def _assert_admitted(
+        dl: SqliteDataLayer,
+        result,
+        target_id: str,
+        status_id: str,
+        entries_before: int,
+    ) -> None:
+        assert result.disposition in (
+            HandlerDisposition.APPLIED,
+            HandlerDisposition.SKIPPED,
+        ), result
+        assert len(dl.list_objects("CaseLedgerEntry")) > entries_before
+        stored = cast(as_CaseParticipant, dl.read(target_id))
+        assert status_id in [
+            getattr(s, "id_", s) for s in stored.participant_statuses
+        ]
+
+    @pytest.mark.spec("RSH-08-007")
+    def test_a_participant_writing_onto_another_record_is_refused(self):
+        """A reporter asserting a status on the vendor's record is refused
+        before the commit: no entry, no append (#4987)."""
+        from vultron.core.models.dimensions import VfDimension
+        from vultron.core.states.cs import CS_vf
+
+        dl, ids = self._case_manager_store()
+        status = self._status(
+            _SUBJ_VENDOR,
+            [CVDRole.VENDOR],
+            RM.RECEIVED,
+            vf=VfDimension(state=CS_vf.Vf),
+        )
+        before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._deliver(dl, _SUBJ_REPORTER, ids[_SUBJ_VENDOR], status)
+
+        self._assert_refused_untouched(
+            dl, result, ids[_SUBJ_VENDOR], status.id_, before
+        )
+        # A sender refusal: the reporter holds none of the rule's standings,
+        # and an unentitled sender is sent no notice (HP-01-006, CLP-05-001).
+        assert "HP-01-006" in (result.reason or ""), result.reason
+        assert self._rejects_sent(dl) == []
+
+    @pytest.mark.spec("RSH-08-007")
+    def test_a_participant_writing_an_rm_status_onto_another_record_is_refused(
+        self,
+    ):
+        """The #4987 reproduction: a participant writes an RM status onto
+        another participant's record."""
+        dl, ids = self._case_manager_store()
+        status = self._status(_SUBJ_DEPLOYER, [CVDRole.DEPLOYER], RM.ACCEPTED)
+        before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._deliver(dl, _SUBJ_VENDOR, ids[_SUBJ_DEPLOYER], status)
+
+        self._assert_refused_untouched(
+            dl, result, ids[_SUBJ_DEPLOYER], status.id_, before
+        )
+        assert "HP-01-006" in (result.reason or ""), result.reason
+        assert self._rejects_sent(dl) == []
+
+    @pytest.mark.spec("RSH-08-007")
+    def test_a_participant_asserting_its_own_status_is_admitted(self):
+        from vultron.core.models.dimensions import VfDimension
+        from vultron.core.states.cs import CS_vf
+
+        dl, ids = self._case_manager_store()
+        status = self._status(
+            _SUBJ_VENDOR,
+            [CVDRole.VENDOR],
+            RM.ACCEPTED,
+            vf=VfDimension(state=CS_vf.Vf),
+        )
+        before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._deliver(dl, _SUBJ_VENDOR, ids[_SUBJ_VENDOR], status)
+
+        self._assert_admitted(
+            dl, result, ids[_SUBJ_VENDOR], status.id_, before
+        )
+
+    @pytest.mark.spec("RSH-08-007")
+    @pytest.mark.spec("PRM-06-003")
+    @pytest.mark.parametrize(
+        "sender", [_SUBJ_OWNER, "case-manager"], ids=["owner", "manager"]
+    )
+    def test_on_behalf_v_to_V_is_admitted(self, sender):
+        from vultron.core.models.dimensions import VfDimension
+        from vultron.core.states.cs import CS_vf
+
+        dl, ids = self._case_manager_store()
+        sender = cast(str, dl.actor_id) if sender == "case-manager" else sender
+        status = self._status(
+            _SUBJ_VENDOR,
+            [CVDRole.VENDOR],
+            RM.RECEIVED,
+            vf=VfDimension(state=CS_vf.Vf),
+        )
+        before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._deliver(dl, sender, ids[_SUBJ_VENDOR], status)
+
+        self._assert_admitted(
+            dl, result, ids[_SUBJ_VENDOR], status.id_, before
+        )
+
+    @pytest.mark.spec("RSH-08-007")
+    @pytest.mark.spec("PRM-06-004")
+    def test_on_behalf_d_to_D_is_admitted(self):
+        from vultron.core.models.dimensions import DDimension
+        from vultron.core.states.cs import CS_d
+
+        dl, ids = self._case_manager_store()
+        status = self._status(
+            _SUBJ_DEPLOYER,
+            [CVDRole.DEPLOYER],
+            RM.ACCEPTED,
+            d=DDimension(state=CS_d.D),
+        )
+        before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._deliver(dl, _SUBJ_OWNER, ids[_SUBJ_DEPLOYER], status)
+
+        self._assert_admitted(
+            dl, result, ids[_SUBJ_DEPLOYER], status.id_, before
+        )
+
+    @pytest.mark.spec("RSH-08-007")
+    def test_on_behalf_to_a_target_without_the_role_is_refused(self):
+        """v→V on behalf of a participant that holds no VENDOR role."""
+        from vultron.core.models.dimensions import VfDimension
+        from vultron.core.states.cs import CS_vf
+
+        dl, ids = self._case_manager_store()
+        status = self._status(
+            _SUBJ_REPORTER,
+            [CVDRole.REPORTER, CVDRole.VENDOR],
+            RM.ACCEPTED,
+            vf=VfDimension(state=CS_vf.Vf),
+        )
+        before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._deliver(dl, _SUBJ_OWNER, ids[_SUBJ_REPORTER], status)
+
+        self._assert_refused_untouched(
+            dl, result, ids[_SUBJ_REPORTER], status.id_, before
+        )
+        assert "PRM-06" in (result.reason or ""), result.reason
+        # An entitled sender that asserts too much is answered (CLP-05-001).
+        assert len(self._rejects_sent(dl)) == 1
+
+    @pytest.mark.spec("RSH-08-007")
+    def test_on_behalf_that_also_moves_rm_is_refused(self):
+        from vultron.core.models.dimensions import VfDimension
+        from vultron.core.states.cs import CS_vf
+
+        dl, ids = self._case_manager_store()
+        status = self._status(
+            _SUBJ_VENDOR,
+            [CVDRole.VENDOR],
+            RM.ACCEPTED,
+            vf=VfDimension(state=CS_vf.Vf),
+        )
+        before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._deliver(dl, _SUBJ_OWNER, ids[_SUBJ_VENDOR], status)
+
+        self._assert_refused_untouched(
+            dl, result, ids[_SUBJ_VENDOR], status.id_, before
+        )
+        assert "RM: asserts" in (result.reason or ""), result.reason
+        assert len(self._rejects_sent(dl)) == 1
+
+    @pytest.mark.spec("RSH-08-007")
+    def test_on_behalf_that_carries_a_case_status_is_refused(self):
+        """An on-behalf assertion carries no P, X or A of its own."""
+        from vultron.core.models.case_status import CaseStatus
+        from vultron.core.models.dimensions import PxaDimension, VfDimension
+        from vultron.core.states.cs import CS_pxa, CS_vf
+
+        dl, ids = self._case_manager_store()
+        status = self._status(
+            _SUBJ_VENDOR,
+            [CVDRole.VENDOR],
+            RM.RECEIVED,
+            vf=VfDimension(state=CS_vf.Vf),
+            case_status=CaseStatus(
+                context=_SUBJ_CASE_ID,
+                pxa=PxaDimension(state=CS_pxa.Pxa),
+            ),
+        )
+        before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._deliver(dl, _SUBJ_OWNER, ids[_SUBJ_VENDOR], status)
+
+        self._assert_refused_untouched(
+            dl, result, ids[_SUBJ_VENDOR], status.id_, before
+        )
+        assert "PXA: carries a case status" in (result.reason or ""), (
+            result.reason
+        )
+
+    @pytest.mark.spec("RSH-08-007")
+    def test_on_behalf_f_to_F_is_refused(self):
+        """Fix readiness is never asserted on behalf (PRM-06-005): a vendor
+        already at Vf is not moved to VF by the Case Owner."""
+        from vultron.core.models.dimensions import VfDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.cs import CS_vf
+
+        dl, ids = self._case_manager_store()
+        vendor = cast(as_CaseParticipant, dl.read(ids[_SUBJ_VENDOR]))
+        vendor.participant_statuses = [
+            *vendor.participant_statuses,
+            ParticipantStatus(
+                context=_SUBJ_CASE_ID,
+                attributed_to=_SUBJ_VENDOR,
+                rm=RmDimension(state=RM.RECEIVED),
+                cvd_role=[CVDRole.VENDOR],
+                vf=VfDimension(state=CS_vf.Vf),
+            ),
+        ]
+        dl.save(vendor)
+        status = self._status(
+            _SUBJ_VENDOR,
+            [CVDRole.VENDOR],
+            RM.RECEIVED,
+            vf=VfDimension(state=CS_vf.VF),
+        )
+        before = len(dl.list_objects("CaseLedgerEntry"))
+
+        result = self._deliver(dl, _SUBJ_OWNER, ids[_SUBJ_VENDOR], status)
+
+        self._assert_refused_untouched(
+            dl, result, ids[_SUBJ_VENDOR], status.id_, before
+        )
+        assert "PRM-06-005" in (result.reason or ""), result.reason
+
+    @pytest.mark.spec("RSH-08-007")
+    def test_on_behalf_status_by_reference_is_refused(self):
+        """A status onto another's record that is not carried inline cannot
+        have its target's roles checked, so it is refused, not admitted."""
+        from vultron.core.behaviors.status.nodes.status_subject import (
+            on_behalf_status_guard,
+        )
+        from vultron.core.models.dimensions import VfDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.cs import CS_vf
+
+        dl, ids = self._case_manager_store()
+        stored = ParticipantStatus(
+            id_=f"{_SUBJ_CASE_ID}/statuses/by-reference",
+            context=_SUBJ_CASE_ID,
+            attributed_to=_SUBJ_VENDOR,
+            rm=RmDimension(state=RM.RECEIVED),
+            cvd_role=[CVDRole.VENDOR],
+            vf=VfDimension(state=CS_vf.Vf),
+        )
+        dl.create(stored)
+        guard = on_behalf_status_guard(
+            case_id=_SUBJ_CASE_ID,
+            participant_id=ids[_SUBJ_VENDOR],
+            target_actor_id=_SUBJ_VENDOR,
+            status_id=stored.id_,
+            status_obj=None,
+        )
+        result = BTTestScenario(actor_id=cast(str, dl.actor_id), dl=dl).run(
+            guard
+        )
+
+        assert result.status == Status.FAILURE
+        assert "not carried inline" in BTBridge.get_failure_reason(guard)

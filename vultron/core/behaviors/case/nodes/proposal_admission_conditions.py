@@ -205,7 +205,13 @@ class CheckProposalCaseFullyClosedNode(DataLayerAction):
 
 
 class CheckDeclineRecordExistsNode(DataLayerAction):
-    """Return SUCCESS if this proposal was already declined."""
+    """Return SUCCESS if this proposal was already declined.
+
+    The decline record and its ``Reject`` commit in one transaction
+    (``RefusalActTransaction``), so a stored record means the ``Reject`` was
+    queued, and the decision stands without being re-made (CP-05-006).  A
+    store error propagates: in a refusal arm, FAILURE would admit.
+    """
 
     def __init__(self, proposal_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -221,94 +227,8 @@ class CheckDeclineRecordExistsNode(DataLayerAction):
         return Status.FAILURE
 
 
-class CheckNoDeclineRecordNode(DataLayerAction):
-    """Return SUCCESS only if this proposal has *not* been declined.
-
-    The precondition on the accept path. It is the guard that stops a failed
-    ``Reject`` emit from falling through into case creation — the enclosing
-    Selector will try the accept arm, and this node refuses it.
-
-    On a store error this returns FAILURE: when the service cannot tell whether
-    it already declined, creating the case is the wrong way to guess.
-    """
-
-    def __init__(self, proposal_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._proposal_id = proposal_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        record_id = CaseProposalDeclineRecord.build_id(self._proposal_id)
-        try:
-            record = self.datalayer.read(record_id)
-        except Exception as exc:  # noqa: BLE001 — see docstring
-            self.feedback_message = (
-                f"could not determine whether proposal "
-                f"'{self._proposal_id}' was declined: {exc}"
-            )
-            logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        if record is not None:
-            self.feedback_message = (
-                f"proposal '{self._proposal_id}' was declined; "
-                "the accept path must not run"
-            )
-            logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        return Status.SUCCESS
-
-
-class CheckRejectAlreadyAnsweredNode(DataLayerAction):
-    """Return SUCCESS if this service has already queued a ``Reject`` for it.
-
-    Lets the resend arm distinguish "declined and told them" from "declined but
-    the ``Reject`` never made it out", so only the second case re-emits.
-
-    **The question is answered from the decline record, not from the outbox or
-    the object store.** Each of the other two readings is wrong in a different
-    direction, and the pair of them is why this needs a third state:
-
-    - *Stored?* The adapter persists the activity and *then* ``_emit_through_seam``
-      enqueues it, so a queue write that faults leaves a stored ``Reject``
-      nobody will ever deliver. A store-only check reads that as "already told
-      them" and reports SUCCESS forever with an empty outbox — a silently lost
-      refusal.
-    - *Queued?* ``outbox_pop`` removes the activity on delivery while its stored
-      copy remains, so a ``Reject`` that was successfully **delivered** is
-      indistinguishable from one never queued. An outbox-only check therefore
-      returns FAILURE forever after delivery, and the emit that follows mints a
-      *fresh* ``Reject`` on every later delivery of the same proposal. That is
-      unbounded: a proposer (or anyone) replaying a declined proposal N times
-      gets N persisted and queued ``Reject`` activities.
-
-    ``CaseProposalDeclineRecord.reject_activity_id`` records what this service
-    actually queued, which is the fact both readings were proxying for. It is set
-    once the emit succeeds and never cleared, so "declined and answered" is
-    durable across delivery, and "declined but unanswered" stays recoverable.
-    """
-
-    def __init__(self, proposal_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._proposal_id = proposal_id
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        record = self.datalayer.read(
-            CaseProposalDeclineRecord.build_id(self._proposal_id)
-        )
-        if getattr(record, "reject_activity_id", None) is not None:
-            return Status.SUCCESS
-        return Status.FAILURE
-
-
 __all__ = [
     "CheckProposalAlreadyAnsweredNode",
     "CheckProposalCaseFullyClosedNode",
     "CheckDeclineRecordExistsNode",
-    "CheckNoDeclineRecordNode",
-    "CheckRejectAlreadyAnsweredNode",
 ]

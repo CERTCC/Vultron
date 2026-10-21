@@ -1294,8 +1294,9 @@ groups:
     statement: The lookup table's "Sent by" value MUST be derived from the side of the
       sender entitlement that the occasion's received use case declares (HP-01-007,
       HP-01-008) matching the occasion's addressee (MSM-08-009), worded from that side's
-      entitlement kinds (MSM-08-010), and MUST state an exempt use case as not yet
-      checked. An occasion MAY add the CVD roles that usually send it, which MUST be
+      entitlement kinds (MSM-08-010), MUST state an exempt use case as not yet
+      checked, and MUST state an entry with no received use case as not handled
+      (SE-05-002). An occasion MAY add the CVD roles that usually send it, which MUST be
       values of `CVDRole`.
     rationale: 'The entitlement is the rule a receiver applies, so it is what another
       implementation must satisfy, and deriving it means it cannot drift from the code.

@@ -207,6 +207,26 @@ class TestInboxOutcomeModel:
         assert o.context_id == CASE_ID
         assert o.failure_reason == "case not yet known"
 
+    @pytest.mark.spec("IO-01-005")
+    def test_unhandled_defaults_false_and_marks_only_a_rejection(self):
+        assert (
+            InboxOutcome(status=InboxOutcomeStatus.REJECTED).unhandled is False
+        )
+        o = InboxOutcome(
+            status=InboxOutcomeStatus.REJECTED,
+            failure_reason="No use case found for semantics 'create_report'",
+            unhandled=True,
+        )
+        assert o.unhandled is True
+
+    @pytest.mark.spec("IO-01-005")
+    @pytest.mark.parametrize(
+        "status", [InboxOutcomeStatus.PROCESSED, InboxOutcomeStatus.DEFERRED]
+    )
+    def test_only_a_rejected_outcome_is_unhandled(self, status):
+        with pytest.raises(ValidationError, match="unhandled"):
+            InboxOutcome(status=status, unhandled=True)
+
     def test_rejected_status_with_reason(self):
         o = InboxOutcome(
             status=InboxOutcomeStatus.REJECTED, failure_reason="parse failed"

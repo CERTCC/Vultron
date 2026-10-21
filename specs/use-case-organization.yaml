@@ -274,16 +274,18 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      When a dispatch is attempted but no handler runs, the dispatcher MUST raise
-      rather than return normally: an unrecognized-semantics lookup failure MUST NOT
-      yield `InboxOutcome.status == "processed"`
+      When a dispatch is attempted but no use case is registered for the event's
+      semantic type, the dispatcher MUST return an explicit `REFUSED` "no use case
+      found" verdict (SE-05-002) rather than raise or return as though a handler ran:
+      the lookup failure MUST NOT yield `InboxOutcome.status == "processed"`
     rationale: >-
-      `_get_use_case()` raises `VultronApiHandlerNotFoundError` when no use case is
-      registered for the semantics, so the pipeline records the raise as rejected. The
-      dispatcher raises rather than naming an outcome, because HP-01-004 reserves
-      `InboxOutcome`'s vocabulary to `DispatchNode` (#2255). An activity that names no
-      case is not a no-handler path: routing is by semantics alone, and the handler
-      refuses it (HP-05-002).
+      No handler ran, so the outcome cannot be `processed` (#2255). The dispatcher names
+      a verdict rather than an outcome, because HP-01-004 reserves `InboxOutcome`'s
+      vocabulary to `DispatchNode`. It does not raise: a receiver that does not handle a
+      message has not found it invalid, and a raise would answer the sender with a
+      `ProcessingFault` (ADR-0140 item 5). An activity that names no case is not a
+      no-handler path: routing is by semantics alone, and the handler refuses it
+      (HP-05-002).
     relationships:
     - rel_type: refines
       spec_id: UCORG-05-011

@@ -748,7 +748,8 @@ groups:
     when: a Vendor becomes aware of the vulnerability
     send: Add(ParticipantStatus)[target=CaseParticipant]
     send_to: the case manager
-    sent_by: 'a participant (usually: vendor)'
+    sent_by: 'the case manager or the case owner or the participant status''s author (usually:
+      vendor)'
     distinguished_by: '`vfState` = `Vf`'
     semantics: add_participant_status_to_participant
     shorthand: CV
@@ -764,7 +765,8 @@ groups:
     when: a Vendor has a fix ready
     send: Add(ParticipantStatus)[target=CaseParticipant]
     send_to: the case manager
-    sent_by: 'a participant (usually: vendor)'
+    sent_by: 'the case manager or the case owner or the participant status''s author (usually:
+      vendor)'
     distinguished_by: '`vfState` = `VF`'
     semantics: add_participant_status_to_participant
     shorthand: CF
@@ -780,7 +782,8 @@ groups:
     when: a Deployer has deployed the fix
     send: Add(ParticipantStatus)[target=CaseParticipant]
     send_to: the case manager
-    sent_by: 'a participant (usually: deployer)'
+    sent_by: 'the case manager or the case owner or the participant status''s author (usually:
+      deployer)'
     distinguished_by: '`dState` = `D`'
     semantics: add_participant_status_to_participant
     shorthand: CD
@@ -796,7 +799,7 @@ groups:
     when: a Participant learns that the public knows of the vulnerability
     send: Add(ParticipantStatus)[target=CaseParticipant]
     send_to: the case manager
-    sent_by: a participant
+    sent_by: the case manager or the case owner or the participant status's author
     distinguished_by: '`caseStatus.pxaState` = `Pxa`'
     semantics: add_participant_status_to_participant
     shorthand: CP
@@ -819,7 +822,7 @@ groups:
     when: a Participant learns that an exploit for the vulnerability is public
     send: Add(ParticipantStatus)[target=CaseParticipant]
     send_to: the case manager
-    sent_by: a participant
+    sent_by: the case manager or the case owner or the participant status's author
     distinguished_by: '`caseStatus.pxaState` = `PXa`'
     semantics: add_participant_status_to_participant
     shorthand: CX
@@ -842,7 +845,7 @@ groups:
     when: a Participant observes attacks that exploit the vulnerability
     send: Add(ParticipantStatus)[target=CaseParticipant]
     send_to: the case manager
-    sent_by: a participant
+    sent_by: the case manager or the case owner or the participant status's author
     distinguished_by: '`caseStatus.pxaState` = `pxA`'
     semantics: add_participant_status_to_participant
     shorthand: CA

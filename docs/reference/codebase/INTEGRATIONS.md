@@ -37,6 +37,7 @@ stakeholder_type: [project-contributor]
   A 4xx response is terminal and raises `DeliveryError` at once without consuming retries (OX-13-005).
 - **Total-attempt bound (outbox)**: `outbox_handler.py` counts cumulative attempts per activity across drain passes and moves an activity to the outbox dead-letter store at `MAX_TOTAL_ATTEMPTS` (ADR-0066, OX-13-002; `vultron/adapters/outbox_dead_letter.py`).
 - **Total-attempt bound (inbox)**: `run_inbox_pipeline` (`inbox_orchestration.py`) counts cumulative processing attempts per activity it replays from the inbox queue using the same `QueueAttemptEntry` table and moves an exhausted item to the inbox dead-letter store after `AppConfig.max_inbox_retry_attempts` attempts (IE-06-004; `InboxDeadLetterEntry` in `vultron/adapters/outbox_dead_letter.py`).
+  Each attempt commits as one DataLayer transaction (IE-06-005), and the app lifespan replays every hosted actor's queue once at startup (IE-06-006; `inbox_startup_replay.py`).
 - **Ordering**: delivery is per recipient in enqueue order, with one drain per actor (ADR-0112, `outbox_lanes.py`); the outbound body is the sealed JSON stored at emission (`vultron/adapters/outbox_sealed_body.py`).
 - **Timeout policy**: outbound HTTP requests use `DEFAULT_DELIVERY_TIMEOUT` (30 s) unless the adapter is constructed with another value
 - **Circuit-breaker or fallback**: not observed

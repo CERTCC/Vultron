@@ -2024,7 +2024,11 @@ def _run_at_case_manager(
         request=event,
         case_id=CASE_ID,
         sender_rule=_STATUS_RULE,
-        **({"call_out": call_out} if call_out is not None else {}),
+        call_out=(
+            call_out
+            if call_out is not None
+            else STATUS_AUTHORIZATION_DETERMINISTIC
+        ),
     )
     return _cm_bridge(dl).execute_with_setup(
         tree=tree, actor_id=CASE_MANAGER_ID, activity=event

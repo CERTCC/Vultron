@@ -45,7 +45,7 @@ class CreateReportReceivedUseCase:
 - Intake-only: `run_intake_only` (`received/_intake_only.py`), `intake_verdict`;
   incomplete activity refused in-tree: `create_incomplete_activity_received_tree`
 - Register in `SEMANTIC_REGISTRY` (`vultron/semantic_registry/`)
-- Dispatcher raises `VultronApiHandlerNotFoundError` for unknown semantic types;
+- `use_case_class=None` = recognized, not handled: "no use case found" (SE-05-002);
   do **not** add per-handler type validation decorators
 
 ---

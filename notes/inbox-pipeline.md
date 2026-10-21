@@ -6,7 +6,8 @@ description: >
   Rules for the dispatcher's exception boundary and the adapter-layer
   `InboxPipeline` / `build_test_pipeline()` test seam: where a new raise is
   caught, how re-queues are bounded, why a queue replay attempt commits as
-  one transaction, and layer/import rules.
+  one transaction and what that costs, how the startup drain runs, and
+  layer/import rules.
 related_specs:
   - specs/inbox-pipeline.yaml
   - specs/dispatch-routing.yaml (DR-03-002)
@@ -75,6 +76,14 @@ and the held fault) (IE-06-005).
   settlement that follows it commits with the pop.
 - **Surviving is not recovering.** A surviving item waits for the next delivery to
   that actor unless the startup drain replays it (IE-06-006).
+- **Cost: the write lock spans the attempt.** The actor's store is write-locked for
+  all of `process_payload`, not only the act. An outbox write to that store from the
+  event loop waits for it: up to SQLite's 5 s busy timeout on a file store, then
+  "database is locked"; on an in-memory store it blocks the loop for the attempt.
+- **Start the startup drain as a task, not a lifespan await.** It runs every retry
+  and an outbox drain; awaited before `yield`, one unreachable peer holds back
+  readiness and co-hosted deliveries fail. The per-actor lock orders it with
+  deliveries that arrive meanwhile (`inbox_startup_replay.py`).
 
 ---
 

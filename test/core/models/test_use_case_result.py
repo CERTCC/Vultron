@@ -53,9 +53,13 @@ def test_handler_result_inherits_use_case_result() -> None:
     assert issubclass(HandlerResult, UseCaseResult)
 
 
-def test_handler_result_fields_are_disposition_and_reason() -> None:
+def test_handler_result_fields_are_disposition_reason_and_unhandled() -> None:
     """UCORG-05-005: no raw dict payload fields."""
-    assert set(HandlerResult.model_fields) == {"disposition", "reason"}
+    assert set(HandlerResult.model_fields) == {
+        "disposition",
+        "reason",
+        "unhandled",
+    }
 
 
 def test_refused_requires_reason() -> None:
@@ -136,7 +140,11 @@ def test_disposition_serializes_as_its_string_value() -> None:
     dumped = HandlerResult(disposition=HandlerDisposition.SKIPPED).model_dump(
         mode="json"
     )
-    assert dumped == {"disposition": "skipped", "reason": None}
+    assert dumped == {
+        "disposition": "skipped",
+        "reason": None,
+        "unhandled": False,
+    }
 
 
 def test_constructors_build_the_matching_disposition() -> None:
@@ -154,6 +162,33 @@ def test_constructors_build_the_matching_disposition() -> None:
     assert HandlerResult.refused("no") == HandlerResult(
         disposition=HandlerDisposition.REFUSED, reason="no"
     )
+
+
+@pytest.mark.spec("SE-05-002")
+@pytest.mark.spec("IO-01-005")
+def test_no_use_case_found_is_an_unhandled_refusal() -> None:
+    result = HandlerResult.no_use_case_found("create_report")
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert result.reason == "No use case found for semantics 'create_report'"
+    assert result.unhandled is True
+    assert result.took_effect is False
+    assert HandlerResult.refused("no").unhandled is False
+
+
+@pytest.mark.spec("IO-01-005")
+@pytest.mark.parametrize(
+    "disposition",
+    [
+        HandlerDisposition.APPLIED,
+        HandlerDisposition.SKIPPED,
+        HandlerDisposition.DEFERRED,
+    ],
+)
+def test_only_a_refusal_may_be_unhandled(
+    disposition: HandlerDisposition,
+) -> None:
+    with pytest.raises(ValidationError, match="only a REFUSED"):
+        HandlerResult(disposition=disposition, unhandled=True)
 
 
 def test_refused_constructor_still_enforces_non_empty_reason() -> None:

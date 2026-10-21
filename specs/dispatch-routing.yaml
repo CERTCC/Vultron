@@ -50,8 +50,9 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      The mapping returned by `use_case_map()` MUST contain entries for all
-      `MessageSemantics` values
+      The mapping returned by `use_case_map()` MUST contain an entry for every
+      `MessageSemantics` value whose `SEMANTIC_REGISTRY` entry names a use case, and
+      none for a value the registry recognizes but no use case handles (SE-05-002)
     relationships:
     - rel_type: derives_from
       spec_id: SE-05-002
@@ -68,7 +69,9 @@ groups:
     kind: project
     statement: >-
       The DirectActivityDispatcher MUST NOT catch handler exceptions. It MUST let
-      every exception a handler raises propagate to its caller.
+      every exception a handler raises propagate to its caller. A semantic type with
+      no use case raises nothing: the dispatcher reports it as a `REFUSED` "no use
+      case found" verdict, logged at INFO (SE-05-002).
     rationale: >-
       Catching and logging belongs at the adapter boundary that decides what a
       failure means for the inbox item (IE-06-004), not in core: a blanket catch in

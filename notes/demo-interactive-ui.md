@@ -306,8 +306,6 @@ they block wait for them.
 5. **Live mode.** #3642 (watch a running scenario) after #4729 → #3643
    (branch points through real triggers) after #4727 and #4730.
 
-Independent follow-up: #4735 (log "no use case found" at WARNING).
-
 ---
 
 ## Open Questions / Future Work

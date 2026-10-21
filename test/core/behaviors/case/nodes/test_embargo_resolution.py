@@ -52,9 +52,6 @@ from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.embargo_register import RegisterChange
 from vultron.core.models.embargo_termination import EmbargoTermination
-from vultron.core.models.pending_creation_time_revision_relay import (
-    PendingCreationTimeRevisionRelay,
-)
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.states.cs import CS_pxa
@@ -540,50 +537,19 @@ def test_a_tie_between_sender_and_actor_default_registers_no_revision(
     assert case.proposed_embargo_ids == []
 
 
-def _owed(
-    bt_scenario: BTTestScenario,
-) -> PendingCreationTimeRevisionRelay | None:
-    stored = bt_scenario.dl.read(
-        PendingCreationTimeRevisionRelay.build_id(CASE_ID)
-    )
-    assert stored is None or isinstance(
-        stored, PendingCreationTimeRevisionRelay
-    )
-    return stored
-
-
-@pytest.mark.spec("EP-04-011")
-def test_no_contest_records_no_relay(
-    bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
-) -> None:
-    status, _, _ = _run(
-        bt_scenario, owner_policy=ACTOR_DEFAULT, sender_proposal=ACTOR_DEFAULT
-    )
-
-    assert status == Status.SUCCESS
-    assert _owed(bt_scenario) is None
-
-
 @pytest.mark.spec("EP-04-011")
 @pytest.mark.parametrize(
-    ("owner_policy", "sender_proposal", "losing_source"),
-    [
-        (ACTOR_DEFAULT, SENDER_PROPOSAL, "actor_default"),
-        (SENDER_PROPOSAL, ACTOR_DEFAULT, "sender_proposal"),
-    ],
+    ("owner_policy", "sender_proposal"),
+    [(ACTOR_DEFAULT, SENDER_PROPOSAL), (SENDER_PROPOSAL, ACTOR_DEFAULT)],
     ids=["owner-lost", "reporter-lost"],
 )
-def test_a_contest_records_the_relay_without_indexing_it(
+def test_a_contest_registers_the_revision_without_indexing_it(
     bt_scenario: BTTestScenario,
     case_obj: VulnerabilityCase,
     owner_policy: timedelta,
     sender_proposal: timedelta,
-    losing_source: str,
 ) -> None:
-    """The obligation names the revision, the Invite id the relay will use,
-    whose terms lost, the report and the CASE_MANAGER that owes it.
-
-    Registration writes no ``pending_embargo_proposal_index`` entry: the
+    """Registration writes no ``pending_embargo_proposal_index`` entry: the
     relay indexes the Invite only after sending it, because the bootstrap
     ``Create`` snapshot would otherwise tell the invitee the Invite was
     already answered.
@@ -593,36 +559,23 @@ def test_a_contest_records_the_relay_without_indexing_it(
     )
 
     assert status == Status.SUCCESS
-    owed = _owed(bt_scenario)
-    assert owed is not None
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
-    assert case.proposed_embargo_ids == [owed.embargo_id]
-    assert owed.embargo_id not in case.pending_embargo_proposal_index
-    assert owed.losing_source == losing_source
-    assert owed.report_id == REPORT_ID
-    assert owed.case_actor_id == ACTOR_ID
+    (revision_id,) = case.proposed_embargo_ids
+    assert revision_id not in case.pending_embargo_proposal_index
 
 
-@pytest.mark.spec("EP-04-011")
-def test_the_relay_is_owed_in_the_commit_that_registers_the_revision(
+@pytest.mark.spec("EP-04-003")
+def test_a_crash_inside_the_registration_leaves_the_case_uninitialized(
     bt_scenario: BTTestScenario,
     case_obj: VulnerabilityCase,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The obligation is staged before the registration and committed with
-    it, so a crash inside the registration leaves neither: never a
-    registered revision with no relay owed (#4156), and the case stays at
-    ``EM.NONE`` for a redelivery to finish both (#4142)."""
-    owed_at_registration: list[bool] = []
+    """The registration commits with the activation, so a crash inside it
+    leaves the case at ``EM.NONE`` with no revision, for a redelivery to
+    finish (#4142)."""
 
-    def _crash(self: EmbargoLifecycle, *, case_id: str, **_: Any) -> None:
-        staged = self._persistence.read(
-            PendingCreationTimeRevisionRelay.build_id(case_id)
-        )
-        owed_at_registration.append(
-            isinstance(staged, PendingCreationTimeRevisionRelay)
-        )
+    def _crash(self: EmbargoLifecycle, **_: Any) -> None:
         raise RuntimeError("crashed while registering")
 
     monkeypatch.setattr(EmbargoLifecycle, "propose_embargo", _crash)
@@ -634,8 +587,6 @@ def test_the_relay_is_owed_in_the_commit_that_registers_the_revision(
     )
 
     assert status == Status.FAILURE
-    assert owed_at_registration == [True]
-    assert _owed(bt_scenario) is None
     assert _em_state(bt_scenario) == EM.NONE
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
@@ -646,8 +597,8 @@ def test_the_relay_is_owed_in_the_commit_that_registers_the_revision(
 def test_a_contest_with_no_report_raises_before_registering(
     bt_scenario: BTTestScenario, case_obj: VulnerabilityCase
 ) -> None:
-    """No relay could ever be sent for it, so neither the obligation nor the
-    revision is written; the fault is the manager's own (ARCH-10-001)."""
+    """No relay could ever be sent for it, so the revision is not written;
+    the fault is the manager's own (ARCH-10-001)."""
     status, _, _ = _run(
         bt_scenario,
         owner_policy=ACTOR_DEFAULT,
@@ -656,7 +607,6 @@ def test_a_contest_with_no_report_raises_before_registering(
     )
 
     assert status == Status.FAILURE
-    assert _owed(bt_scenario) is None
     case = bt_scenario.dl.read(CASE_ID)
     assert isinstance(case, VulnerabilityCase)
     assert case.proposed_embargo_ids == []
@@ -1469,7 +1419,7 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Nothing but one ``save_many`` writes — the winning and the losing
-        event and the relay obligation included (EP-04-011, #4156, #4182)."""
+        event included (EP-04-003, #4182)."""
         dl = bt_scenario.dl
         save, save_many = dl.save, dl.save_many
         writes: list[list[str]] = []
@@ -1495,7 +1445,6 @@ class TestCreationTimeEmbargoCommitsItsEffectsWithIt:
                     participant,
                     "EmbargoEvent",
                     "EmbargoEvent",
-                    "PendingCreationTimeRevisionRelay",
                 ]
             )
         ]

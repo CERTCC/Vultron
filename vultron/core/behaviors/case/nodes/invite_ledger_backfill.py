@@ -16,10 +16,9 @@
 
 """Join-time ledger-backfill and case-announce leaf nodes for the accept-invite tree.
 
-Snapshot the pre-commit ledger tail, queue ``Announce(VulnerabilityCase)`` to
-the invitee, and backfill the canonical ``CaseLedgerEntry`` history in strict
-order (MV-10-003/MV-10-005). Composed by
-``create_accept_invite_actor_to_case_tree`` (BTND-07-003).
+Queue ``Announce(VulnerabilityCase)`` to the invitee, and backfill the
+canonical ``CaseLedgerEntry`` history in strict order (MV-10-003/MV-10-005).
+Composed by ``create_accept_invite_actor_to_case_tree`` (BTND-07-003).
 """
 
 import logging
@@ -34,131 +33,21 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
 
 
-class CapturePreCommitBackfillTargetNode(DataLayerActionWithPorts):
-    """Snapshot the current last ledger-entry index for a seated joiner's backfill.
-
-    This node MUST appear AFTER ``CheckInviteeNotAlreadyParticipantNode`` in
-    the precondition-guards list, so it can read ``invitee_already_participant``
-    and ``invitee_joined`` from the blackboard.
-
-    **Seated case** (invitee already joined, seated without a join and with no
-    backfill on record, ``invitee_already_participant = True``,
-    ``invitee_joined = True``): the commit's ``FanOutLogEntryNode``
-    will include the invitee in its recipient list (they are a current case
-    participant), so ``BackfillCanonicalLedgerToInviteeNode`` must limit its
-    window to entries that existed *before* the commit to avoid sending the
-    new entry twice.  This node writes ``pre_commit_backfill_target`` to the
-    blackboard.
-
-    **Inert-record case** (``invitee_already_participant = True``,
-    ``invitee_joined = False``): the invitee has an inert stub record at
-    invite-send time (ADR-0114, CM-11-006) but is NOT in the fan-out
-    recipients (``is_active_participant()`` is False), so the commit fan-out
-    will NOT include them.  Treat as fresh: leave
-    ``pre_commit_backfill_target`` unset so backfill covers all entries
-    including the new accept entry.
-
-    Both the inert-record and the fresh paths leave
-    ``BackfillCanonicalLedgerToInviteeNode`` to compute its target from the
-    ledger tail at backfill time.  (An invitee with no record never reaches
-    this node in the Accept tree: CM-11-021 refuses it first.)  The full-case Invite's entry
-    (``EmitInviteActorToFullCaseNode``) is committed *after* the backfill and
-    reaches the invitee through its own fan-out, in chain order (CM-17-004).
-
-    Always returns ``SUCCESS``.
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "invitee_already_participant": PortInformation(
-            data_type=object, required=False
-        ),
-        "invitee_joined": PortInformation(data_type=object, required=False),
-    }
-
-    OUTPUT_PORTS: dict[str, PortInformation] = {
-        "pre_commit_backfill_target": PortInformation(
-            data_type=object, required=False
-        ),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "invitee_already_participant": "/invitee_already_participant",
-            "invitee_joined": "/invitee_joined",
-            "pre_commit_backfill_target": "/pre_commit_backfill_target",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        try:
-            self._already_participant_bb = self.get_input(
-                "invitee_already_participant"
-            )
-        except (NoDataAvailable, NotImplementedError):
-            self._already_participant_bb = False
-        try:
-            self._invitee_joined_bb = self.get_input("invitee_joined")
-        except (NoDataAvailable, NotImplementedError):
-            self._invitee_joined_bb = None
-
-    def update(self) -> Status:
-        already_participant = self._already_participant_bb
-        # An inert participant (joined=False, ADR-0114) is not included in the
-        # fan-out, so treat the same as fresh — no pre-commit snapshot.
-        invitee_joined = self._invitee_joined_bb
-        is_seated = already_participant and invitee_joined is not False
-
-        if not is_seated:
-            # Fresh case (or inert record): the commit fan-out won't reach the
-            # invitee.  Write None so BackfillCanonicalLedgerToInviteeNode
-            # uses the ledger tail at backfill time, and any stale value from
-            # a prior seated-case run is overwritten.
-            self._set_output("pre_commit_backfill_target", None)
-            self.logger.debug(
-                "%s: fresh/inert invite — clearing pre-commit backfill target"
-                " (backfill will include post-commit entry)",
-                self.name,
-            )
-            return Status.SUCCESS
-
-        # Seated case: invitee IS already a joined participant.
-        # Capture the current last index so backfill doesn't re-send the
-        # accept-invite entry that the commit fan-out will deliver.
-        if self.datalayer is None:
-            self._set_output("pre_commit_backfill_target", -1)
-            return Status.SUCCESS
-
-        entries: list[CaseLedgerEntry] = [
-            obj
-            for obj in self.datalayer.list_objects("CaseLedgerEntry")
-            if isinstance(obj, CaseLedgerEntry) and obj.case_id == self.case_id
-        ]
-        target = entries[-1].log_index if entries else -1
-        self._set_output("pre_commit_backfill_target", target)
-        self.logger.debug(
-            "%s: seated case — pre-commit backfill target for case '%s' is %d",
-            self.name,
-            self.case_id,
-            target,
-        )
-        return Status.SUCCESS
-
-
 class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
-    """Send canonical CaseLedgerEntry history to a joiner in strict order.
+    """Send the canonical CaseLedgerEntry history to a joiner in log order.
+
+    The tree reaches this node only for an inert invitee's first Accept
+    (CM-17-012), and the commit fan-out of that Accept's own entry skipped the
+    invitee because it was inert.  So the backfill sends every entry on the
+    ledger when it runs, the Accept's own entry included (CM-17-004 step 3).
+    It keeps no replication state: the backfill commits with its Accept in
+    one act or not at all (CLP-07-015).
 
     A missing ``sync_port`` is a wiring fault and raises
     ``VultronWiringError``, as the fan-out does (SYNC-02-003, #4126).
@@ -175,17 +64,11 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "sync_port": PortInformation(data_type=object, required=False),
-        "pre_commit_backfill_target": PortInformation(
-            data_type=object, required=False
-        ),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "sync_port": "/sync_port",
-            "pre_commit_backfill_target": "/pre_commit_backfill_target",
-        }
+        return {"sync_port": "/sync_port"}
 
     def initialise(self) -> None:
         super().initialise()
@@ -195,26 +78,6 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
             )
         except (NoDataAvailable, NotImplementedError):
             self._sync_port = None
-        try:
-            self._pre_commit_backfill_target = self.get_input(
-                "pre_commit_backfill_target"
-            )
-        except (NoDataAvailable, NotImplementedError):
-            self._pre_commit_backfill_target = None
-
-    def _resolve_backfill_target(self, entries: list[CaseLedgerEntry]) -> int:
-        """Resolve the backfill target index.
-
-        Uses ``pre_commit_backfill_target`` captured in ``initialise()`` when
-        set (seated case: CapturePreCommitBackfillTargetNode wrote the last
-        index BEFORE the commit so backfill does not re-send the new entry
-        that the commit fan-out already delivered).  ``None`` means fresh case
-        — fall back to the post-commit last entry.
-        """
-        pre_commit_target = self._pre_commit_backfill_target
-        if pre_commit_target is not None:
-            return int(pre_commit_target)
-        return entries[-1].log_index if entries else -1
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -228,85 +91,30 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
                 " (SYNC-02-003, #4126)"
             )
 
-        entries: list[CaseLedgerEntry] = [
-            obj
-            for obj in self.datalayer.list_objects("CaseLedgerEntry")
-            if isinstance(obj, CaseLedgerEntry) and obj.case_id == self.case_id
-        ]
-        entries.sort(key=lambda log_entry: log_entry.log_index)
-
-        target_index = self._resolve_backfill_target(entries)
-        state = self._load_or_create_state(target_index)
-
-        if state.join_backfill_complete:
-            self.logger.info(
-                "%s: no ledger entries to backfill for '%s' in case '%s'",
-                self.name,
-                self.invitee_id,
-                self.case_id,
-            )
-            return Status.SUCCESS
-
+        entries: list[CaseLedgerEntry] = sorted(
+            (
+                obj
+                for obj in self.datalayer.list_objects("CaseLedgerEntry")
+                if isinstance(obj, CaseLedgerEntry)
+                and obj.case_id == self.case_id
+            ),
+            key=lambda log_entry: log_entry.log_index,
+        )
         for entry in entries:
-            if entry.log_index > target_index:
-                break
             self._sync_port.send_announce_log_entry(
                 entry=entry,
                 actor_id=self.actor_id,
                 to=[self.invitee_id],
             )
-            state.join_backfill_last_sent_index = entry.log_index
-
-        state.join_backfill_complete = (
-            state.join_backfill_last_sent_index
-            >= state.join_backfill_target_index
-        )
-        self.datalayer.save(state)
         self.logger.info(
-            "%s: join-time backfill complete for '%s' in case '%s'"
-            " (target_log_index=%d)",
+            "%s: join-time backfill sent %d ledger entries to '%s' in case"
+            " '%s'",
             self.name,
+            len(entries),
             self.invitee_id,
             self.case_id,
-            state.join_backfill_target_index,
         )
         return Status.SUCCESS
-
-    def _load_or_create_state(
-        self, target_index: int
-    ) -> VultronReplicationState:
-        """Return the invitee's replication state with a fresh backfill target.
-
-        The backfill commits with its Accept in one act (CLP-07-015), so no
-        part-way backfill is ever on record to resume.  The tree reaches this
-        node only when ``CheckInviteeNotAlreadyParticipantNode`` found no
-        state for a joined invitee.  A state can still exist from earlier in
-        the same act: a seated invitee that had not accepted the active
-        embargo has its stream paused by the Accept entry's fan-out
-        (CM-10-005).  That state keeps its pause and gains the backfill
-        target.
-        """
-        if self.datalayer is None:
-            raise RuntimeError(
-                "_load_or_create_state requires an injected DataLayer"
-            )
-        dl = self.datalayer
-        state_id = VultronReplicationState(
-            case_id=self.case_id, peer_id=self.invitee_id
-        ).id_
-        existing = dl.read(state_id)
-        state = (
-            existing
-            if isinstance(existing, VultronReplicationState)
-            else VultronReplicationState(
-                case_id=self.case_id, peer_id=self.invitee_id
-            )
-        )
-        # Assignment is validated: clear the flag before raising the target.
-        state.join_backfill_complete = target_index == -1
-        state.join_backfill_target_index = target_index
-        dl.save(state)
-        return state
 
 
 class EmitAnnounceCaseToInviteeNode(_EmitSingleActivityBase):
@@ -316,8 +124,7 @@ class EmitAnnounceCaseToInviteeNode(_EmitSingleActivityBase):
     embargo consent has been resolved (auto-signed above when an embargo is
     in force).
     Failures to enqueue Announce are logged but treated as non-fatal so the
-    join-time canonical ledger backfill can still run and establish catch-up
-    markers.
+    join-time canonical ledger backfill can still run.
     """
 
     def __init__(

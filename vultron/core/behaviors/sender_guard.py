@@ -43,7 +43,8 @@ one kind whatever the request (HP-01-009): the context's ``request`` names the
 record holding it, and the factory picks the small check for that record, all
 on one addressee base (``SenderIsRequestAddresseeNode``).  ``AUTHOR`` is one
 kind whatever the object: the context's ``authored_object`` names it, and the
-factory picks the note-author or proposal-author check for it.
+factory picks the note-author, proposal-author or participant-record check
+for it.
 
 An activity that carries a ``CaseLedgerEntry`` has no case at build time: the
 entry names it.  Its tree passes a :class:`LedgerActivityContext`, and the
@@ -74,6 +75,7 @@ from vultron.core.behaviors.sender_check_context import (
     AuthoredCaseProposal,
     AuthoredNote,
     AuthoredObject,
+    AuthoredParticipantRecord,
     CaseBootstrapRequest,
     CaseProposalRequest,
     ClosedSenderCheck,
@@ -102,6 +104,7 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderIsOwnershipOffererNode,
     SenderIsOwnershipTransfereeNode,
     SenderIsParticipantNode,
+    SenderIsParticipantRecordSubjectNode,
     SenderIsProposalAddresseeNode,
     SenderIsProposalAuthorNode,
     SenderIsRequestAddresseeNode,
@@ -116,6 +119,7 @@ __all__ = [
     "AuthoredCaseProposal",
     "AuthoredNote",
     "AuthoredObject",
+    "AuthoredParticipantRecord",
     "CaseBootstrapRequest",
     "case_owner_guard",
     "CaseProposalRequest",
@@ -284,9 +288,19 @@ def _addressee_node(
 
 def _author_node(
     ctx: SenderCheckContext,
-) -> SenderIsNoteAuthorNode | SenderIsProposalAuthorNode:
+) -> (
+    SenderIsNoteAuthorNode
+    | SenderIsProposalAuthorNode
+    | SenderIsParticipantRecordSubjectNode
+):
     """The ``AUTHOR`` check for the object *ctx* names (HP-01-009)."""
     authored = ctx.authored_object
+    if isinstance(authored, AuthoredParticipantRecord):
+        return SenderIsParticipantRecordSubjectNode(
+            participant_id=authored.participant_id,
+            sender_actor_id=ctx.sender_id,
+            case_id=_case_of(ctx, "the participant a record names"),
+        )
     if isinstance(authored, AuthoredNote):
         return SenderIsNoteAuthorNode(
             note_id=authored.note_id,

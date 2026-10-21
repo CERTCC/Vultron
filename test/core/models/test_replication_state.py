@@ -18,12 +18,15 @@
 Its stored fields carry camelCase aliases; under ``extra="forbid"`` on
 ``CoreRecord`` (#4186) a key that is neither spelling is refused, so each
 alias is pinned: alias key in, field value out, and the same for the name.
+The retired join-backfill fields are refused by name (#5074).
 """
 
 from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
+from pydantic.alias_generators import to_camel
 
 from vultron.core.models.replication_state import VultronReplicationState
 
@@ -34,21 +37,10 @@ _WHEN = datetime(2026, 10, 1, tzinfo=UTC)
 _VALUES: dict[str, Any] = {
     "last_acknowledged_hash": "abc123",
     "updated_at": _WHEN,
-    "join_backfill_target_index": 4,
-    "join_backfill_last_sent_index": 4,
     "last_replayed_from_hash": "def456",
     "last_replayed_at": _WHEN,
     "replays_at_position": 3,
-    "join_backfill_complete": False,
     "embargo_paused_from_index": 7,
-}
-
-#: The backfill fields validate against one another, so these are stated with
-#: a companion that keeps the pair consistent (by field name, which both
-#: spellings of the field under test must coexist with).
-_COMPANION: dict[str, dict[str, Any]] = {
-    "join_backfill_target_index": {"join_backfill_complete": False},
-    "join_backfill_last_sent_index": {"join_backfill_target_index": 4},
 }
 
 
@@ -68,10 +60,36 @@ def test_alias_and_name_spellings_both_read(field: str) -> None:
     alias = VultronReplicationState.model_fields[field].validation_alias
     assert isinstance(alias, str)
     by_alias = VultronReplicationState.model_validate(
-        {**_BASE, **_COMPANION.get(field, {}), alias: _VALUES[field]}
+        {**_BASE, alias: _VALUES[field]}
     )
     by_name = VultronReplicationState.model_validate(
-        {**_BASE, **_COMPANION.get(field, {}), field: _VALUES[field]}
+        {**_BASE, field: _VALUES[field]}
     )
     assert getattr(by_alias, field) == _VALUES[field]
     assert getattr(by_name, field) == _VALUES[field]
+
+
+_RETIRED = [
+    "join_backfill_target_index",
+    "join_backfill_last_sent_index",
+    "join_backfill_complete",
+]
+
+
+@pytest.mark.spec("CM-17-012")
+@pytest.mark.parametrize(
+    "old",
+    [key for name in _RETIRED for key in (name, to_camel(name))],
+)
+def test_a_row_with_a_retired_join_backfill_key_is_refused(old: str) -> None:
+    """A stored row from before #5074 fails to load naming the reset.
+
+    The join backfill keeps no state, so the three fields are deleted with no
+    replacement (notes/datalayer-design.md § "Retiring a Stored Field").
+    """
+    with pytest.raises(ValidationError, match="must be reset") as excinfo:
+        VultronReplicationState.model_validate({**_BASE, old: 0})
+
+    message = str(excinfo.value)
+    assert repr(old) in message
+    assert "#5074" in message

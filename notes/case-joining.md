@@ -156,6 +156,13 @@ from its role (CLP-09).
   `TIMED_OUT` rule (CM-28-004) is for embargo Invites only. Expiry is *stale*
   (ASK-03-002): a late `Accept` still joins and a late `Reject` still closes.
   "All participants closed" counts only participants that joined.
+- **Duplicate Accept (CM-17-012).** A stub-Invite `Accept` from a participant whose
+  record is joined (seated at case creation, or already accepted) or removed is an
+  idempotent skip: no entry, no record or consent change, nothing queued
+  (`CheckInviteeNotAlreadyParticipantNode`). Decide it from the participant record
+  alone, never from `VultronReplicationState`: the embargo pause and ledger sync
+  write that too. A joined participant consents to a later embargo only through that
+  embargo's Invite.
 - **Refusals (nothing written).** A stub Invite with no roles or no stub summary
   (CM-11-019, CM-17-010); an `Accept` or `Reject` of a stub from an invitee with no
   participant record (CM-11-018, CM-11-021) — never a silent no-op, never creates a
@@ -228,8 +235,8 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   stays inert and is re-invited to it (EMB-17-003).
 - **A removed participant is asked nothing.** `invitation_recipients` omits it; the
   re-invite and reinstatement Invites check their recipient; both suggest-actor trees
-  refuse it before the commit; a replayed `Accept(Invite)` from it is a silent skip in
-  `CheckInviteeNotAlreadyParticipantNode`.
+  refuse it before the commit; a replayed `Accept(Invite)` from it is a silent skip
+  (CM-17-012).
 - **Embargo-ending notices.** Recipients are `embargo_ending_notice_recipients`; the
   decision is `embargo_ending_notice` (termination before the agreed end owes ET; a
   revision ending no later owes `Announce(EmbargoEvent)`; a longer revision or expiry

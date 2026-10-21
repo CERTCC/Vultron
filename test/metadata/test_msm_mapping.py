@@ -40,6 +40,7 @@ from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.enums.roles import CVDRole
 from vultron.metadata.msm._mapping import (
     NO_SENDER_CHECK,
+    NOT_HANDLED,
     NOT_YET_CHECKED,
     ROW_SPECS,
     MappingStatus,
@@ -460,6 +461,41 @@ def test_a_permanent_exemption_reads_no_sender_check_not_not_yet_checked():
     assert sent_by(entry, occasion) == NO_SENDER_CHECK
 
 
+def _unhandled(*occasions: Occasion) -> SemanticEntry:
+    """A recognized entry no received use case handles (SE-05-002)."""
+    return SemanticEntry(
+        semantics=MessageSemantics.ADD_NOTE_TO_CASE,
+        pattern=None,
+        event_class=_StubEvent,
+        use_case_class=None,
+        phrase="{actor} did a thing",
+        occasions=occasions,
+        page=MessagePage.GENERAL,
+    )
+
+
+@pytest.mark.spec("MSM-08-005")
+@pytest.mark.spec("SE-05-002")
+@pytest.mark.parametrize("addressee", list(AddresseeSide), ids=str)
+def test_an_unhandled_entry_reads_not_handled(addressee: AddresseeSide):
+    """With no use case there is no sender rule to word, and no failure."""
+    occasion = _occasion(addressee=addressee)
+    assert (
+        sent_by(_unhandled(occasion), occasion)
+        == NOT_HANDLED
+        == ("not handled")
+    )
+
+
+@pytest.mark.spec("MSM-08-005")
+def test_an_unhandled_entry_still_adds_the_usual_senders():
+    occasion = _occasion(usual_senders=(CVDRole.CASE_OWNER,))
+    assert (
+        sent_by(_unhandled(occasion), occasion)
+        == "not handled (usually: case owner)"
+    )
+
+
 #: The "Send to" wording of each addressee, pinned as literals.
 _SEND_TO: dict[AddresseeSide, str] = {
     AddresseeSide.CASE_MANAGER: "the case manager",
@@ -511,8 +547,10 @@ def _expected_sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     literal strings.
     """
     declared = getattr(entry.use_case_class, "sender_entitlement", None)
-    if isinstance(declared, SenderExemption):
-        base = NOT_YET_CHECKED
+    if entry.use_case_class is None:
+        base = NOT_HANDLED
+    elif isinstance(declared, SenderExemption):
+        base = NO_SENDER_CHECK if declared.permanent else NOT_YET_CHECKED
     else:
         assert isinstance(declared, SenderRule)
         side = getattr(declared, _SIDE_FIELD[occasion.addressee])

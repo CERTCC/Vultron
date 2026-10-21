@@ -42,7 +42,13 @@ class SemanticEntry:
         pattern: Wire-layer pattern for matching the incoming activity.
             ``None`` for the ``UNKNOWN`` fallback entry.
         event_class: Domain event class to construct from the matched activity.
-        use_case_class: Use-case class to execute for this semantic type.
+        use_case_class: Use-case class to execute when this semantic type is
+            received, or ``None`` when the registry recognizes the type but
+            no received use case handles it.  A received activity of an
+            unhandled type is reported as "no use case found" (ADR-0140 item
+            5, SE-05-002).  An unhandled entry still needs its pattern,
+            phrase, occasions and page; only a dispatcher fallback, which
+            must route, may not be unhandled.
         phrase: Active-voice format-string template for human-readable event
             summaries (SE-07-001).  Named slots drawn from
             ``{actor}``, ``{object}``, ``{target}``, ``{context}``,
@@ -70,7 +76,8 @@ class SemanticEntry:
         TypeError: At construction, when ``occasions`` is not a tuple or
             ``page`` is not a ``MessagePage``.
         ValueError: At construction, when a non-fallback entry declares no
-            occasion or no page, or a fallback declares either, or an
+            occasion or no page, or a fallback declares either or names no
+            use case (SE-04 routes through it), or an
             occasion's addressee is a side the use case's declared sender
             rule states no kinds for (MSM-08-009), or two occasions with one
             addressee are not told apart by distinguishers that differ and
@@ -80,7 +87,7 @@ class SemanticEntry:
     semantics: MessageSemantics
     pattern: ActivityPattern | None
     event_class: type[VultronEvent]
-    use_case_class: type
+    use_case_class: type | None
     phrase: str
     wire_activity_class: type[as_Activity] | None = field(default=None)
     include_activity: bool = field(default=False)
@@ -107,6 +114,12 @@ class SemanticEntry:
                     " protocol message, so it declares no occasion and no"
                     " page (MSM-06-002)"
                 )
+            if self.use_case_class is None:
+                raise ValueError(
+                    f"{self.semantics.name} is a dispatcher fallback, so it"
+                    " needs the use case that handles an unrecognized"
+                    " activity (SE-04)"
+                )
             return
         if not self.occasions:
             raise ValueError(
@@ -121,13 +134,24 @@ class SemanticEntry:
         self._addressees_are_sides_of_the_rule()
         self._same_addressee_siblings_are_distinguished()
 
+    @property
+    def handled(self) -> bool:
+        """Whether a received activity of this type runs a use case.
+
+        An unhandled entry is recognized, so its activity is reported as "no
+        use case found" rather than unrecognized (ADR-0140 item 5).
+        """
+        return self.use_case_class is not None
+
     def _addressees_are_sides_of_the_rule(self) -> None:
         """Refuse an occasion sent to a side the declared rule leaves empty.
 
         Only a declared :class:`SenderRule` has sides: an exemption is not
-        yet checked, and a missing declaration is the HP-01-007 ratchet's to
-        report.
+        yet checked, an unhandled entry has no use case to declare one, and
+        a missing declaration is the HP-01-007 ratchet's to report.
         """
+        if self.use_case_class is None:
+            return
         rule: object = getattr(self.use_case_class, "sender_entitlement", None)
         if not isinstance(rule, SenderRule):
             return

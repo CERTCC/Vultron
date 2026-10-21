@@ -4,7 +4,10 @@
 ``run_inbox_pipeline`` processes one delivery, then replays every activity
 queued in the receiving actor's inbox: activities deferred until their case
 was bootstrapped, and held ``Announce(CaseLedgerEntry)`` deliveries replayed
-once their entry applies (SYNC-14-009).
+once their entry applies (SYNC-14-009).  The app lifespan replays every
+hosted actor's queue once at startup the same way (IE-06-006,
+:mod:`~vultron.adapters.driving.fastapi.inbox_startup_replay`).  Each attempt
+commits as one transaction (IE-06-005).
 This module owns that replay:
 
 - :class:`StoredActivityIngressAdapter` — rebuilds a held activity by id
@@ -51,16 +54,30 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 logger = logging.getLogger(__name__)
 
 
-def warn_if_rejected(
+def log_if_rejected(
     outcome: InboxOutcome, actor_id: str, *, replayed: bool
 ) -> None:
-    """Log a rejected outcome at WARNING (UCORG-05-013).
+    """Log a rejected outcome: WARNING, or INFO if unhandled (UCORG-05-013).
 
     Every outcome is logged at DEBUG; a refusal is also logged here so it is
     visible in an actor log at the default level. ``processed`` and
-    ``deferred`` stay at DEBUG — both are expected, routine outcomes.
+    ``deferred`` stay at DEBUG — both are expected, routine outcomes.  An
+    ``unhandled`` outcome (no use case found) is logged at INFO: the
+    receiver does not handle the message, which does not make it an anomaly
+    (IO-01-005, SE-05-002).
     """
     if outcome.status is not InboxOutcomeStatus.REJECTED:
+        return
+    if outcome.unhandled:
+        logger.info(
+            "Inbox activity not handled (actor_id=%s activity_id=%s"
+            " context_id=%s replayed=%s): %s",
+            actor_id,
+            outcome.activity_id,
+            outcome.context_id,
+            replayed,
+            outcome.failure_reason,
+        )
         return
     logger.warning(
         "Inbox activity rejected (actor_id=%s activity_id=%s context_id=%s"
@@ -211,11 +228,16 @@ class ReplayDispatchAdapter:
     Args:
         inner: The dispatch adapter that dispatches and queues the fault.
         attempt: The drain's record of the current attempt.
+        store: The receiving actor's DataLayer, whose outbox the fault is
+            queued in.
     """
 
-    def __init__(self, inner: DispatchAdapter, attempt: ReplayAttempt) -> None:
+    def __init__(
+        self, inner: DispatchAdapter, attempt: ReplayAttempt, store: DataLayer
+    ) -> None:
         self._inner = inner
         self._attempt = attempt
+        self._store = store
 
     def dispatch(self, event: VultronEvent) -> HandlerResult:
         """Dispatch, recording a raise before it reaches ``DispatchNode``."""
@@ -240,14 +262,17 @@ class ReplayDispatchAdapter:
         ``DispatchNode`` holds none for a raised ``Create(ProcessingFault)``,
         and none is held when the attempt failed before dispatch.  A fault
         that cannot be queued is logged, never raised: the item is already
-        settled.
+        settled.  The fault is queued in a block of its own inside the
+        attempt's transaction, so one that fails part-way keeps none of its
+        writes (IE-06-005).
         """
         held = self._attempt.fault
         if held is None:
             return
         event, failure_class = held
         try:
-            self._inner.emit_processing_fault(event, failure_class)
+            with self._store.transaction():
+                self._inner.emit_processing_fault(event, failure_class)
         except Exception:
             # The drain boundary: a failed fault must not stop the drain.
             logger.exception(
@@ -342,7 +367,13 @@ def drain_inbox_queue(
     """Replay every item queued in *actor_dl*'s inbox, with bounded retry.
 
     Each attempt is a whole run of :func:`process_payload`: a failed act
-    keeps nothing, so a retry re-runs the act from the start (ADR-0151).  A
+    keeps nothing, so a retry re-runs the act from the start (ADR-0151).
+    Each attempt commits as one transaction on *actor_dl*: the pop, the
+    release of the item's held record, the act and the settlement below
+    (IE-06-005).  A raise the attempt does not settle, such as a store write
+    that fails while settling, or a process stop, rolls all of it back,
+    leaving the item queued and held with the attempt count it had, and the
+    drain ends with the raise.  A
     re-queued item goes to the back of the queue and is attempted again in
     the same drain, so the retries are not spaced in time.  An attempt that
     fails is settled here (IE-06-004):
@@ -370,49 +401,59 @@ def drain_inbox_queue(
     ingress = StoredActivityIngressAdapter(
         dl=actor_dl, staging=staging, attempt=attempt
     )
-    replay_dispatch = ReplayDispatchAdapter(dispatch, attempt)
+    replay_dispatch = ReplayDispatchAdapter(dispatch, attempt, actor_dl)
     # SqliteDataLayer satisfies RetryStore structurally, as for the outbox.
     retry = cast(RetryStore, actor_dl)
     while actor_dl.inbox_list():
-        item_id = actor_dl.inbox_pop()
-        if item_id is None:
-            break
-        attempt.begin()
-        outcome = process_payload(
-            item_id,
-            ingress,
-            replay_dispatch,
-            queue,
-            actor_config=actor_config,
-        )
-        logger.debug(
-            "run_inbox_pipeline: replayed status=%s context_id=%s",
-            outcome.status,
-            outcome.context_id,
-        )
-        warn_if_rejected(outcome, actor_id, replayed=True)
-        attempt.settle_rejection(outcome)
-
-        if attempt.failure is not None and not attempt.permanent:
-            if _retry_or_dead_letter(
+        # One transaction per attempt (IE-06-005): the pop, the rebuild's
+        # release of the held record, the act and the settlement commit
+        # together.  The act's own transaction is a SAVEPOINT inside it, so a
+        # failed act still keeps nothing (ADR-0151).  A raise the attempt
+        # does not settle, or a process stop, rolls all of it back: the item
+        # stays queued and held with its old count, and the raise ends the
+        # drain.
+        with actor_dl.transaction():
+            item_id = actor_dl.inbox_pop()
+            if item_id is None:
+                break
+            attempt.begin()
+            outcome = process_payload(
                 item_id,
-                actor_id,
-                attempt.failure,
-                actor_dl,
-                retry,
-                max_attempts,
-                staging,
-            ):
-                replay_dispatch.send_held_fault()
-            continue
-
-        if attempt.failure is not None:
-            logger.error(
-                "Inbox item activity_id=%s for actor_id=%s raised a protocol"
-                " violation; dropped as a permanent failure (IE-06-004).",
-                item_id,
-                actor_id,
+                ingress,
+                replay_dispatch,
+                queue,
+                actor_config=actor_config,
             )
-            replay_dispatch.send_held_fault()
-        # Settled: a count an earlier attempt or run stored has no further use.
-        retry.clear_inbox_attempt_count(item_id)
+            logger.debug(
+                "run_inbox_pipeline: replayed status=%s context_id=%s",
+                outcome.status,
+                outcome.context_id,
+            )
+            log_if_rejected(outcome, actor_id, replayed=True)
+            attempt.settle_rejection(outcome)
+
+            if attempt.failure is not None and not attempt.permanent:
+                if _retry_or_dead_letter(
+                    item_id,
+                    actor_id,
+                    attempt.failure,
+                    actor_dl,
+                    retry,
+                    max_attempts,
+                    staging,
+                ):
+                    replay_dispatch.send_held_fault()
+                continue
+
+            if attempt.failure is not None:
+                logger.error(
+                    "Inbox item activity_id=%s for actor_id=%s raised a"
+                    " protocol violation; dropped as a permanent failure"
+                    " (IE-06-004).",
+                    item_id,
+                    actor_id,
+                )
+                replay_dispatch.send_held_fault()
+            # Settled: a count an earlier attempt or run stored has no
+            # further use.
+            retry.clear_inbox_attempt_count(item_id)

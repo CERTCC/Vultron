@@ -59,6 +59,15 @@ _SENDER = "https://example.org/actors/case-actor"
 _CASE = "https://example.org/cases/case-replay-retry"
 
 
+@pytest.fixture(autouse=True)
+def clear_actor_locks():
+    """Drop cached per-actor locks: an asyncio.Lock binds to its first loop,
+    and these tests run several loops."""
+    io._actor_inbox_locks.clear()
+    yield
+    io._actor_inbox_locks.clear()
+
+
 @pytest.fixture
 def dl() -> SqliteDataLayer:
     """The receiver's store, holding the case so a replay is not deferred."""
@@ -522,3 +531,287 @@ def test_a_replay_ingress_with_no_attempt_still_raises(
 
     with pytest.raises(RuntimeError, match="rebuild failed"):
         drain.StoredActivityIngressAdapter(dl=dl).parse(item.id_)
+
+
+class _ProcessStop(BaseException):
+    """A raise no tree node catches as ``Exception``: a process stop."""
+
+
+_ACT_WRITE = "https://example.org/notes/written-by-the-act"
+
+
+def _writes_then(dl: SqliteDataLayer, error: BaseException) -> Callable:
+    """A use case that writes to the receiver's store, then raises *error*."""
+
+    def _act(_event: Any, _store: Any) -> HandlerResult:
+        dl.save(as_Note(id_=_ACT_WRITE, content="kept only if committed"))
+        raise error
+
+    return _act
+
+
+def _assert_untouched(dl: SqliteDataLayer, item: as_Activity, count: int):
+    """The four IE-06-005 facts after an interrupted attempt."""
+    assert dl.inbox_list() == [item.id_], "the id is still queued"
+    assert InlineObjectStaging(dl).held(item.id_) is not None, "still held"
+    assert dl.get_inbox_attempt_count(item.id_) == count, "count unchanged"
+    assert dl.read(_ACT_WRITE) is None, "nothing the act wrote is kept"
+    assert dl.inbox_dead_letter_list() == []
+
+
+@pytest.mark.spec("IE-06-005")
+@pytest.mark.usefixtures("outbox_drains")
+def test_an_attempt_interrupted_during_the_act_leaves_the_item_queued(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stop during the act rolls back the pop, the release and the act,
+    and ends the drain with the raise."""
+    _max_attempts(monkeypatch, 3)
+    item = _queued_item(dl)
+    dl.set_inbox_attempt_count(item.id_, 1)
+
+    with pytest.raises(_ProcessStop):
+        _run(dl, _dispatcher(_writes_then(dl, _ProcessStop())))
+
+    _assert_untouched(dl, item, 1)
+
+
+@pytest.mark.spec("IE-06-005")
+@pytest.mark.usefixtures("outbox_drains")
+def test_an_attempt_interrupted_during_its_settlement_leaves_the_item_queued(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stop at the settlement's last write rolls back the record held
+    again, the new count and the act's writes with it."""
+    _max_attempts(monkeypatch, 3)
+    item = _queued_item(dl)
+    dl.set_inbox_attempt_count(item.id_, 1)
+
+    def _stop(*_args: Any, **_kwargs: Any) -> None:
+        raise _ProcessStop()
+
+    with monkeypatch.context() as m:
+        m.setattr(dl, "inbox_append", _stop)
+        with pytest.raises(_ProcessStop):
+            _run(dl, _dispatcher(_writes_then(dl, RuntimeError("act failed"))))
+
+    _assert_untouched(dl, item, 1)
+
+
+@pytest.mark.spec("IE-06-005")
+@pytest.mark.usefixtures("outbox_drains")
+def test_an_interrupted_attempt_is_replayed_by_the_next_drain(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The item an interrupted attempt left waits for the next replay,
+    which re-runs the whole act."""
+    _max_attempts(monkeypatch, 3)
+    item = _queued_item(dl)
+    with pytest.raises(_ProcessStop):
+        _run(dl, _dispatcher(_writes_then(dl, _ProcessStop())))
+
+    dispatcher = _dispatcher(Mock(return_value=HandlerResult.applied()))
+    _run(dl, dispatcher)
+
+    dispatcher.dispatch.assert_called_once()
+    assert dl.inbox_list() == []
+    assert InlineObjectStaging(dl).held(item.id_) is None
+
+
+def _serve_once(
+    dl: SqliteDataLayer,
+    monkeypatch: pytest.MonkeyPatch,
+    use_case: Callable[..., HandlerResult],
+) -> list[str]:
+    """Start and stop the served app's lifespan with *dl* as its one hosted
+    actor's store; return the activity ids the startup replay dispatched."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from vultron.adapters.driving.fastapi import (
+        inbox_startup_replay as startup,
+    )
+    from vultron.adapters.driving.fastapi.app import _make_lifespan
+
+    dispatched: list[str] = []
+
+    def _dispatch(event: Any, dl: Any, dispatcher: Any = None) -> Any:
+        dispatched.append(event.activity_id)
+        return use_case(event, dl)
+
+    monkeypatch.setattr(
+        startup.actor_hosts, "hosted_actor_ids", lambda: [_RECEIVER]
+    )
+    monkeypatch.setattr(startup, "get_datalayer", lambda _actor_id: dl)
+    monkeypatch.setattr(io, "dispatch", _dispatch)
+
+    with TestClient(FastAPI(lifespan=_make_lifespan(configure_globals=True))):
+        pass
+    return dispatched
+
+
+@pytest.mark.spec("IE-06-006")
+def test_the_lifespan_replays_a_queued_item_with_no_delivery(
+    dl: SqliteDataLayer,
+    monkeypatch: pytest.MonkeyPatch,
+    outbox_drains: list[str],
+) -> None:
+    _max_attempts(monkeypatch, 3)
+    item = _queued_item(dl)
+
+    dispatched = _serve_once(
+        dl, monkeypatch, Mock(return_value=HandlerResult.applied())
+    )
+
+    assert dispatched == [item.id_]
+    assert dl.inbox_list() == []
+    assert outbox_drains == [_RECEIVER]
+
+
+@pytest.mark.spec("IE-06-006", "IE-06-004")
+@pytest.mark.usefixtures("outbox_drains")
+def test_a_failing_startup_replay_is_requeued_with_its_count(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The startup replay retries as a replay after a delivery does."""
+    _max_attempts(monkeypatch, 3)
+    item = _queued_item(dl)
+
+    counts: list[int] = []
+
+    def _raise(event: Any, store: Any) -> HandlerResult:
+        counts.append(dl.get_inbox_attempt_count(item.id_))
+        return _raises(event, store)
+
+    dispatched = _serve_once(dl, monkeypatch, _raise)
+
+    assert dispatched == [item.id_] * 3
+    assert counts == [0, 1, 2], "each retry was re-queued with its count"
+    (entry,) = dl.inbox_dead_letter_list()
+    assert entry.total_attempts == 3
+
+
+@pytest.mark.spec("IE-06-006", "IE-06-005")
+def test_a_startup_replay_that_raises_does_not_stop_the_next_actor(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch, caplog
+) -> None:
+    """One actor's raise is logged, an actor with an empty queue is
+    skipped, and the next actor is still replayed.  (That the raised
+    attempt's item stays queued is the act-time interrupt test's.)"""
+    from vultron.adapters.driving.fastapi import (
+        inbox_startup_replay as startup,
+    )
+
+    other_id = "https://example.org/actors/other"
+    empty_id = "https://example.org/actors/empty"
+    other = SqliteDataLayer("sqlite:///:memory:", actor_id=other_id)
+    empty = SqliteDataLayer("sqlite:///:memory:", actor_id=empty_id)
+    _queued_item(dl)
+    other.inbox_append("https://example.org/activities/other")
+    stores = {_RECEIVER: dl, empty_id: empty, other_id: other}
+    replayed: list[str] = []
+
+    async def _replay(store: Any, actor_id: str, *_args: Any) -> None:
+        replayed.append(actor_id)
+        if actor_id == _RECEIVER:
+            raise RuntimeError("store fault")
+
+    monkeypatch.setattr(
+        startup.actor_hosts, "hosted_actor_ids", lambda: list(stores)
+    )
+    monkeypatch.setattr(startup, "get_datalayer", stores.__getitem__)
+    monkeypatch.setattr(startup, "replay_inbox_queue", _replay)
+
+    with caplog.at_level(logging.ERROR, logger=startup.__name__):
+        assert asyncio.run(startup.replay_hosted_inbox_queues()) == 2
+
+    assert replayed == [_RECEIVER, other_id]
+    assert _logged(caplog, _RECEIVER, "stay queued")
+
+
+@pytest.mark.spec("IE-06-005", "ASK-07-010")
+@pytest.mark.usefixtures("outbox_drains")
+def test_a_held_fault_that_fails_part_way_keeps_none_of_its_writes(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch, caplog
+) -> None:
+    """The fault's record is written, then its queue append fails: the
+    fault's own block rolls the record back, and the dead letter still
+    commits."""
+    from vultron.core.models.activity_ids import derived_activity_id
+
+    _max_attempts(monkeypatch, 1)
+    item = _queued_item(dl)
+    fault_id = derived_activity_id(
+        "processing-fault",
+        _RECEIVER,
+        item.id_,
+        VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+    )
+
+    def _append_fails(_activity_id: str) -> None:
+        assert dl.read(fault_id) is not None, "the fault was written first"
+        raise RuntimeError("outbox append failed")
+
+    monkeypatch.setattr(dl, "outbox_append", _append_fails)
+
+    with caplog.at_level(logging.ERROR, logger=drain.__name__):
+        _run(dl, _dispatcher(_raises))
+
+    assert dl.read(fault_id) is None, "no part of the fault is kept"
+    assert read_sealed_body_dict(dl, fault_id) is None
+    assert [e.activity_id for e in dl.inbox_dead_letter_list()] == [item.id_]
+    assert any(
+        "ProcessingFault not queued" in r.getMessage() for r in caplog.records
+    )
+
+
+@pytest.mark.spec("IE-06-006", "IE-06-003")
+@pytest.mark.usefixtures("outbox_drains")
+def test_the_startup_replay_drains_under_the_actor_lock_off_the_loop(
+    dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+
+    seen: dict[str, Any] = {}
+
+    def _drain(*_args: Any) -> None:
+        seen["thread"] = threading.get_ident()
+        seen["locked"] = io._get_actor_lock(_RECEIVER).locked()
+
+    monkeypatch.setattr(io, "drain_inbox_queue", _drain)
+
+    async def _main() -> int:
+        await io.replay_inbox_queue(dl, _RECEIVER, None, None)
+        return threading.get_ident()
+
+    loop_thread = asyncio.run(_main())
+
+    assert seen["locked"] is True, "the per-actor inbox lock is held"
+    assert seen["thread"] != loop_thread, "the drain runs off the loop"
+
+
+@pytest.mark.spec("IE-06-006")
+def test_the_server_starts_before_the_startup_replay_ends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The replay runs beside the server, and shutdown waits for it."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from vultron.adapters.driving.fastapi import (
+        inbox_startup_replay as startup,
+    )
+    from vultron.adapters.driving.fastapi.app import _make_lifespan
+
+    finished: list[bool] = []
+
+    async def _slow_replay(**_kwargs: Any) -> int:
+        await asyncio.sleep(0.5)
+        finished.append(True)
+        return 0
+
+    monkeypatch.setattr(startup, "replay_hosted_inbox_queues", _slow_replay)
+
+    with TestClient(FastAPI(lifespan=_make_lifespan(configure_globals=True))):
+        assert finished == [], "startup did not wait for the replay"
+    assert finished == [True], "shutdown waited for the replay"
