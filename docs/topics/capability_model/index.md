@@ -4,6 +4,7 @@ description: >
   your organization is a call-out point where your own system plugs in.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
+page_type: explanation
 ---
 
 # Capability Model

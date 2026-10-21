@@ -265,7 +265,8 @@ the seven tabs.
 3. Otherwise, the tab of the page's `stakeholder_type`. `ALL`, or a page several
    tabs depend on → lobby signage. Project process → Project.
 
-So **the protocol and the reference implementation never share a section.** A
+So **the protocol and the reference implementation never share a section**
+(DF-11-020). A
 page about CERT/CC's codebase, such as the Trigger API or a demo, is basement
 material however protocol-shaped its subject is.
 
@@ -340,20 +341,27 @@ glossary, conformance matrix, quick reference); it can be generated from
 ### Page type is a label, not a section
 
 Every reader-facing page declares one `page_type`: `tutorial`, `how-to`,
-`explanation`, `reference` or `routing`. The key is required, so a missing key is
-a fault (the same reasoning `contents:` uses in `landing_pages.py`). `routing` is
-validated but not rendered; the other four render as a badge from frontmatter.
+`explanation`, `reference` or `routing` (DF-11-018). The key is required, so a
+missing key is a fault (the same reasoning `contents:` uses in
+`landing_pages.py`). `routing` is validated but not rendered; the other four
+render as a badge from frontmatter (DF-11-019,
+`overrides/partials/page_type.html`).
 `page_type` is independent of `contents:`: an index that mostly explains is
 `explanation`. Working-record pages declare none (DF-11-003 marks them). A
-mixed-type page is split or clearly sectioned (DF-01-003); the Protocol
-Specification declares a type per page. There are no hand-written badges.
+mixed-type page is split or clearly sectioned (DF-01-003). The Protocol
+Specification declares a type per page: its body parts and single-page edition
+are `reference`, its landing page is `routing`, and each annex takes the type of
+its content (the worked examples and design annexes `explanation`, the notation
+and case-history annexes `reference`). A page's directory is not evidence of its
+type: the scenario narratives under `topics/` are `reference`, and the worked
+example under `tutorials/` is `explanation`. There are no hand-written badges.
 Diátaxis still governs how a page is written (DF-01); it no longer decides where
 the page sits. The key is not `content_type`, which reads as a MIME type.
 
 ### Type signal first, nav gated, files stay
 
 The order is: the `page_type` schema, validator and badge land with the
-DF-01-001 rewording (#4683); the usability test runs against a build with badges
+DF-01-001 rewording first; the usability test runs against a build with badges
 (#4687); then the nav changes (#4684). The proposed nav stays on a branch or
 preview build until it passes against `main`'s nav; a failing nav is revised
 and retested, and `main` keeps its current top level meanwhile.

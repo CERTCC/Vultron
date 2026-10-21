@@ -308,11 +308,13 @@ applies.
 in sentence case. Sections separated by `---` where the page has more than
 three of them, following the corpus.
 
-**SG-40 — Frontmatter declares audience, level, and introductions.** Every
-reader-facing page declares `stakeholder_type` and a `level` from 100–500
-(DF-11-001). A working-record page declares `stakeholder_type:
-[project-contributor]` and no `level` (DF-11-012). An include fragment declares
-neither, because it takes its hosts' declarations (DF-11-010). A page that is
+**SG-40 — Frontmatter declares audience, level, page type, and introductions.**
+Every reader-facing page declares `stakeholder_type`, a `level` from 100–500
+(DF-11-001) and a `page_type` (DF-11-018): its Diátaxis quadrant, or `routing`
+for a page that mainly gives directions. A working-record page declares
+`stakeholder_type: [project-contributor]` and no `level` (DF-11-012) or
+`page_type`. An include fragment declares none of them, because it takes its
+hosts' declarations (DF-11-010). A page that is
 the canonical introduction of a glossary term lists it under `introduces:`
 (SG-11). `docs-frontmatter` and `docs-level-order` enforce these. Where `title`
 and `description` are present, keep them accurate, but do not add other keys
@@ -327,11 +329,13 @@ reader is here, and no value appears in both vocabularies. A page tagged
 rejects it, and the fix is to pick the type, never to add the role
 (`notes/site-information-architecture.md` § "Stakeholder type is not CVD role").
 
-Both values are declared, never rendered. The page's own `level` and
+The audience and level are declared, never rendered. The page's own `level` and
 `stakeholder_type` do not appear in its prose, headings, admonitions, or nav
 label (DF-11-004, DF-11-009). The orientation paragraph (SG-41) says who the
 page is for in the reader's situation — "if you are wiring a tracker into a
-case" — not by the type's name.
+case" — not by the type's name. The `page_type` is the opposite: the site
+renders it as a badge above the title (DF-11-019), so a page never states its
+own type in prose or writes a type badge by hand.
 
 **SG-41 — Page furniture.** H1, then a two-to-four sentence orientation
 paragraph saying what the page covers and who it is for, then the body. Where a

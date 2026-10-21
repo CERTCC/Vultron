@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [process-researcher]
 level: 400
+page_type: explanation
 description: >
   Mapping the definitions in the United States Vulnerability Equities Process onto state subsets.
 ---

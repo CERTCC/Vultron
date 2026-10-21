@@ -4,6 +4,7 @@ description: >
   platform, or tool that must coordinate with partners' systems.
 stakeholder_type: [platform-developer]
 level: 100
+page_type: routing
 ---
 
 # You maintain a vulnerability tracker and want it to talk to your partners

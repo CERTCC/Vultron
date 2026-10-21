@@ -5,6 +5,7 @@ description: >
   with each other, the way email servers exchange mail.
 stakeholder_type: ALL
 level: 100
+page_type: explanation
 ---
 
 # What Is Vultron?

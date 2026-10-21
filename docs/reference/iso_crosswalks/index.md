@@ -6,6 +6,7 @@ description: >
   governs it.
 stakeholder_type: [cvd-practitioner]
 level: 200
+page_type: routing
 contents: generated
 ---
 

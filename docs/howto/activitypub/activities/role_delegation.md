@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 300
+page_type: how-to
 ---
 
 # How to Delegate a Role to Another Participant

@@ -4,6 +4,7 @@ description: >
   for coordinated vulnerability disclosure coordinate a case with each other.
 stakeholder_type: ALL
 level: 100
+page_type: routing
 ---
 
 # The Vultron Coordinated Vulnerability Disclosure Protocol
@@ -53,6 +54,8 @@ The site is written for four kinds of reader, and every page declares which of t
 ## How this documentation is organized
 
 The documentation follows the [Diátaxis Framework](https://diataxis.fr/){:target="_blank"}, which sorts pages into four kinds by what the reader is trying to do.
+Each page shows its kind as a badge above its title.
+Pages that only give directions, like this one, carry no badge.
 
 <div class="grid cards" markdown>
 

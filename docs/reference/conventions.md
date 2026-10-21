@@ -4,6 +4,7 @@ description: >
   from an informative one.
 stakeholder_type: ALL
 level: 100
+page_type: reference
 ---
 
 # Documentation Conventions
@@ -11,7 +12,7 @@ level: 100
 {% include-markdown "../includes/not_normative.md" %}
 
 This page describes the conventions the documentation uses to mark different kinds of information.
-It covers the call-out boxes that appear throughout the site and the banners that say whether a page states requirements.
+It covers the call-out boxes that appear throughout the site, the badge that says what kind of page you are reading, and the banners that say whether a page states requirements.
 The mathematical and diagram notation used in the formal treatment of the protocol is on the [Notation](notation.md) page.
 
 ## Call-out boxes
@@ -70,6 +71,20 @@ Each kind of box has one meaning, shown below.
 Material for MkDocs supports a number of other [admonitions](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"}.
 This documentation keeps its usage consistent with the admonition names in the Material for MkDocs [documentation](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"}, and the ones used here are listed above for completeness.
 An admonition used on some page but not listed here, or an inconsistency with the meanings above, can be reported by [opening an issue](https://github.com/CERTCC/Vultron/issues){:target="_blank"}.
+
+## Page-type badges
+
+A badge above a page's title says which of four kinds of page it is.
+
+| Badge | What the page does |
+|---|---|
+| Tutorial | Walks you through a guided lesson, such as running a demo |
+| How-to guide | Gives the steps for one task you already know you need to do |
+| Explanation | Says why the protocol works the way it does |
+| Reference | States facts to look up: messages, fields, states, terms |
+
+Pages that only point to other pages, such as the home page and the start pages, carry no badge.
+The badge says what kind of page you are reading, not whether it states requirements; the banners below say that.
 
 ## Normative and non-normative pages
 

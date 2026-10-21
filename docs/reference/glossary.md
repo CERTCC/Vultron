@@ -5,6 +5,7 @@ description: >
   to avoid and the ambiguities to watch for.
 stakeholder_type: ALL
 level: 100
+page_type: reference
 ---
 
 # Glossary — Vultron

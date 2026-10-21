@@ -4,6 +4,7 @@ description: >
   Explanation section.
 stakeholder_type: [platform-developer]
 level: 300
+page_type: routing
 ---
 
 # A Case Object

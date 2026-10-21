@@ -1,6 +1,7 @@
 ---
 stakeholder_type: ALL
 level: 200
+page_type: routing
 contents: generated
 ---
 

@@ -4,6 +4,7 @@ description: >
   disclosure cases with other organizations.
 stakeholder_type: [cvd-practitioner]
 level: 100
+page_type: routing
 ---
 
 # You handle vulnerability reports and coordinate cases with other organizations

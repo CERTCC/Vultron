@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+page_type: explanation
 description: >
   Trigger `create_case`: asking a case actor service to open and manage a case, and what it does on acceptance.
 ---

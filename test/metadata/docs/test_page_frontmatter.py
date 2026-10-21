@@ -1,7 +1,7 @@
-"""Tests for the ``docs/`` page ``stakeholder_type`` / ``level`` validator.
+"""Tests for the ``docs/`` page ``stakeholder_type``/``level``/``page_type`` validator.
 
-Requirements: DF-11-001, DF-11-003, DF-11-010, DF-11-012, DF-09-009; the
-failures are attributed per MS-17-001.
+Requirements: DF-11-001, DF-11-003, DF-11-010, DF-11-012, DF-11-018,
+DF-09-009; the failures are attributed per MS-17-001.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from vultron.metadata.docs.page_schema import (
     ALL_STAKEHOLDERS,
     LEVELS,
     PageFrontmatter,
+    PageType,
     StakeholderType,
     WorkingRecordFrontmatter,
     is_working_record,
@@ -36,12 +37,18 @@ from vultron.metadata.file_loading import (
 _EVERY_TYPE = [member.value for member in StakeholderType]
 
 
-def _page(stakeholder_type: str | None = None, level: str | None = None):
+def _page(
+    stakeholder_type: str | None = None,
+    level: str | None = None,
+    page_type: str | None = None,
+):
     lines = ["title: T"]
     if stakeholder_type is not None:
         lines.append(f"stakeholder_type: {stakeholder_type}")
     if level is not None:
         lines.append(f"level: {level}")
+    if page_type is not None:
+        lines.append(f"page_type: {page_type}")
     return "---\n" + "\n".join(lines) + "\n---\n# T\n"
 
 
@@ -55,14 +62,19 @@ class TestPageSchema:
     def test_valid_page(self):
         page = validate(
             PageFrontmatter,
-            {"stakeholder_type": ["cvd-practitioner"], "level": 200},
+            {
+                "stakeholder_type": ["cvd-practitioner"],
+                "level": 200,
+                "page_type": "how-to",
+            },
         )
         assert page.stakeholder_type == [StakeholderType.CVD_PRACTITIONER]
         assert page.level == 200
 
     def test_bare_all(self):
         page = validate(
-            PageFrontmatter, {"stakeholder_type": "ALL", "level": 100}
+            PageFrontmatter,
+            {"stakeholder_type": "ALL", "level": 100, "page_type": "routing"},
         )
         assert page.stakeholder_type == ALL_STAKEHOLDERS
 
@@ -75,6 +87,7 @@ class TestPageSchema:
                     "project-contributor",
                 ],
                 "level": 300,
+                "page_type": "reference",
             },
         )
         assert len(page.stakeholder_type) == 2
@@ -122,9 +135,15 @@ class TestPageSchema:
                 PageFrontmatter, {"stakeholder_type": value, "level": 100}
             )
 
-    @pytest.mark.parametrize("missing", ["stakeholder_type", "level"])
+    @pytest.mark.parametrize(
+        "missing", ["stakeholder_type", "level", "page_type"]
+    )
     def test_missing_key(self, missing):
-        data = {"stakeholder_type": ["cvd-practitioner"], "level": 100}
+        data = {
+            "stakeholder_type": ["cvd-practitioner"],
+            "level": 100,
+            "page_type": "explanation",
+        }
         del data[missing]
         with pytest.raises(MetadataLoadError, match=f"{missing}: Field"):
             validate(PageFrontmatter, data)
@@ -138,6 +157,38 @@ class TestPageSchema:
             "project-contributor",
         }
         assert LEVELS == (100, 200, 300, 400, 500)
+
+
+@pytest.mark.spec("DF-11-018")
+class TestPageTypeSchema:
+    _AUDIENCE = {"stakeholder_type": ["cvd-practitioner"], "level": 100}
+
+    def test_the_five_page_types(self):
+        assert [member.value for member in PageType] == [
+            "tutorial",
+            "how-to",
+            "explanation",
+            "reference",
+            "routing",
+        ]
+
+    @pytest.mark.parametrize("value", [member.value for member in PageType])
+    def test_every_page_type_is_accepted(self, value):
+        page = validate(
+            PageFrontmatter, {**self._AUDIENCE, "page_type": value}
+        )
+        assert page.page_type == PageType(value)
+
+    @pytest.mark.parametrize(
+        "value",
+        ["howto", "Reference", "", ["reference"], None, 1],
+        ids=["near-miss", "case", "empty", "list", "null", "number"],
+    )
+    def test_anything_else_is_rejected(self, value):
+        with pytest.raises(
+            MetadataLoadError, match=r"page_type: .*must be one of tutorial"
+        ):
+            validate(PageFrontmatter, {**self._AUDIENCE, "page_type": value})
 
 
 @pytest.mark.spec("DF-11-012")
@@ -165,6 +216,22 @@ class TestWorkingRecordSchema:
     def test_other_audiences_are_rejected(self, value):
         with pytest.raises(MetadataLoadError, match="must declare"):
             validate(WorkingRecordFrontmatter, {"stakeholder_type": value})
+
+    @pytest.mark.spec("DF-11-018")
+    @pytest.mark.parametrize(
+        "page_type", ["reference", None], ids=["value", "null"]
+    )
+    def test_any_declared_page_type_is_rejected(self, page_type):
+        with pytest.raises(
+            MetadataLoadError, match="must not declare a page_type"
+        ):
+            validate(
+                WorkingRecordFrontmatter,
+                {
+                    "stakeholder_type": ["project-contributor"],
+                    "page_type": page_type,
+                },
+            )
 
     def test_missing_stakeholder_type_is_still_a_finding(self):
         with pytest.raises(MetadataLoadError, match="stakeholder_type: Field"):
@@ -235,7 +302,7 @@ def _repo(
     return tmp_path
 
 
-_READER = _page("[cvd-practitioner]", "100")
+_READER = _page("[cvd-practitioner]", "100", "explanation")
 _RECORD = _page("[project-contributor]")
 
 
@@ -331,7 +398,7 @@ class TestCheck:
     def test_schema_fault_names_the_key_line(self, tmp_path):
         root = _repo(
             tmp_path,
-            {"index.md": _page("[cvd-practitioner]", "150")},
+            {"index.md": _page("[cvd-practitioner]", "150", "reference")},
             nav=["index.md"],
         )
 
@@ -346,8 +413,8 @@ class TestCheck:
         root = _repo(
             tmp_path,
             {
-                "a.md": _page("[vendor]", "100"),
-                "b.md": _page("[cvd-practitioner]"),
+                "a.md": _page("[vendor]", "100", "reference"),
+                "b.md": _page("[cvd-practitioner]", page_type="reference"),
             },
         )
 
@@ -370,6 +437,38 @@ class TestCheck:
         ):
             check_docs_frontmatter(root)
 
+    @pytest.mark.spec("DF-11-018")
+    def test_reader_facing_page_without_a_page_type_fails(self, tmp_path):
+        root = _repo(
+            tmp_path,
+            {"index.md": _page("[cvd-practitioner]", "100")},
+            nav=["index.md"],
+        )
+
+        with pytest.raises(MetadataLoadErrors) as info:
+            check_docs_frontmatter(root)
+
+        (failure,) = info.value.failures
+        assert str(failure) == "docs/index.md — page_type: Field required"
+
+    @pytest.mark.spec("DF-11-018")
+    def test_working_record_page_with_a_page_type_fails(self, tmp_path):
+        root = _repo(
+            tmp_path,
+            {
+                "adr/0001-x.md": _page(
+                    "[project-contributor]", page_type="reference"
+                )
+            },
+        )
+
+        with pytest.raises(MetadataLoadErrors) as info:
+            check_docs_frontmatter(root)
+
+        (failure,) = info.value.failures
+        assert failure.location == "docs/adr/0001-x.md:4"
+        assert "must not declare a page_type" in failure.detail
+
     @pytest.mark.spec("DF-09-009")
     @pytest.mark.parametrize("docs", [True, False], ids=["empty", "absent"])
     def test_empty_target_set_fails(self, tmp_path, docs):
@@ -389,7 +488,8 @@ class TestUndeclared:
         root = _repo(tmp_path, {"index.md": "# no frontmatter\n"})
 
         with pytest.raises(
-            MetadataLoadErrors, match=r"add stakeholder_type and level"
+            MetadataLoadErrors,
+            match=r"add stakeholder_type, level \(DF-11-001\) and page_type",
         ):
             check_docs_frontmatter(root)
 
@@ -506,6 +606,24 @@ class TestFragments:
         assert failure.location == "docs/_f.md:3"
         assert "must not declare level" in failure.detail
         assert "index.md" in failure.detail
+
+    @pytest.mark.spec("DF-11-018")
+    def test_fragment_declaring_a_page_type_is_reported(self, tmp_path):
+        root = _repo(
+            tmp_path,
+            {
+                "index.md": _READER + '{% include-markdown "./_f.md" %}\n',
+                "_f.md": "---\ntitle: F\npage_type: reference\n---\nF\n",
+            },
+            nav=["index.md"],
+        )
+
+        with pytest.raises(MetadataLoadErrors) as info:
+            check_docs_frontmatter(root)
+
+        (failure,) = info.value.failures
+        assert failure.location == "docs/_f.md:3"
+        assert "must not declare page_type" in failure.detail
 
     def test_auto_appended_file_is_a_fragment(self, tmp_path):
         root = _repo(
