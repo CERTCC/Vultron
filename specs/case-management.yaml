@@ -2709,7 +2709,14 @@ groups:
       participant with no replication state, a joined participant with an
       embargo-pause replication state, and a removed participant. A further test
       delivers an inert invitee's first Accept and asserts it joins and is backfilled
-      (CM-17-004).
+      (CM-17-004). The three are
+      `test/core/use_cases/received/actor/test_invite.py::TestJoinedOrRemovedStubAcceptIsADuplicate`;
+      the inert invitee's Accept is
+      `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_accept_invite_backfills_canonical_ledger_from_genesis`.
+      The guard alone is
+      `test/core/behaviors/case/nodes/test_idempotency_guards.py::TestCheckInviteeNotAlreadyParticipantNode`,
+      and a stored replication-state row that still carries a retired `join_backfill_*`
+      key is refused in `test/core/models/test_replication_state.py`.
     relationships:
     - rel_type: refines
       spec_id: CM-17-004

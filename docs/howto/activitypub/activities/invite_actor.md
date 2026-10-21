@@ -108,6 +108,7 @@ A reply that arrives after the Invite's deadline is still processed.
 The one exception is an `Accept` of a stub Invite that a newer one replaced, which the CASE_MANAGER refuses and answers by naming the replacement; a `Reject` of it is honored (CM-11-014, CM-11-016).
 A replacement or re-invite names the Invite it replaces in `inReplyTo` (CM-11-015, CM-11-016).
 A `Reject` or an `Accept` from an actor with no participant record is refused (CM-11-018, CM-11-021).
+An `Accept` of a stub Invite from an actor that already joined the case, or was removed from it, is a duplicate: the CASE_MANAGER records and sends nothing (CM-17-012).
 
 ---
 

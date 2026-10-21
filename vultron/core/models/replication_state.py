@@ -19,25 +19,41 @@ Spec: SYNC-04-001, SYNC-04-002.
 from __future__ import annotations
 
 import urllib.parse
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
-from vultron.core.models.base import CoreRecord, NonEmptyString, with_record_id
-from vultron.core.models.wire_keys import input_keys
+from vultron.core.models.base import NonEmptyString, with_record_id
+from vultron.core.models.retired_stored_fields import (
+    RetiredFieldsRecord,
+    RetiredStoredField,
+)
 
 
-class VultronReplicationState(CoreRecord):
+class VultronReplicationState(RetiredFieldsRecord):
     """Tracks per-peer replication state for the CaseActor log fan-out.
 
     The ``id_`` is auto-computed as
     ``{case_id}/replication/{url_encoded_peer_id}`` so that the same
     peer always resolves to a stable key in the DataLayer.
 
+    The join backfill keeps no state here: it commits with its ``Accept`` in
+    one act (CLP-07-015), and whether an ``Accept`` is a duplicate is read
+    from the participant record alone (CM-17-012).  The three
+    ``join_backfill_*`` fields that once recorded it are retired (#5074), so a
+    stored row that still carries one is refused.
+
     Spec: SYNC-04-001, SYNC-04-002; the embargo pause is CM-10-005/006.
     """
+
+    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+        "join_backfill_target_index": RetiredStoredField(None, "#5074"),
+        "join_backfill_last_sent_index": RetiredStoredField(None, "#5074"),
+        "join_backfill_complete": RetiredStoredField(None, "#5074"),
+    }
 
     type_: Literal["ReplicationState"] = Field(  # type: ignore[assignment]
         default="ReplicationState",
@@ -64,24 +80,6 @@ class VultronReplicationState(CoreRecord):
         default_factory=now_utc,
         validation_alias="updatedAt",
         serialization_alias="updatedAt",
-    )
-    join_backfill_target_index: int = Field(
-        default=-1,
-        description=(
-            "Highest canonical log_index expected for join-time backfill; -1"
-            " means no canonical entries existed when backfill started"
-        ),
-        validation_alias="joinBackfillTargetIndex",
-        serialization_alias="joinBackfillTargetIndex",
-    )
-    join_backfill_last_sent_index: int = Field(
-        default=-1,
-        description=(
-            "Highest canonical log_index sent to this peer during join-time"
-            " backfill; -1 means nothing sent yet"
-        ),
-        validation_alias="joinBackfillLastSentIndex",
-        serialization_alias="joinBackfillLastSentIndex",
     )
     last_replayed_from_hash: str | None = Field(
         default=None,
@@ -118,15 +116,6 @@ class VultronReplicationState(CoreRecord):
         validation_alias="replaysAtPosition",
         serialization_alias="replaysAtPosition",
     )
-    join_backfill_complete: bool = Field(
-        default=True,
-        description=(
-            "Whether join-time canonical history backfill is complete for this"
-            " peer"
-        ),
-        validation_alias="joinBackfillComplete",
-        serialization_alias="joinBackfillComplete",
-    )
     embargo_paused_from_index: int | None = Field(
         default=None,
         ge=0,
@@ -151,28 +140,4 @@ class VultronReplicationState(CoreRecord):
         if case_id is not None and peer_id is not None:
             slug = urllib.parse.quote(peer_id, safe="")
             data = with_record_id(data, f"{case_id}/replication/{slug}")
-
-        # The input may spell a backfill field either way, so read each one
-        # under every spelling its own ``validation_alias`` accepts instead of
-        # writing the AS2 spelling out here (ARCH-25-002, ADR-0099).
-        def _stated(field_name: str, default: Any) -> Any:
-            for key in input_keys(cls, field_name):
-                value = data.get(key)
-                if value is not None:
-                    return value
-            return default
-
-        last_sent = _stated("join_backfill_last_sent_index", -1)
-        target = _stated("join_backfill_target_index", -1)
-        complete = _stated("join_backfill_complete", True)
-        if last_sent > target:
-            raise ValueError(
-                "join_backfill_last_sent_index cannot exceed "
-                "join_backfill_target_index"
-            )
-        if complete and last_sent < target:
-            raise ValueError(
-                "join_backfill_complete=True requires last_sent_index >= "
-                "target_index"
-            )
         return data
