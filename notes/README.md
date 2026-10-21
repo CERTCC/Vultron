@@ -250,8 +250,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   The core BT-backed inbox module, its adapter seam, and verdict mapping.
   **Load when**: changing `process_payload` or adding an inbound entry point.
 - **`inbox-pipeline.md`** · `guidance`
-  The dispatcher exception boundary and the `InboxPipeline` test seam.
-  **Load when**: adding a raise under the inbox retry loop or bounding re-queues.
+  The dispatcher exception boundary, the `InboxPipeline` test seam, and the
+  one-transaction queue replay attempt.
+  **Load when**: adding a raise under the inbox retry loop, bounding re-queues, or
+  changing the inbox queue drain.
 - **`outbox.md`** · `guidance`
   Outbox addressing enforcement, `handle_outbox_item`, and required test coverage.
   **Load when**: changing outbox delivery or adding an outbound activity type.

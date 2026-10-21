@@ -18,6 +18,7 @@ which commits the answer and, on an Accept, grants the role.
 """
 
 import json
+from collections.abc import Callable
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -49,6 +50,7 @@ from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.participants.role_offer import role_offer_forward_id
 from vultron.core.use_cases.received.actor.accept_reject_case_participant_role import (
     AcceptCaseParticipantRoleReceivedUseCase,
     RejectCaseParticipantRoleReceivedUseCase,
@@ -244,6 +246,39 @@ def _target_holds(dl: SqliteDataLayer, role: CVDRole) -> bool:
     return participant.has_role(role)
 
 
+def _forward_id() -> str:
+    """The id the CASE_MANAGER derives for its forward of the Offer."""
+    return role_offer_forward_id(_CASE_MANAGER_ID, _CASE_ID, _OFFER_ID)
+
+
+def _redeliver_archived_offer(dl: SqliteDataLayer, offer: Any) -> Any:
+    """Redeliver *offer* as the inbox routes it: the copy intake archived.
+
+    A failed act keeps only intake's archive (CLP-07-015), and the inbox
+    routes a later delivery of the same id as that archived copy
+    (IE-10-001), so the redelivery cannot pass on the resent body's own
+    evidence.
+    """
+    return OfferCaseParticipantRoleReceivedUseCase(
+        dl,
+        archived_redelivery_as(
+            dl,
+            offer.id_,
+            OfferCaseParticipantRoleReceivedEvent,
+            receiving_actor_id=dl.actor_id,
+        ),
+        **_ports(dl),
+    ).execute()
+
+
+def _assert_recorded_and_forwarded_once(dl: SqliteDataLayer) -> None:
+    """One entry records the Offer and one forward is queued under its id."""
+    assert _semantic_types(dl) == ["offer_case_participant_role"]
+    (forward,) = _forwards(dl)
+    assert forward.id_ == _forward_id()
+    assert dl.outbox_list().count(_forward_id()) == 1
+
+
 @pytest.mark.spec("CM-33-001")
 def test_case_manager_records_and_forwards_the_offer(make_payload):
     """The Offer is ledgered and forwarded; nothing is granted until Accept."""
@@ -279,24 +314,27 @@ def test_case_manager_forwards_to_the_target_only_and_answers_nothing(
     ]
 
 
+@pytest.mark.spec("CM-24-007")
 @pytest.mark.spec("HP-01-003")
 @pytest.mark.spec("OX-06-002")
 def test_redelivered_offer_is_skipped_with_no_second_entry_or_forward(
     make_payload,
 ):
-    """Each delivery is built afresh, as a peer's retry would be."""
+    """Each delivery is built afresh, as a peer's retry would be.  While the
+    forward is pending, a redelivery adds no second outbox entry."""
     dl = _store(_CASE_MANAGER_ID)
     _deliver_offer(dl, make_payload, _offer())
-    entries = _semantic_types(dl)
-    forwards = _queued_offers(dl)
+    _assert_recorded_and_forwarded_once(dl)
+    queued = dl.outbox_list()
 
     result = _deliver_offer(dl, make_payload, _offer())
 
     assert result.disposition is HandlerDisposition.SKIPPED
-    assert _semantic_types(dl) == entries
-    assert _queued_offers(dl) == forwards
+    _assert_recorded_and_forwarded_once(dl)
+    assert dl.outbox_list() == queued
 
 
+@pytest.mark.spec("CM-24-007")
 @pytest.mark.spec("HP-01-003")
 def test_a_redelivery_after_the_forward_was_sent_sends_nothing(make_payload):
     """Delivery drained the outbox; the forward is not sent again."""
@@ -348,7 +386,8 @@ def test_a_forward_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     """The fault is ours, not a refusal.  The Offer's entry and its forward
     are one act, so the fault keeps neither.  The redelivery is routed as
     the inbox routes it, the copy intake archived (IE-10-001), and is a new
-    Offer that is recorded and forwarded once (CLP-07-015)."""
+    Offer that is recorded and forwarded once, under the forward's derived
+    id (CLP-07-015, OX-06-002)."""
     dl = _store(_CASE_MANAGER_ID)
     offer = _offer()
     broken = MagicMock(wraps=TriggerActivityAdapter(dl))
@@ -363,20 +402,72 @@ def test_a_forward_that_fails_keeps_nothing_and_redelivery_runs_afresh(
     assert _semantic_types(dl) == []
     assert _forwards(dl) == []
 
-    result = OfferCaseParticipantRoleReceivedUseCase(
-        dl,
-        archived_redelivery_as(
-            dl,
-            offer.id_,
-            OfferCaseParticipantRoleReceivedEvent,
-            receiving_actor_id=dl.actor_id,
-        ),
-        **_ports(dl),
-    ).execute()
+    result = _redeliver_archived_offer(dl, offer)
 
     assert result.disposition is HandlerDisposition.APPLIED
-    assert _semantic_types(dl) == ["offer_case_participant_role"]
-    assert len(_forwards(dl)) == 1
+    _assert_recorded_and_forwarded_once(dl)
+
+
+@pytest.mark.spec("CM-24-007")
+@pytest.mark.spec("CLP-07-015")
+@pytest.mark.spec("OX-06-002")
+def test_a_forward_stored_but_not_queued_is_queued_on_redelivery(
+    make_payload, monkeypatch
+):
+    """The forward is built and stored, then queuing it fails.  A stored
+    copy is not proof it was sent: the act keeps neither the entry nor the
+    stored forward, and the redelivery queues the forward."""
+    dl = _store(_CASE_MANAGER_ID)
+    offer = _offer()
+    attempted: list[str] = []
+    queue: Callable[[str], bool] = dl.outbox_append
+
+    def _queue_down(activity_id: str) -> bool:
+        if activity_id != _forward_id():
+            return queue(activity_id)  # the commit's own sends are queued
+        assert dl.read(activity_id) is not None, "the forward was stored"
+        attempted.append(activity_id)
+        raise RuntimeError("outbox down")
+
+    monkeypatch.setattr(dl, "outbox_append", _queue_down)
+    with pytest.raises(VultronBTInternalError):
+        _deliver_offer(dl, make_payload, offer)
+    monkeypatch.undo()
+
+    assert attempted == [_forward_id()], "the act failed queuing its forward"
+    assert _semantic_types(dl) == []
+    assert dl.read(_forward_id()) is None, "the stored forward is not kept"
+    assert dl.outbox_list() == []
+
+    result = _redeliver_archived_offer(dl, offer)
+
+    assert result.disposition is HandlerDisposition.APPLIED
+    _assert_recorded_and_forwarded_once(dl)
+
+
+@pytest.mark.spec("CM-24-007")
+@pytest.mark.spec("OX-06-002")
+def test_a_repeated_forward_is_answered_under_the_same_id_at_the_target(
+    make_payload,
+):
+    """The CASE_MANAGER's forward carries one id on every attempt, so the
+    target rebuilds its answer to a repeat under its first answer's id:
+    queued once while it is pending, and only that answer again once it was
+    sent, which the CASE_MANAGER takes as the redelivery of the answer that
+    closed the Offer."""
+    dl = _store(_TARGET_ID)
+    _deliver_offer(dl, make_payload, _forward())
+    (answer_id,) = dl.outbox_list()
+
+    _deliver_offer(dl, make_payload, _forward())
+
+    assert dl.outbox_list() == [answer_id], "no second answer while pending"
+    while dl.outbox_pop() is not None:
+        pass
+
+    _deliver_offer(dl, make_payload, _forward())
+
+    assert dl.outbox_list() == [answer_id], "only the same answer again"
 
 
 @pytest.mark.spec("HP-01-005")
