@@ -480,10 +480,12 @@ groups:
       redelivery: routing the held copy in place of a different body dropped that
       body with nothing but a DEBUG line (#3762).
     verification: >-
-      `test/adapters/driving/fastapi/test_ingress_received_evidence.py` asserts that a
-      resend of the held body under a deferred id routes the held copy and is not held
-      again, and that a resend of an archived activity's body is routed as the
-      archived copy, with the archived body as its evidence;
+      `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_resend_of_the_held_body_under_a_deferred_id_routes_the_held_copy`
+      asserts that a resend of the held body under a deferred id routes the held copy
+      and is not held again, and
+      `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_resend_of_an_archived_body_routes_the_archived_copy`
+      that a resend of an archived activity's body is routed as the archived copy,
+      with the archived body as its evidence;
       `test/adapters/driving/fastapi/test_failed_act_redelivery.py::test_a_failed_proposal_is_applied_when_posted_again`
       that the resend of a failed act is applied through the FastAPI inbox;
       `test/adapters/driving/fastapi/test_inbox_redelivery.py::test_second_delivery_leaves_store_and_outbox_unchanged`
@@ -497,7 +499,6 @@ groups:
   - id: IE-10-002
     priority: MUST
     kind: project
-    tracking_issue: '#5019'
     statement: >-
       The endpoint MUST refuse a delivery whose activity id the receiving actor
       already holds (IE-10-001) when the delivery's sealed received body (VM-08-002)
@@ -525,10 +526,21 @@ groups:
       sender is also told follows ASK-07-001 and ASK-07-002, as for any delivery the
       inbox refuses.
     verification: >-
-      `test/adapters/driving/fastapi/test_ingress_received_evidence.py` asserts that a
-      different body under a deferred id, and under an archived id, is refused with a
-      WARNING naming the activity id and the sender, that neither body is routed, and
-      that the deferred record and the archive are unchanged.
+      `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_a_different_body_under_a_deferred_id_is_refused`
+      and `::test_a_different_body_under_an_archived_id_is_refused` assert that a
+      different body under a deferred id, and under an archived id, is refused
+      through `process_payload` with one WARNING naming the activity id and the
+      sender, that nothing is dispatched or deferred, and that the store, the
+      deferred record and the archive included, is unchanged;
+      `::test_a_different_body_under_an_archived_ledger_announce_id_is_refused` and
+      `::test_a_different_body_under_a_held_ledger_announce_id_is_refused` assert the
+      same for an `Announce(CaseLedgerEntry)`, and
+      `::test_a_repeat_of_an_archived_ledger_announce_is_hydrated_in_place` that its
+      same-body repeat still takes the in-place path to the SYNC-12-003 gate;
+      `::test_a_body_that_differs_only_in_key_order_is_refused` pins the exact match.
+      `test/adapters/driving/fastapi/test_inbox_redelivery.py::test_a_different_body_under_a_delivered_id_is_refused`
+      posts a different body under a delivered id through the FastAPI route and
+      asserts the store and outbox are unchanged after the second post.
     relationships:
     - rel_type: refines
       spec_id: IE-10-001

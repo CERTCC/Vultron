@@ -241,7 +241,6 @@ class _Staged:
     """What one rebuild staged, kept so a deferral can hold it."""
 
     received_body: str | None
-    activity_row: dict[str, object]
     inline_rows: list[dict[str, object]]
 
 
@@ -281,17 +280,6 @@ class InlineObjectStaging:
         return self._rehydrate_with(
             activity, received_body=activity.received_evidence_json
         )
-
-    def rehydrate_resend(self, activity: as_Activity) -> as_Activity | None:
-        """Rebuild a resend of a held activity from its own body, as no delivery.
-
-        For a redelivery whose held copy does not rebuild: this delivery's
-        body is routed in its place, but staged with no received body, so a
-        resend deferred again is held as its row and its replay carries no
-        evidence (VM-08-002).
-        """
-
-        return self._rehydrate_with(activity, received_body=None)
 
     def _rehydrate_with(
         self, activity: as_Activity, *, received_body: str | None
@@ -351,9 +339,9 @@ class InlineObjectStaging:
         body is parsed and routed in place of the redelivered one
         (IE-10-001, ADR-0149).  It carries that body as its received
         evidence: the body is the first delivery's, sealed at its parse, so
-        the copy routed is that delivery and not this one (VM-08-002).  The
-        resend's own bytes are never routed, so a resend with a different
-        body under the same id never replaces the first copy (#3762).  Held
+        the copy routed is that delivery and not this one (VM-08-002).  Only
+        a resend of exactly that body gets here; ingress refuses a different
+        body under the same id before any copy is rebuilt (IE-10-002).  Held
         for a replay, should the copy be deferred, it keeps the same body.
         Returns ``None`` when nothing is archived under *activity_id*.
         """
@@ -370,10 +358,10 @@ class InlineObjectStaging:
     def rehydrate_deferred(self, activity_id: str) -> as_Activity | None:
         """Rebuild a deferred activity from its record, and release it.
 
-        A held received body is parsed again, so the replay carries the
-        evidence the first delivery did (VM-08-002); an activity held as its
-        row carries none.  The record is deleted once read: a replay the
-        queue defers again holds it afresh (:meth:`hold_for_replay`).
+        The held received body is parsed again, so the replay carries the
+        evidence the first delivery did (VM-08-002).  The record is deleted
+        once read: a replay the queue defers again holds it afresh
+        (:meth:`hold_for_replay`).
 
         Returns ``None`` when nothing is held for *activity_id*: the receiver
         keeps no other copy of a received activity (DL-06-006).
@@ -396,7 +384,7 @@ class InlineObjectStaging:
             result, parsed = self._rebuild_from(pending)
         finally:
             self._dl.delete(pending.type_, pending.id_)
-        if result is not None and parsed is not None:
+        if result is not None:
             evidence = parsed.received_evidence_json
             if evidence is not None:
                 result.seal_received_evidence(evidence)
@@ -406,10 +394,10 @@ class InlineObjectStaging:
         """Hold *activity_id* whole until its deferred replay.
 
         Writes one :class:`DeferredInboxActivity` from what this run staged
-        for it: the sealed received body (or, with none, the activity's row)
-        and the inline rows, and nothing derived from them (ADR-0149).  A
-        record already held is kept as it is, so a redelivery of a deferred
-        activity is not held again (IE-10-001).
+        for it: the sealed received body and the inline rows, and nothing
+        derived from them (ADR-0149).  A record already held is kept as it
+        is, so a redelivery of a deferred activity is not held again
+        (IE-10-001).
 
         An activity this staging rebuilt from its record and released
         (:meth:`rehydrate_deferred`) is held again as that record was, so a
@@ -423,7 +411,8 @@ class InlineObjectStaging:
 
         Raises:
             VultronWiringError: When this staging neither rebuilt nor released
-                *activity_id*, so it has nothing to hold.
+                *activity_id*, so it has nothing to hold, or when what it
+                rebuilt carries no sealed body (VM-08-002).
         """
         released = self._released.pop(activity_id, None)
         if released is not None:
@@ -440,16 +429,18 @@ class InlineObjectStaging:
                 " inbox run: the queue port and the ingress adapter must"
                 " share one InlineObjectStaging"
             )
-        activity_row_json = (
-            json.dumps(staged.activity_row)
-            if staged.received_body is None
-            else None
-        )
+        if staged.received_body is None:
+            # Every delivery is sealed at its parse (VM-08-002), and the
+            # record holds the activity only as that body (ADR-0149).
+            raise VultronWiringError(
+                f"Deferred activity {activity_id!r} carries no sealed body to"
+                " hold for its replay: only a parsed delivery can be deferred"
+                " (VM-08-002)"
+            )
         return self._create(
             DeferredInboxActivity(
                 activity_id=activity_id,
                 received_body=staged.received_body,
-                activity_row_json=activity_row_json,
                 rows_json=json.dumps(staged.inline_rows),
             )
         )
@@ -468,20 +459,11 @@ class InlineObjectStaging:
 
     def _rebuild_from(
         self, pending: DeferredInboxActivity
-    ) -> tuple[as_Activity | None, as_Activity | None]:
+    ) -> tuple[as_Activity | None, as_Activity]:
         """Rebuild *pending*'s activity; also return the body's parse."""
         inline_rows: list[dict[str, Any]] = json.loads(pending.rows_json)
-        parsed: as_Activity | None = None
-        if pending.received_body is not None:
-            parsed = parse_received_body(pending.received_body)
-            activity_record: StorableRecord | PersistableModel = (
-                object_to_record(parsed)
-            )
-        else:
-            assert pending.activity_row_json is not None  # validator
-            activity_record = _row_record(
-                json.loads(pending.activity_row_json)
-            )
+        parsed = parse_received_body(pending.received_body)
+        activity_record = object_to_record(parsed)
 
         def _restage(store: DataLayer) -> None:
             store.create(activity_record)
@@ -515,7 +497,6 @@ class InlineObjectStaging:
                     )
                 self._staged[activity_id] = _Staged(
                     received_body=received_body,
-                    activity_row=activity_row,
                     inline_rows=inline_rows,
                 )
                 result = rehydrate(activity_id, dl=store)

@@ -45,7 +45,7 @@ from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.services.received_activity import held_received_record
-from vultron.errors import VultronNotFoundError, VultronWiringError
+from vultron.errors import VultronNotFoundError
 from vultron.semantic_registry import extract_received_activity
 from vultron.wire.as2.parser import parse_received_body
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -58,35 +58,11 @@ __all__ = [
 
 
 def _parsed(dl: CasePersistence, activity_id: str) -> as_Activity | None:
-    """The held received *activity_id* as its body parses, if held.
-
-    An activity deferred as a storage row has no body, so it is rebuilt from
-    that row, carrying no received evidence (VM-08-002).
-    """
+    """The held received *activity_id* as its body parses, if held."""
     record = held_received_record(dl, activity_id)
     if record is None:
         return None
-    if record.received_body is not None:
-        return parse_received_body(record.received_body)
-    return _rebuilt_row(InlineObjectStaging(cast(DataLayer, dl)), activity_id)
-
-
-def _rebuilt_row(
-    staging: InlineObjectStaging, activity_id: str
-) -> as_Activity:
-    """The deferred *activity_id* rebuilt from the storage row it is held as.
-
-    Raises:
-        VultronWiringError: When the row rebuilds into no activity: the
-            record was just read, so the held row is corrupt, a fault, never
-            "not held".
-    """
-    rebuilt = staging.rehydrate_held(activity_id)
-    if rebuilt is None:
-        raise VultronWiringError(
-            f"the deferred record of '{activity_id}' rebuilds into no activity"
-        )
-    return rebuilt
+    return parse_received_body(record.received_body)
 
 
 def load_received_view(
@@ -103,12 +79,8 @@ def load_received_view(
     if record is None:
         return None
     staging = InlineObjectStaging(cast(DataLayer, dl))
-    routed: as_Activity
-    if record.received_body is not None:
-        parsed = parse_received_body(record.received_body)
-        routed = staging.rehydrate_parsed(parsed) or parsed
-    else:
-        routed = _rebuilt_row(staging, activity_id)
+    parsed = parse_received_body(record.received_body)
+    routed = staging.rehydrate_parsed(parsed) or parsed
     return ReceivedActivityView(extract_received_activity(routed))
 
 
