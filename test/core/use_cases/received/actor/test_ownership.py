@@ -2447,11 +2447,14 @@ class TestWithdrawalOfOwnershipTransfer:
         )
         assert late.reason is not None and expected in late.reason
         assert _semantic_types(dl) == entries_before
-        # Nothing is queued but, at most, the refusal notice to the offerer
-        # (ADR-0141).
+        # A refusal by a precondition guard (the Offer is already closed) is
+        # answered with one refusal notice to the offerer; a refusal by the
+        # sender guard (no CASE_OWNER standing) gets none (CLP-05-001,
+        # ADR-0141).  Nothing else is queued.
         queued = [
             dl.read(i) for i in dl.outbox_list() if i not in outbox_before
         ]
+        assert len(queued) == (0 if answer == "accept" else 1), queued
         assert all(
             getattr(getattr(a, "type_", None), "value", None) == "Reject"
             and getattr(a, "to", None) == [_VENDOR_ID]

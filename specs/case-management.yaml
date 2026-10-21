@@ -4285,7 +4285,8 @@ groups:
       As part of the CM-23-002 owner-close sequence, after the CASE_MANAGER advances its own
       CaseParticipant to RM.CLOSED and before it commits `case_fully_closed`, it MUST expire every
       embargo Invite still awaiting a reply on the case (every consent row that is `INVITED` moves to `TIMED_OUT`), without waiting for its RSVP deadline. It MUST commit
-      an expired-invitation CaseLedgerEntry for each (CM-28-009, CM-28-014). A pending case Invite
+      each expiry as its own `Update(EmbargoConsent)` carrying the `TIMED_OUT` row (CM-28-009,
+      CM-28-014). A pending case Invite
       carries no RSVP deadline and so needs no settling: an answer to it after close is an external
       append, refused at the ADR-0085 boundary.
     rationale: >-
@@ -4297,7 +4298,7 @@ groups:
     verification: >-
       A test confirms that an owner Leave(VulnerabilityCase) on a case with an unanswered Invite
       whose RSVP deadline is in the future moves that participant's consent to `TIMED_OUT`, commits
-      the expired-invitation entry, and orders that entry after the CASE_MANAGER's RM.CLOSED entry
+      the CASE_MANAGER's `TIMED_OUT` `Update(EmbargoConsent)`, and orders that entry after the CASE_MANAGER's RM.CLOSED entry
       and before `case_fully_closed`:
       `test/core/use_cases/received/test_close_case_role_semantics.py::TestPostCloseBoundary::test_owner_close_expires_pending_invite_before_boundary`.
       `TestOwnerCloseSettlesPendingInvites` in the same file covers a case with no pending

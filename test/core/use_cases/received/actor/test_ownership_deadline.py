@@ -42,7 +42,7 @@ from test.core.use_cases.received.actor.test_ownership import (
     _semantic_types,
     _undo,
 )
-from test.support.ledger import commit_case_fully_closed
+from test.support.ledger import commit_case_fully_closed, fail_commits
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
@@ -52,7 +52,9 @@ from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
 )
+from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models._helpers import now_utc
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.protocol_pair import (
     OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
@@ -195,6 +197,46 @@ class TestLateAnswerIsRefused:
             "clock decision" in r.getMessage() and r.levelname == "WARNING"
             for r in caplog.records
         )
+
+    @pytest.mark.spec("CM-21-017")
+    @pytest.mark.spec("ID-04-004")
+    def test_a_refused_expiry_commit_is_retried_under_the_same_id(
+        self, make_payload, monkeypatch, caplog
+    ):
+        """The ledger refuses the CASE_MANAGER's ``Undo(Offer)``: the node
+        logs a warning, nothing is ledgered and the late answer is still
+        refused.  The next late answer seals the same derived ``Undo`` again
+        and commits it once (ID-04-004)."""
+        case_id = "https://example.org/cases/case_dl_commit_refused"
+        dl, _, _, offer = _expired_offer(make_payload, case_id)
+        failed = fail_commits(
+            monkeypatch,
+            commit_tree,
+            when=lambda kw: kw["semantic_type"] == _EXPIRED,
+        )
+
+        with caplog.at_level("WARNING"):
+            first = _accept(dl, make_payload, offer)
+
+        assert first.disposition is HandlerDisposition.REFUSED
+        assert _expiry_entries(dl) == []
+        assert any(
+            "could not ledger the expiry" in r.getMessage()
+            and r.levelname == "WARNING"
+            for r in caplog.records
+        )
+        undo_id = derived_activity_id(
+            "ownership-offer-expired", _CASE_ACTOR_ID, offer.id_
+        )
+        assert failed == [undo_id]
+
+        monkeypatch.undo()
+        second = _reject(dl, make_payload, offer)
+
+        assert second.disposition is HandlerDisposition.REFUSED
+        (entry,) = _expiry_entries(dl)
+        assert entry.log_object_id == undo_id
+        assert _owner(dl, case_id) == _VENDOR_ID
 
 
 class TestLazyExpiry:

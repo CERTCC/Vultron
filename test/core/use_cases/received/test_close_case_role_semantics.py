@@ -783,10 +783,10 @@ class TestPostCloseBoundary:
         assert types[-1] == "case_fully_closed", types
         assert rm_closed_idx and lapse_idx, (
             "owner close must commit the CASE_MANAGER's RM.CLOSED entry and"
-            f" an expired-invitation entry (CM-23-014); got {types}"
+            f" a TIMED_OUT consent Update (CM-23-014); got {types}"
         )
         assert max(rm_closed_idx) < min(lapse_idx), (
-            "the expired-invitation entry must follow the CASE_MANAGER's"
+            "the TIMED_OUT consent Update must follow the CASE_MANAGER's"
             f" RM.CLOSED entry (CM-23-014); got {types}"
         )
 

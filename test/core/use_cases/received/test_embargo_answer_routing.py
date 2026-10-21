@@ -516,10 +516,10 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
     """Late Accept honours into an AGREED row when the embargo is still active.
 
     When the invitee's RSVP deadline has passed and the embargo is still
-    active and matching, the CASE_MANAGER commits an expiry entry and its
-    ``TIMED_OUT`` row (CM-28-009), then a honour entry and its ``AGREED``
-    row (EMB-17-001, EMB-17-009), each row its own
-    ``Update(EmbargoConsent)``.  The replica copies the rows from the ledger
+    active and matching, the CASE_MANAGER commits two
+    ``Update(EmbargoConsent)`` entries, the ``TIMED_OUT`` row (CM-28-009) and
+    then the ``AGREED`` row (EMB-17-001, EMB-17-009), with no separate expiry
+    or honour entry.  The replica copies the rows from the ledger
     broadcast without re-evaluating the deadline (RSH-08-004, ADR-0124).
 
     OWNER activates the revision first so that ``active_embargo_id == embargo_id`` when

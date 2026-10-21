@@ -36,7 +36,7 @@ class CommitCaseFullyClosedNode(_CommitCaseManagerActivityBase):
 
     Runs last on the owner-close arm, after the ``close_case`` entry that
     records the received ``Leave``, the RM closure entries it caused and the
-    expired-invitation entries (CM-23-002, CM-23-014).  The activity is built
+    ``TIMED_OUT`` ``Update(EmbargoConsent)`` entries (CM-23-002, CM-23-014).  The activity is built
     by the factory as the executing CASE_MANAGER and carries the closed case
     in full; its sealed blob is the entry's ``payloadSnapshot`` (VM-08-003).
     It is attributed to the CASE_MANAGER alone, so no entry poses as an act
