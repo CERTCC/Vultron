@@ -9,6 +9,8 @@ consulted: >-
   Claude Opus 5.5; ADR-0083, ADR-0104, ADR-0128, ADR-0137; specs/semantic-extraction.yaml SE;
   specs/case-ledger-processing.yaml CLP-02, CLP-07; issues #3743, #4723, #4724, #4725
 informed: []
+partially_superseded_by:
+  - 0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md
 stakeholder_type: [project-contributor]
 ---
 
