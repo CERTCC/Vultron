@@ -8,7 +8,7 @@ description: >
 
 # Case Splitting and Merging
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 Cases sometimes need to be split into multiple cases or merged into a single case.
 Case Splits can happen when a single vulnerability affects multiple products with different fix supply chains.

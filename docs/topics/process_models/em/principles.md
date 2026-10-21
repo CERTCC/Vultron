@@ -8,7 +8,7 @@ description: >
 
 # Embargo Principles
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 Embargoes are a means of inhibiting public disclosure of a vulnerability
 while defenses are prepared (e.g., until fix development has completed

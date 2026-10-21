@@ -8,7 +8,7 @@ description: >
 
 # Message Types
 
-{% include-markdown "../../includes/normative.md" %}
+{% include-markdown "../../includes/specification_governs.md" %}
 
 The [States](states.md) page identified four main roles in the
 MPCVD process:

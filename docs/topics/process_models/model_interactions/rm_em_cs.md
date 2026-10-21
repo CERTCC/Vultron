@@ -8,7 +8,7 @@ description: >
 
 # CVD Case State Interactions with the RM and EM Process Models
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 The [Report Management (RM)](../rm/index.md) and [Embargo Management (EM)](../em/index.md) models interact with the [Case State (CS) model](../cs/index.md) of a Coordinated Vulnerability Disclosure (CVD) case.
 This page reviews the constraints that arise when each CS transition event occurs.

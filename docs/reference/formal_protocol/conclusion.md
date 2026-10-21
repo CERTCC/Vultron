@@ -8,7 +8,7 @@ description: >
 
 # Formal Vultron Protocol Redux
 
-{% include-markdown "../../includes/normative.md" %}
+{% include-markdown "../../includes/specification_governs.md" %}
 
 The preceding sections [formally defined](protocol_definition.md) an [MPCVD protocol](../../index.md).
 This page summarizes the result.

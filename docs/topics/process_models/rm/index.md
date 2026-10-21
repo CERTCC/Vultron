@@ -7,7 +7,7 @@ contents: generated
 
 # Report Management Process Model
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 This page describes a high-level workflow for the Coordinated Vulnerability Disclosure (CVD) Report Management (RM) process.
 <!-- start_excerpt -->

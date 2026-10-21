@@ -7,7 +7,7 @@ contents: generated
 
 # CVD Case State Model Introduction
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 This section explains the Case State (CS) model of a Coordinated Vulnerability Disclosure (CVD) case.
 It is for practitioners who want to know what the model tracks, and for developers who will implement it.

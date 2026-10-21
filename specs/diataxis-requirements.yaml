@@ -1170,8 +1170,8 @@ groups:
       A check over the `include-markdown` directives in `docs/` fails, naming
       `path:line`, when a declared page does not include the banner, when any other
       page or a shared fragment includes it, when a declared page is missing, or
-      when it resolves no targets. Not yet written; owned by #4945.
-    tracking_issue: '#4945'
+      when it resolves no targets: `docs-normative-banner`, run as a pre-commit
+      hook and by `test/metadata/docs/test_normative_banner.py`.
   - id: DF-12-007
     priority: SHOULD
     kind: process
@@ -1189,8 +1189,10 @@ groups:
       may lag it. Neither the normative banner nor the not-normative banner is true
       of them; a precedence statement keeps their standing and names the tiebreaker.
     verification: >-
-      Not yet checked: no review step inspects banners today. #4945 places the
-      banner on the known protocol-design pages; #4946 adds the check that
-      requires it on informative protocol-design pages, which a `subject: protocol`
-      key alone does not single out from the protocol-floor companions.
-    tracking_issue: '#4945'
+      Partly checked: `test/metadata/docs/test_normative_banner.py` checks that the
+      banner states the precedence without an RFC 2119 keyword and that the
+      Formal Protocol and process-model pages carry it. #4946 adds the check that
+      requires it on every informative protocol-design page, which a
+      `subject: protocol` key alone does not single out from the protocol-floor
+      companions.
+    tracking_issue: '#4946'

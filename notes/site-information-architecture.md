@@ -287,15 +287,18 @@ set. Normative status is not a `page_type`.
 | Banner | Carried by |
 |---|---|
 | `normative.md` | exactly the normative set: the specification's body pages and the two tier pages, never its annexes or open questions (DF-12-006) |
-| "specification governs" | informative pages that explain the protocol's design, such as Formal Protocol and the RM, EM and CS process models (DF-12-007) |
+| `specification_governs.md` | informative pages that explain the protocol's design, such as Formal Protocol and the RM, EM and CS process models (DF-12-007) |
 | `not_normative.md` | every other informative page, including the protocol-floor companions (Messages, the Conformance Matrix, the Quick Reference); a page with no requirement-like statements may omit it |
 
 The middle banner exists because the older design pages are neither: they
 still explain how the protocol is defined, but the specification now carries
 the design and they may lag it, so they name the tiebreaker rather than claim or
-disclaim standing. The normative set is declared once, in the banner check, not
-in frontmatter: it is a short fixed list, and a key on hundreds of pages would be
-one more thing to drift (#4945). Machine-checking that no nav section mixes
+disclaim standing. The normative set is declared once, in `NORMATIVE_PAGES` in
+`vultron/metadata/docs/normative_banner.py` (`docs-normative-banner`), not in
+frontmatter: it is a short fixed list, and a key on hundreds of pages would be
+one more thing to drift (#4945). When the Requirements Catalog replaces the two
+tier pages (ADR-0147), the check fails on the missing pages until the list is
+updated. Machine-checking that no nav section mixes
 protocol and implementation pages needs a per-page `subject` key and waits for
 the tabbed nav; until then the rule is a review rule (#4946).
 

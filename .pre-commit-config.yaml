@@ -95,6 +95,16 @@ repos:
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/page_.*|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
+      - id: docs-normative-banner
+        name: Normative banner on exactly the normative set
+        entry: uv run python -m vultron.metadata.docs.normative_banner
+        language: system
+        # Every docs page and fragment, any of which can gain or lose the
+        # banner (DF-12-006), plus the check, which declares the normative
+        # set, and the include-directive and failure readers it uses.
+        files: ^(docs/.*\.md|vultron/metadata/docs/(normative_banner|page_frontmatter)\.py|vultron/metadata/(base|file_loading)\.py)$
+        pass_filenames: false
+
       - id: docs-level-order
         name: Docs pages depend on no page above their own level
         entry: uv run docs-level-order

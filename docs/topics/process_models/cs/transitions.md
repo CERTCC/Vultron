@@ -8,7 +8,7 @@ description: >
 
 # CS Transitions
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 This page defines the transitions of the Coordinated Vulnerability Disclosure (CVD) Case State (CS) model: the events that move a case from one state to another, the rules that restrict them, and the transition grammar.
 It builds on [CS States](cs_model.md), which defines the six substates and the 32 case states.

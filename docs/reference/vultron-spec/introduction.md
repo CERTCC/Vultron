@@ -9,6 +9,8 @@ page_type: reference
 
 # Introduction and Overview
 
+{% include-markdown "../../includes/normative.md" %}
+
 {% include-markdown "./_full-page-tip.md" %}
 
 This page holds sections 1 to 3 of the [Vultron Protocol Specification](index.md): why the protocol exists, the terms it defines, and an overview of how it works.

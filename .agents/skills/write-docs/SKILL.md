@@ -147,8 +147,9 @@ from the source:
    authoritative source, multiple render points — silent drift is structurally
    impossible (DF-10-002). Three mechanics:
    - **Placement** — a `_<slug>.md` file alongside the pages that include it.
-     `docs/includes/` is reserved for whole-tree banners (`normative.md`) and its
-     files carry no `_` prefix.
+     `docs/includes/` is reserved for the shared banners (`normative.md`,
+     `specification_governs.md`, `not_normative.md`; which page takes which is
+     in `docs/reference/conventions.md`) and its files carry no `_` prefix.
    - **Path** — relative to the *including* file, never rooted at `docs/`. There
      is no `base_path` configured, so `{% include-markdown "./_slug.md" %}` and
      `{% include-markdown "../../includes/normative.md" %}` are the shapes that

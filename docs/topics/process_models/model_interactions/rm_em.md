@@ -8,7 +8,7 @@ description: >
 
 # Interactions Between the RM and EM Models
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 This page lists the constraints on how the [Report Management (RM)](../rm/index.md) and [Embargo Management (EM)](../em/index.md) processes interact.
 The RM process is specific to each Participant, while the EM process is global to the case, so most constraints describe which RM states a Participant should be in when it takes part in an EM transition.

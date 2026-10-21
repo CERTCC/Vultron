@@ -1,8 +1,8 @@
 ---
-status: proposed
+status: accepted-provisional
 date: 2026-10-19
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-21
 revision: 1
 deciders: Allen D. Householder
 consulted: >-
@@ -128,4 +128,4 @@ ADR-0128 made the message vocabulary documentation a projection of the semantic 
 
 The renderer's kind-routing requirements, SR-09-001 and SR-09-002, were amended to route the two tiers to the catalog.
 
-Generated spec requirements: `diataxis-requirements.yaml` DF-12-001 through DF-12-005.
+Generated spec requirements: `diataxis-requirements.yaml` DF-12-001 through DF-12-006.
