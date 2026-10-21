@@ -92,8 +92,11 @@ PYTHONPATH='' uv run docs-legacy-urls
    `PYTHONPATH='' uv run docs-legacy-urls --require-recorded` (DOCBW-03-012).
    It needs no `site/`: it fails when a page the checked-out commit builds is
    missing from `vultron/metadata/docs/legacy_urls_baseline.txt`. The fix is to
-   run `uv run docs-legacy-urls --snapshot origin/main` on `main`, commit the
-   baseline, and update the pull request from `main`. Pull requests to `main`
+   `git fetch origin`, run `uv run docs-legacy-urls --snapshot origin/main` on
+   a branch from `main`, and merge the updated baseline into `main` through its
+   own pull request; the release pull request from `main` then carries it. A
+   page only `publish` holds also needs `--snapshot origin/publish`. Pull
+   requests to `main`
    do not run it, because a new page is not due in the baseline until it
    publishes.
 

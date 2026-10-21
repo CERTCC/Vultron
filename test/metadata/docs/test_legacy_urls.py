@@ -390,14 +390,14 @@ SNAPSHOT_FIX = "--snapshot origin/main"
 def test_a_recorded_build_has_no_unrecorded_pages(tmp_path):
     repo = tmp_path / "repo"
     _git_repo(repo, ["docs/index.md", "docs/sub/page.md"])
-    assert unrecorded_pages("HEAD", repo, ["index.md", "sub/page.md"]) == []
+    assert unrecorded_pages(["index.md", "sub/page.md"], "HEAD", repo) == []
 
 
 @pytest.mark.spec("DOCBW-03-012")
 def test_an_unrecorded_built_page_is_reported(tmp_path):
     repo = tmp_path / "repo"
     _git_repo(repo, ["docs/index.md", "docs/z.md", "docs/new.md"])
-    assert unrecorded_pages("HEAD", repo, ["index.md", "old/gone.md"]) == [
+    assert unrecorded_pages(["index.md", "old/gone.md"], "HEAD", repo) == [
         "new.md",
         "z.md",
     ]
@@ -412,7 +412,7 @@ def test_an_unbuilt_source_need_not_be_recorded(tmp_path):
         ["docs/page.md", "docs/developer/index.md"],
         mkdocs_yml="site_name: t\ndraft_docs: |\n  developer/\n",
     )
-    assert unrecorded_pages("HEAD", repo, ["page.md"]) == []
+    assert unrecorded_pages(["page.md"], "HEAD", repo) == []
 
 
 @pytest.mark.spec("DOCBW-03-012")
@@ -421,7 +421,7 @@ def test_a_snapshot_clears_the_check(tmp_path):
     _git_repo(repo, ["docs/index.md", "docs/new.md"])
     baseline = _baseline(tmp_path, ["index.md"])
     snapshot("HEAD", repo, baseline)
-    assert unrecorded_pages("HEAD", repo, load_baseline(baseline)) == []
+    assert unrecorded_pages(load_baseline(baseline), "HEAD", repo) == []
 
 
 @pytest.mark.spec("DOCBW-03-012")
@@ -430,7 +430,7 @@ def test_a_commit_that_builds_no_pages_raises(tmp_path):
     repo = tmp_path / "repo"
     _git_repo(repo, ["docs/img.png"])
     with pytest.raises(NoBuiltPagesError, match="builds no docs/ pages"):
-        unrecorded_pages("HEAD", repo, ["index.md"])
+        unrecorded_pages(["index.md"], "HEAD", repo)
 
 
 @pytest.mark.spec("DOCBW-03-012")
@@ -439,7 +439,7 @@ def test_an_empty_baseline_raises_for_require_recorded(tmp_path):
     repo = tmp_path / "repo"
     _git_repo(repo, ["docs/index.md"])
     with pytest.raises(EmptyBaselineError, match="baseline is empty"):
-        unrecorded_pages("HEAD", repo, [])
+        unrecorded_pages([], "HEAD", repo)
 
 
 def _require_recorded(repo: Path, baseline: Path) -> None:

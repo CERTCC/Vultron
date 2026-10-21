@@ -23,7 +23,8 @@ the moment ``publish`` advances. So the evidence is committed:
 :data:`BASELINE` lists every ``docs/`` page any publish has built, and it only
 grows. ``--snapshot <ref>`` adds the pages a ref builds. Snapshot the incoming
 publish: before opening the pull request to ``publish``, run
-``--snapshot origin/main`` on ``main`` and commit the result. Recording each
+``--snapshot origin/main`` on a branch from ``main`` and merge the result into
+``main``, which the release pull request then carries. Recording each
 publish as it ships covers every earlier one.
 
 ``--require-recorded`` enforces that (DOCBW-03-012): it fails when a page the
@@ -86,9 +87,9 @@ _HEADER = """\
 # redirects one of these URLs, unless a withheld declaration covers it. The list
 # only grows: a URL that was once published stays accounted for. Before opening
 # the pull request to `publish`, run `uv run docs-legacy-urls --snapshot
-# origin/main` on `main` and commit the result, so the incoming publish is
-# recorded before it ships; `--require-recorded` fails that pull request until
-# it is.
+# origin/main` on a branch from `main` and merge the result into `main`, so the
+# incoming publish is recorded before it ships; `--require-recorded` fails that
+# pull request until it is.
 #
 # Seeded from origin/publish at ee5d96d3d (#3556)."""
 
@@ -105,8 +106,11 @@ _MAX_HOPS = 10
 
 # How to fix every --require-recorded failure, so each message names it.
 _RECORD_HINT = (
-    "On main, run 'uv run docs-legacy-urls --snapshot origin/main', commit "
-    "the updated baseline, and update this pull request from main."
+    "Run 'git fetch origin' and 'uv run docs-legacy-urls --snapshot "
+    "origin/main' on a branch from main, and merge the updated baseline into "
+    "main through its own pull request; a release pull request from main "
+    "picks it up. A listed page that only publish holds needs "
+    "'--snapshot origin/publish' too."
 )
 
 
@@ -309,7 +313,7 @@ def snapshot(ref: str, root: Path | None = None, path: Path = BASELINE) -> int:
 
 
 def unrecorded_pages(
-    ref: str = "HEAD", root: Path | None = None, pages: list[str] | None = None
+    pages: list[str], ref: str = "HEAD", root: Path | None = None
 ) -> list[str]:
     """Return every page *ref* builds that the baseline does not list.
 
@@ -317,11 +321,11 @@ def unrecorded_pages(
     a snapshot of *ref* always clears this check.
 
     Args:
+        pages: Recorded page paths relative to ``docs/``, as
+            :func:`load_baseline` returns them.
         ref: The git ref whose pages must be recorded. Defaults to the
             checked-out commit.
         root: The git repository to read *ref* from. Defaults to this checkout.
-        pages: Recorded page paths relative to ``docs/``. Defaults to
-            :data:`BASELINE`.
 
     Returns:
         The unrecorded page paths relative to ``docs/``, sorted.
@@ -337,19 +341,18 @@ def unrecorded_pages(
         raise NoBuiltPagesError(
             f"{ref} builds no docs/ pages, so there is nothing to check."
         )
-    listed = load_baseline() if pages is None else pages
-    if not listed:
+    if not pages:
         raise EmptyBaselineError(
             "The published-page baseline is empty, so there is nothing to "
             "check against."
         )
-    return sorted(built - set(listed))
+    return sorted(built - set(pages))
 
 
 def _require_recorded(root: Path | None, baseline: Path) -> None:
     """CLI body for ``--require-recorded``: exit 1 unless HEAD is recorded."""
     try:
-        missing = unrecorded_pages("HEAD", root, load_baseline(baseline))
+        missing = unrecorded_pages(load_baseline(baseline), "HEAD", root)
     except (NoBuiltPagesError, EmptyBaselineError) as exc:
         print(f"[ERROR] {exc} {_RECORD_HINT}", file=sys.stderr)
         sys.exit(1)

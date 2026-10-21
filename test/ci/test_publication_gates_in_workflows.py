@@ -1,11 +1,11 @@
 """CI verification test — the built-site gates run wherever the site builds.
 
 Implements DOCBW-03-005, DOCBW-03-006, DOCBW-03-007, DOCBW-03-008 and
-DOCBW-03-012 from ``specs/docs-build-workflow.yaml``. A workflow that builds ``site/`` MUST run
-``docs-withheld`` (the publication axis), ``docs-links`` (the reference axis)
-and ``docs-legacy-urls`` (the continuity axis) against it, unconditionally, and
-in ``deploy_site.yml`` each MUST sit between the build and the Pages upload.
-On a pull request to ``publish`` only, ``docs-legacy-urls --require-recorded``
+DOCBW-03-012 from ``specs/docs-build-workflow.yaml``. A workflow that builds
+``site/`` MUST run ``docs-withheld`` (the publication axis), ``docs-links`` (the
+reference axis) and ``docs-legacy-urls`` (the continuity axis) against it,
+unconditionally, and in ``deploy_site.yml`` each MUST sit between the build and
+the Pages upload. On a pull request to ``publish`` only, ``docs-legacy-urls --require-recorded``
 also runs, whatever the pull request changes (DOCBW-03-012).
 
 Ordering is the whole point, and it is why this is a test rather than a review
@@ -271,6 +271,19 @@ def test_a_run_after_failure_condition_does_not_neuter_a_gate():
 REQUIRE_RECORDED = "docs-legacy-urls --require-recorded"
 DOCS_BUILD_CHECK = WORKFLOWS_DIR / "docs-build-check.yml"
 PUBLISH_BASE = "github.base_ref == 'publish'"
+# The step's ``if:`` must be exactly one of these: a substring test would accept
+# ``github.base_ref == 'publish' || always()``, which runs on every base branch.
+PUBLISH_ONLY_CONDITIONS = frozenset(
+    {
+        PUBLISH_BASE,
+        f"${{{{ {PUBLISH_BASE} }}}}",
+        f"!cancelled() && {PUBLISH_BASE}",
+        f"${{{{ !cancelled() && {PUBLISH_BASE} }}}}",
+    }
+)
+# Activity types that cover a pull request's every new head commit. A
+# ``types:`` list missing one skips the check on that event.
+PULL_REQUEST_DEFAULT_TYPES = frozenset({"opened", "synchronize", "reopened"})
 
 
 def _require_recorded_step() -> Step:
@@ -284,10 +297,14 @@ def _require_recorded_step() -> Step:
 
 
 def _runs_docs_build_check(wf_data: dict[str, Any]) -> bool:
-    """Return whether a workflow calls docs-build-check.yml as a reusable job."""
+    """Return whether a workflow calls docs-build-check.yml unconditionally.
+
+    A job-level ``if:`` on the calling job could skip it, so such a caller does
+    not count.
+    """
     target = f"./.github/workflows/{DOCS_BUILD_CHECK.name}"
     return any(
-        isinstance(job, dict) and job.get("uses") == target
+        isinstance(job, dict) and job.get("uses") == target and "if" not in job
         for job in wf_data.get("jobs", {}).values()
     )
 
@@ -303,13 +320,17 @@ def _unfiltered_publish_pull_request(wf_data: dict[str, Any]) -> bool:
         return False
     if "publish" in event.get("branches-ignore", []):
         return False
+    types = event.get("types")
+    if types is not None and not PULL_REQUEST_DEFAULT_TYPES.issubset(types):
+        return False
     return "paths" not in event and "paths-ignore" not in event
 
 
 @pytest.mark.spec("DOCBW-03-012")
 def test_require_recorded_runs_only_on_pull_requests_to_publish():
     step = _require_recorded_step()
-    assert PUBLISH_BASE in str(step.body.get("if", "")), (
+    condition = " ".join(str(step.body.get("if", "")).split())
+    assert condition in PUBLISH_ONLY_CONDITIONS, (
         f"The '{REQUIRE_RECORDED}' step must be conditioned on {PUBLISH_BASE}: "
         "on a pull request to main a new page is not yet due (DOCBW-03-012)."
     )
@@ -371,10 +392,38 @@ def test_every_pull_request_to_publish_runs_the_step():
         ({"branches-ignore": ["publish"]}, False),
         ({"branches": ["publish"], "paths": ["docs/**"]}, False),
         ({"branches": ["publish"], "paths-ignore": ["plan/**"]}, False),
+        ({"branches": ["publish"], "types": ["closed"]}, False),
+        (
+            {
+                "branches": ["publish"],
+                "types": ["opened", "synchronize", "reopened", "edited"],
+            },
+            True,
+        ),
+        (None, True),
+    ],
+    ids=[
+        "publish",
+        "every-branch",
+        "main-only",
+        "publish-ignored",
+        "paths",
+        "paths-ignore",
+        "closed-only",
+        "default-types-and-more",
+        "bare-trigger",
     ],
 )
 def test_unfiltered_publish_pull_request_reads_the_trigger(
-    event: dict[str, Any], expected: bool
+    event: dict[str, Any] | None, expected: bool
 ):
     wf = {"on": {"pull_request": event}}
     assert _unfiltered_publish_pull_request(wf) is expected
+
+
+def test_a_conditional_caller_job_does_not_count():
+    target = f"./.github/workflows/{DOCS_BUILD_CHECK.name}"
+    assert _runs_docs_build_check({"jobs": {"j": {"uses": target}}})
+    assert not _runs_docs_build_check(
+        {"jobs": {"j": {"uses": target, "if": "false"}}}
+    )

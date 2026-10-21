@@ -209,9 +209,9 @@ a URL an earlier build served and this one dropped. `uv run docs-legacy-urls`
 - **Snapshot the incoming publish, not the outgoing one.** A pull request to
   `publish` fails until every page its merge result builds is recorded
   (DOCBW-03-012), whatever paths the pull request changes: run
-  `--snapshot origin/main` on `main` and commit it. Recording each publish as
-  it ships covers every earlier one, and the check reuses the snapshot's
-  definition of a built page, so the two cannot disagree.
+  `--snapshot origin/main` on a branch from `main` and merge it into `main`.
+  Recording each publish as it ships covers every earlier one, and the check
+  reuses the snapshot's definition of a built page, so the two cannot disagree.
 - **A snapshot records what the ref built, not what it held** — it applies that
   ref's own `draft_docs` and `exclude_docs`.
 - **The baseline lists built pages, not nav entries.** Fragments built as their
