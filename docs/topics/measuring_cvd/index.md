@@ -13,6 +13,7 @@ The pages are research material for people who study the CVD process, and none o
 
 The section is derived from the report [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771){:target="_blank"} by Allen Householder and Jonathan Spring.
 The twelve desired outcomes it measures against are stated in plain terms on [What Does *Success* Mean in CVD?](../background/cvd_success.md), which is the place to start if the state notation is new to you.
+Two pages go beyond the report: [Desiderata from the Process Models](process_model_desiderata.md) proposes further orderings drawn from the protocol's report, embargo, and multi-party models, and [Timing Metrics Within a Case](timing_metrics.md) proposes measuring the time between events, not only their order.
 
 ## Pages in this section
 
@@ -29,6 +30,8 @@ The first four construct the model, the next two measure against it, and the rem
 - [Observing Skill](observing_skill.md) — The skill coefficient applied to Microsoft security updates and to commodity exploit data.
 - [Benchmarking CVD](benchmarking.md) — What a reasonable benchmark for the skill coefficient is, and why the naive benchmark of zero is a low bar.
 - [Benchmarking MPCVD](benchmarking_mpcvd.md) — Extending the measure to a case in which every affected vendor and product has its own history.
+- [Desiderata from the Process Models](process_model_desiderata.md) — Ordering preferences beyond the original twelve, distilled from the report, embargo, consent, and multi-party process models.
+- [Timing Metrics Within a Case](timing_metrics.md) — Intervals, dwell times, margins, and spreads that the case ledger's timestamps make measurable within one case.
 - [Reward Functions](reward_functions.md) — Criteria for reward functions over Report Management and Embargo Management histories, and the simulation work they would enable.
 - [State Space Size](state_space_size.md) — How large the Vultron protocol state space is for each participant role and for a whole case, and why coordination keeps it tractable.
 - [CS Model Limitations](../process_models/cs/cs_model_limitations.md) — Research discussion of what the model leaves out, including transition probabilities and the ordering of case histories.
