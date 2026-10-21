@@ -48,7 +48,7 @@ def test_backfill_without_a_sync_port_is_a_wiring_fault():
     assert dl.outbox_list() == []
 
 
-def _backfill(bridge, datalayer, invitee_id: str, sync_port):
+def _backfill(bridge, invitee_id: str, sync_port, **blackboard):
     from test.core.behaviors.sync.nodes._embargo_gate_support import (
         MANAGER_ID,
     )
@@ -60,6 +60,7 @@ def _backfill(bridge, datalayer, invitee_id: str, sync_port):
         ),
         actor_id=MANAGER_ID,
         sync_port=sync_port,
+        **blackboard,
     )
 
 
@@ -68,14 +69,16 @@ def _backfill(bridge, datalayer, invitee_id: str, sync_port):
 def test_backfill_keeps_a_pause_the_same_act_recorded():
     """A seated non-signatory is paused by the Accept entry's fan-out.
 
-    That fan-out runs earlier in the same act, so the backfill finds the
-    pause state on record. It sends the whole prefix through the target
-    and keeps the pause for the admission backfill (CM-10-006).
+    That fan-out runs earlier in the same act, before the Accept signs the
+    invitee to the embargo, so the backfill finds the pause state on record.
+    It sends the prefix before the Accept's entry and keeps the pause, from
+    which the next fan-out admits the invitee (CM-10-006).
     """
     from unittest.mock import MagicMock
 
     from test.core.behaviors.sync.nodes._embargo_gate_support import (
         NON_SIGNATORY_ID,
+        accept_embargo,
         fan_out,
         manager_datalayer,
         paused_from,
@@ -93,15 +96,18 @@ def test_backfill_keeps_a_pause_the_same_act_recorded():
     entries = seed_ledger(dl, 3)
     fan_out(bridge, entries[-1], MagicMock(spec=SyncActivityPort))
     assert paused_from(dl) == 2
+    accept_embargo(dl, NON_SIGNATORY_ID)
 
     sync_port = MagicMock(spec=SyncActivityPort)
-    result = _backfill(bridge, dl, NON_SIGNATORY_ID, sync_port)
+    # A seated invitee's backfill stops before the Accept's own entry.
+    result = _backfill(
+        bridge, NON_SIGNATORY_ID, sync_port, pre_commit_backfill_target=1
+    )
 
     assert result.status == Status.SUCCESS
     assert sends(sync_port) == [
         (0, [NON_SIGNATORY_ID]),
         (1, [NON_SIGNATORY_ID]),
-        (2, [NON_SIGNATORY_ID]),
     ]
     state = dl.read(
         VultronReplicationState(
@@ -110,8 +116,8 @@ def test_backfill_keeps_a_pause_the_same_act_recorded():
     )
     assert isinstance(state, VultronReplicationState)
     assert state.embargo_paused_from_index == 2
-    assert state.join_backfill_target_index == 2
-    assert state.join_backfill_last_sent_index == 2
+    assert state.join_backfill_target_index == 1
+    assert state.join_backfill_last_sent_index == 1
     assert state.join_backfill_complete is True
 
 
@@ -130,7 +136,7 @@ def test_backfill_of_an_empty_ledger_sends_nothing_and_is_complete():
     bridge = BTBridge(datalayer=dl)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    result = _backfill(bridge, dl, INVITEE_ID, sync_port)
+    result = _backfill(bridge, INVITEE_ID, sync_port)
 
     assert result.status == Status.SUCCESS
     sync_port.send_announce_log_entry.assert_not_called()

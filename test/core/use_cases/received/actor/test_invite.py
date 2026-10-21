@@ -1724,9 +1724,10 @@ class TestInviteActorUseCases:
 
         The invitee is joined but has not accepted the active embargo, so
         the Accept entry's fan-out withholds it and records a pause in its
-        replication state.  The backfill later in the same act finds that
-        state and records its target beside the pause, which the admission
-        backfill serves (CM-10-006).
+        replication state.  The Accept then signs it to the embargo, so the
+        backfill later in the same act finds that state and an active
+        invitee.  On main the backfill raised on that state (#5032), and
+        before that the signature was not kept (#5056).
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case_participant import CaseParticipant
@@ -1815,15 +1816,29 @@ class TestInviteActorUseCases:
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED, result
+        # The Accept's signature is kept on the seated record, so the invitee
+        # is active before the case announce and the backfill (CM-10-004).
+        record = dl.read(f"{case_id}/participants/seated-non-signatory")
+        assert isinstance(record, CaseParticipant)
+        assert [row.state for row in record.embargo_consents] == [
+            EmbargoConsentState.AGREED
+        ]
+        # The Accept's own entry (2) was withheld at its fan-out; the join
+        # backfill sends the prefix (0, 1), and the next commit's fan-out
+        # admits the invitee from the pause before sending its entry (3),
+        # so the invitee gets every entry once, in log order (CM-10-006).
+        sent = [
+            kwargs["entry"].log_index
+            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+            if invitee_id in kwargs["to"]
+        ]
+        assert sent == [0, 1, 2, 3]
         state = dl.read(
             VultronReplicationState(case_id=case_id, peer_id=invitee_id).id_
         )
         assert isinstance(state, VultronReplicationState)
-        # The pause the Accept's fan-out recorded is kept, from the Accept's
-        # own entry (2), beside the join backfill of the prefix (0, 1).
-        assert state.embargo_paused_from_index == 2
+        assert state.embargo_paused_from_index is None
         assert state.join_backfill_target_index == 1
-        assert state.join_backfill_last_sent_index == 1
         assert state.join_backfill_complete is True
 
     def test_accept_invite_backfill_runs_when_the_announce_cannot_be_sent(

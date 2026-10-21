@@ -93,6 +93,27 @@ def mark_joined(record: CaseParticipant, published: datetime) -> bool:
     return True
 
 
+def settle_stub_accept(
+    stored: CaseParticipant | None,
+    record: CaseParticipant,
+    published: datetime,
+) -> bool:
+    """The CASE_MANAGER's write of the record its accept tree left.
+
+    *record* is *stored* as the tree left it: signed to the embargo in force
+    (:func:`stub_accept_consent`), when there is one.  This marks it joined
+    and stamps ``updated`` when the Accept moved anything, as
+    :func:`apply_stub_accept` does on a replica.  A record that was already
+    joined still keeps a consent row the Accept moved.  Returns whether
+    *record* must be saved.
+    """
+    joined = mark_joined(record, published)
+    if not joined and record == stored:
+        return False
+    record.updated = _later(record.updated, published)
+    return True
+
+
 def stub_accept_consent(
     case: VulnerabilityCase, record: CaseParticipant
 ) -> CaseParticipant:

@@ -277,13 +277,14 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
     ) -> VultronReplicationState:
         """Return the invitee's replication state with a fresh backfill target.
 
-        No state holds a backfill when this runs: the backfill commits with
-        its Accept in one act (CLP-07-015), and the idempotency guard refuses
-        a joined invitee that has any state on record.  A state can still
-        exist from earlier in the same act: a seated invitee that has not
-        accepted the active embargo has its stream paused by the Accept
-        entry's fan-out (CM-10-005).  That state keeps its pause and gains
-        the backfill target; nothing is resumed.
+        The backfill commits with its Accept in one act (CLP-07-015), so no
+        part-way backfill is ever on record to resume.  The tree reaches this
+        node only when ``CheckInviteeNotAlreadyParticipantNode`` found no
+        state for a joined invitee.  A state can still exist from earlier in
+        the same act: a seated invitee that had not accepted the active
+        embargo has its stream paused by the Accept entry's fan-out
+        (CM-10-005).  That state keeps its pause and gains the backfill
+        target.
         """
         if self.datalayer is None:
             raise RuntimeError(

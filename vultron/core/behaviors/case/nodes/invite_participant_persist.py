@@ -38,17 +38,24 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.participants.stub_reply import mark_joined, reply_published
+from vultron.core.participants.stub_reply import (
+    reply_published,
+    settle_stub_accept,
+)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 
 class ActivateInviteeParticipantNode(
     DataLayerActionWithPorts, StateWriteCapable
 ):
-    """Set ``joined=True`` on the invitee's existing participant record.
+    """Save the invitee's participant record as its Accept left it.
 
-    A record that is already joined (a participant seated without a join) is
-    left as it is.  RM stays at ``RECEIVED``: accepting the stub is joining, not judging
+    Sets ``joined=True`` and keeps the consent row the Accept signed
+    (:func:`~vultron.core.participants.stub_reply.settle_stub_accept`).  A
+    record that is already joined (a participant seated without a join)
+    keeps a signed row too, so it is active before the case announce and the
+    backfill run (CM-10-004); a record the Accept did not move is left as it
+    is.  RM stays at ``RECEIVED``: accepting the stub is joining, not judging
     the case (CM-11-001).
     """
 
@@ -103,13 +110,20 @@ class ActivateInviteeParticipantNode(
             return Status.FAILURE
         # The same write a replica makes from the Accept's own entry; the
         # record's time is the Accept's ``published``, never the local clock.
-        if mark_joined(participant, published):
+        stored = self.datalayer.read(participant.id_)
+        was_joined = participant.joined
+        if settle_stub_accept(
+            stored if isinstance(stored, CaseParticipant) else None,
+            participant,
+            published,
+        ):
             self.datalayer.save(participant)
             self.logger.info(
-                "%s: promoted inert participant '%s' to joined=True"
-                " (ADR-0114, CM-11-006)",
+                "%s: saved participant '%s' as the Accept left it"
+                " (joined=True%s; ADR-0114, CM-11-006)",
                 self.name,
                 participant.id_,
+                ", was already joined" if was_joined else "",
             )
         return Status.SUCCESS
 

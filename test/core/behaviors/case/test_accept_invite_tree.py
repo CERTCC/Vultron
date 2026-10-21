@@ -423,7 +423,7 @@ def test_activating_the_inert_record_marks_it_joined_and_keeps_rm(
 def test_activating_a_joined_record_changes_nothing(
     bt_scenario: BTTestScenario,
 ) -> None:
-    """Backfill resume: an already joined record is left as it is."""
+    """A seated record the Accept did not move is left as it is."""
     _case, participant = _case_with_inert_invitee()
     participant.joined = True
     bt_scenario.seed(participant)
@@ -443,6 +443,48 @@ def test_activating_a_joined_record_changes_nothing(
     stored = bt_scenario.dl.read(participant.id_)
     assert isinstance(stored, CaseParticipant)
     assert stored.model_dump() == before
+
+
+@pytest.mark.spec("CM-10-004")
+@pytest.mark.spec("CM-11-001")
+def test_activating_a_joined_record_keeps_the_signed_consent(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """A seated record that the Accept signed is saved with its new row.
+
+    Joining changes nothing on it, but the signature must be kept, so the
+    invitee is active before the case announce and the backfill (#5056).
+    """
+    _case, participant = _case_with_inert_invitee()
+    participant.joined = True
+    bt_scenario.seed(participant)
+    signed = participant.model_copy(deep=True)
+    signed.embargo_consents = [
+        EmbargoConsent(
+            embargo_id=_EMBARGO_ID, state=EmbargoConsentState.AGREED
+        )
+    ]
+    node = ActivateInviteeParticipantNode(
+        case_id=_CM21_CASE_ID, invitee_id=_CM21_INVITEE_ID
+    )
+
+    result = bt_scenario.run(
+        node,
+        actor_id=bt_scenario.actor_id,
+        new_invite_participant=signed,
+        activity=_received_accept(),
+    )
+
+    assert result.status == Status.SUCCESS
+    stored = bt_scenario.dl.read(participant.id_)
+    assert isinstance(stored, CaseParticipant)
+    assert [row.state for row in stored.embargo_consents] == [
+        EmbargoConsentState.AGREED
+    ]
+    # Stamped with the Accept's own time, as a replica stamps it (ADR-0103).
+    assert stored.updated == max(
+        participant.updated or _ACCEPT_PUBLISHED, _ACCEPT_PUBLISHED
+    )
 
 
 def test_accept_tree_has_no_participant_creating_node() -> None:
