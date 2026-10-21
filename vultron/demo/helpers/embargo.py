@@ -14,11 +14,12 @@
 """Embargo object factory helpers shared across demo scenarios."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import isodate  # type: ignore[import-untyped]
 
 from vultron.adapters.utils import parse_id
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -93,7 +94,7 @@ def make_embargo_event(
     Returns:
         A new :class:`as_EmbargoEvent` with start/end times set.
     """
-    now = datetime.now().astimezone()
+    now = now_utc()
     now = now.replace(second=0, microsecond=0)
     end_at = (now + timedelta(days=days)).replace(
         hour=0, minute=0, second=0, microsecond=0

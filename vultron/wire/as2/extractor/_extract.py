@@ -13,6 +13,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.events import (
     AnyReceivedEvent,
@@ -314,7 +315,7 @@ def _effective_rsvp_deadline(
             source,
             deadline.effective.isoformat(),
         )
-    if deadline.effective <= datetime.now(tz=UTC):
+    if deadline.effective <= now_utc():
         logger.warning(
             "extract_intent: activity '%s' from actor '%s' rsvp_deadline %s"
             " is already past (published %s); the invitation lapses on the"
