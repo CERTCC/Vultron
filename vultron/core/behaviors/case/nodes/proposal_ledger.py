@@ -87,11 +87,11 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     Every entry is required (CLP-07-013): the first entry that fails to
     commit stops the sequence, so no later entry is committed out of order,
     and the node returns FAILURE.  The records those entries carry were
-    written before this node ran, so the failure is surfaced, not prevented.
-    The one case that can be undone is a failed genesis on the create-case
-    trigger path, where nothing is committed and the queued ``Create`` can
-    still be taken back out of the outbox: that tree withdraws the case
-    after this node fails (``WithdrawUncommittedCaseNode``).
+    written before this node ran.  Both creation trees run them, the queued
+    ``Accept``/``Create`` and this node in one ``ActTransaction`` (ADR-0146),
+    so the failure rolls back the case, its records, the queued activities
+    and every entry committed before it: no record is kept without its
+    entry (#4442).
 
     On the proposal path it runs *after* the accept flow has queued its
     ``Create(VulnerabilityCase)`` (``EmitCreateVulnerabilityCaseNode``):
@@ -397,12 +397,12 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         #
         # On the proposal path this node runs after the emit nodes, so the
         # Create(VulnerabilityCase) is already queued (with
-        # Accept(as_CaseProposal), and the retry marker cleared): the failure
-        # is surfaced (ERROR log, non-APPLIED verdict), not prevented, and a
-        # redelivered proposal commits what this run did not.  Holding the
-        # Create back would mean fanning the genesis entry out ahead of it,
-        # which is the pre-genesis path CP-09-009 exists to avoid.  Pinned by
-        # test_genesis_commit_failure_is_reported_after_accept_and_create_are_queued.
+        # Accept(as_CaseProposal)).  Both are in the tree's ActTransaction, so
+        # a failure here rolls them back with the case before delivery is
+        # told of them (ADR-0146, DL-02-004).  Holding the Create back would
+        # mean fanning the genesis entry out ahead of it, which is the
+        # pre-genesis path CP-09-009 exists to avoid.  Pinned by
+        # test_a_genesis_commit_failure_queues_neither_accept_nor_create.
         try:
             self._commit_one(
                 case_id,
