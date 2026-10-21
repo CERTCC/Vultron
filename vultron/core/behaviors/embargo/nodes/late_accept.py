@@ -20,7 +20,8 @@ answer (EMB-17-001).  The CASE_MANAGER routes it by its compatibility with the
 case's embargo, one arm per outcome, each a diversion of the Accept tree
 (CLP-10-026): :class:`LateAcceptRouteIsNode` names the arm, and
 :class:`CommitLateAcceptAcknowledgementNode` is the no-op acknowledgement
-when the case holds no embargo (EMB-17-004).
+when the case holds no embargo (EMB-17-004), taken only when
+:class:`LateAcceptAcknowledgeableNode` finds the delivery can be answered.
 """
 
 from enum import StrEnum
@@ -45,6 +46,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models.events.base import VultronEvent
 from vultron.core.models.rsvp_deadline import INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.em import EM
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronWiringError
@@ -126,6 +128,69 @@ class LateAcceptRouteIsNode(DataLayerConditionWithPorts):
         return Status.SUCCESS
 
 
+def late_accept_acknowledged(
+    datalayer: CasePersistence, case_id: str, accept_id: str
+) -> bool:
+    """True when *case_id*'s ledger records the ``Ignore`` of *accept_id*.
+
+    The acknowledgement carries the late Accept inline as its ``object``
+    (EMB-17-004), so the Accept's id names the entry that answers it.
+    """
+    return any(
+        entry.semantic_type == INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
+        and _extract_id_from_field(entry.payload_snapshot.get("object"))
+        == accept_id
+        for entry in recorded_entries_for_case(case_id=case_id, dl=datalayer)
+    )
+
+
+class LateAcceptAcknowledgeableNode(DataLayerConditionWithPorts):
+    """Condition: the acknowledgement arm can answer this late Accept.
+
+    The acknowledgement carries the received Accept inline (EMB-17-004), so
+    it needs the received body.  A resend routed without one (IE-10-001,
+    VM-08-002) can be answered only by the acknowledgement already recorded
+    for it.  SUCCESS when the event carries its body or that acknowledgement
+    is recorded; FAILURE otherwise, logged at WARNING, so the arm is not
+    taken and the tree's late-Accept guard refuses the delivery instead of
+    the arm failing to answer it (CLP-10-026).  Read-only.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._event: object | None = None
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._event = self._try_get_input("activity")
+
+    def update(self) -> Status:
+        event = self._event
+        if not carries_no_received_body(event):
+            return Status.SUCCESS
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+        accept_id = cast(VultronEvent, event).activity_id
+        if late_accept_acknowledged(self.datalayer, self._case_id, accept_id):
+            return Status.SUCCESS
+        self.feedback_message = unrecordable_resend_reason(
+            accept_id, self._case_id
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
 class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
     """Commit the CASE_MANAGER's ``Ignore`` of a late embargo ``Accept``.
 
@@ -145,10 +210,10 @@ class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
     ``Ignore``'s id from the CASE_MANAGER and the Accept, so a redelivered
     Accept commits nothing new.  A resend routed without received evidence
     (IE-10-001) has no body to carry: the acknowledgement already recorded
-    for its Accept stands, and with none recorded the resend is refused.
-
-    A missing received event is a composition fault and raises
-    (ARCH-15-001, ADR-0095).
+    for its Accept stands.  The arm is taken for such a resend only when one
+    is recorded (:class:`LateAcceptAcknowledgeableNode`), so reaching this
+    node without either is a composition fault, as is a missing received
+    event (ARCH-15-001, ADR-0095).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {
@@ -179,30 +244,24 @@ class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
         return super().update()
 
     def _answer_resend(self, event: VultronEvent) -> Status:
-        """The recorded acknowledgement of *event*'s Accept stands, if any."""
+        """The recorded acknowledgement of *event*'s Accept stands."""
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        acknowledged = any(
-            entry.semantic_type == INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
-            and _extract_id_from_field(entry.payload_snapshot.get("object"))
-            == event.activity_id
-            for entry in recorded_entries_for_case(
-                case_id=self._case_id, dl=self.datalayer
+        if not late_accept_acknowledged(
+            self.datalayer, self._case_id, event.activity_id
+        ):
+            raise VultronWiringError(
+                f"{self.name}: late Accept '{event.activity_id}' carries no"
+                " received body and no acknowledgement of it is recorded; the"
+                " arm's condition should not have held (CLP-10-026)"
             )
+        self.feedback_message = (
+            f"late Accept '{event.activity_id}' is a redelivery already"
+            f" acknowledged on case '{self._case_id}'"
         )
-        if acknowledged:
-            self.feedback_message = (
-                f"late Accept '{event.activity_id}' is a redelivery already"
-                f" acknowledged on case '{self._case_id}'"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-        self.feedback_message = unrecordable_resend_reason(
-            event.activity_id, self._case_id
-        )
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
 
     def _late_accept(self) -> dict[str, Any]:
         """The received Accept, as it arrived and as its entry records it."""
@@ -225,7 +284,9 @@ class CommitLateAcceptAcknowledgementNode(_CommitCaseManagerActivityBase):
 
 __all__ = [
     "CommitLateAcceptAcknowledgementNode",
+    "LateAcceptAcknowledgeableNode",
     "LateAcceptRoute",
     "LateAcceptRouteIsNode",
+    "late_accept_acknowledged",
     "late_accept_route",
 ]

@@ -735,11 +735,15 @@ def test_a_resent_late_accept_without_evidence_keeps_its_acknowledgement():
 
 @pytest.mark.spec("CLP-10-026")
 @pytest.mark.spec("VM-08-002")
-def test_a_late_accept_with_no_body_and_no_acknowledgement_is_not_answered():
-    """With no received body and nothing recorded, there is nothing to carry.
+@pytest.mark.spec("IE-10-001")
+def test_a_late_accept_with_no_body_and_no_acknowledgement_is_refused():
+    """With no received body and nothing recorded, the arm cannot answer.
 
-    The arm does not complete, which CLP-10-026 makes an internal error, and
-    no acknowledgement is committed.
+    The acknowledgement carries the Accept inline, so a resend routed without
+    its body is answered only by an acknowledgement already recorded.  With
+    none, the arm's condition does not hold (CLP-10-026): the delivery falls
+    to the late-Accept guard and is refused, a sender-caused verdict, not an
+    internal error, and nothing is committed.
     """
     net = _Network("https://example.org/cases/answer-late-accept-no-body")
     body, _accept_id, _bystander_pid, _revision_id = (
@@ -751,9 +755,9 @@ def test_a_late_accept_with_no_body_and_no_acknowledgement_is_not_answered():
         received_evidence=None,
     )
 
-    with pytest.raises(VultronBTInternalError, match="no received body"):
-        net.receive_event(MANAGER, resend)
+    verdict = net.receive_event(MANAGER, resend)
 
+    assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
     assert INVITE_EXPIRED_NOOP_SEMANTIC_TYPE not in _semantic_types(
         net, MANAGER
     )

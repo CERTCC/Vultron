@@ -80,6 +80,14 @@ def _assert_actor_identity(
         )
 
 
+def _semantic_type_of(activity: Any) -> str:
+    """The semantic an entry records *activity* as."""
+    semantics = getattr(activity, "semantic_type", None)
+    if semantics is not None:
+        return cast(str, semantics.value)
+    return getattr(activity, "activity_type", "case_event") or "case_event"
+
+
 class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     """
     Commit a hash-chained CaseLedgerEntry and fan it out to all case participants.
@@ -150,14 +158,21 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
     def _resolve_activity(self) -> Any | None:
         return self._activity
 
-    def _answer_resend(self, activity_id: str, case_id: str) -> Status:
+    def _answer_resend(self, activity: Any, case_id: str) -> Status:
         """Answer a resend routed without received evidence (IE-10-001).
 
-        It has no body to record.  When the ledger records its first delivery,
-        that entry stands; otherwise the resend is refused, not recorded.
+        It has no body to record.  When the ledger records its first delivery
+        as the same semantic, that entry stands.  Otherwise the resend is
+        refused, not recorded: its first delivery was never recorded, or the
+        id is recorded for a different activity, which a resend rebuilt from
+        a different body would otherwise pass for (CLP-07-013).
         """
         assert self.datalayer is not None
-        if is_ledgered_activity(self.datalayer, case_id, activity_id):
+        activity_id = activity.activity_id
+        semantic_type = _semantic_type_of(activity)
+        if is_ledgered_activity(
+            self.datalayer, case_id, activity_id, semantic_type=semantic_type
+        ):
             self.logger.info(
                 "%s: activity '%s' is a redelivery already recorded for case"
                 " '%s'; its first delivery's entry stands",
@@ -166,9 +181,16 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
                 case_id,
             )
             return Status.SUCCESS
-        self.feedback_message = unrecordable_resend_reason(
-            activity_id, case_id
-        )
+        if is_ledgered_activity(self.datalayer, case_id, activity_id):
+            self.feedback_message = (
+                f"activity '{activity_id}' is recorded for case '{case_id}'"
+                f" as another activity than '{semantic_type}', and this"
+                " resend carries no received body to record (IE-10-001)"
+            )
+        else:
+            self.feedback_message = unrecordable_resend_reason(
+                activity_id, case_id
+            )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
@@ -179,13 +201,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             return case_id, "case_event", {}
 
         object_id = getattr(activity, "activity_id", case_id)
-        semantics = getattr(activity, "semantic_type", None)
-        semantic_type = (
-            semantics.value
-            if semantics is not None
-            else getattr(activity, "activity_type", "case_event")
-            or "case_event"
-        )
+        semantic_type = _semantic_type_of(activity)
         payload_snapshot = _extract_payload_snapshot(activity)
         return object_id, semantic_type, payload_snapshot
 
@@ -213,7 +229,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         if carries_no_received_body(activity):
-            return self._answer_resend(activity.activity_id, case_id)
+            return self._answer_resend(activity, case_id)
 
         object_id, semantic_type, payload_snapshot = self._activity_metadata(
             activity, case_id

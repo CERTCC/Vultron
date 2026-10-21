@@ -52,7 +52,8 @@ following commit → effect::
     ├─ LateAcceptReinvite: …, LateAcceptRouteIs(REINVITE)
     └─ ReinviteLateAccepterNode  # stamp → build → outbox → commit → PEC INVITE
     AcknowledgeLateAccept (DiversionStage)
-    ├─ LateAcceptAcknowledge: …, LateAcceptRouteIs(ACKNOWLEDGE)
+    ├─ LateAcceptAcknowledge: …, LateAcceptRouteIs(ACKNOWLEDGE),
+    │    LateAcceptAcknowledgeable
     └─ CommitLateAcceptAcknowledgementNode   # the CASE_MANAGER's Ignore
 
 Replicas replay the re-invite through
@@ -84,6 +85,7 @@ from vultron.core.behaviors.embargo.nodes.expiry_commit import (
 )
 from vultron.core.behaviors.embargo.nodes.late_accept import (
     CommitLateAcceptAcknowledgementNode,
+    LateAcceptAcknowledgeableNode,
     LateAcceptRoute,
     LateAcceptRouteIsNode,
 )
@@ -347,26 +349,35 @@ def _late_accept_condition(
     route: LateAcceptRoute,
     result_out: dict[str, Any],
 ) -> py_trees.behaviour.Behaviour:
-    """The Invite expired, and its late Accept takes the *route* arm."""
+    """The Invite expired, and its late Accept takes the *route* arm.
+
+    The acknowledgement arm also needs a delivery it can answer
+    (:class:`LateAcceptAcknowledgeableNode`): a resend with no received body
+    and no acknowledgement recorded falls through to the late-Accept guard,
+    which refuses it (CLP-10-026).
+    """
+    children: list[py_trees.behaviour.Behaviour] = [
+        py_trees.decorators.Inverter(
+            name="InviteExpired",
+            child=InviteNotExpiredNode(
+                result_out=result_out,
+                invitee_id=accepting_actor_id,
+                case_id=case_id,
+            ),
+        ),
+        LateAcceptRouteIsNode(
+            case_id=case_id,
+            embargo_id=embargo_id,
+            accepting_actor_id=accepting_actor_id,
+            route=route,
+        ),
+    ]
+    if route is LateAcceptRoute.ACKNOWLEDGE:
+        children.append(LateAcceptAcknowledgeableNode(case_id=case_id))
     return py_trees.composites.Sequence(
         name=f"LateAccept{route.value.title()}",
         memory=False,
-        children=[
-            py_trees.decorators.Inverter(
-                name="InviteExpired",
-                child=InviteNotExpiredNode(
-                    result_out=result_out,
-                    invitee_id=accepting_actor_id,
-                    case_id=case_id,
-                ),
-            ),
-            LateAcceptRouteIsNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                accepting_actor_id=accepting_actor_id,
-                route=route,
-            ),
-        ],
+        children=children,
     )
 
 

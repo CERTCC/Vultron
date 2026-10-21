@@ -313,6 +313,46 @@ def test_a_recorded_resend_without_evidence_reuses_its_first_entry(
     mock_factory.assert_not_called()
 
 
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("IE-10-001")
+def test_a_resend_whose_id_is_recorded_as_another_activity_is_refused(
+    bridge, datalayer
+):
+    """An id the ledger records for one activity is not another's record.
+
+    An archived redelivery is rebuilt from the body that arrived, so a resend
+    reusing the id with a different activity type routes to another handler.
+    Taking the first entry as its record would let that handler's effects run
+    with no entry; the node refuses it instead, committing nothing.
+    """
+    datalayer.create(
+        CaseLedgerEntry(
+            case_id=CASE_ID,
+            log_object_id=ACTIVITY_ID,
+            semantic_type=MessageSemantics.CREATE_CASE.value,
+            payload_snapshot=_CREATE_BODY,
+            entry_hash="hash-1",
+            prev_log_hash="hash-0",
+            log_index=0,
+        )
+    )
+    resend = VultronEvent(
+        semantic_type=MessageSemantics.CLOSE_CASE,
+        activity_id=ACTIVITY_ID,
+        actor_id=ACTOR_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH) as mock_factory:
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=resend
+        )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is False
+    assert "as another activity" in (result.feedback_message or "")
+    mock_factory.assert_not_called()
+
+
 @pytest.mark.spec("ARCH-15-001")
 def test_blackboard_activity_that_is_not_an_event_is_a_wiring_fault(bridge):
     """Only a received event carries a received body to record."""
