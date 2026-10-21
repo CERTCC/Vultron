@@ -515,8 +515,12 @@ navigation edits at a time.
 
 Repeated openings and re-expanded acronyms serve readers who arrive from search
 and deep links, so they are required, not accretion damage; do not deduplicate
-them to make neighbors read as a sequence (DF-11-007, SG-07). Nav order still
-carries meaning, but what it carries is dependency and prominence, and the
+them from a rendered page to make neighbors read as a sequence (DF-11-007,
+SG-07). The rule binds the rendered page, not the source: a block one authority
+owns (a banner, a pointer, a shared prerequisite list) is sourced from one
+fragment that every page includes, so it still renders on each (DF-10-002,
+SG-43); only a page introducing itself in its own words stays inline. Nav order
+still carries meaning, but what it carries is dependency and prominence, and the
 level rule makes a wrong order falsifiable. Transitions and forward/back
 references between neighbors remain real work.
 
