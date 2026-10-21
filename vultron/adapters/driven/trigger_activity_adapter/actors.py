@@ -884,7 +884,9 @@ class _ActorsMixin:
             actor=actor,
             context=case_id,
             published=published,
-            id_=derived_activity_id("ownership-offer-expired", actor, offer_id),
+            id_=derived_activity_id(
+                "ownership-offer-expired", actor, offer_id
+            ),
         )
         return _seal_record(self._dl, activity)
 

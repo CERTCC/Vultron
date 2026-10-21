@@ -93,8 +93,7 @@ an Offer can also close without an answer (#4490):
   withdrawal is an `Undo` of its proposal instead (CM-21-015). Its
   `semantic_type` is in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so it
   closes the Offer. It is `NO_REPLICA_EFFECT`: replicas learn expiry from the
-  entry and
-  never compute it, as for embargo Invite expiry (CM-28-014).
+  entry and never compute it, as for embargo Invite expiry (CM-28-014).
   - **Why a clock decision.** The expiry is the CASE_MANAGER's own decision
     from its clock, committed as its own entry before the activity is judged
     (CLP-07-013), and ledgered even when that activity is then admitted (a new

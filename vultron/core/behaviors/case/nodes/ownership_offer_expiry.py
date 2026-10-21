@@ -35,10 +35,10 @@ expiry, and a replica learns it from the entry, never by reading the clock
 closes it before the received activity is judged (CM-21-014), and is
 ledgered whether that activity is then admitted (a new Offer) or refused (a
 late reply, CM-21-016).  The expiry is the occasion; the act is the
-CASE_MANAGER's ``Undo`` of the Offer, carrying the Offer inline with the
-``endTime`` it passed.  The CASE_MANAGER as its ``actor`` is what tells it
-from the Case Owner's own withdrawal (CM-21-015), and it is recorded as
-``offer_case_ownership_transfer_expired`` (ADR-0140).  The entry changes no
+CASE_MANAGER's ``Undo`` of the Offer it made (ADR-0148), carrying the Offer
+inline with the ``endTime`` it passed, recorded as
+``offer_case_ownership_transfer_expired`` (ADR-0140).  The Case Owner's own
+withdrawal is an ``Undo`` of its proposal instead (CM-21-015).  The entry changes no
 replica state of its own; it closes the Offer because every "is it open?"
 reader includes its ``semantic_type``
 (``OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES``).
