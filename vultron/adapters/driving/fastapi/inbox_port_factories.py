@@ -269,8 +269,10 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
 )
 
 # Status-authorization call-out seam (ADR-0076, RSH-07-003):
-# ADD_CASE_STATUS_TO_CASE and ADD_PARTICIPANT_STATUS_TO_PARTICIPANT both
-# carry a StatusAuthorizationCallOutBundle injection point.  The adapter
+# ADD_PARTICIPANT_STATUS_TO_PARTICIPANT carries a
+# StatusAuthorizationCallOutBundle injection point.  ADD_CASE_STATUS_TO_CASE
+# carries none: it is admitted only at a participant replica, from the
+# CASE_MANAGER, and gates nothing (RSH-04-005).  The adapter
 # wires STATUS_AUTHORIZATION_PERMISSIVE (explicit trusted/demo configuration)
 # so the EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed
 # without a live Case Owner approval round-trip.  Production deployments that
@@ -278,10 +280,6 @@ _EMBARGO_INVITE_SEMANTICS = frozenset(
 # bundle here.
 _STATUS_AUTH_TRIGGER_SEMANTICS = frozenset(
     {
-        # ADD_CASE_STATUS_TO_CASE also needs trigger_activity so that
-        # ThreatTerminationBranchNode can dispatch TerminateEmbargo when
-        # P/X/A is set (RSH-03-001, ADR-0046).
-        MessageSemantics.ADD_CASE_STATUS_TO_CASE,
         # ADD_PARTICIPANT_STATUS_TO_PARTICIPANT triggers the downstream
         # participant-status activity.
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
@@ -315,8 +313,7 @@ def _inbox_hand_back_port_factory(dl: DataLayer) -> dict[str, Any]:
 def _status_auth_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Inject trigger_activity + STATUS_AUTHORIZATION_PERMISSIVE.
 
-    Used for ``ADD_CASE_STATUS_TO_CASE`` and
-    ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``.  Wires the permissive
+    Used for ``ADD_PARTICIPANT_STATUS_TO_PARTICIPANT``.  Wires the permissive
     authorization bundle (RSH-07-003, ADR-0076) so the
     EmbargoTeardownAuthorizationGate and StatusAdoptionGate succeed in this
     adapter's trusted/demo deployment context.

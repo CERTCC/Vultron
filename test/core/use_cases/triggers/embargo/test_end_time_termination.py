@@ -541,7 +541,6 @@ def test_a_threat_status_records_the_signals_it_carries() -> None:
         tree=ThreatTerminationBranchNode(
             status_obj=status,
             case_id=world.case_id,
-            sender_actor_id=world.finder.id_,
         ),
         actor_id=world.manager.id_,
     )

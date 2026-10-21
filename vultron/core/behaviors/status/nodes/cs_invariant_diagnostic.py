@@ -46,7 +46,8 @@ logger = logging.getLogger(__name__)
 class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
     """Post-cascade PXA↔EM cross-machine invariant check (CSB-18-002..004).
 
-    Reads fresh EM state from the DataLayer after
+    Reads fresh EM state from the DataLayer after a participant's P/X/A
+    report is adopted and
     :class:`~vultron.core.behaviors.status.nodes.threat_termination.ThreatTerminationBranchNode`
     has run. When the invariant is still violated — embargo active with PXA
     P/X/A bit set — the CASE_MANAGER records a note naming the violation and
@@ -57,7 +58,7 @@ class PxaEmInvariantDiagnosticNode(_CommitCaseManagerNoteBase):
     of a CASE_MANAGER act does.
 
     This node runs whether or not the authorization gate permitted teardown,
-    because :class:`~vultron.core.behaviors.status.add_case_status_tree.add_case_status_tree`
+    because :func:`~vultron.core.behaviors.status.add_participant_status_tree.add_participant_status_tree`
     wraps the gate and teardown in a ``FailureIsSuccess`` decorator.  Reading
     fresh DataLayer state after that block therefore reflects the post-teardown
     (or post-block) EM value, allowing accurate post-hoc detection.

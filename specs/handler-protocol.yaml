@@ -612,10 +612,10 @@ groups:
       `test/core/models/test_case_participant.py::TestAddParticipantStatus` show the only
       history mutators (`add_case_status`, `add_participant_status`) accepting a core
       status object and raising on anything else;
-      `test/core/behaviors/status/test_add_case_status_bt.py::TestAppendCaseStatusToCaseNode::test_appends_status_to_case`
+      `test/core/behaviors/status/nodes/test_case_status.py::TestEmitCaseStatusUpdateNode::test_happy_path_appends_new_case_status`
       and
-      `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_case_status_to_case_appends_status`
-      drive the append through the handler's tree.
+      `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_to_participant_appends_status`
+      drive the appends through the handler's tree.
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-006
