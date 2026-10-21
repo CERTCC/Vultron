@@ -59,9 +59,6 @@ from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckDeclineRecordExistsNode,
     CheckProposalCaseFullyClosedNode,
 )
-from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
-    CheckMarkerExistsNode,
-)
 from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
     RecordCaseProposalRejectionNode,
     create_reject_case_proposal_received_tree,
@@ -322,16 +319,11 @@ class CreateCaseProposalReceivedUseCase:
     def _classify_success(tree: Any, proposal_id: str) -> HandlerResult:
         """Say which arm of the idempotency Selector answered (#2255).
 
-        The tree succeeds on all five arms, but only the accept arm applied
+        The tree succeeds on all four arms, but only the accept arm applied
         the proposal.  A Selector leaves the arms it tried ahead of the winner
         FAILED and the ones after it INVALID, so the first guard that
         succeeded names the arm.
         """
-        if node_succeeded(tree, CheckMarkerExistsNode):
-            # CP-05-005: Accept already sent; the retry runner owns the Create.
-            return HandlerResult.skipped(
-                f"proposal '{proposal_id}' already accepted; Create in flight"
-            )
         if node_succeeded(tree, CheckDeclineRecordExistsNode):
             # HP-01-003: a pre-existing decline record is a duplicate — the
             # earlier REFUSED is the record; replaying the same message is a

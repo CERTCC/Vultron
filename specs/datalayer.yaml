@@ -177,8 +177,9 @@ groups:
     rationale: >-
       Prevents low-level storage and operational concerns from leaking into core use cases and BT nodes.
       `delete` was on this prohibition list while simultaneously being declared on the Protocol and called
-      from two core BT nodes, which retracts single-marker queue records
-      (`PendingCreateCaseActivity`) once they are consumed. Removing a marker the core itself wrote is a
+      from core BT nodes, which retract single-marker queue records
+      (`PendingCreationTimeRevisionRelay`) once they are consumed.
+      Removing a marker the core itself wrote is a
       domain operation, not an admin one, so `delete` moved to DL-04-002. `update` stays prohibited: core
       code mutates through `save`, which is idempotent by object id.
   - id: DL-04-004

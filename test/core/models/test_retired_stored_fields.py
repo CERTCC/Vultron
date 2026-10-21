@@ -13,12 +13,10 @@
 
 """A renamed or moved stored field is refused under its old key (#4128).
 
-The CaseProposal admission, decline and pending-Create records named the
-proposer or case owner ``vendor_uri``; the field is now ``proposer_uri`` on
-the two decision records and ``owner_uri`` on the pending-Create marker
-(CS-12-001).  The case's recommender index moved off the case into an
-``ActorRecommendationRecord`` (#4448).  There is no read alias and no
-conversion.
+The CaseProposal admission and decline records named the proposer
+``vendor_uri``; the field is now ``proposer_uri`` (CS-12-001).  The case's
+recommender index moved off the case into an ``ActorRecommendationRecord``
+(#4448).  There is no read alias and no conversion.
 """
 
 from collections.abc import Mapping
@@ -32,9 +30,6 @@ from vultron.core.models.case_proposal_admission import (
     CaseProposalAdmissionRecord,
 )
 from vultron.core.models.case_proposal_decline import CaseProposalDeclineRecord
-from vultron.core.models.pending_create_case_activity import (
-    PendingCreateCaseActivity,
-)
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
     RetiredStoredField,
@@ -46,15 +41,12 @@ CASE_ACTOR_ID = "https://example.org/actors/vendor/case-actor"
 OWNER_ID = "https://example.org/actors/vendor"
 
 _RenamedRecord = (
-    type[CaseProposalAdmissionRecord]
-    | type[CaseProposalDeclineRecord]
-    | type[PendingCreateCaseActivity]
+    type[CaseProposalAdmissionRecord] | type[CaseProposalDeclineRecord]
 )
 
 _RENAMED: list[tuple[_RenamedRecord, str]] = [
     (CaseProposalAdmissionRecord, "proposer_uri"),
     (CaseProposalDeclineRecord, "proposer_uri"),
-    (PendingCreateCaseActivity, "owner_uri"),
 ]
 _IDS = [cls.__name__ for cls, _ in _RENAMED]
 

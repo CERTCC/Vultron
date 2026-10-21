@@ -368,7 +368,7 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
 
         # Audit-best-effort skip (ADR-0087; NOT Regime 1). A missing case
         # skips as SUCCESS: the node runs last, after the node that wrote the
-        # case (and, on the accept flow, WriteCreateCaseMarkerNode, which
+        # case (and, on the accept flow, EmitCreateVulnerabilityCaseNode, which
         # hard-fails on an absent case via _require_case), so the coordination
         # decision belongs to those nodes. The distinct hard-fail here is a failed
         # *genesis commit* (case present, write fails) — see _commit_one and the

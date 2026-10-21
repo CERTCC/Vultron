@@ -623,8 +623,8 @@ def _decline(proposer: str) -> CaseProposalDeclineRecord:
 
 
 def _stored_proposal(proposer: str) -> as_CaseProposal:
-    """The proposal as the Accept or Reject path stores it, with no record:
-    a store written before the admission record existed."""
+    """The proposal as the Accept or Reject path stores it, read on its own:
+    CP-05-010 counts a stored proposal as recording it."""
     return as_CaseProposal(
         id_=PROPOSAL_ID,
         attributed_to=proposer,

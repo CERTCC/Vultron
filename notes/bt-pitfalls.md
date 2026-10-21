@@ -454,9 +454,8 @@ Selector
 ```
 
 This also makes redelivery idempotent (the decision is not re-made), a lost side
-effect recoverable ("decided, nothing emitted" is a distinct state, as with
-`PendingCreateCaseActivity`, CP-05-005), and the re-emitted reason match the
-original.
+effect recoverable ("decided, nothing emitted" is a distinct state), and the
+re-emitted reason match the original.
 
 Rules for the arm:
 

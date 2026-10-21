@@ -2163,10 +2163,9 @@ class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
     admits the proposal (``CaseProposalAdmissionRecord``) or declines it
     (``CaseProposalDeclineRecord``), and it stores the proposal itself, whose
     ``attributed_to`` is the proposer, when it sends the ``Accept`` or
-    ``Reject``.  A store written before the admission record existed holds
-    only that stored proposal, so it is read too.  A delivery of that
-    proposal id is a redelivery only from that proposer (CP-05-006,
-    CP-05-010).
+    ``Reject``.  CP-05-010 counts each of the three as recording the
+    proposal, so all three are read.  A delivery of that proposal id is a
+    redelivery only from that proposer (CP-05-006, CP-05-010).
 
     - Nothing recorded for the proposal id: ``SUCCESS``.  It is a new
       proposal, and the parse edge has already refused a proposal whose

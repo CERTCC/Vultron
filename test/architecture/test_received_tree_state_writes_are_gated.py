@@ -289,10 +289,6 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         "FixInviteTrustAnchorNode",
     ): _LOCAL,
     (
-        f"{_B}.case.nodes.proposal",
-        "RequeuePendingCreateCaseActivityNode",
-    ): _LOCAL,
-    (
         f"{_B}.case.nodes.proposal_admission_actions",
         "EmitRejectCaseProposalNode",
     ): _LOCAL,
@@ -308,14 +304,6 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         f"{_B}.case.nodes.proposal_case_resolution",
         "StoreProposalReportNode",
     ): _ARCHIVE,
-    (
-        f"{_B}.case.nodes.proposal_retry_marker",
-        "ClearCreateCaseMarkerNode",
-    ): _LOCAL,
-    (
-        f"{_B}.case.nodes.proposal_retry_marker",
-        "WriteCreateCaseMarkerNode",
-    ): _LOCAL,
     (f"{_B}.case.nodes.replica_bootstrap", "BindReportCaseLinkNode"): _LOCAL,
     (
         f"{_B}.case.nodes.store_received_object",

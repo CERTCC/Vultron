@@ -6,7 +6,7 @@ description: >
   Rules for changing the CaseProposal implementation: who may answer a
   proposal, the admission-gate invariants, the proposer profile on the envelope,
   native case initialization by the CASE_MANAGER, the CaseActor identity and the
-  dedicated case-actor container, the durable-delivery markers,
+  dedicated case-actor container, durable delivery of the case announcement,
   duplicate-proposal handling, and finding the
   canonical case in exchange demos.
 related_specs:
@@ -85,8 +85,7 @@ the general form of each is in [bt-pitfalls](bt-pitfalls.md).
 A refusal has no channel for a reason or cause, so the `Reject` carries no `summary`
 and an unreachable backend reads as a permanent decline (#3446).
 
-The decision records name the actor owed the answer `proposer_uri`;
-`PendingCreateCaseActivity` names the actor owed the `Create` `owner_uri`. A row
+The decision records name the actor owed the answer `proposer_uri`. A row
 carrying the retired `vendor_uri` key is refused
 ([datalayer-design](datalayer-design.md) § "Renaming a Stored Field").
 
@@ -178,54 +177,40 @@ identity `http://case-actor:7999/api/v2/actors/case-actor`.
 
 ---
 
-## Durable-Delivery Marker (CP-05-005)
+## Durable Delivery of the Case Announcement (CP-05-005)
 
-`Accept(CaseProposal)` and `Create(VulnerabilityCase)` are sent in sequence, so a
-failed second delivery would leave an `Accept` with no case.
+`Accept(CaseProposal)` and `Create(VulnerabilityCase)` must never be split: an
+`Accept` with no `Create` leaves the proposer with no case.
 
-- `WriteCreateCaseMarkerNode`
-  (`vultron/core/behaviors/case/nodes/proposal_retry_marker.py`) writes a
-  `PendingCreateCaseActivity` after the `Accept` and before the `Create`, holding the
-  pre-built `Create` payload; it is deleted once the `Create` is queued.
-- The `Create` id is derived from the proposal
-  (`PendingCreateCaseActivity.create_activity_id()`), never minted, so a redelivery
-  that finds it stored queues nothing (#4146). `announced_case_id()` checks the stored
-  activity is a `Create` for *this* case, because the proposal id is sender-chosen.
-- Clear the marker only *after* the enqueue: while it exists, `CheckMarkerExistsNode`
-  short-circuits and the retry runner owns recovery, so "Create stored, no marker"
-  means "queued".
+- Both are queued inside the creation `ActTransaction` (ADR-0146), so a `Create` that
+  cannot be queued rolls back the `Accept`, and once the act commits the durable
+  outbox retries the `Create` (OX-13). Add no retry marker for it.
+- The `Create` id is derived from the proposal (`create_case_activity_id()` in
+  `vultron/core/behaviors/case/nodes/proposal_announcement.py`), never minted, so a
+  redelivery that finds it stored queues nothing (#4146). `announced_case_id()`
+  checks the stored activity is a `Create` for *this* case, because the proposal id
+  is sender-chosen.
 
-### Retry Runner
-
-`retry_pending_create_case_activities()`
-(`vultron/adapters/driving/fastapi/pending_retry.py`) runs once in the FastAPI
-lifespan. Rules:
-
-- Scan each hosted actor's own store (`hosted_actor_ids()`), not only the process
-  cache, which is empty after a restart; there is no shared store to scan (ADR-0073).
-- Re-enqueue the marker's stored payload verbatim. A rebuilt activity gets a fresh
-  `id_` and bypasses the outbox idempotency check, delivering a duplicate.
-
-### The Same Shape for the Creation-Time Revision Relay (EP-04-011)
+### Creation-Time Revision Relay Marker (EP-04-011)
 
 Creation-time initialization runs once per case (EP-04-012), so a failed relay of the
 shortest-wins loser would never be retried by a redelivered proposal.
 `InitializeCreationEmbargoNode` writes a `PendingCreationTimeRevisionRelay` in the same
 commit that registers the revision; `RelayCreationTimeRevisionNode` relays, indexes and
-deletes it. The lifespan scan calls `retry_pending_creation_time_revision_relays()`,
-which sends nothing until the case's `create_case` entry is committed (CM-14-007). It
-is a separate record type so no persisted shape changes. See
+deletes it. The lifespan scan (`vultron/adapters/driving/fastapi/pending_retry.py`)
+calls `retry_pending_creation_time_revision_relays()`, which scans each hosted
+actor's own store (ADR-0073) and sends nothing until the case's `create_case` entry
+is committed (CM-14-007). The relay runs after the creation act commits, so unlike
+the `Create` it needs its own marker. See
 [embargo-default-semantics](embargo-default-semantics.md) for the relay itself.
 
 ---
 
 ## Duplicate-Proposal Handling (CP-05-006)
 
-`create_case_proposal_received_tree` is a five-arm Selector, in order: in-flight
-marker, already-declined answer, closed-case decline, admission decision, accept flow.
+`create_case_proposal_received_tree` is a four-arm Selector, in order:
+already-declined answer, closed-case decline, admission decision, accept flow.
 
-- **Marker exists** (`CheckMarkerExistsNode`): `Accept` sent, `Create` pending; drop the
-  duplicate, the retry runner owns recovery.
 - **Same proposal id** (CP-05-006): re-send the stored `Accept` unchanged under its
   proposal-derived id, unless still pending in the outbox; create no second case.
   "Duplicate" means only this — an exact redelivery. A second report about the same
@@ -241,8 +226,8 @@ marker, already-declined answer, closed-case decline, admission decision, accept
   factory composes `SenderIsProposalAuthorNode` ahead of every arm. A proposal id
   whose admission record, decline record or stored proposal (`attributed_to`) names
   another proposer is `REFUSED` before any proposal-keyed record is read or written
-  (HP-01-008, #4719). The stored proposal covers a store written before the
-  admission record existed. Add any new proposal-keyed record that names the
+  (HP-01-008, #4719); CP-05-010 counts all three as recording the proposal. Add any
+  new proposal-keyed record that names the
   proposer to that node. `LoadExistingCaseNode`'s `accepted_for_proposer_only`
   (#4650) is not a second defense: it reads the admission record, which the accept
   arm writes for the current sender when none exists.
@@ -276,7 +261,7 @@ marker, already-declined answer, closed-case decline, admission decision, accept
   the closed-case check and the accept arm cannot resolve different cases.
 - The `Accept`'s `result` always names the case the proposal produced or reused, so
   the requester correlates it without a second `Create`, which is not sent again.
-  `CheckCaseAlreadyAnnouncedNode` skips the marker and `Create` steps, and
+  `CheckCaseAlreadyAnnouncedNode` skips the `Create` step, and
   `CommitNativeLedgerEntriesNode` skips entries already recorded; without that skip
   the reused entries fan out again.
 - **Every native-initialization node must be a no-op on a case that already has what it

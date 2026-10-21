@@ -367,11 +367,11 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         ...
 
     def emit_prepared_create_case(self, payload: dict) -> tuple[str, str]:
-        """Persist a ``Create(VulnerabilityCase)`` prepared at marker time.
+        """Persist a ``Create(VulnerabilityCase)`` the emitting node prepared.
 
-        *payload* is the AS2 document stored on the
-        ``PendingCreateCaseActivity`` marker, so a replay after a crash sends
-        the same activity under the same id (CP-05-005).
+        *payload* is the activity's AS2 rendering, under an id derived from
+        the proposal, so a redelivered proposal names the same activity
+        (CP-05-005).
 
         Returns ``(activity_id, activity_blob)``.
         """
