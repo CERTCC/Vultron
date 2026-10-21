@@ -52,7 +52,7 @@ relevant_packages:
   - vultron/core/services/carried_embargo.py
   - vultron/core/behaviors/embargo/
   - vultron/core/models/pending_assertion.py
-  - vultron/core/use_cases/triggers/embargo.py
+  - vultron/core/use_cases/triggers/embargo/
   - vultron/core/use_cases/received/embargo/
 ---
 
@@ -119,7 +119,11 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   entry as one `EmbargoTermination`, required there and refused elsewhere. The
   cascades pass `ThreatSignalTermination(signals=...)`: the signals of the
   triggering status, or, when unknown at build time, the case's PXA at the
-  write. The `Remove` carries the why as `terminationCause` (a field on the
+  write. A voluntary termination passes `ChosenTermination`, set by the
+  `ChooseTerminationCauseNode` after the reason call-out that succeeded and
+  read at the write, so the choice and the commit are one act (EMB-14-001);
+  the trigger records the request's cause, or `OTHER` when it names none.
+  The `Remove` carries the why as `terminationCause` (a field on the
   base `as_Remove`, marked a Vultron property so `context.jsonld` names it),
   checked at the parse edge (EMB-13-005), because a replica learns the why
   only from the ledger entry: it copies the cause, never works it out from its

@@ -92,7 +92,8 @@ groups:
       acknowledgement — not a fault the operator must act on, so it is a lifecycle
       event, not a WARNING (SL-03-001). The ingress adapter already logs the
       redelivery it detects at INFO with the activity and actor ids (IE-10-001,
-      #3638).
+      #3638). A different body under a held id is not a redelivery: it is refused and
+      logged at WARNING (IE-10-002).
     relationships:
     - rel_type: depends_on
       spec_id: SL-03-001

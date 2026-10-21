@@ -231,6 +231,9 @@ Its default is to accept (EMB-15-001, EMB-15-005) — the protocol's position is
 All three default to *no*, and the defaults are ordered.
 A fix being deployed is a more plausible reason to exit than a fix merely being ready, and "some other reason" is the least plausible of all.
 An implementer reading only the code sees three similar nodes; the probabilities are where the editorial judgment is recorded.
+When an Evaluator says *yes*, the node after it records the termination's cause: `FIX_DEPLOYED`, `FIX_READY` with the Vendors whose fix is ready, or `OTHER` (EMB-14-001).
+When no Vendor's fix is ready, the `FIX_READY` branch fails and the next reason is tried.
+The termination message and the ended embargo's register entry record that cause.
 
 **Authorizing the response.** Deciding how the *case* responds to an overture is not every Participant's call.
 The response seam puts a case-owner check first: when the deciding actor holds `CVDRole.CASE_OWNER`, its stated response is authoritative and no approval is sought (EMB-15-002, EMB-15-006).
