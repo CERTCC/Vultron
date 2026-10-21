@@ -1,10 +1,12 @@
 """CI verification test — the built-site gates run wherever the site builds.
 
-Implements DOCBW-03-005, DOCBW-03-006, DOCBW-03-007 and DOCBW-03-008 from
-``specs/docs-build-workflow.yaml``. A workflow that builds ``site/`` MUST run
+Implements DOCBW-03-005, DOCBW-03-006, DOCBW-03-007, DOCBW-03-008 and
+DOCBW-03-012 from ``specs/docs-build-workflow.yaml``. A workflow that builds ``site/`` MUST run
 ``docs-withheld`` (the publication axis), ``docs-links`` (the reference axis)
 and ``docs-legacy-urls`` (the continuity axis) against it, unconditionally, and
 in ``deploy_site.yml`` each MUST sit between the build and the Pages upload.
+On a pull request to ``publish`` only, ``docs-legacy-urls --require-recorded``
+also runs, whatever the pull request changes (DOCBW-03-012).
 
 Ordering is the whole point, and it is why this is a test rather than a review
 habit. Both checks read the built tree, so a step placed before the build fails
@@ -34,6 +36,7 @@ from test.ci._workflows import (
     WORKFLOWS_DIR,
     load_workflow,
     site_building_workflows,
+    triggers,
 )
 
 # Each built-site gate's command, and the requirement it implements.
@@ -261,3 +264,117 @@ def test_every_publication_check_runs_even_if_an_earlier_one_failed():
 def test_a_run_after_failure_condition_does_not_neuter_a_gate():
     step = {"if": "${{ !cancelled() }}", "run": "uv run docs-legacy-urls"}
     assert _neutering(Step(step, step)) == []
+
+
+# --- DOCBW-03-012: a pull request to publish records every page it builds ----
+
+REQUIRE_RECORDED = "docs-legacy-urls --require-recorded"
+DOCS_BUILD_CHECK = WORKFLOWS_DIR / "docs-build-check.yml"
+PUBLISH_BASE = "github.base_ref == 'publish'"
+
+
+def _require_recorded_step() -> Step:
+    steps = _steps(load_workflow(DOCS_BUILD_CHECK))
+    index = _index_of(steps, REQUIRE_RECORDED, "run")
+    assert index is not None, (
+        f"{DOCS_BUILD_CHECK.name} never runs '{REQUIRE_RECORDED}', so a publish "
+        "can ship a page the legacy-URL baseline does not list (DOCBW-03-012)."
+    )
+    return steps[index]
+
+
+def _runs_docs_build_check(wf_data: dict[str, Any]) -> bool:
+    """Return whether a workflow calls docs-build-check.yml as a reusable job."""
+    target = f"./.github/workflows/{DOCS_BUILD_CHECK.name}"
+    return any(
+        isinstance(job, dict) and job.get("uses") == target
+        for job in wf_data.get("jobs", {}).values()
+    )
+
+
+def _unfiltered_publish_pull_request(wf_data: dict[str, Any]) -> bool:
+    """Return whether a workflow runs on every pull request to ``publish``."""
+    event = triggers(wf_data).get("pull_request")
+    if not isinstance(event, dict):
+        # A bare ``pull_request:`` runs on every pull request to any branch.
+        return "pull_request" in triggers(wf_data)
+    branches = event.get("branches")
+    if branches is not None and "publish" not in branches:
+        return False
+    if "publish" in event.get("branches-ignore", []):
+        return False
+    return "paths" not in event and "paths-ignore" not in event
+
+
+@pytest.mark.spec("DOCBW-03-012")
+def test_require_recorded_runs_only_on_pull_requests_to_publish():
+    step = _require_recorded_step()
+    assert PUBLISH_BASE in str(step.body.get("if", "")), (
+        f"The '{REQUIRE_RECORDED}' step must be conditioned on {PUBLISH_BASE}: "
+        "on a pull request to main a new page is not yet due (DOCBW-03-012)."
+    )
+    assert step.caller is step.body, (
+        "The step must be a workflow step, not one inside a local action."
+    )
+
+
+@pytest.mark.spec("DOCBW-03-012")
+def test_require_recorded_can_fail_the_workflow():
+    step = _require_recorded_step()
+    assert not step.body.get("continue-on-error", False), (
+        f"The '{REQUIRE_RECORDED}' step sets continue-on-error, so it gates "
+        "nothing (DOCBW-03-012)."
+    )
+
+
+@pytest.mark.spec("DOCBW-03-012")
+def test_require_recorded_is_not_in_the_shared_publication_action():
+    """deploy_site.yml and pull requests to main run that action."""
+    for step in _local_action_steps(PUBLICATION_ACTION):
+        assert REQUIRE_RECORDED not in str(step.get("run", "")), (
+            f"{PUBLICATION_ACTION} runs '{REQUIRE_RECORDED}', so every pull "
+            "request to main would fail on its new pages (DOCBW-03-012)."
+        )
+
+
+@pytest.mark.spec("DOCBW-03-012")
+def test_every_pull_request_to_publish_runs_the_step():
+    """A path filter would skip a release that changes no docs.
+
+    The workflow can carry only one ``pull_request`` trigger, so the unfiltered
+    one may come from a workflow that calls it as a reusable job.
+    """
+    docs_build_check = load_workflow(DOCS_BUILD_CHECK)
+    candidates = [DOCS_BUILD_CHECK]
+    if "workflow_call" in triggers(docs_build_check):
+        candidates += [
+            path
+            for path in sorted(WORKFLOWS_DIR.glob("*.yml"))
+            if _runs_docs_build_check(load_workflow(path))
+        ]
+    assert any(
+        _unfiltered_publish_pull_request(load_workflow(path))
+        for path in candidates
+    ), (
+        f"No workflow runs {DOCS_BUILD_CHECK.name} on every pull request to "
+        "publish with no paths: filter, so a release that changes no docs is "
+        "never checked (DOCBW-03-012)."
+    )
+
+
+@pytest.mark.parametrize(
+    "event,expected",
+    [
+        ({"branches": ["publish"]}, True),
+        ({}, True),
+        ({"branches": ["main"]}, False),
+        ({"branches-ignore": ["publish"]}, False),
+        ({"branches": ["publish"], "paths": ["docs/**"]}, False),
+        ({"branches": ["publish"], "paths-ignore": ["plan/**"]}, False),
+    ],
+)
+def test_unfiltered_publish_pull_request_reads_the_trigger(
+    event: dict[str, Any], expected: bool
+):
+    wf = {"on": {"pull_request": event}}
+    assert _unfiltered_publish_pull_request(wf) is expected

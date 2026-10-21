@@ -55,7 +55,10 @@ groups:
           #2904 break 101 example blocks, and #3574 ship a dead link, with this
           workflow never running (#3070). Changes limited to `plan/`, `notes/`,
           or other non-site markdown do not affect the built site and MUST NOT
-          trigger the workflow.
+          trigger the workflow. A pull request to `publish` is the exception:
+          `docs-publish-check.yml` runs this workflow on every one, whatever it
+          changes (DOCBW-03-012), so this trigger ignores the `publish` base
+          branch rather than run it twice.
         verification: >-
           `test/ci/test_docs_build_trigger_paths.py` asserts the
           `pull_request` paths include every path this statement lists.

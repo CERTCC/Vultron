@@ -227,7 +227,11 @@ a URL an earlier build served and this one dropped. `uv run docs-legacy-urls`
 Both publication-side checks run through one composite action,
 `.github/actions/check-site-publication`, in `docs-build-check.yml` and in
 `deploy_site.yml`, so the workflow that ships is gated by exactly what the
-workflow that reviews is gated by.
+workflow that reviews is gated by. The `--require-recorded` step stays out of
+that action: it is a `docs-build-check.yml` step conditioned on a `publish` base
+branch, and `docs-publish-check.yml` calls that workflow on every pull request
+to `publish`, because the reviewing workflow's own trigger carries a `paths:`
+filter and a workflow has only one `pull_request` trigger.
 
 ## Nav Visibility Is Not a Content Class: Fragments vs. Assembly Units
 

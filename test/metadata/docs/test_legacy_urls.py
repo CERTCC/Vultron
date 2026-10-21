@@ -8,6 +8,10 @@ chain ending at one, unless a withheld declaration withdraws it.
 
 The empty-``site/`` and empty-baseline tests are the load-bearing ones: both
 close a way for the check to pass while checking nothing (DF-09-009).
+
+``--require-recorded`` (DOCBW-03-012, #4966) is the other direction: every page
+a commit builds is in the baseline, so a publish cannot ship a page the check
+above does not know about.
 """
 
 from __future__ import annotations
@@ -18,12 +22,15 @@ from pathlib import Path
 import pytest
 
 from vultron.metadata.docs.legacy_urls import (
+    EmptyBaselineError,
+    NoBuiltPagesError,
     load_baseline,
     main,
     page_url,
     redirect_target,
     snapshot,
     unmapped_pages,
+    unrecorded_pages,
 )
 from vultron.metadata.docs.withheld import WithheldArtifact
 
@@ -372,3 +379,138 @@ def test_cli_snapshot_reports_an_unreadable_ref(tmp_path, capsys):
     assert exc.value.code == 1
     assert "[ERROR] git cannot read 'nosuchref'" in capsys.readouterr().err
     assert load_baseline(baseline) == ["old/gone.md"]
+
+
+# --- require-recorded ----------------------------------------------------
+
+SNAPSHOT_FIX = "--snapshot origin/main"
+
+
+@pytest.mark.spec("DOCBW-03-012")
+def test_a_recorded_build_has_no_unrecorded_pages(tmp_path):
+    repo = tmp_path / "repo"
+    _git_repo(repo, ["docs/index.md", "docs/sub/page.md"])
+    assert unrecorded_pages("HEAD", repo, ["index.md", "sub/page.md"]) == []
+
+
+@pytest.mark.spec("DOCBW-03-012")
+def test_an_unrecorded_built_page_is_reported(tmp_path):
+    repo = tmp_path / "repo"
+    _git_repo(repo, ["docs/index.md", "docs/z.md", "docs/new.md"])
+    assert unrecorded_pages("HEAD", repo, ["index.md", "old/gone.md"]) == [
+        "new.md",
+        "z.md",
+    ]
+
+
+@pytest.mark.spec("DOCBW-03-012")
+def test_an_unbuilt_source_need_not_be_recorded(tmp_path):
+    """ "Built" is the rule ``--snapshot`` records with, so the two agree."""
+    repo = tmp_path / "repo"
+    _git_repo(
+        repo,
+        ["docs/page.md", "docs/developer/index.md"],
+        mkdocs_yml="site_name: t\ndraft_docs: |\n  developer/\n",
+    )
+    assert unrecorded_pages("HEAD", repo, ["page.md"]) == []
+
+
+@pytest.mark.spec("DOCBW-03-012")
+def test_a_snapshot_clears_the_check(tmp_path):
+    repo = tmp_path / "repo"
+    _git_repo(repo, ["docs/index.md", "docs/new.md"])
+    baseline = _baseline(tmp_path, ["index.md"])
+    snapshot("HEAD", repo, baseline)
+    assert unrecorded_pages("HEAD", repo, load_baseline(baseline)) == []
+
+
+@pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DF-09-009")
+def test_a_commit_that_builds_no_pages_raises(tmp_path):
+    repo = tmp_path / "repo"
+    _git_repo(repo, ["docs/img.png"])
+    with pytest.raises(NoBuiltPagesError, match="builds no docs/ pages"):
+        unrecorded_pages("HEAD", repo, ["index.md"])
+
+
+@pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DF-09-009")
+def test_an_empty_baseline_raises_for_require_recorded(tmp_path):
+    repo = tmp_path / "repo"
+    _git_repo(repo, ["docs/index.md"])
+    with pytest.raises(EmptyBaselineError, match="baseline is empty"):
+        unrecorded_pages("HEAD", repo, [])
+
+
+def _require_recorded(repo: Path, baseline: Path) -> None:
+    main(
+        [
+            "--root",
+            str(repo),
+            "--baseline",
+            str(baseline),
+            "--require-recorded",
+        ]
+    )
+
+
+@pytest.mark.spec("DOCBW-03-012")
+def test_cli_require_recorded_names_each_unrecorded_page(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    _git_repo(repo, ["docs/index.md", "docs/new.md", "docs/other.md"])
+    baseline = _baseline(tmp_path, ["index.md"])
+    with pytest.raises(SystemExit) as exc:
+        _require_recorded(repo, baseline)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "new.md is built but not in baseline.txt" in err
+    assert "other.md is built but not in baseline.txt" in err
+    assert "2 built page(s) are not recorded" in err
+    assert SNAPSHOT_FIX in err
+
+
+@pytest.mark.spec("DOCBW-03-012")
+def test_cli_require_recorded_passes_when_every_page_is_recorded(
+    tmp_path, capsys
+):
+    repo = tmp_path / "repo"
+    _git_repo(repo, ["docs/index.md"])
+    baseline = _baseline(tmp_path, ["index.md", "old/gone.md"])
+    _require_recorded(repo, baseline)
+    assert "Every page HEAD builds is recorded" in capsys.readouterr().out
+
+
+@pytest.mark.spec("DOCBW-03-012")
+@pytest.mark.spec("DF-09-009")
+@pytest.mark.parametrize(
+    "files,pages,message",
+    [
+        (["docs/img.png"], ["index.md"], "builds no docs/ pages"),
+        (["docs/index.md"], [], "baseline is empty"),
+    ],
+    ids=["empty-build", "empty-baseline"],
+)
+def test_cli_require_recorded_fails_when_it_would_check_nothing(
+    tmp_path, capsys, files: list[str], pages: list[str], message: str
+):
+    repo = tmp_path / "repo"
+    _git_repo(repo, files)
+    with pytest.raises(SystemExit) as exc:
+        _require_recorded(repo, _baseline(tmp_path, pages))
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert message in err
+    assert SNAPSHOT_FIX in err
+
+
+def test_cli_require_recorded_reports_a_missing_repository(tmp_path, capsys):
+    with pytest.raises(SystemExit) as exc:
+        _require_recorded(tmp_path, _baseline(tmp_path, ["index.md"]))
+    assert exc.value.code == 1
+    assert "[ERROR] git cannot read HEAD" in capsys.readouterr().err
+
+
+def test_cli_require_recorded_and_snapshot_are_exclusive():
+    with pytest.raises(SystemExit) as exc:
+        main(["--snapshot", "HEAD", "--require-recorded"])
+    assert exc.value.code == 2

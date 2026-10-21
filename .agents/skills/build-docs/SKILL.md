@@ -88,6 +88,15 @@ PYTHONPATH='' uv run docs-legacy-urls
    `check-site-publication` action, so a failure here is a failure that would
    have blocked the deploy.
 
+   A pull request to `publish` also runs
+   `PYTHONPATH='' uv run docs-legacy-urls --require-recorded` (DOCBW-03-012).
+   It needs no `site/`: it fails when a page the checked-out commit builds is
+   missing from `vultron/metadata/docs/legacy_urls_baseline.txt`. The fix is to
+   run `uv run docs-legacy-urls --snapshot origin/main` on `main`, commit the
+   baseline, and update the pull request from `main`. Pull requests to `main`
+   do not run it, because a new page is not due in the baseline until it
+   publishes.
+
 1. Check the reference axis against the same build:
 
 ```bash
