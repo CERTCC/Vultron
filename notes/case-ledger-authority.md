@@ -105,8 +105,15 @@ to prior assertions.
 proposed).** Every payload is a valid AS2 activity, and an entry's `semantic_type`
 must equal the semantic type the registry assigns to its `payload_snapshot`,
 including for the CASE_MANAGER's own acts. Today each write path stamps
-`semantic_type` from its own string constant. The shapes for ledger-only acts are
-decided in #4723; the equality test is #4724.
+`semantic_type` from its own string constant. The equality test is #4724.
+
+**Planned: one shape, one semantic type, and observations are not ledgered
+(ADR-0152, proposed).** A pattern never sees the sender, so a CASE_MANAGER act
+with a participant's verb and object carries the participant's semantic type; a
+replica that must act differently tells them apart after routing, by `actor` and
+`attributedTo`. A fact any replica can derive (a passed `Offer` `endTime`, a
+completed closure) gets no entry, only the case-file change it causes. The code
+still writes the old per-occasion types until #5037, #5038 and #5039 land.
 
 **The field is `semantic_type`, wire key `semanticType` (CLP-02-014).** The
 glossary names "event type" as a term to avoid for it. The hash chain hashes
