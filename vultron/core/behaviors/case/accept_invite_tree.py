@@ -26,7 +26,6 @@ Tree structure::
     ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
     ├── InviteeHasParticipantRecordNode        — refuse when no record (CM-11-021)
     ├── StubInviteAnswerableNode               — not superseded
-    ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for a seated joiner
     ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
     └── AcceptInviteIfCaseManager (Selector)   — BT-17-001 gate
         ├── SkipIfNotCaseManager               — Inverter(CheckIsCaseManagerNode)
@@ -75,7 +74,6 @@ from vultron.core.behaviors.case.nodes.invite_inert_participant import (
 )
 from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
     BackfillCanonicalLedgerToInviteeNode,
-    CapturePreCommitBackfillTargetNode,
     EmitAnnounceCaseToInviteeNode,
 )
 from vultron.core.behaviors.case.nodes.invite_participant import (
@@ -172,8 +170,7 @@ def create_accept_invite_actor_to_case_tree(
         ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
         ├── InviteeHasParticipantRecordNode        — refuse an Accept with no record (CM-11-021)
         ├── StubInviteAnswerableNode               — not superseded
-        ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for a seated joiner
-        ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
+            ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
         └── AcceptInviteIfCaseManager              — BT-17-001 gate (#3752)
             └── AcceptInviteEffects (memory=False)
                 ├── MaybeSignEmbargoConsentNode          — sign when an embargo is in force
@@ -196,14 +193,12 @@ def create_accept_invite_actor_to_case_tree(
 
     The idempotency guard ``CheckInviteeNotAlreadyParticipantNode`` uses
     :class:`~vultron.core.behaviors.idempotency.SilentIdempotencyGuardMixin`
-    to enforce CLP-13-001: when a true duplicate is detected (invitee already
-    joined AND its backfill on record), the guard returns ``Status.FAILURE``
-    with an INFO log and no ledger write.  A participant seated without a
-    join (no backfill on record) gets SUCCESS with
-    ``invitee_already_participant = True``, so the tree continues to the
-    commit + backfill steps without re-creating the participant.  The
-    backfill commits with the Accept in one act (CLP-07-015), so no backfill
-    is ever on record part-way.
+    to enforce CLP-13-001: an Accept from an invitee whose participant record
+    is already joined or removed is a duplicate (CM-17-012), so the guard
+    returns ``Status.FAILURE`` with an INFO log and no ledger write.  Only an
+    inert invitee's first Accept continues to the commit, the join and the
+    backfill.  The backfill commits with the Accept in one act
+    (CLP-07-015).
 
     The sender guard refuses an Accept unless its sender is the invitee of the
     stub Invite this store recorded for the case, before anything is written
@@ -250,7 +245,6 @@ def create_accept_invite_actor_to_case_tree(
             # can (ASK-03-008).  A redelivery of a joined invitee's Accept
             # already ended the tree above, so this never refuses a duplicate.
             StubInviteAnswerableNode(invite_id=invite_id, case_id=case_id),
-            CapturePreCommitBackfillTargetNode(case_id=case_id),
         ],
         manager_effects=[
             MaybeSignEmbargoConsentNode(

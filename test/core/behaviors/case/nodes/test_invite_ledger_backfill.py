@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The join-time ledger backfill needs a sync port (SYNC-02-003, #4126)."""
+"""The join-time ledger backfill: its sync port and what it sends."""
 
 import pytest
 from py_trees.common import Status
@@ -48,7 +48,7 @@ def test_backfill_without_a_sync_port_is_a_wiring_fault():
     assert dl.outbox_list() == []
 
 
-def _backfill(bridge, invitee_id: str, sync_port, **blackboard):
+def _backfill(bridge, invitee_id: str, sync_port):
     from test.core.behaviors.sync.nodes._embargo_gate_support import (
         MANAGER_ID,
     )
@@ -60,76 +60,51 @@ def _backfill(bridge, invitee_id: str, sync_port, **blackboard):
         ),
         actor_id=MANAGER_ID,
         sync_port=sync_port,
-        **blackboard,
     )
 
 
-@pytest.mark.spec("CM-10-005")
+@pytest.mark.spec("CM-17-004")
 @pytest.mark.spec("CLP-07-015")
-def test_backfill_keeps_a_pause_the_same_act_recorded():
-    """A seated non-signatory is paused by the Accept entry's fan-out.
+def test_backfill_sends_the_whole_ledger_in_order_and_keeps_no_state():
+    """An inert joiner gets every entry, its Accept's own included.
 
-    That fan-out runs earlier in the same act, before the Accept signs the
-    invitee to the embargo, so the backfill finds the pause state on record.
-    It sends the prefix before the Accept's entry and keeps the pause, from
-    which the next fan-out admits the invitee (CM-10-006).
+    The Accept entry's fan-out skipped the invitee while it was inert, so the
+    backfill sends the ledger as it stands, in log order.  It writes no
+    replication state: the backfill commits with its Accept (CLP-07-015),
+    and the duplicate test reads the participant record (CM-17-012).
     """
     from unittest.mock import MagicMock
 
     from test.core.behaviors.sync.nodes._embargo_gate_support import (
-        NON_SIGNATORY_ID,
-        accept_embargo,
-        fan_out,
         manager_datalayer,
-        paused_from,
-        seed_case,
         seed_ledger,
         sends,
     )
-    from test.core.behaviors.sync.nodes.conftest import CASE_ID as GATE_CASE
-    from vultron.core.models.replication_state import VultronReplicationState
     from vultron.core.ports.sync_activity import SyncActivityPort
 
     dl = manager_datalayer()
     bridge = BTBridge(datalayer=dl)
-    seed_case(dl, embargo_active=True)
-    entries = seed_ledger(dl, 3)
-    fan_out(bridge, entries[-1], MagicMock(spec=SyncActivityPort))
-    assert paused_from(dl) == 2
-    accept_embargo(dl, NON_SIGNATORY_ID)
-
+    seed_ledger(dl, 3)
     sync_port = MagicMock(spec=SyncActivityPort)
-    # A seated invitee's backfill stops before the Accept's own entry.
-    result = _backfill(
-        bridge, NON_SIGNATORY_ID, sync_port, pre_commit_backfill_target=1
-    )
+
+    result = _backfill(bridge, INVITEE_ID, sync_port)
 
     assert result.status == Status.SUCCESS
     assert sends(sync_port) == [
-        (0, [NON_SIGNATORY_ID]),
-        (1, [NON_SIGNATORY_ID]),
+        (0, [INVITEE_ID]),
+        (1, [INVITEE_ID]),
+        (2, [INVITEE_ID]),
     ]
-    state = dl.read(
-        VultronReplicationState(
-            case_id=GATE_CASE, peer_id=NON_SIGNATORY_ID
-        ).id_
-    )
-    assert isinstance(state, VultronReplicationState)
-    assert state.embargo_paused_from_index == 2
-    assert state.join_backfill_target_index == 1
-    assert state.join_backfill_last_sent_index == 1
-    assert state.join_backfill_complete is True
+    assert dl.list_objects("ReplicationState") == []
 
 
 @pytest.mark.spec("CLP-07-015")
-def test_backfill_of_an_empty_ledger_sends_nothing_and_is_complete():
+def test_backfill_of_an_empty_ledger_sends_nothing():
     from unittest.mock import MagicMock
 
     from test.core.behaviors.sync.nodes._embargo_gate_support import (
         manager_datalayer,
     )
-    from test.core.behaviors.sync.nodes.conftest import CASE_ID as GATE_CASE
-    from vultron.core.models.replication_state import VultronReplicationState
     from vultron.core.ports.sync_activity import SyncActivityPort
 
     dl = manager_datalayer()
@@ -140,9 +115,4 @@ def test_backfill_of_an_empty_ledger_sends_nothing_and_is_complete():
 
     assert result.status == Status.SUCCESS
     sync_port.send_announce_log_entry.assert_not_called()
-    state = dl.read(
-        VultronReplicationState(case_id=GATE_CASE, peer_id=INVITEE_ID).id_
-    )
-    assert isinstance(state, VultronReplicationState)
-    assert state.join_backfill_target_index == -1
-    assert state.join_backfill_complete is True
+    assert dl.list_objects("ReplicationState") == []

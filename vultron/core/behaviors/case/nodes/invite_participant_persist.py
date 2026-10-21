@@ -51,12 +51,11 @@ class ActivateInviteeParticipantNode(
     """Save the invitee's participant record as its Accept left it.
 
     Sets ``joined=True`` and keeps the consent row the Accept signed
-    (:func:`~vultron.core.participants.stub_reply.settle_stub_accept`).  A
-    record that is already joined (a participant seated without a join)
-    keeps a signed row too, so it is active before the case announce and the
-    backfill run (CM-10-004); a record the Accept did not move is left as it
-    is.  RM stays at ``RECEIVED``: accepting the stub is joining, not judging
-    the case (CM-11-001).
+    (:func:`~vultron.core.participants.stub_reply.settle_stub_accept`), so the
+    invitee is active before the case announce and the backfill run
+    (CM-10-004).  The record is inert here: the idempotency guard ends the
+    tree for a joined or removed one (CM-17-012).  RM stays at ``RECEIVED``:
+    accepting the stub is joining, not judging the case (CM-11-001).
     """
 
     def __init__(
@@ -119,15 +118,13 @@ class ActivateInviteeParticipantNode(
                 self.invitee_id,
             )
             return Status.FAILURE
-        was_joined = participant.joined
         if settle_stub_accept(stored, participant, published):
             self.datalayer.save(participant)
             self.logger.info(
                 "%s: saved participant '%s' as the Accept left it"
-                " (joined=True%s; ADR-0114, CM-11-006)",
+                " (joined=True; ADR-0114, CM-11-006)",
                 self.name,
                 participant.id_,
-                ", was already joined" if was_joined else "",
             )
         return Status.SUCCESS
 
