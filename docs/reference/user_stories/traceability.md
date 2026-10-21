@@ -655,7 +655,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Each VulnerabilityCase MUST have exactly one associated CaseActor — case listing support.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[CM-07-001](../specs/protocol.md#cm-07-001)</td>
+<td markdown="span">[CM-07-001](../specs/project.md#cm-07-001)</td>
 <td markdown="span">The system SHOULD expose an endpoint returning the set of valid next actions — case API.</td>
 </tr>
 <tr markdown="1">
@@ -943,7 +943,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Each actor's RM state MUST be maintained independently per case — per-case state.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[CM-07-001](../specs/protocol.md#cm-07-001)</td>
+<td markdown="span">[CM-07-001](../specs/project.md#cm-07-001)</td>
 <td markdown="span">The system SHOULD expose an endpoint returning valid next actions — state-aware API.</td>
 </tr>
 <tr markdown="1">

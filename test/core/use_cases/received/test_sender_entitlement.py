@@ -937,7 +937,7 @@ def test_ledger_reject_for_unknown_case_is_refused():
     assert dl.read(state_id) is None
 
 
-@pytest.mark.spec("CM-23-018", "HP-01-009")
+@pytest.mark.spec("CM-23-018", "CM-23-020", "HP-01-009")
 def test_ledger_reject_does_not_declare_the_active_participant_standing():
     """A closed participant keeps its resync request, so its kind is its own.
 
