@@ -175,8 +175,10 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     Delegates DEMOMA-07-003 steps to the ``AddParticipantStatusBT``
     behavior tree:
-    1. Verify the sender: at the CASE_MANAGER, a known case participant;
-       at a participant replica, the CASE_MANAGER alone (PCR-03-001).
+    1. Verify the sender: at the CASE_MANAGER, the participant the target
+       record names, or the CASE_MANAGER or Case Owner asserting on its
+       behalf (RSH-08-007); at a participant replica, the CASE_MANAGER
+       alone (PCR-03-001).
     2. Append the ParticipantStatus to the CaseParticipant record.
     3. If the new status signals public awareness (CS.P) and the sender
        holds the CASE_OWNER role, initiate embargo teardown.
@@ -192,8 +194,15 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         specs/behavior-tree-integration.yaml BT-06-001.
     """
 
+    # Participant status is self-declared: the participant the target record
+    # names sends it, or the CASE_MANAGER or Case Owner asserts an on-behalf
+    # v→V or d→D for it, whose shape the tree checks (RSH-08-007,
+    # PRM-06-003/004).  A replica takes it from the CASE_MANAGER alone
+    # (PCR-03-001).
     sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
-        SenderEntitlementKind.PARTICIPANT
+        SenderEntitlementKind.CASE_MANAGER,
+        SenderEntitlementKind.CASE_OWNER,
+        SenderEntitlementKind.AUTHOR,
     )
 
     def __init__(

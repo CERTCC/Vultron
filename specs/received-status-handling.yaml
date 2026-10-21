@@ -884,14 +884,20 @@ groups:
     verification: >
       `test/core/use_cases/received/test_status.py::TestParticipantStatusSubjectIsTheSender`
       drives each case through the inbox ingress at the CASE_MANAGER: a
-      participant writing onto another's record is refused with no entry and
-      no append; a participant's own status, and an on-behalf v→V (from the
-      Case Owner and from the CASE_MANAGER) and d→D, are admitted; an
-      on-behalf assertion to a target without the role, one that also moves
-      RM, one that carries a case status, and an f→F are refused.
+      participant writing onto another's record is refused by the sender
+      guard with no entry, no append and no refusal notice; a participant's
+      own status, and an on-behalf v→V (from the Case Owner and from the
+      CASE_MANAGER) and d→D, are admitted; an on-behalf assertion to a target
+      without the role, one that also moves RM, one that carries a case
+      status, and an f→F are refused with no entry and no append, and the
+      first two are answered with the refusal notice. The use case's sender
+      rule (`AUTHOR`, `CASE_MANAGER` or `CASE_OWNER` at the CASE_MANAGER) is
+      checked in `test/core/behaviors/test_widened_sender_rules.py`.
     relationships:
     - rel_type: extends
       spec_id: RSH-08-001
+    - rel_type: depends_on
+      spec_id: HP-01-008
     - rel_type: depends_on
       spec_id: PRM-06-003
     - rel_type: depends_on

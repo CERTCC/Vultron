@@ -46,11 +46,15 @@ from vultron.core.behaviors.sender_entitlement import (
 )
 from vultron.core.behaviors.sender_guard import (
     AuthoredNote,
+    AuthoredParticipantRecord,
     SenderCheckContext,
     compose_sender_guard,
     embargo_sender_context,
 )
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.actor.suggest import (
     OfferActorToCaseReceivedUseCase,
 )
@@ -112,6 +116,21 @@ def _note(sender: str) -> SenderCheckContext:
         sender_id=sender,
         case_id=CASE_ID,
         authored_object=AuthoredNote(note_id=NOTE_ID),
+    )
+
+
+#: VENDOR's participant record, as ``seed_case_participant`` names it.
+VENDOR_RECORD = f"{CASE_ID}/participants/vendor"
+
+
+def _vendor_record(sender: str) -> SenderCheckContext:
+    """A status added to VENDOR's record (RSH-08-007)."""
+    return SenderCheckContext(
+        sender_id=sender,
+        case_id=CASE_ID,
+        authored_object=AuthoredParticipantRecord(
+            participant_id=VENDOR_RECORD
+        ),
     )
 
 
@@ -300,14 +319,15 @@ CASES = [
         marks=("HP-01-008", "CM-16-001", "PCR-03-001"),
         label="offer-actor",
     ),
-    # A participant sends a status update to the CASE_MANAGER; at a replica
-    # only the CASE_MANAGER relays it (PCR-03-001).
+    # A participant sends its own status update to the CASE_MANAGER, and
+    # another participant may not write onto its record (RSH-08-007); at a
+    # replica only the CASE_MANAGER relays it (PCR-03-001).
     *_cases(
         AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
-        _plain,
-        at_manager=(VENDOR, STRANGER),
+        _vendor_record,
+        at_manager=(VENDOR, REPLICA),
         at_participant=(MANAGER, VENDOR),
-        marks=("HP-01-008", "PCR-03-001"),
+        marks=("HP-01-008", "RSH-08-007", "PCR-03-001"),
         label="add-participant-status",
     ),
 ]
@@ -405,11 +425,11 @@ def test_replica_refuses_listed_non_manager_for_case_update(
     """A listed non-manager participant is refused at a replica (#4646).
 
     Both ``Offer(Actor)`` and ``Add(ParticipantStatus)`` declare
-    ``to_case_manager(PARTICIPANT)``, so at a participant replica any sender
+    ``to_case_manager(...)``, so at a participant replica any sender
     other than the CASE_MANAGER is refused even when the case lists them.
     """
     rule = use_case.sender_entitlement  # type: ignore[attr-defined]
-    assert not _admits(rule, _plain, REPLICA, VENDOR)
+    assert not _admits(rule, _vendor_record, REPLICA, VENDOR)
 
 
 @pytest.mark.spec("PCR-03-001")
@@ -419,12 +439,12 @@ def test_replica_admits_case_manager_for_case_update(
 ) -> None:
     """The CASE_MANAGER is admitted at a replica for both use cases (#4646).
 
-    ``to_case_manager(PARTICIPANT)`` sets the participant side to
+    ``to_case_manager(...)`` sets the participant side to
     ``{CASE_MANAGER}``, so the CASE_MANAGER is the only entitled sender
     at a replica.
     """
     rule = use_case.sender_entitlement  # type: ignore[attr-defined]
-    assert _admits(rule, _plain, REPLICA, MANAGER)
+    assert _admits(rule, _vendor_record, REPLICA, MANAGER)
 
 
 def _relabelled_trees() -> dict[str, tuple[type, Callable[[], object]]]:
@@ -589,6 +609,45 @@ def test_case_content_rule_passes_through_before_the_case_names_a_manager(
     assert _admits(
         rule, context, REPLICA, STRANGER, store=_store_without_manager
     )
+
+
+@pytest.mark.spec("RSH-08-007")
+@pytest.mark.spec("PRM-06-003")
+@pytest.mark.parametrize(
+    "sender", [MANAGER, OWNER], ids=["case-manager", "case-owner"]
+)
+def test_participant_status_onto_another_record_admits_managers(
+    sender: str,
+) -> None:
+    """The CASE_MANAGER and the Case Owner may send a status onto another
+    participant's record; the tree then admits only an on-behalf v→V or
+    d→D (PRM-06-003/004)."""
+    rule = AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
+    assert _admits(rule, _vendor_record, MANAGER, sender)
+
+
+@pytest.mark.spec("RSH-08-007")
+@pytest.mark.spec("CM-23-018")
+def test_participant_status_from_a_closed_record_owner_is_refused() -> None:
+    """The record's own participant is refused once its closure is recorded."""
+
+    def closed_vendor(receiver: str) -> BTTestScenario:
+        scenario = _store(receiver)
+        record = scenario.dl.read(VENDOR_RECORD)
+        assert isinstance(record, CaseParticipant)
+        record.participant_statuses = [
+            *record.participant_statuses,
+            ParticipantStatus(
+                context=CASE_ID,
+                attributed_to=VENDOR,
+                rm=RmDimension(state=RM.CLOSED),
+            ),
+        ]
+        scenario.dl.save(record)
+        return scenario
+
+    rule = AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement
+    assert not _admits(rule, _vendor_record, MANAGER, VENDOR, closed_vendor)
 
 
 @pytest.mark.spec("HP-01-008")

@@ -588,7 +588,8 @@ def test_fix_readiness_row_reads_as_specified(table):
         "| a Vendor has a fix ready"
         " | `Add(ParticipantStatus)[target=CaseParticipant]`"
         " | the case manager"
-        " | a participant (usually: vendor)"
+        " | the case manager or the case owner or the participant status's"
+        " author (usually: vendor)"
         " | `vfState` = `VF`"
         " | [Fix Readiness (CF)](../cs.md#fix-readiness) |"
     )
