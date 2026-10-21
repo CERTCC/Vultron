@@ -42,9 +42,10 @@ async def replay_hosted_inbox_queues(
 ) -> int:
     """Replay the inbox queue of every actor this node hosts.
 
-    Actors are found from the stores that exist, as the startup recovery
-    of pending case creation finds them (ADR-0073: there is no store that
-    sees every actor's rows).  Each actor's queue is replayed under that
+    Actors are found from the stores that exist
+    (:func:`~vultron.adapters.driven.actor_hosts.hosted_actor_ids`), each
+    replayed from its own store (ADR-0073: there is no store that sees
+    every actor's rows).  Each actor's queue is replayed under that
     actor's inbox lock and off the event loop
     (:func:`~vultron.adapters.driving.fastapi.inbox_orchestration.replay_inbox_queue`).
     An actor whose replay raises is logged, and the next actor is still
