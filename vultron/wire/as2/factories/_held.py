@@ -27,7 +27,7 @@ the reply as it is.
 """
 
 import json
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -96,8 +96,19 @@ def validated_as(cls: type[_Answered], activity: BaseModel) -> _Answered:
     Raises:
         pydantic.ValidationError: When *activity* does not validate as *cls*.
     """
-    return cls.model_validate(
+    return cls.model_validate(answered_fields(activity))
+
+
+def answered_fields(activity: BaseModel) -> dict[str, Any]:
+    """*activity*'s declared fields in their AS2 form, ready to validate.
+
+    The dump :func:`validated_as` validates; a factory that must adjust a
+    field before validating (``_as_full_case_invite`` collapses a rehydrated
+    ``target`` to its id) starts from it too.
+    """
+    return cast(
+        dict[str, Any],
         json.loads(
             activity.model_dump_json(by_alias=True, serialize_as_any=True)
-        )
+        ),
     )

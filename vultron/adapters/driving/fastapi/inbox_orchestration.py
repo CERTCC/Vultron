@@ -236,11 +236,13 @@ class FastAPIIngressAdapter:
                 self._log_redelivery(activity, redelivery)
                 return archived
 
-        result = self._staging.rehydrate_parsed(activity)
         if redelivery is not None:
             # The held copy did not rebuild.  This delivery's own body is
-            # routed in its place, still without received evidence: the
-            # delivery routed is a resend, not the one held (VM-08-002).
+            # routed in its place, still without received evidence, and
+            # staged as no delivery's body, so a deferral holds no evidence
+            # either: the delivery routed is a resend, not the one held
+            # (VM-08-002).
+            result = self._staging.rehydrate_resend(activity)
             if result is None:
                 raise VultronWiringError(
                     f"redelivered activity '{activity.id_}' is held"
@@ -255,6 +257,7 @@ class FastAPIIngressAdapter:
                 activity.id_,
             )
             return result
+        result = self._staging.rehydrate_parsed(activity)
         if result is None:
             return activity
         return _carry_received_evidence(activity, result)

@@ -311,13 +311,15 @@ def test_a_resend_whose_held_copy_does_not_rebuild_carries_no_evidence(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ):
     """Should the held copy fail to rebuild, the resend's own body is routed
-    in its place, still without evidence: it is not the delivery held."""
+    in its place, still without evidence: it is not the delivery held.  A
+    deferral of it holds no evidence either, so its replay carries none."""
     first = _offer_of_stored_report(dl)
     archive_received(dl, parse_activity(copy.deepcopy(first)))
     monkeypatch.setattr(
         InlineObjectStaging, "rehydrate_archived", lambda *_args: None
     )
-    adapter = FastAPIIngressAdapter(dl=dl)
+    staging = InlineObjectStaging(dl)
+    adapter = FastAPIIngressAdapter(dl=dl, staging=staging)
     artifact = adapter.parse(copy.deepcopy(first))
     assert artifact is not None
 
@@ -325,6 +327,10 @@ def test_a_resend_whose_held_copy_does_not_rebuild_carries_no_evidence(
 
     assert routed.id_ == first["id"]
     assert routed.received_evidence is None
+    assert staging.hold_for_replay(first["id"])
+    held = dl.read(DeferredInboxActivity.build_id(first["id"]))
+    assert isinstance(held, DeferredInboxActivity)
+    assert held.received_body is None
 
 
 @pytest.mark.spec("VM-08-002")
@@ -339,7 +345,7 @@ def test_a_resend_that_cannot_be_rebuilt_at_all_is_refused(
         InlineObjectStaging, "rehydrate_archived", lambda *_args: None
     )
     monkeypatch.setattr(
-        InlineObjectStaging, "rehydrate_parsed", lambda *_args: None
+        InlineObjectStaging, "rehydrate_resend", lambda *_args: None
     )
     adapter = FastAPIIngressAdapter(dl=dl)
     artifact = adapter.parse(copy.deepcopy(first))

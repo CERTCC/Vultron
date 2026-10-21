@@ -282,6 +282,17 @@ class InlineObjectStaging:
             activity, received_body=activity.received_evidence_json
         )
 
+    def rehydrate_resend(self, activity: as_Activity) -> as_Activity | None:
+        """Rebuild a resend of a held activity from its own body, as no delivery.
+
+        For a redelivery whose held copy does not rebuild: this delivery's
+        body is routed in its place, but staged with no received body, so a
+        resend deferred again is held as its row and its replay carries no
+        evidence (VM-08-002).
+        """
+
+        return self._rehydrate_with(activity, received_body=None)
+
     def _rehydrate_with(
         self, activity: as_Activity, *, received_body: str | None
     ) -> as_Activity | None:

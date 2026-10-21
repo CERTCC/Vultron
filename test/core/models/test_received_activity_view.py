@@ -67,7 +67,7 @@ def test_the_view_hands_out_no_model_and_passes_for_none():
     no model a Pydantic field or a reply would take (ADR-0149)."""
     view = _view()
 
-    for leak in ("_model", "_wrapped"):
+    for leak in ("_model", "_wrapped", "model_dump", "model_copy"):
         with pytest.raises(AttributeError):
             getattr(view, leak)
         with pytest.raises(AttributeError):

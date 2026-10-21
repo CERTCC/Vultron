@@ -33,7 +33,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.received_archive import read_received_as_received
 from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.use_cases.triggers.full_case_invite import (
     SvcAcceptFullCaseInviteUseCase,
     SvcRejectFullCaseInviteUseCase,
@@ -48,6 +50,7 @@ from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronValidationError,
 )
+from vultron.semantic_registry import extract_received_activity
 from vultron.wire.as2.factories import (
     rm_invite_to_case_activity,
     rm_invite_to_full_case_activity,
@@ -236,12 +239,16 @@ def test_reply_names_the_case_by_uri_when_the_held_invite_carries_it_inline(
     actor, dl, case_id, genesis = participant
     floor = LedgerPosition(log_index=-1, entry_hash=genesis)
     invite_id = _hold_invite(dl, actor, case_id, floor)
-    real_read = module.read_received_activity
 
     def _inline(dl_, activity_id, label):
-        held = real_read(dl_, activity_id, label)
-        return held.model_copy(
-            update={"target": {"id": case_id, "type": "VulnerabilityCase"}}
+        # The archived Invite's view, with its case carried inline.
+        held = extract_received_activity(
+            read_received_as_received(dl, activity_id)
+        )
+        return ReceivedActivityView(
+            held.model_copy(
+                update={"target": {"id": case_id, "type": "VulnerabilityCase"}}
+            )
         )
 
     monkeypatch.setattr(module, "read_received_activity", _inline)

@@ -622,6 +622,32 @@ def test_ignore_late_embargo_accept_defaults_context_to_the_case(
     assert activity.context == _CASE_URI
 
 
+@pytest.mark.spec("DL-06-004")
+def test_ignore_late_embargo_accept_embeds_the_accept_as_its_sender_sent_it(
+    sample_proposal,
+):
+    """The late Accept, parsed from its archived body, is embedded as that
+    body, verbatim: its ``cc`` and a key no vocabulary names survive into
+    the acknowledgement (ADR-0149)."""
+    late_accept = _late_accept(sample_proposal)
+    late_accept["cc"] = ["https://example.org/actors/observer"]
+    late_accept["fooBar"] = {"kept": True}
+
+    activity = ignore_late_embargo_accept_activity(
+        late_accept, actor=_MANAGER_URI
+    )
+
+    # Dumped as the outbox seals an outbound body (OUTBOUND_DUMP_KWARGS).
+    embedded = json.loads(
+        activity.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )["object"]
+    assert embedded == parse_activity(late_accept).received_evidence
+    assert embedded["cc"] == ["https://example.org/actors/observer"]
+    assert embedded["fooBar"] == {"kept": True}
+
+
 def test_ignore_late_embargo_accept_refuses_a_non_embargo_accept():
     with pytest.raises(VultronActivityConstructionError):
         ignore_late_embargo_accept_activity(

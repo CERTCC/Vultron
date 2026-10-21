@@ -88,11 +88,20 @@ class ReceivedActivityView:
         object.__setattr__(self, "_model", model)
 
     def __getattribute__(self, name: str) -> Any:
-        # Every name but a dunder is the wrapped model's, made read-only, so
-        # no attribute of the view (``_model`` included) hands out the model.
+        # Every name but a dunder is one of the wrapped model's data
+        # attributes, made read-only.  A method is refused: a bound method
+        # holds the model (``__self__``) and ``model_copy`` would hand out a
+        # mutable copy a reply could embed, so no attribute of the view
+        # (``_model`` included) reaches the model.
         if name.startswith("__") and name.endswith("__"):
             return object.__getattribute__(self, name)
-        return read_only(getattr(_model_of(self), name))
+        model = _model_of(self)
+        if not _is_data_attribute(model, name):
+            raise AttributeError(
+                f"a received activity's read-only view has no data attribute"
+                f" {name!r}; a reader asks it for fields by name (ADR-0149)"
+            )
+        return read_only(getattr(model, name))
 
     def __setattr__(self, name: str, value: Any) -> None:
         raise VultronReadOnlyViewError(
@@ -120,3 +129,13 @@ class ReceivedActivityView:
 def _model_of(view: ReceivedActivityView) -> BaseModel:
     """The model *view* wraps, for the view's own use alone."""
     return cast(BaseModel, object.__getattribute__(view, "_model"))
+
+
+def _is_data_attribute(model: BaseModel, name: str) -> bool:
+    """Whether *name* is a field, computed field or property of *model*."""
+    model_type = type(model)
+    return (
+        name in model_type.model_fields
+        or name in model_type.model_computed_fields
+        or isinstance(getattr(model_type, name, None), property)
+    )

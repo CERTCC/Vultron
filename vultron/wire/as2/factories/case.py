@@ -22,7 +22,6 @@ imported here and MUST NOT be imported by callers.
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
-import json
 import logging
 from collections.abc import Callable
 from datetime import datetime
@@ -44,6 +43,7 @@ from vultron.wire.as2.factories._context import (
     with_case_context,
 )
 from vultron.wire.as2.factories._held import (
+    answered_fields,
     as_answered,
     embedded_as_received,
     validated_as,
@@ -1090,9 +1090,7 @@ def _as_full_case_invite(invite: as_Invite) -> _RmInviteToFullCaseActivity:
     """
     if isinstance(invite, _RmInviteToFullCaseActivity):
         return invite
-    data = json.loads(
-        invite.model_dump_json(by_alias=True, serialize_as_any=True)
-    )
+    data = answered_fields(invite)
     target = data.get("target")
     if isinstance(target, dict):
         data["target"] = target.get("id")

@@ -21,6 +21,7 @@ No HTTP framework imports permitted here.
 
 import json
 import logging
+from collections.abc import Mapping
 from typing import Any, ClassVar, cast
 from urllib.parse import urlparse
 
@@ -666,10 +667,11 @@ class SvcWithdrawCaseOwnershipTransferUseCase(_SvcOwnershipAnswerBase):
         )
         inner = getattr(proposal, "object_", None)
         # A wire ``type_`` is a StrEnum and a core one a plain str; both
-        # compare equal to "Offer".  A dict inner may carry either key.
+        # compare equal to "Offer".  A mapping inner (a dict, or a received
+        # view's read-only mapping) may carry either key.
         inner_type = (
             inner.get("type") or inner.get("type_")
-            if isinstance(inner, dict)
+            if isinstance(inner, Mapping)
             else getattr(inner, "type_", None)
         )
         raw_case_id = _as_id(getattr(proposal, "context", None))
