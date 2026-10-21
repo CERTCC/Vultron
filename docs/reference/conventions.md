@@ -104,7 +104,8 @@ Three banners say where a page stands relative to it.
 
     {% include-markdown "../includes/specification_governs.md" %}
 
-    Pages that explain how the protocol is designed, such as the Formal Protocol pages and the Report Management (RM), Embargo Management (EM), and Case State (CS) process models, carry this banner at or near the top of the page.
+    Pages that explain how the protocol is designed carry this banner at or near the top of the page.
+    They include the Formal Protocol pages and the Report Management, Embargo Management, and Case State process models.
     They are informative, and they predate the Protocol Specification, so they can lag it.
     Where such a page and the specification differ, the specification governs.
 
