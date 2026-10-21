@@ -998,7 +998,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
-<td markdown="span">Implementations SHOULD use common identity mechanisms (`PROD_ONLY`) — federated identity.</td>
+<td markdown="span">Implementations SHOULD use common API patterns for inter-participant communication (`PROD_ONLY`) — federated identity.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[EDF-02-001](../specs/architecture.md#edf-02-001)</td>
@@ -1035,11 +1035,11 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
-<td markdown="span">Implementations SHOULD use common identity mechanisms (`PROD_ONLY`) — federated identity.</td>
+<td markdown="span">Implementations SHOULD use common API patterns for inter-participant communication (`PROD_ONLY`) — federated identity.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[VP-15-003](../specs/protocol.md#vp-15-003)</td>
-<td markdown="span">Implementations SHOULD use common messaging protocols (`PROD_ONLY`) — interoperable identity use.</td>
+<td markdown="span">[VP-15-003](../specs/architecture.md#vp-15-003)</td>
+<td markdown="span">Implementations SHOULD use transport-layer encryption for data in transit (`PROD_ONLY`) — interoperable identity use.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="3" markdown="span">[story_2022_035](story_2022_035.md)</td>
@@ -1053,7 +1053,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
-<td markdown="span">Implementations SHOULD use common identity mechanisms (`PROD_ONLY`) — federated identity.</td>
+<td markdown="span">Implementations SHOULD use common API patterns for inter-participant communication (`PROD_ONLY`) — federated identity.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="3" markdown="span">[story_2022_036](story_2022_036.md)</td>
@@ -1063,7 +1063,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
-<td markdown="span">Implementations SHOULD use common identity mechanisms (`PROD_ONLY`) — auth/authz integration.</td>
+<td markdown="span">Implementations SHOULD use common API patterns for inter-participant communication (`PROD_ONLY`) — auth/authz integration.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[CM-02-006](../specs/protocol.md#cm-02-006)</td>
@@ -1085,7 +1085,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-15-005](../specs/architecture.md#vp-15-005)</td>
-<td markdown="span">Implementations MAY use encryption for messages (`PROD_ONLY`) — transport integrity.</td>
+<td markdown="span">Implementations MAY use encryption for data at rest (`PROD_ONLY`) — integrity mechanism.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="3" markdown="span">[story_2022_090](story_2022_090.md)</td>
@@ -1099,7 +1099,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
-<td markdown="span">Implementations SHOULD use common identity mechanisms (`PROD_ONLY`) — identity framework.</td>
+<td markdown="span">Implementations SHOULD use common API patterns for inter-participant communication (`PROD_ONLY`) — identity framework.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="4" markdown="span">[story_2022_091](story_2022_091.md)</td>

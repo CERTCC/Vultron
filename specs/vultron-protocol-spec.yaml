@@ -1726,7 +1726,7 @@ groups:
     - story_2022_106
   - id: VP-15-003
     priority: SHOULD
-    kind: protocol
+    kind: architecture
     statement: >-
       Vultron Protocol implementations SHOULD use transport-layer encryption to protect sensitive
       data in transit
