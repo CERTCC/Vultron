@@ -56,6 +56,8 @@ That is Fix Deployed (CD).
 
 Send only your own status.
 Participant status is self-declaratory, so a participant asserting another participant's state is a protocol violation outside the narrow externally-evidenced exceptions (PRM-06-001, ADR-0121).
+The CASE_MANAGER refuses an `Add(ParticipantStatus)` that targets another participant's record, whatever it carries, and commits nothing (RSH-08-007).
+The only exceptions are the on-behalf assertions: a CASE_MANAGER or Case Owner may move a vendor from `vf` to `Vf`, or a deployer from `d` to `D`, if the status changes nothing else (PRM-06-003, PRM-06-004).
 
 ---
 
