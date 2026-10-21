@@ -135,8 +135,9 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
         """Write a non-processed outcome via typed output ports; return FAILURE.
 
         Logged at INFO, not WARNING: the driving adapter logs every rejected
-        ``InboxOutcome`` at WARNING with the actor and activity ids
-        (UCORG-05-013), so a node-level warning would report it twice.
+        ``InboxOutcome`` with the actor and activity ids, at WARNING, or at
+        INFO for an unhandled one (UCORG-05-013, IO-01-005), so a node-level
+        warning would report it twice.
         """
         self.feedback_message = reason
         self._set_output(KEY_OUTCOME_STATUS, status)

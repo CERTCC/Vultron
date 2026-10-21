@@ -54,7 +54,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 _SENDER_ID = "https://example.org/actors/sender-chain"
 _RECEIVER_ID = "https://example.org/actors/receiver-chain"
-# warn_if_rejected logs every rejected outcome of an inbox run, live or replayed.
+# log_if_rejected logs every rejected outcome of an inbox run, live or replayed.
 _ORCHESTRATION_LOGGER = "vultron.adapters.driving.fastapi.inbox_queue_drain"
 _OUTBOX_LOGGER = "vultron.adapters.driving.fastapi.outbox_handler"
 

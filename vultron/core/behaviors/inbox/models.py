@@ -5,7 +5,7 @@ Defines the typed return model and Protocol interfaces used by
 :func:`~vultron.core.behaviors.inbox.process_payload`.
 
 Per specs/inbox-orchestration.yaml:
-- IO-01-001 through IO-01-004: InboxOutcome model
+- IO-01-001 through IO-01-005: InboxOutcome model
 - IO-03-001: IngressPayloadAdapter and DispatchAdapter protocols
 - IO-03-002: PendingCaseQueuePort protocol
 """
@@ -56,7 +56,7 @@ class InboxOutcomeStatus(StrEnum):
 class InboxOutcome(BaseModel):
     """Result returned by every :func:`process_payload` call.
 
-    Per specs/inbox-orchestration.yaml IO-01-001 through IO-01-004.
+    Per specs/inbox-orchestration.yaml IO-01-001 through IO-01-005.
     """
 
     status: InboxOutcomeStatus

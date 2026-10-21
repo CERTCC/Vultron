@@ -14,6 +14,7 @@ description: >-
   (#4569) have landed.
 related_specs:
   - specs/message-semantics-mapping.yaml
+  - specs/semantic-extraction.yaml
   - specs/handler-protocol.yaml
   - specs/project-documentation.yaml
   - specs/case-management.yaml

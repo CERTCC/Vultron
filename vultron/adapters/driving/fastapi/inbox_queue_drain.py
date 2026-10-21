@@ -51,10 +51,10 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 logger = logging.getLogger(__name__)
 
 
-def warn_if_rejected(
+def log_if_rejected(
     outcome: InboxOutcome, actor_id: str, *, replayed: bool
 ) -> None:
-    """Log a rejected outcome at WARNING (UCORG-05-013).
+    """Log a rejected outcome: WARNING, or INFO if unhandled (UCORG-05-013).
 
     Every outcome is logged at DEBUG; a refusal is also logged here so it is
     visible in an actor log at the default level. ``processed`` and
@@ -404,7 +404,7 @@ def drain_inbox_queue(
             outcome.status,
             outcome.context_id,
         )
-        warn_if_rejected(outcome, actor_id, replayed=True)
+        log_if_rejected(outcome, actor_id, replayed=True)
         attempt.settle_rejection(outcome)
 
         if attempt.failure is not None and not attempt.permanent:
