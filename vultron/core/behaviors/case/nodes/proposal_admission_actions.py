@@ -240,8 +240,9 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
     a second round-trip (AKM-03-003).
 
     The node writes no case state and creates no participants.  It is reachable
-    only from the decline arm, which runs ahead of ``ResolveCaseIdSelector`` and
-    is guarded so it cannot be entered once the proposal was accepted — a
+    only from the two decline acts (the admission decline and the closed-case
+    decline), which run ahead of ``ResolveCaseIdSelector`` and are guarded so
+    they cannot be entered once the proposal was accepted — a
     Reject emitted for an accepted proposal would tell the receiver "declined"
     while this store held its case with committed ledger entries, the
     canonical/replica divergence CLP-10-009 exists to prevent.
@@ -277,9 +278,8 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
                 f"{self.name}: no wire proposal available for"
                 f" '{self._proposal_id}'; cannot build an inline Reject"
             )
-        # The reason travels on the decline record rather than as a constructor
-        # argument, so a Reject re-emitted on a later delivery carries the reason
-        # the original decision gave.
+        # The decline act writes its record first, in the same transaction, so
+        # the Reject reads the reason the decision gave from that record.
         record = self.datalayer.read(
             CaseProposalDeclineRecord.build_id(self._proposal_id)
         )
@@ -297,21 +297,19 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
         assert self.datalayer is not None
         record_id = CaseProposalDeclineRecord.build_id(self._proposal_id)
         record = self.datalayer.read(record_id)
-        if isinstance(record, CaseProposalDeclineRecord):
-            cast(DataLayer, self.datalayer).save(
-                record.model_copy(update={"reject_activity_id": activity_id})
+        if record is None:
+            # The decline act writes the record before this node runs, so its
+            # absence means the ordering was broken.  Raise so the act rolls
+            # back: a Reject with no record must not be kept (CLP-07-015).
+            raise RuntimeError(
+                f"{self.name}: queued Reject '{activity_id}' for proposal"
+                f" '{self._proposal_id}' but found no decline record to stamp"
             )
-        else:
-            # The decline arm writes the record before this node runs, so its
-            # absence means the ordering was broken rather than that no decision
-            # was taken.  Say so loudly.
-            logger.error(
-                "%s: queued Reject '%s' for proposal '%s' but found no decline"
-                " record to stamp — the refusal is not idempotent",
-                self.name,
-                activity_id,
-                self._proposal_id,
+        cast(DataLayer, self.datalayer).save(
+            cast(CaseProposalDeclineRecord, record).model_copy(
+                update={"reject_activity_id": activity_id}
             )
+        )
         logger.info(
             "%s: Declined proposal '%s' — queued Reject '%s' to outbox "
             "for report receiver '%s'",

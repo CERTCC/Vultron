@@ -54,7 +54,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.call_out.bundles.case_proposal import (
     CASE_PROPOSAL_DETERMINISTIC,
     CaseProposalCallOutBundle,
@@ -68,6 +68,9 @@ from vultron.core.behaviors.case.case_proposal_received_tree import (
     create_case_proposal_received_tree,
 )
 from vultron.core.behaviors.case.nodes import proposal_case_lookup
+from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
+    EmitRejectCaseProposalNode,
+)
 from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
     CheckProposalCaseFullyClosedNode,
 )
@@ -187,7 +190,12 @@ def _proposal(
     )
 
 
-def _run_tree(
+def _run_tree(dl, **kwargs) -> Status:
+    """Run the tree as :func:`_run_tree_result` does; return only its status."""
+    return _run_tree_result(dl, **kwargs).status
+
+
+def _run_tree_result(
     dl,
     *,
     call_out: CaseProposalCallOutBundle | None = None,
@@ -197,7 +205,7 @@ def _run_tree(
     proposal_uri: str = _PROPOSAL_URI,
     proposer_uri: str = _VENDOR_URI,
     reporter_uri: str = _REPORTER_URI,
-) -> Status:
+) -> BTExecutionResult:
     """Build and run the received-side tree the way the use case does.
 
     ``proposal_uri`` and ``proposer_uri`` let a test send a second proposal, from
@@ -244,7 +252,7 @@ def _run_tree(
         activity=event,
         owner_profile=activity.actor,
     )
-    return result.status
+    return result
 
 
 def _outbox_activities(dl) -> list:
@@ -396,12 +404,17 @@ class TestAFailedRejectDoesNotBecomeAnAccept:
     """
 
     def test_no_wire_proposal_fails_instead_of_accepting(self, dl):
-        """A replay path with no wire proposal cannot build an inline Reject."""
-        status = _run_tree(
+        """A replay path with no wire proposal cannot build an inline Reject.
+
+        The failed decline is an internal error, never a refusal or an admit
+        (CLP-07-015).
+        """
+        result = _run_tree_result(
             dl, call_out=_declining_bundle([]), with_proposal_dict=False
         )
 
-        assert status == Status.FAILURE
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
         assert _cases(dl) == [], "a declined proposal must create no case"
         assert _types_in_outbox(dl) == [], "nothing may be sent to the vendor"
 
@@ -438,6 +451,18 @@ class TestAFailedRejectDoesNotBecomeAnAccept:
         assert ticks == ["EvaluateCaseProposal"]
         assert _types_in_outbox(dl) == ["Reject"]
         assert _cases(dl) == []
+
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_reject_with_no_decline_record_raises(self, dl):
+        """A queued Reject whose record is missing means the act's order
+        broke, so the node raises and the act rolls back the Reject."""
+        node = EmitRejectCaseProposalNode(
+            proposal_id=_PROPOSAL_URI, proposer_uri=_VENDOR_URI
+        )
+        node.datalayer = dl
+
+        with pytest.raises(RuntimeError, match="no decline record"):
+            node._on_success("https://example.org/reject/1", "{}")
 
 
 # ---------------------------------------------------------------------------

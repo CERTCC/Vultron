@@ -27,7 +27,6 @@ CLP-07-015), so the store holds both or neither.  Two properties depend on it:
 
 ``reject_activity_id`` names the ``Reject`` that answered the proposal.
 
-
 Spec: ``specs/case-proposal.yaml`` CP-05-002, CP-05-004.
 """
 

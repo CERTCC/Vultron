@@ -3515,7 +3515,8 @@ class TestEP04SenderProposalAtCaseCreation:
     ):
         """The Reporter's shorter terms won: the CASE_MANAGER relays the
         owner's longer default to the Reporter on the owner's behalf, under
-        the id the registration minted, commits it, and only then indexes it
+        the id derived from the case proposal (OX-06-002), commits it, and
+        only then indexes it
         (EP-04-011, EP-08-002)."""
         dl = self._store()
         self._publish_owner_policy()

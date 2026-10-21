@@ -38,7 +38,7 @@ Not marked, on purpose: storing the received activity or its object
 (CLP-10-017 intake, ``StoreReceivedObjectNode``), ledger records and
 replication state (gated by ledger authority, ADR-0073), and an actor's local
 bookkeeping that is not a record of the case (report-case links, proposal
-admission and retry markers, who recommended whom, dead letters; CLP-07-014).
+admission markers, who recommended whom, dead letters; CLP-07-014).
 """
 
 __all__ = ["StateWriteCapable"]
