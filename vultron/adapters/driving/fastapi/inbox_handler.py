@@ -30,6 +30,10 @@ are provided by the focused submodules:
 import logging
 from typing import Any, cast
 
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+
 # Re-export port factories and semantics sets so existing callers that
 # import them from this module continue to work (backward compat).
 from vultron.adapters.driving.fastapi import inbox_port_factories
@@ -61,6 +65,9 @@ from vultron.adapters.inbox_staging import (
 )
 from vultron.adapters.outbox_dead_letter import RetryStore
 from vultron.config import get_config
+from vultron.core.behaviors.inbox.nodes.dispatch import (
+    answers_with_internal_error_fault,
+)
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import (
@@ -68,7 +75,11 @@ from vultron.core.models.events import (
     is_case_bootstrap,
     is_deferral_exempt,
 )
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+)
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
@@ -356,6 +367,91 @@ def _log_rehydrated_item(item: as_Activity) -> None:
     logger.debug("Item has transitive object of type: %s", obj_type_label)
 
 
+def emit_processing_fault(
+    dl: DataLayer,
+    receiver_id: str,
+    failed_activity_id: str,
+    sender_id: str,
+    failure_class: str,
+) -> str:
+    """Queue ``Create(ProcessingFault)`` from *receiver_id* to *sender_id*.
+
+    The fault names *failed_activity_id* and *failure_class* and nothing
+    else (ASK-07-006).  Its id is derived from the failed activity and the
+    class, so a second failure of the same activity builds no second fault
+    (ASK-07-010, ID-04-004).  *dl* is the receiver's own store, whose outbox
+    delivers it.
+
+    Returns:
+        The fault activity's id.
+    """
+    return TriggerActivityAdapter(
+        cast(CaseOutboxPersistence, dl)
+    ).emit_processing_fault(
+        actor=receiver_id,
+        failed_activity_id=failed_activity_id,
+        failure_class=failure_class,
+        to=[sender_id],
+    )
+
+
+def _answer_dead_lettered_item(
+    item: as_Activity, receiver_id: str, dl: DataLayer
+) -> None:
+    """Answer a dead-lettered item's sender with an internal-error fault.
+
+    Only a dead-lettered item is answered: a re-queued one may still
+    succeed, and a fault sent before that success would be false
+    (ASK-07-010, ASK-07-007).  The sender is the ``actor`` extraction names;
+    an item that does not extract names none and is not answered.  The
+    inbox does not yet authenticate that sender (#509), so the fault goes to
+    the actor the activity claims.  A fault is never answered with a fault,
+    or two peers failing alike would answer each other without end.  A
+    fault that cannot be queued is logged, never raised: the item is
+    already in the dead-letter store.
+    """
+    try:
+        event = prepare_for_dispatch(activity=item)
+    except Exception:
+        logger.warning(
+            "Dead-lettered inbox item '%s' for actor '%s' names no sender;"
+            " no ProcessingFault sent (ASK-07-002).",
+            item.id_,
+            receiver_id,
+            exc_info=True,
+        )
+        return
+    if not answers_with_internal_error_fault(event):
+        logger.info(
+            "Dead-lettered inbox item '%s' is a ProcessingFault; it is not"
+            " answered with another (ASK-07-010).",
+            event.activity_id,
+        )
+        return
+    try:
+        emit_processing_fault(
+            dl,
+            receiver_id,
+            event.activity_id,
+            event.actor_id,
+            VULTRON_FAILURE_INTERNAL_PROCESSING_ERROR,
+        )
+    except Exception:
+        logger.exception(
+            "ProcessingFault not queued for dead-lettered activity_id=%s"
+            " actor_id=%s",
+            event.activity_id,
+            event.actor_id,
+        )
+        return
+    logger.info(
+        "Queued ProcessingFault/InternalProcessingError to actor_id=%s for"
+        " dead-lettered activity_id=%s (ASK-07-010).",
+        event.actor_id,
+        event.activity_id,
+    )
+
+
 def _inbox_retry_or_dead_letter(
     item_id: str,
     actor_id: str,
@@ -365,7 +461,7 @@ def _inbox_retry_or_dead_letter(
     retry: RetryStore,
     max_attempts: int,
     staging: InlineObjectStaging,
-) -> None:
+) -> bool:
     """Increment the attempt counter; dead-letter on exhaustion, requeue otherwise.
 
     Called from ``_rehydrate_inbox_item`` and ``_process_inbox_item`` for any
@@ -384,6 +480,10 @@ def _inbox_retry_or_dead_letter(
         staging: The staging whose rebuild released the item's record; a
             re-queued item is held again through it, or the retry would find
             nothing to rebuild (DL-06-006).
+
+    Returns:
+        ``True`` when the item was dead-lettered, so no retry follows;
+        ``False`` when it was re-queued.
     """
     total = retry.get_inbox_attempt_count(item_id) + 1
     # The rebuild released the record, and the retry, or an operator reading
@@ -404,17 +504,18 @@ def _inbox_retry_or_dead_letter(
             total,
             actor_id,
         )
-    else:
-        retry.set_inbox_attempt_count(item_id, total)
-        queue_dl.inbox_append(item_id)
-        logger.error(
-            "Error processing inbox item '%s' for actor '%s' (attempt %d/%d);"
-            " re-queuing for retry.",
-            item_id,
-            actor_id,
-            total,
-            max_attempts,
-        )
+        return True
+    retry.set_inbox_attempt_count(item_id, total)
+    queue_dl.inbox_append(item_id)
+    logger.error(
+        "Error processing inbox item '%s' for actor '%s' (attempt %d/%d);"
+        " re-queuing for retry.",
+        item_id,
+        actor_id,
+        total,
+        max_attempts,
+    )
+    return False
 
 
 def _rehydrate_inbox_item(
@@ -501,6 +602,10 @@ def _process_inbox_item(
     """
     _log_rehydrated_item(item)
 
+    # Set once the dispatch returned: a raise after it (the post-bootstrap
+    # replay) is no failure of this item's act, so it is never answered with
+    # a fault, even when the item is dead-lettered (ASK-07-010).
+    dispatched = False
     try:
         event = _dispatch_or_defer_inbox_item(
             actor_id=canonical_actor_id,
@@ -510,6 +615,7 @@ def _process_inbox_item(
             dispatcher=dispatcher,
             staging=staging,
         )
+        dispatched = True
         if event is not None:
             case_id = _activity_context_id(item, event)
             if is_case_bootstrap(event) and case_id is not None:
@@ -538,16 +644,20 @@ def _process_inbox_item(
             item.model_dump_json(indent=2, exclude_none=True),
         )
         if retry is not None:
-            _inbox_retry_or_dead_letter(
-                item_id,
-                actor_id,
-                "processing_error",
-                str(e),
-                queue_dl,
-                retry,
-                max_attempts,
-                staging,
-            )
+            if (
+                _inbox_retry_or_dead_letter(
+                    item_id,
+                    actor_id,
+                    "processing_error",
+                    str(e),
+                    queue_dl,
+                    retry,
+                    max_attempts,
+                    staging,
+                )
+                and not dispatched
+            ):
+                _answer_dead_lettered_item(item, canonical_actor_id, dl)
         else:
             staging.hold_again(item_id)
             queue_dl.inbox_append(item_id)

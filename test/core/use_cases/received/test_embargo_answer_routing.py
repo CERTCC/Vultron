@@ -741,6 +741,33 @@ def test_a_resent_late_accept_without_evidence_keeps_its_acknowledgement():
     )
 
 
+@pytest.mark.spec("EMB-17-004")
+@pytest.mark.spec("IE-10-001")
+@pytest.mark.spec("ID-04-004")
+def test_a_resent_late_accept_with_the_archived_body_commits_nothing_new():
+    """A resend routed as the archived copy carries the first body.
+
+    The inbox routes the body intake archived, as its evidence (IE-10-001,
+    VM-08-002), so the acknowledgement arm has a body to carry; the
+    acknowledgement already recorded still stands and no second one is
+    committed.
+    """
+    net = _Network("https://example.org/cases/answer-late-accept-archived")
+    body, _accept_id, _bystander_pid, _revision_id = (
+        _late_accept_on_an_exited_embargo(net)
+    )
+    net.receive(MANAGER, body)
+    entries = len(_semantic_types(net, MANAGER))
+
+    net.receive(MANAGER, body)
+
+    assert (
+        _semantic_types(net, MANAGER).count(INVITE_EXPIRED_NOOP_SEMANTIC_TYPE)
+        == 1
+    )
+    assert len(_semantic_types(net, MANAGER)) == entries
+
+
 @pytest.mark.spec("CLP-10-026")
 @pytest.mark.spec("VM-08-002")
 @pytest.mark.spec("IE-10-001")

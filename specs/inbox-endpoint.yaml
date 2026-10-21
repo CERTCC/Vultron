@@ -397,24 +397,30 @@ groups:
       activity id (its `ReceivedActivityRecord`, or the `DeferredInboxActivity` that
       holds it for replay), and the delivery's sealed body is exactly the body held for
       that id, the redelivered body is not held again, and the copy the receiver holds
-      is routed in its place without received evidence (VM-08-002): the deferred
-      record's while the first delivery is still deferred, else the body intake
-      archived. A delivery under a held id whose body differs is not a redelivery;
-      IE-10-002 refuses it.
+      is routed in its place (VM-08-002): the deferred record's, without received
+      evidence, while the first delivery is still deferred, else the body intake
+      archived, carrying that body as its received evidence. A delivery under a held
+      id whose body differs is not a redelivery; IE-10-002 refuses it.
     rationale: >-
       Ingress is the first point at which the receiver can consult durable evidence of
       a prior delivery, so the HTTP adapter realises the early filtering ID-05-002
       permits there. The evidence is keyed by the receiver: a row under the sender's
       id reads as one of its own (DL-06-006). Intake's archive is the received body
-      (ADR-0149), so an archived activity's resend is routed as that body's parse and
-      handler idempotency answers it (ID-04). Only a resend of the same body is a
+      (ADR-0149), so an archived activity's resend is routed as that body's parse,
+      with that body as its evidence, and handler idempotency answers it (ID-04): a
+      committed act is a repeat, and an act that never committed, such as one whose
+      consequence failed, runs as a first delivery and records the archived body
+      (CLP-07-015, ADR-0151). The archive records receipt, not the act, so "already
+      archived" is not "already applied". Only a resend of the same body is a
       redelivery: routing the held copy in place of a different body dropped that
       body with nothing but a DEBUG line (#3762).
     verification: >-
       `test/adapters/driving/fastapi/test_ingress_received_evidence.py` asserts that a
       resend of the held body under a deferred id routes the held copy and is not held
       again, and that a resend of an archived activity's body is routed as the
-      archived copy, without evidence;
+      archived copy, with the archived body as its evidence;
+      `test/adapters/driving/fastapi/test_failed_act_redelivery.py::test_a_failed_proposal_is_applied_when_posted_again`
+      that the resend of a failed act is applied through the FastAPI inbox;
       `test/adapters/driving/fastapi/test_inbox_redelivery.py::test_second_delivery_leaves_store_and_outbox_unchanged`
       asserts that it adds nothing to the store. No duplicate check keyed on the actor
       record exists in `vultron/adapters/driving/fastapi/routers/actors/`.

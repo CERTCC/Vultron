@@ -53,7 +53,9 @@ ENTRIES: list[SemanticEntry] = [
                 heading="Create processing fault",
                 description=(
                     "Tells the sender that its message was received but not "
-                    "understood. It names the failed activity and a failure "
+                    "understood, or understood but its processing failed on "
+                    "the receiver's internal error. It names the failed "
+                    "activity and a failure "
                     "class, with no implementation diagnostics. This fault "
                     "serves the not-understood purpose of the formal RE, EE, "
                     "CE and GE messages."

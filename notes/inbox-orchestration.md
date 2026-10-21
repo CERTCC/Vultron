@@ -7,7 +7,7 @@ description: >
   belongs in core/, the narrow route-level guard exception, the two-adapter
   seam and verdict mapping, the path from receipt to permanent storage (ingress
   writes nothing; a deferred activity is held whole), redelivery detection and
-  the reused-id refusal,
+  the reused-id refusal, the internal-error fault for a raised dispatch,
   pending-queue port injection, and the test surface.
 related_specs:
   - specs/inbox-orchestration.yaml
@@ -18,6 +18,7 @@ related_specs:
   - specs/inbox-endpoint.yaml
   - specs/datalayer.yaml
   - specs/idempotency.yaml
+  - specs/protocol-asks.yaml
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/use-case-protocol.md
@@ -128,9 +129,10 @@ the record is the activity's only copy, so an id queued with nothing held behind
 is lost, and `hold_for_replay` raises rather than queue one (DL-06-006).
 
 **A redelivery is detected from the receiver's own key** (IE-10-001): a deferred
-record routes the held copy and keeps it for the replay; an intake archive routes
-the archived body's parse. Either way the held copy is routed without received
-evidence, and the handler's idempotency answers it (ID-02-003).
+record routes the held copy, without received evidence, and keeps it for the
+replay; an intake archive routes the archived body's parse, carrying that body as
+its evidence, because it is the first delivery's sealed body (VM-08-002). The
+handler's idempotency answers it (ID-02-003). Never route the redelivered body.
 
 **Compare the body before you route the held copy** (IE-10-002): only a resend
 whose sealed body exactly matches the held one is a redelivery. A different body
@@ -140,6 +142,26 @@ silently dropped the new body (#3762). The match is exact, with no normalisation
 so a body re-serialized with a different key order is refused too. The rule covers
 every activity type: an `Announce(CaseLedgerEntry)` hydrated in place (SYNC-13-004)
 gets the same comparison, and only a same-body repeat reaches SYNC-12-003's gate.
+
+**The archive records receipt, not the act.** A received act that failed kept no
+entry, so the idempotency guards do not see it and its redelivery runs as a first
+delivery, committing the archived body; a committed act's redelivery is still
+`SKIPPED`. `CommitCaseLedgerEntryNode` keeps the first entry when the ledger already
+records the activity as the same semantic, which covers a tree with no repeat guard
+of its own (RM engage). Add no repair pass and no "redelivered, so skip" shortcut at
+ingress (ADR-0151, `test_failed_act_redelivery.py`).
+
+**A raised dispatch is answered with a fault** (ASK-07-010): `DispatchNode` logs it
+once at ERROR with the activity and sender ids and queues one internal-error
+`Create(ProcessingFault)` to the sender through `DispatchAdapter`. The pipeline never
+retries a raised dispatch, so no inbox retry follows the fault; only the sender's own
+resend, which the fault invites, can later succeed. The bounded-retry loop in
+`inbox_handler.py` answers only on dead-letter, never on a re-queue, or a later
+success would follow a false fault (ASK-07-007), and never for a raise after the
+dispatch returned (the post-bootstrap replay). Never answer a raised
+`Create(ProcessingFault)` with a fault (`answers_with_internal_error_fault`), or two
+peers failing alike answer each other forever. The fault goes to the claimed `actor`:
+the inbox does not authenticate senders yet (#509). It is not ledgered (#4800).
 
 ---
 
