@@ -30,7 +30,6 @@ from typing import TYPE_CHECKING, Any
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.dispatcher import ActivityDispatcher
-from vultron.errors import VultronApiHandlerNotFoundError
 
 if TYPE_CHECKING:
     from vultron.core.models.events import VultronEvent
@@ -54,7 +53,7 @@ class DispatcherBase:
 
     def __init__(
         self,
-        use_case_map: dict[MessageSemantics, type],
+        use_case_map: Mapping[MessageSemantics, type],
         port_factories: (
             Mapping[
                 MessageSemantics,
@@ -86,26 +85,18 @@ class DispatcherBase:
         """Run the routed use case and return its verdict.
 
         This is the link that calls ``execute()``, so it is the first hop that
-        must keep the ``HandlerResult`` (UCORG-05-010). Semantics with no
-        registered use case run no handler; the lookup raises, so the
-        pipeline records a rejection, never ``processed`` (UCORG-05-012).
+        must keep the ``HandlerResult`` (UCORG-05-010). A semantic type with
+        no use case in the routing table runs no handler: the dispatcher
+        reports it as "no use case found" (:meth:`_no_use_case_found`), a
+        rejection, never ``processed`` (UCORG-05-012).
 
         Raises:
-            VultronApiHandlerNotFoundError: No use case is registered for the
-                event's semantics (the pipeline records the raise as rejected).
             TypeError: The use case returned something other than a
                 ``HandlerResult`` — a contract breach, not a verdict.
         """
-        try:
-            use_case_class = self._get_use_case(event.semantic_type)
-        except VultronApiHandlerNotFoundError:
-            logger.warning(
-                "No use case found for semantics '%s' (activity_id=%s actor_id=%s)",
-                event.semantic_type,
-                event.activity_id,
-                event.actor_id,
-            )
-            raise
+        use_case_class = self._use_case_map.get(event.semantic_type)
+        if use_case_class is None:
+            return self._no_use_case_found(event)
         extra_kwargs: dict[str, Any] = {}
         port_factory = self._port_factories.get(event.semantic_type)
         if port_factory is not None:
@@ -129,13 +120,27 @@ class DispatcherBase:
             )
         return result
 
-    def _get_use_case(self, semantics: MessageSemantics) -> type:
-        use_case_class = self._use_case_map.get(semantics)
-        if use_case_class is None:
-            raise VultronApiHandlerNotFoundError(
-                f"No use case found for semantics '{semantics}'"
-            )
-        return use_case_class
+    @staticmethod
+    def _no_use_case_found(event: "VultronEvent") -> HandlerResult:
+        """Report an activity whose semantic type no use case handles.
+
+        The registry recognizes the type, but this receiver does not handle
+        it: the message is not invalid, so this is a normal outcome logged
+        at INFO, never a raise that would answer the sender with a fault
+        (ADR-0140 item 5, SE-05-002).  No handler ran, so the verdict is
+        ``REFUSED`` and the activity is not ``processed`` (UCORG-05-012); it
+        is marked ``unhandled`` so the inbox reports it at INFO (IO-01-005).
+        An unrecognized activity never reaches here: it routes to the
+        ``UNKNOWN`` fallback's use case (SE-04).
+        """
+        logger.info(
+            "No use case found for semantics '%s' (activity_id=%s"
+            " actor_id=%s); the activity is not processed",
+            event.semantic_type,
+            event.activity_id,
+            event.actor_id,
+        )
+        return HandlerResult.no_use_case_found(event.semantic_type)
 
 
 class DirectActivityDispatcher(DispatcherBase):
@@ -143,7 +148,7 @@ class DirectActivityDispatcher(DispatcherBase):
 
 
 def get_dispatcher(
-    use_case_map: dict[MessageSemantics, type],
+    use_case_map: Mapping[MessageSemantics, type],
     port_factories: (
         Mapping[
             MessageSemantics,

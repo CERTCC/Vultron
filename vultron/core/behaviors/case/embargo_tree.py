@@ -74,9 +74,7 @@ class InitializeDefaultEmbargoNode(py_trees.composites.Selector):
         actor_config: Source of the protocol default embargo duration
             (EP-04-005).  ``None`` uses the ``ActorConfig`` defaults.
         report_id: URI of the report the case is created from.  When the
-            sender's terms lost, its author proposed the revision (#4152);
-            either way it is recorded on a contested creation's relay
-            obligation so the relay can resolve the reporter (EP-04-011).
+            sender's terms lost, its author proposed the revision (#4152).
             A contest with none fails before the initialization commit.
         name: Optional node name.
     """

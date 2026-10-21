@@ -77,21 +77,61 @@ def test_non_unknown_entries_have_event_class():
 
 
 @pytest.mark.spec("SE-05-002")
-def test_non_unknown_entries_have_use_case_class():
-    missing = [
-        e.semantics
+@pytest.mark.spec("DR-02-002")
+def test_use_case_map_holds_exactly_the_handled_entries():
+    """A semantic type is routed only when its entry names a use case.
+
+    An entry with no use case is recognized but not handled, so it is absent
+    from the routing table and its activity is reported as "no use case
+    found" (ADR-0140 item 5).  Every handled entry routes to its own class.
+    """
+    handled = {
+        e.semantics: e.use_case_class
         for e in SEMANTIC_REGISTRY
-        if e.semantics != MessageSemantics.UNKNOWN and e.use_case_class is None
-    ]
-    assert not missing, f"Missing use_case_class: {missing}"
+        if e.use_case_class is not None
+    }
+    assert use_case_map() == handled
+    assert all(
+        e.handled is (e.semantics in handled) for e in SEMANTIC_REGISTRY
+    )
 
 
 @pytest.mark.spec("SE-05-002")
-def test_use_case_map_keys_match_semantics():
+@pytest.mark.spec("DR-02-002")
+def test_use_case_map_omits_an_entry_with_no_use_case(monkeypatch):
+    """An unhandled entry is recognized, so it stays in the registry, but it
+    is not routed: no real entry is unhandled yet, so one stands in."""
+    import dataclasses
+
+    import vultron.semantic_registry as registry
+
+    unhandled = MessageSemantics.ADD_NOTE_TO_CASE
+    monkeypatch.setattr(
+        registry,
+        "SEMANTIC_REGISTRY",
+        [
+            dataclasses.replace(e, use_case_class=None)
+            if e.semantics is unhandled
+            else e
+            for e in SEMANTIC_REGISTRY
+        ],
+    )
+
+    ucm = registry.use_case_map()
+
+    assert unhandled not in ucm
+    assert set(ucm) == set(MessageSemantics) - {unhandled}
+
+
+@pytest.mark.spec("SE-05-002")
+@pytest.mark.spec("SE-04-002")
+def test_every_dispatcher_fallback_routes_to_a_use_case():
+    """An unrecognized activity still takes the SE-04 path through a handler."""
     ucm = use_case_map()
-    registered = set(ucm.keys())
-    expected = set(MessageSemantics)
-    assert registered == expected
+    assert {
+        MessageSemantics.UNKNOWN,
+        MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT,
+    } <= set(ucm)
 
 
 @pytest.mark.spec("HP-02-002")

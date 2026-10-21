@@ -860,6 +860,53 @@ groups:
       spec_id: RSH-08-003
     adr:
     - ADR-0124
+  - id: RSH-08-007
+    priority: MUST
+    kind: protocol
+    statement: >
+      Participant status is self-declared. The CASE_MANAGER MUST refuse, before
+      the commit, a received `Add(ParticipantStatus)` whose target participant
+      record is not the sender's own (the record's `attributed_to` is not the
+      sender), whichever dimensions it carries: RM, VF, D and the P, X and A of
+      its case status. The only exceptions are the on-behalf assertions of
+      PRM-06-003 and PRM-06-004: a sender holding CASE_MANAGER or CASE_OWNER
+      MAY assert v→V for a Vendor-role participant, d→D for a Deployer-role
+      participant, or both, when the status changes nothing else (RM as the
+      target holds it, and no case status).
+    rationale: >
+      A received activity is an assertion about the sender's state
+      (HP-00-001), and RSH-08-001 already made the sender the subject of an
+      RM declaration. Nothing enforced it for `Add(ParticipantStatus)`, so a
+      participant could write any status onto another participant's record
+      and the CASE_MANAGER committed it (#4987). The on-behalf trigger sends
+      exactly the PRM-06 moves, so the receive side admits those and nothing
+      wider (ADR-0121).
+    verification: >
+      `test/core/use_cases/received/test_status.py::TestParticipantStatusSubjectIsTheSender`
+      drives each case through the inbox ingress at the CASE_MANAGER: a
+      participant writing onto another's record is refused by the sender
+      guard with no entry, no append and no refusal notice; a participant's
+      own status, and an on-behalf v→V (from the Case Owner and from the
+      CASE_MANAGER) and d→D, are admitted; an on-behalf assertion to a target
+      without the role, one that also moves RM, one that carries a case
+      status, and an f→F are refused with no entry and no append, and the
+      first two are answered with the refusal notice. The use case's sender
+      rule (`AUTHOR`, `CASE_MANAGER` or `CASE_OWNER` at the CASE_MANAGER) is
+      checked in `test/core/behaviors/test_widened_sender_rules.py`.
+    relationships:
+    - rel_type: extends
+      spec_id: RSH-08-001
+    - rel_type: depends_on
+      spec_id: HP-01-008
+    - rel_type: depends_on
+      spec_id: PRM-06-003
+    - rel_type: depends_on
+      spec_id: PRM-06-004
+    adr:
+    - ADR-0108
+    - ADR-0121
+    stories:
+    - story_2022_062
 - id: RSH-09
   title: Whole Accept or Reject of a Received Status
   description: >

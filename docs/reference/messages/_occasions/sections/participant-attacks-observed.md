@@ -7,7 +7,7 @@ Announces, in the sender's own participant status, evidence that attackers are e
 - **When…** a Participant observes attacks that exploit the vulnerability
 - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
 - **Send to:** the case manager
-- **Sent by:** a participant
+- **Sent by:** the case manager or the case owner or the participant status's author
 - **Distinguished by:** `caseStatus.pxaState` = `pxA`
 - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
 - **Formal definition:** [Attacks Observed (CA)](../../../formal_protocol/messages.md#cs-message-types)

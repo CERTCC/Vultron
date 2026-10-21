@@ -739,7 +739,7 @@ class TestAnnounceLogEntryAppliesEmbargoInviteRelay:
             is EmbargoConsentState.INVITED
         )
 
-    @pytest.mark.spec("CM-28-014")
+    @pytest.mark.spec("CM-28-014", "CM-28-016")
     def test_replica_reads_expired_from_expiry_entry(
         self, bridge, datalayer, case_actor, case_obj
     ):

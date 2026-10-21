@@ -4,6 +4,7 @@ description: >
   Vultron messages, milestone by milestone.
 stakeholder_type: [platform-developer]
 level: 300
+page_type: how-to
 ---
 
 # Process Implementation Notes

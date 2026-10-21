@@ -37,6 +37,7 @@ from vultron.core.behaviors.inbox.nodes.pipeline import (
     KEY_EVENT,
     KEY_OUTCOME_STATUS,
     KEY_QUEUE,
+    KEY_UNHANDLED,
     _InboxNodeWithPorts,
 )
 from vultron.core.models.events import (
@@ -80,7 +81,9 @@ class DispatchNode(_InboxNodeWithPorts):
     absence of an exception: ``APPLIED``/``SKIPPED`` return SUCCESS so
     :class:`BuildOutcomeNode` records ``processed``; ``DEFERRED`` records
     ``deferred`` and ``REFUSED`` records ``rejected`` with the handler's
-    ``reason``, both returning FAILURE. A dispatch that returns anything but a
+    ``reason``, both returning FAILURE; a ``REFUSED`` verdict marked
+    ``unhandled`` (no use case found) also marks the outcome ``unhandled``
+    (IO-01-005). A dispatch that returns anything but a
     ``HandlerResult`` is rejected — no verdict is not a success.  A dispatch
     that raises is rejected too, and its sender is answered with an
     internal-error ``Create(ProcessingFault)`` (ASK-07-010).
@@ -96,6 +99,11 @@ class DispatchNode(_InboxNodeWithPorts):
         KEY_QUEUE: PortInformation(data_type=object, required=False),
     }
 
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        **_InboxNodeWithPorts.OUTPUT_PORTS,
+        KEY_UNHANDLED: PortInformation(data_type=bool, required=False),
+    }
+
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
@@ -103,6 +111,7 @@ class DispatchNode(_InboxNodeWithPorts):
             KEY_DISPATCH: f"/{KEY_DISPATCH}",
             KEY_CONTEXT_ID: f"/{KEY_CONTEXT_ID}",
             KEY_QUEUE: f"/{KEY_QUEUE}",
+            KEY_UNHANDLED: f"/{KEY_UNHANDLED}",
         }
 
     def _replay_after_bootstrap(self, event: VultronEvent) -> None:
@@ -229,6 +238,9 @@ class DispatchNode(_InboxNodeWithPorts):
         if status is InboxOutcomeStatus.REJECTED:
             # HandlerResult rejects a REFUSED verdict without a reason.
             assert result.reason is not None
+            if result.unhandled:
+                # No use case found: the outcome says so (IO-01-005).
+                self._set_output(KEY_UNHANDLED, True)
             return self._reject(result.reason)
         if status is InboxOutcomeStatus.DEFERRED:
             return self._defer(

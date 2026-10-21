@@ -31,7 +31,7 @@ covers.  These checks keep that the only way in:
    this is now a plain "no caller passes ``effect_nodes``" assertion.
 3. **Pinned exemption set** ``GATE_CALLERS_OUTSIDE_RECEIVED_TREES``: the
    modules that call the gate and build no received tree (trigger, expiry,
-   relay-guard, admission-backfill and retry trees), so a new caller must
+   relay-guard and admission-backfill trees), so a new caller must
    be classified.
 4. **Pinned exemption set** ``REPLICA_EMIT_EXEMPTION_USES``: which tree uses
    each registered ``ReplicaEmitExemption``, equal to the registry.
@@ -115,7 +115,7 @@ KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset()
 
 # ---------------------------------------------------------------------------
 # 3. Modules that call the gate but build no received tree.  BT-17-008 binds
-#    received trees only: a trigger, late-Accept or retry tree runs on the actor's
+#    received trees only: a trigger or late-Accept tree runs on the actor's
 #    own initiative.  The ``case_manager_admits_*_guard`` composites
 #    are gate-wrapped read-only conditions passed as a received tree's
 #    ``precondition_guards`` (the embargo Invite tree, the participant
@@ -131,10 +131,6 @@ KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset()
 # permanent: BT-17-008 (binds received-side trees only; #4301 keeps these)
 GATE_CALLERS_OUTSIDE_RECEIVED_TREES: frozenset[_Site] = frozenset(
     {
-        (
-            "vultron/adapters/driving/fastapi/pending_retry.py",
-            "_relay_pending_revision",
-        ),
         # The clock-decision stage (CLP-10-025, ADR-0135): the received-tree
         # factory and a case-scoped trigger place it, gated, in their one
         # tree; it holds the CASE_MANAGER's own decisions, never an effect

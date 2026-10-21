@@ -16,7 +16,7 @@
 """The CASE_MANAGER's evaluation and commit of an embargo invite expiry.
 
 Only the CASE_MANAGER evaluates expiry, and its expiry entry is committed
-behind its role gate (CM-28-003, CM-28-014, BT-17-001, ADR-0118).
+behind its role gate (CM-28-003, CM-28-016, BT-17-001, ADR-0118).
 
 The expiry is a clock decision of the Invite Accept tree (CLP-10-025): the
 received-tree factory runs it after the door guards and before the
@@ -119,7 +119,7 @@ def create_commit_and_record_expiry_tree(
     ``Update(EmbargoConsent)`` carrying the row, and only then writes it, so
     a failed commit leaves the invitee unchanged (CLP-07-013, ADR-0124).  It
     is not gated: the caller places it behind the CASE_MANAGER role gate
-    (CM-28-014, BT-17-001).
+    (CM-28-016, BT-17-001).
 
     Args:
         case_id: The case the Invite was for.
@@ -185,7 +185,7 @@ def invite_expiry_decision(
     as ``clock_decisions`` by the Invite Accept tree
     (:func:`~vultron.core.behaviors.embargo.answer_trees.accept_invite_to_embargo_tree`),
     which runs it after the door guards and before the precondition guards,
-    behind the factory's CASE_MANAGER gate (CLP-10-025, CM-28-014,
+    behind the factory's CASE_MANAGER gate (CLP-10-025, CM-28-016,
     BT-17-001).  It is not gated here.
 
     The decision follows the guard → commit → effect pattern (CLP-10-006):

@@ -54,8 +54,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 _SENDER_ID = "https://example.org/actors/sender-chain"
 _RECEIVER_ID = "https://example.org/actors/receiver-chain"
-# warn_if_rejected logs every rejected outcome of an inbox run, live or replayed.
+# log_if_rejected logs every rejected outcome of an inbox run, live or replayed.
 _ORCHESTRATION_LOGGER = "vultron.adapters.driving.fastapi.inbox_queue_drain"
+_OUTBOX_LOGGER = "vultron.adapters.driving.fastapi.outbox_handler"
 
 
 @pytest.fixture(autouse=True)
@@ -195,11 +196,81 @@ def test_remove_embargo_naming_no_case_is_refused_by_its_handler(dl):
 
 
 @pytest.mark.spec("UCORG-05-012")
+@pytest.mark.spec("SE-05-002")
 def test_unhandled_semantics_is_not_processed(dl, body):
     outcome = _process(dl, body, DirectActivityDispatcher(use_case_map={}))
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
-    assert "No use case found" in (outcome.failure_reason or "")
+    assert (
+        outcome.failure_reason
+        == "No use case found for semantics 'create_report'"
+    )
+
+
+class _RaisingUseCase:
+    """A received use case that fails, so the inbox answers with a fault."""
+
+    def __init__(self, dl: Any, request: Any) -> None:
+        pass
+
+    def execute(self) -> HandlerResult:
+        raise RuntimeError("handler blew up")
+
+
+def test_a_raised_dispatch_leaves_a_fault_in_the_outbox(dl, body):
+    """Control: the outbox does record the fault a raise sends.
+
+    So the empty outbox the no-use-case test asserts is evidence, not a
+    property of this fixture.
+    """
+    dispatcher = DirectActivityDispatcher(
+        use_case_map={MessageSemantics.CREATE_REPORT: _RaisingUseCase}
+    )
+
+    outcome = _process(dl, body, dispatcher)
+
+    assert outcome.status is InboxOutcomeStatus.REJECTED
+    assert outcome.unhandled is False
+    assert dl.outbox_list() != []
+
+
+@pytest.mark.spec("SE-05-002")
+@pytest.mark.spec("IO-01-005")
+def test_unhandled_semantics_is_reported_not_raised(dl, body, caplog):
+    """A recognized type no use case handles is a normal outcome (AC-2).
+
+    It is reported at INFO naming the activity and its sender, with no
+    traceback anywhere, and the sender is answered with neither a fault nor
+    a ``Reject``: the receiver does not handle the message, which does not
+    make the message invalid (ADR-0140 item 5).
+    """
+    caplog.set_level(logging.DEBUG)
+
+    outcome = _process(dl, body, DirectActivityDispatcher(use_case_map={}))
+
+    assert outcome.status is InboxOutcomeStatus.REJECTED
+    assert outcome.unhandled is True
+    assert dl.outbox_list() == []
+    assert [r for r in caplog.records if r.exc_info] == []
+    [record] = [
+        r
+        for r in caplog.records
+        if r.name == "vultron.core.dispatcher"
+        and "No use case found" in r.getMessage()
+    ]
+    assert record.levelno == logging.INFO
+    assert body["id"] in record.getMessage()
+    assert _SENDER_ID in record.getMessage()
+
+
+@pytest.mark.spec("IO-01-005")
+def test_a_handler_refusal_is_not_unhandled(dl, body):
+    outcome = _process(
+        dl, body, _dispatcher_for(HandlerResult.refused("not a participant"))
+    )
+
+    assert outcome.status is InboxOutcomeStatus.REJECTED
+    assert outcome.unhandled is False
 
 
 def _run_pipeline(
@@ -258,6 +329,45 @@ def test_pipeline_does_not_warn_for_routine_outcomes(
         _run_pipeline(dl, body, verdict)
 
     assert _orchestration_warnings(caplog) == []
+
+
+@pytest.mark.spec("IO-01-005")
+@pytest.mark.spec("SE-05-002")
+def test_pipeline_reports_no_use_case_found_at_info_only(dl, body, caplog):
+    """Through the driving adapter, no logger reports it at WARNING or above.
+
+    The adapter logs a rejected outcome at WARNING, except an unhandled one,
+    which it logs at INFO (IO-01-005).
+    """
+    caplog.set_level(logging.DEBUG)
+    asyncio.run(
+        run_inbox_pipeline(
+            body,
+            dl,
+            _RECEIVER_ID,
+            DirectActivityDispatcher(use_case_map={}),
+            AsyncMock(),
+        )
+    )
+
+    # The outbox drain after every delivery warns that this fixture stores
+    # no receiver actor; that is about the fixture, not the activity.
+    loud = [
+        f"{r.name}: {r.getMessage()}"
+        for r in caplog.records
+        if r.levelno >= logging.WARNING and r.name != _OUTBOX_LOGGER
+    ]
+    assert loud == []
+    [notice] = [
+        r
+        for r in caplog.records
+        if r.name == _ORCHESTRATION_LOGGER
+        and "Inbox activity not handled" in r.getMessage()
+    ]
+    assert notice.levelno == logging.INFO
+    assert _RECEIVER_ID in notice.getMessage()
+    assert f"activity_id={body['id']}" in notice.getMessage()
+    assert "No use case found" in notice.getMessage()
 
 
 @pytest.mark.spec("HP-01-003")

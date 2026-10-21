@@ -2,6 +2,7 @@
 @import "admonitions/ssvc.css";
 @import "admonitions/vultron.css";
 @import "admonitions/cvdguide.css";
+@import "page_type.css";
 
 
 .md-typeset h1 .md-tag {

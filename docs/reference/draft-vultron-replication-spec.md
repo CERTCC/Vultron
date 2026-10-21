@@ -10,6 +10,7 @@ description: >
   specs/sync-ledger-replication.yaml (SYNC-01 through SYNC-15).
 stakeholder_type: [platform-developer]
 level: 400
+page_type: reference
 ---
 
 # Draft: Vultron Ledger Replication Specification

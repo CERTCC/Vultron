@@ -42,6 +42,7 @@ from vultron.core.behaviors.inbox.nodes.pipeline import (
     KEY_OUTCOME_STATUS,
     KEY_PAYLOAD,
     KEY_QUEUE,
+    KEY_UNHANDLED,
     DeferCheckNode,
     ExtractSemanticsNode,
     ParsePayloadNode,

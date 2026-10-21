@@ -6,7 +6,8 @@ inbound ActivityStreams activity:
 
 - ``pattern`` — wire-layer ``ActivityPattern`` for recognising the activity
 - ``event_class`` — core domain ``VultronEvent`` subclass to construct
-- ``use_case_class`` — core use-case class to execute
+- ``use_case_class`` — core use-case class to execute, or ``None`` for a
+  semantic type the registry recognizes but no received use case handles
 - ``wire_activity_class`` — wire-layer ``as_Activity`` subclass for
   DataLayer coercion (may be ``None`` for types without a specific wire class)
 - ``include_activity`` — whether to populate ``VultronEvent.activity``
@@ -38,6 +39,7 @@ Public API
 ``extract_event(activity)`` — convenience wrapper: pattern-match + extract
 ``lookup_entry(semantics)`` — O(1) entry lookup by ``MessageSemantics``
 ``use_case_map()`` — returns ``MessageSemantics`` → use-case class mapping
+for the handled entries
 ``semantics_to_activity_class()`` — returns ``MessageSemantics`` → wire class
 ``matches_semantics(activity, expected)`` — predicate for test authors
 """
@@ -390,9 +392,16 @@ def extract_received_activity(activity: as_Activity) -> VultronActivity:
 def use_case_map() -> dict[MessageSemantics, type]:
     """Return a mapping of ``MessageSemantics`` → use-case class.
 
-    Used by the dispatcher initializer to build its routing table.
+    Used by the dispatcher initializer to build its routing table.  Only the
+    entries handled on receipt are keys: a recognized type with no use case
+    is absent, and the dispatcher reports its activity as "no use case found"
+    (ADR-0140 item 5, SE-05-002).
     """
-    return {e.semantics: e.use_case_class for e in SEMANTIC_REGISTRY}
+    return {
+        e.semantics: e.use_case_class
+        for e in SEMANTIC_REGISTRY
+        if e.use_case_class is not None
+    }
 
 
 def semantics_to_activity_class() -> dict[MessageSemantics, type[as_Activity]]:

@@ -1,8 +1,8 @@
 ---
-status: proposed
+status: accepted-provisional
 date: 2026-10-14
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-10-21
 revision: 2
 deciders: Allen D. Householder
 consulted: >-
@@ -251,7 +251,6 @@ The visual components used to implement this (the page-type badge, card grids, a
 
 The version selector is deferred until the first published wire version (#3653).
 
-**Spec changes (pending, #4683):** `diataxis-requirements.yaml` DF-01-001 is to be reworded from "organize the site into the four categories" to "declare one page type per page".
-A new DF-11 item is to require `page_type`, and another to forbid a navigation section that holds both protocol and reference-implementation pages.
+Generated spec requirements: `diataxis-requirements.yaml` DF-01-001 (reworded from "organize the site into the four categories" to "declare one page type per page"), DF-11-018 (`page_type` is required), DF-11-019 (the badge is rendered from frontmatter) and DF-11-020 (no navigation section holds both protocol and reference-implementation pages).
 
 **Follow-up work:** rendering the YAML Protocol and Foundation requirements into the specification pages so the two cannot drift apart (#4749); the thread mechanism (#4750); the generated lookup page (#4751); an optional `normative:` frontmatter key, if the separation rule is ever machine-checked (#4752).

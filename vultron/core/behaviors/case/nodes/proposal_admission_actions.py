@@ -144,21 +144,19 @@ class RecordProposalAdmissionNode(DataLayerActionWithPorts):
 
 
 class RecordProposalDeclineNode(DataLayerAction):
-    """Persist the decline decision *before* the ``Reject`` is queued.
+    """Persist the decline decision ahead of the ``Reject`` it answers with.
 
-    Writing the record first is what makes the decision terminal: if the emit
-    that follows fails, ``CheckNoDeclineRecordNode`` still refuses the accept
-    path, so the tree fails rather than creating the case and sending an
-    ``Accept`` the service had already decided against.
+    The record and the ``Reject`` run in one ``RefusalActTransaction``, so
+    they commit together or not at all, and a failure fails the tree rather
+    than letting the Selector try the accept arm.  The ``Reject`` reads its
+    reason from the record, so the record is written first.
 
     Idempotent — a record that already exists is left as it is, so the original
     decision (and its reason) survives redelivery.
 
     **Failing to record raises rather than returning FAILURE.** By the time this
-    node runs the policy has already refused, and a FAILURE here would hand the
-    enclosing Selector to the accept arm — admitting a proposal that was just
-    declined. The record is the *only* thing that stops that, so if it cannot be
-    written the tree must fail outright. This is the same reason
+    node runs the policy has already refused, so if the record cannot be
+    written the tree must fail outright, never admit. This is the same reason
     ``CheckProposalAlreadyAnsweredNode`` does not catch its store errors.
 
     That applies to a **missing DataLayer or actor_id** too, not only to a
@@ -242,8 +240,9 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
     a second round-trip (AKM-03-003).
 
     The node writes no case state and creates no participants.  It is reachable
-    only from the decline arm, which runs ahead of ``ResolveCaseIdSelector`` and
-    is guarded so it cannot be entered once the proposal was accepted — a
+    only from the two decline acts (the admission decline and the closed-case
+    decline), which run ahead of ``ResolveCaseIdSelector`` and are guarded so
+    they cannot be entered once the proposal was accepted — a
     Reject emitted for an accepted proposal would tell the receiver "declined"
     while this store held its case with committed ledger entries, the
     canonical/replica divergence CLP-10-009 exists to prevent.
@@ -279,9 +278,8 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
                 f"{self.name}: no wire proposal available for"
                 f" '{self._proposal_id}'; cannot build an inline Reject"
             )
-        # The reason travels on the decline record rather than as a constructor
-        # argument, so a Reject re-emitted on a later delivery carries the reason
-        # the original decision gave.
+        # The decline act writes its record first, in the same transaction, so
+        # the Reject reads the reason the decision gave from that record.
         record = self.datalayer.read(
             CaseProposalDeclineRecord.build_id(self._proposal_id)
         )
@@ -294,30 +292,24 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
         )
 
     def _on_success(self, activity_id: str, activity_blob: str) -> None:
-        # Stamp the decline record with what was actually queued.  This is the
-        # only durable trace that the proposer was told: the outbox loses the
-        # activity on delivery and the object store cannot say whether it was
-        # ever enqueued, so without this a redelivery after delivery mints a
-        # fresh Reject every time.  See CheckRejectAlreadyAnsweredNode.
+        # Stamp the decline record with what was actually queued, in the same
+        # transaction: the record names the Reject that answered the proposal.
         assert self.datalayer is not None
         record_id = CaseProposalDeclineRecord.build_id(self._proposal_id)
         record = self.datalayer.read(record_id)
-        if isinstance(record, CaseProposalDeclineRecord):
-            cast(DataLayer, self.datalayer).save(
-                record.model_copy(update={"reject_activity_id": activity_id})
+        if record is None:
+            # The decline act writes the record before this node runs, so its
+            # absence means the ordering was broken.  Raise so the act rolls
+            # back: a Reject with no record must not be kept (CLP-07-015).
+            raise RuntimeError(
+                f"{self.name}: queued Reject '{activity_id}' for proposal"
+                f" '{self._proposal_id}' but found no decline record to stamp"
             )
-        else:
-            # The decline arm writes the record before this node runs, so its
-            # absence means the ordering was broken rather than that no decision
-            # was taken.  Say so loudly instead of leaving the resend guard
-            # permanently unable to answer.
-            logger.error(
-                "%s: queued Reject '%s' for proposal '%s' but found no decline"
-                " record to stamp — the refusal is not idempotent",
-                self.name,
-                activity_id,
-                self._proposal_id,
+        cast(DataLayer, self.datalayer).save(
+            cast(CaseProposalDeclineRecord, record).model_copy(
+                update={"reject_activity_id": activity_id}
             )
+        )
         logger.info(
             "%s: Declined proposal '%s' — queued Reject '%s' to outbox "
             "for report receiver '%s'",

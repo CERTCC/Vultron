@@ -28,7 +28,7 @@ Entitlement kinds
 - ``ACTIVE_PARTICIPANT`` — sender must be an active participant per CM-10-004
   (joined and a signatory to the embargo in force) whose closure the case does
   not record: a participant at RM ``CLOSED`` may act on nothing further
-  (CM-23-018).  Every guard for it asks one predicate,
+  (CM-23-018).  Every guard for it asks one predicate (CM-23-020),
   :func:`~vultron.core.participants.recipients.may_act_on_case`
 - ``PARTICIPANT`` — sender must have a participant record on the case, active
   or not, whose closure the case does not record (CM-23-018)
@@ -286,7 +286,8 @@ class SenderEntitlementKind(Enum):
     Active per CM-10-004: joined and, while an embargo is in force, a
     signatory to it; a removed participant is not active.  And not at RM
     ``CLOSED``: a participant that has left the case may act on nothing
-    further (CM-23-018).  Every guard for this kind asks one predicate,
+    further (CM-23-018).  Every guard for this kind asks one predicate
+    (CM-23-020),
     :func:`~vultron.core.participants.recipients.may_act_on_case`.  Compare
     ``PARTICIPANT``, which any open participant record on the case satisfies.
     """
@@ -310,7 +311,7 @@ class SenderEntitlementKind(Enum):
     The standing of a ``Reject(CaseLedgerEntry)`` resync request
     (SYNC-03-005): a closed participant keeps it, and the replay it is
     answered with stops at the entries that record its own closure
-    (CM-23-004, CM-23-018).  No other use case declares it.
+    (CM-23-004, CM-23-018).  No other use case declares it (CM-23-020).
     """
 
     NAMED_ACTOR = ("the addressee of the {object}", "Addressee")
@@ -339,7 +340,9 @@ class SenderEntitlementKind(Enum):
     CASE_MANAGER recorded for its proposal id when it admitted, declined or
     stored it; a proposal id it has not recorded is a new proposal, whose
     author the parse edge has already matched to the sender (CP-05-010,
-    CP-01-010).
+    CP-01-010).  A participant record's author is the participant it names,
+    so a received ``Add(ParticipantStatus)`` onto it comes from that
+    participant (RSH-08-007).
     """
 
     ANY_ACTOR = ("any actor", "Actor")
@@ -764,7 +767,7 @@ class SenderIsParticipantNode(FindParticipantByActorIdNode):
 class SenderIsActiveParticipantNode(SenderEntitlementConditionNode):
     """Guard: sender must be an active participant whose closure is not recorded.
 
-    The guard of the ``ACTIVE_PARTICIPANT`` kind (CM-23-018).  Active means
+    The guard of the ``ACTIVE_PARTICIPANT`` kind (CM-23-018, CM-23-020).  Active means
     joined, not removed, and a signatory to the embargo in force (CM-10-004);
     the sender must also not be at RM ``CLOSED``, because a participant that
     has left may act on nothing further.  Both are asked through the one
@@ -2243,6 +2246,80 @@ class SenderIsProposalAuthorNode(SenderEntitlementConditionNode):
         return Status.SUCCESS
 
 
+class SenderIsParticipantRecordSubjectNode(SenderEntitlementConditionNode):
+    """Guard: the participant record a status is added to is the sender's own.
+
+    The ``AUTHOR`` kind for a received ``Add(ParticipantStatus)``: participant
+    status is self-declared, so the sender must be the participant the target
+    record names (RSH-08-007).  It keeps the standing of
+    :class:`SenderIsParticipantNode`, which this rule's ``AUTHOR`` replaces:
+
+    - the case's participant index lists *participant_id* as the sender's own
+      record, so the index and the record never disagree about whose status
+      it is (CM-19-003);
+    - the record names the sender (``attributed_to``);
+    - the record is not at RM ``CLOSED``: a participant that has left the
+      case may act on nothing further (CM-23-018).
+
+    A pure read.  FAILURE names the record and the sender.
+
+    Spec: RSH-08-007, HP-01-006, HP-01-009, CM-23-018.
+    """
+
+    guards_kind: ClassVar[SenderEntitlementKind | None] = (
+        SenderEntitlementKind.AUTHOR
+    )
+
+    def __init__(
+        self,
+        participant_id: str,
+        sender_actor_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.participant_id = participant_id
+        self.sender_actor_id = sender_actor_id
+        self.case_id = case_id
+
+    def _refuse(self, why: str) -> Status:
+        self.feedback_message = (
+            f"Sender '{self.sender_actor_id}' may not add a status to"
+            f" participant record '{self.participant_id}': {why} — REFUSED"
+            " (RSH-08-007, HP-01-006)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: the index check needs the case
+        assert case is not None
+
+        own_id = case.actor_participant_index.get(self.sender_actor_id)
+        if own_id != self.participant_id:
+            return self._refuse(
+                f"case '{self.case_id}' lists '{own_id}' as the sender's"
+                " record; a participant asserts only its own status"
+            )
+        record = self.datalayer.read(self.participant_id)
+        if not isinstance(record, CaseParticipant) or not same_actor_id(
+            _as_id(record.attributed_to) or "", self.sender_actor_id
+        ):
+            return self._refuse("the record does not name the sender")
+        if record.rm_closed:
+            return self._refuse(
+                f"the sender has left case '{self.case_id}' (RM CLOSED) and"
+                " may act on nothing further (CM-23-018)"
+            )
+        return Status.SUCCESS
+
+
 # ---------------------------------------------------------------------------
 # Condition node: the sender's closure is not recorded (CM-23-018)
 # ---------------------------------------------------------------------------
@@ -2337,6 +2414,8 @@ __all__ = [
     "SenderIsOfferAddresseeNode",
     "SenderIsCaseOwnerNode",
     "SenderIsNoteAuthorNode",
+    "SenderIsProposalAuthorNode",
+    "SenderIsParticipantRecordSubjectNode",
     "SenderClosureNotRecordedNode",
     "NoSenderAdmittedNode",
     "SenderHoldsNoneOfNode",

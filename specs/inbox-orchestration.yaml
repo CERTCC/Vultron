@@ -60,6 +60,31 @@ groups:
     tags:
     - messaging
     - observability
+  - id: IO-01-005
+    priority: MUST
+    kind: project
+    statement: >-
+      InboxOutcome MUST include an `unhandled` field (boolean, default false) that is true
+      only for a rejected outcome whose semantic type no use case handles ("no use case
+      found", SE-05-002), and the driving adapter MUST log such an outcome at INFO rather
+      than at the WARNING it uses for other rejections (UCORG-05-013).
+    rationale: >-
+      A receiver that does not handle a message has not found the message invalid
+      (ADR-0140 item 5), so a recognized-but-unhandled activity is a normal operation,
+      not a recoverable anomaly (SL-03-001). The flag is set from the dispatcher's own
+      verdict, not read from the reason text.
+    verification: >-
+      A test drives an activity whose semantic type has no use case through the inbox
+      pipeline and confirms a rejected outcome with `unhandled` true, and that no record
+      at WARNING or above is logged by any logger.
+    relationships:
+    - rel_type: refines
+      spec_id: UCORG-05-013
+    - rel_type: depends_on
+      spec_id: SE-05-002
+    tags:
+    - messaging
+    - observability
 - id: IO-02
   title: BT Orchestration Module
   specs:

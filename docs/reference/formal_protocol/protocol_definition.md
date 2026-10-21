@@ -4,6 +4,7 @@ description: >
   communication protocol, its global state, and its number of processes.
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
+page_type: reference
 ---
 
 # Protocol Definition

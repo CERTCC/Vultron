@@ -10,6 +10,7 @@ related_specs:
   - specs/use-case-organization.yaml
   - specs/handler-protocol.yaml
   - specs/case-ledger-processing.yaml
+  - specs/semantic-extraction.yaml
   - specs/inbox-orchestration.yaml
   - specs/triggerable-behaviors.yaml
 related_notes:
@@ -92,12 +93,14 @@ Every link from `execute()` to `DispatchNode` returns the `HandlerResult`
 - **`DispatcherBase._handle()` is the link that calls `execute()`,** not
   `dispatch()`. Typing only the public methods loses the verdict at the first hop.
 - **`_handle()` can end without a handler running.** Semantics with no use case
-  raise `VultronApiHandlerNotFoundError`, never return, so the outcome is
-  `rejected` (UCORG-05-012).
+  return `HandlerResult.no_use_case_found(...)`, a `REFUSED` verdict marked
+  `unhandled`, never a raise, so the outcome is `rejected` and no fault is sent
+  (UCORG-05-012, SE-05-002).
 
 The verdict reaches `InboxOutcome` and the actor log (a `rejected` outcome logs at
-WARNING, UCORG-05-013). It never reaches the sender over HTTP: the inbox returns
-202 before any handler runs. Telling a remote party about processing outcomes is
+WARNING, UCORG-05-013, except an `unhandled` one, which logs at INFO, IO-01-005).
+It never reaches the sender over HTTP: the inbox returns 202 before any handler
+runs. Telling a remote party about processing outcomes is
 a protocol message, not a response code (#2682). A refused status assertion is
 answered by the refusal notice alone, never also a `Create(ProcessingFault)`: a
 guard's refusal is "received and understood but declined" (MSM-05-001,

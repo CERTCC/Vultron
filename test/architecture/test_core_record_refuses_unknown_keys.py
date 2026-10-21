@@ -67,14 +67,6 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "reason": "unreachable",
         "total_attempts": 3,
     },
-    "PendingCreationTimeRevisionRelay": {
-        "case_id": f"{_URI}/case",
-        "embargo_id": f"{_URI}/embargo",
-        "proposal_id": f"{_URI}/p-1",
-        "losing_source": "actor_default",
-        "report_id": f"{_URI}/report",
-        "case_actor_id": f"{_URI}/manager",
-    },
     "CaseCopyPosition": {
         "case_id": f"{_URI}/case",
         "log_index": 2,

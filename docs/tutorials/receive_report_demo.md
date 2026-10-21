@@ -4,6 +4,7 @@ description: >
   vulnerability-report workflows end to end.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
+page_type: tutorial
 ---
 
 # Tutorial: Run the Receive-Report Demo

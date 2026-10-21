@@ -122,6 +122,7 @@ class TestCommitCaseLedgerEntryNodeFailFast:
 class TestResolveCaseManagerIdCallers:
     """ARCH-15-002: callers return FAILURE when resolve_case_manager_id is None."""
 
+    @pytest.mark.spec("CM-24-008")
     def test_sender_node_returns_failure_when_no_case_manager(self):
         """ResolveCaseManagerNode returns FAILURE when no CASE_MANAGER exists."""
         from test.core.behaviors.bt_harness import BTTestScenario
@@ -138,6 +139,7 @@ class TestResolveCaseManagerIdCallers:
         result = scenario.run(node, actor_id=ACTOR_ID)
         scenario.assert_failure(result)
 
+    @pytest.mark.spec("CM-24-008")
     def test_check_is_case_manager_returns_failure_when_no_case_manager(self):
         """CheckIsCaseManagerNode returns FAILURE when no CASE_MANAGER found."""
         from test.core.behaviors.bt_harness import BTTestScenario

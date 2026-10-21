@@ -4,6 +4,7 @@ description: >
   The questions the Vultron Protocol Specification leaves unresolved at the time of issue.
 stakeholder_type: [platform-developer]
 level: 400
+page_type: explanation
 ---
 
 # Protocol Specification Open Questions

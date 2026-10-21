@@ -116,6 +116,12 @@ class HandlerResult(UseCaseResult):
     an exception, as it does today, so the two stay distinguishable the way
     ``BTExecutionResult.internal_error`` separates them on the BT side.
 
+    ``unhandled`` marks the one ``REFUSED`` verdict no handler gives: the
+    dispatcher's report that the routing table has no use case for a
+    recognized semantic type (:meth:`no_use_case_found`, SE-05-002).  The
+    message is not invalid, so the inbox reports it at INFO, not as a
+    refusal to look into (IO-01-005).
+
     The model is frozen: a verdict is not revised after the handler returns
     it. Prefer the ``applied()`` / ``skipped()`` / ``deferred()`` /
     ``refused()`` constructors over spelling out the ``disposition``.
@@ -125,6 +131,7 @@ class HandlerResult(UseCaseResult):
 
     disposition: HandlerDisposition
     reason: NonEmptyString | None = None
+    unhandled: bool = False
 
     @model_validator(mode="after")
     def _check_reason_against_disposition(self) -> Self:
@@ -139,6 +146,14 @@ class HandlerResult(UseCaseResult):
         ):
             raise ValueError(
                 "an APPLIED HandlerResult must not carry a reason"
+            )
+        if (
+            self.unhandled
+            and self.disposition is not HandlerDisposition.REFUSED
+        ):
+            raise ValueError(
+                "only a REFUSED HandlerResult may be unhandled: no use case"
+                " ran, so nothing was applied, skipped or deferred"
             )
         return self
 
@@ -175,6 +190,21 @@ class HandlerResult(UseCaseResult):
     def refused(cls, reason: str) -> Self:
         """The handler rejected the inbound assertion, for ``reason``."""
         return cls(disposition=HandlerDisposition.REFUSED, reason=reason)
+
+    @classmethod
+    def no_use_case_found(cls, semantic_type: str) -> Self:
+        """No use case handles *semantic_type*, which the registry recognizes.
+
+        Synthesized by the dispatcher, never returned by a handler: no
+        handler ran, so the activity is not processed (UCORG-05-012), and
+        the receiver does not handle it, which does not make it invalid
+        (SE-05-002, ADR-0140 item 5).
+        """
+        return cls(
+            disposition=HandlerDisposition.REFUSED,
+            reason=f"No use case found for semantics '{semantic_type}'",
+            unhandled=True,
+        )
 
 
 class TriggerResult(UseCaseResult):

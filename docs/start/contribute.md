@@ -4,6 +4,7 @@ description: >
   implementation.
 stakeholder_type: [project-contributor]
 level: 100
+page_type: routing
 ---
 
 # You want to work on the Vultron reference implementation

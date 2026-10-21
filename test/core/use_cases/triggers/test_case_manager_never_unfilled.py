@@ -35,7 +35,7 @@ OWNER = "https://example.org/actors/owner"
 TRANSFEREE = "https://example.org/actors/transferee"
 
 
-@pytest.mark.spec("CM-24-006")
+@pytest.mark.spec("CM-24-006", "CM-24-008")
 def test_delegated_trigger_fails_when_no_case_manager_holds_the_role() -> None:
     """A roster with no CASE_MANAGER is a fault, not a fallback."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER)
