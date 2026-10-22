@@ -37,8 +37,11 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from ._ledger_network import MANAGER, OWNER, LedgerNetwork
 
 CASE_ID = "https://example.org/cases/case-ledger-tail"
-_NOT_BUILT = (
-    "SYNC-18: case activities do not carry ledgerTail yet. Tracked by #5080."
+_NOT_STAMPED = (
+    "SYNC-18: case activities do not carry ledgerTail yet. Tracked by #5109."
+)
+_NOT_JUDGED = (
+    "SYNC-18: the CASE_MANAGER does not read ledgerTail yet. Tracked by #5110."
 )
 
 
@@ -69,7 +72,7 @@ def _manager_tail(net: LedgerNetwork) -> LedgerPosition:
     return ledger_tail_position(CASE_ID, net.stores[MANAGER])
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_BUILT)
+@pytest.mark.xfail(strict=True, reason=_NOT_STAMPED)
 @pytest.mark.spec("SYNC-18-001")
 def test_a_participant_case_activity_carries_its_ledger_tail():
     LedgerNetwork(CASE_ID)
@@ -79,7 +82,7 @@ def test_a_participant_case_activity_carries_its_ledger_tail():
     assert "ledgerTail" in body
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_BUILT)
+@pytest.mark.xfail(strict=True, reason=_NOT_STAMPED)
 @pytest.mark.spec("SYNC-18-002")
 def test_the_stamp_is_the_senders_tail_when_it_built_the_activity():
     net = LedgerNetwork(CASE_ID)
@@ -90,7 +93,7 @@ def test_the_stamp_is_the_senders_tail_when_it_built_the_activity():
     assert body.get("ledgerTail") == _wire(expected)
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_BUILT)
+@pytest.mark.xfail(strict=True, reason=_NOT_STAMPED)
 @pytest.mark.spec("SYNC-18-003")
 def test_an_unstamped_case_activity_is_refused_and_writes_nothing():
     net = LedgerNetwork(CASE_ID)
@@ -108,7 +111,7 @@ def test_an_unstamped_case_activity_is_refused_and_writes_nothing():
     assert _note_entries(net) == []
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_BUILT)
+@pytest.mark.xfail(strict=True, reason=_NOT_JUDGED)
 @pytest.mark.spec("SYNC-18-004")
 def test_a_lagging_stamp_is_applied_and_the_lag_logged(caplog):
     net = LedgerNetwork(CASE_ID)
@@ -134,7 +137,7 @@ def test_a_lagging_stamp_is_applied_and_the_lag_logged(caplog):
     )
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_BUILT)
+@pytest.mark.xfail(strict=True, reason=_NOT_JUDGED)
 @pytest.mark.spec("SYNC-18-005")
 def test_a_split_stamp_is_applied_logged_and_the_sender_reseeded(caplog):
     net = LedgerNetwork(CASE_ID)
