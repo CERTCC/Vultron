@@ -431,7 +431,34 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
         return Status.SUCCESS
 
 
+class ApplyCreatedEmbargoFromLedgerNode(_EmbargoRelayEffectNode):
+    """Store the embargo a ``create_embargo_event`` entry carries (CLP-07-013).
+
+    The CASE_MANAGER commits one right after a case's genesis entry for each
+    embargo the creation wrote, such as the default embargo.  The case
+    already names it in its register, so this slot moves nothing: it stores
+    the record, its start and end times included, which the replica's own
+    embargo decisions read (#5122).  A record already held passes as a
+    no-op; one for another case is refused (EMB-18-004).
+    """
+
+    def update(self) -> Status:
+        resolved = self._resolve(
+            self._get_entry().payload_snapshot.get("object")
+        )
+        if isinstance(resolved, Status):
+            return resolved
+        case, embargo_id = resolved
+        self.feedback_message = (
+            f"Stored embargo '{embargo_id}' of case '{case.id_}' from its"
+            " create_embargo_event entry"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
 __all__ = [
+    "ApplyCreatedEmbargoFromLedgerNode",
     "ApplyEmbargoProposalFromLedgerNode",
     "ApplyEmbargoInviteFromLedgerNode",
     "ApplyEmbargoAcceptanceFromLedgerNode",

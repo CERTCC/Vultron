@@ -127,6 +127,7 @@ def test_use_case_map_omits_an_entry_with_no_use_case(monkeypatch):
         MessageSemantics.CREATE_CASE_PARTICIPANT,
         MessageSemantics.UPDATE_CASE_PARTICIPANT,
         MessageSemantics.UPDATE_CASE_OWNER,
+        MessageSemantics.CREATE_EMBARGO_EVENT,
         MessageSemantics.CREATE_EMBARGO_CONSENT,
         MessageSemantics.UPDATE_EMBARGO_CONSENT,
     }

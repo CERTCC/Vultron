@@ -23,6 +23,7 @@ snapshot dicts core used to assemble itself (#3743).
 
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -43,6 +44,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -63,6 +65,13 @@ CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 CASE_ID = "https://example.org/cases/urn:uuid:snapshot-test"
 REPORT_ID = "https://example.org/reports/urn:uuid:report-1"
 OFFER_ID = "https://example.org/activities/urn:uuid:offer-1"
+#: A creation-time embargo, built once so two builds of its record compare.
+_EMBARGO = EmbargoEvent(
+    id_=f"{CASE_ID}/embargo_events/default",
+    context=CASE_ID,
+    start_time=datetime(2026, 1, 1, tzinfo=UTC),
+    end_time=datetime(2026, 4, 1, tzinfo=UTC),
+)
 
 
 @pytest.fixture
@@ -145,6 +154,11 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
                 cause_id=OFFER_ID,
             )
         ),
+        "record_embargo_event_created": lambda a: (
+            a.record_embargo_event_created(
+                embargo=_EMBARGO, case_id=CASE_ID, actor=CASE_ACTOR_ID
+            )
+        ),
         "record_embargo_consent_created": lambda a: (
             a.record_embargo_consent_created(
                 row=_consent_row(EmbargoConsentState.UNINVITED),
@@ -198,6 +212,11 @@ _SHAPES: dict[str, tuple[str, str, str]] = {
         "Update",
         "CaseParticipant",
         "update_case_participant",
+    ),
+    "record_embargo_event_created": (
+        "Create",
+        "EmbargoEvent",
+        "create_embargo_event",
     ),
     "record_embargo_consent_created": (
         "Create",
@@ -305,6 +324,7 @@ def test_a_rerun_hands_back_the_body_first_sealed(adapter, recipes, method):
         "record_case_status_added",
         "record_case_participant_updated",
         "record_case_owner_updated",
+        "record_embargo_event_created",
         "record_embargo_consent_created",
         "record_embargo_consent_updated",
     ],

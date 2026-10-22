@@ -414,31 +414,32 @@ Each act that moves a participant's RM state is followed by the status the Case 
 | Index | `semanticType` | Recorded for | Phase |
 |------:|:------------|:-------------|:------|
 | 0 | `create_case` | Case Actor | 1 |
-| 1 | `add_report_to_case` | Case Actor | 1 |
-| 2–6 | `create_case_participant`, `add_participant_status_to_participant` | Case Actor (each of the three participant records as it was created, then the Case Actor's own `VALID` and `ACCEPTED`) | 1 |
-| 7 | `add_case_status_to_case` | Vendor (initial case status, `EM.ACTIVE`) | 1 |
-| 8 | `validate_report` | Vendor | 1 |
-| 9 | `add_participant_status_to_participant` | Case Actor (the Vendor's `VALID` it recorded) | 1 |
-| 10 | `engage_case` | Vendor | 1 |
-| 11 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED` it recorded) | 1 |
-| 12 | `add_note_to_case` | Reporter | 3 |
-| 13 | `add_note_to_case` | Vendor | 3 |
-| 14–17 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
-| 18–19 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
-| 20–21 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
-| 22–23 | `add_participant_status_to_participant`, `add_case_status_to_case` | Reporter's `Pxa` status and the case status that follows it | 5 |
-| 24 | `close_case` | Reporter | 6 |
-| 25 | `add_participant_status_to_participant` | Case Actor (the Reporter's `ACCEPTED → CLOSED`) | 6 |
-| 26 | `close_case` | Vendor | 6 |
-| 27 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
-| 28 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`, the write boundary) | 6 |
+| 1 | `create_embargo_event` | Case Actor (the default embargo, in full) | 1 |
+| 2 | `add_report_to_case` | Case Actor | 1 |
+| 3–7 | `create_case_participant`, `add_participant_status_to_participant` | Case Actor (each of the three participant records as it was created, then the Case Actor's own `VALID` and `ACCEPTED`) | 1 |
+| 8 | `add_case_status_to_case` | Vendor (initial case status, `EM.ACTIVE`) | 1 |
+| 9 | `validate_report` | Vendor | 1 |
+| 10 | `add_participant_status_to_participant` | Case Actor (the Vendor's `VALID` it recorded) | 1 |
+| 11 | `engage_case` | Vendor | 1 |
+| 12 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED` it recorded) | 1 |
+| 13 | `add_note_to_case` | Reporter | 3 |
+| 14 | `add_note_to_case` | Vendor | 3 |
+| 15–18 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
+| 19–20 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
+| 21–22 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
+| 23–24 | `add_participant_status_to_participant`, `add_case_status_to_case` | Reporter's `Pxa` status and the case status that follows it | 5 |
+| 25 | `close_case` | Reporter | 6 |
+| 26 | `add_participant_status_to_participant` | Case Actor (the Reporter's `ACCEPTED → CLOSED`) | 6 |
+| 27 | `close_case` | Vendor | 6 |
+| 28 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
+| 29 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`, the write boundary) | 6 |
 
 The ledger ends at the Case Actor's own `RM.CLOSED` status entry: the Reporter left first, so no participant act follows the owner closure.
 No separate entry marks the closure ([ADR-0152](../adr/0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md)).
 
 Each participant's replica holds the same sequence, entry for entry, up to the last entry recording its own closure, and nothing after it (CM-23-004).
-The Reporter's replica ends at index 25, its own closure step.
-The Vendor's replica ends at index 27, its own closure step, so it does not hold the Case Actor's own status entry.
+The Reporter's replica ends at index 26, its own closure step.
+The Vendor's replica ends at index 28, its own closure step, so it does not hold the Case Actor's own status entry.
 The demo runner exports all three ledgers as JSONL under `devlogs/rv/` at the end of a run, and the invariant harness in `test/ci/invariants/` checks them against the causal edges the [`rv` scenario narrative](../topics/scenarios/rv.md) declares.
 
 ---

@@ -335,6 +335,28 @@ class UndoInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return self.inner_context_id
 
 
+class CreateEmbargoEventReceivedEvent(VultronEvent):
+    """The CASE_MANAGER recorded an embargo its case's creation wrote.
+
+    ``Create(EmbargoEvent)``: committed as the ``create_embargo_event``
+    ledger entry right after the genesis entry, carrying the embargo in full
+    (CLP-07-013).  No received use case handles it: a participant takes the
+    embargo from the committed entry (ADR-0140 item 5).
+    """
+
+    semantic_type: Literal[MessageSemantics.CREATE_EMBARGO_EVENT] = (
+        MessageSemantics.CREATE_EMBARGO_EVENT
+    )
+
+    @property
+    def embargo_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def case_id(self) -> str | None:
+        return self.context_id
+
+
 class CreateEmbargoConsentReceivedEvent(VultronEvent):
     """The CASE_MANAGER created a participant's consent row (ADR-0122).
 

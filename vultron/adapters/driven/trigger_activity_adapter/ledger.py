@@ -37,6 +37,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.errors import VultronNotFoundError
@@ -46,6 +47,7 @@ from vultron.wire.as2.factories import (
     add_status_to_participant_activity,
     create_case_activity,
     create_embargo_consent_activity,
+    create_embargo_event_activity,
     create_participant_activity,
     update_case_activity,
     update_embargo_consent_activity,
@@ -82,15 +84,33 @@ class _LedgerRecordsMixin:
         actor: str,
     ) -> tuple[str, str]:
         """Build and seal the genesis ``Create(VulnerabilityCase)``."""
-        # The case as stored, its participants and reports by id: each of
-        # them is carried in full by an entry of its own (``create_case_participant``,
-        # ``add_report_to_case``), so a replica copying this entry stores the
-        # case exactly as the CASE_MANAGER holds it (ADR-0124).
+        # The case as stored, its embargoes, participants and reports by id:
+        # each of them is carried in full by an entry of its own
+        # (``create_embargo_event``, ``add_report_to_case``,
+        # ``create_case_participant``), so a replica copying this entry stores
+        # the case exactly as the CASE_MANAGER holds it (ADR-0124).
         activity = create_case_activity(
             case=_stored_case(self._dl, case_id),
             actor=actor,
             context=case_id,
             id_=derived_activity_id("case-created", actor, case_id),
+        )
+        return _seal_record(self._dl, activity)
+
+    def record_embargo_event_created(
+        self,
+        embargo: EmbargoEvent,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """Build and seal ``Create(EmbargoEvent)``, the embargo in full."""
+        activity = create_embargo_event_activity(
+            embargo=embargo,
+            actor=actor,
+            context=case_id,
+            id_=derived_activity_id(
+                "embargo-event-created", actor, embargo.id_
+            ),
         )
         return _seal_record(self._dl, activity)
 

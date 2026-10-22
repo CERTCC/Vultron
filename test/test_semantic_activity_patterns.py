@@ -1197,7 +1197,7 @@ def test_refusal_notice_pattern_matches_the_notice_example():
 
 
 # ---------------------------------------------------------------------------
-# VAM-03-007, VAM-05-014, VAM-05-015, VAM-06-004, VAM-06-005 — the
+# VAM-03-007, VAM-05-014 to VAM-05-016, VAM-06-004, VAM-06-005 — the
 # CASE_MANAGER's own acts are registry entries no use case handles (ADR-0140)
 # ---------------------------------------------------------------------------
 
@@ -1205,6 +1205,7 @@ def test_refusal_notice_pattern_matches_the_notice_example():
 @pytest.mark.spec("VAM-03-007")
 @pytest.mark.spec("VAM-05-014")
 @pytest.mark.spec("VAM-05-015")
+@pytest.mark.spec("VAM-05-016")
 @pytest.mark.spec("VAM-06-004")
 @pytest.mark.spec("VAM-06-005")
 @pytest.mark.parametrize(
@@ -1220,6 +1221,11 @@ def test_refusal_notice_pattern_matches_the_notice_example():
             "participant",
             "update_participant",
             MessageSemantics.UPDATE_CASE_PARTICIPANT,
+        ),
+        (
+            "embargo",
+            "create_embargo_event",
+            MessageSemantics.CREATE_EMBARGO_EVENT,
         ),
         (
             "embargo",

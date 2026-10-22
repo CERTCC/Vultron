@@ -444,6 +444,10 @@ def _case_manager_acts() -> list[Any]:
             ),
             (case.update_case, MessageSemantics.UPDATE_CASE_OWNER),
             (
+                embargo.create_embargo_event,
+                MessageSemantics.CREATE_EMBARGO_EVENT,
+            ),
+            (
                 embargo.create_embargo_consent,
                 MessageSemantics.CREATE_EMBARGO_CONSENT,
             ),
@@ -520,7 +524,6 @@ def _retired_create_activities() -> list[Any]:
         as_CaseStatus,
         as_ParticipantStatus,
     )
-    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     participant_id = f"{_RETIRED_CASE_ID}/participants/sender"
     return [
@@ -540,17 +543,6 @@ def _retired_create_activities() -> list[Any]:
                 to=[_RECEIVER_ID],
             ),
             id="participant-status",
-        ),
-        pytest.param(
-            as_Create(
-                object_=as_EmbargoEvent(
-                    context=_RETIRED_CASE_ID, end_time=days_from_now_utc(45)
-                ),
-                context=_RETIRED_CASE_ID,
-                actor=_SENDER_ID,
-                to=[_RECEIVER_ID],
-            ),
-            id="embargo-event",
         ),
         pytest.param(
             as_Create(
@@ -586,8 +578,10 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
     """A received ``Create`` of a case record is not a protocol message (VAM-01-010, VAM-01-011).
 
     The protocol names one form for each act: ``Add(CaseStatus)``,
-    ``Add(ParticipantStatus)``, ``Invite(Event)``, ``Add(Note)``, and the
-    CASE_MANAGER's own consequence for a ``CaseParticipant`` (ADR-0137).
+    ``Add(ParticipantStatus)``, ``Add(Note)``, and the CASE_MANAGER's own
+    record of a ``CaseParticipant`` or a creation-time ``EmbargoEvent``
+    (ADR-0137, VAM-05-016), which ``test_a_received_case_manager_act_is_recognized_and_unhandled``
+    covers.
     Each of the record ``Create`` forms once stored its object with no ledger
     entry, which CLP-07-013 rules out (#4598); ``Create(Note)`` was a second
     way to attach a note (#4707).

@@ -19,8 +19,9 @@ rebuilt before its node is cleared (``test/demo/_helpers.py``).  These tests
 show the check is not vacuous: it reaches the CASE_MANAGER's state through a
 whole embargo cycle, it catches a change no entry records,
 it fails on a missing entry, it compares every participant status and case
-status whole, ids and times included (#4295), and it compares the embargo
-register whole, each termination's cause included (EMB-13-005).
+status whole, ids and times included (#4295), it compares the embargo
+register whole, each termination's cause included (EMB-13-005), and it
+compares each ``EmbargoEvent`` the register names whole (#5122).
 """
 
 from datetime import UTC, datetime
@@ -37,11 +38,13 @@ from test.support.ledger_rebuild import (
     creation_records,
     rebuild_from_ledger,
 )
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import TerminationCauseKind
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -62,6 +65,12 @@ from ._ledger_network import (
     rebuild_every_network,
 )
 from .conftest import call_passed
+from .test_case_proposal import (
+    _CASE_ACTOR_URI,
+    _VENDOR_URI,
+    _make_proposal,
+    _run_create_proposal,
+)
 from .test_embargo_activation_copy import _owner_activates, _propose
 from .test_embargo_proposal_answer_copy import _participant_answers
 
@@ -135,6 +144,78 @@ def test_a_missing_entry_fails_the_rebuild(monkeypatch):
                 as_actor=BYSTANDER,
                 seed=_seed(net),
             )
+
+
+def _proposed_case(make_payload: Any) -> tuple[SqliteDataLayer, str]:
+    """A case the CASE_MANAGER created from a proposal, with its default
+    embargo, and its id."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+    verdict = _run_create_proposal(dl, _make_proposal(), make_payload)
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
+    (case,) = [
+        obj
+        for obj in dl.list_objects("VulnerabilityCase")
+        if isinstance(obj, VulnerabilityCase)
+    ]
+    assert case.active_embargo_id is not None, "no default embargo"
+    return dl, case.id_
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("VAM-05-016")
+def test_the_default_embargo_rebuilds_from_the_ledger_alone(make_payload):
+    """#5122: the embargo a case's creation writes reaches a replica built
+    from the ledger alone, start and end times included."""
+    dl, case_id = _proposed_case(make_payload)
+    embargo_id = cast(VulnerabilityCase, dl.read(case_id)).active_embargo_id
+    assert embargo_id is not None
+
+    replica = rebuild_from_ledger(dl, case_id, as_actor=_VENDOR_URI)
+
+    copied = replica.read(embargo_id)
+    assert isinstance(copied, EmbargoEvent)
+    assert copied == dl.read(embargo_id)
+    assert case_file_differences(dl, replica, case_id) == []
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("VAM-05-016")
+def test_the_default_embargo_follows_the_genesis_entry_in_full(make_payload):
+    """The CASE_MANAGER's own entry carries the embargo whole, right after
+    the genesis entry, which names it by id (#5122)."""
+    dl, case_id = _proposed_case(make_payload)
+    held = cast(
+        EmbargoEvent,
+        dl.read(
+            cast(VulnerabilityCase, dl.read(case_id)).active_embargo_id or ""
+        ),
+    )
+    entries = ledger_entries(dl, case_id)
+
+    assert [e.semantic_type for e in entries[:2]] == [
+        "create_case",
+        "create_embargo_event",
+    ]
+    carried = EmbargoEvent.model_validate(
+        entries[1].payload_snapshot["object"]
+    )
+    assert carried == held
+    assert entries[1].payload_snapshot["actor"] == _CASE_ACTOR_URI
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_an_embargo_no_entry_carries_is_caught(make_payload):
+    """The check is not vacuous: an embargo changed outside the ledger
+    differs from the rebuild."""
+    dl, case_id = _proposed_case(make_payload)
+    embargo_id = cast(VulnerabilityCase, dl.read(case_id)).active_embargo_id
+    held = cast(EmbargoEvent, dl.read(embargo_id or ""))
+    dl.save(
+        held.model_copy(update={"end_time": datetime(2100, 1, 1, tzinfo=UTC)})
+    )
+
+    with pytest.raises(AssertionError, match="end_time"):
+        assert_rebuilds_from_ledger(dl, case_id, as_actor=_VENDOR_URI)
 
 
 def _terminated(cause: bool, reason: TerminationReason) -> VulnerabilityCase:

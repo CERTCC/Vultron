@@ -20,6 +20,7 @@ from vultron.core.models.events.embargo import (
     ActivateEmbargoOnCaseReceivedEvent,
     AnnounceEmbargoEventToCaseReceivedEvent,
     CreateEmbargoConsentReceivedEvent,
+    CreateEmbargoEventReceivedEvent,
     InviteToEmbargoOnCaseReceivedEvent,
     RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
@@ -53,6 +54,7 @@ from vultron.wire.as2.extractor import (
     ActivateEmbargoOnCasePattern,
     AnnounceEmbargoEventToCasePattern,
     CreateEmbargoConsentPattern,
+    CreateEmbargoEventPattern,
     InviteToEmbargoOnCasePattern,
     RejectEmbargoProposalOnCasePattern,
     RejectInviteToEmbargoOnCasePattern,
@@ -65,6 +67,7 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
     _AnnounceEmbargoActivity,
     _CreateEmbargoConsentActivity,
+    _CreateEmbargoEventActivity,
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
@@ -461,10 +464,41 @@ ENTRIES: list[SemanticEntry] = [
         ),
         page=MessagePage.EM,
     ),
-    # The CASE_MANAGER's own acts on consent rows, each committed as its own
-    # entry carrying the row in full (ADR-0122, CLP-07-013).  Only the
-    # CASE_MANAGER sends them, and a participant takes the row from the
-    # ledger, so no received use case handles them (ADR-0140 item 5).
+    # The CASE_MANAGER's own records: an embargo its case's creation wrote,
+    # and its acts on consent rows, each committed as its own entry carrying
+    # the record in full (ADR-0122, CLP-07-013).  Only the CASE_MANAGER sends
+    # them, and a participant takes the record from the ledger, so no
+    # received use case handles them (ADR-0140 item 5).
+    SemanticEntry(
+        semantics=MessageSemantics.CREATE_EMBARGO_EVENT,
+        pattern=CreateEmbargoEventPattern,
+        event_class=CreateEmbargoEventReceivedEvent,
+        use_case_class=None,
+        phrase="{actor} created the case's embargo",
+        wire_activity_class=_CreateEmbargoEventActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager has created a case and, with it, an "
+                    "embargo such as the default embargo"
+                ),
+                anchor="create-embargo-event",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Create embargo event",
+                description=(
+                    "Carries the new embargo in full, its start and end "
+                    "times included. It follows the case's genesis entry."
+                ),
+                example="create_embargo_event",
+                notes=(
+                    "Each participant learns of it from the case ledger, so "
+                    "it is addressed to nobody."
+                ),
+            ),
+        ),
+        page=MessagePage.EM,
+    ),
     SemanticEntry(
         semantics=MessageSemantics.CREATE_EMBARGO_CONSENT,
         pattern=CreateEmbargoConsentPattern,

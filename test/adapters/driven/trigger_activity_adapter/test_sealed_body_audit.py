@@ -348,6 +348,11 @@ RECIPES: dict[str, Recipe] = {
             cause_id=_CAUSE_ID,
         )
     ),
+    "record_embargo_event_created": lambda w: (
+        w.adapter.record_embargo_event_created(
+            embargo=w.embargo, case_id=w.case_id, actor=_CASE_ACTOR
+        )
+    ),
     "record_embargo_consent_created": lambda w: (
         w.adapter.record_embargo_consent_created(
             row=w.consent_row(EmbargoConsentState.UNINVITED),

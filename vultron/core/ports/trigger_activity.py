@@ -49,6 +49,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
@@ -538,6 +539,20 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         actor: str,
     ) -> tuple[str, str]:
         """The genesis ``Create(VulnerabilityCase)`` (``create_case``), the case as stored."""
+        ...
+
+    def record_embargo_event_created(
+        self,
+        embargo: EmbargoEvent,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """``Create(EmbargoEvent)`` (``create_embargo_event``), the embargo in full.
+
+        For an embargo the case's creation wrote, such as the default embargo
+        (CLP-07-013).  An embargo is created once, so the id is derived from
+        its own id.
+        """
         ...
 
     def record_report_added_to_case(

@@ -373,12 +373,16 @@ owner and CASE_MANAGER, so both creation paths commit one sequence; do not add a
 second copy (CLP-07-013). Order:
 
 1. `create_case` — `Create(VulnerabilityCase)`, actor CASE_MANAGER
-2. `add_report_to_case` — actor CASE_MANAGER
-3. per seated record, `create_case_participant` — `Create(CaseParticipant)`
+2. `create_embargo_event` — `Create(EmbargoEvent)` in full, once per embargo
+   the register names (the default embargo, and a contested creation's losing
+   terms), actor CASE_MANAGER. The genesis names them by id, so without it a
+   replica rebuilt from the ledger lacks the end time (#5122, VAM-05-016)
+3. `add_report_to_case` — actor CASE_MANAGER
+4. per seated record, `create_case_participant` — `Create(CaseParticipant)`
    carrying the record as created (roles, consent rows, its first status), then
    `add_participant_status_to_participant` for each later status (the
    CASE_MANAGER's VALID, ACCEPTED; CM-23-007) — actor CASE_MANAGER
-4. `add_case_status_to_case` — actor **vendor URI**
+5. `add_case_status_to_case` — actor **vendor URI**
 
 Each snapshot is the CASE_MANAGER's factory-built activity, sealed and committed
 verbatim: the `record_*` methods of `TriggerActivityPort`

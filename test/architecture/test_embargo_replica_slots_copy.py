@@ -62,6 +62,7 @@ from vultron.core.behaviors.embargo.nodes.activation_effect import (
     ApplyEmbargoProposalRejectionFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
+    ApplyCreatedEmbargoFromLedgerNode,
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,
@@ -102,6 +103,8 @@ _LIFECYCLE_NAMES = frozenset(
 
 #: Every replica slot that writes the embargo register or a consent row.
 _SLOTS = [
+    # an embargo the case's creation wrote, stored and nothing else (#5122)
+    ApplyCreatedEmbargoFromLedgerNode,
     # relay (EP-09-007)
     ApplyEmbargoProposalFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
