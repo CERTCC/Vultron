@@ -22,7 +22,7 @@ Defined in `vultron/core/models/case.py`.
 
 | Field | Description |
 |---|---|
-| `attributed_to` | The actor the case is attributed to: set when the case is created, where it is an input to `genesis_hash`, and changed to the new owner when an ownership transfer is accepted ([CM-21-002](specs/protocol.md#cm-21-002)) |
+| `attributed_to` | The case owner: set when the case is created, where it is an input to `genesis_hash`, and changed to the new owner when an ownership transfer is accepted ([CM-21-002](specs/protocol.md#cm-21-002)). Required: a case without an owner is refused when it is built, loaded or received ([ARCH-10-001](specs/architecture.md#arch-10-001)) |
 | `case_participants` | `CaseParticipant` records (or their URIs) |
 | `actor_participant_index` | Fast-lookup map: actor URI → participant URI |
 | `vulnerability_reports` | Reports associated with this case (objects or URIs) |
