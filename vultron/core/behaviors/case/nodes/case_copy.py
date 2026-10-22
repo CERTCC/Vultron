@@ -197,6 +197,12 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
     target: the CASE_MANAGER answers it by replaying from genesis, and each
     entry up to the copy's position is stored as a no-op (SYNC-16-007).
 
+    A repeat of the same copy, such as the one the CASE_MANAGER's genesis
+    answer starts with, asks again while the chain is still short.  The
+    ``Reject``'s id is derived from what it asks for, so that is the same
+    request queued once more, which the receiver deduplicates (ID-04-005),
+    never a new one.
+
     Raises:
         VultronWiringError: A ``Reject`` is due and no ``sync_port`` was
             injected.

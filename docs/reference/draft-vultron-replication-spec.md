@@ -288,6 +288,7 @@ A participant that already holds the case compares the copy's position with its 
   If its chain falls short of the copy's position, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before that position, replayed or drained from its holding area, as a no-op. (SYNC-16-007)
 
 Committing or storing an entry at or before the case's position leaves the position where it is, so a case a copy put ahead of its chain never moves back while the chain catches up.
+A participant refuses an entry at the position's index whose hash differs from the one the position names, and logs the conflict as an error, because that entry belongs to a different chain from the copy. (SYNC-16-007)
 A participant first seeded from a copy stores the entries up to the copy's position the same way, as no-ops. (SYNC-16-007)
 
 [I] In this implementation, the position travels as the `ledgerPosition` property of the case object, with `logIndex` and `entryHash` members.

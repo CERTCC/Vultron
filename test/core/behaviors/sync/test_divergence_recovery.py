@@ -84,7 +84,7 @@ from vultron.core.use_cases.received.fault import (
     CreateProcessingFaultReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronBTInternalError
+from vultron.errors import VultronBTInternalError, VultronEntryRefusedError
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
@@ -533,6 +533,13 @@ def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
         parse_activity(untargeted)
     with pytest.raises(VultronParseValidationError, match="names no object"):
         parse_activity({**body, "type": "TentativeReject"})
+    note = {
+        "type": "Note",
+        "id": f"{_CASE_ID}/notes/not-a-case",
+        "content": "not a case",
+    }
+    with pytest.raises(VultronParseValidationError, match="names no object"):
+        parse_activity({**body, "target": note})
 
 
 @pytest.mark.spec("SYNC-16-005")
@@ -995,3 +1002,276 @@ def test_a_reflected_entry_copies_each_record_the_case_names_and_no_other() -> (
     assert [r.id_ for r in records_a_reflected_entry_adds(entry, dl)] == [
         status_id
     ]
+
+
+def _put_ahead(
+    dl: SqliteDataLayer,
+    entries: list[CaseLedgerEntry],
+    stored: int,
+    position: LedgerPosition,
+) -> None:
+    """Store *entries* up to *stored* in *dl*, then put its case at *position*."""
+    for entry in entries[:stored]:
+        store_ledger_entry(entry, dl)
+    dl.save(_at(cast(as_VulnerabilityCase, dl.read(_CASE_ID)), position))
+
+
+@pytest.mark.spec("SYNC-16-007")
+def test_storing_another_entry_at_the_case_position_is_refused() -> None:
+    """The store never leaves the chain naming one entry at the case's
+    position and the case another: it refuses, storing nothing."""
+    dl = _replica_holding("replaced replica")
+    entries = _chain(dl, [{"type": "Add", "index": i} for i in range(3)])
+    named = LedgerPosition(log_index=2, entry_hash="ab" * 32)
+    _put_ahead(dl, entries, 2, named)
+
+    with pytest.raises(VultronEntryRefusedError, match="SYNC-16-007"):
+        store_ledger_entry(entries[2], dl)
+
+    assert dl.read(entries[2].id_) is None
+    assert _position(dl) == named
+
+
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-16-006")
+def test_an_entry_conflicting_with_the_case_position_is_refused_at_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An entry that extends the chain but is not the one the case's position
+    names is from another chain: ``REFUSED`` at ERROR, neither stored as a
+    no-op, applied nor stored, and the position stays."""
+    dl = _replica_holding("replaced replica")
+    entries = _chain(dl, [{"type": "Add", "index": i} for i in range(3)])
+    named = LedgerPosition(log_index=2, entry_hash="ab" * 32)
+    _put_ahead(dl, entries, 2, named)
+
+    with caplog.at_level(logging.INFO):
+        result = run_use_case(
+            dl,
+            ledger_announce_event(
+                entries[2], actor=_CASE_ACTOR_ID, to=_REPLICA_ID
+            ),
+        )
+
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
+    assert "SYNC-16-007" in (result.reason or "")
+    assert dl.read(entries[2].id_) is None
+    assert _position(dl) == named
+    assert any(
+        r.levelno == logging.ERROR and "chains conflict" in r.getMessage()
+        for r in caplog.records
+    )
+    assert not any("as a no-op" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.spec("SYNC-16-006")
+def test_the_extracted_copy_keeps_the_position_it_names() -> None:
+    """Through the real parse and extraction, the received case carries the
+    sender's position, not its empty ledger's (SYNC-16-005)."""
+    sent = LedgerPosition(log_index=5, entry_hash="ef" * 32)
+    activity = announce_vulnerability_case_activity(
+        _at(_owned_case("copy ahead"), sent),
+        actor=_CASE_ACTOR_ID,
+        to=[_REPLICA_ID],
+        context=_CASE_ID,
+    )
+
+    event = cast(
+        AnnounceVulnerabilityCaseReceivedEvent,
+        received_event(activity, receiving_actor_id=_REPLICA_ID),
+    )
+
+    assert event.object_ is not None
+    assert cast(as_VulnerabilityCase, event.object_).ledger_position == sent
+    assert (
+        cast(as_VulnerabilityCase, event.activity.object_).ledger_position
+        == sent
+    )
+
+
+@pytest.mark.spec("SYNC-16-006")
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("IO-03-004")
+def test_the_inbox_takes_the_position_of_a_copy_ahead() -> None:
+    """Through the real inbox a copy ahead of the chain replaces the case at
+    the copy's position, and an older copy after it is then stale."""
+    dl = _replica_holding("replica case")
+    _store_chain(dl, 2)
+    ahead = LedgerPosition(log_index=5, entry_hash="ef" * 32)
+
+    def deliver(copy: Any) -> InboxOutcome:
+        activity = announce_vulnerability_case_activity(
+            copy, actor=_CASE_ACTOR_ID, to=[_REPLICA_ID], context=_CASE_ID
+        )
+        staging = InlineObjectStaging(dl)
+        return process_payload(
+            activity.model_dump(mode="json", by_alias=True, exclude_none=True),
+            FastAPIIngressAdapter(dl=dl, staging=staging),
+            FastAPIDispatchAdapter(
+                dl=dl, actor_id=_REPLICA_ID, dispatcher=make_dispatcher()
+            ),
+            FastAPIQueuePort(
+                dl=dl, actor_dl=dl, actor_id=_REPLICA_ID, staging=staging
+            ),
+        )
+
+    replaced = deliver(_at(_owned_case("copy ahead"), ahead))
+    assert replaced.status is InboxOutcomeStatus.PROCESSED, replaced
+    assert _case_name(dl) == "copy ahead"
+    assert _position(dl) == ahead
+
+    deliver(
+        _at(
+            _owned_case("older copy"),
+            LedgerPosition(log_index=3, entry_hash="12" * 32),
+        )
+    )
+    assert _case_name(dl) == "copy ahead"
+    assert _position(dl) == ahead
+
+
+def _vendor(rm: RM) -> CaseParticipant:
+    return CaseParticipant(
+        id_=f"{_CASE_ID}/participants/vendor",
+        attributed_to=_REPLICA_ID,
+        context=_CASE_ID,
+        participant_statuses=[
+            ParticipantStatus(
+                context=_CASE_ID,
+                attributed_to=_REPLICA_ID,
+                rm=RmDimension(state=rm),
+            )
+        ],
+    )
+
+
+@pytest.mark.spec("SYNC-16-006")
+@pytest.mark.spec("PCR-02-004")
+def test_a_replacement_that_fails_part_way_changes_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The participants and the case at the copy's position commit together
+    or not at all (ADR-0146): a store failure after both were written rolls
+    both back and is reported as an internal error."""
+    dl = _replica_holding("replica case")
+    dl.create(_vendor(RM.ACCEPTED))
+    entries = _store_chain(dl, 2)
+    held = _position(dl)
+
+    def fail(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("store failed")
+
+    monkeypatch.setattr(
+        "vultron.core.behaviors.case.nodes.announce.link_report_case_links",
+        fail,
+    )
+    copy = _owned_case("current copy").model_copy(
+        update={"case_participants": [_vendor(RM.VALID)]}
+    )
+
+    with pytest.raises(VultronBTInternalError, match="store failed"):
+        _announce(
+            _at(
+                copy,
+                LedgerPosition(log_index=1, entry_hash=entries[1].entry_hash),
+            ),
+            dl,
+        )
+
+    assert _case_name(dl) == "replica case"
+    assert _position(dl) == held
+    vendor = cast(CaseParticipant, dl.read(_vendor(RM.ACCEPTED).id_))
+    assert vendor.participant_status is not None
+    assert vendor.participant_status.rm.state is RM.ACCEPTED
+
+
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("SYNC-12-001")
+def test_a_reflected_entry_whose_records_fail_is_not_stored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A reflected entry whose records cannot be copied neither falls
+    through to its effects nor is stored: its next delivery tries again."""
+    note_id = f"{_CASE_ID}/notes/n-1"
+    dl = _replica_holding("replaced replica")
+    entries = _chain(
+        dl,
+        [
+            {"type": "Add", "index": 0},
+            {
+                "type": "Add",
+                "object": {
+                    "id": note_id,
+                    "type": "Note",
+                    "content": "a note the copy names",
+                    "context": _CASE_ID,
+                },
+                "target": _CASE_ID,
+            },
+        ],
+    )
+    _put_ahead(
+        dl,
+        entries,
+        1,
+        LedgerPosition(log_index=1, entry_hash=entries[1].entry_hash),
+    )
+
+    def fail(*_args: Any, **_kwargs: Any) -> list[Any]:
+        raise RuntimeError("records failed")
+
+    monkeypatch.setattr(
+        "vultron.core.behaviors.sync.nodes.case_copy_effect"
+        ".records_a_reflected_entry_adds",
+        fail,
+    )
+
+    with pytest.raises(VultronBTInternalError, match="records failed"):
+        run_use_case(
+            dl,
+            ledger_announce_event(
+                entries[1], actor=_CASE_ACTOR_ID, to=_REPLICA_ID
+            ),
+        )
+
+    assert dl.read(entries[1].id_) is None
+    assert dl.read(note_id) is None
+
+
+@pytest.mark.spec("SYNC-16-007")
+def test_a_reflected_entry_copies_nothing_without_its_case_or_a_valid_record(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """No case, nothing to copy; a carried record that does not validate as
+    its type is left out with a WARNING (#5052)."""
+    status_id = f"{_CASE_ID}/statuses/bad"
+    dl = _replica_holding("replaced replica")
+    case = cast(as_VulnerabilityCase, dl.read(_CASE_ID))
+    dl.save(
+        case.model_copy(
+            update={"case_statuses": [*case.case_statuses, status_id]}
+        )
+    )
+    (entry,) = _chain(
+        dl,
+        [
+            {
+                "type": "Add",
+                "object": {
+                    "id": status_id,
+                    "type": "CaseStatus",
+                    "emState": "NOT_A_STATE",
+                },
+            }
+        ],
+    )
+
+    with caplog.at_level(logging.WARNING):
+        assert records_a_reflected_entry_adds(entry, dl) == []
+    assert any(
+        r.levelno == logging.WARNING and status_id in r.getMessage()
+        for r in caplog.records
+    )
+    elsewhere = entry.model_copy(update={"case_id": f"{_CASE_ID}-other"})
+    assert records_a_reflected_entry_adds(elsewhere, dl) == []

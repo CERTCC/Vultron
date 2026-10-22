@@ -112,6 +112,13 @@ class SyncActivityAdapter:
         the same id and body, which the receiver deduplicates (ID-04-005).  A
         different tail hash is a different rejection and gets its own id.
 
+        A backfill after a case copy (SYNC-16-007) names the chain's tail as
+        both *entry* and *tail_hash*, so its id keys on the tail, not on the
+        copy: the replay it asks for starts there whichever copy prompted
+        it, and the entries committed after that replay reach the replica by
+        fan-out.  The genesis-replay ``Reject`` has no entry to key on, so
+        :meth:`send_genesis_replay_reject` keys on the copy's position.
+
         Spec: SYNC-03-001.
         """
         reject_id = derived_activity_id(

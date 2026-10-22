@@ -362,7 +362,7 @@ def stale_case_copy_verdict(
 ) -> HandlerResult:
     """Report a case copy the replica's chain is past as ``SKIPPED``.
 
-    :class:`~vultron.core.behaviors.case.nodes.announce.CaseCopyNotStaleNode`
+    :class:`~vultron.core.behaviors.case.nodes.case_copy.CaseCopyNotStaleNode`
     fails with ``is_stale`` set when the replica already holds entries past
     the copy's ledger position, so the case is left unchanged.  That is the
     benign no-op of a late copy, not a refusal (SYNC-16-006, HP-01-003).

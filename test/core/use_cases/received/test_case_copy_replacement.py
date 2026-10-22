@@ -26,6 +26,7 @@ import pytest
 
 from test.support.ledger import ledger_entries
 from test.support.received import received_event
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -39,8 +40,14 @@ from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
+from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
+from vultron.core.use_cases.triggers.requests import (
+    AddNoteToCaseTriggerRequest,
+)
 from vultron.wire.as2.factories import genesis_replay_reject_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
@@ -53,15 +60,15 @@ def _send(net: LedgerNetwork, activity: Any) -> None:
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
 
 
-def _case_copy(net: LedgerNetwork) -> dict[str, Any]:
-    """The CASE_MANAGER's full-case announcement to the bystander, sealed."""
+def _case_copy(net: LedgerNetwork, to: str = BYSTANDER) -> dict[str, Any]:
+    """The CASE_MANAGER's full-case announcement to *to*, sealed."""
     activity_id = TriggerActivityAdapter(
         net.stores[MANAGER]
     ).announce_vulnerability_case(
         case_id=net.case_id,
         actor=MANAGER,
         context_id=net.case_id,
-        to=[BYSTANDER],
+        to=[to],
     )
     body = read_sealed_body_dict(net.stores[MANAGER], activity_id)
     assert body is not None
@@ -187,10 +194,8 @@ def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
     verdict = net.receive(BYSTANDER, _case_copy(net))
 
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
-    (reject,) = [
-        read_sealed_body_dict(net.stores[BYSTANDER], a.id_)
-        for a in net.queued(BYSTANDER, to=MANAGER, type_="Reject")
-    ]
+    (request,) = net.queued(BYSTANDER, to=MANAGER, type_="Reject")
+    reject = read_sealed_body_dict(net.stores[BYSTANDER], request.id_)
     assert reject is not None
     assert "object" not in reject
     assert reject["target"] == net.case_id
@@ -203,6 +208,11 @@ def test_a_replica_with_no_entry_is_replayed_from_genesis() -> None:
 
     assert _tail(net, BYSTANDER) == _tail(net, MANAGER)
     assert _statuses(net, BYSTANDER) == _statuses(net, MANAGER)
+    # The CASE_MANAGER's answer repeats the copy, which asks again for the
+    # same copy: the same request, re-queued under its id, never a new one.
+    assert {
+        a.id_ for a in net.queued(BYSTANDER, to=MANAGER, type_="Reject")
+    } <= {request.id_}
 
 
 def _genesis_request(case_id: str, sender: str) -> dict[str, Any]:
@@ -254,3 +264,70 @@ def test_a_reject_naming_neither_an_entry_nor_a_case_is_refused() -> None:
     assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
     assert "names neither" in (verdict.reason or "")
     assert len(net.queued(MANAGER, to=BYSTANDER)) == queued
+
+
+def _noted(case_id: str) -> tuple[LedgerNetwork, str]:
+    """A network whose CASE_MANAGER committed the bystander's note; the
+    owner's replica has not received the entry."""
+    net = LedgerNetwork(case_id, em_state=EM.NONE)
+    net.stores[BYSTANDER].create(as_Service(id_=BYSTANDER, name="Vendor B"))
+    result = SvcAddNoteToCaseUseCase(
+        net.stores[BYSTANDER],
+        AddNoteToCaseTriggerRequest(
+            actor_id=BYSTANDER,
+            case_id=net.case_id,
+            note_name="Question",
+            note_content="Is there a workaround?",
+        ),
+        trigger_activity=TriggerActivityAdapter(net.stores[BYSTANDER]),
+    ).execute()
+    assert result.note is not None
+    for _type, verdict in net.deliver(BYSTANDER, to=MANAGER):
+        assert verdict.disposition is HandlerDisposition.APPLIED
+    note_id: str = result.note["id"]
+    assert net.stores[OWNER].read(note_id) is None
+    return net, note_id
+
+
+def _same_note(net: LedgerNetwork, note_id: str) -> None:
+    """The owner's replica holds the note as the CASE_MANAGER holds it."""
+    held = net.stores[OWNER].read(note_id)
+    source = net.stores[MANAGER].read(note_id)
+    assert held is not None and source is not None
+    assert held.model_dump(mode="json") == source.model_dump(mode="json")
+    assert note_id in [_as_id(n) for n in net.case(OWNER).notes]
+
+
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("PCR-02-003")
+def test_a_fresh_replica_seeded_by_a_copy_holds_the_notes_it_names() -> None:
+    """A replica first seeded from a copy that names a note by id, then
+    replayed, holds the note the CASE_MANAGER holds (#5052 AC-1, AC-3)."""
+    net, note_id = _noted("https://example.org/cases/copy-seed-note")
+    net.stores[OWNER] = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER)
+
+    seeded = net.receive(OWNER, _case_copy(net, to=OWNER))
+    assert seeded.disposition is HandlerDisposition.APPLIED, seeded.reason
+    assert net.stores[OWNER].read(note_id) is None
+    net.replay_ledger(OWNER)
+
+    assert _tail(net, OWNER) == _tail(net, MANAGER)
+    _same_note(net, note_id)
+
+
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("CM-23-016")
+def test_a_replaced_replica_backfilled_holds_the_notes_it_names() -> None:
+    """A replica replaced by a copy ahead of it, then backfilled, holds the
+    note the copy names by id, as the CASE_MANAGER does (#5052 AC-2, AC-3)."""
+    net, note_id = _noted("https://example.org/cases/copy-replace-note")
+
+    replaced = net.receive(OWNER, _case_copy(net, to=OWNER))
+    assert replaced.disposition is HandlerDisposition.APPLIED, replaced.reason
+    for _type, answered in net.deliver(OWNER, to=MANAGER, type_="Reject"):
+        assert answered.disposition is HandlerDisposition.APPLIED
+    _deliver_entries(net, OWNER)
+
+    assert _tail(net, OWNER) == _tail(net, MANAGER)
+    _same_note(net, note_id)

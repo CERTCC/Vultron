@@ -42,7 +42,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
     ``SKIPPED``; one naming a different entry at an index the replica holds
     is ``REFUSED`` and logged at ERROR; any other copy replaces the case,
     position included.  The case is unchanged in both of the first two.  A
-    repeat of the same Announce is judged the same way (MV-10-004).  After a
+    repeat of the same Announce is judged the same way (SYNC-16-006).  After a
     replacement whose position is ahead of the chain the replica asks for
     the missing entries and stores each one the copy reflects as a no-op
     (SYNC-16-007).

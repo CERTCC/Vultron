@@ -39,6 +39,7 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
     BufferPreGenesisEntryNode,
+    CheckEntryAgreesWithCasePositionNode,
     CheckEntryHashIntactNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
@@ -392,6 +393,12 @@ def create_announce_log_entry_tree(
             reconstruct_or_reject,
             CheckHashOrRejectOnMismatchNode(
                 name="CheckHashOrRejectOnMismatch"
+            ),
+            # An entry at the case's position with another hash is from a
+            # different chain than the copy that set it: refused at ERROR,
+            # never stored as a no-op (SYNC-16-007).
+            CheckEntryAgreesWithCasePositionNode(
+                name="CheckEntryAgreesWithCasePosition"
             ),
             # An entry the case copy that replaced this replica's case
             # already reflects is stored without its effects, an idempotent

@@ -181,6 +181,28 @@ def entry_reflected_by_case_copy(
     )
 
 
+def entry_conflicts_with_case_position(
+    entry: CaseLedgerEntry, dl: CasePersistence
+) -> bool:
+    """Whether *entry* sits at its case's ``ledger_position`` with another hash.
+
+    The position names the entry its case file reflects (SYNC-16-005).  An
+    entry at that index whose hash differs belongs to a different chain from
+    the copy that set the position, so it is refused, never stored as a
+    no-op or applied (SYNC-16-007): storing it would leave the chain naming
+    one entry at the index and the case another.  The entries before the
+    position carry no hash the case names, so a divergence among them shows
+    here, when the chain reaches the position.
+    """
+    case = dl.read_case(entry.case_id)
+    position = case.ledger_position if case is not None else None
+    return (
+        position is not None
+        and entry.log_index == position.log_index
+        and entry.entry_hash != position.entry_hash
+    )
+
+
 #: The record types a case copy names by id but does not carry, by wire
 #: ``type``: an entry that creates one is the only way a replica holds it.
 _NAMED_RECORD_TYPES: dict[str, type[CoreObject]] = {
@@ -266,6 +288,7 @@ def records_a_reflected_entry_adds(
 __all__ = [
     "CaseCopyJudgement",
     "CaseCopyVerdict",
+    "entry_conflicts_with_case_position",
     "entry_reflected_by_case_copy",
     "judge_case_copy",
     "records_a_reflected_entry_adds",

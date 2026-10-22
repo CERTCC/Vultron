@@ -224,9 +224,10 @@ def _carried_list(
     inline is replaced by the stored record of the same id too: an inline
     snapshot is the object as it was when the case took it in, and a copy
     must carry it as it is now, because a replica that judges the copy
-    current replaces its own records with what the copy carries
-    (SYNC-16-006, PCR-02-004).  An inline item the store does not hold is
-    carried as it is.
+    current replaces its own participant records with what the copy carries
+    (SYNC-16-006, PCR-02-004).  A replica keeps a report it already holds
+    and stores one it lacks, so a report is carried as stored too.  An
+    inline item the store does not hold is carried as it is.
 
     Returns ``None`` when nothing changed, so the caller copies nothing.
     """

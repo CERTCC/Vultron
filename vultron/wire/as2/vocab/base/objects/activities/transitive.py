@@ -424,13 +424,19 @@ class as_Reject(as_TransitiveActivity):
 
         A plain ``Reject`` with no ``object``, an empty last-accepted hash
         (``context`` absent or ``""``) and a ``target`` that names the case
-        (SYNC-16-007).  The one rule the parser and the router both read.
+        (SYNC-16-007): its id, or an inline ``VulnerabilityCase``; an inline
+        object of any other type names no case.  The one rule the parser and
+        the router both read.
         """
+        target_type = getattr(self.target, "type_", None)
         return (
             self.object_ is None
             and str(self.type_) == str(TA_type.REJECT)
             and self.context in (None, "")
             and bool(_as_id(self.target))
+            and (
+                target_type is None or str(target_type) == "VulnerabilityCase"
+            )
         )
 
     @model_validator(mode="after")

@@ -36,6 +36,7 @@ from vultron.core.behaviors.sync.announce_tree import (
 from vultron.core.behaviors.sync.nodes import (
     BufferOutOfOrderEntryNode,
     BufferPreGenesisEntryNode,
+    CheckEntryAgreesWithCasePositionNode,
     CheckEntryHashIntactNode,
     CheckHashMatchesNode,
     CheckLedgerEntryAlreadyStoredNode,
@@ -177,6 +178,13 @@ def _refused_announce_verdict(
         return HandlerResult.refused(
             f"ledger entry '{entry.id_}' does not reproduce its entry_hash;"
             " not applied or stored (SYNC-03-006)"
+        )
+    if node_failed(tree, CheckEntryAgreesWithCasePositionNode):
+        return HandlerResult.refused(
+            f"ledger entry '{entry.id_}' (log_index={entry.log_index}) is"
+            f" not the entry case '{entry.case_id}' names at its ledger"
+            " position; the chains conflict, so it is not stored"
+            " (SYNC-16-007)"
         )
     if node_failed(tree, SendRejectLogEntryNode):
         if node_failed(tree, ReconstructChainTailNode):

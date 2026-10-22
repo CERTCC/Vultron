@@ -291,16 +291,24 @@ same entry forever (ADR-0142).
   position leaves the position where it is: a replica seeded ahead of its chain
   stores the replayed entries as no-ops, and moving back would make the next
   copy look ahead again (SYNC-16-007).
+- **A different entry at the position is refused, never stored.** The entries
+  before the position carry no hash the case names, so a divergence among them
+  shows only at the position's index. `CheckEntryAgreesWithCasePositionNode`
+  refuses that entry at ERROR before any effect, and `store_ledger_entry()`
+  raises for it, so the chain never names one entry and the case another
+  (SYNC-16-007).
 - **A case copy is judged by the position it names.** Chain already past it:
   stale, `SKIPPED`, because an old copy can arrive late. A different entry at its
   index: `REFUSED` at ERROR. Otherwise the copy replaces the case, position
-  included (SYNC-16-006). The repeat-Announce path (MV-10-004) takes the same
-  judgement, never a whole replace (`services/case_copy.py`).
+  included (SYNC-16-006). A repeat of an earlier Announce takes the same
+  judgement, so it replaces the case only while it is still current
+  (`services/case_copy.py`).
 - **A copy carries each record as the store holds it now.** `_case_for_wire`
   re-reads a participant or report the case holds inline, because a current
-  copy replaces the replica's records unconditionally; a stale inline snapshot
-  regressed a replica's RM (#4797). The CASE_MANAGER skips a copy of its own,
-  as it receives its broadcast as a participant: its case is the source.
+  copy replaces the replica's participant records unconditionally; a stale
+  inline snapshot regressed a replica's RM (#4797). The CASE_MANAGER skips a
+  copy of its own, as it receives its broadcast as a participant: its case is
+  the source.
 - **Replace in one transaction.** `SeedAnnouncedCaseNode` writes the
   participants, reports and the case at the copy's position together (ADR-0146);
   a split write could leave a replaced case whose reflected entries are applied

@@ -113,13 +113,13 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     PCR-02-003).  For a case this replica already holds, the copy is an
     authoritative update (PCR-02-004): the guard before this node has
     judged it current by its ledger position (SYNC-16-006), so the node
-    replaces the stored case with it, position included, and refreshes
-    participants, reports and links, in one transaction.  A case stored at a
-    position ahead of the replica's chain stores the entries up to it as
-    no-ops (SYNC-16-007).  A re-delivery of the same Announce
-    (MV-10-004) takes the same judgement: at the case's own position it is
-    current and replaces the case with itself; once the chain is past it,
-    it is stale and skipped.
+    replaces the stored case with it, position included, refreshes its
+    participants, stores any report it lacks and links them, in one
+    transaction.  A case stored at a position ahead of the replica's chain
+    stores the entries up to it as no-ops (SYNC-16-007).  A re-delivery of
+    the same Announce takes the same judgement (SYNC-16-006): at the case's
+    own position it is current and replaces the case with itself; once the
+    chain is past it, it is stale and skipped.
 
     On both paths the ``EmbargoEvent`` the case names is held *before* the
     case is saved, and a case naming one this store cannot read is refused
@@ -162,7 +162,8 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         if existing is not None:
             # Replace path: the replica holds the case, and the guard judged
             # the copy current by its ledger position (PCR-02-004, SYNC-16-006).
-            # Refresh participants and reports, then save the copy with
+            # Refresh participants, store any report this replica lacks
+            # (one it holds is kept), then save the copy with
             # string participant refs so the row never carries inline
             # sub-objects (#2233 write-path).
             self.logger.info(

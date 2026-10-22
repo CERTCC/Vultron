@@ -64,6 +64,7 @@ from vultron.core.behaviors.sync.nodes.chain import (
     UpdateReplicationStateNode,
 )
 from vultron.core.behaviors.sync.nodes.conditions import (
+    CheckEntryAgreesWithCasePositionNode,
     CheckLedgerEntryAlreadyStoredNode,
     CheckLedgerFreshnessNode,
     EntryReflectedByCaseCopyNode,
@@ -161,6 +162,7 @@ from vultron.core.behaviors.sync.nodes.stub_reply_effect import (
 
 __all__ = [
     # conditions
+    "CheckEntryAgreesWithCasePositionNode",
     "CheckLedgerEntryAlreadyStoredNode",
     "CheckLedgerFreshnessNode",
     "EntryReflectedByCaseCopyNode",

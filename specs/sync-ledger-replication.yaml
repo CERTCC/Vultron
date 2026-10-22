@@ -1586,8 +1586,8 @@ groups:
       case file is a projection of: the `log_index` and `entry_hash` of the last entry
       applied to it, or, before any, index -1 and the per-case genesis hash. Committing
       an entry, or storing one as a replica, MUST move the position to that entry in
-      the same transaction that stores the entry, unless the position is already at or
-      past it, which MUST leave the position unchanged. A ledger entry whose
+      the same transaction that stores the entry, unless the position is already past
+      it or names it, which MUST leave the position unchanged. A ledger entry whose
       `payloadSnapshot` carries the case MUST carry it at the position before that
       entry. The position MUST travel with the case on its wire form, so a copy names
       the position it reflects, and a received case that carries none MUST be
@@ -1600,7 +1600,8 @@ groups:
       Moving it with the entry it names keeps the two from disagreeing, and a
       snapshot taken before the entry keeps any entry's hash from depending on
       itself. Never moving it back keeps a case a copy put ahead of its chain at
-      the copy's position while the chain catches up (SYNC-16-007).
+      the copy's position while the chain catches up (SYNC-16-007); a different entry at
+      the position's index is a conflict, not one it already reflects.
     relationships:
     - rel_type: refines
       spec_id: PCR-02-001
@@ -1660,7 +1661,9 @@ groups:
       such a replacement or a first seed from a copy (PCR-02-003), MUST store each entry
       it receives at or before that position, whether replayed or drained from its
       holding area (SYNC-14-003), as an idempotent no-op, not refuse it, and MUST NOT
-      move the case's position back for it (SYNC-16-005). When its chain stores no
+      move the case's position back for it (SYNC-16-005). It MUST refuse, not store, an
+      entry at the position's index whose hash differs from the one the position
+      names, and log the conflict at ERROR. When its chain stores no
       entry, the `Reject` MUST name no rejected entry, MUST carry an empty
       last-accepted hash and MUST name the case as its `target`, asking for a replay
       from genesis; a receiver MUST refuse a `Reject` that names no entry yet carries a
@@ -1673,7 +1676,10 @@ groups:
       to the copy's position, after which the entries that follow apply normally, so the
       replica ends where seed-plus-replay leaves it (ADR-0114). A first seed is the same
       case: the copy already reflects the entries the joining replica's backfill
-      brings. A replica with no entry has none for the `Reject` to name; waiting for
+      brings. The entries before the position carry no hash the case names, so a
+      chain that diverged among them shows only at the position's index; refusing the
+      entry there keeps the chain from naming one entry and the case another. A replica
+      with no entry has none for the `Reject` to name; waiting for
       the next fan-out would stall it on a quiet case, so it names the case instead and
       asks for everything.
     relationships:
@@ -1688,7 +1694,8 @@ groups:
       case and asserts its chain reaches the CASE_MANAGER's tail with matching case
       files, that a replica with no entry sends the `Reject` that names none, that such
       a `Reject` carrying a hash is refused at parse, and that a first seed ahead of the
-      chain stores the backfilled entries as no-ops at the copy's position;
+      chain stores the backfilled entries as no-ops at the copy's position, and that an
+      entry at the position's index with another hash is refused at ERROR, unstored;
       `test/core/use_cases/received/test_case_copy_replacement.py` backfills a replaced
       replica without moving its position back, and replays a replica with no entry
       from genesis to the CASE_MANAGER's tail.
