@@ -639,3 +639,27 @@ def test_snapshot_actor_naming_no_id_is_refused(bridge):
     assert result.status == Status.FAILURE
     assert "CLP-07-003" in (result.feedback_message or "")
     mock_factory.assert_not_called()
+
+
+@pytest.mark.spec("SE-02-001")
+def test_an_activity_without_message_semantics_is_an_internal_error():
+    """An entry is labelled only by its registry semantics (ADR-0140, #4724).
+
+    There is no fallback label: an activity carrying no ``MessageSemantics``
+    is a wiring fault, never a ``"case_event"`` entry.
+    """
+    from types import SimpleNamespace
+
+    from vultron.core.behaviors.case.nodes.lifecycle import _semantic_type_of
+    from vultron.errors import VultronBTInternalError
+
+    with pytest.raises(VultronBTInternalError, match="no MessageSemantics"):
+        _semantic_type_of(
+            SimpleNamespace(activity_id="urn:x", activity_type="Update")
+        )
+    assert (
+        _semantic_type_of(
+            SimpleNamespace(semantic_type=MessageSemantics.ADD_NOTE_TO_CASE)
+        )
+        == "add_note_to_case"
+    )
