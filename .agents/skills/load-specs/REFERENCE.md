@@ -63,8 +63,8 @@ With `--slim`, a record has only `id`, `priority`, `statement`, and `note`
 
 ### `edges`
 
-All relationships of the selected requirements, plus `derives_from` edges to
-ADRs:
+The relationships the selected requirements record (outgoing only; a link is
+recorded at one end, SR-13-012), plus `derives_from` edges to ADRs:
 
 ```json
 {"from": "ARCH-01-001", "rel_type": "depends_on", "to": "CS-01-001"}

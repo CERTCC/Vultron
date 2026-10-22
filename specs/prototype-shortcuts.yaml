@@ -17,7 +17,7 @@ groups:
     kind: project
     statement: Omit cryptographic authentication for agent-to-agent communication.
     relationships:
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-06-004
 - id: PROTO-02
   title: Federation

@@ -231,10 +231,8 @@ groups:
       is registered as `Offer(VulnerabilityReport)`; integration tests in `test/demo/` exercise the full
       report-submission flow end-to-end. `test/wire/as2/test_report_offer_proposed_embargo.py` confirms
       the optional `proposedEmbargo` survives the inbound parse and is surfaced by extraction.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-001
-      note: RS shorthand → SUBMIT_REPORT → this wire form
+      `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
+      asserts that the `submit_report` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_012
   - id: VAM-02-003
@@ -244,10 +242,6 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AckReportPattern`
       is registered as `Read(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise the
       full acknowledgement flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-008
-      note: RK shorthand → ACK_REPORT → this wire form
     stories:
     - story_2022_016
     - story_2022_002
@@ -261,10 +255,6 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `ValidateReportPattern`
       is registered as `Accept(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise the
       full report-validation flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-003
-      note: RV shorthand → VALIDATE_REPORT → this wire form
     adr:
     - ADR-0121
     stories:
@@ -280,10 +270,6 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `InvalidateReportPattern`
       is registered as `TentativeReject(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise
       the full report-invalidation flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-002
-      note: RI shorthand → INVALIDATE_REPORT → this wire form
     adr:
     - ADR-0121
     stories:
@@ -301,10 +287,6 @@ groups:
       `CloseReportPattern` is registered as `Reject(Offer(VulnerabilityReport))`;
       `test/wire/as2/factories/test_report_factories.py` builds that wire form, and
       `test/core/use_cases/received/test_close_report_on_case.py` receives it.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-006
-      note: RC shorthand → CLOSE_REPORT → this wire form
     adr:
     - ADR-0121
     stories:
@@ -329,10 +311,6 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `EngageCasePattern`
       is registered as `Join(VulnerabilityCase)`; integration tests in `test/demo/` exercise the
       engage-case flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-005
-      note: RA shorthand → ENGAGE_CASE → this wire form
     stories:
     - story_2022_006
     - story_2022_013
@@ -343,10 +321,6 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `DeferCasePattern`
       is registered as `Ignore(VulnerabilityCase)`; integration tests in `test/demo/` exercise the
       defer-case flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-004
-      note: RD shorthand → DEFER_CASE → this wire form
     stories:
     - story_2022_006
     - story_2022_086
@@ -714,10 +688,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `RemoveEmbargoEventFromCasePattern` uses `TAtype.REMOVE` and `AOtype.EVENT` with no target constraint;
       integration tests in `test/demo/test_manage_embargo_demo.py` exercise this flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-02-007
-      note: ET shorthand → REMOVE_EMBARGO_EVENT_FROM_CASE → this wire form
+      `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
+      asserts that the `remove_embargo` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_014
     - story_2022_023
@@ -739,13 +711,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `InviteToEmbargoOnCasePattern` uses `TAtype.INVITE`, `AOtype.EVENT`, and `context_=VULNERABILITY_CASE`;
       integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-02-001
-      note: EP shorthand → INVITE_TO_EMBARGO_ON_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-02-003
-      note: EV shorthand (revision) → same wire form as EP
+      `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
+      asserts that the `propose_embargo` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_014
     - story_2022_023
@@ -756,13 +723,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AcceptInviteToEmbargoOnCasePattern` wraps `InviteToEmbargoOnCasePattern` inside an `Accept` outer
       pattern; integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-02-002
-      note: EA shorthand → ACCEPT_INVITE_TO_EMBARGO_ON_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-02-005
-      note: EC shorthand (revision accepted) → same wire form as EA
+      `test/test_semantic_activity_patterns.py::test_owner_embargo_decisions_are_distinct_from_invite_answers`
+      asserts that the `accept_embargo` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_014
   - id: VAM-05-007
@@ -772,13 +734,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `RejectInviteToEmbargoOnCasePattern` wraps `InviteToEmbargoOnCasePattern` inside a `Reject` outer
       pattern; integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-02-006
-      note: ER shorthand → REJECT_INVITE_TO_EMBARGO_ON_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-02-004
-      note: EJ shorthand (revision rejected) → same wire form as ER
+      `test/test_semantic_activity_patterns.py::test_owner_embargo_decisions_are_distinct_from_invite_answers`
+      asserts that the `reject_embargo` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_014
   - id: VAM-05-008
@@ -796,9 +753,6 @@ groups:
       `Accept(EmbargoEvent, target=VulnerabilityCase)` maps to `ACTIVATE_EMBARGO_ON_CASE` and no
       other semantics, and inspection of `_instances.py` confirms `ActivateEmbargoOnCasePattern`
       uses `TAtype.ACCEPT`, `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-07-008
     adr:
     - ADR-0122
     stories:
@@ -818,9 +772,6 @@ groups:
       `REJECT_EMBARGO_PROPOSAL_ON_CASE` and no other semantics, and inspection of
       `_instances.py` confirms `RejectEmbargoProposalOnCasePattern` uses `TAtype.REJECT`,
       `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-07-009
     adr:
     - ADR-0122
     stories:
@@ -868,9 +819,6 @@ groups:
       `CLOSE_CASE`, and inspection of `_instances.py` confirms
       `WithdrawFromEmbargoOnCasePattern` uses `TAtype.LEAVE`, `AOtype.EVENT`, and
       `context_=VULNERABILITY_CASE`.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-07-010
     adr:
     - ADR-0122
     stories:
@@ -1083,25 +1031,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AddCaseStatusToCasePattern` uses `TAtype.ADD`, `AOtype.CASE_STATUS`, and `target_=VULNERABILITY_CASE`;
       integration tests in `test/demo/test_status_updates_demo.py` exercise this flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-03-001
-      note: CV shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-002
-      note: CF shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-003
-      note: CD shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-004
-      note: CP shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-005
-      note: CX shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-006
-      note: CA shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
+      `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
+      asserts that the `add_status_to_case` vocabulary example extracts as this
+      semantic type.
     stories:
     - story_2022_062
     - story_2022_081

@@ -79,9 +79,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: IE-03-002
-    - rel_type: constrains
-      spec_id: IE-03-003
-      note: the limit decides when IE-03-003's 413 applies; the HTTP 413 answer to a body over the limit is IE-03-003's, so this spec keeps only the limit (MS-12-010)
     scope:
     - production
 - id: HTTP-03

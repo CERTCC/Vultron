@@ -46,7 +46,7 @@ groups:
     statement: '`create_*_machine()` factory functions MUST NOT be called for runtime state changes in production use-case
       or handler code'
     relationships:
-    - rel_type: constrains
+    - rel_type: extends
       spec_id: SM-02-001
   - id: SM-02-003
     priority: SHOULD
@@ -91,9 +91,6 @@ groups:
       (see CBT-01-008). Treating `is_valid_rm_transition` as the only acceptable
       precondition form would block valid bootstrap paths while blocking invalid
       state bypasses is the actual goal.
-    relationships:
-    - rel_type: refines
-      spec_id: CBT-01-008
   - id: SM-04-002
     priority: MUST
     kind: architecture
