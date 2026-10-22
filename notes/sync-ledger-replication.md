@@ -75,9 +75,16 @@ everything after the last hash a participant reports.
   `ledger_entry_hash_intact()`, never a hand-built `CaseLedgerEntry`: hashed
   fields such as `received_at` then default to a fresh clock (#3744).
 - **One hash predicate, wherever an entry is checked.** The receiver's check, the
-  CASE_MANAGER's check of its own copy on a hash-mismatch fault, and any send-side
+  CASE_MANAGER's check of its own copy on a hash-mismatch fault, and the send-side
   check all call `ledger_entry_hash_intact()`. A second copy of the hashing logic
   can disagree with the first and blame the wrong side (SYNC-03-008, #5095).
+- **The CASE_MANAGER holds back an entry it cannot verify** (SYNC-03-009). Every
+  `send_announce_log_entry` call (fan-out, `Reject` replay, position-statement
+  replay, embargo backfill, join-time backfill, replay trigger) goes through one
+  core helper that checks first, so no send path can skip it. A replay stops at the
+  broken entry: a replica can only hold what follows as a forward gap. Fan-out checks
+  the entry it built in memory, so a storage round-trip bug surfaces at replay,
+  which reads the stored copy.
 - **A hash refusal is reported, not recovered.** The replica sends
   `LedgerEntryRefused/HashMismatch`; the CASE_MANAGER logs it at ERROR and checks its
   own copy, and does nothing else. Replay and re-seed resend the same content, so

@@ -364,6 +364,36 @@ groups:
       case, and `REFUSED` for one from a sender that is not a participant of that case.
     stories:
     - story_2022_045
+  - id: SYNC-03-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Before the CASE_MANAGER sends a `CaseLedgerEntry` in `Announce(CaseLedgerEntry)`,
+      whether by fan-out, replay or backfill, it MUST recompute the entry's hash from its
+      content as SYNC-03-006 does. An entry that states no hash, or whose content does
+      not reproduce it, MUST NOT be sent and MUST be logged at ERROR with the case, the
+      entry, its `log_index` and the recipient, and no later entry of the same send MUST
+      be sent.
+    rationale: >-
+      A broken entry in the CASE_MANAGER's own store is found where it starts, not after
+      a replica refuses it (SYNC-03-007), and broken content never leaves the
+      CASE_MANAGER. Holding the entry back stalls the replica at it, as sending it would:
+      the replica sees a gap and its `Reject` loop is bounded by the replay cooldown
+      (SYNC-15-003, SYNC-15-013). A later entry is not sent because the replica could
+      only hold it as a forward gap (SYNC-14-001). The receiver's check stays, because a
+      fault in rendering or parsing the wire form still shows up first at the receiver.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-03-006
+    - rel_type: refines
+      spec_id: SYNC-08-001
+    verification: >-
+      `test/core/behaviors/sync/test_send_side_hash_check.py` gives each send path a
+      ledger with an entry whose content does not reproduce its hash and asserts that
+      the entries before it are queued, that it and every later entry are not, and
+      that the hold-back is logged at ERROR.
+    stories:
+    - story_2022_045
 - id: SYNC-04
   title: Per-Peer Replication State
   specs:
