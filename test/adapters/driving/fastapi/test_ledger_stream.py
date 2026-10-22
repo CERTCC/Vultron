@@ -29,6 +29,7 @@ from test.adapters.driving.fastapi.sse_helpers import (
     parse_sse_body,
     save_ledger_entry,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -65,7 +66,9 @@ def dl() -> Iterator[SqliteDataLayer]:
 
 @pytest.fixture
 def case(dl: SqliteDataLayer) -> as_VulnerabilityCase:
-    case_obj = as_VulnerabilityCase(name="STREAM-CASE")
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="STREAM-CASE"
+    )
     dl.create(case_obj)
     return case_obj
 
@@ -151,7 +154,7 @@ class TestFraming:
 
 class TestCaseLedgerEntries:
     def test_sorted_and_scoped_to_the_case(self, dl, case):
-        other = as_VulnerabilityCase(name="OTHER")
+        other = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="OTHER")
         dl.create(other)
         for i in (2, 0, 1):
             save_ledger_entry(dl, case.id_, i)

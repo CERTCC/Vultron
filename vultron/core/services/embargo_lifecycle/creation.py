@@ -33,7 +33,6 @@ import logging
 
 from pydantic import BaseModel, ConfigDict
 
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import proposal_changes
@@ -285,19 +284,15 @@ class _CreationOperationsMixin(_ProposalOperationsMixin):
         """Return the id of *case*'s owner, which must hold a participant.
 
         The owner's participant record is created before the embargo is
-        initialized (CM-14-002), so a case naming no owner, or an owner with
-        no record, is a broken precondition: refused before anything is
+        initialized (CM-14-002), so an owner with no record is a broken
+        precondition: refused before anything is
         written, rather than an activation reported with no seed (ARCH-15).
 
         Raises:
-            VultronNotFoundError: If the owner or its record does not resolve.
+            VultronNotFoundError: If the owner's record does not resolve.
         """
-        owner_id = _as_id(case.attributed_to)
-        if (
-            owner_id is None
-            or self._participant_for_actor(case, owner_id, "owner seed")
-            is None
-        ):
+        owner_id = case.attributed_to
+        if self._participant_for_actor(case, owner_id, "owner seed") is None:
             raise VultronNotFoundError(
                 f"CaseParticipant of case '{case.id_}' for owner",
                 str(owner_id),

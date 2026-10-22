@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.dimensions import (
     VfDimension,
@@ -143,6 +144,7 @@ def test_extract_intent_case_pass_through_fields():
 
     now = datetime.now(UTC)
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         name="CASE-001",
         summary="Case summary",
         published=now,
@@ -155,6 +157,31 @@ def test_extract_intent_case_pass_through_fields():
     assert c is not None
     assert c.published == now
     assert c.updated == now
+
+
+def test_extract_refuses_a_case_object_naming_no_owner():
+    """A case that reaches extraction without an owner is refused, not promoted.
+
+    The parse edge already refuses one (ADR-0032); extraction names the fault
+    rather than handing core an ownerless case (ARCH-10-001).
+    """
+    from vultron.wire.as2.errors import VultronParseValidationError
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    ownerless = as_VulnerabilityCase.model_construct(
+        id_="https://example.org/cases/ownerless",
+        type_="VulnerabilityCase",
+        attributed_to=None,
+    )
+    activity = as_Create(actor="https://example.org/alice", object_=ownerless)
+
+    with pytest.raises(VultronParseValidationError, match="names no owner"):
+        extract_event(activity)
 
 
 @pytest.mark.spec("VAM-05-005")
@@ -426,7 +453,9 @@ def _make_embargo_invite(end_time=None, embargo_end=None, published=None):
         context="https://example.org/cases/1",
         end_time=embargo_end or datetime.now(tz=UTC) + timedelta(days=90),
     )
-    case = as_VulnerabilityCase(id_="https://example.org/cases/1")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/1"
+    )
     kwargs = {
         "object_": embargo,
         "context": case,
@@ -823,7 +852,11 @@ def _ownership_offer(attributed_to: Any) -> Any:
     )
 
     return offer_case_ownership_transfer_activity(
-        as_VulnerabilityCase(id_="https://example.org/cases/c1", name="C1"),
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/c1",
+            name="C1",
+        ),
         target=as_Service(
             id_="https://example.org/actors/coordinator", name="Coordinator"
         ),
@@ -917,7 +950,10 @@ def _deadline_offer(end_time=None):
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(id_="https://example.org/cases/ot-deadline")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/ot-deadline",
+    )
     kwargs: dict[str, Any] = {"actor": "https://example.org/vendor"}
     if end_time is not None:
         kwargs["end_time"] = end_time

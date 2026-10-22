@@ -18,6 +18,7 @@
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.note.nodes.storage import (
@@ -91,7 +92,9 @@ class TestStoreNoteIfAbsentNode:
 class TestAttachNoteToCaseNode:
     @pytest.mark.spec("CM-02-007")
     def test_attaches_note_to_case(self, bridge, dl, note):
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test Case"
+        )
         dl.create(case)
         dl.save(note)
         tree = AttachNoteToCaseNode(note_id=NOTE_ID, case_id=CASE_ID)
@@ -104,7 +107,10 @@ class TestAttachNoteToCaseNode:
     @pytest.mark.spec("CM-13-007")
     def test_idempotent_when_note_already_attached(self, bridge, dl, note):
         case = as_VulnerabilityCase(
-            id_=CASE_ID, name="Test Case", notes=[NOTE_ID]
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="Test Case",
+            notes=[NOTE_ID],
         )
         dl.create(case)
         dl.save(note)

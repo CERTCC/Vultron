@@ -81,7 +81,6 @@ def seed(
     *,
     open_proposal: bool = True,
     report_author: str | None = REPORTER,
-    owner: str | None = OWNER,
 ) -> None:
     """A REVISE case owned by OWNER, managed by MANAGER, reported by REPORTER.
 
@@ -109,9 +108,6 @@ def seed(
     )
     if not open_proposal:
         reject(case, EMBARGO_ID)
-    # A case only materializes status with an owner, so an ownerless case is
-    # one whose record lost it after construction (assignment skips checks).
-    case.attributed_to = owner
     embargo = as_EmbargoEvent(
         id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(60)
     )

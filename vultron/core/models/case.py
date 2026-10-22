@@ -116,7 +116,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
     (e.g. ``VulnerabilityReportRef``, ``CaseParticipantRef``), ensuring
     DataLayer round-trip compatibility.
 
-    When first created with an ``attributed_to`` actor and an empty
+    Every case has an owner (``attributed_to``).  When first created with an empty
     ``case_statuses`` list, an initial :class:`CaseStatus` is appended
     automatically so that ``current_status`` never encounters an empty
     history list.
@@ -180,15 +180,19 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         Field(default_factory=dict)
     )
     case_activity: list[NonEmptyString] = Field(default_factory=list)
-    genesis_hash: str = Field(
+    # Every case has an owner (CP-09-001, CM-02-008): the genesis hash, and so
+    # the whole ledger chain, is computed from it (CLP-08-002/003).  A case
+    # with no owner is refused at construction and on load (ARCH-10-001).
+    attributed_to: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
+    # Never empty: the empty default only stands in until the before-validator
+    # computes the hash from the owner, and is refused if it is still there.
+    genesis_hash: NonEmptyString = Field(
         default="",
+        validate_default=True,
         description=(
             "Per-case genesis hash binding this ledger to its origin "
-            "identity and timestamp (CLP-08-003). "
-            "The empty-string default is intentional: rehydration paths "
-            "may deserialise objects that were stored before genesis hashes "
-            "were introduced. The model_validator enforces non-empty when "
-            "attributed_to is present at construction time."
+            "identity and timestamp (CLP-08-003).  Computed from the owner "
+            "at construction when not carried (CLP-08-002)."
         ),
     )
     # ADR-0017: ID-only cross-refs to avoid graph-cycle issues
@@ -213,15 +217,14 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         ``attributed_to`` and lets this validator compute the hash; it does
         not pass a hash of its own.
 
-        When ``attributed_to`` is present, ``genesis_hash`` MUST be non-empty
-        after this validator runs — if the hash cannot be computed (e.g.,
-        ``published`` is absent), a
+        ``genesis_hash`` MUST be non-empty after this validator runs — if the
+        hash cannot be computed (e.g., ``published`` is absent), a
         :exc:`~vultron.errors.VultronValidationError` is raised (fail-closed
         per CLP-08-003/CLP-08-004).  No-ops when ``genesis_hash`` is already
         set — a received case keeps its sender's hash; one that carries none
-        derives it here from its carried inputs (ADR-0103) — or when
-        ``attributed_to`` is absent (genesis hash requires an owner as
-        input).
+        derives it here from its carried inputs (ADR-0103).  A case with no
+        ``attributed_to`` is left to the required-field check, which refuses
+        it (ARCH-10-001).
 
         Both spellings of each input are read: the class is its own wire class
         (ARCH-25-003, ADR-0099), so an inbound case arrives as ``attributedTo`` and
@@ -239,11 +242,14 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         attributed_to = data.get("attributed_to") or data.get(
             wire_key("attributed_to")
         )
+        if not attributed_to:
+            return data  # the required-field check refuses the case
         hash_key = _present_key(data, "genesis_hash")
-        genesis_hash = data.get(hash_key, "")
-        if not genesis_hash and attributed_to:
+        if not data.get(hash_key):
             data = dict(data)
-            if not data.get("id") and not data.get("id_"):
+            # Mint only an absent id: a blank one is refused by ``id_``'s
+            # type, not silently replaced (CS-08-001).
+            if data.get("id") is None and data.get("id_") is None:
                 data["id"] = _new_urn()
             case_id = data.get("id") or data.get("id_")
             published_val = _genesis_published(data, inbound)
@@ -253,7 +259,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
                     created_at=published_val,
                     owner_actor_id=attributed_to,
                 )
-        if attributed_to and not data.get(hash_key):
+        if not data.get(hash_key):
             case_id = data.get("id") or data.get("id_") or "<unknown>"
             raise VultronValidationError(
                 f"VulnerabilityCase '{case_id}': genesis_hash could not "
@@ -278,7 +284,9 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         )
         if not data.get(statuses_key) and attributed_to:
             data = dict(data)
-            if not data.get("id") and not data.get("id_"):
+            # Mint only an absent id: a blank one is refused by ``id_``'s
+            # type, not silently replaced (CS-08-001).
+            if data.get("id") is None and data.get("id_") is None:
                 data["id"] = _new_urn()
             case_id = data.get("id") or data.get("id_")
             data[statuses_key] = [

@@ -29,6 +29,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.engine import (
     actor_db_url,
@@ -136,7 +137,11 @@ def test_deferred_activity_replays_with_its_inline_object(dl):
     assert json.loads(held.received_body) == body, "held as it arrived"
     assert dl.read(routed.id_) is None, "never under the sender's id"
 
-    dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="arrived"))
+    dl.create(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="arrived"
+        )
+    )
     queue.replay(_CASE_ID)
     replay_id = dl.inbox_pop()
     assert replay_id == routed.id_
@@ -306,6 +311,7 @@ def test_stage_inline_object_stages_the_parsed_inline_case(
     """A full inline case is stored as the ``VulnerabilityCase`` parsed."""
     activity = _parsed_announce(
         {
+            **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
             "id": "urn:uuid:case-parsed-001",
             "name": "Parsed Case",
@@ -329,6 +335,7 @@ def test_stage_inline_object_stages_the_inline_embargo_a_case_names(
     embargo_id = f"{case_id}/embargo_events/e1"
     activity = _parsed_announce(
         {
+            **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
             "id": case_id,
             "name": "Embargoed Case",
@@ -361,6 +368,7 @@ def test_stage_inline_object_skips_a_case_naming_an_unheld_embargo(
     case_id = "urn:uuid:case-embargo-002"
     activity = _parsed_announce(
         {
+            **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
             "id": case_id,
             "name": "Unheld Embargo Case",
@@ -413,6 +421,7 @@ def test_stage_inline_object_stages_parsed_class_after_a_set_aside_key(
 
     activity = _parsed_announce(
         {
+            **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
             "id": "urn:uuid:case-foreign-001",
             "name": "Case With A Foreign Key",
@@ -464,6 +473,7 @@ def test_stage_inline_object_stages_no_core_class_for_core_only_name(
 
 def test_stage_inline_object_stages_inline_case(datalayer):
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="urn:uuid:case-nest-001",
         name="Nested Case",
     )
@@ -543,6 +553,7 @@ def test_stage_inline_object_duplicate_stays_at_debug(datalayer, caplog):
     import logging
 
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="urn:uuid:case-dup-2232",
         name="Duplicate Case",
     )

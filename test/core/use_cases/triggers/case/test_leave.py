@@ -6,6 +6,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
     propose,
@@ -90,7 +91,7 @@ def _make_case_with_case_manager(
     roles: tuple[CVDRole, ...] = (CVDRole.VENDOR,),
     em_state: EM = EM.NONE,
 ) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
-    case = as_VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
     if em_state in (EM.ACTIVE, EM.REVISE):
         activate(case, _stored_embargo(dl, case, "e1"))
     if em_state == EM.REVISE:
@@ -232,7 +233,9 @@ class TestLeaveCaseTriggersOutboxActivity:
 
     def test_leave_case_no_case_manager_raises_validation_error(self):
         """VultronValidationError raised when case has no CASE_MANAGER."""
-        case_solo = as_VulnerabilityCase(name="Solo Case")
+        case_solo = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Solo Case"
+        )
         vendor_participant = as_CaseParticipant(
             attributed_to=self.vendor.id_,
             context=case_solo.id_,

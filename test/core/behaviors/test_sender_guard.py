@@ -34,6 +34,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import with_evidence
 from vultron.core.behaviors import sender_entitlement
 from vultron.core.behaviors.bridge import BTBridge
@@ -115,7 +116,9 @@ Kind = SenderEntitlementKind
 def _store(receiver: str) -> BTTestScenario:
     """*receiver*'s store holding the case: MANAGER, OWNER, VENDOR, REPLICA."""
     scenario = BTTestScenario(actor_id=receiver)
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Sender rule case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Sender rule case"
+    )
     seed_case_manager_participant(scenario.dl, case, MANAGER)
     seed_case_owner_participant(scenario.dl, case, OWNER)
     seed_case_participant(scenario.dl, case, VENDOR)
@@ -1187,7 +1190,10 @@ def test_factory_rejects_a_case_resolution_that_writes() -> None:
     """The steps run before the sender guard, so a write there would let an
     unentitled sender leave state behind."""
     writer = StoreEmbeddedParticipantsNode(
-        as_VulnerabilityCase(id_=CASE_ID, name="snapshot"), CASE_ID
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="snapshot"
+        ),
+        CASE_ID,
     )
     with pytest.raises(VultronWiringError, match="may only read"):
         create_receive_activity_tree(
@@ -1268,23 +1274,30 @@ def _participant_tree(
 
 @pytest.mark.spec("HP-01-006")
 @pytest.mark.parametrize(
-    ("sender", "guards", "refused"),
+    ("sender", "guards", "refused", "status"),
     [
-        (STRANGER, [], True),
-        (VENDOR, [], False),
-        (VENDOR, [_Refuse(name="Refuse")], False),
+        (STRANGER, [], True, Status.FAILURE),
+        (VENDOR, [], False, Status.SUCCESS),
+        (VENDOR, [_Refuse(name="Refuse")], False, Status.FAILURE),
     ],
     ids=["unentitled-sender", "entitled-sender", "a-later-guard-refuses"],
 )
 def test_sender_guard_refused_names_only_the_sender_guards_refusal(
-    sender: str, guards: list[py_trees.behaviour.Behaviour], refused: bool
+    sender: str,
+    guards: list[py_trees.behaviour.Behaviour],
+    refused: bool,
+    status: Status,
 ) -> None:
     tree = _participant_tree(sender, guards)
     event = with_evidence(
         EngageCaseReceivedEvent(
             activity_id="https://example.org/activities/engage-guard",
             actor_id=sender,
-            object_=as_VulnerabilityCase(id_=CASE_ID, name="Sender rule case"),
+            object_=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Sender rule case",
+            ),
             semantic_type=MessageSemantics.ENGAGE_CASE,
             activity=VultronActivity(
                 id_="https://example.org/activities/engage-guard",
@@ -1295,5 +1308,5 @@ def test_sender_guard_refused_names_only_the_sender_guards_refusal(
         )
     )
     result = _store(MANAGER).run(tree, activity=event)
-    assert result.status == Status.FAILURE
+    assert result.status == status
     assert sender_guard_refused(tree) is refused

@@ -25,6 +25,7 @@ import re
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.ledger import (
     creation_entry_sequence,
     fail_commits,
@@ -271,7 +272,9 @@ class TestSvcCreateCaseUseCase:
         """SvcCreateCaseUseCase raises VultronValidationError when report_id is
         not a VulnerabilityReport."""
         # Create a wrong type object (as_VulnerabilityCase instead)
-        case = as_VulnerabilityCase(name="Not a Report")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Not a Report"
+        )
         self.dl.create(case)
 
         request = CreateCaseTriggerRequest(

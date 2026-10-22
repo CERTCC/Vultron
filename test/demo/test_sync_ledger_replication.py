@@ -24,6 +24,7 @@ import anyio
 import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import delivered, received_event
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi.inbox_handler import (
@@ -160,7 +161,9 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
         case_actor_tc, "case-actor-sync-901", peer_actor_id, "peer-sync-901"
     )
 
-    case = as_VulnerabilityCase(name="SYNC-901 integration case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="SYNC-901 integration case"
+    )
     object.__setattr__(
         case,
         "genesis_hash",
@@ -274,7 +277,8 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     )
 
     case = as_VulnerabilityCase(
-        name="SYNC-902 mismatch/replay integration case"
+        attributed_to=CASE_OWNER_ID,
+        name="SYNC-902 mismatch/replay integration case",
     )
     case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
@@ -414,7 +418,8 @@ def test_sync_duplicate_delivery_idempotency(
     peer_dl = peer_iso.store_for(peer_actor_id)
 
     case = as_VulnerabilityCase(
-        name="SYNC-903 duplicate delivery integration case"
+        attributed_to=CASE_OWNER_ID,
+        name="SYNC-903 duplicate delivery integration case",
     )
     object.__setattr__(
         case,

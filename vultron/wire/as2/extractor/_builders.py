@@ -367,6 +367,14 @@ def _participant_ref_to_domain(ref: object) -> str | CaseParticipant | None:
 def _build_case_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     if object_id:
+        # Every case has an owner (ARCH-10-001); the parse edge already
+        # refuses one without (ADR-0032), so reaching here without is a fault.
+        owner_id = _get_id(getattr(obj, "attributed_to", None))
+        if owner_id is None:
+            raise VultronParseValidationError(
+                f"VulnerabilityCase {object_id!r} names no owner: its"
+                " `attributedTo` is missing (CLP-08-002)"
+            )
         raw_participants = getattr(obj, "case_participants", []) or []
         participants: list[str | CaseParticipant] = []
         for ref in raw_participants:
@@ -407,7 +415,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 summary=getattr(obj, "summary", None),
                 content=getattr(obj, "content", None),
                 url=_get_id(getattr(obj, "url", None)),
-                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                attributed_to=owner_id,
                 published=_get_timestamp(obj, "published"),
                 updated=_get_timestamp(obj, "updated"),
                 case_participants=participants,

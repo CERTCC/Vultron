@@ -34,6 +34,7 @@ from collections.abc import Callable
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
@@ -95,6 +96,7 @@ def _case_with_case_actor_participant() -> tuple:
         name="CaseActor",
     )
     case = as_VulnerabilityCase.model_construct(
+        attributed_to=CASE_OWNER_ID,
         id_=_CASE_ID,
         name="CBT test case",
         case_participants=[participant],
@@ -302,7 +304,9 @@ class TestAnnounceValidatedByTrustedCaseActorId:
     @pytest.fixture()
     def case_obj(self):
         return as_VulnerabilityCase(
-            id_=_CASE_ID, name="CBT announce gate case"
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            name="CBT announce gate case",
         )
 
     @pytest.fixture()
@@ -397,6 +401,7 @@ def _bootstrap_event(
         name="CaseActor",
     )
     case = as_VulnerabilityCase.model_construct(
+        attributed_to=CASE_OWNER_ID,
         id_=case_id,
         name="CBT-06 case",
         case_participants=[participant],

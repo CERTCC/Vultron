@@ -40,6 +40,7 @@ from unittest.mock import patch
 import py_trees
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register, terminate
 from test.support.ledger import fail_commits
 from test.support.received import received_event
@@ -1699,7 +1700,7 @@ class TestCM14005ReporterSignatory:
             actor_id=_CASE_ACTOR_URI,
         )
         # Build a minimal case with no active embargo and a reporter participant
-        case = VulnerabilityCase(id_=_CASE_URI)
+        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_URI)
         reporter_participant = CaseParticipant(
             id_="https://example.org/participants/reporter",
             attributed_to=_REPORTER_URI,

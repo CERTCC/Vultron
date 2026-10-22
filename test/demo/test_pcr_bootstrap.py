@@ -44,6 +44,7 @@ from test.demo.conftest import (
     create_isolated_actor_app,
     submit_report_through_reporter,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from vultron.core.models.dimensions import (
     RmDimension,
@@ -572,7 +573,9 @@ class TestBootstrapSequence:
         # from a sender this actor never trusted is refused and stores
         # nothing (PCR-03-004, #4674), so it cannot seed a replica.
         case = as_VulnerabilityCase(
-            id_=_DIRECT_CASE_ID, name="PCR-07-006 Test Case"
+            attributed_to=CASE_OWNER_ID,
+            id_=_DIRECT_CASE_ID,
+            name="PCR-07-006 Test Case",
         )
         # The store of the actor just created, not the app's default-slug `dl`
         # (ADR-0073).

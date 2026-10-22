@@ -20,6 +20,7 @@ Triggers routed through ``sender_side_bt`` address the CASE_MANAGER alone
 that names one.
 """
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import DataLayer
 from vultron.enums.roles import CVDRole
@@ -38,7 +39,7 @@ def make_case_with_case_manager(
     case_manager_id: str = CASE_MANAGER_ID,
 ) -> as_VulnerabilityCase:
     """Store and return a case whose only participant is its CASE_MANAGER."""
-    case = as_VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
     add_case_manager_participant(dl, case, case_manager_id)
     return case
 

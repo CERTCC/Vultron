@@ -18,6 +18,7 @@ find_case_by_report_id (via vulnerability_reports list and ReportCaseLink).
 Fixtures (dl) come from conftest.
 """
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.case import VulnerabilityCase
 
 # ---------------------------------------------------------------------------
@@ -31,7 +32,8 @@ def test_find_case_by_short_id_with_http_url_case_id(dl):
     )
 
     case = as_VulnerabilityCase(
-        id_="https://example.org/api/v2/cases/demo-123"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/api/v2/cases/demo-123",
     )
     dl.save(case)
 
@@ -47,7 +49,8 @@ def test_find_case_by_short_id_with_urn_case_id(dl):
     )
 
     case = as_VulnerabilityCase(
-        id_="urn:uuid:11111111-2222-3333-4444-555555555555"
+        attributed_to=CASE_OWNER_ID,
+        id_="urn:uuid:11111111-2222-3333-4444-555555555555",
     )
     dl.save(case)
 
@@ -63,10 +66,12 @@ def test_find_case_by_short_id_returns_none_when_ambiguous(dl):
     )
 
     case1 = as_VulnerabilityCase(
-        id_="https://org1.example/api/v2/cases/shared"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://org1.example/api/v2/cases/shared",
     )
     case2 = as_VulnerabilityCase(
-        id_="https://org2.example/api/v2/cases/shared"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://org2.example/api/v2/cases/shared",
     )
     dl.save(case1)
     dl.save(case2)
@@ -92,7 +97,7 @@ def test_find_case_by_report_id_returns_case_when_report_stored_as_string(dl):
         content="Test vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase()
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
     case.vulnerability_reports.append(report.id_)
 
     dl.create(report)
@@ -121,7 +126,9 @@ def test_find_case_by_report_id_returns_case_when_report_id_in_list(dl):
         content="Another vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase(vulnerability_reports=[report.id_])
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, vulnerability_reports=[report.id_]
+    )
 
     dl.create(report)
     dl.save(case)
@@ -144,7 +151,7 @@ def test_find_case_by_report_id_returns_none_when_not_found(dl):
         content="Unlinked vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase()
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
 
     dl.create(report)
     dl.save(case)
@@ -176,7 +183,7 @@ def test_find_case_by_report_id_returns_none_for_unknown_id(dl):
         content="Unlinked vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase()
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
     case.vulnerability_reports.append(report.id_)
 
     dl.create(report)
@@ -201,7 +208,7 @@ def test_find_case_by_report_id_returns_case_via_report_case_link(dl):
         content="Linked through ReportCaseLink",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase()
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
 
     dl.create(report)
     dl.save(case)
@@ -236,7 +243,9 @@ def test_find_case_by_report_id_matches_an_inline_report_stored_under_id(dl):
         content="Announced inline",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase(vulnerability_reports=[report])
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, vulnerability_reports=[report]
+    )
     dl.save(case)
 
     stored = dl.read(case.id_)

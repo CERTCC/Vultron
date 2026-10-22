@@ -30,6 +30,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -76,7 +77,9 @@ def _seed_case(dl: Any, owner_id: str, case_manager_id: str):
 def _proposal(case_id: str, name: str, owner_id: str, to: list[str] | None):
     """The owner's proposal, as the offer trigger builds it (ADR-0148)."""
     return propose_case_ownership_transfer_activity(
-        as_VulnerabilityCase.model_validate({"id": case_id, "name": name}),
+        as_VulnerabilityCase.model_validate(
+            {"attributed_to": CASE_OWNER_ID, "id": case_id, "name": name}
+        ),
         target="https://example.org/actors/coordinator",
         actor=owner_id,
         to=to,
@@ -89,7 +92,7 @@ def _owners_offer(
     """The proposal as the offer trigger stored it in the owner's store."""
     proposal = propose_case_ownership_transfer_activity(
         as_VulnerabilityCase.model_validate(
-            {"id": case.id_, "name": case.name}
+            {"attributed_to": CASE_OWNER_ID, "id": case.id_, "name": case.name}
         ),
         target=transferee_id,
         actor=owner_id,
@@ -229,7 +232,7 @@ def test_naming_the_offer_rather_than_the_proposal_is_refused(owner_world):
     dl, owner, case_manager, case, _ = owner_world
     offer = offer_case_ownership_transfer_activity(
         case=as_VulnerabilityCase.model_validate(
-            {"id": case.id_, "name": case.name}
+            {"attributed_to": CASE_OWNER_ID, "id": case.id_, "name": case.name}
         ),
         target="https://example.org/actors/coordinator",
         actor=case_manager.id_,

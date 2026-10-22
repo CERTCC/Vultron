@@ -34,6 +34,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
@@ -145,7 +146,9 @@ def _store(receiver: str) -> BTTestScenario:
     has not answered, so the case lists it but it is not active (CM-10-004).
     """
     scenario = BTTestScenario(actor_id=receiver)
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Widened rules case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Widened rules case"
+    )
     seed_case_manager_participant(scenario.dl, case, MANAGER)
     seed_case_owner_participant(scenario.dl, case, OWNER)
     seed_case_participant(scenario.dl, case, VENDOR, [CVDRole.VENDOR])
@@ -163,7 +166,9 @@ def _store(receiver: str) -> BTTestScenario:
 def _store_without_manager(receiver: str) -> BTTestScenario:
     """*receiver*'s store holding a case that names no CASE_MANAGER yet."""
     scenario = BTTestScenario(actor_id=receiver)
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Unmanaged case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Unmanaged case"
+    )
     seed_case_owner_participant(scenario.dl, case, OWNER)
     seed_case_participant(scenario.dl, case, VENDOR, [CVDRole.VENDOR])
     seed_case_participant(scenario.dl, case, REPLICA)

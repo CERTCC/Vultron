@@ -222,17 +222,13 @@ def test_a_declined_owner_is_not_agreed_by_the_seed(
 
 
 @pytest.mark.spec("CM-14-002")
-@pytest.mark.parametrize("unseedable", ["no_owner", "no_record"])
 def test_an_owner_without_a_participant_record_is_refused_unchanged(
-    owner_and_dl: tuple[as_Service, SqliteDataLayer], unseedable: str
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """No owner to seed is a broken precondition, refused before any write."""
+    """No owner record to seed is a broken precondition, refused before any write."""
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
-    if unseedable == "no_owner":
-        case.attributed_to = None
-    else:
-        case.actor_participant_index = {}
+    case.actor_participant_index = {}
     dl.save(case)
     embargo = _make_embargo(dl, case.id_)
 

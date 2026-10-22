@@ -28,6 +28,7 @@ Failure semantics (documented by design):
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -90,7 +91,7 @@ def _make_case_with_case_manager(
     The actor participant is pre-initialized to RM.VALID so that
     engage (→ ACCEPTED) and defer (→ DEFERRED) transitions are valid.
     """
-    case = as_VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
 
     actor_participant = as_CaseParticipant(
         attributed_to=actor_id,
@@ -192,7 +193,9 @@ class TestEngageCaseRMTransitionViaBT:
         an explicit failure.
         """
         # Build a case with only actor_participant_index (not case_participants)
-        case_solo = as_VulnerabilityCase(name="Solo Case")
+        case_solo = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Solo Case"
+        )
         case_solo.actor_participant_index[self.vendor.id_] = (
             f"{case_solo.id_}/participants/vendor"
         )

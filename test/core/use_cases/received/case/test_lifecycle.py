@@ -23,6 +23,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -213,7 +214,9 @@ def test_late_joiner_receives_the_added_report_through_backfill(dl):
 
     replica = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
     replica.create(
-        as_VulnerabilityCase(id_=_CASE_ID, name="Lifecycle replica")
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Lifecycle replica"
+        )
     )
     activity = SimpleNamespace(
         log_entry=report_entries[0], actor_id=_MANAGER_ID
@@ -273,7 +276,11 @@ def test_apply_report_entry_is_idempotent_and_tolerates_a_missing_case(dl):
         )
 
     assert apply() == Status.SUCCESS  # no case replica yet: a no-op
-    dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="Replica"))
+    dl.create(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Replica"
+        )
+    )
     assert apply() == Status.SUCCESS
     assert apply() == Status.SUCCESS
     assert _reports(dl) == [report_id]

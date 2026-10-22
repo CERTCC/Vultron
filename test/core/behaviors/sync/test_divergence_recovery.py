@@ -23,6 +23,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models import fault_classes
@@ -78,7 +79,11 @@ def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
     replica side when it builds the fault's emission.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
-    dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="current copy"))
+    dl.create(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="current copy"
+        )
+    )
     activity = create_processing_fault_activity(
         actor=_REPLICA_ID,
         fault=as_ProcessingFault(
@@ -149,7 +154,11 @@ def test_case_wire_form_carries_a_computed_ledger_tail() -> None:
     this probe with one behaviour test for each.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
-    dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="current copy"))
+    dl.create(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="current copy"
+        )
+    )
     activity = announce_vulnerability_case_activity(
         cast(as_VulnerabilityCase, dl.read(_CASE_ID)),
         actor=_CASE_ACTOR_ID,
@@ -177,9 +186,15 @@ def test_case_copy_replaces_an_existing_replica() -> None:
             invite_anchored=True,
         )
     )
-    dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="diverged copy"))
+    dl.create(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="diverged copy"
+        )
+    )
     activity = announce_vulnerability_case_activity(
-        as_VulnerabilityCase(id_=_CASE_ID, name="current copy"),
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="current copy"
+        ),
         actor=_CASE_ACTOR_ID,
         to=[_REPLICA_ID],
         context=_CASE_ID,

@@ -24,6 +24,7 @@ participant-specific nature of the RM state machine.
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -109,7 +110,9 @@ def _make_engage_request(
             activity=VultronActivity(
                 type_="Announce",
                 actor=actor_id,
-                object_=VulnerabilityCase(id_=case.id_),
+                object_=VulnerabilityCase(
+                    attributed_to=CASE_OWNER_ID, id_=case.id_
+                ),
                 context=case.id_,
                 to=[CASE_MANAGER_ID],
             ),
@@ -129,7 +132,9 @@ def _make_defer_request(
             activity=VultronActivity(
                 type_="Announce",
                 actor=actor_id,
-                object_=VulnerabilityCase(id_=case.id_),
+                object_=VulnerabilityCase(
+                    attributed_to=CASE_OWNER_ID, id_=case.id_
+                ),
                 context=case.id_,
                 to=[CASE_MANAGER_ID],
             ),
@@ -193,6 +198,7 @@ def case_with_participant(datalayer, actor_id, actor, report):
     )
     datalayer.create(participant)
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.id_],
@@ -207,6 +213,7 @@ def case_with_participant(datalayer, actor_id, actor, report):
 def case_without_participant(datalayer, report):
     """Case with no participants."""
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/case-002",
         name="Test Case No Participants",
         vulnerability_reports=[report.id_],
@@ -554,6 +561,7 @@ def test_engage_case_tree_fails_no_participant(
 def test_engage_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """EngageCaseBT fails when the case does not exist in the datalayer."""
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/nonexistent",
         name="Missing Case",
         vulnerability_reports=[],
@@ -638,6 +646,7 @@ def test_defer_case_tree_fails_no_participant(
 def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
     """DeferCaseBT fails when the case does not exist in the datalayer."""
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/nonexistent",
         name="Missing Case",
         vulnerability_reports=[],

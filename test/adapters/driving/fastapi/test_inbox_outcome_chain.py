@@ -32,6 +32,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import BaseModel
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIDispatchAdapter,
@@ -391,7 +392,9 @@ def test_real_handler_refusal_reaches_inbox_outcome(dl):
     )
 
     case = as_VulnerabilityCase(
-        id_="https://example.org/cases/c-chain-untrusted", name="untrusted"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/c-chain-untrusted",
+        name="untrusted",
     )
     announce = announce_vulnerability_case_activity(
         case, actor=_SENDER_ID, to=[_RECEIVER_ID], context=case.id_
@@ -433,9 +436,15 @@ def test_received_update_vulnerability_case_is_refused_unchanged(dl):
     )
 
     case_id = "https://example.org/cases/c-chain-update"
-    dl.create(as_VulnerabilityCase(id_=case_id, name="original name"))
+    dl.create(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=case_id, name="original name"
+        )
+    )
     update = update_case_activity(
-        as_VulnerabilityCase(id_=case_id, name="renamed by sender"),
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=case_id, name="renamed by sender"
+        ),
         actor=_SENDER_ID,
         to=[_RECEIVER_ID],
     )
@@ -579,7 +588,11 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
         as_VulnerabilityCase,
     )
 
-    dl.create(as_VulnerabilityCase(id_=_RETIRED_CASE_ID, name="unchanged"))
+    dl.create(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_RETIRED_CASE_ID, name="unchanged"
+        )
+    )
     case_before = dl.read(_RETIRED_CASE_ID)
     assert find_matching_semantics(activity) is MessageSemantics.UNKNOWN
     activity_body = activity.model_dump(
@@ -617,6 +630,7 @@ def _case_with(
         as_VulnerabilityCase,
     )
 
+    fields.setdefault("attributed_to", CASE_OWNER_ID)
     case = as_VulnerabilityCase(
         id_=case_id, name=name, case_participants=participants, **fields
     )

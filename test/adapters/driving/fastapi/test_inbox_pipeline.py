@@ -4,6 +4,7 @@ from typing import TypeAlias
 import pytest
 from pytest import MonkeyPatch
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import hold_activity
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_pipeline import (
@@ -75,7 +76,9 @@ def _patch_execute_with_marker(
 
 
 def _base_case(case_id: str = CASE_ID) -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(id_=case_id, name="CASE-IBP")
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=case_id, name="CASE-IBP"
+    )
 
 
 def _store_note_activity_whole(
@@ -322,7 +325,10 @@ def test_stub_invite_for_unknown_case_is_dispatched_not_deferred(
         monkeypatch, InviteActorToCaseReceivedUseCase, marker_id
     )
     case = as_VulnerabilityCase(
-        id_=UNKNOWN_CASE_ID, name="CASE-IBP", stub_summary="A vul in a widget"
+        attributed_to=CASE_OWNER_ID,
+        id_=UNKNOWN_CASE_ID,
+        name="CASE-IBP",
+        stub_summary="A vul in a widget",
     )
     activity = rm_invite_to_case_activity(
         RECEIVER_ID,
@@ -364,7 +370,9 @@ def test_create_case_with_correct_context_not_deferred(
     )
 
     new_case_id = "https://example.org/cases/case-ac4-new"
-    case = as_VulnerabilityCase(id_=new_case_id, name="AC4-New")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=new_case_id, name="AC4-New"
+    )
     # Build a Create(VulnerabilityCase) whose context = case_uri (ADR-0045).
     activity = create_case_activity(
         case,

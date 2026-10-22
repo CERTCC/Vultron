@@ -19,6 +19,7 @@ promotes base-vocab activities to subtypes).
 Fixtures (dl) come from conftest.
 """
 
+from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import (
@@ -177,7 +178,7 @@ class TestCoerceToSemanticClass:
             as_VulnerabilityCase,
         )
 
-        case = as_VulnerabilityCase()
+        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
         embargo = as_EmbargoEvent(
             context=case.id_, end_time=days_from_now_utc(45)
         )
@@ -224,6 +225,7 @@ class TestCoerceToSemanticClass:
                             "name": "Coordinator",
                         },
                         "target": {
+                            **INBOUND_CASE_OWNERSHIP,
                             "type": "VulnerabilityCase",
                             "id": "https://example.org/cases/case-roundtrip-1",
                         },

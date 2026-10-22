@@ -23,6 +23,7 @@ import pytest
 from pydantic import BaseModel
 
 from test.conftest import TEST_ACTOR_ID
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
@@ -58,7 +59,9 @@ def dl() -> SqliteDataLayer:
 
 @pytest.fixture()
 def event(make_payload) -> Any:
-    case = as_VulnerabilityCase(id_=_CASE_ID, name="One tree")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="One tree"
+    )
     return make_payload(
         announce_vulnerability_case_activity(
             case, actor=_CASE_ACTOR_ID, context=_CASE_ID, to=[TEST_ACTOR_ID]

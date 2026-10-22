@@ -17,6 +17,7 @@
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -66,7 +67,7 @@ class TestIterCaseParticipants:
     ) -> None:
         """Participant in actor_participant_index is yielded (fast path)."""
         dl.create(participant_a)
-        case = VulnerabilityCase(id_=_CASE_ID)
+        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         case.actor_participant_index[_ACTOR_A] = _P_A
         case.case_participants.append(_P_A)
 
@@ -81,7 +82,7 @@ class TestIterCaseParticipants:
     ) -> None:
         """Participant in case_participants but not indexed is yielded (bootstrap fallback)."""
         dl.create(participant_a)
-        case = VulnerabilityCase(id_=_CASE_ID)
+        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         # Not in actor_participant_index — bootstrap path
         case.case_participants.append(_P_A)
 
@@ -95,7 +96,7 @@ class TestIterCaseParticipants:
         participant_a: CaseParticipant,
     ) -> None:
         """Inline CaseParticipant in case_participants is yielded once."""
-        case = VulnerabilityCase(id_=_CASE_ID)
+        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         case.case_participants.append(participant_a)  # type: ignore[arg-type]
 
         result = list(iter_case_participants(case, dl))
@@ -109,7 +110,7 @@ class TestIterCaseParticipants:
     ) -> None:
         """Inline participant also present in index is NOT yielded twice."""
         dl.create(participant_a)
-        case = VulnerabilityCase(id_=_CASE_ID)
+        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         case.actor_participant_index[_ACTOR_A] = _P_A
         # Also in case_participants as an inline object
         case.case_participants.append(participant_a)  # type: ignore[arg-type]
@@ -127,7 +128,7 @@ class TestIterCaseParticipants:
         """Two participants in the index are both yielded."""
         dl.create(participant_a)
         dl.create(participant_b)
-        case = VulnerabilityCase(id_=_CASE_ID)
+        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         case.actor_participant_index[_ACTOR_A] = _P_A
         case.actor_participant_index[_ACTOR_B] = _P_B
         case.case_participants.extend([_P_A, _P_B])
@@ -150,7 +151,7 @@ class TestIterCaseParticipants:
         object so resolve_case_manager_id can find the CASE_MANAGER.
         """
         # participant_a is NOT saved to the DataLayer — simulates unsynced DL
-        case = VulnerabilityCase(id_=_CASE_ID)
+        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         case.actor_participant_index[_ACTOR_A] = _P_A
         # Inline object in case_participants (as received from Announce wire)
         case.case_participants.append(participant_a)  # type: ignore[arg-type]
@@ -162,7 +163,7 @@ class TestIterCaseParticipants:
 
     def test_empty_case_yields_nothing(self, dl: SqliteDataLayer) -> None:
         """A case with no participants yields nothing."""
-        case = VulnerabilityCase(id_=_CASE_ID)
+        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         assert list(iter_case_participants(case, dl)) == []
 
 
@@ -176,7 +177,7 @@ def test_indexed_participants_come_in_roster_order(
     commits one entry per participant (the overdue-invitation sweep,
     CM-28-015) committed them in a different order each time.
     """
-    case = VulnerabilityCase(id_=_CASE_ID)
+    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
     expected: list[str] = []
     for i in reversed(range(count)):
         actor = f"https://example.org/actors/actor-{i}"

@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.demo.actor_session import (
     ActorSession,
     WireActivityResult,
@@ -47,7 +48,7 @@ def _session(base_url: str = _BASE, actor_id: str = _ACTOR_ID) -> ActorSession:
 
 
 def _case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(id_=_CASE_ID)
+    return as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
 
 
 # -- construction / authority (DEMOMA-26-002) ----------------------------
@@ -86,8 +87,14 @@ def test_with_case_returns_new_instance_and_leaves_receiver_unchanged():
     case = _case()
     bound = session.with_case(case)
     assert bound is not session
-    assert session.case is None
-    assert bound.case is case
+    assert session.case_id is None
+    assert bound.case_id == case.id_
+
+
+def test_with_case_accepts_a_bare_case_id():
+    """A caller holding only the case ID binds it without building a case."""
+    case_id = _case().id_
+    assert _session().with_case(case_id).case_id == case_id
 
 
 def test_quiet_returns_new_silent_instance():

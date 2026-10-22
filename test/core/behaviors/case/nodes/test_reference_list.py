@@ -21,6 +21,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
@@ -46,7 +47,9 @@ REF = "https://example.org/notes/n1"
 @pytest.fixture
 def dl() -> SqliteDataLayer:
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR)
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Refs")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Refs"
+    )
     seed_case_manager_participant(store, case, ACTOR)
     store.create(case)
     return store

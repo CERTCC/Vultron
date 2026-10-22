@@ -26,6 +26,7 @@ from typing import Any
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -78,7 +79,9 @@ def receiver_dl():
 def _create_case(actor: str, **kwargs: Any) -> as_Create:
     return as_Create(
         actor=actor,
-        object_=as_VulnerabilityCase(id_=_CASE_ID, name="c1"),
+        object_=as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="c1"
+        ),
         context=_CASE_ID,
         to=[_RECEIVER_URI],
         **kwargs,
@@ -205,7 +208,9 @@ def test_a_received_stub_invite_whose_actor_names_the_receiver_is_not_one_sent(
     activity = rm_invite_to_case_activity(
         _INVITEE_URI,
         target=as_VulnerabilityCase(
-            id_=_CASE_ID, stub_summary="A vul in a widget"
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            stub_summary="A vul in a widget",
         ),
         actor=_RECEIVER_URI,
         to=[_RECEIVER_URI],

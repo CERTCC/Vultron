@@ -25,6 +25,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -60,7 +61,9 @@ def _transferred(case_id: str) -> LedgerNetwork:
     """OWNER proposes the case to BYSTANDER; the CASE_MANAGER makes the
     Offer, and BYSTANDER accepts it (ADR-0148)."""
     net = LedgerNetwork(case_id)
-    case = as_VulnerabilityCase(id_=case_id, name="Ownership replay")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=case_id, name="Ownership replay"
+    )
     proposal = propose_case_ownership_transfer_activity(
         case,
         target=as_Service(id_=BYSTANDER, name="Transferee"),

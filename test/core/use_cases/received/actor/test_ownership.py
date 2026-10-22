@@ -34,6 +34,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import (
     assert_held_only_as_received,
     received_record,
@@ -127,6 +128,7 @@ class TestOwnershipTransferUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_ot_anon",
             name="OT Case anon",
         )
@@ -185,7 +187,9 @@ class TestOwnershipTransferUseCases:
         coordinator_id = "https://example.org/users/coordinator"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=coordinator_id)
         case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_ot_missing", name="Missing"
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/case_ot_missing",
+            name="Missing",
         )
         offer = offer_case_ownership_transfer_activity(
             case,
@@ -393,7 +397,9 @@ class TestOwnershipTransferUseCases:
         )
         if label == "another_case":
             another = as_VulnerabilityCase(
-                id_="https://example.org/cases/another", name="Another"
+                attributed_to=CASE_OWNER_ID,
+                id_="https://example.org/cases/another",
+                name="Another",
             )
             proposal = proposal.model_copy(
                 update={
@@ -624,6 +630,7 @@ class TestOwnershipTransferUseCases:
         )
         proposal = _proposal(
             as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID,
                 id_="https://example.org/cases/case_ot_proposal_anon",
                 name="anon",
             ),
@@ -688,6 +695,7 @@ class TestOwnershipOfferAtNonRecipient:
         bystander_id = "https://example.org/actors/bystander-ot"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=bystander_id)
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_ot_bystander",
             name="OT Bystander",
         )
@@ -760,7 +768,9 @@ class TestOwnershipOfferNamingNoCase:
         receiver = "https://test.example/api/v2/actors/test-actor"
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver)
         case = as_VulnerabilityCase(
-            id_="https://example.org/cases/case_ot_nocase", name="no case"
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/case_ot_nocase",
+            name="no case",
         )
         offer = offer_case_ownership_transfer_activity(
             case,
@@ -1009,7 +1019,10 @@ def _reply_naming_no_case(dl, make_payload, build, sender: str) -> Any:
     extracted event: the shape a peer could send.
     """
     offer = offer_case_ownership_transfer_activity(
-        case=as_VulnerabilityCase(id_="https://example.org/cases/elsewhere"),
+        case=as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/elsewhere",
+        ),
         target=_COORDINATOR_ID,
         actor=_CASE_ACTOR_ID,
         to=[_COORDINATOR_ID],
@@ -2579,7 +2592,10 @@ class TestWithdrawalOfOwnershipTransfer:
             make_payload, "https://example.org/cases/case_ot_undo_nocase"
         )
         proposal = _proposal(
-            as_VulnerabilityCase(id_="https://example.org/cases/elsewhere"),
+            as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID,
+                id_="https://example.org/cases/elsewhere",
+            ),
             _COORDINATOR_ID,
             "https://example.org/activities/proposal_undo_nocase",
         )

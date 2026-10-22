@@ -25,9 +25,6 @@ import logging
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.utils import DataLayerClient
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +58,7 @@ def trigger_log_commit(
     """
     session = ActorSession(
         client=client, actor=as_Actor(id_=actor_id)
-    ).with_case(as_VulnerabilityCase(id_=case_id))
+    ).with_case(case_id)
     result = session.sync_log_entry(
         object_id=object_id if object_id is not None else case_id,
         semantic_type=semantic_type,

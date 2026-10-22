@@ -23,6 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -499,7 +500,9 @@ class TestTransferRecordsEachChange:
 
 @pytest.fixture
 def case():
-    return as_VulnerabilityCase(id_=CASE_ID2, name="Seed Announce Test")
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID2, name="Seed Announce Test"
+    )
 
 
 def _announce_event_for(
@@ -602,7 +605,9 @@ class TestSeedAnnouncedCaseNode:
             context=CASE_ID2,
         )
         case_with_inline = as_VulnerabilityCase(
-            id_=CASE_ID2, name="Inline Participant Write-Path Test"
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID2,
+            name="Inline Participant Write-Path Test",
         )
         case_with_inline.actor_participant_index[actor_id] = participant_id
         case_with_inline.case_participants.append(inline_participant)  # type: ignore[arg-type]
@@ -640,6 +645,7 @@ class TestSeedAnnouncedCaseNode:
             end_time=days_from_now_utc(45),
         )
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID2,
             name="Inline Embargo",
             embargo_register=register(active=embargo),
@@ -659,6 +665,7 @@ class TestSeedAnnouncedCaseNode:
     def test_refuses_a_case_naming_an_unheld_embargo(self, bridge, dl) -> None:
         """A bare embargo id this store cannot read is refused, not seeded."""
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID2,
             name="Unheld Embargo",
             embargo_register=register(
@@ -683,6 +690,7 @@ class TestSeedAnnouncedCaseNode:
         dl.create(case)
         participant_id = f"{CASE_ID2}/participants/reannounced"
         reannounced = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID2,
             name="Re-announced",
             embargo_register=register(

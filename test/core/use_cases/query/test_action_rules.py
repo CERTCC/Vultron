@@ -19,6 +19,7 @@ Verifies CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_status import CaseStatus
@@ -61,6 +62,7 @@ def dl():
 
     # Case: as_VulnerabilityCase with actor_participant_index
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[PARTICIPANT_ID],
@@ -200,6 +202,7 @@ class TestGetActionRulesUseCase:
             actor_id=f"{ACTOR_ID}/no-case-statuses-defaults",
         )
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             name="Empty Status Case",
             case_participants=[PARTICIPANT_ID],
@@ -240,6 +243,7 @@ class TestGetActionRulesUseCase:
             actor_id=f"{ACTOR_ID}/no-participant-statuses-defaults",
         )
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             name="Default Participant Status Case",
             case_participants=[PARTICIPANT_ID],
@@ -286,6 +290,7 @@ class TestGetActionRulesUseCase:
                 actor_id=f"{ACTOR_ID}/em-state-{em.value}",
             )
             case = as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID,
                 id_=CASE_ID,
                 case_participants=[PARTICIPANT_ID],
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
@@ -330,6 +335,7 @@ class TestGetActionRulesUseCase:
         )
         layer.create(participant)
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: "https://example.org/p/wrong"},
@@ -357,6 +363,7 @@ class TestGetActionRulesUseCase:
         )
         layer.create(participant)
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={},

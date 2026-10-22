@@ -329,10 +329,10 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         # The owner as the case spells it, when it is this proposer: a case
         # stored before #4772 may hold the sender's trailing-slash spelling,
         # and the equivalence check compares the snapshot's actor verbatim.
-        stored_owner = _as_id(case.attributed_to)
+        stored_owner = case.attributed_to
         actor = (
             stored_owner
-            if stored_owner and same_actor_id(stored_owner, self._owner_uri)
+            if same_actor_id(stored_owner, self._owner_uri)
             else self._owner_uri
         )
         for status_ref in case.case_statuses:

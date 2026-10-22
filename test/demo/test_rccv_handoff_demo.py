@@ -40,6 +40,7 @@ from test.demo._helpers import (
     patch_chain_shared,
     stub_closure_gate,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
 from vultron.demo.helpers import invite_chain
@@ -407,7 +408,8 @@ class TestPhaseDumpCaseLedgersRccv:
         case_actor_client = _bound_client("case-actor")
 
         case = demo.as_VulnerabilityCase(
-            id_="https://example.org/cases/rccv-test-case"
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/rccv-test-case",
         )
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
@@ -477,6 +479,7 @@ class TestPhaseDumpCaseLedgersRccv:
         case_actor_client = _bound_client("case-actor")
 
         case = demo.as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rccv-with-ca",
             actor_participant_index={
                 "https://example.org/actors/case-actor": (

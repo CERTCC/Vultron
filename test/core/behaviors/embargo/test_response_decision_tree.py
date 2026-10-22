@@ -31,6 +31,7 @@ import py_trees
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
@@ -407,6 +408,7 @@ def _make_case_with_participants(
     *participants: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=_INT_CASE_ID,
         name="EMB-15 Integration Test Case",
         case_participants=[p.id_ for p in participants],
@@ -630,6 +632,7 @@ class TestBTBridgeIntegration:
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
         # Case has no entry for _UNKNOWN_ACTOR so CheckIsCaseOwner returns FAILURE
         case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=_INT_CASE_ID,
             name="Flow A Counter Test",
             case_participants=[known_p.id_],
@@ -671,6 +674,7 @@ class TestBTBridgeIntegration:
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
         case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=_INT_CASE_ID,
             name="Flow A Reject Test",
             case_participants=[known_p.id_],
@@ -737,6 +741,7 @@ class TestBTBridgeIntegration:
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
         case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=_INT_CASE_ID,
             name="Flow B Reject Test",
             case_participants=[known_p.id_],

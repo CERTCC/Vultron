@@ -107,12 +107,26 @@
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "activeParticipants": [],
     "actorParticipantIndex": {},
+    "attributedTo": "urn:test:attributed_to:1",
     "caseActivity": [],
     "caseParticipants": [],
-    "caseStatuses": [],
+    "caseStatuses": [
+      {
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+        "attributedTo": "urn:test:attributed_to:1",
+        "context": "urn:test:vulnerabilitycase:golden",
+        "emState": "NONE",
+        "id": "urn:uuid:<minted>",
+        "name": "NONE pxa",
+        "published": "<clock>",
+        "pxaState": "pxa",
+        "type": "CaseStatus",
+        "updated": "<clock>"
+      }
+    ],
     "childCases": [],
     "embargoRegister": [],
-    "genesisHash": "",
+    "genesisHash": "bfb65af19f60db4b1fabb82eb934d8901f09aac65756c60b192c1e52ca60644e",
     "id": "urn:test:vulnerabilitycase:golden",
     "notes": [],
     "parentCases": [],

@@ -25,6 +25,7 @@ import pytest
 from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.objects.embargo_policy as ep_module
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.models.enums import VultronObjectType as VO_type
@@ -319,7 +320,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
             as_VulnerabilityCase,
         )
 
-        case = as_VulnerabilityCase()
+        case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
         self.assertNotEqual(self.policy.type_, case.type_)
 
 

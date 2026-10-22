@@ -34,6 +34,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     _get_actor_lock,
@@ -95,7 +96,9 @@ def seeded_dl(dl):
         created_at=created_at,
         owner_actor_id=_OWNER_ID,
     )
-    case = as_VulnerabilityCase(id_=_CASE_ID, name="lock-test-case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="lock-test-case"
+    )
     object.__setattr__(case, "genesis_hash", genesis_hash)
 
     case_actor_participant = as_CaseParticipant(
