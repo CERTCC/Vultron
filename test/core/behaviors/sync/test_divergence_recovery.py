@@ -14,7 +14,7 @@
 """Divergence recovery: a diverged replica reports, the CASE_MANAGER re-seeds.
 
 Every SYNC-16 test here is a strict ``xfail`` for unbuilt behaviour (ADR-0142),
-except one that pins a SYNC-16 property that already holds. Each
+except the ones that pin a SYNC-16 property that already holds. Each
 implementation issue removes the ``xfail`` from the tests it makes pass, and
 replaces a probe with a full behaviour test where the probe only pins a name.
 """
@@ -25,7 +25,10 @@ import pytest
 
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models import fault_classes
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
@@ -33,6 +36,7 @@ from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.sync_helpers import store_ledger_entry
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
@@ -132,34 +136,97 @@ def test_replication_state_records_the_last_reseed() -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-16-005: the case wire form has no ledger tail. Tracked by #4797.",
-)
 @pytest.mark.spec("SYNC-16-005")
-@pytest.mark.spec("SYNC-16-006")
-@pytest.mark.spec("SYNC-16-007")
-def test_case_wire_form_carries_a_computed_ledger_tail() -> None:
-    """A case copy names the ledger position it reflects.
-
-    The tail is computed from the ledger when the case is read or sent, and
-    is never a stored field of the case file (SYNC-16-005), so a plain model
-    field on the case does not pass this probe. The replica's stale,
-    conflicting and short-chain checks all read the tail, so #4797 replaces
-    this probe with one behaviour test for each.
-    """
+def test_a_case_copy_names_the_position_of_the_last_commit() -> None:
+    """A case read after a commit carries that commit's index and hash."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
-    dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="current copy"))
+    case = _owned_case(dl, "current copy")
+    entry = _commit(dl, case, 0, case.genesis_hash)
+    stored = dl.read_case(_CASE_ID)
+    assert stored is not None
     activity = announce_vulnerability_case_activity(
-        cast(as_VulnerabilityCase, dl.read(_CASE_ID)),
-        actor=_CASE_ACTOR_ID,
-        context=_CASE_ID,
+        stored, actor=_CASE_ACTOR_ID, context=_CASE_ID
     )
 
     sent = activity.model_dump(by_alias=True, exclude_none=True, mode="json")
 
-    assert "ledger_tail" not in as_VulnerabilityCase.model_fields
-    assert "ledgerTail" in sent["object"]
+    assert sent["object"]["ledgerPosition"] == {
+        "logIndex": entry.log_index,
+        "entryHash": entry.entry_hash,
+    }
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "SYNC-16-006: a copy is not yet judged by its position, so a stale"
+        " one replaces the case. Tracked by #4797."
+    ),
+)
+@pytest.mark.spec("SYNC-16-006")
+@pytest.mark.spec("SYNC-16-007")
+def test_a_copy_behind_the_replica_chain_is_skipped() -> None:
+    """A stale copy leaves the replica's case unchanged and reports SKIPPED.
+
+    The replica's stale, conflicting and short-chain checks all read the
+    copy's position, so #4797 replaces this probe with one behaviour test for
+    each.
+    """
+    dl = _replica_store()
+    case = _owned_case(dl, "replica at entry 0")
+    stale = case.model_copy(update={"name": "stale copy"})
+    _commit(dl, case, 0, case.genesis_hash)
+    activity = announce_vulnerability_case_activity(
+        stale, actor=_CASE_ACTOR_ID, to=[_REPLICA_ID], context=_CASE_ID
+    )
+
+    result = AnnounceVulnerabilityCaseReceivedUseCase(
+        dl,
+        cast(AnnounceVulnerabilityCaseReceivedEvent, received_event(activity)),
+    ).execute()
+
+    assert result.disposition == HandlerDisposition.SKIPPED
+    assert cast(Any, dl.read(_CASE_ID)).name == "replica at entry 0"
+
+
+def _owned_case(dl: SqliteDataLayer, name: str) -> as_VulnerabilityCase:
+    """An owned case stored in *dl*, at its empty ledger (SYNC-16-005)."""
+    case = as_VulnerabilityCase(
+        id_=_CASE_ID, name=name, attributed_to=_CASE_ACTOR_ID
+    )
+    dl.create(case)
+    return case
+
+
+def _commit(
+    dl: SqliteDataLayer, case: as_VulnerabilityCase, index: int, prev: str
+) -> CaseLedgerEntry:
+    """Store one entry for *case* in *dl*, moving its position to it."""
+    entry = _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=case.id_,
+            log_index=index,
+            object_id=f"{case.id_}/activities/{index}",
+            semantic_type="test_event",
+            payload_snapshot={"log_index": index},
+            prev_log_hash=prev,
+        )
+    )
+    store_ledger_entry(entry, dl)
+    return entry
+
+
+def _replica_store() -> SqliteDataLayer:
+    """The replica's store, expecting the case from the CASE_MANAGER."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_REPLICA_ID)
+    dl.save(
+        VultronPendingCaseInbox(
+            case_id=_CASE_ID,
+            case_actor_id=_CASE_ACTOR_ID,
+            invite_anchored=True,
+        )
+    )
+    return dl
 
 
 @pytest.mark.spec("PCR-02-004")

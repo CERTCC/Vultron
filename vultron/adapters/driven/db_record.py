@@ -43,6 +43,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
+STORED_ROW_CONTEXT: dict[str, bool] = {STORED_CONTEXT_KEY: True}
+"""Validation context for reading a stored row back (``STORED_CONTEXT_KEY``)."""
+
 
 def _is_generic_object_ref(annotation: Any) -> bool:
     """True when *annotation* is a reference to the *generic* ``as_Object``.
@@ -352,7 +355,7 @@ def _retype_inline_ref(obj: "BaseModel", field_name: str, raw: object) -> Any:
     if isinstance(getattr(obj, field_name, None), specific_cls):
         return None
     try:
-        return specific_cls.model_validate(raw)
+        return specific_cls.model_validate(raw, context=STORED_ROW_CONTEXT)
     except ValidationError:
         return None
 
@@ -394,10 +397,6 @@ def _retype_inline_object_refs(
         return obj.model_copy(update=updates)
     except (ValidationError, TypeError):
         return obj
-
-
-STORED_ROW_CONTEXT: dict[str, bool] = {STORED_CONTEXT_KEY: True}
-"""Validation context for reading a stored row back (``STORED_CONTEXT_KEY``)."""
 
 
 class Record(StorableRecord):

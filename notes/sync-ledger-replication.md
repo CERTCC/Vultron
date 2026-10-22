@@ -284,8 +284,9 @@ same entry forever (ADR-0142).
   (SYNC-16-002).
 - **A case stores the ledger position it is a projection of.** Only
   `store_ledger_entry()` moves it, in the transaction that stores the entry, on
-  every commit and replica store; a node that saves a case after its entry
-  commits must read the case afresh, or it puts the position back (SYNC-16-005).
+  every commit and replica store. A node that saves or snapshots a case it read
+  before committing passes it through `at_stored_position()` first, or the save
+  puts the position back and the snapshot names a stale one (SYNC-16-005).
 - **A case copy is judged by the position it names.** A copy behind the
   replica's chain is stale and must not replace the case, because an old copy
   can arrive late (SYNC-16-006).

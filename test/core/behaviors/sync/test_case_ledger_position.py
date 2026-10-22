@@ -357,3 +357,47 @@ def test_the_commit_check_catches_a_write_that_puts_the_position_back(
 
     assert len(failures) == 1
     assert "before committing entry 1" in failures[0]
+
+
+@pytest.mark.spec("SYNC-16-005")
+def test_a_copy_of_a_case_the_store_does_not_hold_is_returned_as_is(
+    dl: SqliteDataLayer,
+) -> None:
+    case = _case()
+
+    assert at_stored_position(case, dl) is case
+
+
+@pytest.mark.spec("SYNC-16-005")
+def test_the_case_manager_commit_fails_without_its_case(
+    dl: SqliteDataLayer,
+) -> None:
+    entry = _entry(_case(), 0, _case().genesis_hash)
+
+    result = BTBridge(datalayer=dl).execute_with_setup(
+        tree=PersistLogEntryNode(name="PersistLogEntry"),
+        actor_id=OWNER,
+        log_entry=entry,
+    )
+
+    assert result.status == Status.FAILURE
+    assert not result.internal_error
+    assert "cannot commit log entry 0" in result.feedback_message
+    assert dl.read(entry.id_) is None
+
+
+@pytest.mark.spec("SYNC-16-005")
+def test_a_replica_store_fails_without_its_case() -> None:
+    replica = SqliteDataLayer("sqlite:///:memory:", actor_id=REPLICA)
+    entry = _entry(_case(), 0, _case().genesis_hash)
+
+    result = BTBridge(datalayer=replica).execute_with_setup(
+        tree=PersistReceivedLogEntryNode(name="PersistReceivedLogEntry"),
+        actor_id=REPLICA,
+        activity=SimpleNamespace(log_entry=entry),
+    )
+
+    assert result.status == Status.FAILURE
+    assert not result.internal_error
+    assert "cannot store received log entry" in result.feedback_message
+    assert replica.read(entry.id_) is None

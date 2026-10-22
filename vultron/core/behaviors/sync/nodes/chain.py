@@ -42,7 +42,11 @@ from vultron.core.sync_helpers import (
     recorded_entries_for_case,
     store_ledger_entry,
 )
-from vultron.errors import VultronError, VultronValidationError
+from vultron.errors import (
+    VultronError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -375,7 +379,22 @@ class PersistLogEntryNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        store_ledger_entry(entry, self.datalayer)
+        try:
+            store_ledger_entry(entry, self.datalayer)
+        except VultronNotFoundError as exc:
+            # An entry belongs to a stored case, whose position its commit
+            # moves (SYNC-16-005); nothing was written.
+            self.feedback_message = (
+                f"cannot commit log entry {entry.log_index} for case"
+                f" '{entry.case_id}': {exc}"
+            )
+            self.logger.exception(
+                "%s: %s (actor_id=%s)",
+                self.name,
+                self.feedback_message,
+                self.actor_id,
+            )
+            return Status.FAILURE
         self.logger.info(
             "%s: committed log entry case_id=%s semantic_type=%s log_index=%d actor_id=%s",
             self.name,
