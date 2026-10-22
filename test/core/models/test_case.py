@@ -134,6 +134,22 @@ class TestVulnerabilityCaseRequiresOwner:
         )
         assert c.genesis_hash
 
+    @pytest.mark.parametrize("by_alias", [True, False])
+    def test_schema_shows_no_stand_in_default(self, by_alias: bool):
+        """The refused stand-in defaults stay out of the published schema."""
+        properties = VulnerabilityCase.model_json_schema(by_alias=by_alias)[
+            "properties"
+        ]
+        for name in (
+            ("genesisHash", "ledgerPosition")
+            if by_alias
+            else (
+                "genesis_hash",
+                "ledger_position",
+            )
+        ):
+            assert "default" not in properties[name]
+
 
 class TestVulnerabilityCaseRegistration:
     """VulnerabilityCase auto-registers in CORE_VOCABULARY — ADR-0017."""

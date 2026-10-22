@@ -56,12 +56,12 @@ def find_proposer_case(
     first = datalayer.find_case_by_report_id(report_id)
     if first is None:
         return None
-    if same_actor_id(str(first.attributed_to), owner_id):
+    if same_actor_id(first.attributed_to, owner_id):
         return first
     for case in datalayer.list_objects("VulnerabilityCase"):
         if (
             isinstance(case, VulnerabilityCase)
-            and same_actor_id(str(case.attributed_to), owner_id)
+            and same_actor_id(case.attributed_to, owner_id)
             and report_id in _report_ids(case)
         ):
             return case

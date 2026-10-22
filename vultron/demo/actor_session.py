@@ -163,7 +163,12 @@ class ActorSession:
         mismatched session unconstructible rather than a per-call guard that
         silently passes wherever neither side is a real absolute URI
         (DEMOMA-26-002).
+
+        Also refuses a blank ``case_id``: a bound case ID is non-empty
+        (CS-08-002), or the trigger URL would name no case.
         """
+        if self.case_id is not None and not self.case_id.strip():
+            raise ValueError("case_id must be a non-empty case ID when bound")
         actor_id = self.actor.id_
         base_url = str(getattr(self.client, "base_url", "") or "")
         if not isinstance(actor_id, str) or not _is_absolute_uri(actor_id):

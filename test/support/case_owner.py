@@ -42,7 +42,10 @@ CASE_GENESIS_HASH = "0" * 64
 INBOUND_CASE_OWNERSHIP: dict[str, object] = {
     "attributedTo": CASE_OWNER_ID,
     "genesisHash": CASE_GENESIS_HASH,
-    "ledgerPosition": {"logIndex": -1, "entryHash": CASE_GENESIS_HASH},
+    "ledgerPosition": {
+        "logIndex": EMPTY_LEDGER_LOG_INDEX,
+        "entryHash": CASE_GENESIS_HASH,
+    },
 }
 
 #: The same keys under field names, for a case built with ``model_construct``,

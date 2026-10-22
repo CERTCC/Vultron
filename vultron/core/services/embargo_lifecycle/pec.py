@@ -135,7 +135,7 @@ def embargo_withdrawal_refusal(
             f" '{case_id}': only the active embargo can be withdrawn from"
             " (MSM-07-010)"
         )
-    if _as_id(case.attributed_to) == actor_id:
+    if case.attributed_to == actor_id:
         return (
             f"'{actor_id}' is the case owner of '{case_id}': the case owner"
             " ends an embargo by terminating it, not by withdrawing"

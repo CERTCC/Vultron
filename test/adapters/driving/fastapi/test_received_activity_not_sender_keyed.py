@@ -37,6 +37,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
+from vultron.adapters.outbox_sealed_body import OUTBOUND_DUMP_KWARGS
 from vultron.core.behaviors.case.nodes.proposal_announcement import (
     announced_case_id,
     case_is_announced,
@@ -89,11 +90,10 @@ def _create_case(actor: str, **kwargs: Any) -> as_Create:
 
 
 def _body(activity: as_Activity) -> dict[str, Any]:
-    # serialize_as_any: the inline case keeps its own fields, such as the
-    # ledgerPosition a received case must carry (SYNC-16-005).
-    return activity.model_dump(
-        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
-    )
+    # The outbound body's own options, so the inline case keeps its own
+    # fields, such as the ledgerPosition a received case must carry
+    # (SYNC-16-005).
+    return activity.model_dump(mode="json", **OUTBOUND_DUMP_KWARGS)
 
 
 def _deliver(dl: SqliteDataLayer, activity: as_Activity) -> InboxOutcome:

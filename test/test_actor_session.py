@@ -97,6 +97,13 @@ def test_with_case_accepts_a_bare_case_id():
     assert _session().with_case(case_id).case_id == case_id
 
 
+@pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
+def test_with_case_refuses_a_blank_case_id(blank: str):
+    """A bound case ID is non-empty, so no trigger URL names no case."""
+    with pytest.raises(ValueError, match="case_id"):
+        _session().with_case(blank)
+
+
 def test_quiet_returns_new_silent_instance():
     session = _session()
     quiet = session.quiet()

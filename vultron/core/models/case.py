@@ -22,7 +22,15 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, ClassVar, Literal
 
-from pydantic import Field, ValidationInfo, computed_field, model_validator
+from pydantic import (
+    Field,
+    GetJsonSchemaHandler,
+    ValidationInfo,
+    computed_field,
+    model_validator,
+)
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import CoreSchema
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
@@ -88,6 +96,19 @@ def _present_key(data: dict[str, Any], field_name: str) -> str:
 def _owner(data: dict[str, Any]) -> Any:
     """Return the case owner *data* carries under either spelling, or ``None``."""
     return data.get("attributed_to") or data.get(wire_key("attributed_to"))
+
+
+def _names_blank_id(data: dict[str, Any]) -> bool:
+    """Whether *data* carries an id key whose value is blank.
+
+    A blank id is refused by ``id_``'s type (CS-08-001); a before-validator
+    that sees one leaves *data* as it is, so that refusal names the id rather
+    than a seed built from it.
+    """
+    return any(
+        isinstance(data.get(key), str) and not data[key].strip()
+        for key in ("id", "id_")
+    )
 
 
 def _start_ledger_position(
@@ -268,6 +289,34 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
     child_cases: list[NonEmptyString] = Field(default_factory=list)
     sibling_cases: list[NonEmptyString] = Field(default_factory=list)
 
+    #: Fields whose default only stands in until a before-validator fills it;
+    #: the published schema leaves those defaults out, since a case that
+    #: still holds one is refused.
+    _STAND_IN_DEFAULT_FIELDS: ClassVar[tuple[str, ...]] = (
+        "genesis_hash",
+        "ledger_position",
+    )
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        """Leave the stand-in defaults out of the published schema.
+
+        ``genesis_hash`` and ``ledger_position`` default to a value the field
+        type refuses, so a schema showing it would invite a client to send
+        it (ARCH-10-001).
+        """
+        json_schema = handler(core_schema)
+        properties = handler.resolve_ref_schema(json_schema).get(
+            "properties", {}
+        )
+        for field_name in cls._STAND_IN_DEFAULT_FIELDS:
+            for key in (field_name, wire_key(field_name)):
+                if key in properties:
+                    properties[key].pop("default", None)
+        return json_schema
+
     @model_validator(mode="before")
     @classmethod
     def _compute_genesis_hash_if_missing(
@@ -308,8 +357,8 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             and INBOUND_CONTEXT_KEY in info.context
         )
         attributed_to = _owner(data)
-        if not attributed_to:
-            return data  # the required-field check refuses the case
+        if not attributed_to or _names_blank_id(data):
+            return data  # the field checks refuse the case
         hash_key = _present_key(data, "genesis_hash")
         if not data.get(hash_key):
             data = dict(data)
@@ -347,10 +396,10 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         if not isinstance(data, dict):
             return data
         statuses_key = _present_key(data, "case_statuses")
-        attributed_to = data.get("attributed_to") or data.get(
-            wire_key("attributed_to")
-        )
-        if not data.get(statuses_key) and attributed_to:
+        attributed_to = _owner(data)
+        if not attributed_to or _names_blank_id(data):
+            return data  # the field checks refuse the case
+        if not data.get(statuses_key):
             data = dict(data)
             # Mint only an absent id: a blank one is refused by ``id_``'s
             # type, not silently replaced (CS-08-001).

@@ -167,13 +167,17 @@ class TestVultronCaseIdContract:
     (see issue #716).
     """
 
-    def test_empty_id_raises_validation_error(self) -> None:
-        with pytest.raises(ValidationError):
-            VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_="")
-
-    def test_whitespace_only_id_raises_validation_error(self) -> None:
-        with pytest.raises(ValidationError):
-            VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_="   ")
+    @pytest.mark.parametrize("key", ["id_", "id"])
+    @pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
+    def test_blank_id_is_refused_as_the_id(self, key: str, blank: str) -> None:
+        """The refusal names the id, not a status seeded from it (CS-08-001)."""
+        with pytest.raises(ValidationError) as excinfo:
+            VulnerabilityCase.model_validate(
+                {"attributed_to": CASE_OWNER_ID, key: blank}
+            )
+        locs = {error["loc"][0] for error in excinfo.value.errors()}
+        assert key in locs
+        assert "context" not in locs
 
     def test_auto_generated_id_is_nonempty(self) -> None:
         case = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
