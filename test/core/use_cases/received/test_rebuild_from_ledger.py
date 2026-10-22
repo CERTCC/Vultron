@@ -165,10 +165,17 @@ def _proposed_case(make_payload: Any) -> tuple[SqliteDataLayer, str]:
 @pytest.mark.spec("VAM-05-016")
 def test_the_default_embargo_rebuilds_from_the_ledger_alone(make_payload):
     """#5122: the embargo a case's creation writes reaches a replica built
-    from the ledger alone, start and end times included."""
+    from the ledger alone, start and end times included.
+
+    The rebuild does not seed it: the replayed ``create_embargo_event``
+    entry stores it through the replica's slot.
+    """
     dl, case_id = _proposed_case(make_payload)
     embargo_id = cast(VulnerabilityCase, dl.read(case_id)).active_embargo_id
     assert embargo_id is not None
+    assert embargo_id not in {
+        record.id_ for record in creation_records(ledger_entries(dl, case_id))
+    }
 
     replica = rebuild_from_ledger(dl, case_id, as_actor=_VENDOR_URI)
 

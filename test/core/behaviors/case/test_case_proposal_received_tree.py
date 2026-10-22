@@ -1799,7 +1799,8 @@ class TestADR0041LedgerEntries:
         """The proposal path's entries follow the one creation rule (#4440).
 
         ``creation_entry_sequence`` reads the sequence off the resulting case
-        file: genesis, each report, then per seated record one
+        file: genesis, each embargo the register names, each report, then
+        per seated record one
         ``create_case_participant`` followed by an entry per later status,
         then each case status (CLP-07-013).  The create-case trigger is
         pinned to the same rule in ``test_create.py``, so a case created
