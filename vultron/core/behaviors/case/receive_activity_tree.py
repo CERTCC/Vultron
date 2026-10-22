@@ -472,7 +472,7 @@ def _clock_decision_stage(
 
     The gate reads a case this store does not hold as "not the CASE_MANAGER"
     at ``debug`` level: a replica, or an invitee holding only a stub, never
-    computes a clock decision (CM-21-017, CM-28-014).
+    computes a clock decision (CM-28-014).
 
     Raises:
         VultronWiringError: *case_id* is ``None`` — there is no case whose
@@ -928,7 +928,8 @@ def create_receive_activity_tree(
 
     ``CaseOpenToExternalWrites`` is the post-close write boundary
     (CM-23-013, ADR-0085, ADR-0131): at the case's CASE_MANAGER, once the
-    ledger holds ``case_fully_closed``, it refuses the activity, so nothing is
+    ledger holds its own ``RM.CLOSED`` status entry, it refuses the
+    activity, so nothing is
     committed and no state changes; on any other store it passes.  Every
     received tree gets it from here.  Its case is ``case_id``, else
     ``manager_case_id``, else the case the received activity names.  A tree

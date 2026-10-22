@@ -456,8 +456,14 @@ at some points and not at others (ADR-0150).
   explicit page-to-page edges only when a real thread needs an order stages
   cannot express; nobody has yet.
 - **One source.** The thread lives in its start page's frontmatter. The start
-  page's listing is spliced between markers and gated (DF-11-014), so do not
-  edit the listing by hand: edit the data.
+  page's listing is spliced between markers by `uv run docs-site --write` and
+  gated by `docs-site-sync` (DF-11-014), so do not edit the listing by hand:
+  edit the data.
+- **Members are reader-facing pages.** `uv run docs-threads` refuses an
+  external URL, a working-record page or an include fragment as a member,
+  because a member page carries the thread's box (DF-11-016). Put such a link
+  in its stage's `framing:`, which renders under the stage heading; that is
+  how `contribute.md` keeps its decision-record and developer-docs links.
 - **Member pages.** A build hook adds a box per thread the page is on: the
   pages before it and after it, both as sets, and a link back to the start
   page (DF-11-015). The sets are the adjacent ones: the neighbor in a chain,

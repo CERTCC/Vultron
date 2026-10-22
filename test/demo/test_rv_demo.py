@@ -2386,7 +2386,7 @@ class TestRvMilestoneAssertions:
     def test_phase_case_closure_closes_the_case_owner_last(self):
         """The Case Owner leaves after every other participant (CM-23-015).
 
-        A Leave sent after ``case_fully_closed`` is not recorded (CM-23-013),
+        A Leave sent after the case is fully closed is not recorded (CM-23-013),
         so the Vendor, which owns the rv case, closes after the Reporter.
         """
         import contextlib

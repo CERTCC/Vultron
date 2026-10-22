@@ -129,6 +129,16 @@ repos:
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
         pass_filenames: false
 
+      - id: docs-threads
+        name: Reading-path threads list only existing reader-facing pages
+        entry: uv run docs-threads
+        language: system
+        # A thread lives in its start page's frontmatter, and any docs page
+        # can be renamed, deleted or moved into the working record (DF-11-016).
+        # test_the_committed_threads_pass is the CI backstop.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading)\.py)$
+        pass_filenames: false
+
       - id: adr-index-sync
         name: ADR index in sync, and no ADR in the nav
         entry: uv run python -m vultron.metadata.adr.index_gen --check

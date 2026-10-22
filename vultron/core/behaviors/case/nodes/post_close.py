@@ -15,8 +15,9 @@
 
 """The post-close write-boundary guard of every received tree (CM-23-013).
 
-After ``case_fully_closed`` is committed, the CASE_MANAGER behaves toward the
-case as if its process had exited: an inbound activity for the case commits no
+After the CASE_MANAGER commits its own status entry reaching ``RM.CLOSED``,
+the last step of the owner close, it behaves toward the case as if its
+process had exited: an inbound activity for the case commits no
 ``CaseLedgerEntry`` (the receipt entry included) and changes no case or
 participant state (CM-23-013, ADR-0085).
 
@@ -25,7 +26,7 @@ participant state (CM-23-013, ADR-0085).
 places it in every received tree, directly after intake, so no handler can
 forget it and no handler carries its own copy (CS-22-001).  It passes on every
 store that is not the case's CASE_MANAGER: a replica still applies the
-closure fan-out and any later housekeeping entry the CASE_MANAGER announces.
+closure fan-out.
 
 A tree opts out only with a :class:`PostCloseExemption`, a closed set of
 reasons, so an exemption is visible at its call site and in review.
@@ -69,16 +70,24 @@ class PostCloseExemption(StrEnum):
     ENCLOSING_TREE_GUARDS = "enclosing-tree-guards"
 
 
-def case_is_fully_closed(dl: CasePersistence, case_id: str) -> bool:
-    """True when *dl* holds the ``case_fully_closed`` entry for *case_id*.
+def case_is_fully_closed(dl: CasePersistence, case: VulnerabilityCase) -> bool:
+    """True when *dl*'s ledger for *case* records the case fully closed.
 
+    The case is fully closed once its ledger holds the CASE_MANAGER's own
+    status entry reaching ``RM.CLOSED`` (CM-23-002 step 2, CM-23-013).
     Reads the store's ledger entries for the case and applies the one shared
-    condition, :func:`~vultron.core.predicates.case_closure.ledger_records_full_closure`.
-    Store errors propagate: "could not tell" must not admit (see
-    ``notes/bt-pitfalls.md`` § "A Refusal Arm in a Selector Fails Toward
-    'Admit'").
+    condition, :func:`~vultron.core.predicates.case_closure.ledger_records_full_closure`,
+    keyed on the case's CASE_MANAGER.  A case that names no CASE_MANAGER
+    records no closure.  Store errors propagate: "could not tell" must not
+    admit (see ``notes/bt-pitfalls.md`` § "A Refusal Arm in a Selector Fails
+    Toward 'Admit'").
     """
-    return ledger_records_full_closure(sorted_case_ledger_entries(dl, case_id))
+    manager_id = resolve_case_manager_id(case, dl)
+    if manager_id is None:
+        return False
+    return ledger_records_full_closure(
+        sorted_case_ledger_entries(dl, case.id_), manager_id
+    )
 
 
 def _candidate_case_ids(event: object) -> list[str]:
@@ -103,10 +112,11 @@ class CaseOpenToExternalWritesNode(DataLayerConditionWithPorts):
     Returns:
         SUCCESS when the executing actor is not the case's CASE_MANAGER, the
         store holds no such case, no case can be resolved for the activity,
-        or the case's ledger holds no ``case_fully_closed`` entry.
+        or the case's ledger does not record it fully closed.
 
         FAILURE when the executing actor is the case's CASE_MANAGER and its
-        ledger holds ``case_fully_closed`` (CM-23-013).  The tree then stops
+        ledger holds its own status entry reaching ``RM.CLOSED``
+        (CM-23-013).  The tree then stops
         before its receipt commit and every effect; the handler reports
         ``REFUSED``.  The drop is logged at INFO with the activity id, the
         sender's actor id and the case id.
@@ -171,7 +181,7 @@ class CaseOpenToExternalWritesNode(DataLayerConditionWithPorts):
         # keeps applying the closure fan-out (CM-23-013 binds the CASE_MANAGER).
         if resolve_case_manager_id(case, self.datalayer) != self.actor_id:
             return Status.SUCCESS
-        if not case_is_fully_closed(self.datalayer, case.id_):
+        if not case_is_fully_closed(self.datalayer, case):
             return Status.SUCCESS
 
         self.refused_case_id = case.id_
@@ -179,7 +189,7 @@ class CaseOpenToExternalWritesNode(DataLayerConditionWithPorts):
         sender_id = getattr(self._activity, "actor_id", None)
         self.feedback_message = (
             f"case '{case.id_}' is fully closed: the CASE_MANAGER records"
-            " nothing after case_fully_closed (CM-23-013)"
+            " nothing after its own RM.CLOSED status entry (CM-23-013)"
         )
         self.logger.info(
             "%s: dropped activity_id=%s actor_id=%s for closed case '%s'"

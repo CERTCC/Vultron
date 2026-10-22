@@ -27,7 +27,7 @@ from types import SimpleNamespace
 import py_trees
 import pytest
 
-from test.support.ledger import commit_case_fully_closed
+from test.support.ledger import commit_case_manager_closure
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -841,7 +841,7 @@ class TestCaseProposalDisposition:
         proposal = _make_proposal()
         _run_create_proposal(dl, proposal, make_payload)
         (case,) = list(dl.list_objects("VulnerabilityCase"))
-        commit_case_fully_closed(dl, case.id_, _VENDOR_URI)
+        commit_case_manager_closure(dl, case.id_)
 
         result = _run_create_proposal(dl, proposal, make_payload)
 

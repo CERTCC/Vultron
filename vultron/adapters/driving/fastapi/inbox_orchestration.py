@@ -34,6 +34,7 @@ IO-03-003).
 import asyncio
 import hashlib
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
@@ -65,6 +66,7 @@ from vultron.core.models.received_activity_record import (
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.ports.emitter import ActivityEmitter
 from vultron.errors import VultronReusedActivityIdError, VultronWiringError
 from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.parser import parse_activity as _parse_activity
@@ -489,12 +491,90 @@ class FastAPIQueuePort:
         )
 
 
+class _InboxRun:
+    """The adapters one inbox run of an actor shares (IO-03-003).
+
+    The ingress adapter and the queue port share one staging, so a delivery
+    the queue defers is held whole for its replay.
+    """
+
+    def __init__(
+        self,
+        actor_dl: DataLayer,
+        actor_id: str,
+        dispatcher: ActivityDispatcher | None,
+    ) -> None:
+        self.actor_dl = actor_dl
+        self.actor_id = actor_id
+        self.staging = InlineObjectStaging(actor_dl)
+        self.ingress = FastAPIIngressAdapter(dl=actor_dl, staging=self.staging)
+        self.dispatch = FastAPIDispatchAdapter(
+            dl=actor_dl, actor_id=actor_id, dispatcher=dispatcher
+        )
+        self.queue = FastAPIQueuePort(
+            dl=actor_dl,
+            actor_dl=cast(DataLayer, actor_dl),
+            actor_id=actor_id,
+            staging=self.staging,
+        )
+        # The receiving actor's RSVP windows govern inbound embargo invites
+        # (EP-07-001, EP-07-002); None applies the protocol defaults.
+        self.actor_config = inbox_port_factories._resolve_actor_config()
+        self.max_attempts = get_config().max_inbox_retry_attempts
+
+    def drain_queue(self) -> None:
+        """Replay every item queued in the actor's inbox (IE-06-004)."""
+        drain_inbox_queue(
+            self.actor_dl,
+            self.actor_id,
+            self.dispatch,
+            self.queue,
+            self.staging,
+            self.actor_config,
+            self.max_attempts,
+        )
+
+
+async def _run_serialised(
+    actor_dl: DataLayer,
+    actor_id: str,
+    emitter: ActivityEmitter | None,
+    work: Callable[[], None],
+) -> None:
+    """Run *work* under the actor's inbox lock, off the loop, then drain.
+
+    Off the event loop, deliberately.  Starlette runs an ``async``
+    background task on the loop itself, and ``process_payload`` is
+    synchronous — BT ticks, the BT global lock, SQLite I/O.  Called inline
+    it stalls the whole container for every inbound activity: no HTTP
+    response goes out, no delivery from a peer is accepted, the co-hosted
+    OutboxMonitor coroutine cannot drain, and a trigger route waiting on the
+    BT lock from its threadpool thread starves (IE-06-002, IE-06-003,
+    BT-11-002).  The rv/rcvcv demo flakes were the CaseActor's outbox paying
+    one full BT tick per delivery on the vendor container (#3033, #2898).
+    ``asyncio.to_thread`` matches what the sync trigger routes already do;
+    the BT global RLock serialises BT execution across threads, and the
+    per-actor lock (held across the thread hop) keeps this actor's
+    deliveries FIFO (BT-11-001, #1525): process_payload for entry N+1 never
+    starts before entry N has been stored, or the hash-chain check fails and
+    a spurious Reject follows.
+    """
+    try:
+        async with _get_actor_lock(actor_id):
+            await asyncio.to_thread(work)
+    finally:
+        # The delivery's replies, and any fault a settled replay queued, are
+        # already in the outbox: a store write that raised while settling a
+        # replay must not leave them undelivered.
+        await outbox_handler(actor_id, actor_dl, emitter=emitter)
+
+
 async def run_inbox_pipeline(
     payload: dict[str, Any] | bytes | str | Any,
     actor_dl: DataLayer,
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
-    emitter: Any,
+    emitter: ActivityEmitter | None,
 ) -> None:
     """Adapter-layer background task: construct adapters and run pipeline.
 
@@ -508,8 +588,8 @@ async def run_inbox_pipeline(
     outbox drain, which is async I/O, runs on the loop.
 
     This function is the background task scheduled by ``post_actor_inbox``.
-    It is the ONLY place that constructs the adapter instances, satisfying
-    IO-03-003.
+    It and the startup replay (:func:`replay_inbox_queue`) construct the
+    adapter instances, through :class:`_InboxRun` (IO-03-003).
 
     Args:
         payload: Raw inbox payload (JSON body dict or as_Activity).
@@ -521,36 +601,20 @@ async def run_inbox_pipeline(
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
     """
-    staging = InlineObjectStaging(actor_dl)
-    ingress = FastAPIIngressAdapter(dl=actor_dl, staging=staging)
-    dispatch_adp = FastAPIDispatchAdapter(
-        dl=actor_dl, actor_id=actor_id, dispatcher=dispatcher
-    )
-    queue = FastAPIQueuePort(
-        dl=actor_dl,
-        actor_dl=cast(DataLayer, actor_dl),
-        actor_id=actor_id,
-        staging=staging,
-    )
-
-    # Serialise concurrent inbox background tasks for this actor so that
-    # process_payload for entry N+1 never starts before entry N has been
-    # stored.  Without this lock, two HTTP POSTs that arrive close together
-    # create two asyncio Tasks that can run in any order; if entry N+1's
-    # task runs first, the hash-chain check fails → spurious Reject (issue #1525).
-    # The receiving actor's RSVP windows govern inbound embargo invites
-    # (EP-07-001, EP-07-002); None applies the protocol defaults.
-    actor_config = inbox_port_factories._resolve_actor_config()
-
-    max_attempts = get_config().max_inbox_retry_attempts
+    run = _InboxRun(actor_dl, actor_id, dispatcher)
 
     def _process_and_replay() -> None:
         """The synchronous BT work for one delivery, plus its replays.
 
-        Runs on a worker thread (see below), so it must not touch asyncio.
+        Runs on a worker thread (see :func:`_run_serialised`), so it must not
+        touch asyncio.
         """
         outcome = process_payload(
-            payload, ingress, dispatch_adp, queue, actor_config=actor_config
+            payload,
+            run.ingress,
+            run.dispatch,
+            run.queue,
+            actor_config=run.actor_config,
         )
         logger.debug(
             "run_inbox_pipeline: status=%s context_id=%s",
@@ -562,36 +626,29 @@ async def run_inbox_pipeline(
         # Replay what this delivery, or an earlier one, queued: activities
         # pushed back by the post-bootstrap replay, and held ledger
         # Announces replayed once their entry applies (SYNC-14-009).
-        drain_inbox_queue(
-            actor_dl,
-            actor_id,
-            dispatch_adp,
-            queue,
-            staging,
-            actor_config,
-            max_attempts,
-        )
+        run.drain_queue()
 
-    try:
-        async with _get_actor_lock(actor_id):
-            # Off the event loop, deliberately.  Starlette runs an
-            # ``async`` background task on the loop itself, and
-            # ``process_payload`` is synchronous — BT ticks, the BT global
-            # lock, SQLite I/O.  Called inline it stalls the whole container
-            # for every inbound activity: no HTTP response goes out, no
-            # delivery from a peer is accepted, the co-hosted OutboxMonitor
-            # coroutine cannot drain, and a trigger route waiting on the BT
-            # lock from its threadpool thread starves (IE-06-002,
-            # BT-11-002).  The rv/rcvcv demo flakes were the CaseActor's
-            # outbox paying one full BT tick per delivery on the vendor
-            # container (#3033, #2898).  ``asyncio.to_thread`` matches what
-            # the sync trigger routes already do; the BT global RLock
-            # serialises BT execution across threads, and the per-actor lock
-            # above (held across the thread hop) keeps this actor's
-            # deliveries FIFO (BT-11-001, #1525).
-            await asyncio.to_thread(_process_and_replay)
-    finally:
-        # The delivery's replies, and any fault a settled replay queued, are
-        # already in the outbox: a store write that raised while settling a
-        # replay must not leave them undelivered.
-        await outbox_handler(actor_id, actor_dl, emitter=emitter)
+    await _run_serialised(actor_dl, actor_id, emitter, _process_and_replay)
+
+
+async def replay_inbox_queue(
+    actor_dl: DataLayer,
+    actor_id: str,
+    dispatcher: ActivityDispatcher | None,
+    emitter: ActivityEmitter | None,
+) -> None:
+    """Replay every item queued in *actor_id*'s inbox, with no delivery.
+
+    The startup replay (IE-06-006): the same drain, bounded retry and dead
+    letter as a replay after a delivery (IE-06-004), under the same
+    per-actor lock as :func:`run_inbox_pipeline` and off the event loop
+    (IE-06-003), then the outbox drain.
+
+    Args:
+        actor_dl: The receiving actor's DataLayer, which holds the queue.
+        actor_id: Canonical URI of the receiving actor.
+        dispatcher: Optional per-app dispatcher.
+        emitter: Optional per-app ActivityEmitter.
+    """
+    run = _InboxRun(actor_dl, actor_id, dispatcher)
+    await _run_serialised(actor_dl, actor_id, emitter, run.drain_queue)

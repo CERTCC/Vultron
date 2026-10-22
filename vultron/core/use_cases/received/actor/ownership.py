@@ -99,11 +99,9 @@ class ProposeCaseOwnershipTransferReceivedUseCase:
 
         # The received tree, run once (CLP-10-005).  Its sender guard
         # refuses a sender that is not the Case Owner before anything is
-        # written (CM-21-019, HP-01-006).  A new proposal is one of the
-        # moments the CASE_MANAGER checks the open Offer's deadline
-        # (CM-21-017): the tree's clock decision closes an expired one
-        # before this proposal is judged against it (CM-21-014,
-        # CLP-10-025).  The CASE_MANAGER-gated MakeOwnershipTransferOfferNode
+        # written (CM-21-019, HP-01-006).  An earlier Offer past its
+        # end_time is closed by that time alone, so it does not block this
+        # proposal (CM-21-014, CM-21-017).  The CASE_MANAGER-gated MakeOwnershipTransferOfferNode
         # makes, queues and ledgers the Offer — no procedural outbox write
         # here.
         tree = create_propose_ownership_transfer_tree(

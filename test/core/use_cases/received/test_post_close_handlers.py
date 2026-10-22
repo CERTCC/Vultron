@@ -17,7 +17,7 @@
 
 The factory's post-close guard stops a received tree before its commit and
 before any ER, late-Accept answer or ProcessingFault the tree would send.
-After ``case_fully_closed`` none of that may happen: the activity is
+After the CASE_MANAGER's own RM.CLOSED entry none of that may happen: it is
 ``REFUSED``, nothing is recorded and nothing is sent (CM-23-013, CM-23-017).
 """
 
@@ -25,7 +25,7 @@ from typing import Any
 
 import pytest
 
-from test.support.ledger import commit_case_fully_closed
+from test.support.ledger import commit_case_manager_closure
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -48,7 +48,7 @@ _SENDER = "https://example.org/users/pc-vendor"
 
 
 def _close(dl: SqliteDataLayer) -> None:
-    commit_case_fully_closed(dl, _CASE, _SENDER)
+    commit_case_manager_closure(dl, _CASE)
 
 
 def _invite(embargo: Any) -> Any:

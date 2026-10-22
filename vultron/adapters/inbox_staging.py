@@ -378,7 +378,9 @@ class InlineObjectStaging:
         # so the record is released even when the rebuild raises: no later
         # replay or queue expiry could reach it (CBT-03-003).  A caller that
         # queues it again holds it again (:meth:`hold_for_replay`), from the
-        # record as it was read.
+        # record as it was read.  The queue drain runs the pop, this release
+        # and its settlement in one transaction (IE-06-005), so a raise it
+        # does not settle restores both the queued id and this record.
         self._released[activity_id] = pending
         try:
             result, parsed = self._rebuild_from(pending)

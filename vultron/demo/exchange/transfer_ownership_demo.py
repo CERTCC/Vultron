@@ -199,9 +199,8 @@ def _vendor_offers_ownership(
 
 
 #: How long the accept path gives the coordinator to answer.  Generous, so
-#: the demo answers in time; the refusal of a late answer and the expiry
-#: record are pinned by the unit tests, not by waiting here (CM-21-016,
-#: CM-21-017).
+#: the demo answers in time; the refusal of a late answer is pinned by the
+#: unit tests, not by waiting here (CM-21-016, CM-21-017).
 _ANSWER_WINDOW = timedelta(days=1)
 
 

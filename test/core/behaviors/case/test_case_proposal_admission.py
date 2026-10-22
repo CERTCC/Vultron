@@ -43,7 +43,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.ledger import (
-    commit_case_fully_closed,
+    commit_case_manager_closure,
     committed_semantic_types,
 )
 from test.support.received import received_event
@@ -1051,7 +1051,7 @@ def _accepted_then_closed(dl) -> VulnerabilityCase:
     (case,) = _cases(dl)
     assert isinstance(case, VulnerabilityCase)
     _drain_outbox(dl)
-    commit_case_fully_closed(dl, str(case.id_), _VENDOR_URI)
+    commit_case_manager_closure(dl, str(case.id_))
     return case
 
 
@@ -1254,6 +1254,33 @@ class TestTheClosedCaseCheckFailsTowardRefusal:
             dl.read(CaseProposalAdmissionRecord.build_id(_SECOND_PROPOSAL_URI))
             is None
         ), "the accept arm never began"
+
+    @pytest.mark.spec("CP-05-006")
+    @pytest.mark.spec("CM-23-013")
+    def test_a_case_the_store_does_not_hold_is_not_closed(
+        self, dl, monkeypatch
+    ):
+        """A proposal resolving to a case this store does not hold names no
+        closed case here (Regime 2, ADR-0087), so the decline arm is not
+        taken."""
+        from vultron.core.behaviors.case.nodes import (
+            proposal_admission_conditions,
+        )
+
+        monkeypatch.setattr(
+            proposal_admission_conditions,
+            "proposal_case_ids",
+            lambda *args, **kwargs: iter(["https://example.org/cases/unheld"]),
+        )
+        node = CheckProposalCaseFullyClosedNode(
+            proposal_id=_PROPOSAL_URI,
+            proposer_uri=_VENDOR_URI,
+            report_id=_REPORT_URI,
+        )
+        node.datalayer = dl
+
+        assert node.update() == Status.FAILURE
+        assert node.closed_case_id is None
 
     def test_a_missing_datalayer_raises_rather_than_answering(self):
         """With no store the node cannot tell, so neither status is safe."""

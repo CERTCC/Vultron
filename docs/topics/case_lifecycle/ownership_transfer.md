@@ -135,7 +135,7 @@ Ownership stays where it was: the ledger entry closes the offer, and no particip
 ## Offering again, withdrawing, and the deadline
 
 A case has at most one open offer at a time ([CM-21-014](../../reference/specs/protocol.md#cm-21-014)).
-An offer stays open until the ledger records that it was accepted, declined, withdrawn, or expired.
+An offer stays open until the ledger records that it was accepted, declined, or withdrawn, or until its deadline passes.
 While it is open, the CASE_MANAGER refuses a new proposal for the case, and neither records it nor makes an offer from it.
 It answers the refused proposal with a `Reject` of it, the [refusal notice](../../reference/messages/faults_and_acknowledgements.md#refusal-notice), which the owner reads as the decline of its proposal ([CLP-05-001](../../reference/specs/protocol.md#clp-05-001)).
 Once it is closed, the owner may propose the case again to anyone, including a participant that declined, with nothing to clear first.
@@ -168,13 +168,14 @@ Owner sends trigger: offer-case-ownership-transfer
   → Offer(Offer(VulnerabilityCase, endTime=deadline))
   → the Case Actor's Offer(VulnerabilityCase, endTime=deadline)
 
-Case Actor inbox receives an Accept, Reject or Undo of the offer
-from its party, or a new proposal for the case:
-  0. Is the open offer past its endTime?                ← CM-21-017
-     yes: Commits CaseLedgerEntry (offer expired),
-          Announce(CaseLedgerEntry) → all participants.
-  1. Handles the activity; the expired offer is closed,
-     so an answer to it is refused.                     ← CM-21-016
+Case Actor inbox receives an Accept, Reject or Undo of the offer,
+or a new proposal for the case:
+  0. Is the offer past its endTime?                     ← CM-21-017
+     yes: the offer is closed; nothing is recorded
+          or sent for the expiry.
+  1. Handles the activity: an answer to or withdrawal
+     of the expired offer is refused, and a new
+     proposal is admitted.                              ← CM-21-016
 ```
 
 An offer may also carry an `end_time`, the deadline to answer it ([CM-21-016](../../reference/specs/protocol.md#cm-21-016)).
@@ -187,11 +188,10 @@ A refused late answer moves no role and is not recorded in the ledger.
 This is stricter than the deadline on an embargo invitation, which is a strong suggestion.
 
 The CASE_MANAGER checks the deadline only when it handles an `Accept`, `Reject` or withdrawal of the offer, or a new proposal for the case; nothing runs on a timer ([CM-21-017](../../reference/specs/protocol.md#cm-21-017)).
-When it finds the open offer past its deadline, it first records the expiry in the ledger and sends the entry to every participant, and then handles the activity.
-Only the proposed owner's `Accept` or `Reject`, or the offering owner's withdrawal, prompts this check, so an actor with no part in the offer cannot make the CASE_MANAGER record anything ([HP-01-006](../../reference/specs/protocol.md#hp-01-006)).
-The expiry entry is distinct from a `Reject`: nobody declined, the deadline passed.
-It closes the offer like an `Accept`, a `Reject` or a withdrawal, so a late answer is refused, a withdrawal of the expired offer is refused, and a new proposal for the case is admitted.
-Only the CASE_MANAGER decides that an offer expired; every other participant learns it from the entry.
+An offer past its deadline is closed like an accepted, declined or withdrawn one, so a late answer is refused, a withdrawal of the expired offer is refused, and a new proposal for the case is admitted.
+The CASE_MANAGER records nothing and sends nothing for the expiry ([ADR-0152](../../adr/0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md)).
+Any participant that holds the case can read the deadline from the offer in the ledger, and no participant's copy of the case changes when it passes, so an entry would add nothing.
+Only the CASE_MANAGER judges a late answer, so only it compares the deadline with its clock.
 
 Without withdrawal and the deadline, a proposed owner that never answered would block every later transfer of the case.
 

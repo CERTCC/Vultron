@@ -95,15 +95,15 @@ cases have no active embargo, so "inert until a signatory" is wrong.
 A `CLOSED` participant's replication is assumed to have exited, so it is sent no case
 content, except the entries that record its own closure (CM-23-001): it receives every
 step up to the one that reaches `CLOSED` and waits for them rather than writing
-`CLOSED` itself. Later entries, `case_fully_closed` included, reach only participants
-not yet closed. The exception never widens entitlement, and the CM-31-009 embargo
-notice is the only other message a closed participant gets. Verify "all participants
-closed" in the CASE_MANAGER's store (`vultron/demo/helpers/closure.py`), and check
-each departing actor's replica only for its own closure. Closed-skipping is not an
-option: the one ledger fan-out (`FanOutLogEntryNode`) uses
-`ledger_entry_recipients()`, which adds back only the closed participant the entry
-is about (`entry_records_own_closure()`), and a replay answering a closed peer's
-`Reject(CaseLedgerEntry)` stops at `closed_participant_ledger_cutoff()`.
+`CLOSED` itself. Later entries, the CASE_MANAGER's own closure included, reach
+only participants not yet closed. The exception never widens entitlement, and the
+CM-31-009 embargo notice is the only other message a closed participant gets.
+Verify "all participants closed" in the CASE_MANAGER's store
+(`vultron/demo/helpers/closure.py`), and check each departing actor's replica only for
+its own closure. Closed-skipping is not an option: the one ledger fan-out
+(`FanOutLogEntryNode`) uses `ledger_entry_recipients()`, which adds back only the closed
+participant the entry is about (`entry_records_own_closure()`), and a replay answering a
+closed peer's `Reject(CaseLedgerEntry)` stops at `closed_participant_ledger_cutoff()`.
 
 ## Authority to act
 
@@ -120,7 +120,7 @@ from its role (CLP-09).
   every guard node for that kind. The bare active check is
   not enough: it leaves `CLOSED` out on purpose, because recipients need it.
   A closed participant would otherwise write to a case it can no longer see
-  (CM-23-004), and CM-23-013 stops writes only at `case_fully_closed`.
+  (CM-23-004), and CM-23-013 stops writes only once the case is fully closed.
 - **Two acts stay open to a closed sender.** `Reject(CaseLedgerEntry)` gets a replay
   capped at its own closure entries (`closed_participant_ledger_cutoff()`). Its guard
   stays the bare active check (SYNC-03-005), so its use case declares the
@@ -129,7 +129,7 @@ from its role (CLP-09).
   whatever its activity id: the closed-sender door guard asks `closure_recorded()`
   after the post-close boundary (the factory's `closed_sender` argument), and the
   handler reads it with `closed_sender_verdict()`. The Case Owner's `Leave` is the
-  exception until `case_fully_closed`: it closes the case too, so a Case Owner
+  exception until the case is fully closed: it closes the case too, so a Case Owner
   whose closure another act recorded still closes an open case with its `Leave`
   (`case_owner_completes=True`, CM-23-002). A failed owner `Leave` keeps none of
   its closure (CLP-07-015), so no redelivery has a half-done closure to finish.
@@ -156,6 +156,13 @@ from its role (CLP-09).
   `TIMED_OUT` rule (CM-28-004) is for embargo Invites only. Expiry is *stale*
   (ASK-03-002): a late `Accept` still joins and a late `Reject` still closes.
   "All participants closed" counts only participants that joined.
+- **Duplicate Accept (CM-17-012).** A stub-Invite `Accept` from a participant whose
+  record is joined (seated at case creation, or already accepted) or removed is an
+  idempotent skip: no entry, no record or consent change, nothing queued
+  (`CheckInviteeNotAlreadyParticipantNode`). Decide it from the participant record
+  alone, never from `VultronReplicationState`: the embargo pause and ledger sync
+  write that too. A joined participant consents to a later embargo only through that
+  embargo's Invite.
 - **Refusals (nothing written).** A stub Invite with no roles or no stub summary
   (CM-11-019, CM-17-010); an `Accept` or `Reject` of a stub from an invitee with no
   participant record (CM-11-018, CM-11-021) — never a silent no-op, never creates a
@@ -228,8 +235,8 @@ Removal withdraws entitlement; it does not delete the record (ADR-0116, CM-31).
   stays inert and is re-invited to it (EMB-17-003).
 - **A removed participant is asked nothing.** `invitation_recipients` omits it; the
   re-invite and reinstatement Invites check their recipient; both suggest-actor trees
-  refuse it before the commit; a replayed `Accept(Invite)` from it is a silent skip in
-  `CheckInviteeNotAlreadyParticipantNode`.
+  refuse it before the commit; a replayed `Accept(Invite)` from it is a silent skip
+  (CM-17-012).
 - **Embargo-ending notices.** Recipients are `embargo_ending_notice_recipients`; the
   decision is `embargo_ending_notice` (termination before the agreed end owes ET; a
   revision ending no later owes `Announce(EmbargoEvent)`; a longer revision or expiry

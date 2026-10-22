@@ -41,17 +41,6 @@ DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
 DEFAULT_RSVP_WINDOW = timedelta(days=7)
 """Default policy RSVP window when an invite names no deadline (EP-07-001)."""
 
-INVITE_EXPIRED_NOOP_SEMANTIC_TYPE = "invite_to_embargo_on_case_expired_noop"
-"""Ledger ``semantic_type`` for the CASE_MANAGER's no-op acknowledgement of a late Accept.
-
-Committed when a late ``Accept(Invite(EmbargoEvent))`` arrives after the embargo
-has EXITED or when no embargo has started (EM NONE).  Its snapshot is the
-CASE_MANAGER's factory-built ``Ignore`` of that Accept (CLP-07-013).  No PEC
-transition is applied (EMB-17-004, ADR-0118); replicas replay the entry via
-:class:`~vultron.core.behaviors.embargo.nodes.expiry.ApplyInviteExpiryNoopFromLedgerNode`
-which recognises it and returns SUCCESS without touching any participant record.
-"""
-
 EMBARGO_REINVITE_SEMANTIC_TYPE = "invite_to_embargo_on_case_reinvite"
 """Ledger ``semantic_type`` of the CASE_MANAGER's EMB-17-003 re-invite.
 
@@ -157,7 +146,6 @@ def resolve_rsvp_deadline(
 __all__ = [
     "DEFAULT_MIN_RSVP_WINDOW",
     "DEFAULT_RSVP_WINDOW",
-    "INVITE_EXPIRED_NOOP_SEMANTIC_TYPE",
     "RsvpDeadline",
     "RsvpDeadlineClamp",
     "resolve_rsvp_deadline",

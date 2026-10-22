@@ -177,7 +177,7 @@ Three cases apply:
 
 - If the terms it accepts are the case's current embargo, the CASE_MANAGER records the consent: a `TIMED_OUT` or `DECLINED` row moves to `AGREED` directly (EMB-17-002).
 - If the terms are stale, the CASE_MANAGER sends a fresh invitation carrying the current terms (EMB-17-003).
-- If no embargo remains, the CASE_MANAGER records the accept as a no-op and leaves the rows unchanged; the participant keeps its place in the case either way (EMB-17-004, EMB-17-008).
+- If no embargo remains, the accept changes nothing: the CASE_MANAGER records no entry, sends no reply and leaves the rows unchanged; the participant keeps its place in the case either way (EMB-17-004, EMB-17-008).
 
 **A time-out and a refusal reach different states.**
 Silence records `TIMED_OUT`; an explicit refusal records `DECLINED`.

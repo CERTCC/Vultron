@@ -30,9 +30,6 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.leave.fully_closed import (
-    CommitCaseFullyClosedNode,
-)
 from vultron.core.behaviors.case.nodes.proposal_ledger import (
     CommitNativeLedgerEntriesNode,
 )
@@ -59,7 +56,6 @@ NODES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
     "embargo decision": lambda: CommitEmbargoDecisionNode(
         case_id=_CASE, semantic_type="accept_embargo", builder=_unreachable
     ),
-    "case fully closed": lambda: CommitCaseFullyClosedNode(case_id=_CASE),
     "demo log entry": lambda: CommitDemoLogEntryNode(
         case_id=_CASE, object_id=_CASE, semantic_type="demo_event"
     ),

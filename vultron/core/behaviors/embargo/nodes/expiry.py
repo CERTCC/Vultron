@@ -40,10 +40,6 @@ A participant replica never evaluates a deadline and runs no ``TIME_OUT``:
 it copies the ``Update(EmbargoConsent)`` entry through the consent slot of
 ``create_announce_log_entry_tree`` (RSH-08-004, CM-28-016).
 
-For the no-op late-Accept decision (EMB-17-004):
-:class:`ApplyInviteExpiryNoopFromLedgerNode` recognises the entry and
-returns SUCCESS without applying any PEC transition.
-
 For the honour late-Accept decision (EMB-17-002):
 :class:`~vultron.core.behaviors.embargo.nodes.expiry_commit.CommitAndApplyHonourLateAcceptNode`
 commits the CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the
@@ -58,10 +54,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.node_logger import node_logger
-from vultron.core.behaviors.sync.nodes._helpers import (
-    _LedgerEffectNode,
-)
-from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.errors import VultronNotFoundError
 
@@ -212,48 +204,10 @@ class InviteNotExpiredNode(py_trees.behaviour.Behaviour):
 InviteExpiryChangedConsentNode = InviteExpiryNeedsApplyNode
 
 
-class ApplyInviteExpiryNoopFromLedgerNode(_LedgerEffectNode):
-    """Replay the CASE_MANAGER's no-op expiry entry on a replica (EMB-17-004).
-
-    The entry records that the CASE_MANAGER received a late ``Accept`` when
-    no embargo was active (EM EXITED or NONE), acknowledged it, and made no
-    PEC change (EMB-17-004, ADR-0118); its snapshot is the CASE_MANAGER's
-    ``Ignore`` of that Accept.  The replay node recognises the entry
-    and returns SUCCESS without touching any participant record, so the entry
-    is not mis-routed and its chain position is persisted on every replica.
-    Regime 2 (ADR-0087): a replica holding no copy of the case skips with
-    SUCCESS.
-    """
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        entry = self._get_entry()
-        case = self._resolve_case_replica(entry.case_id)
-        if case is None:
-            return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica
-        # The snapshot is the CASE_MANAGER's Ignore of the late Accept; the
-        # accepter is the Accept's own actor (EMB-17-004, CLP-07-013).
-        late_accept = entry.payload_snapshot.get("object")
-        invitee_id = (
-            snapshot_actor_id(late_accept.get("actor"))
-            if isinstance(late_accept, dict)
-            else None
-        )
-        self.feedback_message = (
-            f"Replayed no-op expiry ack for"
-            f" '{invitee_id or '(unknown)'}' on case '{case.id_}'"
-        )
-        self.logger.debug("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
-
-
 __all__ = [
     "CONSENT_CHANGED_KEY",
     "IS_EXPIRED_KEY",
     "NEEDS_APPLY_KEY",
-    "ApplyInviteExpiryNoopFromLedgerNode",
     "EvaluateInviteExpiryNode",
     "InviteExpiryChangedConsentNode",
     "InviteExpiryNeedsApplyNode",

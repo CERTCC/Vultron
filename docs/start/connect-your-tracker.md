@@ -5,6 +5,52 @@ description: >
 stakeholder_type: [platform-developer]
 level: 100
 page_type: routing
+thread:
+  - title: Understand the shape of the integration
+    kind: chain
+    members:
+      - page: topics/background/what-is-vultron.md
+        blurb: >-
+          the protocol, its four senses, and what conformance means for your system.
+      - page: topics/capability_model/index.md
+        blurb: >-
+          every decision the protocol leaves open, and the call-out point where your system answers it.
+      - page: howto/process_implementation.md
+        blurb: >-
+          where an existing ticket workflow's milestones map onto protocol messages.
+  - title: Send your first message
+    kind: chain
+    members:
+      - page: tutorials/submit-a-report.md
+        blurb: >-
+          one report, sent to a running actor, end to end.
+      - page: howto/activitypub/index.md
+        blurb: >-
+          the wire format every message uses.
+      - page: topics/message_semantics.md
+        blurb: >-
+          what each message means to the participant who receives it.
+      - page: topics/protocol_flow.md
+        blurb: >-
+          how a received message turns into state changes and replies.
+  - title: Build against the contract
+    kind: set
+    members:
+      - page: reference/vultron-spec/index.md
+        blurb: >-
+          the normative protocol, including the conformance claims your system can make.
+      - page: reference/messages/index.md
+        blurb: >-
+          every message, its fields, and when it is sent.
+      - page: reference/trigger-api.md
+        blurb: >-
+          the endpoints your system calls to act on a case.
+      - page: howto/wire_capability.md
+        blurb: >-
+          replacing a stub decision with your own service.
+      - page: howto/index.md
+        blurb: >-
+          the remaining task-oriented guides.
 ---
 
 # You maintain a vulnerability tracker and want it to talk to your partners
@@ -13,6 +59,8 @@ You build or run the system where vulnerability reports and cases live: a tracke
 Today your partners reach it through accounts on your system, or you reach theirs through accounts on theirs.
 This page is a reading path through the parts of this site that describe what your system sends, when it sends it, and where your own logic plugs in.
 Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
+
+<!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->
 
 ## Understand the shape of the integration
 
@@ -34,3 +82,5 @@ Each section builds on the ones before it; read a numbered list in order and a b
 - [Trigger API Reference](../reference/trigger-api.md) — the endpoints your system calls to act on a case.
 - [Wiring a Capability into the Reference Implementation](../howto/wire_capability.md) — replacing a stub decision with your own service.
 - [How-to Guides](../howto/index.md) — the remaining task-oriented guides.
+
+<!-- END GENERATED READING PATH -->

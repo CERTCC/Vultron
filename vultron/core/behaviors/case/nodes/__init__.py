@@ -91,7 +91,6 @@ from vultron.core.behaviors.case.nodes.invite_inert_participant import (
 )
 from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
     BackfillCanonicalLedgerToInviteeNode,
-    CapturePreCommitBackfillTargetNode,
     EmitAnnounceCaseToInviteeNode,
 )
 from vultron.core.behaviors.case.nodes.invite_participant import (
@@ -289,7 +288,6 @@ __all__ = [
     "ActivateInviteeParticipantNode",
     "CommitInviteeAcceptEntriesNode",
     # invite_ledger_backfill (leaf nodes)
-    "CapturePreCommitBackfillTargetNode",
     "BackfillCanonicalLedgerToInviteeNode",
     "EmitAnnounceCaseToInviteeNode",
 ]

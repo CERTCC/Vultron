@@ -1409,14 +1409,16 @@ class TestCheckPerActorReplicaRmClosedTermination:
             _status_entry(3, "CLOSED", "VF", "PXA", _ACTOR_B_ID),
             self._close(4, _ACTOR_A_ID),
             _status_entry(5, "CLOSED", "VF", "PXA", _ACTOR_A_ID),
-            _status_entry(6, "CLOSED", "VF", "PXA", self._MANAGER),
+            # A pending Invite settled at owner close (CM-23-014).
             _entry(
-                7,
-                _SHA256("fully:7"),
-                _SHA256("prev:7"),
-                semantic_type="case_fully_closed",
-                payload={"actor": _ACTOR_A_ID},
+                6,
+                _SHA256("expiry:6"),
+                _SHA256("prev:6"),
+                semantic_type="update_embargo_consent",
+                payload={"actor": self._MANAGER},
             ),
+            # The CASE_MANAGER's own closure is the write boundary.
+            _status_entry(7, "CLOSED", "VF", "PXA", self._MANAGER),
         ]
 
     def _check(self, **replicas: list[dict]) -> list[str]:
@@ -1432,7 +1434,7 @@ class TestCheckPerActorReplicaRmClosedTermination:
 
     @pytest.mark.spec("CM-23-004")
     def test_an_entry_after_the_own_closure_is_flagged(self):
-        """A closed participant sent case_fully_closed is a CM-23-004 breach."""
+        """A closed participant sent the manager's closure breaches CM-23-004."""
         violations = self._check(vendor=self._authority())
         assert len(violations) == 1
         assert "vendor" in violations[0]
@@ -1765,7 +1767,7 @@ def test_unique_payload_ids_ignores_snapshots_without_an_id():
 
 
 # ---------------------------------------------------------------------------
-# Invariant 18: check_no_participant_act_after_case_fully_closed (CM-23-013)
+# Invariant 18: check_no_participant_act_after_case_closure (CM-23-013)
 # ---------------------------------------------------------------------------
 
 _PC_MANAGER = "https://example.org/api/v2/actors/case-actor"
@@ -1799,7 +1801,6 @@ def _pc_ledger(*late: dict) -> dict[str, list[dict]]:
             _PC_MANAGER,
             _PC_MANAGER,
         ),
-        _pc_entry(3, "case_fully_closed", _PC_OWNER),
         *late,
     ]
     return {"case-actor": entries}
@@ -1808,13 +1809,11 @@ def _pc_ledger(*late: dict) -> dict[str, list[dict]]:
 @pytest.mark.spec("CM-23-013")
 def test_post_close_invariant_passes_when_the_owner_closes_last():
     from test.ci.invariants.common import (
-        check_no_participant_act_after_case_fully_closed,
+        check_no_participant_act_after_case_closure,
     )
 
     assert (
-        check_no_participant_act_after_case_fully_closed(
-            _pc_ledger(), _PC_NAMES
-        )
+        check_no_participant_act_after_case_closure(_pc_ledger(), _PC_NAMES)
         == []
     )
 
@@ -1822,25 +1821,25 @@ def test_post_close_invariant_passes_when_the_owner_closes_last():
 @pytest.mark.spec("CM-23-013")
 def test_post_close_invariant_flags_a_participant_act_after_the_boundary():
     from test.ci.invariants.common import (
-        check_no_participant_act_after_case_fully_closed,
+        check_no_participant_act_after_case_closure,
     )
 
-    (violation,) = check_no_participant_act_after_case_fully_closed(
-        _pc_ledger(_pc_entry(4, "close_case", _PC_REPORTER)), _PC_NAMES
+    (violation,) = check_no_participant_act_after_case_closure(
+        _pc_ledger(_pc_entry(3, "close_case", _PC_REPORTER)), _PC_NAMES
     )
-    assert "logIndex=4" in violation
+    assert "logIndex=3" in violation
     assert _PC_REPORTER in violation
 
 
 @pytest.mark.spec("CM-23-013")
 def test_post_close_invariant_allows_the_case_managers_own_entries():
     from test.ci.invariants.common import (
-        check_no_participant_act_after_case_fully_closed,
+        check_no_participant_act_after_case_closure,
     )
 
-    late = _pc_entry(4, "invite_expired", _PC_MANAGER)
+    late = _pc_entry(3, "invite_expired", _PC_MANAGER)
     assert (
-        check_no_participant_act_after_case_fully_closed(
+        check_no_participant_act_after_case_closure(
             _pc_ledger(late), _PC_NAMES
         )
         == []
@@ -1850,10 +1849,41 @@ def test_post_close_invariant_allows_the_case_managers_own_entries():
 @pytest.mark.spec("CM-23-002")
 def test_post_close_invariant_requires_the_boundary():
     from test.ci.invariants.common import (
-        check_no_participant_act_after_case_fully_closed,
+        check_no_participant_act_after_case_closure,
     )
 
-    replicas = {"case-actor": _pc_ledger()["case-actor"][:3]}
-    assert check_no_participant_act_after_case_fully_closed(
+    # The CASE_MANAGER names itself, but never records its own closure.
+    replicas = {
+        "case-actor": [
+            *_pc_ledger()["case-actor"][:2],
+            _pc_entry(2, "update_embargo_consent", _PC_MANAGER),
+        ]
+    }
+    assert check_no_participant_act_after_case_closure(
         replicas, _PC_NAMES
-    ) == ["expected exactly one 'case_fully_closed' entry, found 0"]
+    ) == [
+        "expected exactly one the CASE_MANAGER's own RM.CLOSED status entry,"
+        " found 0"
+    ]
+
+
+@pytest.mark.spec("CM-23-013")
+def test_post_close_invariant_does_not_take_the_owners_closure_as_boundary():
+    """The owner's RM.CLOSED status, written by the CASE_MANAGER, is not it."""
+    from test.ci.invariants.common import (
+        check_no_participant_act_after_case_closure,
+    )
+
+    entries = [
+        _pc_entry(0, "close_case", _PC_OWNER),
+        _pc_entry(
+            1, "add_participant_status_to_participant", _PC_MANAGER, _PC_OWNER
+        ),
+        _pc_entry(2, "update_embargo_consent", _PC_MANAGER),
+    ]
+    assert check_no_participant_act_after_case_closure(
+        {"case-actor": entries}, _PC_NAMES
+    ) == [
+        "expected exactly one the CASE_MANAGER's own RM.CLOSED status entry,"
+        " found 0"
+    ]

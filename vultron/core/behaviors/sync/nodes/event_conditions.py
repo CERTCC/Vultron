@@ -38,7 +38,6 @@ from vultron.core.models.participant_semantic_types import (
 )
 from vultron.core.models.rsvp_deadline import (
     EMBARGO_REINVITE_SEMANTIC_TYPE,
-    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
 )
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -449,18 +448,3 @@ class IsEmbargoReinviteEventNode(_SingleSemanticTypeNode):
     """
 
     matched_semantic_type = EMBARGO_REINVITE_SEMANTIC_TYPE
-
-
-class IsInviteExpiryNoopEventNode(_SingleSemanticTypeNode):
-    """Precondition: this entry is the CASE_MANAGER's no-op expiry acknowledgement.
-
-    Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_NOOP_SEMANTIC_TYPE`.
-    Committed when a late ``Accept`` arrives with no current embargo (EM EXITED
-    or NONE); the CASE_MANAGER acknowledges it without changing any PEC state
-    (EMB-17-004, ADR-0118).  Used in the ``InviteExpiryNoopEffects`` slot of
-    ``AnnounceLogEntryReceivedBT``.
-
-    Per EMB-17-004, CM-28-009, ADR-0118, BTND-08-001, SYNC-12-001.
-    """
-
-    matched_semantic_type = INVITE_EXPIRED_NOOP_SEMANTIC_TYPE

@@ -265,8 +265,9 @@ guards, commit, effects.
 
    Directly after intake the factory places `CaseOpenToExternalWritesNode`
    (`case/nodes/post_close.py`), the CM-23-013 write boundary: at the case's
-   CASE_MANAGER, once the ledger holds `case_fully_closed`, it fails the tree so
-   no commit, effect, or emit runs; on every other store it passes, so replicas
+   CASE_MANAGER, once the ledger holds its own `RM.CLOSED` status entry
+   (`case_is_fully_closed`, `core/predicates/case_closure.py`), it fails the
+   tree so no commit, effect, or emit runs; on every other store it passes, so replicas
    keep applying the closure fan-out. The handler verdict comes from
    `door_refusal` (`use_cases/received/_bt_verdict.py`), asked first by
    `verdict_from_bt` and `applied_or_raise`, so it is `REFUSED`. Never run a
@@ -310,35 +311,31 @@ guards, commit, effects.
    activity carries (`Announce` and `Reject` of a `CaseLedgerEntry`). Never
    place a sender check after a write: a snapshot an activity carries is
    stored only once its sender is admitted (the Engage tree, HP-01-006).
-3. **Clock decisions** — a decision the CASE_MANAGER takes from its own clock
-   or policy before judging the activity: an expiry, or the embargo end-time
-   check (CLP-10-025). It runs after the door guards, so an unentitled sender
-   never makes it write, and before the guards, because it is ledgered even
-   when the activity is then admitted (a new ownership Offer after the open one
-   expired, CM-21-014). It runs only at the CASE_MANAGER, commits only its own
-   entries — one per AS2 activity it needs, never the received activity's —
-   and reads only the clock, policy and the case's ledger and file. The
-   end-time check is about the case, so the factory adds it to every tree with
-   a case and both door guards (`case_clock_decisions`), and a case-scoped
-   trigger runs the same gated stage first in its own tree (BT-15-003). A
-   commit the ledger refuses logs a warning and does not end the tree; an
-   internal error does. A decision built from CASE_MANAGER commit nodes, which
-   raise on a failed commit, must judge the ledger's refusal (a gapped prefix,
-   SYNC-10-001) as FAILURE before it commits, as `end_time_clock_decision`
-   does with `CheckLedgerFreshnessNode`. Pass
-   the decision as `clock_decisions`: the factory wraps each in a
-   `ClockDecision` inside a `ClockDecisionStage`
-   (`case/nodes/clock_decision_stage.py`) behind a CASE_MANAGER gate, and
-   refuses one that holds the received activity's commit, or a tree with no
-   `sender_rule` or with a `post_close_exemption`, where a door guard would
-   not run before the decision writes (HP-01-006, CM-23-013). The ownership
-   Offer expiry (`ExpireOverdueOwnershipOfferNode`,
-   [ownership-transfer-close-paths](ownership-transfer-close-paths.md)) and
-   the embargo Invite expiry (`invite_expiry_decision`) are clock decisions,
-   as is the overdue-invitation sweep (`embargo_clock_decisions`, CM-28-015),
-   which every received embargo tree passes and `SvcEmbargoTriggerBase` adds
-   to its triggers' stage; never run one as a tree of its own before the
-   received tree.
+3. **Clock decisions** — a decision the CASE_MANAGER takes from its own clock or policy
+   before judging the activity: an expiry, or the embargo end-time check (CLP-10-025).
+   It runs after the door guards, so an unentitled sender never makes it write, and
+   before the guards, because it is ledgered even when the activity is then refused (an
+   overdue invitation timed out before a late Accept is judged, CM-28-015). A deadline
+   whose passing changes no case-file record, the ownership Offer's `end_time`, is no
+   clock decision: the guard reads it and nothing is ledgered (CM-21-017, ADR-0152). It
+   runs only at the CASE_MANAGER, commits only its own entries — one per AS2 activity it
+   needs, never the received activity's — and reads only the clock, policy and the
+   case's ledger and file. The end-time check is about the case, so the factory adds it
+   to every tree with a case and both door guards (`case_clock_decisions`), and a
+   case-scoped trigger runs the same gated stage first in its own tree (BT-15-003). A
+   commit the ledger refuses logs a warning and does not end the tree; an internal error
+   does. A decision built from CASE_MANAGER commit nodes, which raise on a failed
+   commit, must judge the ledger's refusal (a gapped prefix, SYNC-10-001) as FAILURE
+   before it commits, as `end_time_clock_decision` does with `CheckLedgerFreshnessNode`.
+   Pass the decision as `clock_decisions`: the factory wraps each in a `ClockDecision`
+   inside a `ClockDecisionStage` (`case/nodes/clock_decision_stage.py`) behind a
+   CASE_MANAGER gate, and refuses one that holds the received activity's commit, or a
+   tree with no `sender_rule` or with a `post_close_exemption`, where a door guard would
+   not run before the decision writes (HP-01-006, CM-23-013). The embargo Invite expiry
+   (`invite_expiry_decision`) is a clock decision, as is the overdue-invitation sweep
+   (`embargo_clock_decisions`, CM-28-015), which every received embargo tree passes and
+   `SvcEmbargoTriggerBase` adds to its triggers' stage; never run one as a tree of its
+   own before the received tree.
 4. **Guards** — read-only precondition checks that return FAILURE to refuse and
    write nothing. A refusal goes to the process log and, where the protocol
    calls for an answer, back to the sender — never to the ledger (CLP-05-002).

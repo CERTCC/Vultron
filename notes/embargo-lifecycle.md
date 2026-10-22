@@ -246,8 +246,10 @@ catch-up fetch or deferral, refuse instead.
   `Update(EmbargoConsent)` carrying the `TIMED_OUT` row if the row still needs
   `TIME_OUT` (the Accept tree's clock decision,
   CLP-10-025), then routes to honour (EMB-17-001),
-  re-invite (EMB-17-003) or no-op (EMB-17-004). Each branch commits an entry so
-  replicas learn the outcome (RSH-08-004), and each runs only at the
+  re-invite (EMB-17-003) or no-op (EMB-17-004). Honour and re-invite commit an
+  entry so replicas learn the outcome (RSH-08-004); the no-op changes nothing
+  anywhere, so it commits and sends nothing and is `SKIPPED` (ADR-0152,
+  CLP-02-013). Each runs only at the
   CASE_MANAGER — the expiry behind the received-tree factory's clock-decision
   gate, the routing trees in `vultron/core/behaviors/embargo/expiry_tree.py`
   behind their own; a non-manager gets `REFUSED` and changes no consent
@@ -255,8 +257,10 @@ catch-up fetch or deferral, refuse instead.
   table is in `notes/participant-embargo-consent.md` § "Expiry is lazy, and
   only the CASE_MANAGER's".
 - **Owner close settles pending Invites without waiting.** After close an Invite
-  can only expire, so `ExpirePendingInvitesOnCloseNode` runs between the
-  CASE_MANAGER's `RM.CLOSED` entry and `case_fully_closed`, reusing the
+  can only expire, so `ExpirePendingInvitesOnCloseNode` runs right after the
+  `close_case` entry, before any closure step: the CASE_MANAGER's own
+  `RM.CLOSED` entry is the write boundary, and a Case Owner holding
+  CASE_MANAGER writes it in its own closure. It reuses the
   late-Accept expiry subtree for each pending invitation. Its `published` is the
   CASE_MANAGER's clock, because the invitee sent nothing. Each expiry commits
   before it writes the consent row, so a refused one writes nothing; it is

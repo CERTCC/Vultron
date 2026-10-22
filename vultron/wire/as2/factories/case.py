@@ -835,37 +835,6 @@ def undo_case_ownership_transfer_activity(
         ) from exc
 
 
-def withdraw_expired_case_ownership_offer_activity(
-    offer: as_Offer,
-    **kwargs,
-) -> as_Undo:
-    """Build an Undo(_OfferCaseOwnershipTransferActivity): an expiry.
-
-    The CASE_MANAGER withdraws the ownership-transfer Offer it made
-    (ADR-0148) once the Offer passed its ``end_time`` unanswered
-    (CM-21-017, ADR-0140).  The Offer is carried inline, its ``endTime`` the
-    deadline that passed; the Case Owner's own withdrawal is an ``Undo`` of
-    its proposal instead (:func:`undo_case_ownership_transfer_activity`).
-
-    Args:
-        offer: The ``_OfferCaseOwnershipTransferActivity`` that expired.
-        **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``).
-
-    Returns:
-        An ``as_Undo`` whose ``object_`` is the Offer.
-
-    Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
-    """
-    return _ownership_offer_reply(
-        as_Undo,
-        "withdraw_expired_case_ownership_offer_activity",
-        offer,
-        kwargs,
-    )
-
-
 def rm_invite_to_case_activity(
     invitee: as_Actor | str,
     target: Any,

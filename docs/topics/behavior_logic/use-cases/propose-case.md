@@ -139,7 +139,7 @@ The `Accept` takes an id derived from the proposal.
 A duplicate proposal queues the stored `Accept` again under that id, unless it is still waiting in the outbox.
 The CASE_MANAGER finds the case through the `Accept` it stored for the proposal, not only through the case's current owner.
 So a former owner's redelivery after an ownership transfer creates no second case, and it does not make the former owner CASE_OWNER again (CM-21-001).
-The exception is a case that is fully closed, that is, its ledger holds `case_fully_closed`.
+The exception is a case that is fully closed, that is, its ledger holds the CASE_MANAGER's own status entry reaching RM `CLOSED`.
 The stored `Accept` would lead into the accept path, which writes to the case, and a closed case accepts no further writes (CM-23-013).
 So the CASE_MANAGER answers the duplicate with `Reject(as_CaseProposal)` instead, and commits no ledger entry and changes no case or participant state.
 The `Reject` declines only the redelivery: the stored `Accept` stands, and the proposer learns only that nothing more will be done for the proposal.

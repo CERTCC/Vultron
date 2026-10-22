@@ -446,16 +446,21 @@ A replica effect keys off its own entry's `payloadSnapshot.actor`, so one
 actor's transition can never be inferred from an entry attributed to someone
 else. Hence the CASE_MANAGER's own `RM.CLOSED` needs its own entry
 (`CommitRMClosureEntriesNode`, `case/nodes/leave/record.py`); neither
-`close_case` (the leaver) nor `case_fully_closed` (the owner) can stand in.
+`close_case` (the leaver) nor the Case Owner's own steps can stand in.
 
-Owner-close order: `close_case`, the Case Owner's RM steps, the CASE_MANAGER's
-own steps, one `TIMED_OUT` `Update(EmbargoConsent)` per pending Invite, then
-`case_fully_closed` (CM-23-002, CM-23-014). `close_case` has no replay slot
+Owner-close order: `close_case`, one `TIMED_OUT` `Update(EmbargoConsent)` per
+pending Invite, the Case Owner's RM steps, then the CASE_MANAGER's own steps
+(CM-23-002, CM-23-014). The settle step comes first because a Case Owner may
+hold CASE_MANAGER too, and then its own steps are the boundary. The
+CASE_MANAGER's status entry reaching `RM.CLOSED` is the write
+boundary; no marker entry follows, because it would record nothing a replica
+lacks (ADR-0152). Every boundary check asks `entry_closes_case_manager`
+(`core/predicates/case_closure.py`). `close_case` has no replay slot
 (CM-23-001, CM-23-016).
 
 - **Recording is best-effort.** The node warns and returns SUCCESS where it
-  cannot produce the entry, because a FAILURE would skip `case_fully_closed` and
-  the enclosing Selector would misreport the owner arm. A nested result flagged
+  cannot produce the entry, because a FAILURE would skip the rest of the owner
+  arm and the enclosing Selector would misreport it. A nested result flagged
   `internal_error` still raises `VultronBTInternalError`, so a bug never reads as
   a WARNING (#4113).
 - **It is committed inline, not through the loopback.** CM-23-002 needs a fixed

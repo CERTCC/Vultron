@@ -674,15 +674,18 @@ def _recorded_ids(entry: dict) -> list[str]:
     return ids
 
 
-def check_no_participant_act_after_case_fully_closed(
+def check_no_participant_act_after_case_closure(
     replicas: dict[str, list[dict]],
     actor_names: Mapping[str, str],
 ) -> list[str]:
-    """No entry after ``case_fully_closed`` records a participant's act.
+    """No entry after the case's full closure records a participant's act.
 
     The whole-scenario form of the CM-23-013 write boundary: on the
-    CASE_MANAGER's exported ledger, ``case_fully_closed`` appears exactly once,
-    and every later entry is the CASE_MANAGER's own (CM-23-002, CM-23-015).
+    CASE_MANAGER's exported ledger, its own status entry reaching
+    ``RM.CLOSED`` appears exactly once
+    (:func:`~vultron.core.predicates.case_closure.closure_boundary_indices`,
+    the predicate the core post-close guard applies), and every later entry
+    is the CASE_MANAGER's own (CM-23-002, CM-23-015).
     The ledger judgement is
     :func:`~vultron.demo.helpers.milestones.case_closure_violations`, the same
     one each scenario's closure ``demo_check`` runs live, so the two cannot

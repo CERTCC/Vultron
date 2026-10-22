@@ -179,7 +179,6 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyCreateCaseParticipantFromLedgerNode",
             "ApplyInviteAcceptFromLedgerNode",
             "ApplyInviteRejectFromLedgerNode",
-            "ApplyInviteExpiryNoopFromLedgerNode",
             "ApplyNoteFromLedgerNode",
             "ApplyOfferReportFromLedgerNode",
             "ApplyOwnershipTransferFromLedgerNode",
@@ -276,10 +275,6 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         " writes nothing"
     ),
     (f"{_B}.case.nodes.intake", "IntakeReceivedActivityNode"): _ARCHIVE,
-    (
-        f"{_B}.case.nodes.invite_ledger_backfill",
-        "BackfillCanonicalLedgerToInviteeNode",
-    ): _LEDGER,
     (
         f"{_B}.case.nodes.invite_received",
         "RecordInviteTrustAnchorNode",
